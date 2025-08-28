@@ -223,6 +223,9 @@ impl<'a> Project<'a> {
             ui.start_proof(&proof.name, proof.game_hops.len().try_into().unwrap());
 
             let theorem = Theorem::try_new(&proof);
+            if theorem.is_none() {
+                log::warn!("Could not conclude Real ~ Ideal from game-hops");
+            }
 
             if let Some(ref req_proof) = req_proof {
                 if proof_key != req_proof {

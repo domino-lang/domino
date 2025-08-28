@@ -13,7 +13,7 @@ pub struct Theorem<'a> {
     proof: &'a Proof<'a>,
     // Specialized Instance -> reference to more general instance in the proof
     specialization: Vec<(GameInstance, &'a GameInstance)>,
-    sequence: Vec<usize>
+    sequence: Vec<usize>,
 }
 
 impl<'a> Theorem<'a> {
@@ -38,7 +38,10 @@ impl<'a> Theorem<'a> {
 
         while !workque.is_empty() {
             let current_idx = workque.pop_front().unwrap();
-            log::debug!("next up: {current_idx} : {}", &specialization[current_idx].0.name);
+            log::debug!(
+                "next up: {current_idx} : {}",
+                &specialization[current_idx].0.name
+            );
 
             if game_is_compatible(&proof.instances[ideal], &specialization[current_idx].0) {
                 let mut path = Vec::new();
@@ -102,7 +105,8 @@ fn specialize<'a>(
             .into_iter()
             .map(|(var, val)| {
                 if matches!(val, Expression::Identifier(_)) {
-                    let other_val = specialization[game].0
+                    let other_val = specialization[game]
+                        .0
                         .consts
                         .iter()
                         .find_map(|(other_var, other_val)| {
@@ -117,8 +121,9 @@ fn specialize<'a>(
                     match other_val {
                         Expression::Identifier(_) => (var, val),
                         Expression::BooleanLiteral(_) => (var, other_val.clone()),
-                        _ => {unimplemented!()}
-                            
+                        _ => {
+                            unimplemented!()
+                        }
                     }
                 } else {
                     (var, val)
