@@ -1,4 +1,5 @@
 use crate::parser::ast::Identifier;
+use itertools::Itertools;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::iter::zip;
 
@@ -14,6 +15,7 @@ pub struct Theorem<'a> {
     // Specialized Instance -> reference to more general instance in the proof
     specialization: Vec<(GameInstance, &'a GameInstance)>,
     sequence: Vec<usize>,
+    hops: Vec<usize>,
 }
 
 impl<'a> Theorem<'a> {
@@ -45,33 +47,108 @@ impl<'a> Theorem<'a> {
 
             if game_is_compatible(&proof.instances[ideal], &specialization[current_idx].0) {
                 let mut path = Vec::new();
+                let mut hops = Vec::new();
                 path.push(ideal);
                 loop {
-                    let cur = predecessors[path.last().unwrap()];
+                    let (cur, hop) = predecessors[path.last().unwrap()];
                     path.push(cur);
+                    hops.push(hop);
                     if cur == real {
                         break;
                     }
                 }
                 path.reverse();
-                log::info!("found theorem {path:?}");
+                hops.reverse();
+                log::info!("found theorem; games: {path:?}, gamehops: {hops:?}");
                 return Some(Theorem {
                     proof,
                     specialization,
                     sequence: path,
+                    hops,
                 });
             } else {
                 let reach = reachable_games(proof, &mut specialization, current_idx);
-                for entry in reach {
+                for (entry, hop) in reach {
                     if predecessors.contains_key(&entry) {
                         continue;
                     }
                     workque.push_back(entry);
-                    predecessors.insert(entry, current_idx);
+                    predecessors.insert(entry, (current_idx, hop));
                 }
             }
         }
         None
+    }
+
+    fn assignments(
+        &'a self,
+        game: &'a GameInstance,
+        hop: &'a GameHop,
+    ) -> impl Iterator<Item = (String, String)> + 'a {
+        let left = self
+            .proof
+            .find_game_instance(hop.left_game_instance_name())
+            .unwrap();
+        let right = self
+            .proof
+            .find_game_instance(hop.right_game_instance_name())
+            .unwrap();
+
+        let reference = if game_is_compatible(game, left) {
+            left
+        } else {
+            right
+        };
+
+        game.consts.iter().filter_map(|(var, val)| {
+            let other_val = reference
+                .consts
+                .iter()
+                .find_map(|(other_var, other_val)| {
+                    if var.name == other_var.name {
+                        Some(other_val)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+
+            if let Expression::Identifier(ident) = other_val {
+                if let Expression::BooleanLiteral(lit) = val {
+                    return Some((ident.ident(), lit.clone()));
+                }
+            }
+            None
+        })
+    }
+}
+
+impl std::fmt::Display for Theorem<'_> {
+    // This trait requires `fmt` with this exact signature.
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Theorem {}:\n", self.proof.name)?;
+        write!(f, "Real\n")?;
+        for i in 0..self.hops.len() {
+            let left = &self.specialization[self.sequence[i]];
+            let right = &self.specialization[self.sequence[i + 1]];
+            let hop = &self.proof.game_hops[self.hops[i]];
+
+            write!(
+                f,
+                "{} ({})\n",
+                left.1.name,
+                self.assignments(&left.0, hop)
+                    .map(|(a, b)| { format!("{}={}", a, b) })
+                    .join(", ")
+            )?;
+            write!(f, "    {}\n", hop)?;
+            write!(f, "{} ({})\n", right.1.name,
+                self.assignments(&right.0, hop)
+                    .map(|(a, b)| { format!("{}={}", a, b) })
+                    .join(", "))?;
+        }
+        write!(f, "Ideal\n")?;
+        Ok(())
     }
 }
 
@@ -197,7 +274,7 @@ fn reachable_games<'a>(
     proof: &'a Proof,
     specialization: &mut Vec<(GameInstance, &'a GameInstance)>,
     game: usize,
-) -> impl Iterator<Item = usize> {
+) -> impl Iterator<Item = (usize, usize)> {
     // let (left, right): (Vec<_>, Vec<_>) = proof
     //     .game_hops
     //     .iter()
@@ -206,9 +283,9 @@ fn reachable_games<'a>(
 
     let mut specialization = specialization;
     let mut positions = Vec::new();
-    for hop in &proof.game_hops {
+    for (idx, hop) in proof.game_hops.iter().enumerate() {
         if let Some(position) = other_game(proof, specialization, game, hop) {
-            positions.push(position);
+            positions.push((position, idx));
         }
     }
     positions.into_iter()

@@ -225,6 +225,8 @@ impl<'a> Project<'a> {
             let theorem = Theorem::try_new(&proof);
             if theorem.is_none() {
                 log::warn!("Could not conclude Real ~ Ideal from game-hops");
+            } else {
+                log::info!("{}", theorem.unwrap());
             }
 
             if let Some(ref req_proof) = req_proof {
