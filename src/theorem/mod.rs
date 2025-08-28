@@ -13,6 +13,7 @@ pub struct Theorem<'a> {
     proof: &'a Proof<'a>,
     // Specialized Instance -> reference to more general instance in the proof
     specialization: Vec<(GameInstance, &'a GameInstance)>,
+    sequence: Vec<usize>
 }
 
 impl<'a> Theorem<'a> {
@@ -33,19 +34,38 @@ impl<'a> Theorem<'a> {
             .collect();
         let mut workque = VecDeque::new();
         workque.push_back(real);
+        let mut predecessors = HashMap::new();
 
         while !workque.is_empty() {
             let current_idx = workque.pop_front().unwrap();
-            log::debug!("next up: {current_idx}");
+            log::debug!("next up: {current_idx} : {}", &specialization[current_idx].0.name);
 
             if game_is_compatible(&proof.instances[ideal], &specialization[current_idx].0) {
+                let mut path = Vec::new();
+                path.push(ideal);
+                loop {
+                    let cur = predecessors[path.last().unwrap()];
+                    path.push(cur);
+                    if cur == real {
+                        break;
+                    }
+                }
+                path.reverse();
+                log::info!("found theorem {path:?}");
                 return Some(Theorem {
                     proof,
                     specialization,
+                    sequence: path,
                 });
             } else {
                 let reach = reachable_games(proof, &mut specialization, current_idx);
-                workque.extend(reach);
+                for entry in reach {
+                    if predecessors.contains_key(&entry) {
+                        continue;
+                    }
+                    workque.push_back(entry);
+                    predecessors.insert(entry, current_idx);
+                }
             }
         }
         None
