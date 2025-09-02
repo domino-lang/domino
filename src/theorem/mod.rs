@@ -226,48 +226,16 @@ fn other_game<'a>(
     game: usize,
     hop: &'a GameHop,
 ) -> Option<usize> {
-    match hop {
-        GameHop::Equivalence(eq) => {
-            if game_is_compatible(
-                &specialization[game].0,
-                proof.find_game_instance(&eq.left_name).unwrap(),
-            ) {
-                return Some(specialize(
-                    specialization,
-                    game,
-                    proof.find_game_instance(&eq.left_name).unwrap(),
-                    proof.find_game_instance(&eq.right_name).unwrap(),
-                ));
-            }
-            if game_is_compatible(
-                &specialization[game].0,
-                proof.find_game_instance(&eq.right_name).unwrap(),
-            ) {
-                return Some(specialize(
-                    specialization,
-                    game,
-                    proof.find_game_instance(&eq.right_name).unwrap(),
-                    proof.find_game_instance(&eq.left_name).unwrap(),
-                ));
-            }
-            return None;
-        }
-        GameHop::Reduction(red) => {
-            let left = proof
-                .find_game_instance(&red.left().construction_game_instance_name().as_str())
-                .unwrap();
-            let right = proof
-                .find_game_instance(&red.right().construction_game_instance_name().as_str())
-                .unwrap();
-            if game_is_compatible(&specialization[game].0, left) {
-                return Some(specialize(specialization, game, left, right));
-            }
-            if game_is_compatible(&specialization[game].0, right) {
-                return Some(specialize(specialization, game, right, left));
-            }
-            return None;
-        }
+    let left_game = proof.find_game_instance(hop.left_game_instance_name()).unwrap();
+    let right_game = proof.find_game_instance(hop.right_game_instance_name()).unwrap();
+
+    if game_is_compatible(&specialization[game].0, left_game) {
+        return Some(specialize(specialization, game, left_game, right_game));
     }
+    if game_is_compatible(&specialization[game].0, right_game) {
+        return Some(specialize(specialization, game, right_game, left_game));
+    }
+    None
 }
 
 fn reachable_games<'a>(
