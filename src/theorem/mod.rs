@@ -1,7 +1,5 @@
-use crate::parser::ast::Identifier;
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::iter::zip;
 
 use crate::{
     expressions::Expression,
@@ -126,28 +124,28 @@ impl<'a> Theorem<'a> {
 impl std::fmt::Display for Theorem<'_> {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Theorem {}:\n", self.proof.name)?;
-        write!(f, "Real\n")?;
+        writeln!(f, "Theorem {}:", self.proof.name)?;
+        writeln!(f, "Real")?;
         for i in 0..self.hops.len() {
             let left = &self.specialization[self.sequence[i]];
             let right = &self.specialization[self.sequence[i + 1]];
             let hop = &self.proof.game_hops[self.hops[i]];
 
-            write!(
+            writeln!(
                 f,
-                "{} ({})\n",
+                "{} ({})",
                 left.1.name,
                 self.assignments(&left.0, hop)
                     .map(|(a, b)| { format!("{}={}", a, b) })
                     .join(", ")
             )?;
-            write!(f, "    {}\n", hop)?;
-            write!(f, "{} ({})\n", right.1.name,
+            writeln!(f, "    {}", hop)?;
+            writeln!(f, "{} ({})", right.1.name,
                 self.assignments(&right.0, hop)
                     .map(|(a, b)| { format!("{}={}", a, b) })
                     .join(", "))?;
         }
-        write!(f, "Ideal\n")?;
+        writeln!(f, "Ideal")?;
         Ok(())
     }
 }
@@ -249,7 +247,7 @@ fn reachable_games<'a>(
     //     .map(|hop| other_game(proof, specialization, game, hop))
     //     .unzip();
 
-    let mut specialization = specialization;
+    let specialization = specialization;
     let mut positions = Vec::new();
     for (idx, hop) in proof.game_hops.iter().enumerate() {
         if let Some(position) = other_game(proof, specialization, game, hop) {
@@ -273,9 +271,9 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     }
 
     let specific_const_names: HashSet<_> =
-        specific.consts.iter().map(|(var, val)| &var.name).collect();
+        specific.consts.iter().map(|(var, _val)| &var.name).collect();
     let general_const_names: HashSet<_> =
-        general.consts.iter().map(|(var, val)| &var.name).collect();
+        general.consts.iter().map(|(var, _val)| &var.name).collect();
 
     if specific_const_names != general_const_names {
         return false;
