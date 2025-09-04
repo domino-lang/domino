@@ -26,7 +26,7 @@ impl<W: Write> Writer<W> {
             }
             Identifier::PackageIdentifier(_) => todo!(),
             Identifier::GameIdentifier(_) => todo!(),
-            Identifier::ProofIdentifier(_) => todo!(),
+            Identifier::TheoremIdentifier(_) => todo!(),
         }
 
         Ok(())

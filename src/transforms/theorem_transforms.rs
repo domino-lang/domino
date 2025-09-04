@@ -1,6 +1,6 @@
 use std::{collections::HashSet, convert::Infallible};
 
-use crate::{proof::GameInstance, types::Type};
+use crate::{theorem::GameInstance, types::Type};
 
 use super::{
     resolveoracles::{self, ResolutionError},
@@ -10,20 +10,20 @@ use super::{
 
 pub struct EquivalenceTransform;
 
-impl super::ProofTransform for EquivalenceTransform {
+impl super::TheoremTransform for EquivalenceTransform {
     type Err = Infallible;
 
     type Aux = Vec<(String, (HashSet<Type>, samplify::SampleInfo))>;
 
-    fn transform_proof<'a>(
+    fn transform_theorem<'a>(
         &self,
-        proof: &'a crate::proof::Proof<'a>,
-    ) -> Result<(crate::proof::Proof<'a>, Self::Aux), Self::Err> {
-        let results = proof.instances.iter().map(transform_game_inst);
+        theorem: &'a crate::theorem::Theorem<'a>,
+    ) -> Result<(crate::theorem::Theorem<'a>, Self::Aux), Self::Err> {
+        let results = theorem.instances.iter().map(transform_game_inst);
         let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
-        let proof = proof.with_new_instances(instances);
+        let theorem = theorem.with_new_instances(instances);
 
-        Ok((proof, auxs))
+        Ok((theorem, auxs))
     }
 }
 

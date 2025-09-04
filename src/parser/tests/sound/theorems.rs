@@ -3,8 +3,8 @@ use crate::parser::{
         AssumptionExportsNotSufficientError, AssumptionMappingContainsDifferentPackagesError,
         ReductionPackageInstanceParameterMismatchError,
     },
-    proof::ParseProofError,
-    tests::{games, packages, proofs, slice_source_span},
+    theorem::ParseTheoremError,
+    tests::{games, packages, theorems, slice_source_span},
 };
 
 #[test]
@@ -26,9 +26,9 @@ fn fail_reduction_assumption_is_second() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails("reduction-assumption-2nd-should-fail.ssp", &pkgs, &games);
+    let err = theorems::parse_file_fails("reduction-assumption-2nd-should-fail.ssp", &pkgs, &games);
 
-    let crate::parser::proof::ParseProofError::AssumptionMappingRightGameInstanceIsFromAssumption(
+    let crate::parser::theorem::ParseTheoremError::AssumptionMappingRightGameInstanceIsFromAssumption(
         err,
     ) = err
     else {
@@ -58,9 +58,9 @@ fn fail_reduction_construction_is_first() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails("reduction-construction-1st-should-fail.ssp", &pkgs, &games);
+    let err = theorems::parse_file_fails("reduction-construction-1st-should-fail.ssp", &pkgs, &games);
 
-    let crate::parser::proof::ParseProofError::AssumptionMappingLeftGameInstanceIsNotFromAssumption(
+    let crate::parser::theorem::ParseTheoremError::AssumptionMappingLeftGameInstanceIsNotFromAssumption(
         err,
     ) = err
     else {
@@ -90,13 +90,13 @@ fn fail_reduction_construction_game_inst_not_defined() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-missing-1st-construction-game-instance-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let crate::parser::proof::ParseProofError::UndefinedGameInstance(err) = err else {
+    let crate::parser::theorem::ParseTheoremError::UndefinedGameInstance(err) = err else {
         panic!("expected a different error. got error {err}")
     };
 
@@ -123,13 +123,13 @@ fn fail_reduction_construction_game_inst_not_defined2() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-missing-2nd-construction-game-instance-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let crate::parser::proof::ParseProofError::UndefinedGameInstance(err) = err else {
+    let crate::parser::theorem::ParseTheoremError::UndefinedGameInstance(err) = err else {
         panic!("expected a different error. got error {err}")
     };
 
@@ -156,13 +156,13 @@ fn fail_reduction_assumption_not_defined() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-missing-assumption-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let crate::parser::proof::ParseProofError::UndefinedAssumption(err) = err else {
+    let crate::parser::theorem::ParseTheoremError::UndefinedAssumption(err) = err else {
         panic!("expected a different error. got error {err}")
     };
 
@@ -196,13 +196,13 @@ fn fail_reduction_assumption_exposes_less() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-assumption-exposes-less-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let ParseProofError::AssumptionExportsNotSufficient(inner_err) = &err else {
+    let ParseTheoremError::AssumptionExportsNotSufficient(inner_err) = &err else {
         panic!("expected a different error. got {err}")
     };
     let AssumptionExportsNotSufficientError {
@@ -249,13 +249,13 @@ fn fail_reduction_inconsistent_wiring_less() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-inconsistent-wiring-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let ParseProofError::AssumptionExportsNotSufficient(AssumptionExportsNotSufficientError {
+    let ParseTheoremError::AssumptionExportsNotSufficient(AssumptionExportsNotSufficientError {
         source_code,
         assumption_at,
         construction_at,
@@ -302,13 +302,13 @@ fn fail_reduction_non_matching_package_fail() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-non-matching-package-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let ParseProofError::AssumptionMappingContainsDifferentPackages(
+    let ParseTheoremError::AssumptionMappingContainsDifferentPackages(
         AssumptionMappingContainsDifferentPackagesError {
             assumption_pkg_inst_name,
             construction_pkg_inst_name,
@@ -353,9 +353,9 @@ fn fail_reduction_changes_fail() {
         &pkgs,
     );
 
-    let _err = proofs::parse_file_fails("reduction-changes-should-fail.ssp", &pkgs, &games);
+    let _err = theorems::parse_file_fails("reduction-changes-should-fail.ssp", &pkgs, &games);
 
-    //    let ParseProofError::InconsistentReductions(
+    //    let ParseTheoremError::InconsistentReductions(
     //        InconsistentReductions {
     //            construction_pkg_inst_name,
     //
@@ -395,13 +395,13 @@ fn fail_wrong_params_in_reduction_should_fail() {
         &pkgs,
     );
 
-    let err = proofs::parse_file_fails(
+    let err = theorems::parse_file_fails(
         "reduction-wrong-package-params-should-fail.ssp",
         &pkgs,
         &games,
     );
 
-    let ParseProofError::ReductionPackageInstanceParameterMismatch(
+    let ParseTheoremError::ReductionPackageInstanceParameterMismatch(
         ReductionPackageInstanceParameterMismatchError {
             left_pkg_inst_name,
             right_pkg_inst_name,

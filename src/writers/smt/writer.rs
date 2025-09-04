@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::expressions::Expression;
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, PackageInstance};
-use crate::proof::GameInstance;
+use crate::theorem::GameInstance;
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
 use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;

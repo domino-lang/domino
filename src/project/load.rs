@@ -4,8 +4,8 @@ use super::*;
 use error::Result;
 
 use crate::package::{Composition, Package};
-use crate::parser::{composition::handle_composition, proof::handle_proof, SspParser};
-use crate::proof::Proof;
+use crate::parser::{composition::handle_composition, theorem::handle_theorem, SspParser};
+use crate::theorem::Theorem;
 
 pub(crate) fn games(
     files: &[(String, String)],
@@ -26,31 +26,31 @@ pub(crate) fn games(
     Ok(games)
 }
 
-pub(crate) fn proofs(
+pub(crate) fn theorems(
     files: &[(String, String)],
     pkgs: HashMap<String, Package>,
     games: HashMap<String, Composition>,
-) -> Result<HashMap<String, Proof<'_>>> {
-    let mut proofs = HashMap::new();
+) -> Result<HashMap<String, Theorem<'_>>> {
+    let mut theorems = HashMap::new();
 
     for (file_name, file_content) in files {
         let parse_result =
-            SspParser::parse_proof(file_content).map_err(|err| (file_name.as_str(), err))?;
+            SspParser::parse_theorem(file_content).map_err(|err| (file_name.as_str(), err))?;
 
         let mut ast = parse_result;
-        let proof = handle_proof(
+        let theorem = handle_theorem(
             file_name,
             file_content,
             ast.next().unwrap(),
             pkgs.clone(),
             games.clone(),
         )?;
-        let proof_name = proof.name.to_string();
+        let theorem_name = theorem.name.to_string();
 
-        proofs.insert(proof_name, proof);
+        theorems.insert(theorem_name, theorem);
     }
 
-    Ok(proofs)
+    Ok(theorems)
 }
 
 /*
@@ -147,7 +147,7 @@ fn validate_game_hops(
                         (true, true) => unreachable!(),
                     };
 
-                    return Err(Error::ProofTreeValidationError(err_msg));
+                    return Err(Error::TheoremTreeValidationError(err_msg));
                 }
 
                 let sig_names: HashSet<_> =
@@ -160,8 +160,8 @@ fn validate_game_hops(
                         .map(|x| *x)
                         .cloned()
                         .collect_vec();
-                    return Err(Error::ProofTreeValidationError(format!(
-                        "proof trees {diff:?} refer to unexported oracles"
+                    return Err(Error::TheoremTreeValidationError(format!(
+                        "theorem trees {diff:?} refer to unexported oracles"
                     )));
                 }
             }

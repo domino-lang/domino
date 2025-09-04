@@ -8,7 +8,7 @@ use crate::{
     gamehops::GameHop,
     identifier::{
         game_ident::GameConstIdentifier,
-        proof_ident::{ProofConstIdentifier, ProofIdentifier::Const},
+        theorem_ident::{TheoremConstIdentifier, TheoremIdentifier::Const},
         Identifier,
     },
     package::{Composition, Package},
@@ -21,7 +21,7 @@ use crate::{
         },
         Rule,
     },
-    proof::{Claim, GameInstance, Proof},
+    theorem::{Claim, GameInstance, Theorem},
     types::Type,
     util::scope::{Declaration, Error as ScopeError, Scope},
 };
@@ -50,14 +50,14 @@ use super::{
 };
 
 #[derive(Debug)]
-pub(crate) struct ParseProofContext<'a> {
+pub(crate) struct ParseTheoremContext<'a> {
     pub file_name: &'a str,
     pub file_content: &'a str,
     pub scope: Scope,
 
     pub types: Vec<String>,
 
-    pub proof_name: &'a str,
+    pub theorem_name: &'a str,
 
     pub consts: HashMap<String, Type>,
     pub instances: Vec<GameInstance>,
@@ -67,7 +67,7 @@ pub(crate) struct ParseProofContext<'a> {
 }
 
 impl<'a> ParseContext<'a> {
-    fn proof_context(self, proof_name: &'a str) -> ParseProofContext<'a> {
+    fn theorem_context(self, theorem_name: &'a str) -> ParseTheoremContext<'a> {
         let Self {
             file_name,
             file_content,
@@ -75,10 +75,10 @@ impl<'a> ParseContext<'a> {
             types,
         } = self;
 
-        ParseProofContext {
+        ParseTheoremContext {
             file_name,
             file_content,
-            proof_name,
+            theorem_name,
 
             scope,
 
@@ -93,7 +93,7 @@ impl<'a> ParseContext<'a> {
     }
 }
 
-impl<'a> ParseProofContext<'a> {
+impl<'a> ParseTheoremContext<'a> {
     pub fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
@@ -108,7 +108,7 @@ impl<'a> ParseProofContext<'a> {
     }
 }
 
-impl ParseProofContext<'_> {
+impl ParseTheoremContext<'_> {
     fn declare(&mut self, name: &str, clone: Declaration) -> Result<(), ScopeError> {
         self.scope.declare(name, clone)
     }
@@ -134,7 +134,7 @@ impl ParseProofContext<'_> {
 }
 
 #[derive(Debug, Error, Diagnostic)]
-pub enum ParseProofError {
+pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ParseExpression(#[from] ParseExpressionError),
@@ -226,28 +226,28 @@ pub enum ParseProofError {
     InvalidGameInstanceInReduction(#[from] InvalidGameInstanceInReductionError),
 }
 
-pub fn handle_proof<'a>(
+pub fn handle_theorem<'a>(
     file_name: &'a str,
     file_content: &'a str,
     ast: Pair<'a, Rule>,
     pkgs: HashMap<String, Package>,
     games: HashMap<String, Composition>,
-) -> Result<Proof<'a>, ParseProofError> {
+) -> Result<Theorem<'a>, ParseTheoremError> {
     let mut iter = ast.into_inner();
-    let proof_name = iter.next().unwrap().as_str();
-    let proof_ast = iter.next().unwrap();
+    let theorem_name = iter.next().unwrap().as_str();
+    let theorem_ast = iter.next().unwrap();
 
     let ctx = ParseContext::new(file_name, file_content);
-    let mut ctx = ctx.proof_context(proof_name);
+    let mut ctx = ctx.theorem_context(theorem_name);
     ctx.scope.enter();
 
-    for ast in proof_ast.into_inner() {
+    for ast in theorem_ast.into_inner() {
         match ast.as_rule() {
             Rule::const_decl => {
                 let (const_name, ty) = common::handle_const_decl(&ctx.parse_ctx(), ast)?;
-                let clone = Declaration::Identifier(Identifier::ProofIdentifier(Const(
-                    ProofConstIdentifier {
-                        proof_name: proof_name.to_string(),
+                let clone = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
+                    TheoremConstIdentifier {
+                        theorem_name: theorem_name.to_string(),
                         name: const_name.clone(),
                         ty: ty.clone(),
                         inst_info: None,
@@ -265,12 +265,12 @@ pub fn handle_proof<'a>(
             Rule::instance_decl => {
                 handle_instance_decl(&mut ctx, ast, &games)?;
             }
-            otherwise => unreachable!("found {:?} in proof", otherwise),
+            otherwise => unreachable!("found {:?} in theorem", otherwise),
         }
     }
 
-    let ParseProofContext {
-        proof_name,
+    let ParseTheoremContext {
+        theorem_name,
         consts,
         instances,
         assumptions,
@@ -281,8 +281,8 @@ pub fn handle_proof<'a>(
     let mut consts: Vec<_> = consts.into_iter().collect();
     consts.sort();
 
-    Ok(Proof {
-        name: proof_name.to_string(),
+    Ok(Theorem {
+        name: theorem_name.to_string(),
         consts,
         instances,
         assumptions,
@@ -293,10 +293,10 @@ pub fn handle_proof<'a>(
 }
 
 fn handle_instance_decl<'a>(
-    ctx: &mut ParseProofContext<'a>,
+    ctx: &mut ParseTheoremContext<'a>,
     ast: Pair<'a, Rule>,
     games: &HashMap<String, Composition>,
-) -> Result<(), ParseProofError> {
+) -> Result<(), ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let game_inst_name = ast.next().unwrap().as_str().to_string();
@@ -323,7 +323,7 @@ fn handle_instance_decl<'a>(
 
     let game_inst = GameInstance::new(
         game_inst_name,
-        ctx.proof_name.to_string(),
+        ctx.theorem_name.to_string(),
         game.clone(),
         types,
         consts_as_ident,
@@ -334,11 +334,11 @@ fn handle_instance_decl<'a>(
 }
 
 fn handle_instance_assign_list(
-    ctx: &ParseProofContext,
+    ctx: &ParseTheoremContext,
     game_inst_name: &str,
     game: &Composition,
     ast: Pair<Rule>,
-) -> Result<(Vec<(String, Type)>, Vec<(GameConstIdentifier, Expression)>), ParseProofError> {
+) -> Result<(Vec<(String, Type)>, Vec<(GameConstIdentifier, Expression)>), ParseTheoremError> {
     let ast = ast.into_inner();
 
     let types = vec![];
@@ -352,7 +352,7 @@ fn handle_instance_assign_list(
             }
             Rule::params_def => {
                 let ast = ast.into_inner().next().unwrap();
-                let defs = common::handle_proof_params_def_list(ctx, game, game_inst_name, ast)?;
+                let defs = common::handle_theorem_params_def_list(ctx, game, game_inst_name, ast)?;
 
                 consts.extend(defs.into_iter().map(|(name, value)| {
                     (
@@ -363,7 +363,7 @@ fn handle_instance_assign_list(
                             assigned_value: Some(Box::new(value.clone())),
                             inst_info: None,
                             game_inst_name: Some(game_inst_name.to_string()),
-                            proof_name: Some(ctx.proof_name.to_string()),
+                            theorem_name: Some(ctx.theorem_name.to_string()),
                         },
                         value,
                     )
@@ -379,9 +379,9 @@ fn handle_instance_assign_list(
 }
 
 fn handle_assumptions(
-    ctx: &mut ParseProofContext,
+    ctx: &mut ParseTheoremContext,
     ast: Pairs<Rule>,
-) -> Result<(), ParseProofError> {
+) -> Result<(), ParseTheoremError> {
     for pair in ast {
         let ((name, _), (left_name, left_name_span), (right_name, right_name_span)) =
             handle_string_triplet(&mut pair.into_inner());
@@ -413,9 +413,9 @@ fn handle_assumptions(
 }
 
 fn handle_game_hops<'a>(
-    ctx: &mut ParseProofContext<'a>,
+    ctx: &mut ParseTheoremContext<'a>,
     ast: Pairs<'a, Rule>,
-) -> Result<(), ParseProofError> {
+) -> Result<(), ParseTheoremError> {
     for hop_ast in ast {
         let game_hop = match hop_ast.as_rule() {
             Rule::conjecture => handle_conjecture(ctx, hop_ast)?,
@@ -430,9 +430,9 @@ fn handle_game_hops<'a>(
 }
 
 pub(crate) fn handle_conjecture<'a>(
-    _ctx: &mut ParseProofContext<'a>,
+    _ctx: &mut ParseTheoremContext<'a>,
     ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseProofError> {
+) -> Result<GameHop<'a>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let [left_game, right_game]: [GameInstanceName; 2] = handle_identifiers(&mut ast);
@@ -441,9 +441,9 @@ pub(crate) fn handle_conjecture<'a>(
 }
 
 fn handle_equivalence<'a>(
-    ctx: &mut ParseProofContext,
+    ctx: &mut ParseTheoremContext,
     ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseProofError> {
+) -> Result<GameHop<'a>, ParseTheoremError> {
     let mut ast = ast.into_inner();
     let (left_name, right_name) = handle_string_pair(&mut ast);
 

@@ -12,7 +12,7 @@ use crate::package::{Composition, Edge, Export, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
 use crate::parser::package::ForComp;
 use crate::parser::reduction::ReductionMappingEntry;
-use crate::proof::Proof;
+use crate::theorem::Theorem;
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
 use crate::types::CountSpec;
 use crate::types::Type;
@@ -949,15 +949,15 @@ pub fn tex_write_composition(
     Ok(())
 }
 
-pub fn tex_write_proof(
+pub fn tex_write_theorem(
     backend: &Option<ProverBackend>,
     lossy: bool,
-    proof: &Proof,
+    theorem: &Theorem,
     name: &str,
     target: &Path,
 ) -> std::io::Result<()> {
     let fname = target.join(format!(
-        "Proof_{}{}.tex",
+        "Theorem_{}{}.tex",
         name,
         if lossy { "_lossy" } else { "" }
     ));
@@ -965,14 +965,14 @@ pub fn tex_write_proof(
 
     tex_write_document_header(&file)?;
 
-    writeln!(file, "\\title{{Proof: {}}}", name.replace('_', "\\_"))?;
+    writeln!(file, "\\title{{Theorem: {}}}", name.replace('_', "\\_"))?;
     writeln!(file, "\\begin{{document}}")?;
     writeln!(file, "\\maketitle")?;
 
     writeln!(file, "\\section{{Games}}")?;
 
     let mut fill = 0;
-    for instance in &proof.instances {
+    for instance in &theorem.instances {
         let graphfname = format!(
             "CompositionGraph_{}.tex",
             instance.game_name().replace('_', "\\_")
@@ -995,7 +995,7 @@ pub fn tex_write_proof(
     }
 
     writeln!(file, "\\clearpage")?;
-    for instance in &proof.instances {
+    for instance in &theorem.instances {
         writeln!(
             file,
             "\\subsection{{{} Game}}",
@@ -1028,7 +1028,7 @@ pub fn tex_write_proof(
         writeln!(file, "\\clearpage")?;
     }
 
-    for game_hop in &proof.game_hops {
+    for game_hop in &theorem.game_hops {
         match &game_hop {
             GameHop::Reduction(red) => {
                 writeln!(
@@ -1050,7 +1050,7 @@ pub fn tex_write_proof(
                         .replace('_', "\\_")
                 )?;
                 writeln!(file, "\\begin{{center}}")?;
-                let left_game_instance = proof
+                let left_game_instance = theorem
                     .instances
                     .iter()
                     .find(|instance| {
@@ -1078,7 +1078,7 @@ pub fn tex_write_proof(
                         .replace('_', "\\_"),
                 )?;
                 writeln!(file, "\\begin{{center}}")?;
-                let right_game_instance = proof
+                let right_game_instance = theorem
                     .instances
                     .iter()
                     .find(|instance| {

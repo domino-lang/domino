@@ -149,8 +149,8 @@ impl From<Expression> for SmtExpr {
             }
              */
             Expression::FnCall(id, exprs) => {
-                let name_in_proof = id.as_proof_identifier().unwrap().ident_ref();
-                let func_name = format!("<<func-{name_in_proof}>>");
+                let name_in_theorem = id.as_theorem_identifier().unwrap().ident_ref();
+                let func_name = format!("<<func-{name_in_theorem}>>");
 
                 SmtExpr::List(
                     Some(func_name.into())

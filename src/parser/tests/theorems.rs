@@ -3,23 +3,23 @@ use std::collections::HashMap;
 use crate::{
     package::{Composition, Package},
     parser::{
-        proof::{handle_proof, ParseProofError},
+        theorem::{handle_theorem, ParseTheoremError},
         tests::TESTDATA_SSPCODE_PATH,
         SspParser,
     },
-    proof::Proof,
+    theorem::Theorem,
 };
 pub fn parse<'a>(
     code: &'a str,
     name: &'a str,
     pkgs: &'a HashMap<String, Package>,
     games: &'a HashMap<String, Composition>,
-) -> Proof<'a> {
-    let mut proof_pairs = SspParser::parse_proof(code).unwrap();
-    handle_proof(
+) -> Theorem<'a> {
+    let mut theorem_pairs = SspParser::parse_theorem(code).unwrap();
+    handle_theorem(
         name,
         code,
-        proof_pairs.next().unwrap(),
+        theorem_pairs.next().unwrap(),
         pkgs.clone(),
         games.clone(),
     )
@@ -31,14 +31,14 @@ pub fn parse_fails(
     name: &str,
     pkgs: &HashMap<String, Package>,
     games: &HashMap<String, Composition>,
-) -> ParseProofError {
+) -> ParseTheoremError {
     // any test game should adhere to the grammar
-    let mut proof_pairs = SspParser::parse_proof(code).unwrap();
+    let mut theorem_pairs = SspParser::parse_theorem(code).unwrap();
 
-    let Err(err) = handle_proof(
+    let Err(err) = handle_theorem(
         name,
         code,
-        proof_pairs.next().unwrap(),
+        theorem_pairs.next().unwrap(),
         pkgs.clone(),
         games.clone(),
     ) else {
@@ -57,7 +57,7 @@ pub fn parse_file_fails(
     file_name: &'static str,
     pkgs: &HashMap<String, Package>,
     games: &HashMap<String, Composition>,
-) -> ParseProofError {
+) -> ParseTheoremError {
     let file = std::fs::File::open(format!("{TESTDATA_SSPCODE_PATH}/proofs/{file_name}"))
         .unwrap_or_else(|_| panic!("error opening test code proof {file_name}"));
 

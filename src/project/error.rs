@@ -12,15 +12,15 @@ pub enum Error {
     #[error("{0} oracles failed when showing equivalence")]
     ParallelEquivalenceError(usize),
     #[error("consistency check failed with {0}")]
-    ProofCheck(String),
+    TheoremCheck(String),
     #[error("io error")]
     IOError(#[from] IOError),
     #[error("package {0} defined in both {1} and {2}")]
     RedefinedPackage(String, String, String),
     #[error("game {0} defined in both {1} and {2}")]
     RedefinedGame(String, String, String),
-    #[error("proof {0} defined in both {1} and {2}")]
-    RedefinedProof(String, String, String),
+    #[error("theorem {0} defined in both {1} and {2}")]
+    RedefinedTheorem(String, String, String),
     #[error("error parsing utf-8")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
     #[error("error in interaction with child process")]
@@ -50,7 +50,7 @@ pub enum Error {
     ParseGame(#[from] parser::composition::ParseGameError),
     #[diagnostic(transparent)]
     #[error(transparent)]
-    ParseProof(#[from] parser::proof::ParseProofError),
+    ParseTheorem(#[from] parser::theorem::ParseTheoremError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

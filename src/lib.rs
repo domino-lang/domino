@@ -24,7 +24,7 @@ pub mod project;
 
 pub mod util;
 
-pub mod proof;
+pub mod theorem;
 pub mod ttheorem;
 
 pub mod ui;

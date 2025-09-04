@@ -3,7 +3,7 @@ use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 use crate::writers::smt::names::FunctionNameBuilder;
 use crate::writers::smt::patterns::oracle_args::OracleArgPattern;
-use crate::writers::smt::patterns::proof_constants::ReturnValueConst;
+use crate::writers::smt::patterns::theorem_constants::ReturnValueConst;
 use crate::writers::smt::patterns::FunctionPattern;
 use crate::writers::smt::patterns::{
     oracle_args, DatastructurePattern, OraclePattern, ReturnConstructor, ReturnPattern,

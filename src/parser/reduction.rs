@@ -12,7 +12,7 @@ use crate::{
     identifier::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         pkg_ident::PackageConstIdentifier,
-        proof_ident::ProofIdentifier,
+        theorem_ident::TheoremIdentifier,
         Identifier,
     },
     package::{Edge, PackageInstance},
@@ -21,7 +21,7 @@ use crate::{
         AssumptionMappingLeftGameInstanceIsNotFromAssumption,
         AssumptionMappingRightGameInstanceIsFromAssumption, InvalidGameInstanceInReductionError,
     },
-    proof::GameInstance,
+    theorem::GameInstance,
 };
 
 use super::{
@@ -34,14 +34,14 @@ use super::{
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
-    proof::{handle_identifiers, ParseProofContext, ParseProofError},
+    theorem::{handle_identifiers, ParseTheoremContext, ParseTheoremError},
     Rule,
 };
 
 pub(crate) fn handle_reduction<'a>(
-    ctx: &mut ParseProofContext<'a>,
+    ctx: &mut ParseTheoremContext<'a>,
     ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseProofError> {
+) -> Result<GameHop<'a>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let left_name_ast = ast.next().unwrap();
@@ -53,7 +53,7 @@ pub(crate) fn handle_reduction<'a>(
 }
 
 fn compare_reduction(
-    ctx: &ParseProofContext,
+    ctx: &ParseTheoremContext,
     reduction_span: pest::Span,
     inst_offs_left: usize,
     inst_offs_right: usize,
@@ -61,7 +61,7 @@ fn compare_reduction(
     right_game_inst: &GameInstance,
     mapping_left: &ReductionMapping,
     mapping_right: &ReductionMapping,
-) -> Result<(), ParseProofError> {
+) -> Result<(), ParseTheoremError> {
     let game_left = left_game_inst.game();
     let game_right = right_game_inst.game();
 
@@ -194,11 +194,11 @@ fn compare_reduction(
 }
 
 fn handle_reduction_body<'a>(
-    ctx: &mut ParseProofContext,
+    ctx: &mut ParseTheoremContext,
     left_name: Pair<'a, Rule>,
     right_name: Pair<'a, Rule>,
     body: Pair<'a, Rule>,
-) -> Result<Reduction<'a>, ParseProofError> {
+) -> Result<Reduction<'a>, ParseTheoremError> {
     let reduction_span = body.as_span();
     let mut ast = body.into_inner();
     let assumptions_spec_ast = ast.next().unwrap();
@@ -419,10 +419,10 @@ fn handle_reduction_body<'a>(
 }
 
 fn handle_mapspec_assumption<'a>(
-    ctx: &ParseProofContext,
+    ctx: &ParseTheoremContext,
     ast: Pair<'a, Rule>,
     assumption: &Assumption,
-) -> Result<ReductionMapping<'a>, ParseProofError> {
+) -> Result<ReductionMapping<'a>, ParseTheoremError> {
     let mapping_span = ast.as_span();
     let mut ast = ast.into_inner();
 
@@ -582,7 +582,7 @@ fn handle_mapspec_assumption<'a>(
         else {
             let span = construction_game_pkg_inst_name_ast.as_span();
             let at = (span.start()..span.end()).into();
-            return Err(ParseProofError::from(UndefinedPackageInstanceError {
+            return Err(ParseTheoremError::from(UndefinedPackageInstanceError {
                 source_code: ctx.named_source(),
                 at,
                 pkg_inst_name: assumption_game_pkg_inst_name.to_string(),
@@ -704,16 +704,16 @@ fn handle_mapspec_assumption<'a>(
                 });
 
             // These show the problem: one is a GameConstIdentifier and the other is a
-            // PackageConstIdentifier. Both should be ProofIdentifiers.
+            // PackageConstIdentifier. Both should be TheoremIdentifiers.
             //
-            // Okay, now at least both are game const identifiers. I still need to make them proof
+            // Okay, now at least both are game const identifiers. I still need to make them theorem
             //  indentifers
             let constr_sig_owned = {
                 let this = &construction_game_inst;
                 let sig = constr_sig.clone();
                 let inst_ctx = InstantiationContext::new_game_instantiation_context(
                     this.name(),
-                    ctx.proof_name,
+                    ctx.theorem_name,
                     &this.consts,
                     &this.types,
                 );
@@ -754,13 +754,13 @@ fn handle_mapspec_assumption<'a>(
 
             let assump_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 assumption_game_inst_name.as_str(),
-                ctx.proof_name,
+                ctx.theorem_name,
                 &assumption_game_inst.consts,
                 &assumption_game_inst.types,
             );
             let constr_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 construction_game_inst_name.as_str(),
-                ctx.proof_name,
+                ctx.theorem_name,
                 &construction_game_inst.consts,
                 &construction_game_inst.types,
             );
@@ -826,7 +826,7 @@ fn handle_mapspec_assumption<'a>(
                             let sig = construction_edge.sig().clone();
                             let inst_ctx = InstantiationContext::new_game_instantiation_context(
                                 this.name(),
-                                ctx.proof_name,
+                                ctx.theorem_name,
                                 &this.consts,
                                 &this.types,
                             );
@@ -837,7 +837,7 @@ fn handle_mapspec_assumption<'a>(
                             let sig = assumption_game_edge.sig().clone();
                             let inst_ctx = InstantiationContext::new_game_instantiation_context(
                                 this.name(),
-                                ctx.proof_name,
+                                ctx.theorem_name,
                                 &this.consts,
                                 &this.types,
                             );
@@ -921,7 +921,7 @@ fn handle_mapspec_assumption<'a>(
 }
 
 fn package_instances_diff(
-    _ctx: &ParseProofContext,
+    _ctx: &ParseTheoremContext,
     left_pkg_inst: &PackageInstance,
     left_game_inst: &GameInstance,
     right_pkg_inst: &PackageInstance,
@@ -953,30 +953,30 @@ fn package_instances_diff(
 
         // here we compare whether param_expr and other_param_expr match.
         // problem 1: they have identifiers in them that contain things like game names
-        // problem 2: we have the game identifiers here, but we need the proof identifiers,
+        // problem 2: we have the game identifiers here, but we need the theorem identifiers,
         //            because otherwise we just compare the name strings used in the game
         //            and ignore the values assigned to the in game instantiation
         //
         // we solve both problems using Expression::map, which both resolves the game identifiers
-        // to proof identifiers and redacts game- and package-specific information.
+        // to theorem identifiers and redacts game- and package-specific information.
 
         fn resolve_and_redact_expr(
             game_inst_const_mapping: &[(GameConstIdentifier, Expression)],
             expr: Expression,
         ) -> Expression {
             match expr {
-                // redact game and package specific information from proof identifiers
-                Expression::Identifier(Identifier::ProofIdentifier(ProofIdentifier::Const(
-                    mut proof_const,
+                // redact game and package specific information from theorem identifiers
+                Expression::Identifier(Identifier::TheoremIdentifier(TheoremIdentifier::Const(
+                    mut theorem_const,
                 ))) => {
-                    proof_const.inst_info = None;
-                    Expression::Identifier(proof_const.into())
+                    theorem_const.inst_info = None;
+                    Expression::Identifier(theorem_const.into())
                 }
-                Expression::Identifier(Identifier::ProofIdentifier(ProofIdentifier::LoopVar(
-                    mut proof_loopvar,
+                Expression::Identifier(Identifier::TheoremIdentifier(TheoremIdentifier::LoopVar(
+                    mut theorem_loopvar,
                 ))) => {
-                    proof_loopvar.inst_info = None;
-                    Expression::Identifier(proof_loopvar.into())
+                    theorem_loopvar.inst_info = None;
+                    Expression::Identifier(theorem_loopvar.into())
                 }
 
                 // resolve game const identifiers

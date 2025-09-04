@@ -2,7 +2,7 @@ use crate::{
     expressions::Expression,
     identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
     writers::smt::{
-        patterns::{proof_constants::ConstantPattern, DatastructurePattern, ReturnPattern},
+        patterns::{theorem_constants::ConstantPattern, DatastructurePattern, ReturnPattern},
         sorts::Sort,
     },
 };

@@ -154,7 +154,7 @@ mod tests {
                         game_assignment: None,
                         game_inst_name: None,
                         game_name: None,
-                        proof_name: None,
+                        theorem_name: None,
                     }
                 )))
             )

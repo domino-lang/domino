@@ -1,7 +1,7 @@
 use crate::{
     expressions::Expression,
     identifier::game_ident::GameConstIdentifier,
-    proof::GameInstance,
+    theorem::GameInstance,
     transforms::samplify::{Position as SamplePosition, SampleInfo},
     types::Type,
     writers::smt::{

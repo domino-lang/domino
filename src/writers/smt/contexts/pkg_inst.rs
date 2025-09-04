@@ -4,7 +4,7 @@ use crate::identifier::pkg_ident::{
 };
 use crate::identifier::Identifier;
 use crate::package::{Composition, Package, PackageInstance};
-use crate::proof::GameInstance;
+use crate::theorem::GameInstance;
 use crate::writers::smt::patterns::{self, pkg_consts::PackageConstsPattern, PackageStateSelector};
 use crate::writers::smt::{
     contexts::{GameInstanceContext, OracleContext},
@@ -213,7 +213,7 @@ impl<'a> PackageInstanceContext<'a> {
                     pkg_inst_name: Some(pkg_inst.name.clone()),
                     game_name: Some(game.name.clone()),
                     game_inst_name: Some(game_inst.name.clone()),
-                    proof_name: None,
+                    theorem_name: None,
                 }))
                 .into(),
             )

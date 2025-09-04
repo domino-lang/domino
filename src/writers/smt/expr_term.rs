@@ -3,7 +3,7 @@ use crate::{
     identifier::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
-        proof_ident::{ProofConstIdentifier, ProofIdentifier},
+        theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
         Identifier,
     },
     types::Type,
@@ -119,11 +119,11 @@ impl From<Expression> for Term {
                     })) => {
                         format!("<<func-game-{game_inst_name}-{name}>>")
                     }
-                    Identifier::ProofIdentifier(ProofIdentifier::Const(ProofConstIdentifier {
+                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(TheoremConstIdentifier {
                         name,
                         ..
                     })) => {
-                        format!("<<func-proof-{name}>>")
+                        format!("<<func-theorem-{name}>>")
                     }
                     other => unreachable!("unexpected identifier in function call: {other:?}"),
                 };

@@ -3,7 +3,7 @@ use crate::{
     identifier::pkg_ident::PackageConstIdentifier,
     writers::smt::{
         patterns::{
-            datastructures::IntermediateStatePattern, proof_constants::ConstantPattern,
+            datastructures::IntermediateStatePattern, theorem_constants::ConstantPattern,
             DatastructurePattern,
         },
         sorts::Sort,

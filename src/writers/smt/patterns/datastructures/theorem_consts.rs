@@ -1,5 +1,5 @@
 use crate::{
-    proof::Proof,
+    theorem::Theorem,
     types::Type,
     writers::smt::{
         exprs::SmtExpr,
@@ -9,31 +9,31 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ProofConstsPattern<'a> {
-    pub proof_name: &'a str,
+pub struct TheoremConstsPattern<'a> {
+    pub theorem_name: &'a str,
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
-pub struct ProofConstsSelector<'a> {
+pub struct TheoremConstsSelector<'a> {
     pub(crate) name: &'a str,
     pub(crate) ty: &'a Type,
 }
 
-impl<'a> DatastructurePattern<'a> for ProofConstsPattern<'a> {
+impl<'a> DatastructurePattern<'a> for TheoremConstsPattern<'a> {
     type Constructor = ();
 
-    type Selector = ProofConstsSelector<'a>;
+    type Selector = TheoremConstsSelector<'a>;
 
-    type DeclareInfo = Proof<'a>;
+    type DeclareInfo = Theorem<'a>;
 
-    const CAMEL_CASE: &'static str = "ProofConsts";
+    const CAMEL_CASE: &'static str = "TheoremConsts";
 
-    const KEBAB_CASE: &'static str = "proof-consts";
+    const KEBAB_CASE: &'static str = "theorem-consts";
 
     fn sort_name(&self) -> String {
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
-            .push(self.proof_name)
+            .push(self.theorem_name)
             .build()
     }
 
@@ -41,14 +41,14 @@ impl<'a> DatastructurePattern<'a> for ProofConstsPattern<'a> {
         FunctionNameBuilder::new()
             .push("mk")
             .push(Self::KEBAB_CASE)
-            .push(self.proof_name)
+            .push(self.theorem_name)
             .build()
     }
 
     fn selector_name(&self, sel: &Self::Selector) -> String {
         FunctionNameBuilder::new()
             .push(Self::KEBAB_CASE)
-            .push(self.proof_name)
+            .push(self.theorem_name)
             .push(sel.name)
             .build()
     }
@@ -65,7 +65,7 @@ impl<'a> DatastructurePattern<'a> for ProofConstsPattern<'a> {
             // want them to be part of this datatype. This way we also stay compatible with
             // solvers that don't support higher-order functions.
             .filter(|(_name, ty)| !matches!(ty, crate::types::Type::Fn(_, _)))
-            .map(|(name, ty)| ProofConstsSelector { name, ty })
+            .map(|(name, ty)| TheoremConstsSelector { name, ty })
             .collect();
 
         DatastructureSpec(vec![((), fields)])

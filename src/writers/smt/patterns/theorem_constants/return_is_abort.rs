@@ -3,7 +3,7 @@ use crate::{
     writers::smt::{
         exprs::SmtExpr,
         patterns::{
-            proof_constants::ConstantPattern, DatastructurePattern, ReturnValue,
+            theorem_constants::ConstantPattern, DatastructurePattern, ReturnValue,
             ReturnValueConstructor,
         },
         sorts::Sort,

@@ -28,7 +28,7 @@ pub struct GameName<'a>(IdentifierData<'a>);
 pub struct GameInstanceName<'a>(IdentifierData<'a>);
 
 #[derive(Clone, Debug)]
-pub struct ProofName<'a>(IdentifierData<'a>);
+pub struct TheoremName<'a>(IdentifierData<'a>);
 
 #[derive(Clone, Debug)]
 pub struct AssumptionName<'a>(IdentifierData<'a>);
@@ -63,7 +63,7 @@ impl_ast!(PackageName<'a>);
 impl_ast!(PackageInstanceName<'a>);
 impl_ast!(GameName<'a>);
 impl_ast!(GameInstanceName<'a>);
-impl_ast!(ProofName<'a>);
+impl_ast!(TheoremName<'a>);
 impl_ast!(AssumptionName<'a>);
 
 pub(crate) trait Identifier<'a>:

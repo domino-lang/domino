@@ -262,7 +262,7 @@ pub fn handle_comp_spec_list<'a>(
                             ty,
                             inst_info: None,
                             game_inst_name: None,
-                            proof_name: None,
+                            theorem_name: None,
                             assigned_value: None,
                         }
                         .into(),
@@ -791,7 +791,7 @@ pub fn handle_for_loop<'a>(
         start_comp,
         end_comp,
         game_inst_name: None,
-        proof_name: None,
+        theorem_name: None,
         inst_info: None,
     };
     let loopvar = GameIdentifier::LoopVar(loopvar);
@@ -860,7 +860,7 @@ pub fn handle_instance_assign_list(
                                 game_assignment: None,
                                 pkg_inst_name: None,
                                 game_inst_name: None,
-                                proof_name: None,
+                                theorem_name: None,
                             },
                             value,
                         )

@@ -5,7 +5,7 @@ mod normal_return;
 //mod partial_return;
 pub mod pkg_consts;
 pub mod pkg_state;
-pub mod proof_consts;
+pub mod theorem_consts;
 mod return_value;
 
 pub use game_state::*;

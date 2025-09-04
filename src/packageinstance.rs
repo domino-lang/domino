@@ -687,7 +687,7 @@ pub(crate) mod instantiate {
                     self.rewrite_game_identifier(game_ident).into()
                 }
 
-                ident @ Identifier::ProofIdentifier(_) | ident @ Identifier::Generated(_, _) => {
+                ident @ Identifier::TheoremIdentifier(_) | ident @ Identifier::Generated(_, _) => {
                     ident
                 }
             };
@@ -736,8 +736,8 @@ pub(crate) mod instantiate {
 
                 Identifier::GameIdentifier(_) => ident.clone(),
 
-                Identifier::ProofIdentifier(_) => unreachable!(
-                    "unexpected proof identifier when instantiating package: {:?}",
+                Identifier::TheoremIdentifier(_) => unreachable!(
+                    "unexpected theorem identifier when instantiating package: {:?}",
                     ident
                 ),
 

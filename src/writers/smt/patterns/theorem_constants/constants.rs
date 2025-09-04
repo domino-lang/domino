@@ -7,21 +7,21 @@ use crate::types::Type;
 
 use super::ConstantPattern;
 
-pub struct ProofConstant<'a> {
-    pub proof_name: &'a str,
+pub struct TheoremConstant<'a> {
+    pub theorem_name: &'a str,
     pub ident_name: &'a str,
     pub ty: &'a Type,
 }
 
 pub struct GameInstanceConstant<'a> {
-    pub proof_name: &'a str,
+    pub theorem_name: &'a str,
     pub game_inst_name: &'a str,
     pub ident_name: &'a str,
     pub ty: &'a Type,
 }
 
 pub struct PackageInstanceConstant<'a> {
-    pub proof_name: &'a str,
+    pub theorem_name: &'a str,
     pub game_inst_name: &'a str,
     pub pkg_inst_name: &'a str,
     pub ident_name: &'a str,
@@ -29,7 +29,7 @@ pub struct PackageInstanceConstant<'a> {
 }
 
 pub struct GameInstanceConstantAssigment<'a> {
-    pub proof_const: ProofConstant<'a>,
+    pub theorem_const: TheoremConstant<'a>,
     pub game_inst_const: GameInstanceConstant<'a>,
 }
 
@@ -38,14 +38,14 @@ pub struct PackageInstanceConstantAssigment<'a> {
     pub pkg_inst_const: PackageInstanceConstant<'a>,
 }
 
-impl super::ConstantPattern for ProofConstant<'_> {
+impl super::ConstantPattern for TheoremConstant<'_> {
     fn name(&self) -> String {
         let Self {
-            proof_name,
+            theorem_name,
             ident_name,
             ..
         } = self;
-        format!("<$const-proof-{proof_name}-{ident_name}$>")
+        format!("<$const-theorem-{theorem_name}-{ident_name}$>")
     }
 
     fn sort(&self) -> crate::writers::smt::sorts::Sort {
@@ -56,12 +56,12 @@ impl super::ConstantPattern for ProofConstant<'_> {
 impl super::ConstantPattern for GameInstanceConstant<'_> {
     fn name(&self) -> String {
         let Self {
-            proof_name,
+            theorem_name,
             game_inst_name,
             ident_name,
             ..
         } = self;
-        format!("<$const-gameinst-{proof_name}-{game_inst_name}-{ident_name}$>")
+        format!("<$const-gameinst-{theorem_name}-{game_inst_name}-{ident_name}$>")
     }
 
     fn sort(&self) -> crate::writers::smt::sorts::Sort {
@@ -72,13 +72,13 @@ impl super::ConstantPattern for GameInstanceConstant<'_> {
 impl super::ConstantPattern for PackageInstanceConstant<'_> {
     fn name(&self) -> String {
         let Self {
-            proof_name,
+            theorem_name,
             game_inst_name,
             pkg_inst_name,
             ident_name,
             ..
         } = self;
-        format!("<$const-pkginst-{proof_name}-{game_inst_name}-{pkg_inst_name}-{ident_name}$>")
+        format!("<$const-pkginst-{theorem_name}-{game_inst_name}-{pkg_inst_name}-{ident_name}$>")
     }
 
     fn sort(&self) -> crate::writers::smt::sorts::Sort {
@@ -88,10 +88,10 @@ impl super::ConstantPattern for PackageInstanceConstant<'_> {
 
 impl From<GameInstanceConstantAssigment<'_>> for Command {
     fn from(value: GameInstanceConstantAssigment<'_>) -> Self {
-        let proof_ident = Term::Base(value.proof_const.name().into(), vec![]);
+        let theorem_ident = Term::Base(value.theorem_const.name().into(), vec![]);
         let game_inst_ident = Term::Base(value.game_inst_const.name().into(), vec![]);
 
-        Command::Assert(theories::core::eq(vec![proof_ident, game_inst_ident]))
+        Command::Assert(theories::core::eq(vec![theorem_ident, game_inst_ident]))
     }
 }
 

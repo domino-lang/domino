@@ -1,6 +1,6 @@
 use crate::{
     types::Type,
-    writers::smt::{patterns::proof_constants::ConstantPattern, sorts::Sort},
+    writers::smt::{patterns::theorem_constants::ConstantPattern, sorts::Sort},
 };
 
 #[derive(Clone, Debug)]
