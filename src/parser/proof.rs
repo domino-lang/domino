@@ -286,6 +286,7 @@ pub fn handle_proof<'a>(
         consts,
         instances,
         assumptions,
+        theorems: Vec::new(),
         game_hops,
         pkgs: pkgs.into_values().collect(),
     })
