@@ -140,10 +140,14 @@ impl std::fmt::Display for Theorem<'_> {
                     .join(", ")
             )?;
             writeln!(f, "    {}", hop)?;
-            writeln!(f, "{} ({})", right.1.name,
+            writeln!(
+                f,
+                "{} ({})",
+                right.1.name,
                 self.assignments(&right.0, hop)
                     .map(|(a, b)| { format!("{}={}", a, b) })
-                    .join(", "))?;
+                    .join(", ")
+            )?;
         }
         writeln!(f, "Ideal")?;
         Ok(())
@@ -224,8 +228,12 @@ fn other_game<'a>(
     game: usize,
     hop: &'a GameHop,
 ) -> Option<usize> {
-    let left_game = proof.find_game_instance(hop.left_game_instance_name()).unwrap();
-    let right_game = proof.find_game_instance(hop.right_game_instance_name()).unwrap();
+    let left_game = proof
+        .find_game_instance(hop.left_game_instance_name())
+        .unwrap();
+    let right_game = proof
+        .find_game_instance(hop.right_game_instance_name())
+        .unwrap();
 
     if game_is_compatible(&specialization[game].0, left_game) {
         return Some(specialize(specialization, game, left_game, right_game));
@@ -270,8 +278,11 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
         return false;
     }
 
-    let specific_const_names: HashSet<_> =
-        specific.consts.iter().map(|(var, _val)| &var.name).collect();
+    let specific_const_names: HashSet<_> = specific
+        .consts
+        .iter()
+        .map(|(var, _val)| &var.name)
+        .collect();
     let general_const_names: HashSet<_> =
         general.consts.iter().map(|(var, _val)| &var.name).collect();
 
