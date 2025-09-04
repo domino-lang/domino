@@ -18,7 +18,7 @@ use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
     proof::Proof,
-    theorem::Theorem,
+    ttheorem::TTheorem,
     transforms::Transformation,
     util::prover_process::ProverBackend,
 };
@@ -222,7 +222,7 @@ impl<'a> Project<'a> {
             let proof = &self.proofs[proof_key];
             ui.start_proof(&proof.name, proof.game_hops.len().try_into().unwrap());
 
-            let theorem = Theorem::try_new(proof);
+            let theorem = TTheorem::try_new(proof);
             if theorem.is_none() {
                 log::warn!("Could not conclude Real ~ Ideal from game-hops");
             } else {
