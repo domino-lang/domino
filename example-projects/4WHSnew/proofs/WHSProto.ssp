@@ -70,6 +70,26 @@ proof WHSProto {
         }
     }
 
+    instance Real = KX {
+        params {
+            b       : false ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+    instance Ideal = KX {
+        params {
+            b       : true ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
     instance KX = KX {
         params {
             b       : b ,
