@@ -8,7 +8,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct TTheorem<'a> {
+pub struct Proof<'a> {
     theorem: &'a Theorem<'a>,
     // Specialized Instance -> reference to more general instance in the theorem
     specialization: Vec<(GameInstance, &'a GameInstance)>,
@@ -16,8 +16,8 @@ pub struct TTheorem<'a> {
     hops: Vec<usize>,
 }
 
-impl<'a> TTheorem<'a> {
-    pub(crate) fn try_new(theorem: &'a Theorem) -> Option<TTheorem<'a>> {
+impl<'a> Proof<'a> {
+    pub(crate) fn try_new(theorem: &'a Theorem) -> Option<Proof<'a>> {
         let real = theorem
             .instances
             .iter()
@@ -58,7 +58,7 @@ impl<'a> TTheorem<'a> {
                 path.reverse();
                 hops.reverse();
                 log::info!("found theorem; games: {path:?}, gamehops: {hops:?}");
-                return Some(TTheorem {
+                return Some(Proof {
                     theorem,
                     specialization,
                     sequence: path,
@@ -121,7 +121,7 @@ impl<'a> TTheorem<'a> {
     }
 }
 
-impl std::fmt::Display for TTheorem<'_> {
+impl std::fmt::Display for Proof<'_> {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "Theorem {}:", self.theorem.name)?;
