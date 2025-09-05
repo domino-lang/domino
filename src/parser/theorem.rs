@@ -289,6 +289,10 @@ pub fn handle_theorem<'a>(
         ..
     } = ctx;
 
+    if theorems.is_empty() {
+        log::warn!("No theorems defined, only verifying gamehops");
+    }
+
     let mut consts: Vec<_> = consts.into_iter().collect();
     consts.sort();
 
