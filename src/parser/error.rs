@@ -313,6 +313,19 @@ pub struct MissingGameParameterDefinitionError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("theorem does not follow from the game hops")]
+#[diagnostic(code(ssbee::code::unproven_theorem))]
+pub struct UnprovenTheoremError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this theorem here")]
+    pub at: SourceSpan,
+
+    pub theorem_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("use of undefined assumption {assumption_name}")]
 #[diagnostic(code(domino::code::undefined_assumption))]
 pub struct UndefinedAssumptionError {

@@ -17,7 +17,7 @@ use crate::{
             AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
             AssumptionMappingLeftGameInstanceIsNotFromAssumption,
-            ReductionContainsDifferentPackagesError,
+            ReductionContainsDifferentPackagesError, UnprovenTheoremError,
         },
         Rule,
     },
@@ -185,6 +185,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     HandleType(#[from] HandleTypeError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    UnprovenTheorem(#[from] UnprovenTheoremError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -424,6 +428,7 @@ fn handle_theorems(
     ast: Pairs<Rule>,
 ) -> Result<(), ParseTheoremError> {
     for pair in ast {
+        let span = pair.as_span();
         let ((name, _), (left_name, left_name_span), (right_name, right_name_span)) =
             handle_string_triplet(&mut pair.into_inner());
 
@@ -443,8 +448,18 @@ fn handle_theorems(
             .into());
         }
 
-        let proof =
-            Proof::try_new(&ctx.instances, &ctx.game_hops, name, left_name, right_name).unwrap();
+        let proof = Proof::try_new(
+            &ctx.instances,
+            &ctx.game_hops,
+            name.clone(),
+            left_name,
+            right_name,
+        )
+        .ok_or(UnprovenTheoremError {
+            source_code: ctx.named_source(),
+            at: (span.start()..span.end()).into(),
+            theorem_name: name,
+        })?;
         ctx.theorems.push(proof)
     }
 
