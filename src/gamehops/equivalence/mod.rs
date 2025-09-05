@@ -26,8 +26,8 @@ use crate::{
     package::{Export, OracleSig},
     theorem::{Claim, ClaimType, GameInstance, Theorem},
     transforms::{
-        theorem_transforms::EquivalenceTransform,
         samplify::{Position, SampleInfo},
+        theorem_transforms::EquivalenceTransform,
         TheoremTransform,
     },
     types::Type,
@@ -1292,12 +1292,14 @@ impl<'a> EquivalenceContext<'a> {
             .iter()
             .filter_map(|(name, ty)| match ty {
                 Type::Integer => Some(Type::Bits(Box::new(CountSpec::Identifier(
-                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(TheoremConstIdentifier {
-                        theorem_name: self.theorem().name.clone(),
-                        name: name.clone(),
-                        ty: Type::Integer,
-                        inst_info: None,
-                    })),
+                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(
+                        TheoremConstIdentifier {
+                            theorem_name: self.theorem().name.clone(),
+                            name: name.clone(),
+                            ty: Type::Integer,
+                            inst_info: None,
+                        },
+                    )),
                 )))),
                 _ => None,
             })
@@ -1680,7 +1682,8 @@ impl<'a> EquivalenceContext<'a> {
                             theorem_ident.is_some(),
                             "expected {identifier:?} to be completely resolved"
                         );
-                        *identifier = Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
+                        *identifier =
+                            Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
                     }
                     Type::Bits(count_spec)
                 }

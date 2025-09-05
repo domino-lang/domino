@@ -119,10 +119,9 @@ impl From<Expression> for Term {
                     })) => {
                         format!("<<func-game-{game_inst_name}-{name}>>")
                     }
-                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(TheoremConstIdentifier {
-                        name,
-                        ..
-                    })) => {
+                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(
+                        TheoremConstIdentifier { name, .. },
+                    )) => {
                         format!("<<func-theorem-{name}>>")
                     }
                     other => unreachable!("unexpected identifier in function call: {other:?}"),

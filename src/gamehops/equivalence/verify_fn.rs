@@ -28,7 +28,7 @@ fn verify_oracle<UI: TheoremUI>(
     req_oracles: &[&OracleSig],
 ) -> Result<()> {
     let eq = eqctx.equivalence();
-    let theoremstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+    let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
     let mut prover = if transcript {
         let oracle = if req_oracles.len() == 1 {
@@ -84,7 +84,7 @@ fn verify_oracle<UI: TheoremUI>(
             .theorem_tree_by_oracle_name(&oracle_sig.name);
         ui.lock().unwrap().start_oracle(
             &eqctx.theorem().name,
-            &theoremstep_name,
+            &proofstep_name,
             &oracle_sig.name,
             claims.len().try_into().unwrap(),
         );
@@ -97,7 +97,7 @@ fn verify_oracle<UI: TheoremUI>(
         for claim in claims {
             ui.lock().unwrap().start_lemma(
                 &eqctx.theorem().name,
-                &theoremstep_name,
+                &proofstep_name,
                 &oracle_sig.name,
                 claim.name(),
             );
@@ -124,7 +124,7 @@ fn verify_oracle<UI: TheoremUI>(
             write!(prover, "(pop 1)").unwrap();
             ui.lock().unwrap().finish_lemma(
                 &eqctx.theorem().name,
-                &theoremstep_name,
+                &proofstep_name,
                 &oracle_sig.name,
                 claim.name(),
             );
@@ -133,7 +133,7 @@ fn verify_oracle<UI: TheoremUI>(
         write!(prover, "(pop 1)").unwrap();
         ui.lock().unwrap().finish_oracle(
             &eqctx.theorem().name,
-            &theoremstep_name,
+            &proofstep_name,
             &oracle_sig.name,
         );
     }
@@ -149,7 +149,9 @@ pub fn verify<UI: TheoremUI>(
     transcript: bool,
     req_oracle: &Option<String>,
 ) -> Result<()> {
-    let (theorem, auxs) = EquivalenceTransform.transform_theorem(orig_theorem).unwrap();
+    let (theorem, auxs) = EquivalenceTransform
+        .transform_theorem(orig_theorem)
+        .unwrap();
 
     let eqctx = EquivalenceContext {
         equivalence: eq,
@@ -157,7 +159,7 @@ pub fn verify<UI: TheoremUI>(
         auxs: &auxs,
     };
 
-    let theoremstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+    let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
         .into_iter()
@@ -170,9 +172,9 @@ pub fn verify<UI: TheoremUI>(
         })
         .collect();
 
-    ui.theoremstep_set_oracles(
+    ui.proofstep_set_oracles(
         &theorem.name,
-        &theoremstep_name,
+        &proofstep_name,
         oracle_sequence.len().try_into().unwrap(),
     );
 
@@ -193,7 +195,9 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
     parallel: usize,
     req_oracle: &Option<String>,
 ) -> crate::project::error::Result<()> {
-    let (theorem, auxs) = EquivalenceTransform.transform_theorem(orig_theorem).unwrap();
+    let (theorem, auxs) = EquivalenceTransform
+        .transform_theorem(orig_theorem)
+        .unwrap();
 
     let eqctx = EquivalenceContext {
         equivalence: eq,
@@ -201,7 +205,7 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         auxs: &auxs,
     };
 
-    let theoremstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+    let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
         .into_iter()
@@ -214,9 +218,9 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         })
         .collect();
 
-    ui.theoremstep_set_oracles(
+    ui.proofstep_set_oracles(
         &theorem.name,
-        &theoremstep_name,
+        &proofstep_name,
         oracle_sequence.len().try_into().unwrap(),
     );
 

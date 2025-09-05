@@ -459,4 +459,8 @@ proof Simple4WHS {
             }
         }
     }
+
+    theorems {
+        main: Real ~ Ideal,
+    }
 }

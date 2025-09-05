@@ -9,6 +9,8 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Proof<'a> {
+    left_name: String,
+    right_name: String,
     theorem: &'a Theorem<'a>,
     // Specialized Instance -> reference to more general instance in the theorem
     specialization: Vec<(GameInstance, &'a GameInstance)>,
@@ -59,6 +61,8 @@ impl<'a> Proof<'a> {
                 hops.reverse();
                 log::info!("found theorem; games: {path:?}, gamehops: {hops:?}");
                 return Some(Proof {
+                    left_name: "".into(),
+                    right_name: "".into(),
                     theorem,
                     specialization,
                     sequence: path,

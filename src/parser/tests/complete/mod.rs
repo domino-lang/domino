@@ -10,8 +10,8 @@ use crate::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         Identifier,
     },
-    theorem::{Claim, ClaimType},
     statement::Statement,
+    theorem::{Claim, ClaimType},
     types::{CountSpec, Type},
     util::prover_process::ProverBackend,
 };

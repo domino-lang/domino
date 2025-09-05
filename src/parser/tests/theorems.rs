@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::{
     package::{Composition, Package},
     parser::{
-        theorem::{handle_theorem, ParseTheoremError},
         tests::TESTDATA_SSPCODE_PATH,
+        theorem::{handle_theorem, ParseTheoremError},
         SspParser,
     },
     theorem::Theorem,

@@ -4,8 +4,8 @@ use crate::{
     identifier::game_ident::GameConstIdentifier,
     package::{Composition, Package},
     packageinstance::instantiate::InstantiationContext,
-    types::Type,
     proof::Proof,
+    types::Type,
 };
 
 ////////////////////////////////////////////////////
@@ -222,7 +222,6 @@ impl Claim {
         &self.dependencies
     }
 }
-
 
 #[derive(Clone, Debug)]
 pub struct Theorem<'a> {

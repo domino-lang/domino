@@ -966,15 +966,15 @@ fn package_instances_diff(
         ) -> Expression {
             match expr {
                 // redact game and package specific information from theorem identifiers
-                Expression::Identifier(Identifier::TheoremIdentifier(TheoremIdentifier::Const(
-                    mut theorem_const,
-                ))) => {
+                Expression::Identifier(Identifier::TheoremIdentifier(
+                    TheoremIdentifier::Const(mut theorem_const),
+                )) => {
                     theorem_const.inst_info = None;
                     Expression::Identifier(theorem_const.into())
                 }
-                Expression::Identifier(Identifier::TheoremIdentifier(TheoremIdentifier::LoopVar(
-                    mut theorem_loopvar,
-                ))) => {
+                Expression::Identifier(Identifier::TheoremIdentifier(
+                    TheoremIdentifier::LoopVar(mut theorem_loopvar),
+                )) => {
                     theorem_loopvar.inst_info = None;
                     Expression::Identifier(theorem_loopvar.into())
                 }

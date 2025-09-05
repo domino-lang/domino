@@ -17,8 +17,8 @@ use crate::parser::SspParser;
 use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
-    theorem::Theorem,
     proof::Proof,
+    theorem::Theorem,
     transforms::Transformation,
     util::prover_process::ProverBackend,
 };
@@ -29,7 +29,7 @@ pub const PROJECT_FILE: &str = "ssp.toml";
 
 pub const PACKAGES_DIR: &str = "packages";
 pub const GAMES_DIR: &str = "games";
-pub const PROOFS_DIR: &str = "theorems";
+pub const PROOFS_DIR: &str = "proofs";
 pub const ASSUMPTIONS_DIR: &str = "assumptions";
 
 pub const PACKAGE_EXT: &str = ".pkg.ssp";
@@ -158,7 +158,7 @@ impl<'a> Project<'a> {
         Ok(project)
     }
 
-    pub fn theoremsteps(&self) -> Result<()> {
+    pub fn proofsteps(&self) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
         theorem_keys.sort();
 
@@ -210,7 +210,7 @@ impl<'a> Project<'a> {
         transcript: bool,
         parallel: usize,
         req_theorem: &Option<String>,
-        req_theoremstep: Option<usize>,
+        req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
     ) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
@@ -220,7 +220,10 @@ impl<'a> Project<'a> {
 
         for theorem_key in theorem_keys.into_iter() {
             let theorem = &self.theorems[theorem_key];
-            ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
+            ui.start_theorem(
+                &theorem.name,
+                theorem.game_hops.len().try_into().unwrap(),
+            );
 
             let proof = Proof::try_new(theorem);
             if proof.is_none() {
@@ -237,26 +240,27 @@ impl<'a> Project<'a> {
             }
 
             for (i, game_hop) in theorem.game_hops.iter().enumerate() {
-                ui.start_theoremstep(&theorem.name, &format!("{game_hop}"));
+                ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
 
-                if let Some(ref req_theoremstep) = req_theoremstep {
-                    if i != *req_theoremstep {
-                        ui.finish_theoremstep(&theorem.name, &format!("{game_hop}"));
+                if let Some(ref req_proofstep) = req_proofstep {
+                    if i != *req_proofstep {
+                        ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
                         continue;
                     }
                 }
 
                 match game_hop {
                     GameHop::Reduction(_) => {
-                        ui.theoremstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
                     }
                     GameHop::Conjecture(_) => {
-                        ui.theoremstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
                     }
                     GameHop::Equivalence(eq) => {
                         if parallel > 1 {
                             equivalence::verify_parallel(
-                                self, &mut ui, eq, theorem, backend, transcript, parallel, req_oracle,
+                                self, &mut ui, eq, theorem, backend, transcript, parallel,
+                                req_oracle,
                             )?;
                         } else {
                             equivalence::verify(
@@ -265,7 +269,7 @@ impl<'a> Project<'a> {
                         }
                     }
                 }
-                ui.finish_theoremstep(&theorem.name, &format!("{game_hop}"));
+                ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
             }
 
             ui.finish_theorem(&theorem.name);

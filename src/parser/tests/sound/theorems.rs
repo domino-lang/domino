@@ -3,8 +3,8 @@ use crate::parser::{
         AssumptionExportsNotSufficientError, AssumptionMappingContainsDifferentPackagesError,
         ReductionPackageInstanceParameterMismatchError,
     },
+    tests::{games, packages, slice_source_span, theorems},
     theorem::ParseTheoremError,
-    tests::{games, packages, theorems, slice_source_span},
 };
 
 #[test]
@@ -58,7 +58,8 @@ fn fail_reduction_construction_is_first() {
         &pkgs,
     );
 
-    let err = theorems::parse_file_fails("reduction-construction-1st-should-fail.ssp", &pkgs, &games);
+    let err =
+        theorems::parse_file_fails("reduction-construction-1st-should-fail.ssp", &pkgs, &games);
 
     let crate::parser::theorem::ParseTheoremError::AssumptionMappingLeftGameInstanceIsNotFromAssumption(
         err,

@@ -70,7 +70,10 @@ impl FunctionPattern for GameConstMappingFunction<'_> {
         let theorem_consts_pattern = TheoremConstsPattern {
             theorem_name: self.theorem_name,
         };
-        vec![("<theorem-consts>".to_string(), theorem_consts_pattern.sort())]
+        vec![(
+            "<theorem-consts>".to_string(),
+            theorem_consts_pattern.sort(),
+        )]
     }
 
     fn function_return_sort(&self) -> Sort {

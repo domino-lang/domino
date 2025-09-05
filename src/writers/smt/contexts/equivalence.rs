@@ -3,7 +3,7 @@ use crate::{
     writers::smt::{
         exprs::SmtExpr,
         patterns::{
-            theorem_consts::TheoremConstsPattern, relation::Relation, relations::equal_aborts,
+            relation::Relation, relations::equal_aborts, theorem_consts::TheoremConstsPattern,
             GameStatePattern,
         },
     },
