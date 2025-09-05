@@ -1,11 +1,7 @@
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use crate::{
-    expressions::Expression,
-    gamehops::GameHop,
-    theorem::{GameInstance, Theorem},
-};
+use crate::{expressions::Expression, gamehops::GameHop, theorem::GameInstance};
 
 #[derive(Debug, Clone)]
 pub struct Proof<'a> {
@@ -22,7 +18,7 @@ pub struct Proof<'a> {
 
 impl<'a> Proof<'a> {
     pub(crate) fn try_new(
-        instances: &Vec<GameInstance>,
+        instances: &[GameInstance],
         gamehops: &Vec<GameHop<'a>>,
         name: String,
         left_name: String,
@@ -190,12 +186,12 @@ fn specialize<'a>(
     }
 }
 
-fn other_game<'a>(
-    instances: &Vec<GameInstance>,
-    gamehops: &Vec<GameHop<'a>>,
+fn other_game(
+    instances: &[GameInstance],
+    gamehops: &[GameHop],
     specialization: &mut Vec<(GameInstance, String, Vec<(String, String)>)>,
     game: usize,
-    hop: &'a GameHop,
+    hop: &GameHop,
 ) -> Option<usize> {
     let left_game = instances
         .iter()
@@ -216,18 +212,11 @@ fn other_game<'a>(
 }
 
 fn reachable_games(
-    instances: &Vec<GameInstance>,
-    gamehops: &Vec<GameHop>,
+    instances: &[GameInstance],
+    gamehops: &[GameHop],
     specialization: &mut Vec<(GameInstance, String, Vec<(String, String)>)>,
     game: usize,
 ) -> impl Iterator<Item = (usize, usize)> {
-    // let (left, right): (Vec<_>, Vec<_>) = theorem
-    //     .game_hops
-    //     .iter()
-    //     .map(|hop| other_game(theorem, specialization, game, hop))
-    //     .unzip();
-
-    let specialization = specialization;
     let mut positions = Vec::new();
     for (idx, hop) in gamehops.iter().enumerate() {
         if let Some(position) = other_game(instances, gamehops, specialization, game, hop) {

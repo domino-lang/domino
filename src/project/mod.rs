@@ -17,7 +17,6 @@ use crate::parser::SspParser;
 use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
-    proof::Proof,
     theorem::Theorem,
     transforms::Transformation,
     util::prover_process::ProverBackend,
