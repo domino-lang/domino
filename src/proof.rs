@@ -9,30 +9,31 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct Proof<'a> {
+    name: String,
     left_name: String,
     right_name: String,
-    theorem: &'a Theorem<'a>,
+
     // Specialized Instance -> reference to more general instance in the theorem
-    specialization: Vec<(GameInstance, &'a GameInstance)>,
+    specialization: Vec<(GameInstance, String, Vec<(String, String)>)>,
+    gamehops: Vec<GameHop<'a>>,
     sequence: Vec<usize>,
     hops: Vec<usize>,
 }
 
 impl<'a> Proof<'a> {
-    pub(crate) fn try_new(theorem: &'a Theorem) -> Option<Proof<'a>> {
-        let real = theorem
-            .instances
-            .iter()
-            .position(|inst| inst.name == "Real")?;
-        let ideal = theorem
-            .instances
-            .iter()
-            .position(|inst| inst.name == "Ideal")?;
+    pub(crate) fn try_new(
+        instances: &Vec<GameInstance>,
+        gamehops: &Vec<GameHop<'a>>,
+        name: String,
+        left_name: String,
+        right_name: String,
+    ) -> Option<Proof<'a>> {
+        let real = instances.iter().position(|inst| inst.name == left_name)?;
+        let ideal = instances.iter().position(|inst| inst.name == right_name)?;
 
-        let mut specialization: Vec<_> = theorem
-            .instances
+        let mut specialization: Vec<_> = instances
             .iter()
-            .map(|inst| (inst.clone(), inst))
+            .map(|inst| (inst.clone(), inst.name().to_string(), Vec::new()))
             .collect();
         let mut workque = VecDeque::new();
         workque.push_back(real);
@@ -45,7 +46,7 @@ impl<'a> Proof<'a> {
                 &specialization[current_idx].0.name
             );
 
-            if game_is_compatible(&theorem.instances[ideal], &specialization[current_idx].0) {
+            if game_is_compatible(&instances[ideal], &specialization[current_idx].0) {
                 let mut path = Vec::new();
                 let mut hops = Vec::new();
                 path.push(ideal);
@@ -61,15 +62,16 @@ impl<'a> Proof<'a> {
                 hops.reverse();
                 log::info!("found theorem; games: {path:?}, gamehops: {hops:?}");
                 return Some(Proof {
-                    left_name: "".into(),
-                    right_name: "".into(),
-                    theorem,
+                    name,
+                    left_name,
+                    right_name,
                     specialization,
+                    gamehops: gamehops.clone(),
                     sequence: path,
                     hops,
                 });
             } else {
-                let reach = reachable_games(theorem, &mut specialization, current_idx);
+                let reach = reachable_games(instances, gamehops, &mut specialization, current_idx);
                 for (entry, hop) in reach {
                     if predecessors.contains_key(&entry) {
                         continue;
@@ -81,65 +83,23 @@ impl<'a> Proof<'a> {
         }
         None
     }
-
-    fn assignments(
-        &'a self,
-        game: &'a GameInstance,
-        hop: &'a GameHop,
-    ) -> impl Iterator<Item = (String, String)> + 'a {
-        let left = self
-            .theorem
-            .find_game_instance(hop.left_game_instance_name())
-            .unwrap();
-        let right = self
-            .theorem
-            .find_game_instance(hop.right_game_instance_name())
-            .unwrap();
-
-        let reference = if game_is_compatible(game, left) {
-            left
-        } else {
-            right
-        };
-
-        game.consts.iter().filter_map(|(var, val)| {
-            let other_val = reference
-                .consts
-                .iter()
-                .find_map(|(other_var, other_val)| {
-                    if var.name == other_var.name {
-                        Some(other_val)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap();
-
-            if let Expression::Identifier(ident) = other_val {
-                if let Expression::BooleanLiteral(lit) = val {
-                    return Some((ident.ident(), lit.clone()));
-                }
-            }
-            None
-        })
-    }
 }
 
 impl std::fmt::Display for Proof<'_> {
     // This trait requires `fmt` with this exact signature.
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Theorem {}:", self.theorem.name)?;
+        //writeln!(f, "Theorem {}:", self.theorem.name)?;
         writeln!(f, "Real")?;
         for i in 0..self.hops.len() {
             let left = &self.specialization[self.sequence[i]];
             let right = &self.specialization[self.sequence[i + 1]];
-            let hop = &self.theorem.game_hops[self.hops[i]];
+            let hop = &self.gamehops[self.hops[i]];
 
             writeln!(
                 f,
                 "{} ({})",
-                left.1.name,
-                self.assignments(&left.0, hop)
+                left.1,
+                left.2.iter()
                     .map(|(a, b)| { format!("{}={}", a, b) })
                     .join(", ")
             )?;
@@ -147,8 +107,8 @@ impl std::fmt::Display for Proof<'_> {
             writeln!(
                 f,
                 "{} ({})",
-                right.1.name,
-                self.assignments(&right.0, hop)
+                right.1,
+                right.2.iter()
                     .map(|(a, b)| { format!("{}={}", a, b) })
                     .join(", ")
             )?;
@@ -159,7 +119,7 @@ impl std::fmt::Display for Proof<'_> {
 }
 
 fn specialize<'a>(
-    specialization: &mut Vec<(GameInstance, &'a GameInstance)>,
+    specialization: &mut Vec<(GameInstance, String, Vec<(String, String)>)>,
     game: usize,
     generic_match: &'a GameInstance,
     generic_other: &'a GameInstance,
@@ -174,7 +134,7 @@ fn specialize<'a>(
         );
         specialization
             .iter()
-            .position(|(inst, _ref)| game_is_equivalent(generic_other, inst))
+            .position(|(inst, _ref, _assign)| game_is_equivalent(generic_other, inst))
             .unwrap()
     } else {
         log::debug!(
@@ -216,27 +176,29 @@ fn specialize<'a>(
 
         if let Some(pos) = specialization
             .iter()
-            .position(|(inst, _ref)| game_is_equivalent(&new_game, inst))
+            .position(|(inst, _ref, _assign)| game_is_equivalent(&new_game, inst))
         {
             pos
         } else {
-            specialization.push((new_game, generic_other));
+            let assignments = assignments(&new_game, generic_other);
+            specialization.push((new_game, generic_other.name().to_string(), assignments));
             specialization.len() - 1
         }
     }
 }
 
 fn other_game<'a>(
-    theorem: &'a Theorem,
-    specialization: &mut Vec<(GameInstance, &'a GameInstance)>,
+    instances: &Vec<GameInstance>,
+    gamehops: &Vec<GameHop<'a>>,
+    specialization: &mut Vec<(GameInstance, String, Vec<(String, String)>)>,
     game: usize,
     hop: &'a GameHop,
 ) -> Option<usize> {
-    let left_game = theorem
-        .find_game_instance(hop.left_game_instance_name())
+    let left_game = instances.iter()
+        .find(|inst| inst.name == hop.left_game_instance_name())
         .unwrap();
-    let right_game = theorem
-        .find_game_instance(hop.right_game_instance_name())
+    let right_game = instances.iter()
+        .find(|inst| inst.name == hop.right_game_instance_name())
         .unwrap();
 
     if game_is_compatible(&specialization[game].0, left_game) {
@@ -248,9 +210,10 @@ fn other_game<'a>(
     None
 }
 
-fn reachable_games<'a>(
-    theorem: &'a Theorem,
-    specialization: &mut Vec<(GameInstance, &'a GameInstance)>,
+fn reachable_games(
+    instances: &Vec<GameInstance>,
+    gamehops: &Vec<GameHop>,
+    specialization: &mut Vec<(GameInstance, String, Vec<(String, String)>)>,
     game: usize,
 ) -> impl Iterator<Item = (usize, usize)> {
     // let (left, right): (Vec<_>, Vec<_>) = theorem
@@ -261,8 +224,8 @@ fn reachable_games<'a>(
 
     let specialization = specialization;
     let mut positions = Vec::new();
-    for (idx, hop) in theorem.game_hops.iter().enumerate() {
-        if let Some(position) = other_game(theorem, specialization, game, hop) {
+    for (idx, hop) in gamehops.iter().enumerate() {
+        if let Some(position) = other_game(instances, gamehops, specialization, game, hop) {
             positions.push((position, idx));
         }
     }
@@ -316,4 +279,31 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
         }
         unimplemented!()
     })
+}
+
+fn assignments(
+    game: &GameInstance,
+    reference: &GameInstance,
+) -> Vec<(String, String)> {
+
+    game.consts.iter().filter_map(|(var, val)| {
+        let other_val = reference
+            .consts
+            .iter()
+            .find_map(|(other_var, other_val)| {
+                if var.name == other_var.name {
+                    Some(other_val)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
+
+        if let Expression::Identifier(ident) = other_val {
+            if let Expression::BooleanLiteral(lit) = val {
+                return Some((ident.ident(), lit.clone()));
+            }
+        }
+        None
+    }).collect()
 }

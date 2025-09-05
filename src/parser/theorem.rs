@@ -21,6 +21,7 @@ use crate::{
         },
         Rule,
     },
+    proof::Proof,
     theorem::{Claim, GameInstance, Theorem},
     types::Type,
     util::scope::{Declaration, Error as ScopeError, Scope},
@@ -63,7 +64,7 @@ pub(crate) struct ParseTheoremContext<'a> {
     pub instances: Vec<GameInstance>,
     pub instances_table: HashMap<String, (usize, GameInstance)>,
     pub assumptions: Vec<Assumption>,
-    pub theorems: Vec<(String, String, String)>,
+    pub theorems: Vec<Proof<'a>>,
     pub game_hops: Vec<GameHop<'a>>,
 }
 
@@ -279,6 +280,7 @@ pub fn handle_theorem<'a>(
         consts,
         instances,
         assumptions,
+        theorems,
         game_hops,
         ..
     } = ctx;
@@ -291,7 +293,7 @@ pub fn handle_theorem<'a>(
         consts,
         instances,
         assumptions,
-        theorems: Vec::new(),
+        theorems,
         game_hops,
         pkgs: pkgs.into_values().collect(),
     })
@@ -441,16 +443,12 @@ fn handle_theorems(
             .into());
         }
 
-        ctx.theorems.push((
-            name,
-            left_name,
-            right_name,
-        ))
+        let proof = Proof::try_new(&ctx.instances, &ctx.game_hops, name, left_name, right_name).unwrap();
+        ctx.theorems.push(proof)
     }
 
     Ok(())
 }
-
 
 fn handle_game_hops<'a>(
     ctx: &mut ParseTheoremContext<'a>,
