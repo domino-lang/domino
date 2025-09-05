@@ -99,7 +99,8 @@ impl std::fmt::Display for Proof<'_> {
                 f,
                 "{} ({})",
                 left.1,
-                left.2.iter()
+                left.2
+                    .iter()
                     .map(|(a, b)| { format!("{}={}", a, b) })
                     .join(", ")
             )?;
@@ -108,7 +109,9 @@ impl std::fmt::Display for Proof<'_> {
                 f,
                 "{} ({})",
                 right.1,
-                right.2.iter()
+                right
+                    .2
+                    .iter()
                     .map(|(a, b)| { format!("{}={}", a, b) })
                     .join(", ")
             )?;
@@ -194,10 +197,12 @@ fn other_game<'a>(
     game: usize,
     hop: &'a GameHop,
 ) -> Option<usize> {
-    let left_game = instances.iter()
+    let left_game = instances
+        .iter()
         .find(|inst| inst.name == hop.left_game_instance_name())
         .unwrap();
-    let right_game = instances.iter()
+    let right_game = instances
+        .iter()
         .find(|inst| inst.name == hop.right_game_instance_name())
         .unwrap();
 
@@ -281,29 +286,28 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     })
 }
 
-fn assignments(
-    game: &GameInstance,
-    reference: &GameInstance,
-) -> Vec<(String, String)> {
+fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<(String, String)> {
+    game.consts
+        .iter()
+        .filter_map(|(var, val)| {
+            let other_val = reference
+                .consts
+                .iter()
+                .find_map(|(other_var, other_val)| {
+                    if var.name == other_var.name {
+                        Some(other_val)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
 
-    game.consts.iter().filter_map(|(var, val)| {
-        let other_val = reference
-            .consts
-            .iter()
-            .find_map(|(other_var, other_val)| {
-                if var.name == other_var.name {
-                    Some(other_val)
-                } else {
-                    None
+            if let Expression::Identifier(ident) = other_val {
+                if let Expression::BooleanLiteral(lit) = val {
+                    return Some((ident.ident(), lit.clone()));
                 }
-            })
-            .unwrap();
-
-        if let Expression::Identifier(ident) = other_val {
-            if let Expression::BooleanLiteral(lit) = val {
-                return Some((ident.ident(), lit.clone()));
             }
-        }
-        None
-    }).collect()
+            None
+        })
+        .collect()
 }

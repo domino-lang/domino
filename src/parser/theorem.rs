@@ -443,7 +443,8 @@ fn handle_theorems(
             .into());
         }
 
-        let proof = Proof::try_new(&ctx.instances, &ctx.game_hops, name, left_name, right_name).unwrap();
+        let proof =
+            Proof::try_new(&ctx.instances, &ctx.game_hops, name, left_name, right_name).unwrap();
         ctx.theorems.push(proof)
     }
 
