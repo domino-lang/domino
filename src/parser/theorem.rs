@@ -63,6 +63,7 @@ pub(crate) struct ParseTheoremContext<'a> {
     pub instances: Vec<GameInstance>,
     pub instances_table: HashMap<String, (usize, GameInstance)>,
     pub assumptions: Vec<Assumption>,
+    pub theorems: Vec<(String, String, String)>,
     pub game_hops: Vec<GameHop<'a>>,
 }
 
@@ -88,6 +89,7 @@ impl<'a> ParseContext<'a> {
             instances: vec![],
             instances_table: HashMap::new(),
             assumptions: vec![],
+            theorems: vec![],
             game_hops: vec![],
         }
     }
@@ -259,6 +261,9 @@ pub fn handle_theorem<'a>(
             Rule::assumptions => {
                 handle_assumptions(&mut ctx, ast.into_inner())?;
             }
+            Rule::theorems => {
+                handle_theorems(&mut ctx, ast.into_inner())?;
+            }
             Rule::game_hops => {
                 handle_game_hops(&mut ctx, ast.into_inner())?;
             }
@@ -411,6 +416,41 @@ fn handle_assumptions(
 
     Ok(())
 }
+
+fn handle_theorems(
+    ctx: &mut ParseTheoremContext,
+    ast: Pairs<Rule>,
+) -> Result<(), ParseTheoremError> {
+    for pair in ast {
+        let ((name, _), (left_name, left_name_span), (right_name, right_name_span)) =
+            handle_string_triplet(&mut pair.into_inner());
+
+        ctx.game_instance(&left_name)
+            .ok_or(UndefinedGameInstanceError {
+                source_code: ctx.named_source(),
+                at: (left_name_span.start()..left_name_span.end()).into(),
+                game_inst_name: left_name.clone(),
+            })?;
+
+        if ctx.game_instance(&right_name).is_none() {
+            return Err(UndefinedGameInstanceError {
+                source_code: ctx.named_source(),
+                at: (right_name_span.start()..right_name_span.end()).into(),
+                game_inst_name: right_name.clone(),
+            }
+            .into());
+        }
+
+        ctx.theorems.push((
+            name,
+            left_name,
+            right_name,
+        ))
+    }
+
+    Ok(())
+}
+
 
 fn handle_game_hops<'a>(
     ctx: &mut ParseTheoremContext<'a>,
