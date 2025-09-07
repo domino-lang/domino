@@ -1,7 +1,7 @@
 use crate::{
     package::{Composition, Edge, Export},
     parser::ast::Identifier,
-    parser::reduction::{ReductionMapping},
+    parser::reduction::ReductionMapping,
     util::{
         prover_process::{Communicator, ProverBackend, ProverResponse},
         smtmodel::{SmtModel, SmtModelEntry},
