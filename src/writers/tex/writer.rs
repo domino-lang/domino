@@ -10,17 +10,16 @@ use crate::gamehops::GameHop;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::pkg_ident::PackageOracleCodeLoopVarIdentifier;
 use crate::identifier::Identifier;
-use crate::package::{Composition, Edge, Export, OracleDef, PackageInstance};
+use crate::package::{Composition, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
 use crate::parser::package::ForComp;
-use crate::parser::reduction::ReductionMappingEntry;
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
 use crate::theorem::Theorem;
 use crate::types::CountSpec;
 use crate::types::Type;
 use crate::util::prover_process::ProverBackend;
-use crate::util::prover_process::{Communicator, ProverResponse};
-use crate::util::smtmodel::{SmtModel, SmtModelEntry};
+
+use super::{label::LatexLabel, tikzgraph::{ReductionGraph,TikzGraph}};
 
 // TODO: Move to struct so we can have verbose versions (e.g. writing types to expressions)
 
@@ -468,12 +467,15 @@ pub fn tex_write_package(
 }
 
 fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
-    writeln!(file, "\\documentclass[a0paper]{{article}}")?;
+    writeln!(file, "\\documentclass[a3paper]{{article}}")?;
     writeln!(file, "\\usepackage[margin=.25in]{{geometry}}")?;
-    writeln!(file, "\\usepackage[sets,operators]{{cryptocode}}")?;
+    writeln!(file, "\\usepackage[sets,operators,adversary]{{cryptocode}}")?;
     writeln!(file, "\\usepackage{{tikz}}")?;
+    writeln!(file, "\\usepackage{{amsmath}}")?;
+    writeln!(file, "\\usepackage{{amsthm}}")?;
     writeln!(file, "\\usepackage{{hyperref}}")?;
     writeln!(file, "\\newcommand{{\\pcas}}{{~\\highlightkeyword{{as}}}}")?;
+    writeln!(file, "\\newtheorem{{theorem}}{{Theorem}}")?;
     writeln!(
         file,
         "\\newcommand\\lit[1]{{\\ensuremath{{\\mathtt{{#1}}}}}}"
@@ -495,400 +497,6 @@ fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
     Ok(())
 }
 
-fn tex_solve_composition_graph(
-    backend: &Option<ProverBackend>,
-    composition: &Composition,
-) -> Option<SmtModel> {
-    use std::fmt::Write;
-
-    let mut model;
-    let write_model = |comm: &mut crate::util::prover_process::Communicator| {
-        let mut edges: HashSet<(usize, usize)> = HashSet::new();
-
-        writeln!(comm, "(declare-const num-pkgs Int)").unwrap();
-        writeln!(comm, "(declare-const width Int)").unwrap();
-        writeln!(comm, "(declare-const height Int)").unwrap();
-        writeln!(comm, "(assert (= num-pkgs {}))", composition.pkgs.len()).unwrap();
-
-        // Adversary
-        writeln!(comm, "(declare-const --column Int)").unwrap();
-        writeln!(comm, "(assert (= 0 --column))").unwrap();
-        writeln!(comm, "(declare-const --top Int)").unwrap();
-        writeln!(comm, "(declare-const --bottom Int)").unwrap();
-        writeln!(comm, "(assert (< 0 --bottom (- --top 1) height))").unwrap();
-
-        for i in 0..composition.pkgs.len() {
-            let pkg = &composition.pkgs[i].name;
-            writeln!(comm, "(declare-const {pkg}-column Int)").unwrap();
-            writeln!(comm, "(assert (< 0 {pkg}-column width))").unwrap();
-            writeln!(comm, "(declare-const {pkg}-top Int)").unwrap();
-            writeln!(comm, "(declare-const {pkg}-bottom Int)").unwrap();
-            writeln!(comm, "(assert (< 0 {pkg}-bottom (- {pkg}-top 1) height))").unwrap();
-        }
-
-        for Edge(from, to, _oracle) in &composition.edges {
-            if edges.contains(&(*from, *to)) {
-                continue;
-            };
-            edges.insert((*from, *to));
-            let pkga = &composition.pkgs[*from].name;
-            let pkgb = &composition.pkgs[*to].name;
-
-            writeln!(comm, "(declare-const edge-{pkga}-{pkgb}-height Int)").unwrap();
-            writeln!(
-                comm,
-                "(assert (< {pkga}-bottom edge-{pkga}-{pkgb}-height {pkga}-top))"
-            )
-            .unwrap();
-            writeln!(
-                comm,
-                "(assert (< {pkgb}-bottom edge-{pkga}-{pkgb}-height {pkgb}-top))"
-            )
-            .unwrap();
-            writeln!(comm, "(assert (< {pkga}-column {pkgb}-column))").unwrap();
-        }
-
-        for Export(to, _oracle) in &composition.exports {
-            if edges.contains(&(usize::MAX, *to)) {
-                continue;
-            };
-            edges.insert((usize::MAX, *to));
-            let pkga = "-";
-            let pkgb = &composition.pkgs[*to].name;
-
-            writeln!(comm, "(declare-const edge-{pkga}-{pkgb}-height Int)").unwrap();
-            writeln!(
-                comm,
-                "(assert (< {pkga}-bottom edge-{pkga}-{pkgb}-height {pkga}-top))"
-            )
-            .unwrap();
-            writeln!(
-                comm,
-                "(assert (< {pkgb}-bottom edge-{pkga}-{pkgb}-height {pkgb}-top))"
-            )
-            .unwrap();
-            writeln!(comm, "(assert (< {pkga}-column {pkgb}-column))").unwrap();
-        }
-
-        for i in 0..composition.pkgs.len() {
-            for j in 0..i {
-                let pkga = &composition.pkgs[i].name;
-                let pkgb = &composition.pkgs[j].name;
-                writeln!(
-                    comm,
-                    "
-(assert (not (exists ((l Int))
-               (and
-                 (<= {pkga}-bottom l {pkga}-top)
-                 (<= {pkgb}-bottom l {pkgb}-top)
-                 (= {pkga}-column {pkgb}-column)))))"
-                )
-                .unwrap();
-            }
-        }
-
-        for i in 0..composition.pkgs.len() {
-            for Edge(from, to, _oracle) in &composition.edges {
-                let pkga = &composition.pkgs[*from].name;
-                let pkgb = &composition.pkgs[*to].name;
-                let pkgc = &composition.pkgs[i].name;
-
-                writeln!(
-                    comm,
-                    "
-(assert (not (and (< {pkga}-column {pkgc}-column {pkgb}-column)
-                  (< (- {pkgc}-bottom 1) edge-{pkga}-{pkgb}-height (+ {pkgc}-top 1)))))"
-                )
-                .unwrap();
-            }
-            for Export(to, _oracle) in &composition.exports {
-                let pkga = "-";
-                let pkgb = &composition.pkgs[*to].name;
-                let pkgc = &composition.pkgs[i].name;
-
-                writeln!(
-                    comm,
-                    "
-(assert (not (and (<  {pkga}-column {pkgc}-column {pkgb}-column)
-                  (< (- {pkgc}-bottom 1) edge-{pkga}-{pkgb}-height (+ {pkgc}-top 1)))))"
-                )
-                .unwrap();
-            }
-        }
-    };
-
-    let _min_width = 50;
-
-    // Check if it is at all solvable
-    let mut comm = Communicator::new(backend.unwrap()).unwrap();
-    write_model(&mut comm);
-
-    let mut max_width;
-    let mut min_width = 0;
-    if comm.check_sat().unwrap() != ProverResponse::Sat {
-        return None;
-    } else {
-        model = comm.get_model().unwrap();
-        let model = SmtModel::from_string(&model);
-        let SmtModelEntry::IntEntry { value, .. } = model.get_value("width").unwrap();
-
-        max_width = value;
-    }
-
-    let mut max_height = 0;
-    let mut min_height = 0;
-    let opt_width;
-    loop {
-        let mut comm = Communicator::new(backend.unwrap()).unwrap();
-
-        let width = min_width + (max_width - min_width) / 2;
-        write_model(&mut comm);
-        writeln!(comm, "(assert (< width {width}))").unwrap();
-
-        if comm.check_sat().unwrap() == ProverResponse::Sat {
-            max_width = width;
-            model = comm.get_model().unwrap();
-            let model = SmtModel::from_string(&model);
-            let SmtModelEntry::IntEntry { value, .. } = model.get_value("height").unwrap();
-
-            max_height = value;
-        } else {
-            min_width = width;
-        }
-        if min_width + 1 == max_width {
-            opt_width = max_width;
-            break;
-        }
-    }
-
-    if min_height != max_height {
-        loop {
-            let mut comm = Communicator::new(backend.unwrap()).unwrap();
-
-            let height = min_height + (max_height - min_height) / 2;
-            write_model(&mut comm);
-            writeln!(comm, "(assert (< height {height}))").unwrap();
-            writeln!(comm, "(assert (< width {opt_width}))").unwrap();
-
-            if comm.check_sat().unwrap() == ProverResponse::Sat {
-                max_height = height;
-            } else {
-                min_height = height;
-            }
-            if min_height + 1 == max_height {
-                break;
-            }
-        }
-    }
-
-    if model.is_empty() {
-        None
-    } else {
-        let model = SmtModel::from_string(&model);
-        println!("{}\n{:#?}", composition.name, model);
-        Some(model)
-    }
-}
-
-fn tex_write_composition_graph(
-    backend: &Option<ProverBackend>,
-    mut file: &File,
-    composition: &Composition,
-    pkgmap: &[ReductionMappingEntry],
-) -> std::io::Result<()> {
-    let write_node = |mut file: &File,
-                      pkgname: &str,
-                      _compname: &str,
-                      idx,
-                      top,
-                      bottom,
-                      column|
-     -> std::io::Result<()> {
-        let fill = if pkgmap
-            .iter()
-            .any(|entry| pkgname == entry.assumption().as_str())
-        {
-            "red!50"
-        } else {
-            "white"
-        };
-
-        writeln!(
-            file,
-            "\\node[anchor=south west,align=center,package,minimum height={}cm,fill={fill}]
-    (node{}) at ({},{})
-    {{\\M{{{}}}}};",
-            f64::from(top - bottom) / 2.0,
-            idx,
-            column * 4,
-            f64::from(bottom) / 2.0,
-            //compname.replace('_', "\\_"),
-            pkgname.replace('_', "\\_")
-        )?;
-        Ok(())
-    };
-
-    let solution = tex_solve_composition_graph(backend, composition);
-
-    if let Some(model) = solution {
-        writeln!(file, "\\begin{{tikzpicture}}")?;
-        //writeln!(file, "\\draw[gray!50,step=.5] (-1,-1) grid (10,5);")?;
-        for i in 0..composition.pkgs.len() {
-            let pkgname = &composition.pkgs[i].name;
-            let SmtModelEntry::IntEntry { value: top, .. } =
-                model.get_value(&format!("{pkgname}-top")).unwrap();
-            let SmtModelEntry::IntEntry { value: bottom, .. } =
-                model.get_value(&format!("{pkgname}-bottom")).unwrap();
-            let SmtModelEntry::IntEntry { value: column, .. } =
-                model.get_value(&format!("{pkgname}-column")).unwrap();
-
-            write_node(file, pkgname, &composition.name, i, top, bottom, column)?;
-        }
-        for from in 0..composition.pkgs.len() {
-            for to in 0..composition.pkgs.len() {
-                let oracles: Vec<_> = composition
-                    .edges
-                    .iter()
-                    .filter_map(|Edge(f, t, oracle)| {
-                        if from == *f && to == *t {
-                            Some(oracle.name.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-                if oracles.is_empty() {
-                    continue;
-                }
-
-                let pkga = &composition.pkgs[from].name;
-                let pkgb = &composition.pkgs[to].name;
-
-                let SmtModelEntry::IntEntry { value: height, .. } = model
-                    .get_value(&format!("edge-{pkga}-{pkgb}-height"))
-                    .unwrap();
-                let SmtModelEntry::IntEntry { value: acolumn, .. } =
-                    model.get_value(&format!("{pkga}-column")).unwrap();
-                let SmtModelEntry::IntEntry { value: bcolumn, .. } =
-                    model.get_value(&format!("{pkgb}-column")).unwrap();
-
-                let height = f64::from(height) / 2.0;
-                let oracles = oracles
-                    .into_iter()
-                    .map(|o| format!("\\O{{{}}}", o.replace("_", "\\_")))
-                    .collect::<Vec<_>>()
-                    .join("\\\\");
-                writeln!(
-                    file,
-                    "\\draw[-latex,rounded corners]
-    ({},{}) -- node[onarrow] {{{}}} ({},{});",
-                    acolumn * 4 + 2,
-                    height,
-                    oracles,
-                    bcolumn * 4,
-                    height
-                )?;
-            }
-        }
-        for to in 0..composition.pkgs.len() {
-            let oracles: Vec<_> = composition
-                .exports
-                .iter()
-                .filter_map(|Export(t, oracle)| {
-                    if to == *t {
-                        Some(oracle.name.clone())
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            if oracles.is_empty() {
-                continue;
-            }
-
-            let pkgb = &composition.pkgs[to].name;
-
-            let SmtModelEntry::IntEntry { value: height, .. } =
-                model.get_value(&format!("edge---{pkgb}-height")).unwrap();
-            let SmtModelEntry::IntEntry { value: acolumn, .. } =
-                model.get_value("--column").unwrap();
-            let SmtModelEntry::IntEntry { value: bcolumn, .. } =
-                model.get_value(&format!("{pkgb}-column")).unwrap();
-
-            let height = f64::from(height) / 2.0;
-            let oracles = oracles
-                .into_iter()
-                .map(|o| format!("\\O{{{o}}}"))
-                .collect::<Vec<_>>()
-                .join("\\\\");
-            writeln!(
-                file,
-                "\\draw[-latex,rounded corners]
-    ({},{}) -- node[onarrow] {{{}}} ({},{});",
-                acolumn * 4 + 2,
-                height,
-                oracles,
-                bcolumn * 4,
-                height
-            )?;
-        }
-        //writeln!(file, "\\draw[red,fill=red] (0,0) circle (.2);")?;
-        writeln!(file, "\\end{{tikzpicture}}")?;
-    } else {
-        let mut printed = Vec::new();
-        let mut newly = Vec::new();
-
-        let mut tikzx = 0;
-        let mut tikzy = 0;
-
-        writeln!(file, "\\begin{{tikzpicture}}")?;
-        while printed.len() < composition.pkgs.len() {
-            for i in 0..composition.pkgs.len() {
-                if printed.contains(&i) {
-                    continue;
-                }
-
-                if !composition
-                    .edges
-                    .iter()
-                    .any(|Edge(from, to, _oracle)| i == *from && !printed.contains(to))
-                {
-                    write_node(
-                        file,
-                        &composition.pkgs[i].name,
-                        &composition.name,
-                        i,
-                        tikzy + 1,
-                        tikzy,
-                        tikzx,
-                    )?;
-                    newly.push(i);
-                    tikzy -= 2;
-
-                    for Edge(from, to, oracle) in &composition.edges {
-                        if i == *from {
-                            writeln!(file, "\\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", from, from, oracle.name, to)?;
-                        }
-                    }
-                }
-            }
-            printed.append(&mut newly);
-            tikzx -= 4;
-            tikzy = tikzx / 4;
-        }
-
-        writeln!(
-            file,
-            "\\node[package] (nodea) at ({tikzx}, {tikzy}) {{$A$}};"
-        )?;
-        for Export(to, oracle) in &composition.exports {
-            writeln!(file, "\\draw[-latex,rounded corners] (nodea) -- ($(nodea.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", oracle.name, to)?;
-        }
-        writeln!(file, "\\end{{tikzpicture}}")?;
-    }
-    Ok(())
-}
-
 fn tex_write_composition_graph_file(
     backend: &Option<ProverBackend>,
     composition: &Composition,
@@ -896,9 +504,9 @@ fn tex_write_composition_graph_file(
     target: &Path,
 ) -> std::io::Result<String> {
     let fname = target.join(format!("CompositionGraph_{name}.tex"));
-    let file = File::create(fname.clone())?;
+    let mut file = File::create(fname.clone())?;
 
-    tex_write_composition_graph(backend, &file, composition, &Vec::new())?;
+    write!(file, "{}", composition.tikz_graph(&backend.unwrap()))?;
 
     Ok(fname.to_str().unwrap().to_string())
 }
@@ -1030,18 +638,55 @@ pub fn tex_write_theorem(
         writeln!(file, "\\clearpage")?;
     }
 
+    for thm in &theorem.theorems {
+        writeln!(file, "\\section{{Theorem: {}}}", thm.name())?;
+
+        let (reductions, reductiondefs): (Vec<_>, Vec<_>) = thm
+            .reductions()
+            .enumerate()
+            .map(|(rednum, red)| {
+                (
+                    format!("$\\rdv_{}$", rednum + 1),
+                    format!(
+                        "reduction $\\rdv_{}$ is defined in Fig.~\\ref{{{}}}",
+                        rednum + 1,
+                        red.latex_label("figure")
+                    ),
+                )
+            })
+            .unzip();
+        let reductions = reductions.join(", ");
+        let reductiondefs = reductiondefs.join(", ");
+
+        write!(
+            file,
+            "\\begin{{theorem}}\n\
+             We prove that for all adversaries $\\adv$, \
+             there are reductions {reductions} \
+             such that \\color{{red}}{{todo: advantage-relation}} where {reductiondefs}\n\
+             \\end{{theorem}}\n",
+        )?;
+    }
+
+    for reduction in theorem.reductions() {
+        writeln!(file, "\\begin{{figure}}")?;
+        writeln!(file, "\\caption{{something}}")?;
+        writeln!(file, "\\end{{figure}}")?;
+    }
+
+    writeln!(file, "\\section{{Gamehops}}")?;
     for game_hop in &theorem.game_hops {
         match &game_hop {
             GameHop::Reduction(red) => {
                 writeln!(
                     file,
-                    "\\section{{Reduction to {}}}",
+                    "\\subsection{{Reduction to {}}}",
                     red.assumption_name().replace('_', "\\_")
                 )?;
 
                 writeln!(
                     file,
-                    "\\subsection{{Game {} with Assumption Game {} highlighted in red}}",
+                    "\\subsubsection{{Game {} with Assumption Game {} highlighted in red}}",
                     red.left()
                         .construction_game_instance_name()
                         .as_str()
@@ -1059,17 +704,16 @@ pub fn tex_write_theorem(
                         instance.name() == red.left().construction_game_instance_name().as_str()
                     })
                     .unwrap();
-                tex_write_composition_graph(
-                    backend,
-                    &file,
-                    left_game_instance.game(),
-                    red.left().entries(),
-                )?;
+                write!(file, "{}", ReductionGraph{
+                    composition: left_game_instance.game(),
+                    mapping: red.left()
+                }.tikz_graph(&backend.unwrap()))?;
+
                 writeln!(file, "\\end{{center}}")?;
 
                 writeln!(
                     file,
-                    "\\subsection{{Game {} with Assumption Game {} highlighted  in red}}",
+                    "\\subsubsection{{Game {} with Assumption Game {} highlighted  in red}}",
                     red.right()
                         .construction_game_instance_name()
                         .as_str()
@@ -1087,18 +731,16 @@ pub fn tex_write_theorem(
                         instance.name() == red.right().construction_game_instance_name().as_str()
                     })
                     .unwrap();
-                tex_write_composition_graph(
-                    backend,
-                    &file,
-                    right_game_instance.game(),
-                    red.right().entries(),
-                )?;
+                write!(file, "{}", ReductionGraph{
+                    composition: right_game_instance.game(),
+                    mapping: red.right()
+                }.tikz_graph(&backend.unwrap()))?;
                 writeln!(file, "\\end{{center}}")?;
             }
             GameHop::Equivalence(equiv) => {
                 writeln!(
                     file,
-                    "\\section{{Equivalence between {} and {}}}",
+                    "\\subsection{{Equivalence between {} and {}}}",
                     equiv.left_name().replace('_', "\\_"),
                     equiv.right_name().replace('_', "\\_")
                 )?;

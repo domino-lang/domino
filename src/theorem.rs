@@ -2,7 +2,10 @@
 
 use crate::{
     expressions::Expression,
-    gamehops::{reduction::Assumption, GameHop},
+    gamehops::{
+        reduction::{Assumption, Reduction},
+        GameHop,
+    },
     identifier::game_ident::GameConstIdentifier,
     package::{Composition, Edge, Export, Package},
     packageinstance::instantiate::InstantiationContext,
@@ -256,6 +259,16 @@ impl<'a> Theorem<'a> {
             instances,
             ..self.clone()
         }
+    }
+
+    pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction> {
+        self.game_hops.iter().filter_map(|hop| {
+            if let GameHop::Reduction(red) = hop {
+                Some(red)
+            } else {
+                None
+            }
+        })
     }
 
     pub(crate) fn find_game_instance(&self, game_inst_name: &str) -> Option<&GameInstance> {

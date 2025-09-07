@@ -2,7 +2,10 @@
 
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
-use crate::{expressions::Expression, gamehops::GameHop, theorem::GameInstance};
+use crate::{
+    expressions::Expression, gamehops::reduction::Reduction, gamehops::GameHop,
+    theorem::GameInstance,
+};
 
 #[derive(Debug, Clone)]
 pub struct Proof<'a> {
@@ -129,6 +132,20 @@ impl<'a> Proof<'a> {
             }
         }
         None
+    }
+
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction> {
+        self.hops.iter().filter_map(|hopid| {
+            if let GameHop::Reduction(red) = &self.gamehops[*hopid] {
+                Some(red)
+            } else {
+                None
+            }
+        })
     }
 }
 
