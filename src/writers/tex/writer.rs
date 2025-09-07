@@ -19,7 +19,10 @@ use crate::types::CountSpec;
 use crate::types::Type;
 use crate::util::prover_process::ProverBackend;
 
-use super::{label::LatexLabel, tikzgraph::{ReductionGraph,TikzGraph}};
+use super::{
+    label::LatexLabel,
+    tikzgraph::{ReductionGraph, TikzGraph},
+};
 
 // TODO: Move to struct so we can have verbose versions (e.g. writing types to expressions)
 
@@ -663,14 +666,54 @@ pub fn tex_write_theorem(
             "\\begin{{theorem}}\n\
              We prove that for all adversaries $\\adv$, \
              there are reductions {reductions} \
-             such that \\color{{red}}{{todo: advantage-relation}} where {reductiondefs}\n\
+             such that {{\\color{{red}}todo: advantage-relation}} where {reductiondefs}\n\
              \\end{{theorem}}\n",
         )?;
     }
 
     for reduction in theorem.reductions() {
+        let left_game_name = reduction.left().construction_game_instance_name();
+        let left_game = theorem.find_game_instance(left_game_name.as_str()).unwrap();
+        let right_game_name = reduction.right().construction_game_instance_name();
+        let right_game = theorem
+            .find_game_instance(right_game_name.as_str())
+            .unwrap();
+
         writeln!(file, "\\begin{{figure}}")?;
-        writeln!(file, "\\caption{{something}}")?;
+        writeln!(
+            file,
+            "{}",
+            ReductionGraph {
+                composition: left_game.game(),
+                mapping: reduction.left()
+            }
+            .tikz_graph(&backend.unwrap())
+        )?;
+        writeln!(
+            file,
+            "{}",
+            ReductionGraph {
+                composition: right_game.game(),
+                mapping: reduction.right()
+            }
+            .tikz_graph(&backend.unwrap())
+        )?;
+        writeln!(
+            file,
+            "\\caption{{Reduction: {} $\\approx$ {} assuming {}}}\\label{{{}}}",
+            reduction
+                .left()
+                .construction_game_instance_name()
+                .as_str()
+                .replace('_', "\\_"),
+            reduction
+                .right()
+                .construction_game_instance_name()
+                .as_str()
+                .replace('_', "\\_"),
+            reduction.assumption_name(),
+            reduction.latex_label("figure")
+        )?;
         writeln!(file, "\\end{{figure}}")?;
     }
 
@@ -704,10 +747,15 @@ pub fn tex_write_theorem(
                         instance.name() == red.left().construction_game_instance_name().as_str()
                     })
                     .unwrap();
-                write!(file, "{}", ReductionGraph{
-                    composition: left_game_instance.game(),
-                    mapping: red.left()
-                }.tikz_graph(&backend.unwrap()))?;
+                write!(
+                    file,
+                    "{}",
+                    ReductionGraph {
+                        composition: left_game_instance.game(),
+                        mapping: red.left()
+                    }
+                    .tikz_graph(&backend.unwrap())
+                )?;
 
                 writeln!(file, "\\end{{center}}")?;
 
@@ -731,10 +779,15 @@ pub fn tex_write_theorem(
                         instance.name() == red.right().construction_game_instance_name().as_str()
                     })
                     .unwrap();
-                write!(file, "{}", ReductionGraph{
-                    composition: right_game_instance.game(),
-                    mapping: red.right()
-                }.tikz_graph(&backend.unwrap()))?;
+                write!(
+                    file,
+                    "{}",
+                    ReductionGraph {
+                        composition: right_game_instance.game(),
+                        mapping: red.right()
+                    }
+                    .tikz_graph(&backend.unwrap())
+                )?;
                 writeln!(file, "\\end{{center}}")?;
             }
             GameHop::Equivalence(equiv) => {
