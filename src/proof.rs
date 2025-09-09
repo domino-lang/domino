@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{
-    expressions::Expression, gamehops::reduction::Reduction, gamehops::GameHop,
-    theorem::GameInstance,
+    expressions::Expression, gamehops::equivalence::Equivalence, gamehops::reduction::Reduction,
+    gamehops::GameHop, theorem::GameInstance,
 };
 
 #[derive(Debug, Clone)]
@@ -136,6 +136,13 @@ impl<'a> Proof<'a> {
         &self.name
     }
 
+    pub(crate) fn left_name(&self) -> &str {
+        &self.left_name
+    }
+    pub(crate) fn right_name(&self) -> &str {
+        &self.right_name
+    }
+
     pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction> {
         self.hops.iter().filter_map(|hopid| {
             if let GameHop::Reduction(red) = &self.gamehops[*hopid] {
@@ -144,6 +151,20 @@ impl<'a> Proof<'a> {
                 None
             }
         })
+    }
+
+    pub(crate) fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
+        self.hops.iter().filter_map(|hopid| {
+            if let GameHop::Equivalence(eq) = &self.gamehops[*hopid] {
+                Some(eq)
+            } else {
+                None
+            }
+        })
+    }
+
+    pub(crate) fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {
+        self.hops.iter().map(|hopid| &self.gamehops[*hopid])
     }
 }
 
