@@ -228,17 +228,17 @@ pub fn tex_write_theorem(
             instance.game_name().replace('_', "\\_")
         );
 
-        writeln!(file, "\\begin{{minipage}}{{.33\\textwidth}}")?;
+        writeln!(file, "\\begin{{minipage}}{{.245\\textwidth}}")?;
         writeln!(
             file,
             "\\subsection*{{\\hyperref[section:game:{}]{{{} Game}}}}",
             instance.name(),
             instance.name().replace('_', "\\_")
         )?;
-        writeln!(file, "\\input{{{graphfname}}}")?;
+        writeln!(file, "\\scalebox{{0.66}}{{\\input{{{graphfname}}}}}")?;
         writeln!(file, "\\end{{minipage}}")?;
         fill += 1;
-        if fill == 3 {
+        if fill == 4 {
             fill = 0;
             writeln!(file, "\\\\")?;
         }
@@ -292,7 +292,7 @@ pub fn tex_write_theorem(
                       -\\prob{{\\adv\\rightarrow {right} = 0}}\
                       \\end{{array}}}},
                       \\]\
-                      where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.");
+                      where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
         writeln!(file, "\\end{{definition}}")?;
     }
     for thm in &theorem.proofs {
@@ -308,7 +308,7 @@ pub fn tex_write_theorem(
                       -\\prob{{\\adv\\rightarrow {right} = 0}}\
                       \\end{{array}}}},
                       \\]\
-                      where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.");
+                      where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
         writeln!(file, "\\end{{definition}}")?;
     }
     
@@ -363,7 +363,7 @@ pub fn tex_write_theorem(
         )?;
 
         for game_hop in thm.game_hops() {
-            writeln!(file, "\\begin{{claim}}");
+            writeln!(file, "\\begin{{claim}}")?;
             match game_hop {
                 GameHop::Equivalence(eq) => {
                     let left = eq.left_name().replace('_', "\\_");
@@ -402,7 +402,7 @@ pub fn tex_write_theorem(
                                   where $\\rdv$ is defined in Fig.~\\ref{{{label}}}.")?;
                 }
             }
-            writeln!(file, "\\end{{claim}}");
+            writeln!(file, "\\end{{claim}}")?;
         }
     }
 
