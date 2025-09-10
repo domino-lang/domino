@@ -42,7 +42,18 @@ pub(crate) struct Latex {
     /// Solver for graph layouting
     #[clap(short, long, default_value = "cvc5")]
     pub(crate) prover: Option<ProverBackend>,
-    // TODO: given we have a default here, it seems impossible to choose none
+
+    /// Create a merged listing of the same oracle in multiple packages
+    #[clap(long)]
+    pub(crate) merged: bool,
+
+    /// Oracle name to consider in case the --merged option is used
+    #[clap(long)]
+    pub(crate) oraclename: Option<String>,
+
+    /// Packages to consider in case the --merged option is used, repeat for all packages
+    #[clap(long)]
+    pub(crate) package: Vec<String>,
 }
 
 #[derive(clap::Args, Debug)]

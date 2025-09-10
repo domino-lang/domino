@@ -161,7 +161,14 @@ fn latex(l: &Latex) -> Result<(), project::error::Error> {
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
-    project.latex(l.prover)
+    let merged = if l.merged {
+        assert!(l.oraclename.is_some());
+        Some((l.oraclename.clone().unwrap(), l.package.clone()))
+    } else {
+        None
+    };
+
+    project.latex(l.prover, merged)
 }
 
 fn format(f: &Format) -> Result<(), project::error::Error> {

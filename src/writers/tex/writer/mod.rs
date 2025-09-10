@@ -64,6 +64,43 @@ pub fn tex_write_oracle(
     Ok(fname.to_str().unwrap().to_string())
 }
 
+pub fn tex_write_mergedoracle(
+    lossy: bool,
+    oracles: &[&OracleDef],
+    pkgnames: &[&str],
+    compname: &str,
+    target: &Path,
+) -> std::io::Result<String> {
+    let fname = target.join(format!(
+        "MergedOracle_{}_{}_in_{}{}.tex",
+        pkgnames.join("."),
+        oracles[0].sig.name,
+        compname,
+        if lossy { "_lossy" } else { "" }
+    ));
+    let mut file = File::create(fname.clone())?;
+
+    writeln!(
+        file,
+        "\\procedure{{$\\O{{{}}}({})$}}{{",
+        oracles[0].sig.name.replace("_", "\\_"),
+        oracles[0]
+            .sig
+            .args
+            .iter()
+            .map(|(a, _)| { format!("\\n{{{}}}", a.replace("_", "\\_")) })
+            .collect::<Vec<_>>()
+            .join(", ")
+    )?;
+
+    let mut writer = BlockWriter::new(&mut file, lossy);
+    let codeblocks: Vec<_> = oracles.iter().map(|oracle| &oracle.code).collect();
+    writer.write_merged_codeblocks(&codeblocks, 0)?;
+
+    writeln!(file, "}}")?;
+    Ok(fname.to_str().unwrap().to_string())
+}
+
 pub fn tex_write_package(
     lossy: bool,
     composition: &Composition,
@@ -300,7 +337,7 @@ pub fn tex_write_theorem(
         writeln!(file, "\\label{{{}}}", thm.latex_label("advantage"))?;
         let left = thm.left_name();
         let right = thm.right_name();
-        
+
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
@@ -311,10 +348,10 @@ pub fn tex_write_theorem(
                       where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
         writeln!(file, "\\end{{definition}}")?;
     }
-    
+
     for thm in &theorem.proofs {
         let thmname = thm.name();
-        writeln!(file, "\\section{{Theorem: {thmname}}}", )?;
+        writeln!(file, "\\section{{Theorem: {thmname}}}",)?;
 
         let (reductions, reductiondefs, reductionadvs): (Vec<_>, Vec<_>, Vec<_>) = thm
             .reductions()

@@ -267,7 +267,11 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
-    pub fn latex(&self, backend: Option<ProverBackend>) -> Result<()> {
+    pub fn latex(
+        &self,
+        backend: Option<ProverBackend>,
+        merged: Option<(String, Vec<String>)>,
+    ) -> Result<()> {
         let mut path = self.root_dir.clone();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
@@ -290,15 +294,17 @@ impl<'a> Project<'a> {
             }
         }
 
-        for (name, theorem) in &self.theorems {
-            for lossy in [true, false] {
-                crate::writers::tex::writer::tex_write_theorem(
-                    &backend,
-                    lossy,
-                    theorem,
-                    name,
-                    path.as_path(),
-                )?;
+        if merged.is_none() {
+            for (name, theorem) in &self.theorems {
+                for lossy in [true, false] {
+                    crate::writers::tex::tex_write_theorem(
+                        &backend,
+                        lossy,
+                        theorem,
+                        name,
+                        path.as_path(),
+                    )?;
+                }
             }
         }
 
