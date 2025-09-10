@@ -162,10 +162,10 @@ fn smt_composition_graph(
                     result,
                     "\\draw[-latex,rounded corners]
     ({},{}) -- node[onarrow] {{{}}} ({},{});",
-                    acolumn * 4 + 2,
+                    f64::from(acolumn) * 3.5 + 2.0,
                     height,
                     oracles,
-                    bcolumn * 4,
+                    f64::from(bcolumn) * 3.5,
                     height
                 )
                 .unwrap();
@@ -205,10 +205,10 @@ fn smt_composition_graph(
             writeln!(
                 result,
                 "\\draw[-latex,rounded corners] ({},{}) -- node[onarrow] {{{}}} ({},{});",
-                acolumn * 4 + 2,
+                f64::from(acolumn) * 3.5 + 2.0,
                 height,
                 oracles,
-                bcolumn * 4,
+                f64::from(bcolumn) * 3.5,
                 height
             )
             .unwrap();
@@ -246,7 +246,7 @@ fn package_node_tikz(
         "\\node[anchor=south west,align=center,package,minimum height={}cm,fill={fill}] (node{}) at ({},{}) {{\\M{{{}}}}};",
         f64::from(top - bottom) / 2.0,
         idx,
-        column * 4,
+        f64::from(column) * 3.5,
         f64::from(bottom) / 2.0,
         //compname.replace('_', "\\_"),
         pkgname.replace('_', "\\_")
