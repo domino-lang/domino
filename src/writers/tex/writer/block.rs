@@ -209,44 +209,40 @@ impl<'a> BlockWriter<'a> {
         }
     }
 
-    fn write_statement(&mut self, statement: &Statement, indentation: u8) -> std::io::Result<()> {
+    fn write_statement(&self, statement: &Statement, indentation: u8) -> String {
         match &statement {
             Statement::Abort(_) => {
-                writeln!(self.file, "{} \\pcabort\\\\", genindentation(indentation))?;
+                format!("{} \\pcabort\\\\", genindentation(indentation))
             }
             Statement::Return(None, _) => {
-                writeln!(self.file, "{} \\pcreturn\\\\", genindentation(indentation))?;
+                format!("{} \\pcreturn\\\\", genindentation(indentation))
             }
             Statement::Return(Some(expr), _) => {
-                writeln!(
-                    self.file,
+                format!(
                     "{} \\pcreturn {}\\\\",
                     genindentation(indentation),
                     self.expression_to_tex(expr)
-                )?;
+                )
             }
             Statement::Assign(ident, None, expr, _) => {
-                writeln!(
-                    self.file,
+                format!(
                     "{} {} \\gets {}\\\\",
                     genindentation(indentation),
                     self.ident_to_tex(ident),
                     self.expression_to_tex(expr)
-                )?;
+                )
             }
             Statement::Assign(ident, Some(idxexpr), expr, _) => {
-                writeln!(
-                    self.file,
+                format!(
                     "{} {}[{}] \\gets {}\\\\",
                     genindentation(indentation),
                     self.ident_to_tex(ident),
                     self.expression_to_tex(idxexpr),
                     self.expression_to_tex(expr)
-                )?;
+                )
             }
             Statement::Parse(ids, expr, _) => {
-                writeln!(
-                    self.file,
+                format!(
                     "{}\\pcparse {} \\pcas \\left({}\\right)\\\\",
                     genindentation(indentation),
                     self.expression_to_tex(expr),
@@ -255,7 +251,7 @@ impl<'a> BlockWriter<'a> {
                             .map(|ident| self.ident_to_tex(ident))
                             .collect::<Vec<_>>()
                     )
-                )?;
+                )
             }
             Statement::IfThenElse(ite) => {
                 if ite.then_block.0.is_empty()
@@ -263,25 +259,25 @@ impl<'a> BlockWriter<'a> {
                     && matches!(ite.else_block.0[0], Statement::Abort(_))
                 {
                     // Special Case for asserts
-                    writeln!(
-                        self.file,
+                    format!(
                         "{}\\pcassert {} \\\\",
                         genindentation(indentation),
                         self.expression_to_tex(&ite.cond)
-                    )?;
+                    )
                 } else {
                     //default
-                    writeln!(
-                        self.file,
+                    format!(
                         "{}\\pcif {} \\pcthen\\\\",
                         genindentation(indentation),
                         self.expression_to_tex(&ite.cond)
-                    )?;
-                    self.write_codeblock(&ite.then_block, indentation + 1)?;
-                    if !ite.else_block.0.is_empty() {
-                        writeln!(self.file, "{}\\pcelse\\\\", genindentation(indentation))?;
-                        self.write_codeblock(&ite.else_block, indentation + 1)?;
+                    )
+                    /*
+                        self.write_codeblock(&ite.then_block, indentation + 1)?;
+                        if !ite.else_block.0.is_empty() {
+                            format!("{}\\pcelse\\\\", genindentation(indentation))?;
+                            self.write_codeblock(&ite.else_block, indentation + 1)?;
                     }
+                         */
                 }
             }
             Statement::For(var, from, to, code, _) => {
@@ -294,8 +290,7 @@ impl<'a> BlockWriter<'a> {
                     },
                 )) = var
                 {
-                    writeln!(
-                        self.file,
+                    format!(
                         "{}\\pcfor {} {} {} {} {} \\pcdo\\\\",
                         genindentation(indentation),
                         self.expression_to_tex(from),
@@ -303,33 +298,30 @@ impl<'a> BlockWriter<'a> {
                         self.ident_to_tex(var),
                         self.forcomp_to_tex(end_comp),
                         self.expression_to_tex(to)
-                    )?;
-                    self.write_codeblock(code, indentation + 1)?;
+                    )
+                    //self.write_codeblock(code, indentation + 1)?;
                 } else {
                     unreachable!();
                 }
             }
             Statement::Sample(ident, None, _, ty, Some(sample_name), _) => {
-
-                writeln!(
-                    self.file,
+                format!(
                     "{}{} \\stackrel{{{}}}{{\\sample}} {}\\\\",
                     genindentation(indentation),
                     self.ident_to_tex(ident),
                     sample_name,
                     self.type_to_tex(ty)
-                )?;
+                )
             }
             Statement::Sample(ident, Some(idxexpr), _, ty, Some(sample_name), _) => {
-                writeln!(
-                    self.file,
+                format!(
                     "{}{}[{}] \\stackrel{{{}}}{{\\samples}} {}\\\\",
                     genindentation(indentation),
                     self.ident_to_tex(ident),
                     self.expression_to_tex(idxexpr),
                     sample_name,
                     self.type_to_tex(ty)
-                )?;
+                )
             }
             Statement::Sample(_, _, _, _, None, _) => {
                 unreachable!("Expected sample name")
@@ -343,13 +335,13 @@ impl<'a> BlockWriter<'a> {
                 ty: _,
                 ..
             }) => {
-                writeln!(self.file,
+                format!(
                          "{}{} \\stackrel{{\\mathsf{{\\tiny{{invoke}}}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
                          genindentation(indentation),
                          self.ident_to_tex(ident), name.replace("_", "\\_"),
                          args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
                          target_inst_name.replace('_',"\\_")
-                )?;
+                )
             }
             Statement::InvokeOracle(InvokeOracleStatement {
                 id: ident,
@@ -360,15 +352,15 @@ impl<'a> BlockWriter<'a> {
                 ty: _,
                 ..
             }) => {
-                writeln!(self.file,
-                         "{}{}[{}] \\stackrel{{\\mathsf{{\\tiny invoke}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
+                format!(
+                    "{}{}[{}] \\stackrel{{\\mathsf{{\\tiny invoke}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
                          genindentation(indentation),
                          self.ident_to_tex(ident),
                          self.expression_to_tex(idxexpr),
                          name.replace("_", "\\_"),
                          args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
                          target_inst_name.replace('_',"\\_")
-                )?;
+                )
             }
             Statement::InvokeOracle(InvokeOracleStatement {
                 target_inst_name: None,
@@ -377,7 +369,6 @@ impl<'a> BlockWriter<'a> {
                 unreachable!("Expect oracle-lowlevelified input")
             }
         }
-        Ok(())
     }
 
     pub(crate) fn write_codeblock(
@@ -386,7 +377,18 @@ impl<'a> BlockWriter<'a> {
         indentation: u8,
     ) -> std::io::Result<()> {
         for stmt in &codeblock.0 {
-            self.write_statement(stmt, indentation)?
+            writeln!(self.file, "{}", self.write_statement(stmt, indentation))?;
+
+            if let Statement::IfThenElse(ite) = stmt {
+                self.write_codeblock(&ite.then_block, indentation + 1)?;
+                if !ite.else_block.0.is_empty() {
+                    writeln!(self.file, "{}\\pcelse\\\\", genindentation(indentation))?;
+                    self.write_codeblock(&ite.else_block, indentation + 1)?;
+                }
+            }
+            if let Statement::For(_, _, _, code, _) = stmt {
+                self.write_codeblock(code, indentation + 1)?;
+            }
         }
         Ok(())
     }
