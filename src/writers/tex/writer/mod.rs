@@ -300,7 +300,7 @@ pub fn tex_write_theorem(
         writeln!(file, "\\label{{{}}}", thm.latex_label("advantage"))?;
         let left = thm.left_name();
         let right = thm.right_name();
-        
+
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
@@ -311,10 +311,10 @@ pub fn tex_write_theorem(
                       where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
         writeln!(file, "\\end{{definition}}")?;
     }
-    
+
     for thm in &theorem.proofs {
         let thmname = thm.name();
-        writeln!(file, "\\section{{Theorem: {thmname}}}", )?;
+        writeln!(file, "\\section{{Theorem: {thmname}}}",)?;
 
         let (reductions, reductiondefs, reductionadvs): (Vec<_>, Vec<_>, Vec<_>) = thm
             .reductions()

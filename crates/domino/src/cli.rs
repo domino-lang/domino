@@ -44,7 +44,6 @@ pub(crate) struct Latex {
     /// Solver for graph layouting
     #[clap(short, long, default_value = "cvc5")]
     pub(crate) prover: Option<ProverBackend>,
-    // TODO: given we have a default here, it seems impossible to choose none
 }
 
 #[derive(clap::Args, Debug)]

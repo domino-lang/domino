@@ -170,13 +170,14 @@ impl<'a> Proof<'a> {
     }
 
     pub(crate) fn instances(&self) -> impl Iterator<Item = &GameInstance> {
-        self.sequence.iter().map(|instid| &self.specialization[*instid].game_instance )
+        self.sequence
+            .iter()
+            .map(|instid| &self.specialization[*instid].game_instance)
     }
 }
 
 /// Specialize a game instance that matches generic_match to one that matches generic_other. Use
 /// the assignments of the current specialization.
-
 
 /** There is a gamehop between generic_match and generic_other.
  ** specialization[game] is compatible with generic_match.
