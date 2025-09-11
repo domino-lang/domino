@@ -27,10 +27,10 @@ kw_true  = _{ "true" }
 kw_false = _{ "false" }
 kw_emptyset = _{ "emptyset" }
 
-kw_proof = _{ "proof" }
+kw_theorem = _{ "theorem" }
 kw_assumption = _{ "assumption" }
 kw_assumptions = _{ "assumptions" }
-kw_theorems = _{ "theorems" }
+kw_propositions = _{ "propositions" }
 kw_reduction = _{ "reduction" }
 kw_equivalence = _{ "equivalence" }
 kw_conjecture = _{ "conjecture" }
@@ -39,13 +39,13 @@ kw_map = _{ "map" }
 kw_invariant = _{ "invariant" }
 kw_lemmas = _{ "lemmas" }
 
-proof = { kw_proof ~ identifier ~ "{" ~ proof_spec_list ~ "}" }
-proof_spec_list = { const_decl* ~ instance_decl* ~ assumptions? ~ game_hops ~ theorems? }
+theorem = { kw_theorem ~ identifier ~ "{" ~ theorem_spec_list ~ "}" }
+theorem_spec_list = { const_decl* ~ instance_decl* ~ assumptions? ~ game_hops ~ propositions? }
   assumptions = { kw_assumptions ~ "{" ~ ( assumption_entry )* ~ "}" }
     assumption_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
-  theorems = { kw_theorems ~ "{" ~ ( theorem_entry )* ~ "}" }
-    theorem_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
+  propositions = { kw_propositions ~ "{" ~ ( proposition_entry )* ~ "}" }
+    proposition_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
 
   game_hops = { kw_gamehops ~ "{" ~ ( reduction | equivalence | conjecture )* ~ "}"}

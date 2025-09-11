@@ -229,7 +229,7 @@ pub struct Theorem<'a> {
     pub consts: Vec<(String, Type)>,
     pub instances: Vec<GameInstance>,
     pub assumptions: Vec<Assumption>,
-    pub theorems: Vec<Proof<'a>>,
+    pub proofs: Vec<Proof<'a>>,
     pub game_hops: Vec<GameHop<'a>>,
     pub pkgs: Vec<Package>,
 }

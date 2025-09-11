@@ -64,7 +64,7 @@ pub(crate) struct ParseTheoremContext<'a> {
     pub instances: Vec<GameInstance>,
     pub instances_table: HashMap<String, (usize, GameInstance)>,
     pub assumptions: Vec<Assumption>,
-    pub theorems: Vec<Proof<'a>>,
+    pub propositions: Vec<Proof<'a>>,
     pub game_hops: Vec<GameHop<'a>>,
 }
 
@@ -90,7 +90,7 @@ impl<'a> ParseContext<'a> {
             instances: vec![],
             instances_table: HashMap::new(),
             assumptions: vec![],
-            theorems: vec![],
+            propositions: vec![],
             game_hops: vec![],
         }
     }
@@ -266,8 +266,8 @@ pub fn handle_theorem<'a>(
             Rule::assumptions => {
                 handle_assumptions(&mut ctx, ast.into_inner())?;
             }
-            Rule::theorems => {
-                handle_theorems(&mut ctx, ast.into_inner())?;
+            Rule::propositions => {
+                handle_propositions(&mut ctx, ast.into_inner())?;
             }
             Rule::game_hops => {
                 handle_game_hops(&mut ctx, ast.into_inner())?;
@@ -284,13 +284,13 @@ pub fn handle_theorem<'a>(
         consts,
         instances,
         assumptions,
-        theorems,
+        propositions,
         game_hops,
         ..
     } = ctx;
 
-    if theorems.is_empty() {
-        log::warn!("No theorems defined, only verifying gamehops");
+    if propositions.is_empty() {
+        log::warn!("No propositions defined, only verifying gamehops");
     }
 
     let mut consts: Vec<_> = consts.into_iter().collect();
@@ -301,7 +301,7 @@ pub fn handle_theorem<'a>(
         consts,
         instances,
         assumptions,
-        theorems,
+        proofs: propositions,
         game_hops,
         pkgs: pkgs.into_values().collect(),
     })
@@ -427,7 +427,7 @@ fn handle_assumptions(
     Ok(())
 }
 
-fn handle_theorems(
+fn handle_propositions(
     ctx: &mut ParseTheoremContext,
     ast: Pairs<Rule>,
 ) -> Result<(), ParseTheoremError> {
@@ -464,7 +464,7 @@ fn handle_theorems(
             at: (span.start()..span.end()).into(),
             theorem_name: name,
         })?;
-        ctx.theorems.push(proof)
+        ctx.propositions.push(proof)
     }
 
     Ok(())

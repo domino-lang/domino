@@ -28,7 +28,7 @@ pub const PROJECT_FILE: &str = "ssp.toml";
 
 pub const PACKAGES_DIR: &str = "packages";
 pub const GAMES_DIR: &str = "games";
-pub const PROOFS_DIR: &str = "proofs";
+pub const THEOREM_DIR: &str = "theorem";
 pub const ASSUMPTIONS_DIR: &str = "assumptions";
 
 pub const PACKAGE_EXT: &str = ".pkg.ssp";
@@ -69,7 +69,7 @@ impl Files {
         }
 
         Ok(Self {
-            theorems: load_files(root.join(PROOFS_DIR))?,
+            theorems: load_files(root.join(THEOREM_DIR))?,
             games: load_files(root.join(GAMES_DIR))?,
             packages: load_files(root.join(PACKAGES_DIR))?,
         })
