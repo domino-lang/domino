@@ -163,6 +163,7 @@ fn specialize<'a>(
                     match other_val {
                         Expression::Identifier(_) => (var, val),
                         Expression::BooleanLiteral(_) => (var, other_val.clone()),
+                        Expression::IntegerLiteral(_) => (var, other_val.clone()),
                         _ => {
                             unimplemented!()
                         }
@@ -294,6 +295,9 @@ fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<(String, St
             if let Expression::Identifier(ident) = other_val {
                 if let Expression::BooleanLiteral(lit) = val {
                     return Some((ident.ident(), lit.clone()));
+                }
+                if let Expression::IntegerLiteral(lit) = val {
+                    return Some((ident.ident(), lit.to_string()));
                 }
             }
             None
