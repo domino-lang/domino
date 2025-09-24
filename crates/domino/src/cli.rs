@@ -14,6 +14,9 @@ pub(crate) enum Commands {
     /// Export to LaTeX
     Latex(Latex),
 
+    /// Export to Python
+    Python,
+
     /// Give information about the provided code
     Explain(Explain),
 
