@@ -122,6 +122,17 @@ impl<'a> BlockWriter<'a> {
             Expression::IntegerLiteral(val) => format!("{val}"),
             Expression::BooleanLiteral(val) => format!("\\lit{{{val}}}"),
             Expression::Identifier(ident) => self.ident_to_tex(ident),
+            Expression::Not(expr) if matches!(&**expr, Expression::Equals(exprs) if exprs.len() == 2) => {
+                if let Expression::Equals(exprs) = &**expr {
+                    format!(
+                        "({} \\neq {})",
+                        self.expression_to_tex(&exprs[0]),
+                        self.expression_to_tex(&exprs[1])
+                    )
+                } else {
+                    unreachable!()
+                }
+            }
             Expression::Not(expr) => format!("\\neg {}", self.expression_to_tex(expr)),
             Expression::Unwrap(expr) => {
                 if self.lossy {
@@ -379,7 +390,7 @@ impl<'a> BlockWriter<'a> {
     ) -> std::io::Result<()> {
         for stmt in &codeblock.0 {
             writeln!(self.file, "{}", self.write_statement(stmt, indentation))?;
-            
+
             if let Statement::IfThenElse(ite) = stmt {
                 self.write_codeblock(&ite.then_block, indentation + 1)?;
                 if !ite.else_block.0.is_empty() {
