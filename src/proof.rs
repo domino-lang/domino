@@ -31,6 +31,7 @@ impl<'a> Proof<'a> {
             .iter()
             .map(|inst| (inst.clone(), inst.name().to_string(), Vec::new()))
             .collect();
+
         let mut workque = VecDeque::new();
         workque.push_back(real);
         let mut predecessors = HashMap::new();
@@ -48,8 +49,10 @@ impl<'a> Proof<'a> {
                 path.push(ideal);
                 loop {
                     let (cur, hop) = predecessors[path.last().unwrap()];
+
                     path.push(cur);
                     hops.push(hop);
+
                     if cur == real {
                         break;
                     }
@@ -68,6 +71,9 @@ impl<'a> Proof<'a> {
                 });
             } else {
                 let reach = reachable_games(instances, gamehops, &mut specialization, current_idx);
+
+                // entry: offset into specializations, i.e. designating a Game Instance
+                // hop: offset into gamehops
                 for (entry, hop) in reach {
                     if predecessors.contains_key(&entry) {
                         continue;
@@ -147,6 +153,7 @@ fn specialize<'a>(
             .into_iter()
             .map(|(var, val)| {
                 if matches!(val, Expression::Identifier(_)) {
+                    // iterate over constants in the game we are currently in!
                     let other_val = specialization[game]
                         .0
                         .consts
@@ -212,6 +219,9 @@ fn other_game(
     None
 }
 
+// reachable with one game hop!
+// the games can be more specialized than the game hops we have proven,
+// e.g., fixing a bit to a specific value
 fn reachable_games(
     instances: &[GameInstance],
     gamehops: &[GameHop],
@@ -235,8 +245,9 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     if specific.game.name != general.game.name {
         return false;
     }
+
+    // TODO: verify this does the right thing with param types!
     if specific.types != general.types {
-        println!("b");
         return false;
     }
 
@@ -248,6 +259,7 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     let general_const_names: HashSet<_> =
         general.consts.iter().map(|(var, _val)| &var.name).collect();
 
+    // TODO: make this a debug_assert?
     if specific_const_names != general_const_names {
         return false;
     }
