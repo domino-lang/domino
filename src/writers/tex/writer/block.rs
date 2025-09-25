@@ -325,7 +325,6 @@ impl<'a> BlockWriter<'a> {
                 }
             }
             Statement::Sample(ident, None, _, ty, Some(sample_name), _) => {
-
                 format!(
                     "{}{} \\stackrel{{{}}}{{\\sample}} {}\\\\",
                     genindentation(indentation),

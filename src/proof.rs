@@ -168,7 +168,9 @@ impl<'a> Proof<'a> {
     }
 
     pub(crate) fn instances(&self) -> impl Iterator<Item = &GameInstance> {
-        self.sequence.iter().map(|instid| &self.specialization[*instid].game_instance )
+        self.sequence
+            .iter()
+            .map(|instid| &self.specialization[*instid].game_instance)
     }
 }
 
