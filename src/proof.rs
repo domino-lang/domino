@@ -1,13 +1,12 @@
-use itertools::Itertools;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{expressions::Expression, gamehops::GameHop, theorem::GameInstance};
 
 #[derive(Debug, Clone)]
 pub struct Proof<'a> {
-    name: String,
-    left_name: String,
-    right_name: String,
+    pub name: String,
+    pub left_name: String,
+    pub right_name: String,
 
     // Specialized Instance -> reference to more general instance in the theorem
     specialization: Vec<Specialization>,

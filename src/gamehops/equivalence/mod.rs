@@ -26,9 +26,7 @@ use crate::{
     package::{Export, OracleSig},
     theorem::{Claim, ClaimType, GameInstance, Theorem},
     transforms::{
-        samplify::{Position, SampleInfo},
-        theorem_transforms::EquivalenceTransform,
-        TheoremTransform,
+        samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
     },
     types::Type,
     util::prover_process::{Communicator, ProverResponse},
