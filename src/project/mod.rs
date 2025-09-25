@@ -219,10 +219,7 @@ impl<'a> Project<'a> {
 
         for theorem_key in theorem_keys.into_iter() {
             let theorem = &self.theorems[theorem_key];
-            ui.start_theorem(
-                &theorem.name,
-                theorem.game_hops.len().try_into().unwrap(),
-            );
+            ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
 
             if let Some(ref req_theorem) = req_theorem {
                 if theorem_key != req_theorem {

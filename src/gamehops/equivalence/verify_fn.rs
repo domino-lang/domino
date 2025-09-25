@@ -131,11 +131,9 @@ fn verify_oracle<UI: TheoremUI>(
         }
 
         write!(prover, "(pop 1)").unwrap();
-        ui.lock().unwrap().finish_oracle(
-            &eqctx.theorem().name,
-            &proofstep_name,
-            &oracle_sig.name,
-        );
+        ui.lock()
+            .unwrap()
+            .finish_oracle(&eqctx.theorem().name, &proofstep_name, &oracle_sig.name);
     }
     Ok(())
 }
