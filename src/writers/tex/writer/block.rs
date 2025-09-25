@@ -48,6 +48,11 @@ impl<'a> BlockWriter<'a> {
     fn type_to_tex(&self, ty: &Type) -> String {
         match ty {
             Type::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
+            Type::Table(from, to) => format!(
+                "\\O{{Table}}[{} \\rightarrow {}]",
+                self.type_to_tex(from),
+                self.type_to_tex(to)
+            ),
             _ => format!("\\O{{{ty:?}}}"),
         }
     }
@@ -56,6 +61,7 @@ impl<'a> BlockWriter<'a> {
         match ty {
             Type::Tuple(_) => "\\O{Tuple[..]}".to_string(),
             Type::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
+            Type::Table(_from, _to) => format!("\\O{{Table}}"),
             _ => format!("\\O{{{ty:?}}}"),
         }
     }
@@ -213,6 +219,9 @@ impl<'a> BlockWriter<'a> {
                         .collect::<Vec<_>>()
                         .join(", ")
                 )
+            }
+            Expression::EmptyTable(ty) => {
+                format!("\\O{{EmptyTable}}({})", self.type_to_tex(ty))
             }
             _ => {
                 format!("{expr:?}")
