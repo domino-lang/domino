@@ -1,10 +1,10 @@
-proof PRF {
+theorem PRF {
     const n: Integer;
     const m: Integer;
     const prf: fn Bits(n),Bits(n) -> Bits(n);
     const enc: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
 
-    instance constructionreal = ConstructionReal {
+    instance constructionreal = ConstructionRealbadwiring {
         params {
             n: n,
             m: m,
@@ -47,7 +47,7 @@ proof PRF {
         reduction constructionreal constructionideal {
             assumption Assumption
 
-            map assumptionreal assumptionreal {
+            map assumptionreal constructionreal {
                 key    : key
                 prf    : prf
             }

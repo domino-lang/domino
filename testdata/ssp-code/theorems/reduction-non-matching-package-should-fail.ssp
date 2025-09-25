@@ -1,17 +1,16 @@
-proof PRF {
+theorem PRF {
     const n: Integer;
     const m: Integer;
-    const p: Integer;
     const prf: fn Bits(n),Bits(n) -> Bits(n);
     const enc: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
-    const encp: fn Bits(n),Bits(n),Bits(n) -> Bits(p);
 
-    instance constructionreal = ConstructionReal {
+    instance constructionreal = ConstructionRealWrongPackage {
         params {
             n: n,
-            m: p,
+            m: m,
             prf: prf,
-            enc: encp,
+            enc: enc,
+
         }
     }
 

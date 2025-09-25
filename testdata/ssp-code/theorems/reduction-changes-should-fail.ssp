@@ -1,10 +1,10 @@
-proof PRF {
+theorem PRF {
     const n: Integer;
     const m: Integer;
     const prf: fn Bits(n),Bits(n) -> Bits(n);
     const enc: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
 
-    instance constructionreal = ConstructionRealbadwiring {
+    instance constructionreal = ConstructionRealMoreBadWiring {
         params {
             n: n,
             m: m,

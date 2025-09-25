@@ -1,4 +1,4 @@
-proof DummySmallPRFGame {
+theorem DummySmallPRFGame {
   const n: Integer;
   const prf: fn Bits(n), Bits(n) -> Bits(n);
 

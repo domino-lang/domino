@@ -1,4 +1,4 @@
-proof SmallIsSmall {
+theorem SmallIsSmall {
   const n: Integer;
 
   instance smallA = SmallGame{

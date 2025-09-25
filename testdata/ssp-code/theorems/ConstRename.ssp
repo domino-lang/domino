@@ -1,4 +1,4 @@
-proof ConstRenameProof {
+theorem ConstRenameProof {
   const o: Integer;
   const zeroo: Bits(o);
 

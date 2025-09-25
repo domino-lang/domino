@@ -1,4 +1,4 @@
-proof PRF {
+theorem PRF {
     const n: Integer;
     const m: Integer;
     const prf: fn Bits(n),Bits(n) -> Bits(n);
@@ -24,14 +24,14 @@ proof PRF {
         }
     }
 
-    instance assumptionreal = AssumptionReal {
+    instance assumptionreal = AssumptionRealWeak {
         params {
             n: n,
             prf: prf,
         }
     }
 
-    instance assumptionideal = AssumptionIdeal {
+    instance assumptionideal = AssumptionIdealWeak {
         params {
             n: n,
             prf: prf,
@@ -47,7 +47,7 @@ proof PRF {
         reduction constructionreal constructionideal {
             assumption Assumption
 
-            map constructionreal constructionreal {
+            map assumptionreal constructionreal {
                 key    : key
                 prf    : prf
             }

@@ -1,4 +1,4 @@
-proof TrivialC {
+theorem TrivialC {
   const c: Integer;
 
   instance trivial_b = TrivialB {
