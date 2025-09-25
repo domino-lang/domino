@@ -330,7 +330,7 @@ impl<'a> BlockWriter<'a> {
                     "{}{} \\stackrel{{{}}}{{\\sample}} {}\\\\",
                     genindentation(indentation),
                     self.ident_to_tex(ident),
-                    sample_name,
+                    sample_name.replace('_', "\\_"),
                     self.type_to_tex(ty)
                 )
             }
@@ -340,7 +340,7 @@ impl<'a> BlockWriter<'a> {
                     genindentation(indentation),
                     self.ident_to_tex(ident),
                     self.expression_to_tex(idxexpr),
-                    sample_name,
+                    sample_name.replace('_', "\\_"),
                     self.type_to_tex(ty)
                 )
             }
