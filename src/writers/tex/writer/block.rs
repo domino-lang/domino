@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{fs::File, io::Write};
 
 use crate::{
@@ -7,7 +8,7 @@ use crate::{
     identifier::Identifier,
     parser::ast::Identifier as _,
     parser::package::ForComp,
-    statement::{CodeBlock, InvokeOracleStatement, Statement},
+    statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement},
     types::{CountSpec, Type},
 };
 
@@ -34,7 +35,11 @@ impl<'a> BlockWriter<'a> {
     }
 
     fn ident_to_tex(&self, ident: &Identifier) -> String {
-        format!("\\n{{{}}}", ident.ident().replace('_', "\\_"))
+        ident
+            .ident()
+            .split("_")
+            .map(|comp| format!("\\n{{{comp}}}"))
+            .join("_")
     }
 
     fn countspec_to_tex(&self, count_spec: &CountSpec) -> String {
@@ -274,10 +279,7 @@ impl<'a> BlockWriter<'a> {
                 )
             }
             Statement::IfThenElse(ite) => {
-                if ite.then_block.0.is_empty()
-                    && ite.else_block.0.len() == 1
-                    && matches!(ite.else_block.0[0], Statement::Abort(_))
-                {
+                if ite_is_assert(ite) {
                     // Special Case for asserts
                     format!(
                         "{}\\pcassert {} \\\\",
@@ -291,16 +293,9 @@ impl<'a> BlockWriter<'a> {
                         genindentation(indentation),
                         self.expression_to_tex(&ite.cond)
                     )
-                    /*
-                        self.write_codeblock(&ite.then_block, indentation + 1)?;
-                        if !ite.else_block.0.is_empty() {
-                            format!("{}\\pcelse\\\\", genindentation(indentation))?;
-                            self.write_codeblock(&ite.else_block, indentation + 1)?;
-                    }
-                         */
                 }
             }
-            Statement::For(var, from, to, code, _) => {
+            Statement::For(var, from, to, _, _) => {
                 println!("{var:?}");
                 if let Identifier::PackageIdentifier(PackageIdentifier::CodeLoopVar(
                     PackageOracleCodeLoopVarIdentifier {
@@ -400,6 +395,10 @@ impl<'a> BlockWriter<'a> {
             writeln!(self.file, "{}", self.write_statement(stmt, indentation))?;
 
             if let Statement::IfThenElse(ite) = stmt {
+                if ite_is_assert(ite) {
+                    continue;
+                }
+
                 self.write_codeblock(&ite.then_block, indentation + 1)?;
                 if !ite.else_block.0.is_empty() {
                     writeln!(self.file, "{}\\pcelse\\\\", genindentation(indentation))?;
@@ -412,4 +411,10 @@ impl<'a> BlockWriter<'a> {
         }
         Ok(())
     }
+}
+
+fn ite_is_assert(ite: &IfThenElse) -> bool {
+    ite.then_block.0.is_empty()
+        && ite.else_block.0.len() == 1
+        && matches!(ite.else_block.0[0], Statement::Abort(_))
 }
