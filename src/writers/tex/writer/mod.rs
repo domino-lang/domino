@@ -284,7 +284,9 @@ pub fn tex_write_theorem(
         writeln!(file, "\\begin{{definition}}[{}]", assumption.name)?;
         writeln!(file, "\\label{{{}}}", assumption.latex_label("advantage"))?;
         let left = &assumption.left_name;
+        let left_esc = left.replace('_', "\\_");
         let right = &assumption.right_name;
+        let right_esc = right.replace('_', "\\_");
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
@@ -292,14 +294,16 @@ pub fn tex_write_theorem(
                       -\\prob{{\\adv\\rightarrow {right} = 0}}\
                       \\end{{array}}}},
                       \\]\
-                      where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
+                      where {left_esc} and {right_esc} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
         writeln!(file, "\\end{{definition}}")?;
     }
     for thm in &theorem.proofs {
         writeln!(file, "\\begin{{definition}}[{}]", thm.name())?;
         writeln!(file, "\\label{{{}}}", thm.latex_label("advantage"))?;
         let left = thm.left_name();
+        let left_esc = left.replace('_', "\\_");
         let right = thm.right_name();
+        let right_esc = right.replace('_', "\\_");
 
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
@@ -308,7 +312,7 @@ pub fn tex_write_theorem(
                       -\\prob{{\\adv\\rightarrow {right} = 0}}\
                       \\end{{array}}}},
                       \\]\
-                      where {left} and {right} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
+                      where {left_esc} and {right_esc} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
         writeln!(file, "\\end{{definition}}")?;
     }
 
