@@ -403,6 +403,7 @@ pub fn tex_write_theorem(
              \\end{{theorem}}\n",
         )?;
 
+        let mut redcount = 1;
         for game_hop in thm.game_hops() {
             writeln!(file, "\\begin{{claim}}")?;
             match game_hop {
@@ -439,8 +440,9 @@ pub fn tex_write_theorem(
                         .replace('_', "\\_");
                     let label = red.latex_label("figure");
                     write!(file, "For all adversaries $\\adv$, \\[\\mathsf{{Adv}}(\\adv,\\mathit{{{left_cons}}},\\mathit{{{right_cons}}})\
-                                  \\leq \\mathsf{{Adv}}(\\adv\\rightarrow\\rdv,\\mathit{{{left_ass}}},\\mathit{{{right_ass}}}),\\] \
-                                  where $\\rdv$ is defined in Fig.~\\ref{{{label}}}.")?;
+                                  \\leq \\mathsf{{Adv}}(\\adv\\rightarrow\\rdv_{{{redcount}}},\\mathit{{{left_ass}}},\\mathit{{{right_ass}}}),\\] \
+                                  where $\\rdv_{{{redcount}}}$ is defined in Fig.~\\ref{{{label}}}.")?;
+                    redcount += 1;
                 }
             }
             writeln!(file, "\\end{{claim}}")?;
