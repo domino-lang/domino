@@ -309,24 +309,52 @@ fn handle_reduction_body<'a>(
 
     let left_exports = &left_game_inst.game().exports;
 
+    let mut all_matches = Vec::new();
     for left_export in left_exports {
-        let right_export = right_game_inst
+        let right_exports: Vec<_> = right_game_inst
             .game()
             .exports
             .iter()
-            .find(|right_export| left_export.sig().name == right_export.sig().name)
-            .unwrap();
+            .filter(|right_export| left_export.sig().name == right_export.sig().name)
+            .collect();
 
-        compare_reduction(
-            ctx,
-            reduction_span,
-            left_export.to(),
-            right_export.to(),
-            left_game_inst,
-            right_game_inst,
-            &mapping_left,
-            &mapping_right,
-        )?;
+        if right_exports.len() == 1 {
+            compare_reduction(
+                ctx,
+                reduction_span,
+                left_export.to(),
+                right_exports[0].to(),
+                left_game_inst,
+                right_game_inst,
+                &mapping_left,
+                &mapping_right,
+            )?;
+        } else {
+            let matches: Vec<_> = right_exports
+                .into_iter()
+                .filter(|right_export| {
+                    compare_reduction(
+                        ctx,
+                        reduction_span,
+                        left_export.to(),
+                        right_export.to(),
+                        left_game_inst,
+                        right_game_inst,
+                        &mapping_left,
+                        &mapping_right,
+                    )
+                    .is_ok()
+                })
+                .collect();
+            if matches.len() != 1 {
+                unreachable!();
+            } else {
+                all_matches.push(matches[0]);
+            }
+        }
+    }
+    if !all_matches.into_iter().all_unique() {
+        unreachable!();
     }
     // TODO: implement reduction mapspec and do third check in there
     //let mapping3 = handle_mapspec_reduction(ctx, map3_ast, &mapping1, &mapping2)?;
