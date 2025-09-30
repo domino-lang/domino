@@ -290,8 +290,8 @@ pub fn tex_write_theorem(
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
-                      \\phantom{{-}}\\prob{{\\adv\\rightarrow {left} = 0}}\\\\\
-                      -\\prob{{\\adv\\rightarrow {right} = 0}}\
+                      \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left}}}\\\\\
+                      -\\prob{{1 = \\adv\\rightarrow {right}}}\
                       \\end{{array}}}},
                       \\]\
                       where {left_esc} and {right_esc} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
@@ -308,8 +308,8 @@ pub fn tex_write_theorem(
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
-                      \\phantom{{-}}\\prob{{\\adv\\rightarrow {left} = 0}}\\\\\
-                      -\\prob{{\\adv\\rightarrow {right} = 0}}\
+                      \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left}}}\\\\\
+                      -\\prob{{1 = \\adv\\rightarrow {right} }}\
                       \\end{{array}}}},
                       \\]\
                       where {left_esc} and {right_esc} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
