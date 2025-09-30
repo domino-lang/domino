@@ -441,7 +441,9 @@ pub fn tex_write_theorem(
         )?;
         writeln!(
             file,
-            "\\hfill\\caption{{Reduction: {} $\\approx$ {} assuming {}}}\\label{{{}}}",
+            "\\hfill\\caption{{Reduction: {} $\\approx$ {} assuming {}. \
+             The sub-graphs corresponding to {} and {}, respectively, are highlighted in red. \
+             The remaining graph constitutes the reduction.}}\\label{{{}}}",
             reduction
                 .left()
                 .construction_game_instance_name()
@@ -453,6 +455,16 @@ pub fn tex_write_theorem(
                 .as_str()
                 .replace('_', "\\_"),
             reduction.assumption_name(),
+            reduction
+                .left()
+                .assumption_game_instance_name()
+                .as_str()
+                .replace('_', "\\_"),
+            reduction
+                .right()
+                .assumption_game_instance_name()
+                .as_str()
+                .replace('_', "\\_"),
             reduction.latex_label("figure")
         )?;
         writeln!(file, "\\end{{figure}}")?;
