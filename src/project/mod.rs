@@ -279,15 +279,19 @@ impl<'a> Project<'a> {
 
         println!("from dataclasses import dataclass");
 
-        for (name, pkg) in &self.packages {
-            use crate::writers::python::patterns::game_state::*;
+        for (_name, pkg) in &self.packages {
+            use crate::writers::python::dataclass::{
+                pkg_state::PackageStatePattern, DataclassWriter,
+            };
 
             println!("{}", DataclassWriter(PackageStatePattern::new(pkg)));
         }
 
-        for (name, proof) in &self.theorems {
+        for (_name, proof) in &self.theorems {
             for game_inst in &proof.instances {
-                use crate::writers::python::patterns::game_state::*;
+                use crate::writers::python::dataclass::{
+                    game_state::GameStatePattern, DataclassWriter,
+                };
 
                 println!("{}", DataclassWriter(GameStatePattern::new(game_inst)));
             }
