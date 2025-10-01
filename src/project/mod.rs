@@ -1,3 +1,4 @@
+use std::io::Write;
 /**
  *  project is the high-level structure of sspverif.
  *
@@ -14,6 +15,9 @@ use error::{Error, Result};
 use crate::parser::ast::Identifier;
 use crate::parser::package::handle_pkg;
 use crate::parser::SspParser;
+use crate::writers::python::function::oracle::OracleFunction;
+use crate::writers::python::function::FunctionWriter;
+use crate::writers::python::util::ToDoc;
 use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
@@ -282,7 +286,11 @@ impl<'a> Project<'a> {
                 pkg_state::PackageStatePattern, DataclassWriter,
             };
 
-            println!("{}", DataclassWriter(PackageStatePattern::new(pkg)));
+            println!("{}", DataclassWriter::new(PackageStatePattern::new(pkg)));
+
+            for odef in &pkg.oracles {
+                println!("{}", FunctionWriter::new(OracleFunction::new(odef)))
+            }
         }
 
         for (_name, proof) in &self.theorems {
@@ -291,7 +299,7 @@ impl<'a> Project<'a> {
                     game_state::GameStatePattern, DataclassWriter,
                 };
 
-                println!("{}", DataclassWriter(GameStatePattern::new(game_inst)));
+                println!("{}", DataclassWriter::new(GameStatePattern::new(game_inst)));
             }
         }
 

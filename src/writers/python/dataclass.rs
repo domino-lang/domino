@@ -17,26 +17,57 @@
 * */
 
 use core::fmt::Display;
+use std::marker::PhantomData;
+
+use pretty::RcDoc;
 
 use crate::writers::python::ty::PyType;
+
+use super::util::ToDoc;
 
 pub mod game_state;
 pub mod pkg_state;
 
-trait Dataclass {
-    fn name(&self) -> impl Display;
-    fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType)>;
+pub(super) trait Dataclass<'a> {
+    type Name: Display;
+
+    fn name(&self) -> Self::Name;
+    fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'a>)>;
 }
 
-pub struct DataclassWriter<DC: Dataclass>(pub DC);
+pub(crate) struct DataclassWriter<'a, DC: Dataclass<'a>>(pub DC, PhantomData<&'a ()>);
 
-impl<DC: Dataclass> Display for DataclassWriter<DC> {
+impl<'a, DC: Dataclass<'a>> DataclassWriter<'a, DC> {
+    pub(crate) fn new(dataclass: DC) -> Self {
+        Self(dataclass, PhantomData)
+    }
+}
+
+impl<'a, DC: Dataclass<'a>> Display for DataclassWriter<'a, DC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "@dataclass")?;
-        writeln!(f, "class {}:", self.0.name())?;
-        for (name, ty) in self.0.fields() {
-            writeln!(f, "  {name}: {ty}")?;
-        }
-        Ok(())
+        self.to_doc().render_fmt(100, f)
+    }
+}
+
+impl<'a, DC: Dataclass<'a>> ToDoc<'a> for DataclassWriter<'a, DC> {
+    fn to_doc(&self) -> RcDoc<'a> {
+        let fields = self.0.fields().into_iter().map(|(name, ty)| {
+            RcDoc::as_string(name)
+                .append(RcDoc::text(": "))
+                .append(RcDoc::as_string(ty))
+        });
+
+        RcDoc::text("@dataclass")
+            .append(RcDoc::line())
+            .append(RcDoc::text("class "))
+            .append(RcDoc::as_string(self.0.name()))
+            .append(RcDoc::text(":"))
+            .append(
+                RcDoc::line()
+                    .append(RcDoc::intersperse(fields, RcDoc::line()))
+                    .nest(2),
+            )
+            .append(RcDoc::line())
+            .append(RcDoc::line())
     }
 }
