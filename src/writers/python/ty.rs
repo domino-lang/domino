@@ -1,28 +1,47 @@
 use core::fmt::Display;
 
+use pretty::RcDoc;
+
 static UNIT: () = ();
 
+use super::util::ToDoc;
 use crate::writers::python::identifier::*;
 
+#[derive(Clone, Copy, Debug)]
 pub(super) struct BitVecLength<'a>(&'a ());
 
+#[derive(Clone, Debug)]
 pub(super) enum PyType<'a> {
     BitVec(BitVecLength<'a>),
     Int,
     Bool,
     List(Box<Self>),
-    PackageState(&'a str),
+    PackageState(PackageStateTypeName<'a>),
+    Dict(Box<Self>, Box<Self>),
+}
+
+impl<'a> ToDoc<'a> for PyType<'a> {
+    fn to_doc(&self) -> RcDoc<'a> {
+        match self {
+            PyType::BitVec(_bit_vec_length) => RcDoc::as_string("bytes"),
+            PyType::Int => RcDoc::as_string("int"),
+            PyType::Bool => RcDoc::as_string("bool"),
+            PyType::List(py_type) => RcDoc::text("List[")
+                .append(py_type.to_doc())
+                .append(RcDoc::text("]")),
+            PyType::PackageState(name) => RcDoc::as_string(name),
+            PyType::Dict(k, v) => RcDoc::text("dict[")
+                .append(k.to_doc())
+                .append(RcDoc::text(", "))
+                .append(v.to_doc())
+                .append(RcDoc::text("]")),
+        }
+    }
 }
 
 impl<'a> Display for PyType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PyType::BitVec(_bit_vec_length) => todo!(),
-            PyType::Int => write!(f, "int"),
-            PyType::Bool => write!(f, "bool"),
-            PyType::List(py_type) => write!(f, "List[{py_type}]"),
-            PyType::PackageState(name) => write!(f, "{}", PackageStateTypeName(name)),
-        }
+        self.to_doc().render_fmt(100, f)
     }
 }
 
@@ -35,7 +54,12 @@ impl<'a> TryFrom<crate::types::Type> for PyType<'a> {
             crate::types::Type::Boolean => Ok(PyType::Bool),
             crate::types::Type::Bits(_count_spec) => Ok(PyType::BitVec(BitVecLength(&UNIT))),
             crate::types::Type::List(ty) => PyType::try_from(*ty).map(Box::new).map(PyType::List),
-            _ => todo!(),
+            crate::types::Type::Maybe(ty) => PyType::try_from(*ty),
+            crate::types::Type::Table(k, v) => Ok(PyType::Dict(
+                Box::new(PyType::try_from(*k)?),
+                Box::new(PyType::try_from(*v)?),
+            )),
+            other => todo!("not implemented yet: {other:?}"),
         }
     }
 }

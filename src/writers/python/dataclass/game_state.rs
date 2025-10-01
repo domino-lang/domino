@@ -2,10 +2,14 @@ use core::fmt::Display;
 
 use crate::{
     theorem::GameInstance,
-    writers::python::{dataclass::Dataclass, ty::PyType},
+    writers::python::{
+        dataclass::Dataclass,
+        identifier::{GameStateFieldName, GameStateTypeName, PackageStateTypeName},
+        ty::PyType,
+    },
 };
 
-pub struct GameStatePattern<'a> {
+pub(crate) struct GameStatePattern<'a> {
     game_inst: &'a GameInstance,
 }
 
@@ -15,39 +19,17 @@ impl<'a> GameStatePattern<'a> {
     }
 }
 
-struct GameStateTypeName<'a>(&'a str);
-
-enum GameStateFieldName<'a> {
-    PackageState(&'a str),
-    Randomness(&'a str),
-}
-
-impl<'a> Display for GameStateTypeName<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Self(name) = self;
-        write!(f, "GameState_{name}")
-    }
-}
-
-impl<'a> Display for GameStateFieldName<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GameStateFieldName::PackageState(name) => write!(f, "pkg_{name}"),
-            GameStateFieldName::Randomness(_) => todo!(),
-        }
-    }
-}
-
-impl<'a> Dataclass for GameStatePattern<'a> {
-    fn name(&self) -> impl Display {
-        self.game_inst.game().name()
+impl<'a> Dataclass<'a> for GameStatePattern<'a> {
+    type Name = GameStateTypeName<'a>;
+    fn name(&self) -> GameStateTypeName<'a> {
+        GameStateTypeName(self.game_inst.game().name())
     }
 
-    fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType)> {
+    fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'a>)> {
         self.game_inst.game.pkgs.iter().map(|pkg_inst| {
             (
                 GameStateFieldName::PackageState(pkg_inst.name()),
-                PyType::PackageState(pkg_inst.pkg_name()),
+                PyType::PackageState(PackageStateTypeName(pkg_inst.pkg_name())),
             )
         })
     }

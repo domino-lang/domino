@@ -15,12 +15,14 @@ impl<'a> PackageStatePattern<'a> {
     }
 }
 
-impl<'a> Dataclass for PackageStatePattern<'a> {
-    fn name(&self) -> impl Display {
+impl<'a> Dataclass<'a> for PackageStatePattern<'a> {
+    type Name = PackageStateTypeName<'a>;
+
+    fn name(&self) -> PackageStateTypeName<'a> {
         PackageStateTypeName(self.pkg.name())
     }
 
-    fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'_>)> {
+    fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'a>)> {
         self.pkg.state.iter().map(|(name, ty, _)| {
             (
                 PackageStateFieldName(name.as_str()),

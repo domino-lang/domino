@@ -44,6 +44,7 @@ subprocess = "0.2"
 tempfile = "3"
 thiserror = "1.0.61"
 walkdir = "2"
+pretty = "0.12"
 
 [dev-dependencies]
 mockall = "0.13"
