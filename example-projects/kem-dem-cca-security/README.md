@@ -54,7 +54,7 @@ security games as package compositions.
 
 ## Proof Structure and Game Hops
 
-We use five game hops to show indistinguishability of the real and ideal games:
+We use five game hops to show indistinguishability of the real and ideal games based on the KEM-CCA and DEM-CCA assumptions.
 
 **Goal:** `monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game`
 
