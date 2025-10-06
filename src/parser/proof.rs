@@ -278,9 +278,12 @@ pub fn handle_proof<'a>(
         ..
     } = ctx;
 
+    let mut consts: Vec<_> = consts.into_iter().collect();
+    consts.sort();
+
     Ok(Proof {
         name: proof_name.to_string(),
-        consts: consts.into_iter().collect(),
+        consts,
         instances,
         assumptions,
         game_hops,
