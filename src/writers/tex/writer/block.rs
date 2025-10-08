@@ -6,7 +6,6 @@ use crate::{
     identifier::pkg_ident::PackageIdentifier,
     identifier::pkg_ident::PackageOracleCodeLoopVarIdentifier,
     identifier::Identifier,
-    parser::ast::Identifier as _,
     parser::package::ForComp,
     statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement},
     types::{CountSpec, Type},
@@ -28,10 +27,6 @@ pub(crate) struct BlockWriter<'a> {
 impl<'a> BlockWriter<'a> {
     pub(crate) fn new(file: &'a mut File, lossy: bool) -> BlockWriter<'a> {
         BlockWriter { file, lossy }
-    }
-
-    pub(crate) fn file(&self) -> &File {
-        self.file
     }
 
     fn ident_to_tex(&self, ident: &Identifier) -> String {
