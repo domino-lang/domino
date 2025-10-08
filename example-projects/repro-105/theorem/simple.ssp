@@ -1,0 +1,22 @@
+theorem Simple {
+    instance simple1 = Simple {
+        params{  }
+    }
+
+    instance simple2 = Simple {
+        params{  }
+    }
+
+    gamehops {
+        equivalence simple1 simple2 {
+            Sample: {
+                invariant: [ ./theorem/invariant.smt ]
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,245 @@
+theorem KEM_Proof {
+    const isideal_kem_cpa_security: Bool;
+    const    kgen: fn Bits(256)             ->  Bits(256);            /* takes sk, returns pk  */
+    const  encaps: fn Bits(256),Bits(256) -> (Bits(256),Bits(256)); /* (pk,rand) -> (ctxt,k) */
+    const  decaps: fn Bits(256),Bits(256) ->  Bits(256);            /* (sk,ctxt) -> k        */
+
+    instance CPA_real = CPA {
+        params {
+        isideal_kem_cpa_security: false,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance CPA_ideal = CPA {
+        params {
+        isideal_kem_cpa_security: true,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance Prot = Prot {
+        params {
+        isideal_kem_cpa_security: isideal_kem_cpa_security,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance H1_kem_correctness_real = H1 {
+        params {
+        isideal_kem_cpa_security: isideal_kem_cpa_security,
+        isideal_kem_correctness: false,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance H1_kem_correctness_ideal = H1 {
+        params {
+        isideal_kem_cpa_security: isideal_kem_cpa_security,
+        isideal_kem_correctness: true,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance Corr_KEM_real = Corr_KEM {
+        params {
+        isideal_kem_correctness: false,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance Corr_KEM_ideal = Corr_KEM {
+        params {
+        isideal_kem_correctness: true,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance H2 = H2 {
+        params {
+            isideal_kem_cpa_security: isideal_kem_cpa_security,
+            kgen: kgen,
+            encaps: encaps,
+            decaps: decaps,
+        }
+    }
+
+    instance H2_kem_cpa_real = H2 {
+        params {
+            isideal_kem_cpa_security: false,
+            kgen: kgen,
+            encaps: encaps,
+            decaps: decaps,
+        }
+    }
+
+    instance H2_kem_cpa_ideal = H2 {
+        params {
+            isideal_kem_cpa_security: true,
+            kgen: kgen,
+            encaps: encaps,
+            decaps: decaps,
+        }
+    }
+
+    assumptions {
+        Corr:    Corr_KEM_real ~ Corr_KEM_ideal
+        CPA:     CPA_real    ~ CPA_ideal 
+    }
+
+    gamehops 
+    {
+        equivalence Prot H1_kem_correctness_real {
+            GetPK: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Run: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            TestSender: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            TestReceiver: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+        reduction H1_kem_correctness_real H1_kem_correctness_ideal 
+        {
+            assumption Corr
+
+            map Corr_KEM_real H1_kem_correctness_real {
+                 /* name of left target     game instance : 
+                    name of left assumption game instance */
+
+                Corr_KEM : Corr_KEM
+                 /* package instance of assumption : pkg instance of H1 */
+
+            }
+
+            map Corr_KEM_ideal H1_kem_correctness_ideal {
+                 /* name of left target     game instance : 
+                    name of left assumption game instance */
+
+
+                Corr_KEM : Corr_KEM
+                 /* package instance of assumption : pkg instance of H1 */
+
+            }
+        }
+        equivalence H1_kem_correctness_ideal H2 {
+            GetPK: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Run: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            TestSender: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            TestReceiver: {
+                invariant: [
+                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+        reduction H2_kem_cpa_real H2_kem_cpa_ideal 
+        {
+            assumption CPA
+
+            map CPA_real H2_kem_cpa_real {
+                 /* name of left target     game instance : 
+                    name of left assumption game instance */
+
+                CPA : CPA
+                 /* package instance of assumption : pkg instance of H2 */
+
+            }
+
+            map CPA_ideal H2_kem_cpa_ideal {
+                 /* name of left target     game instance : 
+                    name of left assumption game instance */
+
+
+                CPA : CPA
+                 /* package instance of assumption : pkg instance of H2 */
+
+            }
+        }
+    }
+}

@@ -1,0 +1,61 @@
+theorem AEProto {
+    const n: Integer;
+    const m: Integer;
+    const prf: fn Bits(n),Bits(n) -> Bits(n);
+    const enc: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const dec: fn Bits(n),Bits(m)         -> Bits(n);
+
+    instance real = Real {
+        params {
+            n: n,
+            m: m,
+            prf: prf,
+            enc: enc,
+            dec: dec,
+        }
+    }
+
+    instance hybrid = Hybrid {
+        params {
+            n: n,
+            m: m,
+            prf: prf,
+            enc: enc,
+            dec: dec,
+        }
+    }
+
+    instance modprfreal = Modprfreal {
+        params {
+            n: n,
+            prf: prf,
+        }
+    }
+
+    instance modprfideal = Modprfideal {
+        params {
+            n: n,
+            prf: prf,
+        }
+    }
+
+    assumptions {
+        Modprf: modprfreal ~ modprfideal
+    }
+
+    gamehops {
+        reduction hybrid real {
+            assumption Modprf
+
+            map modprfreal real {
+                key    : key
+                mod_prf: mod_prf
+            }
+
+            map modprfideal hybrid {
+                key    : key
+                mod_prf: mod_prf
+            } 
+        }
+    }
+}
