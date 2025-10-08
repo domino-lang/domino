@@ -199,7 +199,7 @@ fn smt_composition_graph(
             let height = f64::from(height) / 2.0;
             let oracles = oracles
                 .into_iter()
-                .map(|o| format!("\\O{{{o}}}"))
+                .map(|o| format!("\\O{{{}}}", o.replace("_", "\\_")))
                 .collect::<Vec<_>>()
                 .join("\\\\");
             writeln!(
