@@ -21,14 +21,22 @@ macro_rules! ident_type {
 ident_type!(GameStateTypeName, "GameState_{}");
 ident_type!(PackageStateTypeName, "PackageState_{}");
 ident_type!(PackageStateFieldName, "{}");
+ident_type!(PackageConstParamsTypeName, "PackageConstParams_{}");
+ident_type!(PackageConstParamsFieldName, "{}");
 ident_type!(FunctionName, "{}");
 ident_type!(FunctionArgName, "{}");
 ident_type!(OracleFunctionName, "oracle_{}");
 ident_type!(VariableName, "{}");
 
 pub(super) enum GameStateFieldName<'a> {
+    PackageConstParams(&'a str),
     PackageState(&'a str),
     Randomness(&'a str),
+}
+
+pub(crate) enum OracleFunctionArg<'a> {
+    GameState,
+    OracleArg(&'a str),
 }
 
 impl<'a> Display for GameStateFieldName<'a> {
@@ -36,6 +44,7 @@ impl<'a> Display for GameStateFieldName<'a> {
         match self {
             GameStateFieldName::PackageState(name) => write!(f, "pkg_{name}"),
             GameStateFieldName::Randomness(_) => todo!(),
+            GameStateFieldName::PackageConstParams(name) => write!(f, "consts_{name}"),
         }
     }
 }

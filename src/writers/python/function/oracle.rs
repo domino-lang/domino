@@ -3,8 +3,7 @@ use std::fmt::Display;
 use crate::{
     package::OracleDef,
     writers::python::{
-        identifier::{OracleFunctionName, VariableName},
-        statement::PyStatement,
+        identifier::{OracleFunctionArg, OracleFunctionName},
         ty::PyType,
     },
 };
@@ -17,11 +16,6 @@ impl<'a> OracleFunction<'a> {
     pub(crate) fn new(oracle: &'a OracleDef) -> Self {
         Self { oracle }
     }
-}
-
-pub(crate) enum OracleFunctionArg<'a> {
-    GameState,
-    OracleArg(&'a str),
 }
 
 impl<'a> super::FunctionName for OracleFunctionName<'a> {}
@@ -45,12 +39,14 @@ impl<'a> super::Function<'a> for OracleFunction<'a> {
     }
 
     fn args(&self) -> impl IntoIterator<Item = (Self::ArgName, PyType<'a>)> {
-        self.oracle.sig.args.iter().map(|(name, ty)| {
-            (
-                OracleFunctionArg::OracleArg(name.as_str()),
-                ty.clone().try_into().unwrap(),
-            )
-        })
+        core::iter::once((OracleFunctionArg::GameState, PyType::Any)).chain(
+            self.oracle.sig.args.iter().map(|(name, ty)| {
+                (
+                    OracleFunctionArg::OracleArg(name.as_str()),
+                    ty.clone().try_into().unwrap(),
+                )
+            }),
+        )
     }
 
     fn body(&self) -> impl IntoIterator<Item = crate::writers::python::statement::PyStatement<'a>> {

@@ -26,6 +26,7 @@ use crate::writers::python::ty::PyType;
 use super::util::ToDoc;
 
 pub mod game_state;
+pub mod pkg_consts;
 pub mod pkg_state;
 
 pub(super) trait Dataclass<'a> {
