@@ -1,7 +1,7 @@
 // These contain testdata
 pub(crate) mod games;
 pub(crate) mod packages;
-pub(crate) mod proofs;
+pub(crate) mod theorems;
 
 // these contain tests:
 

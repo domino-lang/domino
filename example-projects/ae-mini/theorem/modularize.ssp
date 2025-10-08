@@ -1,0 +1,64 @@
+theorem Modularize {
+    const n: Integer;
+    const prf: fn Bits(n), Bits(n) -> Bits(n);
+  
+    instance monprfreal = Monprfreal {
+        params {
+            n  : n  ,
+            prf: prf,
+        }
+    }
+
+    instance modprfreal = Modprfreal {
+        params {
+            n  : n  ,
+            prf: prf,
+        }
+    }
+
+    instance monprfideal = Monprfideal {
+        params {
+            n  : n  ,
+        }
+    }
+
+    instance modprfideal = Modprfreal {
+        params {
+            n  : n  ,
+            prf: prf,
+        }
+    }
+
+
+    assumptions {
+        MonPRF: monprfreal ~ monprfideal
+    }
+
+    gamehops {
+      equivalence modprfreal monprfreal {
+            Eval: {
+                invariant: [
+                    ./theorem/invariant-PRF.smt2
+                ]
+
+                lemmas {
+                    equal-aborts:   []
+                    invariant-Eval: [no-abort]
+                    same-output:    [no-abort]
+                }
+            }
+            Get: {
+                invariant: [
+                    ./theorem/invariant-PRF.smt2
+                ]
+
+                lemmas {
+                    equal-aborts:   []
+                    invariant-Get:  [no-abort]
+                    same-output:    [no-abort]
+                }
+            }
+        }
+
+    }
+}

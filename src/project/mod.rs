@@ -1,8 +1,8 @@
 /**
  *  project is the high-level structure of sspverif.
  *
- *  here we assemble all the users' packages, assumptions, game hops and equivalence proofs.
- *  we also facilitate individual proof steps here, and provide an interface for doing the whole proof.
+ *  here we assemble all the users' packages, assumptions, game hops and equivalence theorems.
+ *  we also facilitate individual theorem steps here, and provide an interface for doing the whole theorem.
  *
  */
 use std::path::Path;
@@ -17,18 +17,18 @@ use crate::parser::SspParser;
 use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
-    proof::Proof,
+    theorem::Theorem,
     transforms::Transformation,
     util::prover_process::ProverBackend,
 };
 
-use crate::ui::{indicatif::IndicatifProofUI, ProofUI};
+use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
 
 pub const PROJECT_FILE: &str = "ssp.toml";
 
 pub const PACKAGES_DIR: &str = "packages";
 pub const GAMES_DIR: &str = "games";
-pub const PROOFS_DIR: &str = "proofs";
+pub const THEOREM_DIR: &str = "theorem";
 pub const ASSUMPTIONS_DIR: &str = "assumptions";
 
 pub const PACKAGE_EXT: &str = ".pkg.ssp";
@@ -40,7 +40,7 @@ mod resolve;
 pub mod error;
 
 pub struct Files {
-    proofs: Vec<(String, String)>,
+    theorems: Vec<(String, String)>,
     games: Vec<(String, String)>,
     packages: Vec<(String, String)>,
 }
@@ -69,7 +69,7 @@ impl Files {
         }
 
         Ok(Self {
-            proofs: load_files(root.join(PROOFS_DIR))?,
+            theorems: load_files(root.join(THEOREM_DIR))?,
             games: load_files(root.join(GAMES_DIR))?,
             packages: load_files(root.join(PACKAGES_DIR))?,
         })
@@ -102,7 +102,7 @@ impl Files {
 pub struct Project<'a> {
     root_dir: PathBuf,
     games: HashMap<String, Composition>,
-    proofs: HashMap<String, Proof<'a>>,
+    theorems: HashMap<String, Theorem<'a>>,
 }
 
 impl<'a> Project<'a> {
@@ -111,7 +111,7 @@ impl<'a> Project<'a> {
         Self {
             root_dir: PathBuf::new(),
             games: HashMap::new(),
-            proofs: HashMap::new(),
+            theorems: HashMap::new(),
         }
     }
 
@@ -146,24 +146,24 @@ impl<'a> Project<'a> {
         //     typecheck_comp(game, &mut scope)?;
         // }
 
-        let proofs = load::proofs(&files.proofs, packages.to_owned(), games.to_owned())?;
+        let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
 
         let project = Project {
             root_dir,
             games,
-            proofs,
+            theorems,
         };
 
         Ok(project)
     }
 
     pub fn proofsteps(&self) -> Result<()> {
-        let mut proof_keys: Vec<_> = self.proofs.keys().collect();
-        proof_keys.sort();
+        let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
+        theorem_keys.sort();
 
-        for proof_key in proof_keys.into_iter() {
-            let proof = &self.proofs[proof_key];
-            let max_width_left = proof
+        for theorem_key in theorem_keys.into_iter() {
+            let theorem = &self.theorems[theorem_key];
+            let max_width_left = theorem
                 .game_hops
                 .iter()
                 .map(GameHop::left_game_instance_name)
@@ -171,8 +171,8 @@ impl<'a> Project<'a> {
                 .max()
                 .unwrap_or(0);
 
-            println!("{proof_key}:");
-            for (i, game_hop) in proof.game_hops.iter().enumerate() {
+            println!("{theorem_key}:");
+            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
                 match game_hop {
                     GameHop::Equivalence(eq) => {
                         let left_name = eq.left_name();
@@ -201,66 +201,67 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
-    // we might want to return a proof trace here instead
-    // we could then extract the proof viewer output and other useful info trom the trace
+    // we might want to return a theorem trace here instead
+    // we could then extract the theorem viewer output and other useful info trom the trace
     pub fn prove(
         &self,
         backend: ProverBackend,
         transcript: bool,
         parallel: usize,
-        req_proof: &Option<String>,
+        req_theorem: &Option<String>,
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
     ) -> Result<()> {
-        let mut proof_keys: Vec<_> = self.proofs.keys().collect();
-        proof_keys.sort();
+        let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
+        theorem_keys.sort();
 
-        let mut ui = IndicatifProofUI::new(proof_keys.len().try_into().unwrap());
+        let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
 
-        for proof_key in proof_keys.into_iter() {
-            let proof = &self.proofs[proof_key];
-            ui.start_proof(&proof.name, proof.game_hops.len().try_into().unwrap());
+        for theorem_key in theorem_keys.into_iter() {
+            let theorem = &self.theorems[theorem_key];
+            ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
 
-            if let Some(ref req_proof) = req_proof {
-                if proof_key != req_proof {
-                    ui.finish_proof(&proof.name);
+            if let Some(ref req_theorem) = req_theorem {
+                if theorem_key != req_theorem {
+                    ui.finish_theorem(&theorem.name);
                     continue;
                 }
             }
 
-            for (i, game_hop) in proof.game_hops.iter().enumerate() {
-                ui.start_proofstep(&proof.name, &format!("{game_hop}"));
+            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
+                ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
 
                 if let Some(ref req_proofstep) = req_proofstep {
                     if i != *req_proofstep {
-                        ui.finish_proofstep(&proof.name, &format!("{game_hop}"));
+                        ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
                         continue;
                     }
                 }
 
                 match game_hop {
                     GameHop::Reduction(_) => {
-                        ui.proofstep_is_reduction(&proof.name, &format!("{game_hop}"));
+                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
                     }
                     GameHop::Conjecture(_) => {
-                        ui.proofstep_is_reduction(&proof.name, &format!("{game_hop}"));
+                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
                     }
                     GameHop::Equivalence(eq) => {
                         if parallel > 1 {
                             equivalence::verify_parallel(
-                                self, &mut ui, eq, proof, backend, transcript, parallel, req_oracle,
+                                self, &mut ui, eq, theorem, backend, transcript, parallel,
+                                req_oracle,
                             )?;
                         } else {
                             equivalence::verify(
-                                self, &mut ui, eq, proof, backend, transcript, req_oracle,
+                                self, &mut ui, eq, theorem, backend, transcript, req_oracle,
                             )?;
                         }
                     }
                 }
-                ui.finish_proofstep(&proof.name, &format!("{game_hop}"));
+                ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
             }
 
-            ui.finish_proof(&proof.name);
+            ui.finish_theorem(&theorem.name);
         }
 
         Ok(())
@@ -289,12 +290,12 @@ impl<'a> Project<'a> {
             }
         }
 
-        for (name, proof) in &self.proofs {
+        for (name, theorem) in &self.theorems {
             for lossy in [true, false] {
-                crate::writers::tex::writer::tex_write_proof(
+                crate::writers::tex::writer::tex_write_theorem(
                     &backend,
                     lossy,
-                    proof,
+                    theorem,
                     name,
                     path.as_path(),
                 )?;
@@ -446,7 +447,7 @@ impl<'a> Project<'a> {
 
     pub fn print_wire_check_smt(&self, game_name: &str, _dst_idx: usize) {
         let _game = self.get_game(game_name).unwrap();
-        // for command in wire_proofs::build_smt(&game, dst_idx) {
+        // for command in wire_theorems::build_smt(&game, dst_idx) {
         //     println!("{}", command);
         // }
     }

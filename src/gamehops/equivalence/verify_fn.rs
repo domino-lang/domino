@@ -3,7 +3,7 @@ use std::fmt::Write;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
-use crate::ui::ProofUI;
+use crate::ui::TheoremUI;
 use crate::{
     gamehops::equivalence::{
         error::{Error, Result},
@@ -11,15 +11,15 @@ use crate::{
     },
     package::OracleSig,
     project::Project,
-    proof::Proof,
-    transforms::{proof_transforms::EquivalenceTransform, ProofTransform},
+    theorem::Theorem,
+    transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     util::prover_process::{Communicator, ProverBackend, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
 use super::EquivalenceContext;
 
-fn verify_oracle<UI: ProofUI>(
+fn verify_oracle<UI: TheoremUI>(
     project: &Project,
     ui: Arc<Mutex<&mut UI>>,
     eqctx: &EquivalenceContext,
@@ -56,13 +56,13 @@ fn verify_oracle<UI: ProofUI>(
     prover.write_smt(SmtExpr::Comment("base declarations:\n".to_string()))?;
     eqctx.emit_base_declarations(&mut prover)?;
     log::debug!(
-        "emitting proof paramfuncs for {}-{}",
+        "emitting theorem paramfuncs for {}-{}",
         eq.left_name,
         eq.right_name
     );
     prover.write_smt(SmtExpr::Comment("\n".to_string()))?;
-    prover.write_smt(SmtExpr::Comment("proof param funcs:\n".to_string()))?;
-    eqctx.emit_proof_paramfuncs(&mut prover)?;
+    prover.write_smt(SmtExpr::Comment("theorem param funcs:\n".to_string()))?;
+    eqctx.emit_theorem_paramfuncs(&mut prover)?;
     log::debug!(
         "emitting game definitions for {}-{}",
         eq.left_name,
@@ -83,7 +83,7 @@ fn verify_oracle<UI: ProofUI>(
             .equivalence
             .proof_tree_by_oracle_name(&oracle_sig.name);
         ui.lock().unwrap().start_oracle(
-            &eqctx.proof().name,
+            &eqctx.theorem().name,
             &proofstep_name,
             &oracle_sig.name,
             claims.len().try_into().unwrap(),
@@ -96,7 +96,7 @@ fn verify_oracle<UI: ProofUI>(
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
-                &eqctx.proof().name,
+                &eqctx.theorem().name,
                 &proofstep_name,
                 &oracle_sig.name,
                 claim.name(),
@@ -113,7 +113,7 @@ fn verify_oracle<UI: ProofUI>(
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
-                    return Err(Error::ClaimProofFailed {
+                    return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle_sig.name.clone(),
                         response,
@@ -123,7 +123,7 @@ fn verify_oracle<UI: ProofUI>(
             }
             write!(prover, "(pop 1)").unwrap();
             ui.lock().unwrap().finish_lemma(
-                &eqctx.proof().name,
+                &eqctx.theorem().name,
                 &proofstep_name,
                 &oracle_sig.name,
                 claim.name(),
@@ -133,25 +133,27 @@ fn verify_oracle<UI: ProofUI>(
         write!(prover, "(pop 1)").unwrap();
         ui.lock()
             .unwrap()
-            .finish_oracle(&eqctx.proof().name, &proofstep_name, &oracle_sig.name);
+            .finish_oracle(&eqctx.theorem().name, &proofstep_name, &oracle_sig.name);
     }
     Ok(())
 }
 
-pub fn verify<UI: ProofUI>(
+pub fn verify<UI: TheoremUI>(
     project: &Project,
     ui: &mut UI,
     eq: &Equivalence,
-    orig_proof: &Proof,
+    orig_theorem: &Theorem,
     backend: ProverBackend,
     transcript: bool,
     req_oracle: &Option<String>,
 ) -> Result<()> {
-    let (proof, auxs) = EquivalenceTransform.transform_proof(orig_proof).unwrap();
+    let (theorem, auxs) = EquivalenceTransform
+        .transform_theorem(orig_theorem)
+        .unwrap();
 
     let eqctx = EquivalenceContext {
         equivalence: eq,
-        proof: &proof,
+        theorem: &theorem,
         auxs: &auxs,
     };
 
@@ -169,7 +171,7 @@ pub fn verify<UI: ProofUI>(
         .collect();
 
     ui.proofstep_set_oracles(
-        &proof.name,
+        &theorem.name,
         &proofstep_name,
         oracle_sequence.len().try_into().unwrap(),
     );
@@ -181,21 +183,23 @@ pub fn verify<UI: ProofUI>(
     Ok(())
 }
 
-pub fn verify_parallel<UI: ProofUI + std::marker::Send>(
+pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
     project: &Project,
     ui: &mut UI,
     eq: &Equivalence,
-    orig_proof: &Proof,
+    orig_theorem: &Theorem,
     backend: ProverBackend,
     transcript: bool,
     parallel: usize,
     req_oracle: &Option<String>,
 ) -> crate::project::error::Result<()> {
-    let (proof, auxs) = EquivalenceTransform.transform_proof(orig_proof).unwrap();
+    let (theorem, auxs) = EquivalenceTransform
+        .transform_theorem(orig_theorem)
+        .unwrap();
 
     let eqctx = EquivalenceContext {
         equivalence: eq,
-        proof: &proof,
+        theorem: &theorem,
         auxs: &auxs,
     };
 
@@ -213,7 +217,7 @@ pub fn verify_parallel<UI: ProofUI + std::marker::Send>(
         .collect();
 
     ui.proofstep_set_oracles(
-        &proof.name,
+        &theorem.name,
         &proofstep_name,
         oracle_sequence.len().try_into().unwrap(),
     );

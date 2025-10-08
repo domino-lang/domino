@@ -224,7 +224,7 @@ fn parse_import_oracles_for(
         pkg_inst_name: None,
         game_name: None,
         game_inst_name: None,
-        proof_name: None,
+        theorem_name: None,
     };
 
     let stack: Vec<_> = stack.iter().chain([&ident_data]).cloned().collect();

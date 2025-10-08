@@ -21,7 +21,7 @@ pub enum Error {
         right_game_inst_name: String,
         mismatching_param_name: String,
     },
-    ClaimProofFailed {
+    ClaimTheoremFailed {
         claim_name: String,
         oracle_name: String,
         response: ProverResponse,
@@ -67,8 +67,8 @@ impl std::fmt::Display for Error {
                 left_game_inst_name,
                 right_game_inst_name,
                 mismatching_param_name,
-            } => write!(f, "parameter {mismatching_param_name} does not match in equivalence proof of game instances {left_game_inst_name} and {right_game_inst_name}"),
-            Error::ClaimProofFailed {
+            } => write!(f, "parameter {mismatching_param_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}"),
+            Error::ClaimTheoremFailed {
                 claim_name,
                 oracle_name,
                 response,

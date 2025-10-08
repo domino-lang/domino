@@ -1,7 +1,7 @@
 use super::{
     games,
     packages::{self, *},
-    proofs,
+    theorems,
 };
 use crate::{
     expressions::Expression,
@@ -10,8 +10,8 @@ use crate::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         Identifier,
     },
-    proof::{Claim, ClaimType},
     statement::Statement,
+    theorem::{Claim, ClaimType},
     types::{CountSpec, Type},
     util::prover_process::ProverBackend,
 };
@@ -22,7 +22,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::ui::mock::MockTestProofUI;
+use crate::ui::mock::MockTestTheoremUI;
 
 #[test]
 fn empty_param_section_is_fine() {
@@ -94,7 +94,7 @@ fn small_game() {
                 ty: Type::Integer,
                 game_name: "SmallGame".to_string(),
                 game_inst_name: None,
-                proof_name: None,
+                theorem_name: None,
                 assigned_value: None,
                 inst_info: None,
             }
@@ -135,15 +135,15 @@ fn untyped_none_type_inference_works() {
 fn equivalence_parses() {
     let packages = parse_files(&["tiny.ssp"]);
     let games = games::parse_files(&["small.ssp"], &packages);
-    let proof_file = proofs::read_file("equivalence-small-small.ssp");
-    let proof = proofs::parse(
-        &proof_file,
+    let theorem_file = theorems::read_file("equivalence-small-small.ssp");
+    let theorem = theorems::parse(
+        &theorem_file,
         "equivalence-small-small.ssp",
         &packages,
         &games,
     );
 
-    let eq = proof
+    let eq = theorem
         .game_hops
         .iter()
         .find_map(|hop| match hop {
@@ -176,15 +176,15 @@ fn equivalence_parses() {
 fn equivalence_gamehome_generates_code() {
     let packages = parse_files(&["tiny.ssp"]);
     let games = games::parse_files(&["small.ssp"], &packages);
-    let proof_file = proofs::read_file("equivalence-small-small.ssp");
-    let proof = proofs::parse(
-        &proof_file,
+    let theorem_file = theorems::read_file("equivalence-small-small.ssp");
+    let theorem = theorems::parse(
+        &theorem_file,
         "equivalence-small-small.ssp",
         &packages,
         &games,
     );
 
-    let eq = proof
+    let eq = theorem
         .game_hops
         .iter()
         .find_map(|hop| match hop {
@@ -198,9 +198,9 @@ fn equivalence_gamehome_generates_code() {
     let project = crate::project::Project::empty();
     equivalence::verify(
         &project,
-        &mut MockTestProofUI::new(),
+        &mut MockTestTheoremUI::new(),
         eq,
-        &proof,
+        &theorem,
         backend,
         false,
         &None,
@@ -232,7 +232,7 @@ fn game_instantiating_with_literal_works() {
                 name: "n".to_string(),
                 ty: Type::Integer,
                 game_inst_name: None,
-                proof_name: None,
+                theorem_name: None,
                 inst_info: None,
                 assigned_value: None
             }
@@ -286,15 +286,15 @@ fn game_const_rename() {
 }
 
 #[test]
-fn proof_const_rename() {
+fn theorem_const_rename() {
     let pkgs = packages::parse_files(&["KeyRealMoreParams.pkg.ssp"]);
     let games = games::parse_files(&["ConstRename.ssp", "ConstRename2.ssp"], &pkgs);
 
     dbg!(&pkgs);
     dbg!(&games);
 
-    let _proof = proofs::parse(
-        &proofs::read_file("ConstRename.ssp"),
+    let _theorem = theorems::parse(
+        &theorems::read_file("ConstRename.ssp"),
         "ConstRename.ssp",
         &pkgs,
         &games,

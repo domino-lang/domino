@@ -116,7 +116,7 @@ mod treeify_fn_test {
             pkg_inst_name: Some("test-pkg".to_string()),
             game_name: Some("TestGame".to_string()),
             game_inst_name: Some("test-game".to_string()),
-            proof_name: Some("TestProof".to_string()),
+            theorem_name: Some("TestTheorem".to_string()),
         }))
     }
 

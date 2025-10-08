@@ -17,16 +17,16 @@ use crate::{
 fn test_const_datatypes_eq_small_small() {
     let pkgs = packages::parse_files(&["tiny.ssp"]);
     let games = games::parse_files(&["small.ssp"], &pkgs);
-    let proof_file = proofs::read_file("equivalence-small-small.ssp");
-    let proof = proofs::parse(&proof_file, "equivalence-small-small.ssp", &pkgs, &games);
+    let theorem_file = theorems::read_file("equivalence-small-small.ssp");
+    let theorem = theorems::parse(&theorem_file, "equivalence-small-small.ssp", &pkgs, &games);
 
-    let equivalence = proof
+    let equivalence = theorem
         .game_hops
         .iter()
         .find_map(|hop| hop.as_equivalence())
         .unwrap();
 
-    let game_inst = proof.find_game_instance(equivalence.left_name()).unwrap();
+    let game_inst = theorem.find_game_instance(equivalence.left_name()).unwrap();
     let game = &game_inst.game;
     let game_name = game.name();
     let game = &games[game_name];
@@ -181,13 +181,13 @@ fn test_const_datatypes_remap_consts() {
 fn test_state_datatypes_remap_consts() {
     let pkgs = packages::parse_files(&["PRF.pkg.ssp", "KeyReal.pkg.ssp"]);
     let games = games::parse_files(&["small_PRF.ssp"], &pkgs);
-    let proof_file_name = "simple-SmallPRFGame.ssp";
-    let proof_file = proofs::read_file(proof_file_name);
-    let proof = proofs::parse(&proof_file, proof_file_name, &pkgs, &games);
+    let theorem_file_name = "simple-SmallPRFGame.ssp";
+    let theorem_file = theorems::read_file(theorem_file_name);
+    let theorem = theorems::parse(&theorem_file, theorem_file_name, &pkgs, &games);
 
     // check prf package instance
 
-    let pkg_inst = &proof.instances[0]
+    let pkg_inst = &theorem.instances[0]
         .game()
         .pkgs
         .iter()
@@ -222,7 +222,7 @@ fn test_state_datatypes_remap_consts() {
 
     // check key package instance
 
-    let pkg_inst = &proof.instances[0]
+    let pkg_inst = &theorem.instances[0]
         .game()
         .pkgs
         .iter()
@@ -261,16 +261,16 @@ fn test_state_datatypes_remap_consts() {
 fn test_fully_resolved_idents_103() {
     let pkgs = packages::parse_files(&["TrivialA.ssp"]);
     let games = games::parse_files(&["TrivialB.ssp"], &pkgs);
-    let proof_file_name = "TrivialC.ssp";
-    let proof_file = proofs::read_file(proof_file_name);
-    let proof = proofs::parse(&proof_file, proof_file_name, &pkgs, &games);
+    let theorem_file_name = "TrivialC.ssp";
+    let theorem_file = theorems::read_file(theorem_file_name);
+    let theorem = theorems::parse(&theorem_file, theorem_file_name, &pkgs, &games);
 
-    for game_inst in &proof.instances {
+    for game_inst in &theorem.instances {
         for (_, ty) in &game_inst.game.consts {
             if let Type::Bits(cs) = ty {
                 match &**cs {
                     CountSpec::Identifier(identifier) => {
-                        assert!(identifier.as_proof_identifier().is_some())
+                        assert!(identifier.as_theorem_identifier().is_some())
                     }
                     CountSpec::Literal(_) => (),
                     CountSpec::Any => (),
@@ -282,7 +282,7 @@ fn test_fully_resolved_idents_103() {
                 if let Type::Bits(cs) = ty {
                     match &**cs {
                         CountSpec::Identifier(identifier) => {
-                            assert!(identifier.as_proof_identifier().is_some())
+                            assert!(identifier.as_theorem_identifier().is_some())
                         }
                         CountSpec::Literal(_) => (),
                         CountSpec::Any => (),

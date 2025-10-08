@@ -3,7 +3,7 @@ use crate::{
     writers::smt::{
         exprs::SmtExpr,
         patterns::{
-            proof_consts::ProofConstsPattern, relation::Relation, relations::equal_aborts,
+            relation::Relation, relations::equal_aborts, theorem_consts::TheoremConstsPattern,
             GameStatePattern,
         },
     },
@@ -84,9 +84,9 @@ impl<'a> EquivalenceContext<'a> {
             .build_same_output()
     }
 
-    pub(crate) fn datastructure_proof_consts_pattern(self) -> ProofConstsPattern<'a> {
-        let proof_name = &self.proof().name;
+    pub(crate) fn datastructure_theorem_consts_pattern(self) -> TheoremConstsPattern<'a> {
+        let theorem_name = &self.theorem().name;
 
-        ProofConstsPattern { proof_name }
+        TheoremConstsPattern { theorem_name }
     }
 }

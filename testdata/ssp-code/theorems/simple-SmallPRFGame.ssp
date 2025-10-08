@@ -1,0 +1,20 @@
+theorem DummySmallPRFGame {
+  const n: Integer;
+  const prf: fn Bits(n), Bits(n) -> Bits(n);
+
+  instance smallprfgame1 = SmallPRFGame {
+    params {
+      n: n,
+      prf: prf,
+    }
+  }
+
+  instance smallprfgame2 = SmallPRFGame {
+    params {
+      n: n,
+      prf: prf,
+    }
+  }
+
+  gamehops {}
+}

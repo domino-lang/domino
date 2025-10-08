@@ -852,7 +852,7 @@ pub fn handle_identifier_in_code_lhs(
                 pkg_inst_name: None,
                 game_name: None,
                 game_inst_name: None,
-                proof_name: None,
+                theorem_name: None,
             }));
 
         if scope
@@ -1231,7 +1231,7 @@ pub fn handle_code(
                         pkg_inst_name: None,
                         game_name: None,
                         game_inst_name: None,
-                        proof_name: None,
+                        theorem_name: None,
                     };
                     let loopvar: Identifier = loopvar.into();
 
@@ -1288,7 +1288,7 @@ pub fn handle_oracle_def(
                     pkg_inst_name: None,
                     game_name: None,
                     game_inst_name: None,
-                    proof_name: None,
+                    theorem_name: None,
                 },
             ))),
         )?;
@@ -1667,7 +1667,7 @@ pub fn handle_import_oracles_body(
                     pkg_inst_name: None,
                     game_name: None,
                     game_inst_name: None,
-                    proof_name: None,
+                    theorem_name: None,
                 };
 
                 let identifier =

@@ -1,4 +1,4 @@
-use crate::{package::Composition, proof::Proof};
+use crate::{package::Composition, theorem::Theorem};
 
 // commented out because we currently don't handle parametric types :(
 //pub mod resolvetypes;
@@ -12,7 +12,7 @@ pub mod treeify;
 pub mod type_extract;
 pub mod unwrapify;
 
-pub mod proof_transforms;
+pub mod theorem_transforms;
 
 pub(crate) trait GameTransform {
     type Err;
@@ -21,14 +21,14 @@ pub(crate) trait GameTransform {
     fn transform_game(&self, game: &Composition) -> Result<(Composition, Self::Aux), Self::Err>;
 }
 
-pub(crate) trait ProofTransform {
+pub(crate) trait TheoremTransform {
     type Err;
     type Aux;
 
-    fn transform_proof<'a>(
+    fn transform_theorem<'a>(
         &self,
-        proof: &'a Proof<'a>,
-    ) -> Result<(Proof<'a>, Self::Aux), Self::Err>;
+        theorem: &'a Theorem<'a>,
+    ) -> Result<(Theorem<'a>, Self::Aux), Self::Err>;
 }
 
 pub(crate) trait Transformation {

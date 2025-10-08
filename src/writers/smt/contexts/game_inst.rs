@@ -2,7 +2,7 @@ use crate::{
     expressions::Expression,
     identifier::game_ident::GameConstIdentifier,
     package::{Composition, Export},
-    proof::GameInstance,
+    theorem::GameInstance,
     transforms::samplify::{Position as SamplePosition, SampleInfo},
     types::Type,
     writers::smt::{

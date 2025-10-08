@@ -1,6 +1,6 @@
 use crate::{
     package::Composition,
-    proof::Proof,
+    theorem::Theorem,
     types::Type,
     writers::smt::{
         exprs::{SmtExpr, SmtLet},
@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use super::proof_consts::ProofConstsPattern;
+use super::theorem_consts::TheoremConstsPattern;
 
 #[derive(Debug, Clone)]
 pub struct GameConstsPattern<'a> {
@@ -109,15 +109,15 @@ pub fn bind_game_consts<Inner: Into<SmtExpr>>(
     }
 }
 
-pub fn bind_proof_consts<Inner: Into<SmtExpr>>(
-    proof: &Proof,
-    proof_consts: &SmtExpr,
+pub fn bind_theorem_consts<Inner: Into<SmtExpr>>(
+    theorem: &Theorem,
+    theorem_consts: &SmtExpr,
     inner: Inner,
 ) -> SmtLet<Inner> {
-    let proof_name = proof.name.as_str();
+    let theorem_name = theorem.name.as_str();
 
-    let pattern = ProofConstsPattern { proof_name };
-    let spec = pattern.datastructure_spec(proof);
+    let pattern = TheoremConstsPattern { theorem_name };
+    let spec = pattern.datastructure_spec(theorem);
 
     // unpack the only (constructor, selector_list) pair
     let (_, selectors) = &spec.0[0];
@@ -128,7 +128,7 @@ pub fn bind_proof_consts<Inner: Into<SmtExpr>>(
             .map(|selector| {
                 (
                     selector.name.to_string(),
-                    pattern.access_unchecked(selector, proof_consts.clone()),
+                    pattern.access_unchecked(selector, theorem_consts.clone()),
                 )
             })
             .collect(),

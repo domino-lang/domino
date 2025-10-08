@@ -5,7 +5,7 @@ use std::iter::FromIterator;
 use crate::expressions::Expression;
 use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
-use crate::identifier::proof_ident::{ProofConstIdentifier, ProofIdentifier};
+use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
 use crate::identifier::Identifier;
 use crate::types::CountSpec;
 use crate::writers::smt::contexts::GameInstanceContext;
@@ -24,8 +24,10 @@ use crate::writers::smt::sorts::Sort;
 use crate::{
     hacks,
     package::{Export, OracleSig},
-    proof::{Claim, ClaimType, GameInstance, Proof},
-    transforms::{proof_transforms::EquivalenceTransform, samplify::SampleInfo, ProofTransform},
+    theorem::{Claim, ClaimType, GameInstance, Theorem},
+    transforms::{
+        samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
+    },
     types::Type,
     util::prover_process::{Communicator, ProverResponse},
     writers::smt::{
@@ -116,14 +118,14 @@ pub use verify_fn::{verify, verify_parallel};
 #[derive(Clone, Copy)]
 pub(crate) struct EquivalenceContext<'a> {
     equivalence: &'a Equivalence,
-    proof: &'a Proof<'a>,
-    auxs: &'a <EquivalenceTransform as ProofTransform>::Aux,
+    theorem: &'a Theorem<'a>,
+    auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
 }
 
 // simple getters
 impl<'a> EquivalenceContext<'a> {
-    pub(crate) fn proof(&self) -> &'a Proof<'a> {
-        self.proof
+    pub(crate) fn theorem(&self) -> &'a Theorem<'a> {
+        self.theorem
     }
 
     pub(crate) fn equivalence(&self) -> &'a Equivalence {
@@ -135,7 +137,7 @@ impl<'a> EquivalenceContext<'a> {
 impl<'a> EquivalenceContext<'a> {
     pub(crate) fn left_game_inst_ctx(self) -> contexts::GameInstanceContext<'a> {
         let game_inst = self
-            .proof()
+            .theorem()
             .find_game_instance(self.equivalence().left_name())
             .unwrap();
 
@@ -144,7 +146,7 @@ impl<'a> EquivalenceContext<'a> {
 
     pub(crate) fn right_game_inst_ctx(self) -> contexts::GameInstanceContext<'a> {
         let game_inst = self
-            .proof()
+            .theorem()
             .find_game_instance(self.equivalence().right_name())
             .unwrap();
 
@@ -164,30 +166,27 @@ impl<'a> EquivalenceContext<'a> {
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
                     crate::types::CountSpec::Identifier(ident) => match ident {
-                        Identifier::ProofIdentifier(ident) => ident.ident(),
+                        Identifier::TheoremIdentifier(ident) => ident.ident(),
                         Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident)) => {
                             match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
-                                Some(Expression::Identifier(ident@Identifier::ProofIdentifier(ProofIdentifier::Const(_)))) => ident.ident(),
+                                Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
                                 Some(Expression::Identifier(_)) => unreachable!("other identifiers can't occur here"),
                                 Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                                 None => {log::debug!("skipping identifier {id:?} since it is not fully resolved"); ident.ident()}
                             }
                         } ,
-                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) =>
-                            match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(
-                                || panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}"))
-                            .as_ref() {
-                                Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
-                                    match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
-                                        Some(Expression::Identifier(ident@Identifier::ProofIdentifier(ProofIdentifier::Const(_))) )=> ident.ident(),
-                                        Some(Expression::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
-                                        Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                        None => {log::debug!("skipping identifier {id:?} since it is not fully resolved"); ident.ident()}
-                                    }
-                                },
-                                Expression::Identifier(_) => unreachable!("other identifiers can't occur here"),
-                                other => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                            }
+                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref() {
+                            Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
+                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
+                                    Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
+                                    Some(Expression::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
+                                    Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
+                                    None => {log::debug!("skipping identifier {id:?} since it is not fully resolved"); ident.ident()}
+                                }
+                            },
+                            Expression::Identifier(_) => unreachable!("other identifiers can't occur here"),
+                            other => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
+                        }
                         Identifier::PackageIdentifier(_) => unreachable!("non-const package identifiers can't occur here"),
                         Identifier::GameIdentifier(_) => unreachable!("non-const game identifiers can't occur here"),
                         Identifier::Generated(_, _) => unreachable!("generated identifiers can't occur here"),
@@ -217,7 +216,7 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_proof_paramfuncs(&self, comm: &mut Communicator) -> Result<()> {
+    fn emit_theorem_paramfuncs(&self, comm: &mut Communicator) -> Result<()> {
         fn get_fn<T: Clone>(arg: &(T, Type)) -> Option<(T, Vec<Type>, Type)> {
             let (other, ty) = arg;
             match ty {
@@ -226,7 +225,7 @@ impl<'a> EquivalenceContext<'a> {
             }
         }
 
-        let funcs = self.proof.consts.iter().filter_map(get_fn);
+        let funcs = self.theorem.consts.iter().filter_map(get_fn);
 
         for (func_name, arg_types, ret_type) in funcs {
             let arg_types: SmtExpr = arg_types
@@ -248,11 +247,11 @@ impl<'a> EquivalenceContext<'a> {
 
     fn emit_game_definitions(&self, comm: &mut Communicator) -> Result<()> {
         let left = self
-            .proof
+            .theorem
             .find_game_instance(self.equivalence.left_name())
             .unwrap();
         let right = self
-            .proof
+            .theorem
             .find_game_instance(self.equivalence.right_name())
             .unwrap();
 
@@ -274,15 +273,15 @@ impl<'a> EquivalenceContext<'a> {
         out.extend(self.smt_package_state_definitions());
         offsets.push((out.len(), "pkg state defs"));
 
-        out.extend(self.smt_proof_const_definition());
-        offsets.push((out.len(), "proof const defs"));
+        out.extend(self.smt_theorem_const_definition());
+        offsets.push((out.len(), "theorem const defs"));
         out.extend(self.smt_game_const_definitions());
         offsets.push((out.len(), "game const defs"));
         out.extend(self.smt_game_state_definitions());
         offsets.push((out.len(), "game state defs"));
 
-        out.extend(self.smt_proof_game_const_mapping_definitions());
-        offsets.push((out.len(), "proof to game const mapping defs"));
+        out.extend(self.smt_theorem_game_const_mapping_definitions());
+        offsets.push((out.len(), "theorem to game const mapping defs"));
         out.extend(self.smt_game_pkg_const_mapping_definitions());
         offsets.push((out.len(), "game to pkg const mapping defs"));
 
@@ -363,7 +362,7 @@ impl<'a> EquivalenceContext<'a> {
          *
          *   Testing
          *
-         *     I suppose the best way to guard against this is to have test cases with proofs
+         *     I suppose the best way to guard against this is to have test cases with theorems
          *     that are expected to not go through and make sure that this is actually the case.
          *
          *   Clear Documentation/Spec
@@ -459,11 +458,11 @@ impl<'a> EquivalenceContext<'a> {
         let right_game_inst_name = self.equivalence.right_name();
 
         let left = self
-            .proof
+            .theorem
             .find_game_instance(self.equivalence.left_name())
             .unwrap();
         let right = self
-            .proof
+            .theorem
             .find_game_instance(self.equivalence.right_name())
             .unwrap();
 
@@ -496,35 +495,35 @@ impl<'a> EquivalenceContext<'a> {
             game_name: right_game_name,
         };
 
-        let proof_consts = patterns::oracle_args::ProofConstsPattern {
-            proof_name: &self.proof().name,
+        let theorem_consts = patterns::oracle_args::TheoremConstsPattern {
+            theorem_name: &self.theorem().name,
         };
 
-        // the interface requires us to pass in a game instance name, but for the proof constants
+        // the interface requires us to pass in a game instance name, but for the theorem constants
         // that gets ignored. We use a name here that would for sure cause trouble if it were
         // included.
         let hack_this_should_be_ignored = "this is being ignored anyway, but let's make sure it fails if it gets included )))))))))))))";
 
-        out.push(proof_consts.unit_declare(hack_this_should_be_ignored));
+        out.push(theorem_consts.unit_declare(hack_this_should_be_ignored));
 
-        let proof_game_const_mapping_left = GameConstMappingFunction {
-            proof_name: &self.proof().name,
+        let theorem_game_const_mapping_left = GameConstMappingFunction {
+            theorem_name: &self.theorem().name,
             game_name: left_game_name,
             game_inst_name: left_game_inst_name,
         };
 
-        let proof_game_const_mapping_right = GameConstMappingFunction {
-            proof_name: &self.proof().name,
+        let theorem_game_const_mapping_right = GameConstMappingFunction {
+            theorem_name: &self.theorem().name,
             game_name: right_game_name,
             game_inst_name: right_game_inst_name,
         };
 
-        let proof_game_const_mapping_call_left =
-            proof_game_const_mapping_left.call(&[proof_consts
+        let theorem_game_const_mapping_call_left =
+            theorem_game_const_mapping_left.call(&[theorem_consts
                 .unit_global_const_name(hack_this_should_be_ignored)
                 .into()]);
-        let proof_game_const_mapping_call_right =
-            proof_game_const_mapping_right.call(&[proof_consts
+        let theorem_game_const_mapping_call_right =
+            theorem_game_const_mapping_right.call(&[theorem_consts
                 .unit_global_const_name(hack_this_should_be_ignored)
                 .into()]);
 
@@ -532,7 +531,7 @@ impl<'a> EquivalenceContext<'a> {
             game_consts_left
                 .unit_define(
                     left_game_inst_name,
-                    proof_game_const_mapping_call_left.unwrap(),
+                    theorem_game_const_mapping_call_left.unwrap(),
                 )
                 .into(),
         );
@@ -540,7 +539,7 @@ impl<'a> EquivalenceContext<'a> {
             game_consts_right
                 .unit_define(
                     right_game_inst_name,
-                    proof_game_const_mapping_call_right.unwrap(),
+                    theorem_game_const_mapping_call_right.unwrap(),
                 )
                 .into(),
         );
@@ -1285,18 +1284,20 @@ impl<'a> EquivalenceContext<'a> {
             .iter()
             .find(|(name, _aux)| name == self.equivalence().right_name())
             .unwrap();
-        let types_proof: HashSet<Type> = self
-            .proof()
+        let types_theorem: HashSet<Type> = self
+            .theorem()
             .consts
             .iter()
             .filter_map(|(name, ty)| match ty {
                 Type::Integer => Some(Type::Bits(Box::new(CountSpec::Identifier(
-                    Identifier::ProofIdentifier(ProofIdentifier::Const(ProofConstIdentifier {
-                        proof_name: self.proof().name.clone(),
-                        name: name.clone(),
-                        ty: Type::Integer,
-                        inst_info: None,
-                    })),
+                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(
+                        TheoremConstIdentifier {
+                            theorem_name: self.theorem().name.clone(),
+                            name: name.clone(),
+                            ty: Type::Integer,
+                            inst_info: None,
+                        },
+                    )),
                 )))),
                 _ => None,
             })
@@ -1306,7 +1307,7 @@ impl<'a> EquivalenceContext<'a> {
             .union(types_right)
             .cloned()
             .collect::<HashSet<_>>()
-            .union(&types_proof)
+            .union(&types_theorem)
             .cloned()
             .collect();
         types.sort();
@@ -1349,7 +1350,7 @@ impl<'a> EquivalenceContext<'a> {
 
     fn oracle_sequence(&self) -> Vec<&'a OracleSig> {
         let game_inst = self
-            .proof
+            .theorem
             .find_game_instance(self.equivalence().left_name())
             .unwrap();
 
@@ -1364,7 +1365,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     // fn split_oracle_sequence(&self) -> Vec<&'a SplitOracleSig> {
-    //     let game_inst = SliceResolver(self.proof.instances())
+    //     let game_inst = SliceResolver(self.theorem.instances())
     //         .resolve_value(self.equivalence.left_name())
     //         .unwrap();
     //
@@ -1379,7 +1380,7 @@ impl<'a> EquivalenceContext<'a> {
     // }
 
     /// Returns an iterator of all the package const datatypes that need to be defined for this
-    /// equivalence proof. It makes sure to skip duplicate definitions, which may occur if a
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_package_const_definitions(self) -> impl Iterator<Item = SmtExpr> + 'a {
         let mut already_defined = BTreeSet::new();
@@ -1406,7 +1407,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     /// Returns an iterator of all the package state datatypes that need to be defined for this
-    /// equivalence proof. It makes sure to skip duplicate definitions, which may occur if a
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_package_state_definitions(self) -> impl Iterator<Item = SmtExpr> + 'a {
         let mut already_defined = BTreeSet::new();
@@ -1430,7 +1431,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     /// Returns an iterator of all the package state datatypes that need to be defined for this
-    /// equivalence proof. It makes sure to skip duplicate definitions, which may occur if a
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_package_return_definitions(self) -> impl Iterator<Item = SmtExpr> + 'a {
         let mut already_defined = BTreeSet::new();
@@ -1455,7 +1456,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     /// Returns an iterator of all the game state datatypes that need to be defined for this
-    /// equivalence proof. It makes sure to skip duplicate definitions, which may occur if a
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_game_state_definitions(self) -> impl Iterator<Item = SmtExpr> + 'a {
         let mut already_defined = BTreeSet::new();
@@ -1487,16 +1488,16 @@ impl<'a> EquivalenceContext<'a> {
             })
     }
 
-    /// Returns an iterator cntaining the proof const datatype.
-    pub(crate) fn smt_proof_const_definition(self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let pattern = self.datastructure_proof_consts_pattern();
-        let spec = pattern.datastructure_spec(self.proof());
+    /// Returns an iterator cntaining the theorem const datatype.
+    pub(crate) fn smt_theorem_const_definition(self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let pattern = self.datastructure_theorem_consts_pattern();
+        let spec = pattern.datastructure_spec(self.theorem());
 
         Some(declare_datatype(&pattern, &spec)).into_iter()
     }
 
     /// Returns an iterator of all the game const datatypes that need to be defined for this
-    /// equivalence proof. It makes sure to skip duplicate definitions, which may occur if a
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_game_const_definitions(self) -> impl Iterator<Item = SmtExpr> + 'a {
         let mut already_defined = BTreeSet::new();
@@ -1518,9 +1519,9 @@ impl<'a> EquivalenceContext<'a> {
             })
     }
 
-    /// Returns an iterator over the functions that map the constant values of the proof to that of a
+    /// Returns an iterator over the functions that map the constant values of the theorem to that of a
     /// game instance. Ranges over all game instances.
-    pub(crate) fn smt_proof_game_const_mapping_definitions(
+    pub(crate) fn smt_theorem_game_const_mapping_definitions(
         self,
     ) -> impl Iterator<Item = SmtExpr> + 'a {
         Some(self)
@@ -1533,7 +1534,7 @@ impl<'a> EquivalenceContext<'a> {
                 .into_iter()
             })
             .flat_map(move |game_inst| {
-                define_game_const_mapping_fun(self.proof(), game_inst.game(), game_inst.name())
+                define_game_const_mapping_fun(self.theorem(), game_inst.game(), game_inst.name())
                     .map(SmtExpr::from)
             })
     }
@@ -1670,16 +1671,17 @@ impl<'a> EquivalenceContext<'a> {
          *
          */
 
-        fn type_use_proof_ident(ty: Type) -> Type {
+        fn type_use_theorem_ident(ty: Type) -> Type {
             match ty {
                 Type::Bits(mut count_spec) => {
                     if let CountSpec::Identifier(identifier) = count_spec.as_mut() {
-                        let proof_ident = identifier.as_proof_identifier();
+                        let theorem_ident = identifier.as_theorem_identifier();
                         assert!(
-                            proof_ident.is_some(),
+                            theorem_ident.is_some(),
                             "expected {identifier:?} to be completely resolved"
                         );
-                        *identifier = Identifier::ProofIdentifier(proof_ident.cloned().unwrap());
+                        *identifier =
+                            Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
                     }
                     Type::Bits(count_spec)
                 }
@@ -1695,14 +1697,14 @@ impl<'a> EquivalenceContext<'a> {
                 .tys
                 .iter()
                 .cloned()
-                .map(type_use_proof_ident),
+                .map(type_use_theorem_ident),
         );
         let right_types: HashSet<Type> = HashSet::from_iter(
             self.sample_info_right()
                 .tys
                 .iter()
                 .cloned()
-                .map(type_use_proof_ident),
+                .map(type_use_theorem_ident),
         );
 
         let types: Vec<&Type> = left_types.intersection(&right_types).collect();
@@ -1712,18 +1714,18 @@ impl<'a> EquivalenceContext<'a> {
 
         for pos in left_positions {
             let pos_ty = pos.ty.clone();
-            let pos_proof_ty = type_use_proof_ident(pos_ty);
+            let pos_theorem_ty = type_use_theorem_ident(pos_ty);
             left_positions_by_type
-                .entry(pos_proof_ty)
+                .entry(pos_theorem_ty)
                 .or_default()
                 .push(pos);
         }
 
         for pos in right_positions {
             let pos_ty = pos.ty.clone();
-            let pos_proof_ty = type_use_proof_ident(pos_ty);
+            let pos_theorem_ty = type_use_theorem_ident(pos_ty);
             right_positions_by_type
-                .entry(pos_proof_ty)
+                .entry(pos_theorem_ty)
                 .or_default()
                 .push(pos);
         }

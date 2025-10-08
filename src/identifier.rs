@@ -1,6 +1,6 @@
 use game_ident::GameIdentifier;
 use pkg_ident::PackageConstIdentifier;
-use proof_ident::ProofIdentifier;
+use theorem_ident::TheoremIdentifier;
 
 use crate::{expressions::Expression, parser::package::ForComp, types::Type};
 
@@ -13,7 +13,7 @@ use self::{
 pub enum Identifier {
     PackageIdentifier(pkg_ident::PackageIdentifier),
     GameIdentifier(game_ident::GameIdentifier),
-    ProofIdentifier(proof_ident::ProofIdentifier),
+    TheoremIdentifier(theorem_ident::TheoremIdentifier),
 
     /// Denotes identifiers that were injected by transforms.
     /// Should only live inside oracle code
@@ -21,25 +21,25 @@ pub enum Identifier {
 }
 
 impl Identifier {
-    pub fn into_proof_identifier(self) -> Option<ProofIdentifier> {
+    pub fn into_theorem_identifier(self) -> Option<TheoremIdentifier> {
         match self {
             Identifier::PackageIdentifier(package_identifier) => package_identifier
                 .into_const()?
                 .game_assignment?
                 .into_identifier()?
-                .into_proof_identifier(),
+                .into_theorem_identifier(),
 
             Identifier::GameIdentifier(game_identifier) => game_identifier
                 .into_const()?
                 .assigned_value?
                 .into_identifier()?
-                .into_proof_identifier(),
-            Identifier::ProofIdentifier(proof_identifier) => Some(proof_identifier),
+                .into_theorem_identifier(),
+            Identifier::TheoremIdentifier(theorem_identifier) => Some(theorem_identifier),
             Identifier::Generated(_, _) => None,
         }
     }
 
-    pub fn as_proof_identifier_mut(&mut self) -> Option<&mut ProofIdentifier> {
+    pub fn as_theorem_identifier_mut(&mut self) -> Option<&mut TheoremIdentifier> {
         match self {
             Identifier::PackageIdentifier(package_identifier) => package_identifier
                 .as_const_mut()?
@@ -47,7 +47,7 @@ impl Identifier {
                 .as_mut()?
                 .as_mut()
                 .as_identifier_mut()?
-                .as_proof_identifier_mut(),
+                .as_theorem_identifier_mut(),
 
             Identifier::GameIdentifier(game_identifier) => game_identifier
                 .as_const_mut()?
@@ -55,13 +55,13 @@ impl Identifier {
                 .as_mut()?
                 .as_mut()
                 .as_identifier_mut()?
-                .as_proof_identifier_mut(),
-            Identifier::ProofIdentifier(proof_identifier) => Some(proof_identifier),
+                .as_theorem_identifier_mut(),
+            Identifier::TheoremIdentifier(theorem_identifier) => Some(theorem_identifier),
             Identifier::Generated(_, _) => None,
         }
     }
 
-    pub fn as_proof_identifier(&self) -> Option<&ProofIdentifier> {
+    pub fn as_theorem_identifier(&self) -> Option<&TheoremIdentifier> {
         match self {
             Identifier::PackageIdentifier(package_identifier) => package_identifier
                 .as_const()?
@@ -69,7 +69,7 @@ impl Identifier {
                 .as_ref()?
                 .as_ref()
                 .as_identifier()?
-                .as_proof_identifier(),
+                .as_theorem_identifier(),
 
             Identifier::GameIdentifier(game_identifier) => game_identifier
                 .as_const()?
@@ -77,8 +77,8 @@ impl Identifier {
                 .as_ref()?
                 .as_ref()
                 .as_identifier()?
-                .as_proof_identifier(),
-            Identifier::ProofIdentifier(proof_identifier) => Some(proof_identifier),
+                .as_theorem_identifier(),
+            Identifier::TheoremIdentifier(theorem_identifier) => Some(theorem_identifier),
             Identifier::Generated(_, _) => None,
         }
     }
@@ -123,8 +123,8 @@ impl Identifier {
             }
 
             (
-                Identifier::ProofIdentifier(ProofIdentifier::Const(l)),
-                Identifier::ProofIdentifier(ProofIdentifier::Const(r)),
+                Identifier::TheoremIdentifier(TheoremIdentifier::Const(l)),
+                Identifier::TheoremIdentifier(TheoremIdentifier::Const(r)),
             ) => l.name == r.name,
 
             (
@@ -161,7 +161,7 @@ impl Identifier {
             self,
             Identifier::PackageIdentifier(PackageIdentifier::Const(_))
                 | Identifier::GameIdentifier(GameIdentifier::Const(_))
-                | Identifier::ProofIdentifier(ProofIdentifier::Const(_))
+                | Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))
         )
     }
 }
@@ -253,22 +253,22 @@ pub mod pkg_ident {
             }
         }
 
-        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, proof_name: String) {
+        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, theorem_name: String) {
             match self {
-                PackageIdentifier::Const(id) => id.set_game_inst_info(game_inst_name, proof_name),
-                PackageIdentifier::State(id) => id.set_game_inst_info(game_inst_name, proof_name),
-                PackageIdentifier::Local(id) => id.set_game_inst_info(game_inst_name, proof_name),
+                PackageIdentifier::Const(id) => id.set_game_inst_info(game_inst_name, theorem_name),
+                PackageIdentifier::State(id) => id.set_game_inst_info(game_inst_name, theorem_name),
+                PackageIdentifier::Local(id) => id.set_game_inst_info(game_inst_name, theorem_name),
                 PackageIdentifier::OracleImport(id) => {
-                    id.set_game_inst_info(game_inst_name, proof_name)
+                    id.set_game_inst_info(game_inst_name, theorem_name)
                 }
                 PackageIdentifier::OracleArg(id) => {
-                    id.set_game_inst_info(game_inst_name, proof_name)
+                    id.set_game_inst_info(game_inst_name, theorem_name)
                 }
                 PackageIdentifier::ImportsLoopVar(id) => {
-                    id.set_game_inst_info(game_inst_name, proof_name)
+                    id.set_game_inst_info(game_inst_name, theorem_name)
                 }
                 PackageIdentifier::CodeLoopVar(id) => {
-                    id.set_game_inst_info(game_inst_name, proof_name)
+                    id.set_game_inst_info(game_inst_name, theorem_name)
                 }
             }
         }
@@ -312,7 +312,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     impl From<PackageConstIdentifier> for Identifier {
@@ -331,7 +331,7 @@ pub mod pkg_ident {
                 pkg_inst_name: None,
                 game_name: None,
                 game_inst_name: None,
-                proof_name: None,
+                theorem_name: None,
             }
         }
 
@@ -356,7 +356,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     impl From<PackageStateIdentifier> for Identifier {
@@ -380,10 +380,10 @@ pub mod pkg_ident {
                 pub(crate) fn set_game_inst_info(
                     &mut self,
                     game_inst_name: String,
-                    proof_name: String,
+                    theorem_name: String,
                 ) {
                     self.game_inst_name = Some(game_inst_name);
-                    self.proof_name = Some(proof_name);
+                    self.theorem_name = Some(theorem_name);
                 }
             }
         };
@@ -398,7 +398,7 @@ pub mod pkg_ident {
                 pkg_inst_name: None,
                 game_name: None,
                 game_inst_name: None,
-                proof_name: None,
+                theorem_name: None,
             }
         }
     }
@@ -412,7 +412,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
@@ -424,7 +424,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
@@ -436,7 +436,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
@@ -451,7 +451,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
@@ -466,7 +466,7 @@ pub mod pkg_ident {
         pub pkg_inst_name: Option<String>,
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
     }
 
     impl_set_inst_info!(PackageConstIdentifier);
@@ -575,18 +575,18 @@ pub mod game_ident {
     }
 
     impl GameIdentifier {
-        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, proof_name: String) {
+        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, theorem_name: String) {
             match self {
-                GameIdentifier::Const(id) => id.set_game_inst_info(game_inst_name, proof_name),
-                GameIdentifier::LoopVar(id) => id.set_game_inst_info(game_inst_name, proof_name),
+                GameIdentifier::Const(id) => id.set_game_inst_info(game_inst_name, theorem_name),
+                GameIdentifier::LoopVar(id) => id.set_game_inst_info(game_inst_name, theorem_name),
             }
         }
     }
 
     impl GameConstIdentifier {
-        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, proof_name: String) {
+        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, theorem_name: String) {
             self.game_inst_name = Some(game_inst_name);
-            self.proof_name = Some(proof_name);
+            self.theorem_name = Some(theorem_name);
         }
 
         pub(crate) fn set_assignment(&mut self, assignment: Expression) {
@@ -595,9 +595,9 @@ pub mod game_ident {
     }
 
     impl GameLoopVarIdentifier {
-        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, proof_name: String) {
+        pub(crate) fn set_game_inst_info(&mut self, game_inst_name: String, theorem_name: String) {
             self.game_inst_name = Some(game_inst_name);
-            self.proof_name = Some(proof_name);
+            self.theorem_name = Some(theorem_name);
         }
     }
 
@@ -613,7 +613,7 @@ pub mod game_ident {
         pub name: String,
         pub ty: crate::types::Type,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
         pub inst_info: Option<GameIdentInstanciationInfo>,
         pub assigned_value: Option<Box<Expression>>,
     }
@@ -642,7 +642,7 @@ pub mod game_ident {
         pub start_comp: ForComp,
         pub end_comp: ForComp,
         pub game_inst_name: Option<String>,
-        pub proof_name: Option<String>,
+        pub theorem_name: Option<String>,
         pub inst_info: Option<GameIdentInstanciationInfo>,
     }
 
@@ -653,16 +653,16 @@ pub mod game_ident {
     }
 }
 
-pub mod proof_ident {
+pub mod theorem_ident {
     use crate::types::Type;
 
     use super::*;
 
-    impl ProofIdentifier {
+    impl TheoremIdentifier {
         pub(crate) fn ident_ref(&self) -> &str {
             match self {
-                ProofIdentifier::Const(const_ident) => &const_ident.name,
-                ProofIdentifier::LoopVar(loopvar) => &loopvar.name,
+                TheoremIdentifier::Const(const_ident) => &const_ident.name,
+                TheoremIdentifier::LoopVar(loopvar) => &loopvar.name,
             }
         }
 
@@ -672,81 +672,81 @@ pub mod proof_ident {
 
         pub(crate) fn get_type(&self) -> Type {
             match self {
-                ProofIdentifier::Const(const_ident) => const_ident.ty.clone(),
-                ProofIdentifier::LoopVar(_local_ident) => Type::Integer,
+                TheoremIdentifier::Const(const_ident) => const_ident.ty.clone(),
+                TheoremIdentifier::LoopVar(_local_ident) => Type::Integer,
             }
         }
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
-    pub enum ProofIdentifier {
-        Const(ProofConstIdentifier),
-        LoopVar(ProofLoopVarIdentifier),
+    pub enum TheoremIdentifier {
+        Const(TheoremConstIdentifier),
+        LoopVar(TheoremLoopVarIdentifier),
     }
 
-    impl ProofIdentifier {
-        pub fn with_instance_info(self, inst_info: ProofIdentInstanciationInfo) -> Self {
+    impl TheoremIdentifier {
+        pub fn with_instance_info(self, inst_info: TheoremIdentInstanciationInfo) -> Self {
             match self {
-                ProofIdentifier::Const(c) => Self::Const(ProofConstIdentifier {
+                TheoremIdentifier::Const(c) => Self::Const(TheoremConstIdentifier {
                     inst_info: Some(inst_info),
                     ..c
                 }),
-                ProofIdentifier::LoopVar(l) => Self::LoopVar(ProofLoopVarIdentifier {
+                TheoremIdentifier::LoopVar(l) => Self::LoopVar(TheoremLoopVarIdentifier {
                     inst_info: Some(inst_info),
                     ..l
                 }),
             }
         }
 
-        pub fn proof_name(&self) -> &str {
+        pub fn theorem_name(&self) -> &str {
             match self {
-                ProofIdentifier::Const(c) => &c.proof_name,
-                ProofIdentifier::LoopVar(l) => &l.proof_name,
+                TheoremIdentifier::Const(c) => &c.theorem_name,
+                TheoremIdentifier::LoopVar(l) => &l.theorem_name,
             }
         }
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
-    pub struct ProofIdentInstanciationInfo {
+    pub struct TheoremIdentInstanciationInfo {
         pub lower: GameConstIdentifier,
         pub game_inst_name: String,
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
-    pub struct ProofConstIdentifier {
-        pub proof_name: String,
+    pub struct TheoremConstIdentifier {
+        pub theorem_name: String,
         pub name: String,
         pub ty: crate::types::Type,
-        pub inst_info: Option<ProofIdentInstanciationInfo>,
+        pub inst_info: Option<TheoremIdentInstanciationInfo>,
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
-    pub struct ProofLoopVarIdentifier {
-        pub proof_name: String,
+    pub struct TheoremLoopVarIdentifier {
+        pub theorem_name: String,
         pub name: String,
         // ty is always Integer
         pub start: Box<Expression>,
         pub end: Box<Expression>,
         pub start_comp: ForComp,
         pub end_comp: ForComp,
-        pub inst_info: Option<ProofIdentInstanciationInfo>,
+        pub inst_info: Option<TheoremIdentInstanciationInfo>,
     }
 
-    impl From<ProofConstIdentifier> for ProofIdentifier {
-        fn from(value: ProofConstIdentifier) -> Self {
-            ProofIdentifier::Const(value)
+    impl From<TheoremConstIdentifier> for TheoremIdentifier {
+        fn from(value: TheoremConstIdentifier) -> Self {
+            TheoremIdentifier::Const(value)
         }
     }
 
-    impl From<ProofLoopVarIdentifier> for ProofIdentifier {
-        fn from(value: ProofLoopVarIdentifier) -> Self {
-            ProofIdentifier::LoopVar(value)
+    impl From<TheoremLoopVarIdentifier> for TheoremIdentifier {
+        fn from(value: TheoremLoopVarIdentifier) -> Self {
+            TheoremIdentifier::LoopVar(value)
         }
     }
 
-    impl<T: Into<ProofIdentifier>> From<T> for Identifier {
+    impl<T: Into<TheoremIdentifier>> From<T> for Identifier {
         fn from(value: T) -> Self {
-            Identifier::ProofIdentifier(value.into())
+            Identifier::TheoremIdentifier(value.into())
         }
     }
 }
@@ -762,7 +762,7 @@ impl Identifier {
         match self {
             Identifier::PackageIdentifier(pkg_ident) => pkg_ident.get_type(),
             Identifier::GameIdentifier(game_ident) => game_ident.get_type(),
-            Identifier::ProofIdentifier(proof_ident) => proof_ident.get_type(),
+            Identifier::TheoremIdentifier(theorem_ident) => theorem_ident.get_type(),
             Identifier::Generated(_, ty) => ty.clone(),
         }
     }
@@ -772,7 +772,7 @@ impl Identifier {
             Identifier::Generated(name, _) => name,
             Identifier::PackageIdentifier(pkg_ident) => pkg_ident.ident_ref(),
             Identifier::GameIdentifier(game_ident) => game_ident.ident_ref(),
-            Identifier::ProofIdentifier(proof_ident) => proof_ident.ident_ref(),
+            Identifier::TheoremIdentifier(theorem_ident) => theorem_ident.ident_ref(),
         }
     }
 
@@ -781,7 +781,7 @@ impl Identifier {
             Identifier::Generated(ident, _) => ident.clone(),
             Identifier::PackageIdentifier(pkg_ident) => pkg_ident.ident(),
             Identifier::GameIdentifier(game_ident) => game_ident.ident(),
-            Identifier::ProofIdentifier(proof_ident) => proof_ident.ident(),
+            Identifier::TheoremIdentifier(theorem_ident) => theorem_ident.ident(),
         }
     }
 }
@@ -798,13 +798,13 @@ mod tests {
             pkgname: "Mod".to_string(),
             game_inst_name: "MODSec0_inst".to_string(),
             name_in_comp: "d".to_string(),
-            name_in_proof: "d".to_string(),
+            name_in_theorem: "d".to_string(),
         });
 
         let right = Identifier::GameInstanceConst(GameInstanceConst {
             game_inst_name: "MODSec0_inst".to_string(),
             name_in_comp: "d".to_string(),
-            name_in_proof: "d".to_string(),
+            name_in_theorem: "d".to_string(),
         });
 
         assert_eq!(left, right)

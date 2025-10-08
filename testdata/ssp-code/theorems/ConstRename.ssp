@@ -1,0 +1,52 @@
+theorem ConstRenameProof {
+  const o: Integer;
+  const zeroo: Bits(o);
+
+  instance const_rename_assumption_left = ConstRenameGame {
+      params {
+          m: o,
+          lala: zeroo,
+      }
+  }
+
+  instance const_rename_assumption_right = ConstRenameGame2 {
+      params {
+          l: o,
+          oho: zeroo,
+      }
+  }
+
+  instance const_rename_construction_left = ConstRenameGame {
+      params {
+          m: o,
+          lala: zeroo,
+      }
+  }
+
+  instance const_rename_construction_right = ConstRenameGame2 {
+      params {
+          l: o,
+          oho: zeroo,
+      }
+  }
+
+  assumptions {
+    Test: const_rename_assumption_left ~ const_rename_assumption_right
+  }
+
+
+  gamehops {
+    reduction const_rename_construction_left const_rename_construction_right {
+      assumption Test
+
+      map const_rename_assumption_left const_rename_construction_left {
+          key: key
+      }
+
+      map const_rename_assumption_right const_rename_construction_right {
+          key: key
+      }
+    }
+  }
+}
+

@@ -313,6 +313,19 @@ pub struct MissingGameParameterDefinitionError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("theorem does not follow from the game hops")]
+#[diagnostic(code(ssbee::code::unproven_theorem))]
+pub struct UnprovenTheoremError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this theorem here")]
+    pub at: SourceSpan,
+
+    pub theorem_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("use of undefined assumption {assumption_name}")]
 #[diagnostic(code(domino::code::undefined_assumption))]
 pub struct UndefinedAssumptionError {
@@ -328,7 +341,7 @@ pub struct UndefinedAssumptionError {
 #[derive(Debug, Diagnostic, Error)]
 #[error("the first package instance name in an assumption package mapping block header must be from the assumption, but isn't")]
 #[diagnostic(code(
-    domino::code::proof::reduction::assumption_mapping::no_assumption_game_instance
+    domino::code::theorem::reduction::assumption_mapping::no_assumption_game_instance
 ))]
 #[help("the mapping maps the package instances of the assumption game and the model game. Therefore the first needs to be an assumption game instance, while the other needs to be a model game instance. Game instance names from the assumption are {assumption_left_game_instance_name} and {assumption_right_game_instance_name}.")]
 pub struct AssumptionMappingLeftGameInstanceIsNotFromAssumption {
@@ -347,7 +360,7 @@ pub struct AssumptionMappingLeftGameInstanceIsNotFromAssumption {
 #[derive(Debug, Diagnostic, Error)]
 #[error("the second package instance name in an assumption package mapping block header must be from the model (i.e. not from the assumption), but isn't")]
 #[diagnostic(code(
-    domino::code::proof::reduction::assumption_mapping::no_assumption_game_instance
+    domino::code::theorem::reduction::assumption_mapping::no_assumption_game_instance
 ))]
 pub struct AssumptionMappingRightGameInstanceIsFromAssumption {
     #[source_code]
@@ -388,7 +401,7 @@ pub struct ExpectedExpressionIdentifierError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different package types")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::package_mismatch))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::package_mismatch))]
 pub struct AssumptionMappingContainsDifferentPackagesError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -406,7 +419,7 @@ pub struct AssumptionMappingContainsDifferentPackagesError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different parameter assignments for {param_names}")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::package_mismatch))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::package_mismatch))]
 pub struct AssumptionMappingParameterMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -424,7 +437,7 @@ pub struct AssumptionMappingParameterMismatchError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {left_pkg_inst_name} and {right_pkg_inst_name} in a reduction have different package types: {left_pkg_name} != {right_pkg_name}")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::reduction_package_mismatch))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::reduction_package_mismatch))]
 pub struct ReductionContainsDifferentPackagesError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -440,7 +453,7 @@ pub struct ReductionContainsDifferentPackagesError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {left_pkg_inst_name} and {right_pkg_inst_name} in a reduction have different parameter assignments for {param_names}")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::reduction_package_mismatch))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::reduction_package_mismatch))]
 pub struct ReductionPackageInstanceParameterMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -457,7 +470,7 @@ pub struct ReductionPackageInstanceParameterMismatchError {
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {pkg_inst_name_1} and {pkg_inst_name_2} should be the same, but {pkg_inst_name_1} is in the assumption part of {game_name_1}, whereas {pkg_inst_name_2} is in the reduction part of {game_name_2}")]
 #[diagnostic(code(
-    domino::code::proof::reduction::mapping::reduction_inconsistent_assumption_boundary
+    domino::code::theorem::reduction::mapping::reduction_inconsistent_assumption_boundary
 ))]
 pub struct ReductionInconsistentAssumptionBoundaryError {
     #[source_code]
@@ -478,7 +491,7 @@ pub struct ReductionInconsistentAssumptionBoundaryError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instance {pkg_inst_name} was mapped twice")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::duplicate_package_instance))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::duplicate_package_instance))]
 pub struct AssumptionMappingDuplicatePackageInstanceError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -493,7 +506,7 @@ pub struct AssumptionMappingDuplicatePackageInstanceError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instance {pkg_inst_name} of the assumption game has not been mapped")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::duplicate_package_instance))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::duplicate_package_instance))]
 pub struct AssumptionMappingMissesPackageInstanceError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -506,7 +519,7 @@ pub struct AssumptionMappingMissesPackageInstanceError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The edge {pkg_inst_name} exists in game X but not in game Y, yielding an inconsistent reduction")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::duplicate_package_instance))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::duplicate_package_instance))]
 pub struct InconsistentReductions {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -519,7 +532,7 @@ pub struct InconsistentReductions {
 
 #[derive(Debug, Diagnostic, Error, Clone)]
 #[error("The construction package instance `{construction_pkg_inst_name}` has an incoming edge with oracle `{oracle_name}`, but the mapped assumption package instance `{assumption_pkg_inst_name}` doesn't")]
-#[diagnostic(code(domino::code::proof::reduction::mapping::assumption_exports_insufficient))]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::assumption_exports_insufficient))]
 pub struct AssumptionExportsNotSufficientError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,

@@ -1,0 +1,61 @@
+theorem Proof {
+    const n: Integer;
+  
+    instance small_composition = SmallComposition {
+        params {
+            n: n,
+        }
+    }
+
+    instance medium_composition = MediumComposition {
+        params {
+            n: n,
+        }
+    }
+
+    instance medium_composition_more_oracles = MediumCompositionMoreOracles {
+        params {
+            n: n,
+        }
+    }
+
+    instance big_composition = BigComposition {
+        params {
+            n: n,
+        }
+    }
+
+    assumptions {
+        Assumption: medium_composition ~ small_composition
+    }
+
+    gamehops {
+        equivalence medium_composition small_composition {
+            UsefulOracle: {
+                invariant: [
+                    ./theorem/invariant.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    lemma-rand-is-eq: []
+                }
+            }
+        }
+        reduction big_composition medium_composition_more_oracles  
+        {
+            assumption Assumption
+
+            map small_composition medium_composition_more_oracles {
+                rand    : rand
+            }
+
+            map medium_composition big_composition {
+                rand    : rand
+                fwd     : fwd
+            }
+        }
+    }
+}

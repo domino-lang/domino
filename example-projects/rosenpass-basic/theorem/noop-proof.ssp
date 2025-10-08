@@ -1,0 +1,94 @@
+theorem NoopKemProof {
+  const kem_sk_len: Integer;
+  const kem_pk_len: Integer;
+  const kem_ct_len: Integer;
+  const kem_shk_len: Integer;
+  const kem_encaps_coins_len: Integer;
+
+  const encaps: fn (Bits(kem_encaps_coins_len), Bits(kem_pk_len)) -> (Bits(kem_shk_len), Bits(kem_ct_len));
+  const keygen: fn Bits(kem_sk_len) -> Bits(kem_pk_len);
+
+  instance kem_real = KemAssumption {
+    params {
+      is_ideal: false,
+
+      kem_sk_len: kem_sk_len,
+      kem_pk_len: kem_pk_len,
+      kem_ct_len: kem_ct_len,
+      kem_shk_len: kem_shk_len,
+      kem_encaps_coins_len: kem_encaps_coins_len,
+
+      encaps: encaps,
+      keygen: keygen,
+    }
+  }
+
+  instance kem_ideal = KemAssumption {
+    params {
+      is_ideal: true,
+
+      kem_sk_len: kem_sk_len,
+      kem_pk_len: kem_pk_len,
+      kem_ct_len: kem_ct_len,
+      kem_shk_len: kem_shk_len,
+      kem_encaps_coins_len: kem_encaps_coins_len,
+
+      encaps: encaps,
+      keygen: keygen,
+    }
+  }
+
+  instance proto_real = SillyProtocol {
+    params {
+      is_ideal: false,
+
+      kem_sk_len: kem_sk_len,
+      kem_pk_len: kem_pk_len,
+      kem_ct_len: kem_ct_len,
+      kem_shk_len: kem_shk_len,
+      kem_encaps_coins_len: kem_encaps_coins_len,
+
+      encaps: encaps,
+      keygen: keygen,
+    }
+  }
+
+  instance proto_ideal = SillyProtocol {
+    params {
+      is_ideal: true,
+
+      kem_sk_len: kem_sk_len,
+      kem_pk_len: kem_pk_len,
+      kem_ct_len: kem_ct_len,
+      kem_shk_len: kem_shk_len,
+      kem_encaps_coins_len: kem_encaps_coins_len,
+
+      encaps: encaps,
+      keygen: keygen,
+    }
+  }
+
+  assumptions {
+    Kem: kem_real ~ kem_ideal
+  }
+
+  gamehops {
+    reduction proto_real proto_ideal {
+      assumption Kem
+
+      map kem_real proto_real {
+        kem: kem
+        asym_keys: asym_keys
+        kem_rand: kem_rand
+        output: output
+      }
+
+      map kem_ideal proto_ideal {
+        kem: kem
+        asym_keys: asym_keys
+        kem_rand: kem_rand
+        output: output
+      }
+    }
+  }
+}

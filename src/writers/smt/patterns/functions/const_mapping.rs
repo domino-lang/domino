@@ -1,13 +1,13 @@
 use crate::{
     package::{Composition, Package},
-    proof::Proof,
+    theorem::Theorem,
     writers::smt::{
         exprs::{SmtExpr, SmtLet},
         names::FunctionNameBuilder,
         patterns::{
             datastructures::game_consts::GameConstsPattern as GameConstsDatatypePattern,
-            game_consts::{bind_game_consts, bind_proof_consts},
-            oracle_args::{GameConstsPattern, OracleArgPattern as _, ProofConstsPattern},
+            game_consts::{bind_game_consts, bind_theorem_consts},
+            oracle_args::{GameConstsPattern, OracleArgPattern as _, TheoremConstsPattern},
             pkg_consts::PackageConstsPattern,
             DatastructurePattern, FunctionPattern,
         },
@@ -52,7 +52,7 @@ impl FunctionPattern for PackageConstMappingFunction<'_> {
 }
 
 pub struct GameConstMappingFunction<'a> {
-    pub proof_name: &'a str,
+    pub theorem_name: &'a str,
     pub game_name: &'a str,
     pub game_inst_name: &'a str,
 }
@@ -61,16 +61,19 @@ impl FunctionPattern for GameConstMappingFunction<'_> {
     fn function_name(&self) -> String {
         FunctionNameBuilder::new()
             .push("gameconsts")
-            .push(self.proof_name)
+            .push(self.theorem_name)
             .push(self.game_inst_name)
             .build()
     }
 
     fn function_args(&self) -> Vec<(String, Sort)> {
-        let proof_consts_pattern = ProofConstsPattern {
-            proof_name: self.proof_name,
+        let theorem_consts_pattern = TheoremConstsPattern {
+            theorem_name: self.theorem_name,
         };
-        vec![("<proof-consts>".to_string(), proof_consts_pattern.sort())]
+        vec![(
+            "<theorem-consts>".to_string(),
+            theorem_consts_pattern.sort(),
+        )]
     }
 
     fn function_return_sort(&self) -> Sort {
@@ -128,11 +131,11 @@ pub fn define_pkg_const_mapping_fun<'a>(
 }
 
 pub fn define_game_const_mapping_fun<'a>(
-    proof: &'a Proof<'a>,
+    theorem: &'a Theorem<'a>,
     game: &'a Composition,
     game_inst_name: &'a str,
 ) -> Option<SmtDefineFun<SmtLet<SmtExpr>>> {
-    let game_inst = proof.find_game_instance(game_inst_name)?;
+    let game_inst = theorem.find_game_instance(game_inst_name)?;
 
     if game_inst.game.name != game.name {
         // TODO: return an error here
@@ -141,7 +144,7 @@ pub fn define_game_const_mapping_fun<'a>(
     let game_name = &game.name;
 
     let mapping_fun = GameConstMappingFunction {
-        proof_name: &proof.name,
+        theorem_name: &theorem.name,
         game_inst_name,
         game_name,
     };
@@ -150,9 +153,9 @@ pub fn define_game_const_mapping_fun<'a>(
     let game_consts_spec = game_consts.datastructure_spec(game);
 
     Some(
-        mapping_fun.define_fun(bind_proof_consts(
-            proof,
-            &"<proof-consts>".into(),
+        mapping_fun.define_fun(bind_theorem_consts(
+            theorem,
+            &"<theorem-consts>".into(),
             game_consts
                 .call_constructor(&game_consts_spec, vec![], &(), |sel| {
                     game_inst

@@ -529,7 +529,7 @@ fn transform_codeblock(
                                         pkg_inst_name: None,
                                         game_name: None,
                                         game_inst_name: None,
-                                        proof_name: None,
+                                        theorem_name: None,
                                     },
                                 )),
                                 name: name.to_string(),

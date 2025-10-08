@@ -16,7 +16,7 @@ use super::error::{
 use super::package::{
     handle_identifier_in_code_rhs, HandleIdentifierRhsError, ParseIdentifierError,
 };
-use super::proof::{ParseProofContext, ParseProofError};
+use super::theorem::{ParseTheoremContext, ParseTheoremError};
 use super::{ParseContext, Rule};
 
 use itertools::Itertools;
@@ -228,7 +228,7 @@ pub(crate) fn handle_game_params_def_list(
                                 game_name: None,
                                 pkg_inst_name: None,
                                 game_inst_name: None,
-                                proof_name: None,
+                                theorem_name: None,
                                 game_assignment: None,
                             },
                         )),
@@ -313,12 +313,12 @@ pub(crate) fn handle_game_params_def_list(
         })
 }
 
-pub(crate) fn handle_proof_params_def_list(
-    ctx: &ParseProofContext,
+pub(crate) fn handle_theorem_params_def_list(
+    ctx: &ParseTheoremContext,
     game: &Composition,
     game_inst_name: &str,
     ast: Pair<Rule>,
-) -> Result<Vec<(String, Expression)>, ParseProofError> {
+) -> Result<Vec<(String, Expression)>, ParseTheoremError> {
     let params = &game.consts;
     let mut defined_params = HashMap::<String, SourceSpan>::new();
     let block_span = ast.as_span();
@@ -390,7 +390,7 @@ pub(crate) fn handle_proof_params_def_list(
                     name: name.to_string(),
                     ty: Type::Integer,
                     game_inst_name: None,
-                    proof_name: None,
+                    theorem_name: None,
                     inst_info: None,
                     assigned_value: None,
                 }),
@@ -416,7 +416,7 @@ pub(crate) fn handle_proof_params_def_list(
     ints
         .into_iter()
         .chain(others_iter)
-        .map(|res: Result<(pest::Span, Pair<Rule>, Pair<Rule>, Type), ParseProofError>| -> Result<(String, Expression), ParseProofError> {
+        .map(|res: Result<(pest::Span, Pair<Rule>, Pair<Rule>, Type), ParseTheoremError>| -> Result<(String, Expression), ParseTheoremError> {
         let (pair_span, name_ast, value_ast, expected_type) = res?;
         let name: &str = name_ast.as_str();
         let name_span: pest::Span = name_ast.as_span();
@@ -446,7 +446,7 @@ pub(crate) fn handle_proof_params_def_list(
 
             Ok((name.to_owned(), value.clone()))
         })
-        .collect::<std::result::Result<Vec<_>, ParseProofError>>()
+        .collect::<std::result::Result<Vec<_>, ParseTheoremError>>()
         .and_then(|list| {
             let definied_names: HashSet<String> = defined_params.keys().cloned().collect();
             let declared_names: HashSet<String> =

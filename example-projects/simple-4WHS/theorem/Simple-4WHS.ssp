@@ -1,0 +1,466 @@
+theorem Simple4WHS {
+    const b: Bool;
+    const n: Integer;
+    const zeron: Bits(256);
+    const prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256);
+    const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
+
+    instance KX = KX {
+        params {
+            b       : b ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Real = KX {
+        params {
+            b       : false ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Ideal = KX {
+        params {
+            b       : true ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
+    instance KX_NoKey = KX_NoKey {
+        params {
+            b       : b ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
+    instance KX_NoPrf_RealPrf = KX_NoPrf {
+        params {
+            b       : b ,
+            bprf    : false,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance KX_NoPrf_IdealPrf = KX_NoPrf {
+        params {
+            b       : b ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance RealKX_NoPrf_IdealPrf = KX_NoPrf {
+        params {
+            b       : false ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance IdealKX_NoPrf_IdealPrf = KX_NoPrf {
+        params {
+            b       : true ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
+    instance PRFideal = PRF {
+        params {
+            b  : true,
+            n  : n   ,
+            prf: prf ,
+        }
+    }
+
+    instance PRFreal = PRF {
+        params {
+            b  : false,
+            n  : n    ,
+            prf: prf  ,
+        }
+    }
+
+    assumptions {
+        prf:     PRFreal    ~ PRFideal
+    }
+
+    gamehops {
+        equivalence KX KX_NoKey {
+            Send1: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/invariant-KX-KX_NoKey.smt2,
+                    ./theorem/randomness-KX-KX_NoKey.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+        
+        equivalence KX_NoKey KX_NoPrf_RealPrf {
+            Send1: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/invariant-KX_NoKey-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoKey-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+
+        reduction KX_NoPrf_RealPrf KX_NoPrf_IdealPrf
+        {
+            assumption prf
+
+            map PRFreal KX_NoPrf_RealPrf {
+               PRF: Prf
+            }
+
+            map PRFideal KX_NoPrf_IdealPrf {
+               PRF: Prf
+            }
+        }
+
+        equivalence RealKX_NoPrf_IdealPrf IdealKX_NoPrf_IdealPrf {
+            Send1: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/invariant-KX_NoPrf-KX_NoPrf.smt2,
+                    ./theorem/randomness-KX_NoPrf-KX_NoPrf.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+
+    propositions {
+        main: Real ~ Ideal
+    }
+}
