@@ -4,7 +4,7 @@ use pretty::RcDoc;
 
 static UNIT: () = ();
 
-use super::util::ToDoc;
+use super::{dataclass::Dataclass, util::ToDoc};
 use crate::writers::python::identifier::*;
 
 #[derive(Clone, Copy, Debug)]
@@ -15,9 +15,14 @@ pub(super) enum PyType<'a> {
     BitVec(BitVecLength<'a>),
     Int,
     Bool,
+
+    Any,
     List(Box<Self>),
-    PackageState(PackageStateTypeName<'a>),
     Dict(Box<Self>, Box<Self>),
+
+    PackageState(PackageStateTypeName<'a>),
+    PackageConstParams(PackageConstParamsTypeName<'a>),
+    GameState(GameStateTypeName<'a>),
 }
 
 impl<'a> ToDoc<'a> for PyType<'a> {
@@ -26,15 +31,20 @@ impl<'a> ToDoc<'a> for PyType<'a> {
             PyType::BitVec(_bit_vec_length) => RcDoc::as_string("bytes"),
             PyType::Int => RcDoc::as_string("int"),
             PyType::Bool => RcDoc::as_string("bool"),
+
+            PyType::Any => RcDoc::as_string("Any"),
             PyType::List(py_type) => RcDoc::text("List[")
                 .append(py_type.to_doc())
                 .append(RcDoc::text("]")),
-            PyType::PackageState(name) => RcDoc::as_string(name),
             PyType::Dict(k, v) => RcDoc::text("dict[")
                 .append(k.to_doc())
                 .append(RcDoc::text(", "))
                 .append(v.to_doc())
                 .append(RcDoc::text("]")),
+
+            PyType::PackageState(name) => RcDoc::as_string(name),
+            PyType::PackageConstParams(name) => RcDoc::as_string(name),
+            PyType::GameState(name) => RcDoc::as_string(name),
         }
     }
 }

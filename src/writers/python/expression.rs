@@ -1,10 +1,16 @@
-use std::fmt::{write, Display};
+use std::fmt::Display;
 
 use pretty::RcDoc;
 
-use crate::expressions::Expression;
+use crate::{
+    expressions::Expression,
+    identifier::{pkg_ident::PackageIdentifier, Identifier},
+};
 
-use super::util::ToDoc;
+use super::{
+    identifier::{GameStateFieldName, OracleFunctionArg},
+    util::ToDoc,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct PyFunctionCall<'a> {
@@ -37,6 +43,8 @@ pub enum PyExpression<'a> {
     BoolLiteral(bool),
     None,
     FunctionCall(PyFunctionCall<'a>),
+    ConstIdentifier(&'a str),
+    LocalIdentifier(&'a str),
 }
 
 impl<'a> Display for PyExpression<'a> {
@@ -47,6 +55,13 @@ impl<'a> Display for PyExpression<'a> {
             PyExpression::BoolLiteral(false) => write!(f, "False"),
             PyExpression::None => write!(f, "None"),
             PyExpression::FunctionCall(py_function_call) => write!(f, "{py_function_call}"),
+            PyExpression::ConstIdentifier(name) => write!(
+                f,
+                "{game_state}.{name}",
+                game_state = OracleFunctionArg::GameState,
+                name = GameStateFieldName::PackageConstParams(name)
+            ),
+            PyExpression::LocalIdentifier(name) => write!(f, "{name}",),
         }
     }
 }
@@ -59,6 +74,12 @@ impl<'a> ToDoc<'a> for PyExpression<'a> {
             PyExpression::BoolLiteral(false) => RcDoc::text("False"),
             PyExpression::None => RcDoc::text("None"),
             PyExpression::FunctionCall(py_function_call) => py_function_call.to_doc(),
+            PyExpression::ConstIdentifier(name) => RcDoc::as_string(OracleFunctionArg::GameState)
+                .append(RcDoc::text("."))
+                .append(RcDoc::as_string(GameStateFieldName::PackageConstParams(
+                    name,
+                ))),
+            PyExpression::LocalIdentifier(name) => RcDoc::text(*name),
         }
     }
 }
@@ -80,6 +101,14 @@ impl<'a> TryFrom<&'a Expression> for PyExpression<'a> {
             Expression::Some(expression) => expression.as_ref().try_into(),
 
             Expression::BooleanLiteral(bit) => unreachable!(),
+
+            Expression::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(
+                ident,
+            ))) => Ok(PyExpression::ConstIdentifier(ident.ident_ref())),
+
+            Expression::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Local(
+                ident,
+            ))) => Ok(PyExpression::LocalIdentifier(ident.ident_ref())),
 
             other => todo!("PyExpression::try_from not yet implemented: {other:?}"),
         }
