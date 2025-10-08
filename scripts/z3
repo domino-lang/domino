@@ -1,0 +1,3 @@
+#!/bin/sh
+
+stdbuf -i0 -o0 -e0 sed -e 's,(_ is mk-abort),is-mk-abort,g' | stdbuf -i0 -o0 -e0  /usr/bin/z3 "$@"
