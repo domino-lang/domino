@@ -292,7 +292,7 @@ impl<'a> Project<'a> {
 
         for (name, theorem) in &self.theorems {
             for lossy in [true, false] {
-                crate::writers::tex::writer::tex_write_theorem(
+                crate::writers::tex::tex_write_theorem(
                     &backend,
                     lossy,
                     theorem,
