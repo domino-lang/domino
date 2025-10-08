@@ -49,7 +49,7 @@ impl Specialization {
 impl<'a> Proof<'a> {
     /// Tries to find a swquence of game hops that proves that the game instance with name
     /// `left_name` is indistinguishable from the game instance with name `right_name`
-    pub(crate) fn try_new(
+    pub fn try_new(
         instances: &[GameInstance],
         gamehops: &[GameHop<'a>],
         name: String,
@@ -134,18 +134,18 @@ impl<'a> Proof<'a> {
         None
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub(crate) fn left_name(&self) -> &str {
+    pub fn left_name(&self) -> &str {
         &self.left_name
     }
-    pub(crate) fn right_name(&self) -> &str {
+    pub fn right_name(&self) -> &str {
         &self.right_name
     }
 
-    pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction> {
+    pub fn reductions(&self) -> impl Iterator<Item = &Reduction<'_>> {
         self.hops.iter().filter_map(|hopid| {
             if let GameHop::Reduction(red) = &self.gamehops[*hopid] {
                 Some(red)
@@ -155,7 +155,7 @@ impl<'a> Proof<'a> {
         })
     }
 
-    pub(crate) fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
+    pub fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
         self.hops.iter().filter_map(|hopid| {
             if let GameHop::Equivalence(eq) = &self.gamehops[*hopid] {
                 Some(eq)
@@ -165,11 +165,11 @@ impl<'a> Proof<'a> {
         })
     }
 
-    pub(crate) fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {
+    pub fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {
         self.hops.iter().map(|hopid| &self.gamehops[*hopid])
     }
 
-    pub(crate) fn instances(&self) -> impl Iterator<Item = &GameInstance> {
+    pub fn instances(&self) -> impl Iterator<Item = &GameInstance> {
         self.sequence
             .iter()
             .map(|instid| &self.specialization[*instid].game_instance)

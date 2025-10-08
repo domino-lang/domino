@@ -4,18 +4,10 @@ use std::path::Path;
 
 use itertools::MultiUnzip;
 
-use crate::expressions::Expression;
 use crate::gamehops::GameHop;
-use crate::identifier::pkg_ident::PackageIdentifier;
-use crate::identifier::pkg_ident::PackageOracleCodeLoopVarIdentifier;
-use crate::identifier::Identifier;
 use crate::package::{Composition, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
-use crate::parser::package::ForComp;
-use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
 use crate::theorem::Theorem;
-use crate::types::CountSpec;
-use crate::types::Type;
 use crate::util::prover_process::ProverBackend;
 
 use crate::writers::tex::{

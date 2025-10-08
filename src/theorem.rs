@@ -261,7 +261,7 @@ impl<'a> Theorem<'a> {
         }
     }
 
-    pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction> {
+    pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction<'_>> {
         self.game_hops.iter().filter_map(|hop| {
             if let GameHop::Reduction(red) = hop {
                 Some(red)
