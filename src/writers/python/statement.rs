@@ -7,7 +7,7 @@ use crate::{
     writers::python::{expression::PyExpression, identifier::VariableName},
 };
 
-use super::util::ToDoc;
+use super::{ty::PyType, util::ToDoc};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PyAssignment<'a> {
@@ -65,10 +65,31 @@ impl<'a> ToDoc<'a> for PyIfThenElse<'a> {
 }
 
 #[derive(Clone, Debug)]
+struct PySample<'a> {
+    varname: &'a str,
+    ty: PyType<'a>,
+}
+
+impl<'a> ToDoc<'a> for PySample<'a> {
+    fn to_doc(&self) -> RcDoc<'a> {
+        let samplecall = match &self.ty {
+            PyType::BitVec(_) => "secrets.token_bytes(32)",
+            PyType::Int => "secrets.randbits(256)",
+            other => todo!("haven't implemented sampling for type {other:?}"),
+        };
+
+        RcDoc::as_string(self.varname)
+            .append(RcDoc::text("="))
+            .append(samplecall)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) enum PyStatement<'a> {
     Assignment(PyAssignment<'a>),
     Return(PyExpression<'a>),
     IfThenElse(PyIfThenElse<'a>),
+    Sample(PySample<'a>),
 }
 
 impl<'a> ToDoc<'a> for PyStatement<'a> {
@@ -79,20 +100,9 @@ impl<'a> ToDoc<'a> for PyStatement<'a> {
                 RcDoc::text("return ").append(py_expression.to_doc())
             }
             PyStatement::IfThenElse(py_if_then_else) => py_if_then_else.to_doc(),
+            PyStatement::Sample(sample) => sample.to_doc(),
         }
         .append(RcDoc::line())
-    }
-}
-
-impl<'a> PyStatement<'a> {
-    pub(crate) fn into_doc(self) -> RcDoc<'a> {
-        match self {
-            PyStatement::Assignment(py_assignment) => py_assignment.to_doc(),
-            PyStatement::Return(py_expression) => {
-                RcDoc::text("return ").append(py_expression.to_doc())
-            }
-            PyStatement::IfThenElse(py_if_then_else) => py_if_then_else.to_doc(),
-        }
     }
 }
 
@@ -118,14 +128,25 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                     .map(|stmt| stmt.try_into())
                     .collect::<Result<Vec<_>, _>>()?,
             })),
+            Statement::Sample(name, _, _, ty, _, _) => Ok(PyStatement::Sample(PySample {
+                varname: name.ident_ref(),
+                ty: ty.clone().try_into()?,
+            })),
             other => todo!("PyStatement::try_from not yet implemented: {other:?}"),
         }
     }
 }
 
+// this is here because it's handy for mapping owned values
+impl<'a> PyStatement<'a> {
+    pub fn into_doc(self) -> RcDoc<'a> {
+        self.to_doc()
+    }
+}
+
 impl<'a> Into<RcDoc<'a>> for PyStatement<'a> {
     fn into(self) -> RcDoc<'a> {
-        self.into_doc()
+        self.to_doc()
     }
 }
 
