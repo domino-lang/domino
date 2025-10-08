@@ -100,7 +100,7 @@ impl Equivalence {
             .unwrap_or(vec![])
     }
 
-    pub(crate) fn theorem_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<Claim> {
+    pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<Claim> {
         self.trees
             .iter()
             .find(|(name, _tree)| name == oracle_name)

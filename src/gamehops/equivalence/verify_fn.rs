@@ -81,7 +81,7 @@ fn verify_oracle<UI: TheoremUI>(
     for oracle_sig in req_oracles {
         let claims = eqctx
             .equivalence
-            .theorem_tree_by_oracle_name(&oracle_sig.name);
+            .proof_tree_by_oracle_name(&oracle_sig.name);
         ui.lock().unwrap().start_oracle(
             &eqctx.theorem().name,
             &proofstep_name,
