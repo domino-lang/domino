@@ -1064,6 +1064,7 @@ pub(crate) struct ReductionMappingEntry<'a> {
 }
 
 impl<'a> ReductionMappingEntry<'a> {
+    #[allow(dead_code)]
     pub(crate) fn assumption(&self) -> &PackageInstanceName<'a> {
         &self.assumption
     }
