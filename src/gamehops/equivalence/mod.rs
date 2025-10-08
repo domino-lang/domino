@@ -105,7 +105,7 @@ impl Equivalence {
             .iter()
             .find(|(name, _tree)| name == oracle_name)
             .map(|(_oname, tree)| tree.clone())
-            .unwrap_or_else(|| panic!("can't find theorem tree for {oracle_name}"))
+            .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
     }
 }
 
