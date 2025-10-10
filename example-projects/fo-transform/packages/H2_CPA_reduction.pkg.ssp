@@ -1,0 +1,31 @@
+package H2_CPA_reduction {
+    params {
+      kgen: fn Bits(256)             ->   Bits(256),          /* takes sk, returns pk  */
+    encaps: fn Bits(256),Bits(256) ->  (Bits(256),Bits(256)), /* (pk,rand) -> (ctxt,k) */
+    decaps: fn Bits(256),Bits(256) ->   Bits(256),            /* (sk,ctxt) -> k        */
+    }
+    
+    state {
+    }
+
+      import oracles {
+        ENC()         -> Bits(256),
+        Test(ctxt_id: Integer) -> Bits(256),
+	}
+
+    oracle Run() -> Bits(256)                            /* samples rand, stores sent and received key, and returns ctxt */
+    {
+      ctxt <- invoke ENC();
+      return ctxt;                                 /* returns transcript  */
+    }
+
+    oracle TestSender(id: Integer) -> Bits(256)  {   /* allows to get sent key or random key   */
+        k <- invoke Test(id);
+        return k;
+   }
+
+    oracle TestReceiver(id: Integer) -> Bits(256) {      /* allows to get received key or random key   */
+        k <- invoke Test(id);
+        return k;
+   }
+}

@@ -1,0 +1,36 @@
+composition H2 {
+    const isideal_kem_cpa_security: Bool;                           /* real-ideal-bit */
+    const    kgen: fn Bits(256)             ->  Bits(256);          /* takes sk, returns pk  */
+    const  encaps: fn Bits(256),Bits(256) -> (Bits(256),Bits(256)); /* (pk,rand) -> (ctxt,k) */
+    const  decaps: fn Bits(256),Bits(256) ->  Bits(256);            /* (sk,ctxt) -> k        */
+
+    instance CPA = CPA {
+        params {
+          isideal_kem_cpa_security:   isideal_kem_cpa_security,
+             kgen:   kgen,
+           encaps:   encaps,
+           decaps:   decaps,
+        }
+    }
+
+    instance H2_CPA_reduction = H2_CPA_reduction {
+        params {
+             kgen:   kgen,
+           encaps:   encaps,
+           decaps:   decaps,
+        }
+    }
+
+    compose {
+        adversary: {
+            GetPK:        CPA,
+            Run:          H2_CPA_reduction,
+            TestSender:   H2_CPA_reduction,
+            TestReceiver: H2_CPA_reduction,
+        },
+        H2_CPA_reduction: {
+            ENC:          CPA,
+            Test:         CPA,
+        },
+    }
+}

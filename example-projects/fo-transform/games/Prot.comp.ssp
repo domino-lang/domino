@@ -1,0 +1,24 @@
+composition Prot {
+    const isideal_kem_cpa_security: Bool;                                              /* real-ideal-bit */
+    const    kgen: fn Bits(256)             ->  Bits(256);            /* takes sk, returns pk  */
+    const  encaps: fn Bits(256),Bits(256) -> (Bits(256),Bits(256)); /* (pk,rand) -> (ctxt,k) */
+    const  decaps: fn Bits(256),Bits(256) ->  Bits(256);            /* (sk,ctxt) -> k        */
+
+    instance Prot = Prot {
+        params {
+          isideal_kem_cpa_security:   isideal_kem_cpa_security,
+             kgen:   kgen,
+           encaps:   encaps,
+           decaps:   decaps,
+        }
+    }
+
+    compose {
+        adversary: {
+            GetPK: Prot,
+            Run:   Prot,
+            TestSender:   Prot,
+            TestReceiver: Prot,
+        },
+    }
+}

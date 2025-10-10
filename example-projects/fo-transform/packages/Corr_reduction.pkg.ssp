@@ -1,0 +1,69 @@
+package Corr_reduction {
+    params {
+    isideal_kem_cpa_security: Bool,                                              /* real-ideal-bit        */
+      kgen: fn Bits(256)             ->   Bits(256),            /* takes sk, returns pk  */
+    encaps: fn Bits(256),Bits(256) ->  (Bits(256),Bits(256)), /* (pk,rand) -> (ctxt,k) */
+    decaps: fn Bits(256),Bits(256) ->   Bits(256),            /* (sk,ctxt) -> k        */
+    }
+    
+    state {
+          SENTCTXT:     Table(Integer, Bits(256)),    /* administrative kid -> ctxt   */
+          SENTKEY:      Table(Integer, Bits(256)),    /* administrative kid -> k      */
+          RECEIVEDCTXT: Table(Integer, Bits(256)),    /* administrative kid -> k      */
+          RECEIVEDKEY:  Table(Integer, Bits(256)),    /* administrative kid -> k      */
+          TESTED:       Table(Integer,Bool),          /* has the key been tested      */
+          ctr:          Integer,                      /* administrative ctr           */
+    }
+
+  import oracles {
+        GetPK()       -> Bits(256),
+        ENC_and_DEC() -> (Bits(256),Bits(256),Bits(256)),
+	}
+
+
+oracle GetPK() -> Bits(256)                          /* returns pk                   */
+    {
+      pk <- invoke GetPK();
+      return pk;
+    }
+
+oracle Run() -> Bits(256)                            /* samples rand, stores sent and received key, and returns ctxt */
+    {
+      ret <- invoke ENC_and_DEC();
+      (ctxt,ksent,kreceived) <- parse ret;
+
+      /* store sender */
+      SENTCTXT[ctr]  <- Some(ctxt);                /* store ctxt for      */
+      SENTKEY[ctr]   <- Some(ksent);               /* store sent key      */
+
+      /* store receiver */
+      RECEIVEDCTXT[ctr] <- Some(ctxt);             /* store ctxt for      */
+      RECEIVEDKEY[ctr]  <- Some(kreceived);        /* store received key  */
+
+      ctr <- (ctr + 1);                            /* increase counter    */
+      return ctxt;                                 /* returns transcript  */
+    }
+
+    oracle TestSender(id: Integer) -> Bits(256)  {   /* allows to get sent key or random key   */
+        assert (SENTCTXT[id] != None as Bits(256));  /* only allow testing for counter values which have been used */
+        assert (TESTED[id]   != Some(true));         /* disallow testing of same counter twice */
+        TESTED[id] <- Some(true);                    /* mark id as tested                      */
+
+        k <- Unwrap(SENTKEY[id]);                    /* retrieve sent key k                    */
+
+        if isideal_kem_cpa_security { k <-$ Bits(256) sample-name encapsulated_key; }              /* in ideal game, replace k by random     */
+
+        return k;                                    /* return key                             */
+   }
+    oracle TestReceiver(id: Integer) -> Bits(256) {      /* allows to get received key or random key   */
+        assert (RECEIVEDCTXT[id] != None as Bits(256));  /* only allow testing for counter values which have been used */
+        assert (TESTED[id]   != Some(true));             /* disallow testing of same counter twice     */
+        TESTED[id] <- Some(true);                        /* mark id as tested                          */
+
+        k <- Unwrap(RECEIVEDKEY[id]);                    /* retrieve sent key k                        */
+
+        if isideal_kem_cpa_security { k <-$ Bits(256) sample-name encapsulated_key; }                  /* in ideal game, replace k by random         */
+        
+        return k;                                        /* return key                                 */
+   }
+}

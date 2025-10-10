@@ -1,0 +1,22 @@
+composition Corr_KEM {
+    const isideal_kem_correctness: Bool;                                              /* real-ideal-bit */
+    const    kgen: fn  Bits(256)          ->  Bits(256);            /* takes sk, returns pk  */
+    const  encaps: fn Bits(256),Bits(256) -> (Bits(256),Bits(256)); /* (pk,rand) -> (ctxt,k) */
+    const  decaps: fn Bits(256),Bits(256) ->  Bits(256);            /* (sk,ctxt) -> k        */
+
+    instance Corr_KEM = Corr_KEM {
+        params {
+          isideal_kem_correctness:   isideal_kem_correctness,
+             kgen:   kgen,
+           encaps:   encaps,
+           decaps:   decaps,
+        }
+    }
+
+    compose {
+        adversary: {
+            GetPK       : Corr_KEM,
+            ENC_and_DEC : Corr_KEM,
+        },
+    }
+}

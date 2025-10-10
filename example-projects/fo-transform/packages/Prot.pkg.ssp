@@ -1,0 +1,78 @@
+package Prot {
+    params {
+    isideal_kem_cpa_security: Bool,                                              /* real-ideal-bit        */
+      kgen: fn Bits(256)             ->   Bits(256),            /* takes sk, returns pk  */
+    encaps: fn Bits(256),Bits(256) ->  (Bits(256),Bits(256)), /* (pk,rand) -> (ctxt,k) */
+    decaps: fn Bits(256),Bits(256) ->   Bits(256),            /* (sk,ctxt) -> k        */
+    }
+    
+    state {
+          SENTCTXT:     Table(Integer, Bits(256)),    /* administrative kid -> ctxt   */
+          SENTKEY:      Table(Integer, Bits(256)),    /* administrative kid -> k      */
+          RECEIVEDCTXT: Table(Integer, Bits(256)),    /* administrative kid -> k      */
+          RECEIVEDKEY:  Table(Integer, Bits(256)),    /* administrative kid -> k      */
+          TESTED:       Table(Integer,Bool),          /* has the key been tested      */
+          ctr:          Integer,                      /* administrative ctr           */
+          sk:           Maybe(Bits(256)),             /* long-term sk                 */
+          pk:           Bits(256),                    /* long-term pk                 */
+    }
+
+oracle GetPK() -> Bits(256)                           /* returns pk                   */
+    {
+      if (sk == None)                                 /* sample sk if it has not been sampled yet */ 
+      {  
+        sk_ <-$Bits(256) sample-name secret_key;
+        sk  <- Some(sk_);
+        pk  <- kgen(sk_);
+      }
+      return pk;
+    }
+
+oracle Run() -> Bits(256)                            /* samples rand, stores sent and received key, and returns ctxt */
+    {
+      if (sk == None)                                /* sample sk if it has not been sampled yet */ 
+      {
+        sk_ <-$Bits(256) sample-name secret_key;
+        sk  <- Some(sk_);
+        pk  <- kgen(sk_);
+      }
+
+      /* run sender */
+      rand <-$ Bits(256) sample-name encaps_rand;                          /* sample randomness  */
+      (ctxt,ksent)   <- parse encaps(pk,rand);     /* encapsulate key    */
+
+      SENTCTXT[ctr]  <- Some(ctxt);                /* store ctxt         */
+      SENTKEY[ctr]   <- Some(ksent);               /* store sent key     */
+
+      /* run receiver */
+      kreceived         <- decaps(Unwrap(sk),ctxt);        /* decapsulate ctxt    */
+      RECEIVEDCTXT[ctr] <- Some(ctxt);             /* store ctxt          */
+      RECEIVEDKEY[ctr]  <- Some(kreceived);        /* store received key  */
+
+      ctr <- (ctr + 1);                            /* increase counter    */
+      return ctxt;                                 /* returns transcript  */
+    }
+
+    oracle TestSender(id: Integer) -> Bits(256)  {   /* allows to get sent key or random key   */
+        assert (SENTCTXT[id] != None as Bits(256));  /* only allow testing for counter values which have been used */
+        assert (TESTED[id]   != Some(true));         /* disallow testing of same counter twice */
+        TESTED[id] <- Some(true);                    /* mark id as tested                      */
+
+        k <- Unwrap(SENTKEY[id]);                    /* retrieve sent key k                    */
+
+        if isideal_kem_cpa_security { k <-$ Bits(256) sample-name encapsulated_key; }              /* in ideal game, replace k by random     */
+
+        return k;                                    /* return key                             */
+   }
+    oracle TestReceiver(id: Integer) -> Bits(256) {      /* allows to get received key or random key   */
+        assert (RECEIVEDCTXT[id] != None as Bits(256));  /* only allow testing for counter values which have been used */
+        assert (TESTED[id]   != Some(true));             /* disallow testing of same counter twice     */
+        TESTED[id] <- Some(true);                        /* mark id as tested                          */
+
+        k <- Unwrap(RECEIVEDKEY[id]);                    /* retrieve sent key k                        */
+
+        if isideal_kem_cpa_security { k <-$ Bits(256) sample-name encapsulated_key; }                  /* in ideal game, replace k by random         */
+        
+        return k;                                        /* return key                                 */
+   }
+}

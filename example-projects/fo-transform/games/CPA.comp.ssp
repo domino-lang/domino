@@ -1,0 +1,25 @@
+composition CPA {
+
+  /* TODO continue here next time */
+  const isideal_kem_cpa_security: Bool;                             /* real-ideal-bit        */
+  const keygen: fn Bits(256)            ->  Bits(256);              /* takes sk, returns pk  */
+  const encaps: fn Bits(256), Bits(256) -> (Bits(256), Bits(256));  /* (pk,rand) -> (ctxt,k) */
+  const decaps: fn Bits(256), Bits(256) ->  Bits(256);              /* (sk,ctxt) -> k        */
+
+  instance CPA = CPA {
+    params {
+      /* left side matches what is declared at the top of the composition */
+      isideal_kem_cpa_security:   cpa_pke_is_left,
+      kgen:   cpa_pke_keygen,
+      encaps: cpa_pke_encrypt_with_coins,
+      decaps: cpa_pke_decrypt,
+    }
+  }
+
+  compose {
+    adversary: {
+      GetPK: CPA,
+      ENC:   CPA,
+    },
+  }
+}

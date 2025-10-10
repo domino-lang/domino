@@ -1,0 +1,41 @@
+package Corr_KEM {
+    params {
+    isideal_kem_correctness: Bool,                            /* real-ideal-bit        */
+      kgen: fn Bits(256)             ->   Bits(256),          /* takes sk, returns pk  */
+    encaps: fn Bits(256),Bits(256) ->  (Bits(256),Bits(256)), /* (pk,rand) -> (ctxt,k) */
+    decaps: fn Bits(256),Bits(256) ->   Bits(256),            /* (sk,ctxt) -> k        */
+    }
+    
+    state {
+          sk:          Maybe(Bits(256)),             /* long-term sk             */
+          pk:          Bits(256),                    /* long-term pk             */
+          }
+
+oracle GetPK() -> Bits(256)                          /* returns pk                */
+    {
+      if (sk == None)                                /* sample sk if it has not been sampled yet */ 
+      {
+        sk_ <-$Bits(256) sample-name secret_key;
+        sk  <- Some(sk_);
+        pk  <- kgen(sk_);
+      }
+      return pk;
+    }
+
+oracle ENC_and_DEC() -> (Bits(256),Bits(256),Bits(256))  /* samples rand and returns ctxt and both keys */
+    {
+      if (sk == None)                               /* sample sk if it has not been sampled yet */ 
+      {
+        sk_ <-$Bits(256) sample-name secret_key;
+        sk  <- Some(sk_);
+        pk  <- kgen(sk_);
+      }
+      rand <-$ Bits(256) sample-name encaps_rand;                          /* sample randomness               */
+      (ctxt,ksent)  <- parse encaps(pk,rand);      /* encapsulate key                 */
+      kreceived     <- decaps(Unwrap(sk),ctxt);    /* decapsulate ctxt                */
+        if isideal_kem_correctness { 
+             kreceived <- ksent;                   /* in ideal game, replace          */
+       }                                           /* received key by sent key        */
+      return (ctxt,ksent,kreceived);
+    }
+}

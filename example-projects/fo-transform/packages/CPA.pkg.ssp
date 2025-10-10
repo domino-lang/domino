@@ -1,0 +1,49 @@
+package CPA {
+  params {
+    cpa_pke_is_left: Bool,    /* idealization bit */
+
+    keygen_coins_len: Integer,
+    encrypt_coins_len: Integer,
+
+    sk_len: Integer,
+    pk_len: Integer,
+    pt_len: Integer,
+    ct_len: Integer,
+
+    cpa_pke_keygen: fn Bits(keygen_coins_len) -> (Bits(sk_len), Bits(pk_len)),
+    cpa_pke_encrypt_with_coins: fn Bits(encrypt_coins_len), Bits(pk_len), Bits(pt_len) -> Bits(ct_len),
+    cpa_pke_decrypt: fn Bits(sk_len), Bits(ct_len) -> Maybe(Bits(pt_len))
+  }
+    
+  state {
+    sk:   Maybe(Bits(sk_len)),        /* long-term sk             */
+    pk:   Maybe(Bits(pk_len)),        /* long-term pk             */
+  }
+
+  oracle GetPK() -> Bits(pk_len)                   /* returns pk                */
+  {
+    if (sk == None)                                /* sample sk if it has not been sampled yet */ 
+    {
+      coins <-$ Bits(keygen_coins_len) sample-name keygen_rand;
+      (sk_, pk_) <- parse cpa_pke_keygen(coins);
+      sk <- Some(sk_);
+      pk <- Some(pk_);
+    }
+    return Unwrap(pk);
+  }
+
+  oracle ENC(pt0: Bits(pt_len), pt1: Bits(pt_len)) -> Bits(ct_len)  /* samples rand and returns ctxt */
+  {
+    assert (sk != None);
+    assert (pk != None);
+
+    rand <-$ Bits(encrypt_coins_len) sample-name enc_rand;          /* sample randomness              */
+    if cpa_pke_is_left {
+      ct   <- cpa_pke_encrypt_with_coins(rand, Unwrap(pk), pt0);            /* encrypt                 */
+    } else {
+      ct   <- cpa_pke_encrypt_with_coins(rand, Unwrap(pk), pt1);            /* encrypt                 */
+    }
+    return ct;
+  }
+
+}
