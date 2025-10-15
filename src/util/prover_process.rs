@@ -190,9 +190,8 @@ impl Communicator {
     }
 
     pub fn get_model(&mut self) -> Result<String> {
-        writeln!(self, "(get-model)")?;
-        self.close();
-        let resp = self.0.read_until_end()?;
+        writeln!(self, "\n(get-model)")?;
+        let (_cnt, resp) = self.0.read_paren()?;
         Ok(resp)
     }
 

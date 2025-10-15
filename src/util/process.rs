@@ -106,6 +106,49 @@ impl Communicator {
         }
     }
 
+    pub fn read_paren(&mut self) -> Result<(usize, String)> {
+        loop {
+            self.pos += self.stdout.read(&mut self.buf[self.pos..])?;
+            let data = String::from_utf8(self.buf[..self.pos].to_vec())?;
+            let paren_balance: i64 = data
+                .chars()
+                .filter_map(|c| match c {
+                    '(' => Some(1),
+                    ')' => Some(-1),
+                    _ => None,
+                })
+                .sum();
+
+            if paren_balance > 0 {
+                continue;
+            }
+            let match_start = if paren_balance == 0 {
+                if let Some(pos) = data.rfind(')') {
+                    pos
+                } else {
+                    0
+                }
+            } else {
+                if let Some((pos, _)) = data
+                    .rmatch_indices(')')
+                    .nth(usize::try_from(-paren_balance).unwrap())
+                {
+                    pos
+                } else {
+                    0
+                }
+            };
+            let ret = data[..match_start + 1].to_string();
+            let rest_bs = data[match_start + 1..].as_bytes();
+
+            self.buf.fill(0);
+            self.pos = rest_bs.len();
+            self.buf[..self.pos].copy_from_slice(rest_bs);
+
+            return Ok((match_start, ret));
+        }
+    }
+
     pub fn read_until_end(&mut self) -> Result<String> {
         let mut data = String::from_utf8(self.buf[..self.pos].to_vec())?;
         self.stdout.read_to_string(&mut data)?;
