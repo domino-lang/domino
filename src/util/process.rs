@@ -106,6 +106,8 @@ impl Communicator {
         }
     }
 
+    /// Read until a matching closing bracket is found
+    /// Useful, e.g., to read to the end of a SMT model (which is enclosed in brackets)
     pub fn read_paren(&mut self) -> Result<(usize, String)> {
         loop {
             self.pos += self.stdout.read(&mut self.buf[self.pos..])?;
