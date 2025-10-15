@@ -23,11 +23,9 @@ impl<'a> Dataclass<'a> for PackageStatePattern<'a> {
     }
 
     fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'a>)> {
-        self.pkg.state.iter().map(|(name, ty, _)| {
-            (
-                PackageStateFieldName(name.as_str()),
-                ty.clone().try_into().unwrap(),
-            )
-        })
+        self.pkg
+            .state
+            .iter()
+            .map(|(name, ty, _)| (PackageStateFieldName(name.as_str()), ty.try_into().unwrap()))
     }
 }

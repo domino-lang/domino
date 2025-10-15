@@ -25,7 +25,11 @@ ident_type!(PackageConstParamsTypeName, "PackageConstParams_{}");
 ident_type!(PackageConstParamsFieldName, "{}");
 ident_type!(FunctionName, "{}");
 ident_type!(FunctionArgName, "{}");
+
+// XXX: Shouldn't this contain both the package name and the oracle name?
 ident_type!(OracleFunctionName, "oracle_{}");
+ident_type!(PureFunctionName, "fun_{}");
+ident_type!(PureFunctionArg, "{}");
 ident_type!(VariableName, "{}");
 
 pub(super) enum GameStateFieldName<'a> {
@@ -36,6 +40,7 @@ pub(super) enum GameStateFieldName<'a> {
 
 pub(crate) enum OracleFunctionArg<'a> {
     GameState,
+    PackageInstanceName,
     OracleArg(&'a str),
 }
 

@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, marker::PhantomData};
 
 use pretty::RcDoc;
 
@@ -7,9 +7,16 @@ use crate::{
     writers::python::{expression::PyExpression, identifier::VariableName},
 };
 
-use super::{ty::PyType, util::ToDoc};
+use super::{
+    expression::PyFunctionCall,
+    identifier::{OracleFunctionArg, OracleFunctionName},
+    ty::PyType,
+    util::ToDoc,
+};
 
-#[derive(Clone, Copy, Debug)]
+const GAME_STATE_ARGNAME: &str = "game_state";
+
+#[derive(Clone, Debug)]
 pub(crate) struct PyAssignment<'a> {
     lhs: VariableName<'a>,
     rhs: PyExpression<'a>,
@@ -89,7 +96,6 @@ pub(crate) enum PyStatement<'a> {
     Assignment(PyAssignment<'a>),
     Return(PyExpression<'a>),
     IfThenElse(PyIfThenElse<'a>),
-    Sample(PySample<'a>),
 }
 
 impl<'a> ToDoc<'a> for PyStatement<'a> {
@@ -100,7 +106,6 @@ impl<'a> ToDoc<'a> for PyStatement<'a> {
                 RcDoc::text("return ").append(py_expression.to_doc())
             }
             PyStatement::IfThenElse(py_if_then_else) => py_if_then_else.to_doc(),
-            PyStatement::Sample(sample) => sample.to_doc(),
         }
         .append(RcDoc::line())
     }
@@ -114,7 +119,12 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
             Statement::Return(expression, source_span) => Ok(PyStatement::Return(
                 expression.as_ref().unwrap().try_into()?,
             )),
-            Statement::Assign(identifier, expression, expression1, source_span) => todo!(),
+            Statement::Assign(identifier, _, expr, _) => {
+                Ok(PyStatement::Assignment(PyAssignment {
+                    lhs: VariableName(identifier.ident_ref()),
+                    rhs: expr.try_into()?,
+                }))
+            }
             Statement::IfThenElse(ite) => Ok(PyStatement::IfThenElse(PyIfThenElse {
                 cond: PyExpression::try_from(&ite.cond)?,
                 then: (&ite.then_block)
@@ -128,10 +138,29 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                     .map(|stmt| stmt.try_into())
                     .collect::<Result<Vec<_>, _>>()?,
             })),
-            Statement::Sample(name, _, _, ty, _, _) => Ok(PyStatement::Sample(PySample {
-                varname: name.ident_ref(),
-                ty: ty.clone().try_into()?,
+            Statement::Sample(name, _, _, ty, _, _) => Ok(PyStatement::Assignment(PyAssignment {
+                lhs: VariableName(name.ident_ref()),
+                rhs: PyExpression::Sample(ty.try_into()?),
             })),
+            Statement::InvokeOracle(invoke) => {
+                let args: Vec<PyExpression<'a>> =
+                    Some(PyExpression::LocalIdentifier(GAME_STATE_ARGNAME))
+                        .into_iter()
+                        .chain(Some(PyExpression::LocalIdentifier(
+                            invoke.target_inst_name.as_ref().unwrap().as_str(),
+                        )))
+                        .chain(invoke.args.iter().map(|expr| expr.try_into().unwrap()))
+                        .collect();
+
+                Ok(PyStatement::Assignment(PyAssignment {
+                    lhs: VariableName(invoke.id.ident_ref()),
+                    rhs: PyExpression::OracleCall(PyFunctionCall {
+                        fun_name: OracleFunctionName(&invoke.name),
+                        args,
+                        _phantom: PhantomData,
+                    }),
+                }))
+            }
             other => todo!("PyStatement::try_from not yet implemented: {other:?}"),
         }
     }
