@@ -628,9 +628,8 @@ fn tex_solve_composition_graph(
     if comm.check_sat().unwrap() != ProverResponse::Sat {
         return None;
     } else {
-        model = comm.get_model().unwrap();
-        let model = SmtModel::from_string(&model);
-        let value = model.get_value_as_int("width").unwrap();
+        model = Some(comm.get_model().unwrap().1);
+        let value = model.clone()?.get_value_as_int("width").unwrap();
 
         max_width = value;
     }
@@ -647,9 +646,8 @@ fn tex_solve_composition_graph(
 
         if comm.check_sat().unwrap() == ProverResponse::Sat {
             max_width = width;
-            model = comm.get_model().unwrap();
-            let model = SmtModel::from_string(&model);
-            let value = model.get_value_as_int("height").unwrap();
+            model = Some(comm.get_model().unwrap().1);
+            let value = model.clone()?.get_value_as_int("height").unwrap();
 
             max_height = value;
         } else {
@@ -680,14 +678,7 @@ fn tex_solve_composition_graph(
             }
         }
     }
-
-    if model.is_empty() {
-        None
-    } else {
-        let model = SmtModel::from_string(&model);
-        println!("{}\n{:#?}", composition.name, model);
-        Some(model)
-    }
+    model
 }
 
 fn tex_write_composition_graph(

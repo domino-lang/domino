@@ -7,6 +7,7 @@ use std::result;
 use thiserror::Error;
 
 use crate::writers::smt::exprs::SmtExpr;
+use crate::util::smtmodel::SmtModel;
 
 use super::process;
 use clap::ValueEnum;
@@ -191,11 +192,10 @@ impl Communicator {
         )?))
     }
 
-    pub fn get_model(&mut self) -> Result<String> {
-        writeln!(self, "(get-model)")?;
-        self.close();
-        let resp = self.0.read_until_end()?;
-        Ok(resp)
+    pub fn get_model(&mut self) -> Result<(String, SmtModel)> {
+        writeln!(self, "\n(get-model)")?;
+        let (_cnt, modelstring, model) = self.0.read_model()?;
+        Ok((modelstring, model))
     }
 
     #[cfg(not(target_os = "windows"))]
