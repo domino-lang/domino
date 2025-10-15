@@ -8,6 +8,7 @@ use crate::writers::python::{statement::PyStatement, ty::PyType};
 use super::util::{commasep::CommaSep, ToDoc};
 
 pub(crate) mod oracle;
+pub(crate) mod pure;
 
 pub(crate) trait Function<'a> {
     type Name: FunctionName;
@@ -24,21 +25,21 @@ pub(crate) trait FunctionName: Display + core::fmt::Debug {}
 /// a marker trait
 pub(crate) trait FunctionArgName: Display {}
 
-pub(crate) struct FunctionWriter<'a, Fun: Function<'a>>(pub Fun, PhantomData<&'a ()>);
+pub(crate) struct FunctionDefinitionWriter<'a, Fun: Function<'a>>(pub Fun, PhantomData<&'a ()>);
 
-impl<'a, Fun: Function<'a>> FunctionWriter<'a, Fun> {
+impl<'a, Fun: Function<'a>> FunctionDefinitionWriter<'a, Fun> {
     pub(crate) fn new(function: Fun) -> Self {
         Self(function, PhantomData)
     }
 }
 
-impl<'a, Fun: Function<'a>> Display for FunctionWriter<'a, Fun> {
+impl<'a, Fun: Function<'a>> Display for FunctionDefinitionWriter<'a, Fun> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.to_doc().render_fmt(100, f)
     }
 }
 
-impl<'a, Fun: Function<'a>> ToDoc<'a> for FunctionWriter<'a, Fun> {
+impl<'a, Fun: Function<'a>> ToDoc<'a> for FunctionDefinitionWriter<'a, Fun> {
     fn to_doc(&self) -> pretty::RcDoc<'a> {
         let Self(fun, _) = self;
         let args = fun

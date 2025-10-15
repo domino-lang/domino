@@ -17,7 +17,7 @@ use crate::parser::ast::Identifier;
 use crate::parser::package::handle_pkg;
 use crate::parser::SspParser;
 use crate::writers::python::function::oracle::OracleFunction;
-use crate::writers::python::function::FunctionWriter;
+use crate::writers::python::function::FunctionDefinitionWriter;
 use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
@@ -289,7 +289,10 @@ impl<'a> Project<'a> {
             println!("{}", DataclassWriter::new(PackageStatePattern::new(pkg)));
 
             for odef in &pkg.oracles {
-                println!("{}", FunctionWriter::new(OracleFunction::new(odef)))
+                println!(
+                    "{}",
+                    FunctionDefinitionWriter::new(OracleFunction::new(odef))
+                )
             }
         }
 

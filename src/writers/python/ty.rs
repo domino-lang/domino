@@ -55,19 +55,19 @@ impl<'a> Display for PyType<'a> {
     }
 }
 
-impl<'a> TryFrom<crate::types::Type> for PyType<'a> {
+impl<'a> TryFrom<&'a crate::types::Type> for PyType<'a> {
     type Error = ();
 
-    fn try_from(value: crate::types::Type) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a crate::types::Type) -> Result<Self, Self::Error> {
         match value {
             crate::types::Type::Integer => Ok(PyType::Int),
             crate::types::Type::Boolean => Ok(PyType::Bool),
             crate::types::Type::Bits(_count_spec) => Ok(PyType::BitVec(BitVecLength(&UNIT))),
-            crate::types::Type::List(ty) => PyType::try_from(*ty).map(Box::new).map(PyType::List),
-            crate::types::Type::Maybe(ty) => PyType::try_from(*ty),
+            crate::types::Type::List(ty) => PyType::try_from(&**ty).map(Box::new).map(PyType::List),
+            crate::types::Type::Maybe(ty) => PyType::try_from(&**ty),
             crate::types::Type::Table(k, v) => Ok(PyType::Dict(
-                Box::new(PyType::try_from(*k)?),
-                Box::new(PyType::try_from(*v)?),
+                Box::new(PyType::try_from(&**k)?),
+                Box::new(PyType::try_from(&**v)?),
             )),
             other => todo!("not implemented yet: {other:?}"),
         }

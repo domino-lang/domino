@@ -1,5 +1,7 @@
 use core::fmt::Display;
 
+use pretty::RcDoc;
+
 use crate::{
     theorem::GameInstance,
     writers::python::{
@@ -21,6 +23,7 @@ impl<'a> GameStatePattern<'a> {
 
 impl<'a> Dataclass<'a> for GameStatePattern<'a> {
     type Name = GameStateTypeName<'a>;
+
     fn name(&self) -> GameStateTypeName<'a> {
         GameStateTypeName(self.game_inst.game().name())
     }
@@ -33,4 +36,11 @@ impl<'a> Dataclass<'a> for GameStatePattern<'a> {
             )
         })
     }
+}
+
+pub(crate) fn package_state<'a>(this: RcDoc<'a>, package_inst_name_value: RcDoc<'a>) -> RcDoc<'a> {
+    RcDoc::text("getattr(")
+        .append(this)
+        .append(", pkg_")
+        .append(package_inst_name_value)
 }
