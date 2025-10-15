@@ -26,7 +26,7 @@ impl<'a> Dataclass<'a> for PackageConstParamsPattern<'a> {
         self.pkg.state.iter().map(|(name, ty, _)| {
             (
                 PackageConstParamsFieldName(name.as_str()),
-                ty.clone().try_into().unwrap(),
+                ty.try_into().unwrap(),
             )
         })
     }
