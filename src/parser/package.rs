@@ -3,8 +3,8 @@
 use super::{
     common::*,
     error::{
-        ExpectedExpressionIdentifierError, IdentifierAlreadyDeclaredError, TypeMismatchError,
-        UndefinedIdentifierError, UntypedNoneTypeInferenceError,
+        ExpectedExpressionIdentifierError, IdentifierAlreadyDeclaredError, IllegalLiteralError,
+        TypeMismatchError, UndefinedIdentifierError, UntypedNoneTypeInferenceError,
         WrongArgumentCountInInvocationError,
     },
     ParseContext, Rule,
@@ -24,7 +24,7 @@ use crate::{
         ForLoopIdentifersDontMatchError, NoSuchOracleError, OracleAlreadyImportedError,
     },
     statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracleStatement, Statement},
-    types::Type,
+    types::{CountSpec, Type},
     util::scope::{Declaration, OracleContext, Scope},
 };
 
@@ -312,6 +312,10 @@ pub enum ParseExpressionError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     UndefinedIdentifier(#[from] UndefinedIdentifierError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    IllegalLiteral(#[from] IllegalLiteralError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -672,6 +676,23 @@ pub fn handle_expression(
                 }
             };
             Expression::Identifier(ident)
+        }
+
+        Rule::literal_bits_zero | Rule::literal_bits_one => {
+            let span = ast.as_span();
+            let literal_str = ast.clone().as_str();
+
+            let content = &ast.as_str()[0..1];
+            let inner = ast.into_inner().next().unwrap();
+            let cspec = handle_countspec(ctx, inner)?;
+            if cspec == CountSpec::Any {
+                return Err(ParseExpressionError::IllegalLiteral(IllegalLiteralError {
+                    at: (span.start()..span.end()).into(),
+                    literal_str: literal_str.to_string(),
+                    source_code: NamedSource::new(ctx.file_name, ctx.file_content.to_string()),
+                }));
+            }
+            Expression::BitsLiteral(content.to_string(), Type::Bits(Box::new(cspec)))
         }
 
         Rule::literal_boolean => {
