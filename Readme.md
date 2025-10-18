@@ -20,7 +20,7 @@ Requirements:
 - A somewhat recent Rust toolchain. If you don't have that, look into [rustup].
 - CVC5 installed and in the `PATH` (not needed for building domino, but for running it)
 
-Install the tool using `cargo install --git https://github.com/domino-lang/domino domino`. 
+Install the tool using `cargo install --git https://github.com/domino-lang/domino --branch domino-course-autumn-2025 domino`. 
 Ensure that the installed binary is in your `PATH`. (By default, Cargo installs to (`~/.cargo/bin`).)
 
 ## Usage
