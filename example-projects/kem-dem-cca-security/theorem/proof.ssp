@@ -1,4 +1,4 @@
-proof Proof {
+theorem Proof {
     const b: Bool;
 
     /*
@@ -193,7 +193,7 @@ proof Proof {
         equivalence monolithic_pke_cca_real_game modular_pke_cca_game_with_real_kem_and_real_dem {
             PKGEN: {
                 invariant: [
-                    ./proofs/invariant-real-kem-real-dem.smt2
+                    ./theorem/invariant-real-kem-real-dem.smt2
                 ]
 
                 lemmas {
@@ -205,7 +205,7 @@ proof Proof {
 
             PKENC: {
                 invariant: [
-                    ./proofs/invariant-real-kem-real-dem.smt2
+                    ./theorem/invariant-real-kem-real-dem.smt2
                 ]
 
                 lemmas {
@@ -217,7 +217,7 @@ proof Proof {
 
             PKDEC: {
                 invariant: [
-                    ./proofs/invariant-real-kem-real-dem.smt2
+                    ./theorem/invariant-real-kem-real-dem.smt2
                 ]
 
                 lemmas {
@@ -285,7 +285,7 @@ proof Proof {
         equivalence monolithic_pke_cca_ideal_game modular_pke_cca_game_with_real_kem_and_ideal_dem {
             PKGEN: {
                 invariant: [
-                    ./proofs/invariant-real-kem-ideal-dem.smt2
+                    ./theorem/invariant-real-kem-ideal-dem.smt2
                 ]
 
                 lemmas {
@@ -297,7 +297,7 @@ proof Proof {
 
             PKENC: {
                 invariant: [
-                    ./proofs/invariant-real-kem-ideal-dem.smt2
+                    ./theorem/invariant-real-kem-ideal-dem.smt2
                 ]
 
                 lemmas {
@@ -309,7 +309,7 @@ proof Proof {
 
             PKDEC: {
                 invariant: [
-                    ./proofs/invariant-real-kem-ideal-dem.smt2
+                    ./theorem/invariant-real-kem-ideal-dem.smt2
                 ]
 
                 lemmas {
@@ -327,7 +327,7 @@ proof Proof {
         equivalence monolithic_pke_cca_game modular_pke_cca_game_with_real_kem {
             PKGEN: {
                 invariant: [
-                    ./proofs/invariant.smt2
+                    ./theorem/invariant.smt2
                 ]
 
                 lemmas {
@@ -339,7 +339,7 @@ proof Proof {
 
             PKENC: {
                 invariant: [
-                    ./proofs/invariant.smt2
+                    ./theorem/invariant.smt2
                 ]
 
                 lemmas {
@@ -351,7 +351,7 @@ proof Proof {
 
             PKDEC: {
                 invariant: [
-                    ./proofs/invariant.smt2
+                    ./theorem/invariant.smt2
                 ]
 
                 lemmas {
