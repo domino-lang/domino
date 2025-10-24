@@ -1,0 +1,59 @@
+composition LayerHybrid {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const zeron: Bits(n);
+    const zerom: Bits(m);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance keys_top = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys_bottom = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance enc = Enc1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance gate = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            h: 0,
+            zeron: zeron,
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: keys_top,
+            SETBIT: keys_top,
+            GETKEYSIN: keys_bottom,
+            GBLG: gate,
+        }
+        gate: {
+            ENCN: enc,
+            ENCM: enc,
+            GETKEYSOUT: keys_bottom,
+        }
+        enc: {
+            GETKEYSIN: keys_top,
+            GETBIT: keys_top,
+        }
+    }
+}

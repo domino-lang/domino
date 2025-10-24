@@ -1,0 +1,128 @@
+composition Hybrid1 {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const zeron: Bits(n);
+    const zerom: Bits(m);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance keys0 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys1 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys2 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys3 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance ev1 = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance simgate1 = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            zerom: zerom,
+        }
+    }
+
+    instance gate2 = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            h: 0,
+            zeron: zeron,
+        }
+    }
+
+    instance enc2 = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance gate3 = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            h: 0,
+            zeron: zeron,
+        }
+    }
+
+    instance enc3 = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: keys0,
+            SETBIT: keys0,
+            GBLG: simgate1,
+            GBLG: gate2,
+            GBLG: gate3,
+            GETKEYSIN: keys3,
+        }
+        simgate1: {
+            GETAIN: keys0,
+            GETINAIN: keys0,
+            EVAL: ev1,
+            GETAOUT: keys1,
+        }
+        ev1: {
+            GETBIT: keys0,
+            SETBIT: keys1,
+        }        
+        gate2: {
+            ENCN: enc2,
+            ENCM: enc2,
+            GETKEYSOUT: keys2,
+        }
+        enc2: {
+            GETKEYSIN: keys1,
+        }
+        gate3: {
+            ENCN: enc3,
+            ENCM: enc3,
+            GETKEYSOUT: keys3,
+        }
+        enc3: {
+            GETKEYSIN: keys2,
+        }
+    }
+}
