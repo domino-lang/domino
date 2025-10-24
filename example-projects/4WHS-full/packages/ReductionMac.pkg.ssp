@@ -1,0 +1,187 @@
+package ReductionMac {
+    params {
+        n: Integer,
+        zeron: Bits(256),
+        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+    }
+
+    import oracles {
+        Init(handle: (Integer,Integer,Integer,Bits(256),Bits(256))),
+        Mac(handle: (Integer, Integer,Integer,Bits(256),Bits(256)),
+            value: (Bits(256),Integer)) -> Bits(256),
+        Verify(handle: (Integer, Integer,Integer,Bits(256),Bits(256)),
+               value: (Bits(256),Integer),
+               tag: Bits(256)) -> Bool,
+        Hon(h: Integer) -> Bool,
+        Sample() -> Bits(256),
+        Eval(kid: Integer, U: Integer, V: Integer, ni: Bits(256), nr: Bits(256), e: Bool) -> Bits(256),
+    }
+
+    oracle Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
+                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Integer)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                       Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                                       Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                                       Integer),
+                                      (Bits(256))) {
+        (U,u,V,kid,acc,k,ni_,nr,kmac,sid,mess) <- parse state;
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 0);
+        assert (u == false);
+        
+        ni <- invoke Sample();
+        
+        return ((U,u,V,kid,None,k,Some(ni),nr,kmac,sid,1),
+                (ni));
+    }
+
+    oracle Run2(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
+                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Integer),
+                ni:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                                    Integer),
+                                   (Bits(256), Bits(256))) {
+        (U,v,V,kid,acc,k_,ni_,nr_,kmac__,sid_,mess) <- parse state;
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 0);
+        assert (v == true);
+
+        nr         <- invoke Sample();
+        hon        <- invoke Hon(kid);
+        if hon {
+            _          <- invoke Init( (kid,U,V,ni,nr) );
+            tau        <- invoke Mac( (kid,U,V,ni,nr), (nr,2) );
+            kmac       <- None as Bits(256);
+        } else {
+            kmac_      <- invoke Eval(kid,U,V,ni,nr,false); /* need role agreement here, to be fixed */
+            tau        <- mac(kmac_,nr,2);
+            kmac       <- Some(kmac_);
+        }
+        sid        <- (U,V,ni,nr,tau);
+
+        return ((U,v,V,kid,None,None,Some(ni),Some(nr),kmac,Some(sid),1),
+                (nr,tau));
+    }
+
+    oracle Run3(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
+                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Integer),
+                msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                                            Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                                            Integer),
+                                           (Bits(256), Bits(256))) {
+        (U,u,V,kid,acc,k_,ni,nr_,kmac__,sid_,mess) <- parse state;
+        assert (mess == 1);
+        assert (acc  == None );              /* session is still running           */
+        assert (u == false);
+        
+        (nr,tau) <- parse msg;
+
+        hon        <- invoke Hon(kid);
+        if hon {
+            _          <- invoke Init( (kid,U,V,Unwrap(ni),nr) );
+            /*tau_       <- invoke Mac( (kid,U,V,Unwrap(ni),nr), (Unwrap(ni),3));*/
+            kmac       <- None as Bits(256);
+        } else {
+            kmac_      <- invoke Eval(kid,U,V,Unwrap(ni),nr,false);
+            /*tau_       <- mac(kmac_,Unwrap(ni),3);*/
+            kmac       <- Some(kmac_);
+        }
+        sid        <- (U,V,Unwrap(ni),nr,tau);
+
+        if hon {
+            verified <- invoke Verify( (kid,U,V,Unwrap(ni),nr), (nr,2), tau);
+        } else {
+            verified <- (mac(Unwrap(kmac),nr,2) == tau);
+        }
+        if verified {
+           if hon {
+               tau_new <- invoke Mac( (kid,U,V,Unwrap(ni),nr), (Unwrap(ni),3));
+           } else {
+               tau_new <- mac(Unwrap(kmac),Unwrap(ni),3);
+           }
+           return ((U,u,V,kid,None,None,ni,Some(nr),kmac,Some(sid),2),
+                   (Unwrap(ni),tau_new));
+        } else {
+           return (state, (zeron,zeron));
+        }
+    }
+
+    oracle Run4(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
+                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Integer),
+                msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                                            Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                                            Integer),
+                                           (Bits(256))) {
+        (U,v,V,kid,acc,k,ni_,nr,kmac,sid,mess) <- parse state;
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 1);
+        assert (v == true);
+        (ni,tau) <- parse msg;
+
+        hon           <- invoke Hon(kid);
+        if hon {
+            verified  <- invoke Verify( (kid,U,V,Unwrap(ni_),Unwrap(nr)), (ni,3), tau);
+            /*tau_new      <- invoke Mac(    (kid,U,V,Unwrap(ni_),Unwrap(nr)), (zeron,4));*/
+        } else {
+            verified  <- (mac(Unwrap(kmac),ni,3) == tau);
+            /*tau_new      <-  mac(Unwrap(kmac),zeron,4);*/
+        }
+        if (verified and (ni == Unwrap(ni_))) {
+           acc        <- Some(true);
+
+           if hon {
+               tau_new      <- invoke Mac(    (kid,U,V,Unwrap(ni_),Unwrap(nr)), (zeron,4));
+           } else {
+               tau_new      <-  mac(Unwrap(kmac),zeron,4);
+           }
+
+           return ((U,v,V,kid,acc,k,ni_,nr,kmac,sid,2),
+                   (tau_new));
+        } else {
+            acc       <- Some(false);
+            return ((U,v,V,kid,acc,k,ni_,nr,kmac,sid,2),
+                    (zeron));
+        }
+    }
+
+
+    oracle Run5(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
+                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Integer),
+                tau:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+                                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                                    Integer),
+                                   (Bool)) {
+        (U,u,V,kid,acc,k,ni,nr,kmac,sid,mess) <- parse state;
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 2);
+        assert (u == false);
+
+        hon        <- invoke Hon(kid);
+        if hon {
+            verified <- invoke Verify( (kid,U,V,Unwrap(ni),Unwrap(nr)), (zeron,4), tau);
+        } else {
+            verified <- (mac(Unwrap(kmac),zeron,4) == tau);
+        }
+        if verified {
+           return ((U,u,V,kid,Some(true),k,ni,nr,kmac,sid,3),
+                   (true));
+        } else {
+            /* for false, the state is not updated so doesn't matter what we write as first argument */
+            return (state, (false));
+        }
+    }
+}

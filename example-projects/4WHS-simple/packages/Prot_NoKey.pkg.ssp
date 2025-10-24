@@ -1,0 +1,130 @@
+package Prot_NoKey {
+    params {
+        n: Integer,
+        zeron: Bits(256),
+        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+    }
+
+	oracle Run1(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
+	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+						Integer)) -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
+				                       Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+						               Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+						               Integer),
+						              (Bits(256))) {
+	    (U,u,V,ltk,acc,ni_,nr,kmac,sid,mess) <- parse state;
+        assert (u    == false);              /* session belongs to initiator       */
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 0);
+		
+		ni <-$ Bits(256);
+		
+		return ((U,u,V,ltk,None,Some(ni),nr,kmac,sid,1),
+		        (ni));
+	}
+
+	oracle Run2(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
+	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+						Integer),
+	            ni:Bits(256)) -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
+				                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+							        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+							        Integer),
+							       (Bits(256), Bits(256))) {
+	    (U,v,V,ltk,acc,ni_,nr_,kmac_,sid_,mess) <- parse state;
+        assert (v   == true );              /* session belongs to responder       */
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 0);
+
+		nr         <-$ Bits(256);
+        kmac       <-  prf(ltk,U,V,ni,nr,false); 
+        tau        <-  mac(kmac,nr,2);
+        sid        <- (U,V,ni,nr,tau);
+
+		return ((U,v,V,ltk,None,Some(ni),Some(nr),Some(kmac),Some(sid),1),
+		        (nr,tau));
+	}
+
+	oracle Run3(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
+	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+						Integer),
+	            msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
+				                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+							                Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+							                Integer),
+							               (Bits(256), Bits(256))) {
+	    (U,u,V,ltk,acc,ni,nr_,kmac_,sid_,mess) <- parse state;
+        assert (u    == false);              /* session belongs to initiator       */
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 1);
+		(nr,tau) <- parse msg;
+
+		kmac       <- prf(ltk,U,V,Unwrap(ni),nr,false);
+        tau_       <- mac(kmac,Unwrap(ni),3);
+        sid        <- (U,V,Unwrap(ni),nr,tau);
+
+        if (mac(kmac,nr,2) == tau) {
+		   return ((U,u,V,ltk,None,ni,Some(nr),Some(kmac),Some(sid),2),
+		           (Unwrap(ni),tau_));
+		} else {
+		   return (state, (zeron,zeron));
+		}
+	}
+
+	oracle Run4(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
+	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+						Integer),
+	            msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
+				                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+							                Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+							                Integer),
+							               (Bits(256))) {
+	    (U,v,V,ltk,acc,ni_,nr,kmac,sid,mess) <- parse state;
+        assert (v   == true );              /* session belongs to responder       */
+        assert (acc  == None );              /* session is still running           */
+		assert (mess == 1);
+		(ni,tau) <- parse msg;
+
+        if ((mac(Unwrap(kmac),ni,3) == tau) and
+            (ni == Unwrap(ni_))) {
+		    acc        <- Some(true);
+			tau_       <- mac(Unwrap(kmac),zeron,4);
+			
+		   return ((U,v,V,ltk,acc,ni_,nr,kmac,sid,2),
+		           (tau_));
+		} else {
+		    acc <- Some(false);
+		    return ((U,v,V,ltk,acc,ni_,nr,kmac,sid,2),
+		            (zeron));
+		}
+	}
+
+
+	oracle Run5(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
+	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+						Integer),
+	            tau:Bits(256)) -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
+				                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
+				                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+				                    Integer),
+				                   (Bool)) {
+	    (U,u,V,ltk,acc,ni,nr,kmac,sid,mess) <- parse state;
+        assert (u    == false);              /* session belongs to initiator       */
+        assert (acc  == None );              /* session is still running           */
+        assert (mess == 2);
+
+        if (mac(Unwrap(kmac),zeron,4) == tau) {
+		   return ((U,u,V,ltk,Some(true),ni,nr,kmac,sid,3),
+		           (true));
+		} else {
+		    /* for false, the state is not updated so doesn't matter what we write as first argument */
+		    return (state, (false));
+		}
+	}
+}
