@@ -366,23 +366,25 @@ fn handle_instance_assign_list(
                 //types.extend(common::handle_types_def_list(ast, inst_name, file_name)?);
             }
             Rule::params_def => {
-                let ast = ast.into_inner().next().unwrap();
-                let defs = common::handle_theorem_params_def_list(ctx, game, game_inst_name, ast)?;
+                if let Some(ast) = ast.into_inner().next() {
+                    let defs =
+                        common::handle_theorem_params_def_list(ctx, game, game_inst_name, ast)?;
 
-                consts.extend(defs.into_iter().map(|(name, value)| {
-                    (
-                        GameConstIdentifier {
-                            game_name: game.name.to_string(),
-                            name,
-                            ty: value.get_type(),
-                            assigned_value: Some(Box::new(value.clone())),
-                            inst_info: None,
-                            game_inst_name: Some(game_inst_name.to_string()),
-                            theorem_name: Some(ctx.theorem_name.to_string()),
-                        },
-                        value,
-                    )
-                }));
+                    consts.extend(defs.into_iter().map(|(name, value)| {
+                        (
+                            GameConstIdentifier {
+                                game_name: game.name.to_string(),
+                                name,
+                                ty: value.get_type(),
+                                assigned_value: Some(Box::new(value.clone())),
+                                inst_info: None,
+                                game_inst_name: Some(game_inst_name.to_string()),
+                                theorem_name: Some(ctx.theorem_name.to_string()),
+                            },
+                            value,
+                        )
+                    }));
+                }
             }
             otherwise => {
                 unreachable!("unexpected {:?} at {:?}", otherwise, ast.as_span())
