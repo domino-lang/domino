@@ -33,7 +33,7 @@ impl From<Expression> for SmtExpr {
             Expression::BooleanLiteral(litname) => SmtExpr::Atom(litname),
             Expression::IntegerLiteral(litname) => SmtExpr::Atom(format!("{litname}")),
             Expression::BitsLiteral(cont, Type::Bits(cspec)) => {
-                SmtExpr::Atom(format!("<{cont}_{cspec}>"))
+                SmtExpr::Atom(format!("<{cont}^{cspec}>"))
             }
             Expression::BitsLiteral(cont, ty) => {
                 panic!("found a bits literal {cont} with non Bits type {ty}. Should not have been created.")

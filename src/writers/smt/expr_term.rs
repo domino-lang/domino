@@ -59,7 +59,7 @@ impl From<Expression> for Term {
                     "found a boolean literal '{bit}', the parse should have caught that"
                 ),
             },
-            Expression::BitsLiteral(cont, Type::Bits(cspec)) => format!("<{cont}_{cspec}>").into(),
+            Expression::BitsLiteral(cont, Type::Bits(cspec)) => format!("<{cont}^{cspec}>").into(),
             Expression::BitsLiteral(cont, ty) => {
                 panic!("found a bits literal {cont} with non Bits type {ty}. Should not have been created.")
             }

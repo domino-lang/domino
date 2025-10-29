@@ -166,8 +166,8 @@ impl From<BitsDeclaration> for Vec<SmtExpr> {
     fn from(val: BitsDeclaration) -> Self {
         let BitsDeclaration(id) = val;
 
-        let zero_literal = &format!("<0_{id}>");
-        let one_literal = &format!("<1_{id}>");
+        let zero_literal = &format!("<0^{id}>");
+        let one_literal = &format!("<1^{id}>");
         let sort = &format!("Bits_{id}");
 
         vec![
