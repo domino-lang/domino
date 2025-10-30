@@ -672,6 +672,17 @@ pub fn handle_expression(
             Expression::Identifier(ident)
         }
 
+        Rule::literal_bits_zero | Rule::literal_bits_one => {
+            let content = if ast.as_str().starts_with("0") {
+                "0"
+            } else {
+                "1"
+            };
+            let inner = ast.into_inner().next().unwrap();
+            let cspec = handle_countspec(ctx, inner)?;
+            Expression::BitsLiteral(content.to_string(), Type::Bits(Box::new(cspec)))
+        }
+
         Rule::literal_boolean => {
             let litval = ast.as_str().to_string();
             Expression::BooleanLiteral(litval)

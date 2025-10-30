@@ -166,7 +166,16 @@ impl From<BitsDeclaration> for Vec<SmtExpr> {
     fn from(val: BitsDeclaration) -> Self {
         let BitsDeclaration(id) = val;
 
-        vec![("declare-sort", format!("Bits_{id}"), 0).into()]
+        let zero_literal = &format!("<0^{id}>");
+        let one_literal = &format!("<1^{id}>");
+        let sort = &format!("Bits_{id}");
+
+        vec![
+            ("declare-sort", sort, 0).into(),
+            ("declare-const", zero_literal, sort).into(),
+            ("declare-const", one_literal, sort).into(),
+            ("assert", ("not", ("=", one_literal, zero_literal))).into(),
+        ]
     }
 }
 

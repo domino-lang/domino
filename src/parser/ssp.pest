@@ -168,8 +168,11 @@ num = { ASCII_DIGIT+ }
 literal_boolean = { kw_true | kw_false }
 literal_integer = { num }
 literal_emptyset = { kw_emptyset ~ "as" ~ tipe }
+literal_bits = _{ literal_bits_zero | literal_bits_one }
+  literal_bits_zero = ${ "0^" ~ countspec }
+  literal_bits_one =  ${ "1^" ~ countspec }
 
-literal = _{ literal_boolean | literal_emptyset | literal_integer }
+literal = _{ literal_bits | literal_boolean | literal_emptyset | literal_integer }
 
 
 code = { (stmt )* }
