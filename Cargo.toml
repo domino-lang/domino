@@ -30,6 +30,7 @@ env_logger = "0.11"
 expectrl = "0.5.2"
 indicatif = "0.18"
 indicatif-log-bridge = "0.2"
+indoc = "2.0"
 itertools = "0.10"
 log = "0.4.22 "
 miette = { version = "7.2.0", features = ["fancy"] }
