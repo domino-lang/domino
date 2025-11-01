@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::identifier::game_ident::{GameConstIdentifier, GameIdentifier};
 use crate::identifier::pkg_ident::{PackageConstIdentifier, PackageIdentifier};
 use crate::identifier::Identifier;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::syntax::{
     s_expr::{SExpr, SpecConstant},
     tokens::{ReservedWord, Symbol},

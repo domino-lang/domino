@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use sspverif_smtlib::{
     syntax::{command::Command, term::Term},
     theories,

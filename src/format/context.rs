@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 #[derive(Debug, Clone)]
 pub struct FormatContext<'a> {
     pub file_name: &'a str,

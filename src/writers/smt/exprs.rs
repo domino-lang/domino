@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::fmt::Display;
 
 use sspverif_smtlib::syntax::s_expr::SExpr;

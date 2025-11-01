@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use pest::{iterators::Pair, Span};
 
 #[derive(Clone, Debug)]

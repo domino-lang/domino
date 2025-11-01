@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 macro_rules! def_fun_assoc {
     ($name:ident, $sym:expr) => {
         pub fn $name<T: Into<Term>, I: IntoIterator<Item = T>>(terms: I) -> Term {

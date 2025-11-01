@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 pub(crate) mod indicatif;
 #[cfg(test)]
 pub(crate) mod mock;

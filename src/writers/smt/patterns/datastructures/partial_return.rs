@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use super::{DatastructurePattern, DatastructureSpec};
 use crate::expressions::Expression;
 use crate::identifier::game_ident::GameConstIdentifier;
