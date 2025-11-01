@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::{
     gamehops::equivalence::Equivalence,
     util::prover_process::{ProverResponse, Result as ProverResponseResult},

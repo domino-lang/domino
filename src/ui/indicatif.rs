@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use indicatif::{MultiProgress, ProgressBar};
 use indicatif_log_bridge::LogWrapper;
 use itertools::Itertools;

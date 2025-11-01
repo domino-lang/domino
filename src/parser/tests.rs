@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 // These contain testdata
 pub(crate) mod games;
 pub(crate) mod packages;

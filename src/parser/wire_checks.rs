@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::convert::TryInto as _;
 
 use itertools::Itertools;

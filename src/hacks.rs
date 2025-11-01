@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use std::fmt::{Display, Result};
 
 use crate::writers::smt::exprs::SmtExpr;

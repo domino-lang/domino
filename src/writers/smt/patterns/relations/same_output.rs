@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::writers::smt::{
     exprs::{SmtEq2, SmtExpr},
     patterns::{relation::Relation, DatastructurePattern, FunctionPattern, ReturnSelector},

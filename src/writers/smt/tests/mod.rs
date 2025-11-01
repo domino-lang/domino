@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use super::patterns::{game_consts, pkg_consts, pkg_state, DatastructurePattern};
 use crate::{
     parser::tests::*,

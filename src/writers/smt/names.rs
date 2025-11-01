@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::transforms::samplify::Position as SamplePosition;
 use std::{fmt::Write, marker::PhantomData};
 

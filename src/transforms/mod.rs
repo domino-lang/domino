@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::{package::Composition, theorem::Theorem};
 
 // commented out because we currently don't handle parametric types :(

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::parser;
 use miette::Diagnostic;
 use std::io::Error as IOError;

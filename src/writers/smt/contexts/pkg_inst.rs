@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::expressions::Expression;
 use crate::identifier::pkg_ident::{
     PackageConstIdentifier, PackageIdentifier, PackageStateIdentifier,
