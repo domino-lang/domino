@@ -1,0 +1,78 @@
+package GenericKeysSing {
+    params {
+        n: Integer,
+    }
+
+    state {
+        T: Maybe(Table(Bool,Bits(n))),
+        z: Maybe(Bool),
+        flag: Maybe(Bool),
+    }
+
+
+    oracle GETKEYSIN() -> Table(Bool, Bits(n)) {
+        assert (flag == Some(true));
+        Z <- Unwrap(T);
+        return Z;
+    }
+
+    oracle GETAIN() -> Bits(n) {
+        assert (flag == Some(true));
+        Z <- Unwrap(T);
+        zz <- Unwrap(z);
+        k <- Unwrap(Z[zz]);
+        return k;
+    }
+
+    oracle GETINAIN() -> Bits(n) {
+        assert (flag == Some(true));
+        Z <- Unwrap(T);
+        zz <- Unwrap(z);
+        k <- Unwrap(Z[not zz]);
+        return k;
+    }
+
+    oracle GETAOUT() -> Bits(n) {
+        assert (z != None as Bool);
+        flag <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T == None as Table(Bool, Bits(n))) {
+            r <-$ Bits(n);
+            Z[true] <- Some(r);
+            rr <-$ Bits(n);
+            Z[false] <- Some(rr);
+            T <- Some(Z);
+        }
+        Z <- Unwrap(T);
+        zz <- Unwrap(z);
+        k <- Unwrap(Z[zz]);
+        return k;
+    }
+
+    oracle GETKEYSOUT() -> Table(Bool, Bits(n)) {
+        assert (flag != Some(true));
+        flag <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T == None as Table(Bool, Bits(n))) {
+            r <-$ Bits(n);
+            Z[true] <- Some(r);
+            rr <-$ Bits(n);
+            Z[false] <- Some(rr);
+            T <- Some(Z);
+        }
+        Z <- Unwrap(T);
+        return Z;
+    }
+
+    oracle GETBIT() -> Bool {
+        assert (z != None as Bool);
+        zz <- Unwrap(z);
+        return zz;
+    }
+
+    oracle SETBIT(zz: Bool) {
+        assert (z == None as Bool);
+        z <- Some(zz);
+        return;
+    }
+}
