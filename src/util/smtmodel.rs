@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::debug_assert_matches;
 
 use pest::Parser;

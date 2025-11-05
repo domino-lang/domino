@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 //!  https://smt-lib.org/theories-Core.shtml
 
 use crate::syntax::{sort::Sort, term::Term, tokens::Symbol};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::writers::smt::patterns::{
     theorem_consts::TheoremConstsPattern as TheoremConstsDatatypePattern, DatastructurePattern as _,
 };

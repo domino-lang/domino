@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use crate::writers::smt::{declare, exprs::SmtExpr, sorts::Sort};
 
 pub(crate) mod constants;
