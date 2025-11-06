@@ -115,6 +115,7 @@ fn verify_oracle<UI: TheoremUI>(
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
+                    prover.close();
                     return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle_sig.name.clone(),
