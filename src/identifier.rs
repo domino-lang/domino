@@ -439,6 +439,16 @@ pub mod pkg_ident {
         pub theorem_name: Option<String>,
     }
 
+    impl PackageOracleArgIdentifier {
+        pub(crate) fn ident_ref(&self) -> &str {
+            &self.name
+        }
+
+        pub(crate) fn ident(&self) -> String {
+            self.ident_ref().to_string()
+        }
+    }
+
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
     pub struct PackageOracleImportIdentifier {
         pub pkg_name: String,

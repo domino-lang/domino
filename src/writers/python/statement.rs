@@ -3,34 +3,45 @@ use std::{fmt::Display, marker::PhantomData};
 use pretty::RcDoc;
 
 use crate::{
+    expressions::Expression,
     statement::Statement,
     writers::python::{expression::PyExpression, identifier::VariableName},
 };
 
-use super::{
-    expression::PyFunctionCall,
-    identifier::{OracleFunctionArg, OracleFunctionName},
-    ty::PyType,
-    util::ToDoc,
-};
+use super::{expression::PyFunctionCall, identifier::OracleFunctionName, ty::PyType, util::ToDoc};
 
 const GAME_STATE_ARGNAME: &str = "game_state";
 
 #[derive(Clone, Debug)]
+pub(crate) enum PyPattern<'a> {
+    Simple(VariableName<'a>),
+    Tuple(Vec<VariableName<'a>>),
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct PyAssignment<'a> {
-    lhs: VariableName<'a>,
+    lhs: PyPattern<'a>,
     rhs: PyExpression<'a>,
 }
 
-impl<'a> Display for PyAssignment<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} = {}", self.lhs, self.rhs)
+impl<'a> ToDoc<'a> for PyPattern<'a> {
+    fn to_doc(&self) -> RcDoc<'a> {
+        match self {
+            PyPattern::Simple(variable_name) => RcDoc::as_string(variable_name),
+            PyPattern::Tuple(variable_names) => {
+                let vars = variable_names.iter().map(RcDoc::as_string);
+                RcDoc::text("(")
+                    .append(RcDoc::intersperse(vars, ", "))
+                    .append(RcDoc::text(")"))
+            }
+        }
     }
 }
 
 impl<'a> ToDoc<'a> for PyAssignment<'a> {
     fn to_doc(&self) -> RcDoc<'a> {
-        RcDoc::as_string(&self.lhs)
+        self.lhs
+            .to_doc()
             .append(RcDoc::text(" = "))
             .append(self.rhs.to_doc())
     }
@@ -45,7 +56,12 @@ struct PyIfThenElse<'a> {
 
 impl<'a> ToDoc<'a> for PyIfThenElse<'a> {
     fn to_doc(&self) -> RcDoc<'a> {
-        let then = self.then.iter().map(PyStatement::to_doc);
+        let then: Vec<_> = if self.then.is_empty() {
+            vec![RcDoc::text("pass")]
+        } else {
+            self.then.iter().map(PyStatement::to_doc).collect()
+        };
+
         let doc = RcDoc::text("if ")
             .append(self.cond.to_doc())
             .append(RcDoc::text(":"))
@@ -96,6 +112,7 @@ pub(crate) enum PyStatement<'a> {
     Assignment(PyAssignment<'a>),
     Return(PyExpression<'a>),
     IfThenElse(PyIfThenElse<'a>),
+    Abort,
 }
 
 impl<'a> ToDoc<'a> for PyStatement<'a> {
@@ -106,8 +123,8 @@ impl<'a> ToDoc<'a> for PyStatement<'a> {
                 RcDoc::text("return ").append(py_expression.to_doc())
             }
             PyStatement::IfThenElse(py_if_then_else) => py_if_then_else.to_doc(),
+            PyStatement::Abort => RcDoc::text(r#"raise Exception("abort")"#),
         }
-        .append(RcDoc::line())
     }
 }
 
@@ -121,7 +138,7 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
             )),
             Statement::Assign(identifier, _, expr, _) => {
                 Ok(PyStatement::Assignment(PyAssignment {
-                    lhs: VariableName(identifier.ident_ref()),
+                    lhs: PyPattern::Simple(VariableName(identifier.ident_ref())),
                     rhs: expr.try_into()?,
                 }))
             }
@@ -139,7 +156,7 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                     .collect::<Result<Vec<_>, _>>()?,
             })),
             Statement::Sample(name, _, _, ty, _, _) => Ok(PyStatement::Assignment(PyAssignment {
-                lhs: VariableName(name.ident_ref()),
+                lhs: PyPattern::Simple(VariableName(name.ident_ref())),
                 rhs: PyExpression::Sample(ty.try_into()?),
             })),
             Statement::InvokeOracle(invoke) => {
@@ -147,13 +164,17 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                     Some(PyExpression::LocalIdentifier(GAME_STATE_ARGNAME))
                         .into_iter()
                         .chain(Some(PyExpression::LocalIdentifier(
-                            invoke.target_inst_name.as_ref().unwrap().as_str(),
+                            invoke
+                                .target_inst_name
+                                .as_ref()
+                                .map(String::as_str)
+                                .unwrap_or(r#""?? no target instance name set ??""#),
                         )))
                         .chain(invoke.args.iter().map(|expr| expr.try_into().unwrap()))
                         .collect();
 
                 Ok(PyStatement::Assignment(PyAssignment {
-                    lhs: VariableName(invoke.id.ident_ref()),
+                    lhs: PyPattern::Simple(VariableName(invoke.id.ident_ref())),
                     rhs: PyExpression::OracleCall(PyFunctionCall {
                         fun_name: OracleFunctionName(&invoke.name),
                         args,
@@ -161,6 +182,16 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                     }),
                 }))
             }
+            Statement::Parse(names, expr, _) => Ok(PyStatement::Assignment(PyAssignment {
+                lhs: PyPattern::Tuple(
+                    names
+                        .iter()
+                        .map(|id| VariableName(id.ident_ref()))
+                        .collect(),
+                ),
+                rhs: expr.try_into()?,
+            })),
+            Statement::Abort(_) => Ok(PyStatement::Abort),
             other => todo!("PyStatement::try_from not yet implemented: {other:?}"),
         }
     }
@@ -183,4 +214,14 @@ impl<'a> Display for PyStatement<'a> {
     fn fmt(&self, w: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.to_doc().render_fmt(100, w)
     }
+}
+
+fn all_unwraps(expr: &Expression) -> Vec<Expression> {
+    expr.mapfold(vec![], |mut out, expr| {
+        if let Expression::Unwrap(expr) = &expr {
+            out.push(expr.as_ref().clone())
+        };
+        (out, expr)
+    })
+    .0
 }

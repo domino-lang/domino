@@ -43,4 +43,5 @@ pub(crate) fn package_state<'a>(this: RcDoc<'a>, package_inst_name_value: RcDoc<
         .append(this)
         .append(", pkg_")
         .append(package_inst_name_value)
+        .append(")")
 }

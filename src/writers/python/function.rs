@@ -48,7 +48,7 @@ impl<'a, Fun: Function<'a>> ToDoc<'a> for FunctionDefinitionWriter<'a, Fun> {
             .map(|(name, _)| RcDoc::as_string(name));
         let body = fun.body().into_iter().map(PyStatement::into_doc);
 
-        RcDoc::text("fun ")
+        RcDoc::text("def ")
             .append(RcDoc::as_string(fun.name()))
             .append(RcDoc::text("("))
             .append(RcDoc::intersperse(args, ", "))

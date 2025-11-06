@@ -52,11 +52,20 @@ impl<'a, DC: Dataclass<'a>> Display for DataclassWriter<'a, DC> {
 
 impl<'a, DC: Dataclass<'a>> ToDoc<'a> for DataclassWriter<'a, DC> {
     fn to_doc(&self) -> RcDoc<'a> {
-        let fields = self.0.fields().into_iter().map(|(name, ty)| {
-            RcDoc::as_string(name)
-                .append(RcDoc::text(": "))
-                .append(RcDoc::as_string(ty))
-        });
+        let mut fields: Vec<_> = self
+            .0
+            .fields()
+            .into_iter()
+            .map(|(name, ty)| {
+                RcDoc::as_string(name)
+                    .append(RcDoc::text(": "))
+                    .append(RcDoc::as_string(ty))
+            })
+            .collect();
+
+        if fields.is_empty() {
+            fields = vec![RcDoc::text("pass")]
+        }
 
         RcDoc::text("@dataclass")
             .append(RcDoc::line())
