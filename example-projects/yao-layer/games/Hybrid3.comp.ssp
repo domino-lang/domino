@@ -1,0 +1,128 @@
+composition Hybrid3 {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const zeron: Bits(n);
+    const zerom: Bits(m);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance keys0 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys1 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys2 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys3 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance ev1 = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance simgate1 = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            zerom: zerom,
+        }
+    }
+
+    instance ev2 = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance simgate2 = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            zerom: zerom,
+        }
+    }
+
+    instance ev3 = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance simgate3 = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            zerom: zerom,
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: keys0,
+            SETBIT: keys0,
+            GBLG: simgate1,
+            GBLG: simgate2,
+            GBLG: simgate3,
+            GETKEYSIN: keys3,
+        }
+        simgate1: {
+            GETAIN: keys0,
+            GETINAIN: keys0,
+            EVAL: ev1,
+            GETAOUT: keys1,
+        }
+        ev1: {
+            GETBIT: keys0,
+            SETBIT: keys1,
+        }        
+        simgate2: {
+            GETAIN: keys1,
+            GETINAIN: keys1,
+            EVAL: ev2,
+            GETAOUT: keys2,
+        }
+        ev2: {
+            GETBIT: keys1,
+            SETBIT: keys2,
+        }        
+        simgate3: {
+            GETAIN: keys2,
+            GETINAIN: keys2,
+            EVAL: ev3,
+            GETAOUT: keys3,
+        }
+        ev3: {
+            GETBIT: keys2,
+            SETBIT: keys3,
+        }        
+    }
+}

@@ -1,0 +1,59 @@
+composition H1 {
+        const n: Integer;
+        const zeron: Bits(256);
+        const prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256);
+        const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
+        const b: Bool;
+        const bnonce: Bool;
+    
+	instance Nonces = Nonces {
+		params {
+        	n: n,
+			b: bnonce,
+		}
+	}
+    instance Prot = ReductionNonce {
+        params {
+        n: n,
+        zeron: zeron,
+        prf: prf,
+        mac: mac,
+        }
+    }
+    instance KX = KX {
+        params {
+        b: b,
+        n: n,
+        zeron: zeron,
+        }
+    }
+
+    compose {
+        adversary: {
+            NewKey:     KX,
+            NewSession: KX,
+            Send1:      KX,
+            Send2:      KX,
+            Send3:      KX,
+            Send4:      KX,
+            Send5:      KX,
+            Reveal:     KX,
+            Test:       KX,
+			SameKey:	KX,
+ 			AtMost:		KX,
+ 			AtLeast:	KX,
+       },
+
+        KX: {
+            Run1:      Prot,
+            Run2:      Prot,
+            Run3:      Prot,
+            Run4:      Prot,
+            Run5:      Prot,
+        },
+
+		Prot: {
+			  Sample:	Nonces,
+		}
+    }
+}
