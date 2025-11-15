@@ -1,7 +1,7 @@
 composition Hybrid2 {
         const n: Integer;
         const zeron: Bits(256);
-        const prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256);
+        const prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256);
         const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
         const b: Bool;
         const bprf: Bool;

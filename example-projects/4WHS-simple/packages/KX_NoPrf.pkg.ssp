@@ -43,7 +43,7 @@ package KX_NoPrf {
 
     import oracles {
     	 Hon(h: Integer) -> Bool,
-		 Eval(h: Integer, a: Integer, aa: Integer, c: Bits(256), d: Bits(256), e: Bool) -> Bits(256),
+		 Eval(h: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256),
 
          Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
                         Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
@@ -164,7 +164,7 @@ oracle Reveal(ctr: Integer) -> Bits(256)
 
 	/* mark key as revealed */
     RevTested[Unwrap(sid)] <- Some(false);    
-    k <- invoke Eval(ltk,U,V,Unwrap(ni),Unwrap(nr),true);
+    k <- invoke Eval(ltk,(U,V,Unwrap(ni),Unwrap(nr),true));
     return k;
     }
 
@@ -185,7 +185,7 @@ oracle Test(ctr: Integer) -> Bits(256)
     if b {
 	  k <-$ Bits(256);
 	} else {
-      k <- invoke Eval(ltk,U,V,Unwrap(ni),Unwrap(nr) ,true);
+      k <- invoke Eval(ltk,(U,V,Unwrap(ni),Unwrap(nr) ,true));
     }
     return k;
     }

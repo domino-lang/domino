@@ -1,11 +1,11 @@
 (define-fun =prf
-    ((left-prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
-     (right-prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+    ((left-prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256)))
+     (right-prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256)))
      (hon (Array Int (Maybe Bool))))
   Bool
   (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
-          (let ((kmac-index (mk-tuple6 kid U V ni nr false))
-                (k-index (mk-tuple6 kid U V ni nr true)))
+          (let ((kmac-index (mk-tuple2 kid (mk-tuple5 U V ni nr false)))
+                (k-index (mk-tuple2 kid (mk-tuple5 U V ni nr true))))
             (and
              ;; (is-mk-none (select right-prf k-index))
              (=> (not (is-mk-none (select right-prf k-index)))
@@ -16,11 +16,11 @@
 
 
 (define-fun kmac-before-k
-    ((Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256))))
+    ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256))))
   Bool
   (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
-          (=> (is-mk-none (select Prf (mk-tuple6 kid U V ni nr false)))
-              (is-mk-none (select Prf (mk-tuple6 kid U V ni nr true))))))
+          (=> (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))
+              (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))))
 
 (define-fun no-overwriting-state
     ((max-ctr Int)
@@ -61,13 +61,13 @@
     ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
                                        (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
                                        (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256)))
      (Ltk (Array Int (Maybe Bits_256))))
   Bool
   (and
    (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256) (flag Bool))
            (=> (is-mk-none (select Ltk kid))
-               (is-mk-none (select Prf (mk-tuple6 kid U V ni nr flag)))))
+               (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr flag))))))
 
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -84,12 +84,12 @@
              (is-mk-none (select H kid)))))
 
 (define-fun k-prf-implies-rev-tested-sid
-    ((Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+    ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256)))
      (RevTested (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Bool))))
   Bool
   (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
-          (=> (not (is-mk-none (select Prf (mk-tuple6 kid U V ni nr true))))
-              (let ((kmac (maybe-get (select Prf (mk-tuple6 kid U V ni nr false)))))
+          (=> (not (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))
+              (let ((kmac (maybe-get (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))
                 (let ((tau (<<func-mac>> kmac nr 2)))
                   (not (is-mk-none (select RevTested (mk-tuple5 U V ni nr tau)))))))))
 
@@ -116,7 +116,7 @@
                                        (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
      (H (Array Int (Maybe Bool)))
      (Ltk (Array Int (Maybe Bits_256)))
-     (Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256))))
+     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -199,7 +199,7 @@
                                        (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
      (Fresh (Array Int (Maybe Bool)))
      (Ltk (Array Int (Maybe Bits_256)))
-     (Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256))))
+     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -217,23 +217,23 @@
                   (=> (not (is-mk-none kmac))
                       (= (maybe-get kmac)
                          (ite (= (select Fresh ctr) (mk-some true))
-                              (maybe-get (select Prf (mk-tuple6 kid
+                              (maybe-get (select Prf (mk-tuple2 kid (mk-tuple5
                                                                 U V
                                                                 (maybe-get ni)
                                                                 (maybe-get nr)
-                                                                false)))
+                                                                false))))
                               (<<func-prf>> (maybe-get (select Ltk kid))
-                                            U V
+                                            (mk-tuple5 U V
                                             (maybe-get ni)
                                             (maybe-get nr)
-                                            false)))))))))
+                                            false))))))))))
 
 
 (define-fun honest-kmac
     ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
                                        (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
                                        (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256)))
      (Fresh (Array Int (Maybe Bool)))
      (H (Array Int (Maybe Bool))))
   Bool
@@ -255,9 +255,9 @@
                       (and
                        (= (select H kid) (mk-some true))
                        (=> (not (is-mk-none kmac))
-                           (not (is-mk-none (select Prf (mk-tuple6 kid  U V
+                           (not (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V
                                                                    (maybe-get ni) (maybe-get nr)
-                                                                   false))))))))))))
+                                                                   false)))))))))))))
 
 
 (define-fun invariant

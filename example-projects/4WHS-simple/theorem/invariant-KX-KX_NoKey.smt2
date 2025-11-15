@@ -47,7 +47,7 @@
                        (mess (el11-11 (maybe-get state))))
                   (ite (or (and u (> mess 0))
                            (and (not u) (> mess 1)))
-                       (= k (mk-some (<<func-prf>> ltk U V (maybe-get ni) (maybe-get nr) true)))
+                       (= k (mk-some (<<func-prf>> ltk (mk-tuple5 U V (maybe-get ni) (maybe-get nr) true))))
                        (= k (as mk-none (Maybe Bits_256)))))))))
 
 
