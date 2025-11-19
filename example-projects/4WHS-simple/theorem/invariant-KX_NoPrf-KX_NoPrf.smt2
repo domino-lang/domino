@@ -15,13 +15,6 @@
                 (select right-prf kmac-index))))))
 
 
-(define-fun kmac-before-k
-    ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) (Maybe Bits_256))))
-  Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
-          (=> (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))
-              (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))))
-
 (define-fun no-overwriting-state
     ((max-ctr Int)
      (State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
@@ -257,15 +250,15 @@
                        (=> (not (is-mk-none kmac))
                            (not (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V
                                                                    (maybe-get ni) (maybe-get nr)
+ 
                                                                    false)))))))))))))
-
-(define-fun prf-key-dependency
-  ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool))
-               (Maybe Bits_256))))
+(define-fun kmac-before-k
+    ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_256 Bits_256 Bool)) 
+                 (Maybe Bits_256))))
   Bool
   (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
-    (=> (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))
-        (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))))
+          (=> (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))
+              (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))))
 
 (define-fun invariant
     ((left-game <GameState_Hybrid2_<$<!n!>$>>)
@@ -293,8 +286,6 @@
           (right-kid (<pkg-state-PRF-<$<!n!>$>-kid_> right-prf-pkg))
           (right-ctr (<pkg-state-KX_NoPrf-<$<!n!>$>-ctr_> right-game-pkg)))
       (and
-       (prf-key-dependency left-PRF)
-       (prf-key-dependency right-PRF)
        (= left-kid right-kid)
        (= left-ctr right-ctr)
        (= left-LTK right-LTK)
@@ -306,6 +297,7 @@
 
        (no-overwriting-state left-ctr left-State)
        (H-LTK-tables-empty-above-max left-kid left-H left-LTK)
+       (H-LTK-tables-empty-above-max right-kid right-H right-LTK)
 
        (kmac-requires-nonces left-State)
        (kmac-is-wellformed left-State left-Fresh left-LTK left-PRF)
@@ -317,6 +309,7 @@
 
        (kmac-before-sid left-State)
        (kmac-before-k left-PRF)
+       (kmac-before-k right-PRF)
 
        (referenced-kid-exist left-State left-PRF left-LTK)
 
