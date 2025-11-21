@@ -1,10 +1,10 @@
 (define-fun state=
-    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (right-State (Array Int (Maybe (Tuple10 Int Bool Int Bits_256 (Maybe Bool)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (right-State (Array Int (Maybe (Tuple10 Int Bool Int Bits_n (Maybe Bool)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (and (= (is-mk-none (select left-State ctr))
@@ -27,9 +27,9 @@
 
 
 (define-fun keys-computed-correctly
-    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-                                            (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                            (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+                                            (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                            (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select left-State ctr)))
@@ -48,13 +48,13 @@
                   (ite (or (and u (> mess 0))
                            (and (not u) (> mess 1)))
                        (= k (mk-some (<<func-prf>> ltk (mk-tuple5 U V (maybe-get ni) (maybe-get nr) true))))
-                       (= k (as mk-none (Maybe Bits_256)))))))))
+                       (= k (as mk-none (Maybe Bits_n)))))))))
 
 
 (define-fun time-of-acceptance
-    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-                                            (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                            (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+                                            (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                            (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select left-State ctr)))
@@ -67,9 +67,9 @@
 
 
 (define-fun time-of-nonces
-    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-                                            (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                            (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+                                            (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                            (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select left-State ctr)))

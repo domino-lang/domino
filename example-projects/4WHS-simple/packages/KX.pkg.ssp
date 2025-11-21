@@ -2,16 +2,16 @@ package KX {
     params {
         b: Bool,
         n: Integer,
-        zeron: Bits(256),
+        zeron: Bits(n),
     }
     
     state {
-          LTK:   Table(Integer, Bits(256)),       /* administrative kid, keys    */
+          LTK:   Table(Integer, Bits(n)),       /* administrative kid, keys    */
           H:     Table(Integer, Bool),          /* administrative kid, honesty */
           ctr_:  Integer,                       /* administrative sid  */
           kid_:  Integer,                       /* administrative kid  */
 		  /* session key table, reveal -> (.,false) ; test -> (.,true) */
-          RevTested:  Table((Integer,Integer,Bits(256),Bits(256),Bits(256)),
+          RevTested:  Table((Integer,Integer,Bits(n),Bits(n),Bits(n)),
 		               Bool),
 		  Fresh: Table(Integer, Bool),
           /* Authentication */
@@ -25,21 +25,21 @@ package KX {
                         true : responder,*/ 
                  Integer,
                   /* Intended Peer */
-                 Bits(256),
+                 Bits(n),
                   /*    ltk          */
                  Maybe(Bool),
                   /* None: running, 
                         true: accepted, 
                         false: rejected   */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* session key */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* initiator nonce */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* responder nonce */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* MAC key */
-                 Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                 Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         /* SID */
                  Integer))
                         /* nbr of messages sent */
@@ -47,60 +47,60 @@ package KX {
           }
 
     import oracles {
-         Run1(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+         Run1(state: (Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer))                            
-         -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+         -> ((Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256))), 
-         Run2(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), ni: Bits(256))               
-         -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+            (Bits(n))), 
+         Run2(state: (Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), ni: Bits(n))               
+         -> ((Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256),Bits(256))), 
-         Run3(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), msg: (Bits(256), Bits(256))) 
-         -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+            (Bits(n),Bits(n))), 
+         Run3(state: (Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), msg: (Bits(n), Bits(n))) 
+         -> ((Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256),Bits(256))), 
-         Run4(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), msg: (Bits(256), Bits(256))) 
-         -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+            (Bits(n),Bits(n))), 
+         Run4(state: (Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), msg: (Bits(n), Bits(n))) 
+         -> ((Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256))), 
-         Run5(state: (Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), tau: Bits(256))              
-         -> ((Integer,Bool,Integer,Bits(256),Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+            (Bits(n))), 
+         Run5(state: (Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), tau: Bits(n))              
+         -> ((Integer,Bool,Integer,Bits(n),Maybe(Bool),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
             (Bool)),
     }
 
 
 
-oracle NewKey(ltk: Maybe(Bits(256))) -> Integer {
+oracle NewKey(ltk: Maybe(Bits(n))) -> Integer {
       kid_ <- (kid_ + 1);
       if (ltk == None)
       {
-        ltk_ <-$ Bits(256);
+        ltk_ <-$ Bits(n);
         LTK[kid_] <- Some(ltk_);
         H[kid_]   <- Some(true); 
       }
@@ -120,7 +120,7 @@ oracle NewSession(U: Integer, u: Bool, V: Integer, kid: Integer) -> Integer {
         return ctr_;
     }
 
-oracle Send1(ctr: Integer) -> (Bits(256))
+oracle Send1(ctr: Integer) -> (Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state <- Unwrap(State[ctr]);
@@ -130,7 +130,7 @@ oracle Send1(ctr: Integer) -> (Bits(256))
         return msg;
     } 
 
-oracle Send2(ctr: Integer, msg: Bits(256)) -> (Bits(256),Bits(256))
+oracle Send2(ctr: Integer, msg: Bits(n)) -> (Bits(n),Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state   <- Unwrap(State[ctr]);
@@ -140,7 +140,7 @@ oracle Send2(ctr: Integer, msg: Bits(256)) -> (Bits(256),Bits(256))
         return msg_;
     } 
 
-oracle Send3(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256), Bits(256))
+oracle Send3(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n), Bits(n))
     {
         assert not (State[ctr] == None);    /* session has been initialized */
         state                                           <- Unwrap(State[ctr]);
@@ -151,7 +151,7 @@ oracle Send3(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256), Bits(256))
         return msg_;
     } 
 
-oracle Send4(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256))
+oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state                                          <- Unwrap(State[ctr]);
@@ -162,7 +162,7 @@ oracle Send4(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256))
         return msg_;  
     } 
 
-oracle Send5(ctr: Integer, msg: Bits(256)) -> (Bool)
+oracle Send5(ctr: Integer, msg: Bits(n)) -> (Bool)
     {
         assert not (State[ctr] == None);    /* session has been initialized */
         state                                       <- Unwrap(State[ctr]);
@@ -172,7 +172,7 @@ oracle Send5(ctr: Integer, msg: Bits(256)) -> (Bool)
         return stop;
     } 
 
-oracle Reveal(ctr: Integer) -> Bits(256)
+oracle Reveal(ctr: Integer) -> Bits(n)
     {
     (U,u,V,ltk,acc,k,ni,nr,kmac,sid,mess) <- parse Unwrap(State[ctr]);
 
@@ -187,7 +187,7 @@ oracle Reveal(ctr: Integer) -> Bits(256)
     return Unwrap(k);
     }
 
-oracle Test(ctr: Integer) -> Bits(256)
+oracle Test(ctr: Integer) -> Bits(n)
     {
     (U,u,V,ltk,acc,k,ni,nr,kmac,sid,mess) <- parse Unwrap(State[ctr]);
 	
@@ -202,7 +202,7 @@ oracle Test(ctr: Integer) -> Bits(256)
     RevTested[Unwrap(sid)] <- Some(true);
 	
     if b {
-	    k_ <-$ Bits(256);
+	    k_ <-$ Bits(n);
 	} else {
         k_ <- Unwrap(k);
     }

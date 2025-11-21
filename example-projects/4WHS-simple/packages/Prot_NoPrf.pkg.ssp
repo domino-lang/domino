@@ -1,49 +1,49 @@
 package Prot_NoPrf {
     params {
         n: Integer,
-        zeron: Bits(256),
-        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
-        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+        zeron: Bits(n),
+        prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
 
     import oracles {
-		 Eval(h: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256),
+		 Eval(h: Integer, x: (Integer, Integer, Bits(n), Bits(n), Bool)) -> Bits(n),
     }
 
 	oracle Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                       Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						               Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+				                       Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						               Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						               Integer),
-						              (Bits(256))) {
+						              (Bits(n))) {
 	    (U,u,V,ltk,acc,ni_,nr,kmac,sid,mess) <- parse state;
         assert (u    == false);              /* session belongs to initiator       */
         assert (acc  == None );              /* session is still running           */
         assert (mess == 0);
 		
-		ni <-$ Bits(256);
+		ni <-$ Bits(n);
 		
 		return ((U,u,V,ltk,None,Some(ni),nr,kmac,sid,1),
 		        (ni));
 	}
 
 	oracle Run2(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            ni:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-							        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            ni:Bits(n)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+							        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 							        Integer),
-							       (Bits(256), Bits(256))) {
+							       (Bits(n), Bits(n))) {
 	    (U,v,V,ltk,acc,ni_,nr_,kmac_,sid_,mess) <- parse state;
         assert (v   == true );              /* session belongs to responder       */
         assert (acc  == None );              /* session is still running           */
         assert (mess == 0);
 
-		nr         <-$ Bits(256);
+		nr         <-$ Bits(n);
         kmac       <- invoke Eval(ltk,(U,V,ni,nr,false)); 
         tau        <-  mac(kmac,nr,2);
         sid        <- (U,V,ni,nr,tau);
@@ -53,14 +53,14 @@ package Prot_NoPrf {
 	}
 
 	oracle Run3(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-							                Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            msg:(Bits(n),Bits(n))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                            Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+							                Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 							                Integer),
-							               (Bits(256), Bits(256))) {
+							               (Bits(n), Bits(n))) {
 	    (U,u,V,ltk,acc,ni,nr_,kmac_,sid_,mess) <- parse state;
         assert (u    == false);              /* session belongs to initiator       */
         assert (acc  == None );              /* session is still running           */
@@ -80,14 +80,14 @@ package Prot_NoPrf {
 	}
 
 	oracle Run4(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-							                Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            msg:(Bits(n),Bits(n))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                            Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+							                Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 							                Integer),
-							               (Bits(256))) {
+							               (Bits(n))) {
 	    (U,v,V,ltk,acc,ni_,nr,kmac,sid,mess) <- parse state;
         assert (v   == true );              /* session belongs to responder       */
         assert (acc  == None );              /* session is still running           */
@@ -110,12 +110,12 @@ package Prot_NoPrf {
 
 
 	oracle Run5(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            tau:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-				                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            tau:Bits(n)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+				                    Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 				                    Integer),
 				                   (Bool)) {
 	    (U,u,V,ltk,acc,ni,nr,kmac,sid,mess) <- parse state;

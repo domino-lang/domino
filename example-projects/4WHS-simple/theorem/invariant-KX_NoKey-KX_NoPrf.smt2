@@ -1,11 +1,11 @@
 (define-fun state=
-    ((left-State (Array Int (Maybe (Tuple10 Int Bool Int Bits_256 (Maybe Bool)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((left-State (Array Int (Maybe (Tuple10 Int Bool Int Bits_n (Maybe Bool)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (right-State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (right-Ltk (Array Int (Maybe Bits_256))))
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (right-Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((ctr Int))
           (and (= (is-mk-none (select left-State ctr))
@@ -30,7 +30,7 @@
 
 (define-fun LTK-table-empty-above-max
     ((max-kid Int)
-     (Ltk (Array Int (Maybe Bits_256))))
+     (Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((kid Int))
           (=> (> kid max-kid)
@@ -38,7 +38,7 @@
 
 
 (define-fun ltk-and-h-set-together
-    ((Ltk (Array Int (Maybe Bits_256)))
+    ((Ltk (Array Int (Maybe Bits_n)))
      (H (Array Int (Maybe Bool))))
   Bool
   (forall ((kid Int))

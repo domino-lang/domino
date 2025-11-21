@@ -1,6 +1,6 @@
 composition PRF {
     const n: Integer;
-    const prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256);
+    const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
     const b: Bool;
     
     instance PRF = PRF {
