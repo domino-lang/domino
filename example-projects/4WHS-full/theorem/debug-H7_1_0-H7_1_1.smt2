@@ -408,32 +408,33 @@
            (sid-matches State1-old Prf1-old)
            (own-nonce-is-unique State1-old Nonces1-old)
            (key-not-computed-unless-test-or-reveal State1-old RevTested1-old Prf1-old H1-old Keys1-old)
+           ; This last condition is the one which makes the proof for the debug lemma "unknown"
 
 
-           (freshness-and-honesty-matches State1-old Fresh1-old H1-old)
+           ;(freshness-and-honesty-matches State1-old Fresh1-old H1-old)
 
-           (stuff-not-initialized-early State1-old Fresh1-old Keys1-old)
-           (mac-table-wellformed Keys1-old Values1-old)
+           ;(stuff-not-initialized-early State1-old Fresh1-old Keys1-old)
+           ;(mac-table-wellformed Keys1-old Values1-old)
 
-           (no-ideal-values-for-dishonest-keys H1-old Prf1-old Keys1-old)
+           ;(no-ideal-values-for-dishonest-keys H1-old Prf1-old Keys1-old)
 
-           (sessions-in-first-exist First1-old State1-old)
-           (sessions-in-first-exist Second1-old State1-old)
+           ;(sessions-in-first-exist First1-old State1-old)
+           ;(sessions-in-first-exist Second1-old State1-old)
 
-           (four-mac-implies-three-mac Values1-old)
-           (three-mac-implies-two-mac Values1-old)
+           ;(four-mac-implies-three-mac Values1-old)
+           ;(three-mac-implies-two-mac Values1-old)
 
            ;(two-mac-implies-first Values0 First0) ; <---
-           (three-mac-implies-second Values1-old Second1-old)
+           ;(three-mac-implies-second Values1-old Second1-old)
 
-           (initiator-accepts-with-msg-2-only Values1-old Fresh1-old State1-old)
-           (initiator-accepts-with-mac-four-only Values1-old Fresh1-old State1-old)
-           (initiator-msg-2-with-mac-three-only Values1-old Fresh1-old State1-old)
-           (responder-accepts-with-mac-three-only Values1-old Fresh1-old State1-old)
+           ;(initiator-accepts-with-msg-2-only Values1-old Fresh1-old State1-old)
+           ;(initiator-accepts-with-mac-four-only Values1-old Fresh1-old State1-old)
+           ;(initiator-msg-2-with-mac-three-only Values1-old Fresh1-old State1-old)
+           ;(responder-accepts-with-mac-three-only Values1-old Fresh1-old State1-old)
            
-           (honest-sid-have-tau-in-mac State1-old Fresh1-old Values1-old)
-           (first-set-by-initiator State1-old First1-old Fresh1-old Values1-old)
-           (honest-sessions-to-first-and-second State1-old Fresh1-old First1-old Second1-old)
+           ;(honest-sid-have-tau-in-mac State1-old Fresh1-old Values1-old)
+           ;(first-set-by-initiator State1-old First1-old Fresh1-old Values1-old)
+           ;(honest-sessions-to-first-and-second State1-old Fresh1-old First1-old Second1-old)
 
            )))))
 

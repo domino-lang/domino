@@ -819,7 +819,7 @@
            (four-mac-implies-three-mac Values0)
            (three-mac-implies-two-mac Values0)
 
-           ;(two-mac-implies-first Values0 First0) ; <---
+           (two-mac-implies-first Values0 First0) ; <---
            (three-mac-implies-second Values0 Second0)
 
            (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
