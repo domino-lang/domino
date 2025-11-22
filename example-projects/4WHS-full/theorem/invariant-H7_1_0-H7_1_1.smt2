@@ -209,8 +209,6 @@
                     (= (select prf (mk-tuple6 kid U V ni nr true))
                        (as mk-none (Maybe Bits_256)))))))))
 
-
-
 ;; Some consistency checks on the PRF package
 ;;
 ;; (i) LTK and H are written at the same locations
@@ -800,8 +798,8 @@
            (revtesteval-populated RevTestEval1 H1 Prf1)
            (own-nonce-is-unique State0 Nonces0)
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
-           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
 
+           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
 
            (freshness-and-honesty-matches State0 Fresh0 H0)
 
