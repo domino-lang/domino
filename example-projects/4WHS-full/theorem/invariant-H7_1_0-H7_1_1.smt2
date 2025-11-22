@@ -789,17 +789,22 @@
            (= First0 First1)
            (= Second0 Second1)
            
-           (freshness-and-honesty-matches State0 Fresh0 H0)
-           (revtesteval-matches-sometimes State0 RevTestEval0 RevTestEval1 RevTested0)
            (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
+           (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
+
            (no-overwriting-game State0 ctr0)
            (sid-is-wellformed State0 Prf0 Fresh0 Keys0)
+           (revtesteval-matches-sometimes State0 RevTestEval0 RevTestEval1 RevTested0)
            (sid-matches State0 Prf0)
-           (own-nonce-is-unique State0 Nonces0)
            (revtesteval-populated RevTestEval0 H0 Prf0)
            (revtesteval-populated RevTestEval1 H1 Prf1)
+           (own-nonce-is-unique State0 Nonces0)
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
            (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+
+
+           (freshness-and-honesty-matches State0 Fresh0 H0)
+
            (mac-keys-equal-in-prf Prf0 Prf1)
            (kmac-and-tau-are-computed-correctly State0 Prf0 H0 Ltk0 Fresh0 Keys0)
            (kmac-and-tau-are-computed-correctly State1 Prf1 H1 Ltk1 Fresh1 Keys1)

@@ -1393,12 +1393,14 @@ theorem WHSProto {
             NewKey: {
                 invariant: [
                     ./theorem/invariant-H7_1_0-H7_1_1.smt2
+                    ./theorem/debug-H7_1_0-H7_1_1.smt2
                     ./theorem/randomness-H7_1_0-H7_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
+                    lemma-debug:  [no-abort]
+                    invariant:    [no-abort, lemma-debug]
                     same-output:  [no-abort]
                 }
             }
