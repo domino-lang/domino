@@ -110,7 +110,8 @@ fn verify_oracle<UI: TheoremUI>(
                 ProverResponse::Unsat => {}
                 response => {
                     let modelfile = prover.get_model().map(|model| {
-                        let mut modelfile = tempfile::NamedTempFile::new().unwrap();
+                        let mut modelfile =
+                            tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
                         modelfile.write_all(model.as_bytes()).unwrap();
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
