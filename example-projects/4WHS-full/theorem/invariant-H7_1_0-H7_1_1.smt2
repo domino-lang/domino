@@ -209,6 +209,68 @@
                     (= (select prf (mk-tuple6 kid U V ni nr true))
                        (as mk-none (Maybe Bits_256)))))))))
 
+(define-fun key-not-computed-unless-reveal
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
+                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
+                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+     (revtest (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Bool)))
+     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+     (H (Array Int (Maybe Bool)))
+     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+  Bool
+  (and
+   ;; mac keys are computed before output keys
+   (forall ((kid Int)
+            (U Int)
+            (V Int)
+            (ni Bits_256)
+            (nr Bits_256))
+           (=> (not (= (select prf (mk-tuple6 kid U V ni nr true))
+                       (as mk-none (Maybe Bits_256))))
+               (ite (= (select H kid) (mk-some true))
+                    (not (is-mk-none (select Keys (mk-tuple5 kid U V ni nr))))
+                    (not (is-mk-none (select prf (mk-tuple6 kid U V ni nr false)))))))
+
+   ;; output keys are only computed when revealing
+   (forall ((kid Int)
+            (U Int)
+            (V Int)
+            (ni Bits_256)
+            (nr Bits_256)
+            (kmac-prime Bits_256))
+           (and
+            ;; entry in PRF table => false entry in revtest
+            (=> (not (is-mk-none (select prf (mk-tuple6 kid U V ni nr true))))
+                (let ((kmac (ite (= (select H kid) (mk-some true))
+                                 (select Keys (mk-tuple5 kid U V ni nr))
+                                 (select prf (mk-tuple6 kid U V ni nr false)))))
+                  (let ((tau (<<func-mac>> (maybe-get kmac) nr 2)))
+                         (= (select revtest (mk-tuple5 U V ni nr tau))
+                            (mk-some false)))))
+
+            ;; revtest none => prf none
+            (=> (let ((tau (<<func-mac>> kmac-prime nr 2)))
+                  (= (select revtest (mk-tuple5 U V ni nr tau))
+                     (as mk-none (Maybe Bool))))
+                (=> (= (ite (= (select H kid) (mk-some true))
+                                     (select Keys (mk-tuple5 kid U V ni nr))
+                                     (select prf (mk-tuple6 kid U V ni nr false)))
+                       (mk-some kmac-prime))
+                    (= (select prf (mk-tuple6 kid U V ni nr true))
+                       (as mk-none (Maybe Bits_256)))))
+            ;; tested => prf none
+            (=> (let ((tau (<<func-mac>> kmac-prime nr 2)))
+                  (= (select revtest (mk-tuple5 U V ni nr tau))
+                     (mk-some true)))
+                (=> (= (ite (= (select H kid) (mk-some true))
+                                     (select Keys (mk-tuple5 kid U V ni nr))
+                                     (select prf (mk-tuple6 kid U V ni nr false)))
+                       (mk-some kmac-prime))
+                    (= (select prf (mk-tuple6 kid U V ni nr true))
+                       (as mk-none (Maybe Bits_256)))))            
+                       ))))
+
+
 ;; Some consistency checks on the PRF package
 ;;
 ;; (i) LTK and H are written at the same locations
@@ -800,6 +862,7 @@
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
            (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
 
            (freshness-and-honesty-matches State0 Fresh0 H0)
 

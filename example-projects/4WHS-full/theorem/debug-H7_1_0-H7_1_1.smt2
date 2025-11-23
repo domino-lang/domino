@@ -407,8 +407,8 @@
            (= H1 H1-old)
            (sid-matches State1-old Prf1-old)
            (own-nonce-is-unique State1-old Nonces1-old)
-           (key-not-computed-unless-test-or-reveal State1-old RevTested1-old Prf1-old H1-old Keys1-old)
-           ; This last condition is the one which makes the proof for the debug lemma "unknown"
+           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
 
 
            ;(freshness-and-honesty-matches State1-old Fresh1-old H1-old)
