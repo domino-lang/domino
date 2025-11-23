@@ -853,26 +853,30 @@
            (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
 
            (no-overwriting-game State0 ctr0)
-           (sid-is-wellformed State0 Prf0 Fresh0 Keys0)
+           (own-nonce-is-unique State0 Nonces0)
+
            (revtesteval-matches-sometimes State0 RevTestEval0 RevTestEval1 RevTested0)
-           (sid-matches State0 Prf0)
            (revtesteval-populated RevTestEval0 H0 Prf0)
            (revtesteval-populated RevTestEval1 H1 Prf1)
-           (own-nonce-is-unique State0 Nonces0)
-           (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
-           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
-           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
+;           (sid-matches State0 Prf0)
 
-           (freshness-and-honesty-matches State0 Fresh0 H0)
+;          (sid-is-wellformed State0 Prf0 Fresh0 Keys0)
+;          (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
-           (mac-keys-equal-in-prf Prf0 Prf1)
-           (kmac-and-tau-are-computed-correctly State0 Prf0 H0 Ltk0 Fresh0 Keys0)
-           (kmac-and-tau-are-computed-correctly State1 Prf1 H1 Ltk1 Fresh1 Keys1)
-           (stuff-not-initialized-early State0 Fresh0 Keys0)
-           (mac-table-wellformed Keys0 Values0)
 
-           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0)
+;           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+;           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
+
+;           (freshness-and-honesty-matches State0 Fresh0 H0)
+
+;           (mac-keys-equal-in-prf Prf0 Prf1)
+;           (kmac-and-tau-are-computed-correctly State0 Prf0 H0 Ltk0 Fresh0 Keys0)
+;           (kmac-and-tau-are-computed-correctly State1 Prf1 H1 Ltk1 Fresh1 Keys1)
+;           (stuff-not-initialized-early State0 Fresh0 Keys0)
+;           (mac-table-wellformed Keys0 Values0)
+
+;           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0)
 
            (sessions-in-first-exist First0 State0)
            (sessions-in-first-exist Second0 State0)
@@ -880,8 +884,8 @@
            (four-mac-implies-three-mac Values0)
            (three-mac-implies-two-mac Values0)
 
-           (two-mac-implies-first Values0 First0) ; <---
-           (three-mac-implies-second Values0 Second0)
+;           (two-mac-implies-first Values0 First0) ; <---
+;           (three-mac-implies-second Values0 Second0)
 
            (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
            (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
