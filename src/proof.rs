@@ -146,23 +146,11 @@ impl<'a> Proof<'a> {
     }
 
     pub fn reductions(&self) -> impl Iterator<Item = &Reduction<'_>> {
-        self.hops.iter().filter_map(|hopid| {
-            if let GameHop::Reduction(red) = &self.gamehops[*hopid] {
-                Some(red)
-            } else {
-                None
-            }
-        })
+        self.game_hops().filter_map(GameHop::as_reduction)
     }
 
     pub fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
-        self.hops.iter().filter_map(|hopid| {
-            if let GameHop::Equivalence(eq) = &self.gamehops[*hopid] {
-                Some(eq)
-            } else {
-                None
-            }
-        })
+        self.game_hops().filter_map(GameHop::as_equivalence)
     }
 
     pub fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {
