@@ -1,6 +1,6 @@
 theorem Blubb {
   const n: Integer;
-  const f: fn Bits(n), Integer, Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
+  const f: fn Bits(n), Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
   
   instance dprfReal = DPRF {
     params {

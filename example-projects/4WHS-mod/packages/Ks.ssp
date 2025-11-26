@@ -19,12 +19,12 @@ package Ks {
             k <-$ Bits(n);
         }
 
-        ltks[kid] <- Some(k);
+        ks[kid] <- Some(k);
         hons[kid] <- Some(hon);
     }
 
     oracle GetK(kid: (Integer, Integer, Integer,Bits(n), Bits(n))) -> Bits(n) {
-        k_opt <- ltks[kid];
+        k_opt <- ks[kid];
         return Unwrap(k_opt);
     }
 

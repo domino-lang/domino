@@ -2,7 +2,7 @@ composition DPRF {
   const b_Kmac: Bool;
   const b_K: Bool;
   const n: Integer;
-  const f: fn Bits(n), Integer, Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
+  const f: fn Bits(n), Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
 
   instance ltks = Ltks {
     params {
@@ -13,21 +13,20 @@ composition DPRF {
 
   instance ks = Ks {
     params {
-      ideal: ideal,
+      ideal: b_K,
       n: n,
     }
   }
 
   instance kmacs = KMacs {
     params {
-      ideal: ideal,
+      ideal: b_Kmac,
       n: n,
     }
   }
 
   instance dprf = DPRF{
     params {
-      ideal: ideal,
       n: n,
       f: f,
     }
@@ -42,5 +41,12 @@ composition DPRF {
       GetKMac: kmacs,
       HonKMac: kmacs,
     }
+
+    dprf: {
+        GetLtk: ltks,
+        HonLtk: ltks,
+        SetK: ks,
+        SetKMac: kmacs,
+      }
   }
 }

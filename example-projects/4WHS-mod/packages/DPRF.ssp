@@ -1,8 +1,7 @@
 package DPRF {
     params {
-        ideal: Bool,
         n: Integer,
-        f: fn Bits(n), Integer, Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n),
+        f: fn Bits(n), Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n),
     }
 
     import oracles {
