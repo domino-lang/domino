@@ -1349,8 +1349,8 @@ theorem WHSProto {
 
                 lemmas {
                     same-output:  [no-abort]
+                    debug:        [no-abort]
                     invariant:    [no-abort, debug]
-                    /*debug:        [no-abort]*/
                     equal-aborts: []
                 }
             }

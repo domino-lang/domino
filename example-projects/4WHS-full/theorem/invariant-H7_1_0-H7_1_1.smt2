@@ -883,18 +883,18 @@
            (sessions-in-first-exist Second0 State0)
 
            (four-mac-implies-three-mac Values0)
-           (three-mac-implies-two-mac Values0) ; Chris: takes 1:10 up to here for Send2
+           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
 
-;           (two-mac-implies-first Values0 First0) ; <---
-;           (three-mac-implies-second Values0 Second0)
+;           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
+           (three-mac-implies-second Values0 Second0)
 
-;           (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
-;           (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
-;           (initiator-msg-2-with-mac-three-only Values0 Fresh0 State0)
-;           (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
+           (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
+           (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
+           (initiator-msg-2-with-mac-three-only Values0 Fresh0 State0)
+           (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
            
-;           (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
-;           (first-set-by-initiator State0 First0 Fresh0 Values0)
-;           (honest-sessions-to-first-and-second State0 Fresh0 First0 Second0)
+           (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
+           (first-set-by-initiator State0 First0 Fresh0 Values0)
+           (honest-sessions-to-first-and-second State0 Fresh0 First0 Second0)
 
            ))))

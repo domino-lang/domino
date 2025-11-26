@@ -425,7 +425,7 @@
            (four-mac-implies-three-mac Values1-old)
            (three-mac-implies-two-mac Values1-old)
 
-           (two-mac-implies-first Values0-old First0-old) ; <--- seems hard to prove on the new states.
+        ;  (two-mac-implies-first Values0-old First0-old) ; <--- Wrong for Send2.
            (three-mac-implies-second Values1-old Second1-old)
 
            (initiator-accepts-with-msg-2-only Values1-old Fresh1-old State1-old)
