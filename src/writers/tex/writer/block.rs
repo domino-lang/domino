@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 use itertools::Itertools;
 use std::{fs::File, io::Write};
 
