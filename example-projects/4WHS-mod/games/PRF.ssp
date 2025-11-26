@@ -1,4 +1,4 @@
-composition DPRF {
+composition PRF {
   const b_Kmac: Bool;
   const b_K: Bool;
   const n: Integer;
@@ -25,7 +25,7 @@ composition DPRF {
     }
   }
 
-  instance dprf = DPRF{
+  instance dprf = PRF{
     params {
       n: n,
       f: f,

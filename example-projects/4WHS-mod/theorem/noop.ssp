@@ -2,7 +2,7 @@ theorem Blubb {
   const n: Integer;
   const f: fn Bits(n), Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
   
-  instance dprfReal = DPRF {
+  instance dprfReal = PRF {
     params {
       n:n,
       f:f,
@@ -11,7 +11,7 @@ theorem Blubb {
     }
   }
   
-  instance dprfIdealK = DPRF {
+  instance dprfIdealK = PRF {
     params {
       n:n,
       f:f,
@@ -19,7 +19,7 @@ theorem Blubb {
       b_Kmac: false,
     }
   }
-  instance dprfIdealKmac = DPRF {
+  instance dprfIdealKmac = PRF {
     params {
       n:n,
       f:f,
@@ -27,7 +27,7 @@ theorem Blubb {
       b_Kmac: true,
     }
   }
-  instance dprfIdeal = DPRF {
+  instance dprfIdeal = PRF {
     params {
       n:n,
       f:f,
@@ -37,9 +37,9 @@ theorem Blubb {
   }
 
   assumptions {
-    IND_DPRF_K: dprfReal ~ dprfIdealK 
-    IND_DPRF_KMac: dprfReal ~ dprfIdealKmac
-    IND_DPRF: dprfReal ~ dprfIdeal
+    IND_PRF_K: dprfReal ~ dprfIdealK 
+    IND_PRF_KMac: dprfReal ~ dprfIdealKmac
+    IND_PRF: dprfReal ~ dprfIdeal
   }
 
   gamehops {
