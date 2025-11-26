@@ -1,0 +1,36 @@
+package Ltks {
+    params {
+        ideal: Bool,
+        n: Integer,
+    }
+
+    state {
+        ltks: Table(Integer, Bits(n)),
+        hons: Table(Integer, Bool), /* is_pseudorandom */
+    }
+
+    oracle SetLtk(ltkid: Integer, ltk: Bits(n), hon: Bool) {
+        /* _should_ imply the rest is unset as well */
+        if not(ltks[ltkid] == None as Bits(n)) {
+            abort;
+        }
+
+        if (hon and ideal) {
+            ltk <-$ Bits(n);
+        }
+
+        ltks[ltkid] <- Some(ltk);
+        hons[ltkid] <- Some(hon);
+    }
+
+    oracle GetLtk(ltkid: Integer) -> Bits(n) {
+        ltk_opt <- ltks[ltkid];
+        return Unwrap(ltk_opt);
+    }
+
+    oracle HonLtk(ltkid: Integer) -> Bool {
+        hon_opt <- hons[ltkid];
+        return Unwrap(hon_opt);
+    }
+}
+

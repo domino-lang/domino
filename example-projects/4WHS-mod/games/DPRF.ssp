@@ -1,0 +1,46 @@
+composition DPRF {
+  const b_Kmac: Bool;
+  const b_K: Bool;
+  const n: Integer;
+  const f: fn Bits(n), Integer, Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
+
+  instance ltks = Ltks {
+    params {
+      ideal: true,
+      n: n,
+    }
+  }
+
+  instance ks = Ks {
+    params {
+      ideal: ideal,
+      n: n,
+    }
+  }
+
+  instance kmacs = KMacs {
+    params {
+      ideal: ideal,
+      n: n,
+    }
+  }
+
+  instance dprf = DPRF{
+    params {
+      ideal: ideal,
+      n: n,
+      f: f,
+    }
+  }
+
+  compose {
+    adversary: {
+      SetLtk: ltks,
+      Eval: dprf,
+      GetK: ks,
+      HonK: ks,
+      GetKMac: kmacs,
+      HonKMac: kmacs,
+    }
+  }
+}

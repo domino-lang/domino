@@ -1,0 +1,48 @@
+theorem Blubb {
+  const n: Integer;
+  const f: fn Bits(n), Integer, Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n);
+  
+  instance dprfReal = DPRF {
+    params {
+      n:n,
+      f:f,
+      b_K: false,
+      b_Kmac: false,
+    }
+  }
+  
+  instance dprfIdealK = DPRF {
+    params {
+      n:n,
+      f:f,
+      b_K: true,
+      b_Kmac: false,
+    }
+  }
+  instance dprfIdealKmac = DPRF {
+    params {
+      n:n,
+      f:f,
+      b_K: false,
+      b_Kmac: true,
+    }
+  }
+  instance dprfIdeal = DPRF {
+    params {
+      n:n,
+      f:f,
+      b_K: true,
+      b_Kmac: true,
+    }
+  }
+
+  assumptions {
+    IND_DPRF_K: dprfReal ~ dprfIdealK 
+    IND_DPRF_KMac: dprfReal ~ dprfIdealKmac
+    IND_DPRF: dprfReal ~ dprfIdeal
+  }
+
+  gamehops {
+
+  }
+}
