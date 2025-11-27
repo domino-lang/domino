@@ -1,0 +1,60 @@
+package GateDebug {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        h: Integer,
+        zeron: Bits(n),
+    }
+
+    import oracles {
+        GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)),
+        ENCN(j: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m),
+        ENCM(j: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
+    }
+
+
+    oracle GBLG(
+        l: Integer,
+        r: Integer,
+        op: Table((Bool, Bool), Bool),
+        j: Integer
+    ) -> Bits(p) {
+        C <- new Table(Bits(p), Bool);
+        Z <- invoke GETKEYSOUT(j);
+        bl <- false;
+        br <- false;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke ENCN(l, bl, kzero, zeron);
+        conein <- invoke ENCN(l, bl, zeron, zeron);
+        cout <- invoke ENCM(r, br, conein, czeroin);
+        c <- cout;
+        C[cout] <- Some(true);
+        bl <- true;
+        br <- false;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke ENCN(l, bl, kzero, zeron);
+        conein <- invoke ENCN(l, bl, zeron, zeron);
+        cout <- invoke ENCM(r, br, conein, czeroin);
+        C[cout] <- Some(true);
+        bl <- false;
+        br <- true;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke ENCN(l, bl, kzero, zeron);
+        conein <- invoke ENCN(l, bl, zeron, zeron);
+        cout <- invoke ENCM(r, br, conein, czeroin);
+        C[cout] <- Some(true);
+        bl <- true;
+        br <- true;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke ENCN(l, bl, kzero, zeron);
+        conein <- invoke ENCN(l, bl, zeron, zeron);
+        cout <- invoke ENCM(r, br, conein, czeroin);
+        C[cout] <- Some(true);
+        return c; /* This is the first ciphertext */
+    }
+}
