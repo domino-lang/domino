@@ -108,6 +108,21 @@ pub struct TypeMismatchError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("argument count mismatch: got {got}, expected {expected}")]
+#[diagnostic(code(domino::code::type_mismatch))]
+pub struct ArgumentCountMismatchError {
+    #[label("this expression has the wrong number of arguments")]
+    pub at: SourceSpan,
+
+    pub expected: usize,
+
+    pub got: usize,
+
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+}
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("package instance '{pkg_inst_name}' is not defined in game {in_game}")]
 #[diagnostic(code(domino::code::undefined_package_instance))]
 pub struct UndefinedPackageInstanceError {
