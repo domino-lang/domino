@@ -139,7 +139,7 @@ impl Composition {
     /// those who don't import oracles themselves) come first.
     /// We need to do this because when defining the oracle code functions, the called functions
     /// need to be defined by the time we call them.
-    pub fn ordered_pkgs(&self) -> Vec<PackageInstance> {
+    pub fn ordered_pkgs_idx(&self) -> Vec<usize> {
         let mut result = Vec::new();
         let mut added_pkgs = vec![false; self.pkgs.len()];
 
@@ -167,7 +167,7 @@ impl Composition {
 
             for i in 0..self.pkgs.len() {
                 if !added_pkgs[i] && candidates[i] {
-                    result.push(self.pkgs[i].clone());
+                    result.push(i);
                     added_pkgs[i] = true;
                     made_progress = true;
                 }
