@@ -61,7 +61,7 @@ impl TheoremUI for IndicatifTheoremUI {
         if let Some(project_progress) = &self.project_progress {
             project_progress.inc(1);
         };
-        if let Some(theorem_progress) = self.seq_theorem_progress.get(&(theorem_name.to_string())) {
+        if let Some(theorem_progress) = self.seq_theorem_progress.get(theorem_name) {
             theorem_progress.finish();
         }
     }
@@ -108,7 +108,7 @@ impl TheoremUI for IndicatifTheoremUI {
     }
 
     fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str) {
-        if let Some(theorem_progress) = self.seq_theorem_progress.get(&(theorem_name.to_string())) {
+        if let Some(theorem_progress) = self.seq_theorem_progress.get(theorem_name) {
             theorem_progress.inc(1);
         };
 

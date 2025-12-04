@@ -12,11 +12,9 @@ use crate::types::{CountSpec, Type};
 pub struct Transformation<'a>(pub &'a Composition);
 
 fn assert_is_populated(ty: &&Type) {
-    if let Type::Bits(cs) = ty {
-        if let CountSpec::Identifier(ident) = &**cs {
-            if let Identifier::PackageIdentifier(PackageIdentifier::Const(i)) = ident {
-                debug_assert!(i.game_assignment.is_some());
-            }
+    if let Type::Bits(CountSpec::Identifier(id)) = ty {
+        if let Identifier::PackageIdentifier(PackageIdentifier::Const(i)) = &**id {
+            debug_assert!(i.game_assignment.is_some());
         }
     }
 }

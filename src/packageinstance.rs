@@ -96,16 +96,16 @@ impl PackageInstance {
             .filter(|(_, expr)| matches!(expr.get_type(), Type::Integer))
             .map(|(ident, expr)| {
                 let assigned_value = match expr {
-                    Expression::Identifier(ident) => CountSpec::Identifier(ident.clone()),
+                    Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident.clone())),
                     Expression::IntegerLiteral(num) => CountSpec::Literal(*num as u64),
                     _ => unreachable!(),
                 };
 
                 (
-                    Type::Bits(Box::new(crate::types::CountSpec::Identifier(
+                    Type::Bits(crate::types::CountSpec::Identifier(Box::new(
                         ident.clone().into(),
                     ))),
-                    Type::Bits(Box::new(assigned_value)),
+                    Type::Bits(assigned_value),
                 )
             })
             .collect_vec();
@@ -251,86 +251,88 @@ pub(crate) mod instantiate {
         }
 
         pub(crate) fn rewrite_count_spec(&self, count_spec: CountSpec) -> CountSpec {
-            match (self.src, count_spec) {
-                (
-                    InstantiationSource::Package { const_assignments },
-                    CountSpec::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(
-                        mut pkg_const_ident,
-                    ))),
-                ) => {
-                    let (_, assigned_expr) = const_assignments
-                        .iter()
-                        .find(|(ident, _)| ident.name == pkg_const_ident.name)
-                        .expect("TODO todo: this should be a propoer error");
+            match count_spec {
+                CountSpec::Identifier(id) => {
+                    let src = &self.src;
+                    match (src, *id) {
+                        (
+                            InstantiationSource::Package { const_assignments },
+                            Identifier::PackageIdentifier(PackageIdentifier::Const(
+                                mut pkg_const_ident,
+                            )),
+                        ) => {
+                            let (_, assigned_expr) = const_assignments
+                                .iter()
+                                .find(|(ident, _)| ident.name == pkg_const_ident.name)
+                                .expect("TODO todo: this should be a propoer error");
 
-                    pkg_const_ident.set_pkg_inst_info(
-                        self.inst_name.to_string(),
-                        self.parent_name.to_string(),
-                    );
-                    pkg_const_ident.game_assignment = Some(Box::new(assigned_expr.clone()));
+                            pkg_const_ident.set_pkg_inst_info(
+                                self.inst_name.to_string(),
+                                self.parent_name.to_string(),
+                            );
+                            pkg_const_ident.game_assignment = Some(Box::new(assigned_expr.clone()));
 
-                    CountSpec::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(
-                        pkg_const_ident,
-                    )))
+                            CountSpec::Identifier(Box::new(Identifier::PackageIdentifier(
+                                PackageIdentifier::Const(pkg_const_ident),
+                            )))
+                        }
+
+                        (
+                            InstantiationSource::Game { const_assignments },
+                            Identifier::GameIdentifier(GameIdentifier::Const(mut game_const_ident)),
+                        ) => {
+                            let (_, assigned_expr) = const_assignments
+                                .iter()
+                                .find(|(ident, _)| ident.name == game_const_ident.name)
+                                .expect("TODO todo: this should be a propoer error");
+
+                            game_const_ident.set_game_inst_info(
+                                self.inst_name.to_string(),
+                                self.parent_name.to_string(),
+                            );
+                            game_const_ident.assigned_value = Some(Box::new(assigned_expr.clone()));
+
+                            CountSpec::Identifier(Box::new(Identifier::GameIdentifier(
+                                GameIdentifier::Const(game_const_ident),
+                            )))
+                        }
+
+                        // In this case we don't want to look up the value for the package const itself,
+                        // but for the game const that is inside. We also make sure the names are set
+                        // correctly. One thing we cannot do is set the assigned value on the package const
+                        // itself: we can only look up values in the assignment of the game instance.
+                        //
+                        (
+                            InstantiationSource::Game { .. },
+                            Identifier::PackageIdentifier(PackageIdentifier::Const(
+                                mut pkg_const_ident,
+                            )),
+                        ) => {
+                            pkg_const_ident.set_game_inst_info(
+                                self.inst_name.to_string(),
+                                self.parent_name.to_string(),
+                            );
+                            CountSpec::Identifier(Box::new(Identifier::PackageIdentifier(
+                                PackageIdentifier::Const(
+                                    if let Some(expr) = pkg_const_ident.game_assignment {
+                                        PackageConstIdentifier {
+                                            game_assignment: Some(Box::new(
+                                                self.rewrite_expression(expr.as_ref()),
+                                            )),
+                                            ..pkg_const_ident
+                                        }
+                                    } else {
+                                        // XXX: is this a valid case, o should we be expect that every package
+                                        // instance is already resolved up to the game at this point?
+                                        pkg_const_ident
+                                    },
+                                ),
+                            )))
+                        }
+                        (_, id) => CountSpec::Identifier(Box::new(id)),
+                    }
                 }
-
-                (
-                    InstantiationSource::Game { const_assignments },
-                    CountSpec::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
-                        mut game_const_ident,
-                    ))),
-                ) => {
-                    let (_, assigned_expr) = const_assignments
-                        .iter()
-                        .find(|(ident, _)| ident.name == game_const_ident.name)
-                        .expect("TODO todo: this should be a propoer error");
-
-                    game_const_ident.set_game_inst_info(
-                        self.inst_name.to_string(),
-                        self.parent_name.to_string(),
-                    );
-                    game_const_ident.assigned_value = Some(Box::new(assigned_expr.clone()));
-
-                    CountSpec::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
-                        game_const_ident,
-                    )))
-                }
-
-                // In this case we don't want to look up the value for the package const itself,
-                // but for the game const that is inside. We also make sure the names are set
-                // correctly. One thing we cannot do is set the assigned value on the package const
-                // itself: we can only look up values in the assignment of the game instance.
-                //
-                (
-                    InstantiationSource::Game { .. },
-                    CountSpec::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(
-                        mut pkg_const_ident,
-                    ))),
-                ) => {
-                    pkg_const_ident.set_game_inst_info(
-                        self.inst_name.to_string(),
-                        self.parent_name.to_string(),
-                    );
-                    CountSpec::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(
-                        if let Some(expr) = pkg_const_ident.game_assignment {
-                            PackageConstIdentifier {
-                                game_assignment: Some(Box::new(
-                                    self.rewrite_expression(expr.as_ref()),
-                                )),
-                                ..pkg_const_ident
-                            }
-                        } else {
-                            // XXX: is this a valid case, o should we be expect that every package
-                            // instance is already resolved up to the game at this point?
-                            pkg_const_ident
-                        },
-                    )))
-                }
-
-                (_, other @ (CountSpec::Any | CountSpec::Literal(_))) => other,
-
-                // not entirely sure about this one:
-                (_, other) => other,
+                other @ (CountSpec::Any | CountSpec::Literal(_)) => other,
             }
         }
 
@@ -350,12 +352,12 @@ pub(crate) mod instantiate {
                 InstantiationSource::Package { const_assignments } => {
                     type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
                         (
-                            Type::Bits(Box::new(CountSpec::Identifier(
+                            Type::Bits(CountSpec::Identifier(Box::new(
                                 Identifier::PackageIdentifier(PackageIdentifier::Const(
                                     ident.clone(),
                                 )),
                             ))),
-                            Type::Bits(Box::new(CountSpec::Identifier(
+                            Type::Bits(CountSpec::Identifier(Box::new(
                                 Identifier::PackageIdentifier(PackageIdentifier::Const({
                                     let mut fixed_ident: PackageConstIdentifier = ident.clone();
 
@@ -375,10 +377,10 @@ pub(crate) mod instantiate {
                 InstantiationSource::Game { const_assignments } => {
                     type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
                         (
-                            Type::Bits(Box::new(CountSpec::Identifier(
+                            Type::Bits(CountSpec::Identifier(Box::new(
                                 Identifier::GameIdentifier(GameIdentifier::Const(ident.clone())),
                             ))),
-                            Type::Bits(Box::new(CountSpec::Identifier(
+                            Type::Bits(CountSpec::Identifier(Box::new(
                                 Identifier::GameIdentifier(GameIdentifier::Const({
                                     let mut fixed_ident: GameConstIdentifier = ident.clone();
 
@@ -407,7 +409,7 @@ pub(crate) mod instantiate {
             };
 
             match ty {
-                Type::Bits(cs) => Type::Bits(Box::new(self.rewrite_count_spec(*cs))),
+                Type::Bits(cs) => Type::Bits(self.rewrite_count_spec(cs)),
                 Type::Tuple(tys) => Type::Tuple(fix_vec(tys)),
                 Type::Table(kty, vty) => Type::Table(fix_box(kty), fix_box(vty)),
                 Type::Fn(arg_tys, ret_ty) => Type::Fn(fix_vec(arg_tys), fix_box(ret_ty)),

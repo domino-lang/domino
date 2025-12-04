@@ -124,9 +124,6 @@ impl<'a> ParseGameContext<'a> {
             exports: self.exports,
             multi_inst_edges: self.multi_inst_edges,
             multi_inst_exports: self.multi_inst_exports,
-
-            // this one will be populated in a transform, not in the parser
-            split_exports: vec![],
         }
     }
 

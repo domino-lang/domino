@@ -163,18 +163,18 @@ impl<'a> EquivalenceContext<'a> {
         let mut bits_sort_suffixes = HashSet::new();
 
         for ty in self.types() {
-            if let Type::Bits(id) = &ty {
-                let bits_sort_suffix = match &**id {
+            if let Type::Bits(count_spec) = &ty {
+                let bits_sort_suffix = match count_spec {
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
-                    crate::types::CountSpec::Identifier(ident) => match ident {
+                    crate::types::CountSpec::Identifier(ident) => match ident.as_ref() {
                         Identifier::TheoremIdentifier(ident) => ident.ident(),
                         Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident)) => {
                             match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
                                 Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
                                 Some(Expression::Identifier(_)) => unreachable!("other identifiers can't occur here"),
                                 Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                None => {log::debug!("skipping identifier {id:?} since it is not fully resolved"); ident.ident()}
+                                None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
                             }
                         } ,
                         Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref() {
@@ -183,7 +183,7 @@ impl<'a> EquivalenceContext<'a> {
                                     Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
                                     Some(Expression::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
                                     Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                    None => {log::debug!("skipping identifier {id:?} since it is not fully resolved"); ident.ident()}
+                                    None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
                                 }
                             },
                             Expression::Identifier(_) => unreachable!("other identifiers can't occur here"),
@@ -1291,7 +1291,7 @@ impl<'a> EquivalenceContext<'a> {
             .consts
             .iter()
             .filter_map(|(name, ty)| match ty {
-                Type::Integer => Some(Type::Bits(Box::new(CountSpec::Identifier(
+                Type::Integer => Some(Type::Bits(CountSpec::Identifier(Box::new(
                     Identifier::TheoremIdentifier(TheoremIdentifier::Const(
                         TheoremConstIdentifier {
                             theorem_name: self.theorem().name.clone(),
@@ -1635,7 +1635,7 @@ impl<'a> EquivalenceContext<'a> {
         for selector in selectors {
             body = match selector {
                 patterns::GameStateSelector::Randomness { sample_pos } => SmtIte {
-                    cond: ("=", "sampleid", sample_pos),
+                    cond: ("=", "sampleid", sample_pos.as_ref()),
                     then: (pattern.selector_name(selector), state_name.clone()),
                     els: body,
                 }
@@ -1676,14 +1676,15 @@ impl<'a> EquivalenceContext<'a> {
         fn type_use_theorem_ident(ty: Type) -> Type {
             match ty {
                 Type::Bits(mut count_spec) => {
-                    if let CountSpec::Identifier(identifier) = count_spec.as_mut() {
+                    if let CountSpec::Identifier(identifier) = &mut count_spec {
                         let theorem_ident = identifier.as_theorem_identifier();
                         assert!(
                             theorem_ident.is_some(),
                             "expected {identifier:?} to be completely resolved"
                         );
-                        *identifier =
-                            Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
+                        *identifier = Box::new(Identifier::TheoremIdentifier(
+                            theorem_ident.cloned().unwrap(),
+                        ));
                     }
                     Type::Bits(count_spec)
                 }

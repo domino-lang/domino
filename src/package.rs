@@ -5,7 +5,6 @@ use miette::SourceSpan;
 use crate::identifier::Identifier;
 pub use crate::packageinstance::PackageInstance;
 use crate::parser::package::MultiInstanceIndices;
-use crate::split::SplitOracleSig;
 use crate::statement::CodeBlock;
 use crate::types::Type;
 
@@ -53,7 +52,6 @@ pub struct Package {
     pub params: Vec<(String, Type, SourceSpan)>,
     pub state: Vec<(String, Type, SourceSpan)>,
     pub oracles: Vec<OracleDef>,
-    //pub split_oracles: Vec<SplitOracleDef>,
     pub imports: Vec<(OracleSig, SourceSpan)>,
 
     pub file_name: String,
@@ -108,9 +106,6 @@ pub struct MultiInstanceExport {
     pub oracle_sig: OracleSig,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SplitExport(pub usize, pub SplitOracleSig);
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Composition {
     pub pkgs: Vec<PackageInstance>,
@@ -122,7 +117,6 @@ pub struct Composition {
     // contemplation: globally unique oracle identifiers vs
     // multiple shades of local uniqueness
     pub exports: Vec<Export>,
-    pub split_exports: Vec<SplitExport>,
     pub name: String,
     pub consts: Vec<(String, Type)>,
     pub multi_inst_edges: Vec<MultiInstanceEdge>,

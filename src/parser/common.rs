@@ -38,7 +38,7 @@ pub(crate) fn handle_countspec(
             Rule::identifier => {
                 let name = inner.as_str();
                 let ident = handle_identifier_in_code_rhs(ctx, &inner, name)?;
-                Ok(CountSpec::Identifier(ident))
+                Ok(CountSpec::Identifier(Box::new(ident)))
             }
             Rule::num => {
                 let num_str = inner.as_str();
@@ -100,10 +100,7 @@ pub(crate) fn handle_type(ctx: &ParseContext, ty: Pair<Rule>) -> Result<Type, Ha
         Rule::type_maybe => {
             Type::Maybe(Box::new(handle_type(ctx, ty.into_inner().next().unwrap())?))
         }
-        Rule::type_bits => Type::Bits(Box::new(handle_countspec(
-            ctx,
-            ty.into_inner().next().unwrap(),
-        )?)),
+        Rule::type_bits => Type::Bits(handle_countspec(ctx, ty.into_inner().next().unwrap())?),
         Rule::type_tuple => Type::Tuple(
             ty.into_inner()
                 .map(|t| handle_type(ctx, t))
@@ -209,7 +206,7 @@ pub(crate) fn handle_game_params_def_list(
                 )?;
 
                 let assigned_countspec = match value {
-                    Expression::Identifier(ident) => CountSpec::Identifier(ident),
+                    Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident)),
                     // TODO:: enforce somehow that this number is not negative
                     Expression::IntegerLiteral(num) => CountSpec::Literal(num as u64),
                     _ => {
@@ -221,7 +218,7 @@ pub(crate) fn handle_game_params_def_list(
                 let name: &str = name_ast.as_str();
 
                 bits_rewrite_rules.push((
-                    Type::Bits(Box::new(CountSpec::Identifier(
+                    Type::Bits(CountSpec::Identifier(Box::new(
                         Identifier::PackageIdentifier(PackageIdentifier::Const(
                             PackageConstIdentifier {
                                 pkg_name: pkg.name.clone(),
@@ -235,7 +232,7 @@ pub(crate) fn handle_game_params_def_list(
                             },
                         )),
                     ))),
-                    Type::Bits(Box::new(assigned_countspec)),
+                    Type::Bits(assigned_countspec),
                 ));
 
                 Ok((pair_span, name_ast, value_ast, expected_type))
@@ -374,7 +371,7 @@ pub(crate) fn handle_theorem_params_def_list(
         )?;
 
         let assigned_countspec = match value {
-            Expression::Identifier(ident) => CountSpec::Identifier(ident),
+            Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident)),
             // TODO:: enforce somehow that this number is not negative
             Expression::IntegerLiteral(num) => CountSpec::Literal(num as u64),
             _ => {
@@ -386,7 +383,7 @@ pub(crate) fn handle_theorem_params_def_list(
         let name: &str = name_ast.as_str();
 
         bits_rewrite_rules.push((
-            Type::Bits(Box::new(CountSpec::Identifier(Identifier::GameIdentifier(
+            Type::Bits(CountSpec::Identifier(Box::new(Identifier::GameIdentifier(
                 GameIdentifier::Const(GameConstIdentifier {
                     game_name: game.name.clone(),
                     name: name.to_string(),
@@ -397,7 +394,7 @@ pub(crate) fn handle_theorem_params_def_list(
                     assigned_value: None,
                 }),
             )))),
-            Type::Bits(Box::new(assigned_countspec)),
+            Type::Bits(assigned_countspec),
         ));
     }
 

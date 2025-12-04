@@ -181,7 +181,7 @@ impl<T: NameSection> MaybeNameSection for Option<T> {
     }
 }
 
-impl<'a> NameSection for String {
+impl NameSection for String {
     fn push_into<Delim: Delimiter, Stage: NameBuilderStage>(
         &self,
         builder: NameBuilder<Delim, Stage>,
@@ -199,7 +199,7 @@ impl NameSection for &str {
     }
 }
 
-impl<'a> NameSection for usize {
+impl NameSection for usize {
     fn push_into<Delim: Delimiter, Stage: NameBuilderStage>(
         &self,
         builder: NameBuilder<Delim, Stage>,
