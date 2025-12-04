@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
@@ -160,6 +161,27 @@ pub fn verify<UI: TheoremUI>(
         auxs: &auxs,
     };
 
+    let export_difference = eqctx.verify_exports_match();
+    if !export_difference.0.is_empty() || !export_difference.1.is_empty() {
+        return Err(Error::CompositionExportsMismatch {
+            left_game_inst_name: eq.left_name.clone(),
+            right_game_inst_name: eq.right_name.clone(),
+            mismatching_export_name: format!(
+                "left: {}, right: {}",
+                export_difference
+                    .0
+                    .into_iter()
+                    .map(|sig| format!("{sig}"))
+                    .join(", "),
+                export_difference
+                    .1
+                    .into_iter()
+                    .map(|sig| format!("{sig}"))
+                    .join(", "),
+            ),
+        });
+    }
+
     let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
@@ -195,7 +217,7 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
     transcript: bool,
     parallel: usize,
     req_oracle: &Option<String>,
-) -> crate::project::error::Result<()> {
+) -> Result<()> {
     let (theorem, auxs) = EquivalenceTransform
         .transform_theorem(orig_theorem)
         .unwrap();
@@ -205,6 +227,27 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         theorem: &theorem,
         auxs: &auxs,
     };
+
+    let export_difference = eqctx.verify_exports_match();
+    if !export_difference.0.is_empty() || !export_difference.1.is_empty() {
+        return Err(Error::CompositionExportsMismatch {
+            left_game_inst_name: eq.left_name.clone(),
+            right_game_inst_name: eq.right_name.clone(),
+            mismatching_export_name: format!(
+                "left: {}, right: {}",
+                export_difference
+                    .0
+                    .into_iter()
+                    .map(|sig| format!("{sig}"))
+                    .join(", "),
+                export_difference
+                    .1
+                    .into_iter()
+                    .map(|sig| format!("{sig}"))
+                    .join(", "),
+            ),
+        });
+    }
 
     let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
     let oracle_sequence: Vec<_> = eqctx
@@ -231,7 +274,7 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         .num_threads(parallel + 1) // one process is reserved for the "main" method
         .build()
         .unwrap()
-        .install(|| -> crate::project::error::Result<()> {
+        .install(|| -> Result<()> {
             let result_count = oracle_sequence
                 .par_iter()
                 .map(|oracle_sig| -> Result<()> {
@@ -253,9 +296,9 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
             if result_count == 0 {
                 Ok(())
             } else {
-                Err(crate::project::error::Error::ParallelEquivalenceError(
-                    result_count,
-                ))
+                Err(Error::ParallelEquivalenceError {
+                    failed_oracles: result_count,
+                })
             }
         })
 }

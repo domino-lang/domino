@@ -235,7 +235,7 @@ impl fmt::Display for OracleSig {
         // Use `self.number` to refer to each positional data point.
         write!(
             f,
-            "{}({}) -> {:?}",
+            "{}({}) -> {}",
             self.name,
             self.args
                 .iter()

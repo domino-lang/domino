@@ -23,11 +23,19 @@ pub enum Error {
         right_game_inst_name: String,
         mismatching_param_name: String,
     },
+    CompositionExportsMismatch {
+        left_game_inst_name: String,
+        right_game_inst_name: String,
+        mismatching_export_name: String,
+    },
     ClaimTheoremFailed {
         claim_name: String,
         oracle_name: String,
         response: ProverResponse,
         modelfile: ProverResponseResult<PathBuf>,
+    },
+    ParallelEquivalenceError {
+        failed_oracles: usize,
     },
 }
 
@@ -40,7 +48,6 @@ impl std::error::Error for Error {
         }
     }
 }
-
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -60,6 +67,7 @@ impl std::fmt::Display for Error {
                 )
             }
             Error::ProverProcessError(err) => write!(f, "error communicating with prover: {err}"),
+            Error::ParallelEquivalenceError{failed_oracles} => write!(f, "{failed_oracles} oracles failed when showing equivalence"),
             Error::InvariantFileReadError {
                 oracle_name,
                 invariant_file_name,
@@ -70,6 +78,11 @@ impl std::fmt::Display for Error {
                 right_game_inst_name,
                 mismatching_param_name,
             } => write!(f, "parameter {mismatching_param_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}"),
+            Error::CompositionExportsMismatch {
+                left_game_inst_name,
+                right_game_inst_name,
+                mismatching_export_name,
+            } => write!(f, "export(s) {mismatching_export_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}"),
             Error::ClaimTheoremFailed {
                 claim_name,
                 oracle_name,
