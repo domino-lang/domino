@@ -747,8 +747,8 @@ fn format_game_spec(
                     ctx.add_indent();
                     for param_block in params_rules {
                         let inner = param_block.clone().into_inner().next();
-                        if inner.is_some() {
-                            for block in inner.unwrap().into_inner() {
+                        if let Some(inner) = inner {
+                            for block in inner.into_inner() {
                                 let mut inner = block.into_inner();
                                 let paramname = inner.next().unwrap().as_str();
                                 let paramexpr = format_expr(inner.next().unwrap())?;
@@ -766,8 +766,8 @@ fn format_game_spec(
                     ctx.add_indent();
                     for types_block in types_rules {
                         let inner = types_block.clone().into_inner().next();
-                        if inner.is_some() {
-                            for block in inner.unwrap().into_inner() {
+                        if let Some(inner) = inner {
+                            for block in inner.into_inner() {
                                 let mut inner = block.into_inner();
                                 let typealias = format_type(inner.next().unwrap())?;
                                 let realtype = format_type(inner.next().unwrap())?;
