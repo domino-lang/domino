@@ -307,6 +307,8 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     // 1. if the specific game uses an identifier, then the general one uses the same
     // 2. if the specific game uses a concrete value (i.e. int or bool literal), then the general
     //    either uses the same value or an identifier.
+    let mut general_const_assignments = HashMap::new();
+
     specific.consts.iter().all(|(var, val)| {
         let other_val = general
             .consts
@@ -325,7 +327,19 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
         if matches!(val, Expression::BooleanLiteral(_))
             || matches!(val, Expression::IntegerLiteral(_))
         {
-            return val == other_val || matches!(other_val, Expression::Identifier(_));
+            if val == other_val {
+                return true;
+            }
+            if matches!(other_val, Expression::Identifier(_)) {
+                if general_const_assignments.contains_key(&var.name) {
+                    general_const_assignments.insert(&var.name, val);
+                    return true;
+                }
+                if general_const_assignments.get(&var.name) == Some(&val) {
+                    return true;
+                }
+                return false;
+            }
         }
         unimplemented!()
     })
