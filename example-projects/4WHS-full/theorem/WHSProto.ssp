@@ -1331,12 +1331,14 @@ theorem WHSProto {
             Send1: {
                 invariant: [
                     ./theorem/invariant-H7_1_0-H7_1_1.smt2
+                    ./theorem/debug-H7_1_0-H7_1_1.smt2
                     ./theorem/randomness-H7_1_0-H7_1_1.smt2
                 ]
 
                 lemmas {
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    debug:        [no-abort]
+                    invariant:    [no-abort, debug]
                     equal-aborts: []
                 }
             }
