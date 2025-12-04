@@ -257,11 +257,11 @@ fn package_empty_loop_works() {
 
     assert!(matches!(
             &pkg.oracles[0].sig.args[0],
-            (name, Type::Bits(bitlen)) if name == &k && matches!(&**bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
+            (name, Type::Bits(bitlen)) if name == &k && matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
 
     assert!(matches!(
             &pkg.oracles[0].sig.args[1],
-            (name, Type::Bits(bitlen)) if name == &h && matches!(&**bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
+            (name, Type::Bits(bitlen)) if name == &h && matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
 
     assert!(pkg.imports.is_empty());
     assert!(

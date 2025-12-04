@@ -107,7 +107,7 @@ fn param_wrong_type() {
 
     assert_eq!(err.expected, Type::Integer);
     assert!(
-        matches!(&err.got, Type::Bits(countspec) if matches!(&**countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n"  ))
+        matches!(&err.got, Type::Bits(countspec) if matches!(&*countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n"  ))
     );
 }
 

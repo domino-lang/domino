@@ -894,9 +894,6 @@ pub enum ParseIdentifierError {
     #[diagnostic(transparent)]
     TypeMismatch(TypeMismatchError),
 
-    #[error("error parsing left-hand-side name `{0}`: expected an identifier, got {1:?}")]
-    InvalidLeftHandSide(String, Declaration),
-
     #[diagnostic(transparent)]
     #[error(transparent)]
     ExpectedExpressionIdentifier(#[from] ExpectedExpressionIdentifierError),

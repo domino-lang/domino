@@ -77,11 +77,11 @@ impl Communicator {
 
             let data = String::from_utf8(self.buf[..self.pos].to_vec())?;
             if let (data_read, Some(v)) = p(read_cnt, &data) {
-                let rest_bs = data[data_read..].as_bytes().to_owned();
+                let rest_bs = &data.as_bytes()[data_read..];
 
                 self.buf.fill(0);
                 self.pos = rest_bs.len();
-                self.buf[..self.pos].copy_from_slice(&rest_bs);
+                self.buf[..self.pos].copy_from_slice(rest_bs);
 
                 return Ok(v);
             }
@@ -97,7 +97,7 @@ impl Communicator {
                 let match_end = match_start + pattern.len();
 
                 let ret = data[..match_end].to_string();
-                let rest_bs = data[match_end..].as_bytes();
+                let rest_bs = &data.as_bytes()[match_end..];
 
                 self.buf.fill(0);
                 self.pos = rest_bs.len();

@@ -1115,7 +1115,10 @@ impl<'a> CompositionSmtWriter<'a> {
             .map(|smt_sort| {
                 (
                     "declare-fun",
-                    format!("__sample-rand-{}-{}", game_inst.name, smt_sort.to_string()),
+                    format!(
+                        "__sample-rand-{game_inst_name}-{smt_sort}",
+                        game_inst_name = game_inst.name
+                    ),
                     (
                         SmtExpr::Atom("SampleId".into()),
                         SmtExpr::Atom("Int".into()),

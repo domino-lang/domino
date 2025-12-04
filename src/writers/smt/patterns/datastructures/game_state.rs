@@ -26,7 +26,8 @@ pub struct GameStatePattern<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub enum GameStateSelector<'a> {
     PackageInstance { pkg_inst_name: &'a str, sort: Sort },
-    Randomness { sample_pos: SamplePosition },
+    // Box'ed to reduce size of enum variant
+    Randomness { sample_pos: Box<SamplePosition> },
 }
 
 impl<'a> NameSection for GameStateSelector<'a> {
@@ -42,7 +43,9 @@ impl<'a> NameSection for GameStateSelector<'a> {
             GameStateSelector::PackageInstance { pkg_inst_name, .. } => {
                 builder.push("pkgstate").push(pkg_inst_name)
             }
-            GameStateSelector::Randomness { sample_pos } => builder.push("rand").extend(sample_pos),
+            GameStateSelector::Randomness { sample_pos } => {
+                builder.push("rand").extend(sample_pos.as_ref())
+            }
         }
     }
 }
@@ -126,7 +129,7 @@ impl<'a> DatastructurePattern<'a> for GameStatePattern<'a> {
                 .positions
                 .iter()
                 .map(|sample_pos| GameStateSelector::Randomness {
-                    sample_pos: sample_pos.clone(),
+                    sample_pos: Box::new(sample_pos.clone()),
                 });
 
         let fields = pkgstate_selectors.chain(rand_selectors).collect();

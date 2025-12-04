@@ -131,7 +131,7 @@ impl GameInstanceContext<'_> {
             .datastructure_game_state_pattern()
             .datastructure_spec(&declare_info);
         let selector = GameStateSelector::Randomness {
-            sample_pos: sample_info.positions[sample_id].clone(),
+            sample_pos: Box::new(sample_info.positions[sample_id].clone()),
         };
 
         self.datastructure_game_state_pattern()
@@ -184,7 +184,7 @@ impl GameInstanceContext<'_> {
             .datastructure_game_state_pattern()
             .datastructure_spec(&declare_info);
         let selector = GameStateSelector::Randomness {
-            sample_pos: sample_info.positions[sample_id].clone(),
+            sample_pos: Box::new(sample_info.positions[sample_id].clone()),
         };
 
         self.datastructure_game_state_pattern()

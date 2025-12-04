@@ -33,7 +33,7 @@ impl From<&Type> for SmtlibSort {
             Type::String => "String".into(),
             Type::Boolean => theories::core::bool_(),
             Type::Bits(length) => {
-                let length = match &**length {
+                let length = match length {
                     crate::types::CountSpec::Identifier(identifier) => identifier.ident(),
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
@@ -89,7 +89,7 @@ impl From<Type> for Sort {
     fn from(value: Type) -> Self {
         match value {
             Type::Bits(length) => {
-                let length = match &*length {
+                let length = match &length {
                     crate::types::CountSpec::Identifier(identifier) => identifier.ident(),
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),

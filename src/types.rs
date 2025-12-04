@@ -10,9 +10,9 @@ pub enum Type {
     Integer,
     String,
     Boolean,
-    Bits(Box<CountSpec>), // Bits strings of length ...
-    AddiGroupEl(String),  // name of the group
-    MultGroupEl(String),  // name of the group
+    Bits(CountSpec),     // Bits strings of length ...
+    AddiGroupEl(String), // name of the group
+    MultGroupEl(String), // name of the group
     List(Box<Type>),
     Set(Box<Type>),
     Tuple(Vec<Type>),
@@ -28,8 +28,8 @@ impl Type {
             replace.clone()
         } else {
             match self {
-                Type::Bits(count_spec) if matches!(count_spec.as_ref(), CountSpec::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident ))) if &pkg_const_ident.name == "n" && pkg_const_ident.ty == Type::Integer) => {
-                    assert!(!rules.is_empty(), "no type rewrite rules found despite identifier in CountSpec: {count_spec:?}");
+                Type::Bits(CountSpec::Identifier(id)) if matches!(id.as_ref(), Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident )) if &pkg_const_ident.name == "n" && pkg_const_ident.ty == Type::Integer) => {
+                    assert!(!rules.is_empty(), "no type rewrite rules found despite identifier in CountSpec: {id:?}");
                     self.clone()
                 }
 
@@ -62,7 +62,7 @@ impl Type {
 
     pub(crate) fn types_match(&self, other: &Self) -> bool {
         match (self, other) {
-            (Type::Bits(l), Type::Bits(r)) => l.countspecs_match(r.as_ref()),
+            (Type::Bits(l), Type::Bits(r)) => l.countspecs_match(r),
 
             (Type::List(l), Type::List(r))
             | (Type::Set(l), Type::Set(r))
@@ -105,7 +105,7 @@ impl std::fmt::Display for Type {
 /// Describes the length of Bits types
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub enum CountSpec {
-    Identifier(Identifier),
+    Identifier(Box<Identifier>),
     Literal(u64),
     Any,
 }
@@ -147,8 +147,8 @@ mod tests {
             "n",
             format!(
                 "{}",
-                CountSpec::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(
-                    PackageConstIdentifier {
+                CountSpec::Identifier(Box::new(Identifier::PackageIdentifier(
+                    PackageIdentifier::Const(PackageConstIdentifier {
                         pkg_name: "SomePackage".to_string(),
                         name: "n".to_string(),
                         pkg_inst_name: None,
@@ -157,7 +157,7 @@ mod tests {
                         game_inst_name: None,
                         game_name: None,
                         theorem_name: None,
-                    }
+                    })
                 )))
             )
         );

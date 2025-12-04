@@ -20,6 +20,7 @@ pub enum OracleContext {
     },
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Declaration {
     Identifier(Identifier),
@@ -38,7 +39,7 @@ impl Declaration {
 #[derive(Debug, Error, Diagnostic)]
 pub enum Error {
     #[error("identifier `{0}` already declared with {1:?}")]
-    AlreadyDefined(String, Declaration),
+    AlreadyDefined(String, Box<Declaration>),
 }
 
 #[derive(Debug, Clone)]
@@ -93,7 +94,7 @@ impl Scope {
         } else {
             Err(Error::AlreadyDefined(
                 id.to_string(),
-                self.lookup(id).unwrap(),
+                Box::new(self.lookup(id).unwrap()),
             )) // already defined
         }
     }

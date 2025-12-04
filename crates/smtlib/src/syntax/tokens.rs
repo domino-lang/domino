@@ -125,7 +125,7 @@ impl Display for Hexadecimal {
         for nibble in &self.nibbles {
             assert!(*nibble < 0x10);
 
-            write!(f, "{:x}", nibble)?;
+            write!(f, "{nibble:x}")?;
         }
 
         Ok(())
@@ -149,7 +149,7 @@ impl Display for Binary {
         write!(f, "#x")?;
         for bit in &self.bits {
             let bit = if *bit { 1 } else { 0 };
-            write!(f, "{:x}", bit)?;
+            write!(f, "{bit:x}")?;
         }
 
         Ok(())
