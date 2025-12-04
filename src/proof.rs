@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use crate::{expressions::Expression, gamehops::GameHop, theorem::GameInstance};
 
@@ -307,6 +307,8 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     // 1. if the specific game uses an identifier, then the general one uses the same
     // 2. if the specific game uses a concrete value (i.e. int or bool literal), then the general
     //    either uses the same value or an identifier.
+    let mut general_const_assignments = HashMap::new();
+
     specific.consts.iter().all(|(var, val)| {
         let other_val = general
             .consts
@@ -325,7 +327,20 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
         if matches!(val, Expression::BooleanLiteral(_))
             || matches!(val, Expression::IntegerLiteral(_))
         {
-            return val == other_val || matches!(other_val, Expression::Identifier(_));
+            if val == other_val {
+                return true;
+            }
+            if let Expression::Identifier(ident) = other_val {
+                if let Entry::Vacant(e) = general_const_assignments.entry(ident) {
+                    e.insert(val);
+                    return true;
+                }
+                if general_const_assignments.get(&ident) == Some(&val) {
+                    return true;
+                }
+                return false;
+            }
+            return false;
         }
         unimplemented!()
     })
