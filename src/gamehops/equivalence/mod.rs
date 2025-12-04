@@ -1350,6 +1350,53 @@ impl<'a> EquivalenceContext<'a> {
     //     split_info
     // }
 
+    fn verify_exports_match(&self) -> (Vec<OracleSig>, Vec<OracleSig>) {
+        let left_game_inst = self
+            .theorem
+            .find_game_instance(self.equivalence().left_name())
+            .unwrap();
+        let right_game_inst = self
+            .theorem
+            .find_game_instance(self.equivalence().right_name())
+            .unwrap();
+
+        let left_exports: HashSet<_> = left_game_inst
+            .game()
+            .exports
+            .iter()
+            .map(|Export(_, oracle_sig)| oracle_sig.clone())
+            .collect();
+        let right_exports: HashSet<_> = right_game_inst
+            .game()
+            .exports
+            .iter()
+            .map(|Export(_, oracle_sig)| oracle_sig.clone())
+            .collect();
+
+        let only_left: Vec<_> = left_exports
+            .iter()
+            .filter(|sig| {
+                right_exports
+                    .iter()
+                    .find(|right_sig| sig.name == right_sig.name && sig.types_match(right_sig))
+                    == None
+            })
+            .map(|sig| sig.clone())
+            .collect();
+        let only_right: Vec<_> = right_exports
+            .iter()
+            .filter(|sig| {
+                left_exports
+                    .iter()
+                    .find(|left_sig| sig.name == left_sig.name && sig.types_match(left_sig))
+                    == None
+            })
+            .map(|sig| sig.clone())
+            .collect();
+
+        (only_left, only_right)
+    }
+
     fn oracle_sequence(&self) -> Vec<&'a OracleSig> {
         let game_inst = self
             .theorem
