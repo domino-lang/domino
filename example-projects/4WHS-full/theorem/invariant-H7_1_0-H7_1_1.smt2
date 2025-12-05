@@ -866,35 +866,35 @@
            (own-nonce-is-unique State0 Nonces0) ; Chris: takes 1:10 up to here for Send2
 
 
-          (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
+;          (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
 
-           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
-           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
+;           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+;           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
 
-           (freshness-and-honesty-matches State0 Fresh0 H0)
+;           (freshness-and-honesty-matches State0 Fresh0 H0)
 
-           (stuff-not-initialized-early State0 Fresh0 Keys0)
-           (mac-table-wellformed Keys0 Values0)
+;           (stuff-not-initialized-early State0 Fresh0 Keys0)
+;           (mac-table-wellformed Keys0 Values0)
 
-           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0)
+;           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0)
 
-           (sessions-in-first-exist First0 State0)
-           (sessions-in-first-exist Second0 State0)
+;           (sessions-in-first-exist First0 State0)
+;           (sessions-in-first-exist Second0 State0)
 
-           (four-mac-implies-three-mac Values0)
-           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
+;           (four-mac-implies-three-mac Values0)
+;           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
 
-;           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
-           (three-mac-implies-second Values0 Second0)
+           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
+;           (three-mac-implies-second Values0 Second0)
 
-           (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
-           (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
-           (initiator-msg-2-with-mac-three-only Values0 Fresh0 State0)
-           (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
+ ;          (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
+ ;          (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
+ ;          (initiator-msg-2-with-mac-three-only Values0 Fresh0 State0)
+ ;          (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
            
-           (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
-           (first-set-by-initiator State0 First0 Fresh0 Values0)
-           (honest-sessions-to-first-and-second State0 Fresh0 First0 Second0)
+ ;          (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
+ ;          (first-set-by-initiator State0 First0 Fresh0 Values0)
+ ;          (honest-sessions-to-first-and-second State0 Fresh0 First0 Second0)
 
            ))))

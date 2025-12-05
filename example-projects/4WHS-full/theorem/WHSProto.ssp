@@ -1350,10 +1350,10 @@ theorem WHSProto {
                 ]
 
                 lemmas {
+                    equal-aborts: []
                     same-output:  [no-abort]
                     debug:        [no-abort]
                     invariant:    [no-abort, debug]
-                    equal-aborts: []
                 }
             }
              Send3: {
