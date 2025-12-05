@@ -73,7 +73,7 @@ impl Type {
             }
 
             (Type::Tuple(l), Type::Tuple(r)) => {
-                l.iter().zip(r.iter()).all(|(l, r)| Type::types_match(l, r))
+                l.len() == r.len() && l.iter().zip(r.iter()).all(|(l, r)| Type::types_match(l, r))
             }
 
             (Type::Fn(largs, lty), Type::Fn(rargs, rty)) => {
