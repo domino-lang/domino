@@ -1,0 +1,121 @@
+use crate::debug_assert_matches;
+use pest::iterators::Pair;
+use pest::Parser;
+
+extern crate pest;
+
+#[derive(Parser)]
+#[grammar = "util/smtparser/smt.pest"]
+struct PestSmtParser;
+
+pub(super) trait SmtParser<T> {
+    fn handle_sexp(&mut self, parsed: T);
+
+    fn handle_atom(&mut self, content: &str) -> T;
+
+    fn handle_list(&mut self, content: Vec<T>) -> T;
+
+    fn handle_integer(&mut self, content: &str) -> T {
+        self.handle_atom(content)
+    }
+
+    fn handle_definefun(&mut self, funname: &str, args: Vec<T>, ty: &str, body: T) -> T {
+        let funname = self.handle_atom(funname);
+        let args = self.handle_list(args);
+        let ty = self.handle_atom(ty);
+        let defun = self.handle_atom("define-fun");
+
+        self.handle_list(vec![defun, funname, args, ty, body])
+    }
+
+    fn handle_sampleid(&mut self, pkgname: &str, oraclename: &str, samplename: &str) -> T {
+        let list = ["sample_id", pkgname, oraclename, samplename]
+            .into_iter()
+            .map(|x| self.handle_atom(x))
+            .collect::<Vec<T>>();
+        self.handle_list(list)
+    }
+
+    fn parse_sexp(&mut self, from: &str) {
+        let parse_result = PestSmtParser::parse(Rule::sexp, from).unwrap();
+    }
+
+    fn parse_sexps(&mut self, from: &str) {
+        let sexps = PestSmtParser::parse(Rule::sexps, from)
+            .unwrap()
+            .next()
+            .unwrap();
+        for sexp in sexps.into_inner() {
+            if !matches!(sexp.as_rule(), Rule::sexp) {
+                continue;
+            };
+
+            let parsed = self.rule_sexp(&sexp);
+
+            self.handle_sexp(parsed)
+        }
+    }
+
+    fn rule_sexp(&mut self, p: &Pair<Rule>) -> T {
+        debug_assert_matches!(p.as_rule(), Rule::sexp);
+        let inner = p.clone().into_inner().next().unwrap();
+        match inner.as_rule() {
+            Rule::atom => self.handle_atom(inner.as_str()),
+            Rule::integer => self.handle_integer(inner.as_str()),
+            Rule::list => {
+                let list = inner
+                    .into_inner()
+                    .map(|x| self.rule_sexp(&x))
+                    .collect::<Vec<T>>();
+                self.handle_list(list)
+            }
+            Rule::sampleid => {
+                let mut inner = inner.into_inner();
+                let pkgname = inner.next().unwrap().as_str();
+                let oraclename = inner.next().unwrap().as_str();
+                let samplename = inner.next().unwrap().as_str();
+                self.handle_sampleid(pkgname, oraclename, samplename)
+            }
+            Rule::defun => {
+                let mut inner = inner.into_inner();
+                let funname = inner.next().unwrap().as_str();
+                let args = inner.next().unwrap();
+                debug_assert_matches!(args.as_rule(), Rule::list);
+                let args: Vec<_> = args
+                    .into_inner()
+                    .map(|sexp| self.rule_sexp(&sexp))
+                    .collect();
+                let ty = inner.next().unwrap().as_str();
+                let body = self.rule_sexp(&inner.next().unwrap());
+
+                self.handle_definefun(funname, args, ty, body)
+            }
+            _ => {
+                todo!("{inner}")
+            }
+        }
+    }
+}
+
+// pub struct SmtExprParser {
+//     pub sexps: Vec<SmtExpr>,
+// }
+
+// impl SmtExprParser {
+//     pub fn new() -> Self {
+//         SmtExprParser { sexps: Vec::new() }
+//     }
+// }
+
+// impl SmtParser<SmtExpr> for SmtExprParser {
+//     fn handle_sexp(&mut self, parsed: SmtExpr) {
+//         self.sexps.push(parsed);
+//     }
+//     fn handle_atom(&mut self, content: &str) -> SmtExpr {
+//         SmtExpr::Atom(content.to_string())
+//     }
+
+//     fn handle_list(&mut self, content: Vec<SmtExpr>) -> SmtExpr {
+//         SmtExpr::List(content)
+//     }
+// }
