@@ -790,6 +790,28 @@ impl<'a> EquivalenceContext<'a> {
                 error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
             })?;
             log::info!("read file {file_name}");
+
+            let parsed_sampleids = crate::util::smtparser::extract_sampleid(&file_contents);
+            let left_sample_pos = &self.sample_info_left().positions;
+            let right_sample_pos = &self.sample_info_right().positions;
+
+            for sampleinfo in &parsed_sampleids {
+                if left_sample_pos.iter().any(|samplepos| {
+                    samplepos.inst_name == sampleinfo.pkgname
+                        && samplepos.oracle_name == sampleinfo.oraclename
+                        && samplepos.sample_name == sampleinfo.samplename
+                }) && right_sample_pos.iter().any(|samplepos| {
+                    samplepos.inst_name == sampleinfo.pkgname
+                        && samplepos.oracle_name == sampleinfo.oraclename
+                        && samplepos.sample_name == sampleinfo.samplename
+                }) {
+                    let smtfun = &sampleinfo.smtfunname;
+                    log::warn!("Invariant code in {file_name} uses {sampleinfo} in function {smtfun} which does not occur in package code");
+                }
+            }
+
+            dbg!(parsed_sampleids);
+
             write!(comm, "{file_contents}").unwrap();
             log::info!("wrote contents of file {file_name}");
 
