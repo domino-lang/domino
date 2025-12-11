@@ -30,7 +30,10 @@ impl<'a> GameInstanceContext<'a> {
     }
 
     pub(crate) fn pkg_inst_contexts(self) -> impl Iterator<Item = PackageInstanceContext<'a>> {
-        (0..self.game().pkgs.len()).map(move |i| self.pkg_inst_ctx_by_offs(i).unwrap())
+        self.game()
+            .ordered_pkgs_idx()
+            .into_iter()
+            .map(move |i| self.pkg_inst_ctx_by_offs(i).unwrap())
     }
 
     pub(crate) fn game_inst(self) -> &'a GameInstance {
