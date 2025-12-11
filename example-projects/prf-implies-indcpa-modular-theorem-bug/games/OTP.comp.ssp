@@ -1,0 +1,17 @@
+composition OTP {
+    const b: Integer;
+    const Xor: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance Xor = Xor {
+        params {
+            b: b,
+            Xor: Xor
+        }
+    }
+
+    compose {
+        adversary: {
+            XOR: Xor
+        }
+    }
+}

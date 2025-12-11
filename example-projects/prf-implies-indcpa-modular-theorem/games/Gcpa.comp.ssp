@@ -1,0 +1,36 @@
+composition Gcpa {
+    const b: Bool;
+    const zeros: Bits(256);
+    const prf: fn Bits(256), Bits(256) -> Bits(256);
+    const Xor: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance Construction = Construction {
+        params {
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Message = Message {
+        params {
+            b: b,
+            zeros: zeros
+        }
+    }
+
+    instance CPA = CPA {
+        params {
+            prf: prf
+        }
+    }
+
+    compose {
+        adversary: {
+            ENC: CPA
+        }
+        CPA: {
+            Enc: Construction,
+            GET_MSG: Message
+        }
+    }
+}

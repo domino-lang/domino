@@ -1,0 +1,14 @@
+package Message {
+    params {
+        b: Bool,
+        zeros: Bits(256)
+    }
+
+    oracle GET_MSG(m: Bits(256)) -> Bits(256) {
+        if b {
+            return zeros;
+        } else {
+            return m;
+        }
+    }
+}

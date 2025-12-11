@@ -1,0 +1,245 @@
+theorem PrfImpliesIndCpa {
+    const b: Bool;
+    const zeros: Bits(256);
+    const prf: fn Bits(256), Bits(256) -> Bits(256);
+    const Xor: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance Coll0 = Gcoll {
+        params {
+            b: false
+        }
+    }
+
+    instance Coll1 = Gcoll {
+        params {
+            b: true
+        }
+    }
+
+    instance Prf0 = Gprf {
+        params {
+            b: false,
+            prf: prf
+        }
+    }
+
+    instance Prf1 = Gprf {
+        params {
+            b: true,
+            prf: prf
+        }
+    }
+
+    instance XOR = OTP {
+        params {
+            b: 2,
+            Xor: Xor
+        }
+    }
+
+    instance OTP0 = OTP {
+        params {
+            b: 0,
+            Xor: Xor
+        }
+    }
+
+    instance OTP1 = OTP {
+        params {
+            b: 1,
+            Xor: Xor
+        }
+    }
+
+    instance Gcpa = Gcpa {
+        params {
+            b: b,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gcpa0 = Gcpa {
+        params {
+            b: false,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gcpa1 = Gcpa {
+        params {
+            b: true,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_Prf0 = Gmod {
+        params {
+            b_msg: b,
+            b_prf: false,
+            b_coll: true,
+            b_otp: 2,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_Prf1_Coll1 = Gmod {
+        params {
+            b_msg: b,
+            b_prf: true,
+            b_coll: true,
+            b_otp: 2,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_Coll0_OTP2 = Gmod {
+        params {
+            b_msg: b,
+            b_prf: true,
+            b_coll: false,
+            b_otp: 2,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_OTP0 = Gmod {
+        params {
+            b_msg: b,
+            b_prf: true,
+            b_coll: false,
+            b_otp: 0,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_OTP1 = Gmod {
+        params {
+            b_msg: b,
+            b_prf: true,
+            b_coll: false,
+            b_otp: 1,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_OTP1_Msg0 = Gmod {
+        params {
+            b_msg: false,
+            b_prf: true,
+            b_coll: false,
+            b_otp: 1,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    instance Gmod_OTP1_Msg1 = Gmod {
+        params {
+            b_msg: true,
+            b_prf: true,
+            b_coll: false,
+            b_otp: 1,
+            zeros: zeros,
+            prf: prf,
+            Xor: Xor
+        }
+    }
+
+    assumptions {
+        Coll: Coll0 ~ Coll1
+        PRF: Prf0 ~ Prf1 
+        OTP: OTP0 ~ OTP1
+    }
+
+    gamehops {
+        equivalence Gcpa Gmod_Prf0 {
+            ENC: {
+                invariant: [
+                    ./theorem/invariant-Gcpa-Gmod.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+        reduction Gmod_Prf0 Gmod_Prf1_Coll1 {
+            assumption PRF
+            map Prf0 Gmod_Prf0 {
+                Prf: Prf
+            }
+            map Prf1 Gmod_Prf1_Coll1 {
+                Prf: Prf
+            }
+        }
+        reduction Gmod_Prf1_Coll1 Gmod_Coll0_OTP2 {
+            assumption Coll
+            map Coll1 Gmod_Prf1_Coll1 {
+                Coll: Coll
+            }
+            map Coll0 Gmod_Coll0_OTP2 {
+                Coll: Coll
+            }
+        }
+        equivalence Gmod_Coll0_OTP2 Gmod_OTP0 {
+            ENC: {
+                invariant: [
+                    ./theorem/invariant-OTP2-OTP0.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+        reduction Gmod_OTP0 Gmod_OTP1 {
+            assumption OTP
+            map OTP0 Gmod_OTP0 {
+                Xor: Xor 
+            }
+            map OTP1 Gmod_OTP1 {
+                Xor: Xor 
+            }
+        }
+        equivalence Gmod_OTP1_Msg0 Gmod_OTP1_Msg1 {
+            ENC: {
+                invariant: [
+                    ./theorem/invariant-Msg0-Msg1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+    }
+
+    /* theorem has a bug here */
+
+    propositions {
+        Main: Gcpa0 ~ Gcpa1
+    }
+}

@@ -1,0 +1,18 @@
+package Mod {
+    import oracles {
+        GET_MSG(m: Bits(256)) -> Bits(256),
+        XOR(m: Bits(256), pad: Bits(256)) -> Bits(256),
+        GET_RAND() -> (Bits(256), Bool),
+        EVAL(x: Bits(256)) -> Bits(256),
+    }
+
+    oracle ENC(m: Bits(256)) -> (Bits(256), Bits(256)) {
+        m <- invoke GET_MSG(m);
+        t <- invoke GET_RAND();
+        (r, b) <- parse t;
+        assert not b;
+        pad <- invoke EVAL(r);
+        c <- invoke XOR(m, pad);
+        return (r, c);
+    }
+}

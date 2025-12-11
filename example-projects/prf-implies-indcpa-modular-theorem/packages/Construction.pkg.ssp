@@ -1,0 +1,11 @@
+package Construction {
+    params {
+        prf: fn Bits(256), Bits(256) -> Bits(256),
+        Xor: fn Bits(256), Bits(256) -> Bits(256)
+    }
+
+    oracle Enc(k: Bits(256), m: Bits(256)) -> (Bits(256), Bits(256)) {
+        r <-$ Bits(256) sample-name r;
+        return (r, Xor(prf(k, r), m));
+    }
+}

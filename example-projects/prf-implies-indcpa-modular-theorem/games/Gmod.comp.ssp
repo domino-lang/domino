@@ -1,0 +1,52 @@
+composition Gmod {
+    const b: Bool;
+    const b_prf: Bool;
+    const b_coll: Bool;
+    const b_otp: Integer;
+    const zeros: Bits(256);
+    const prf: fn Bits(256), Bits(256) -> Bits(256);
+    const Xor: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance Xor = Xor {
+        params {
+            b: b_otp,
+            Xor: Xor
+        }
+    }
+
+    instance Prf = Prf {
+        params {
+            b: b_prf,
+            prf: prf
+        }
+    }
+
+    instance Message = Message {
+        params {
+            b: b,
+            zeros: zeros
+        }
+    }
+
+    instance Coll = Coll {
+        params {
+            b: b_coll
+        }
+    }
+
+    instance Mod = Mod {
+    }
+
+    compose {
+        adversary: {
+            ENC: Mod
+        }
+        Mod: {
+            XOR: Xor,
+            EVAL: Prf,
+            GET_RAND: Coll,
+            GET_MSG: Message
+        }
+    }
+
+}

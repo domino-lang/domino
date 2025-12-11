@@ -1,0 +1,16 @@
+composition Gcoll {
+    const b: Bool;
+
+    instance Coll = Coll {
+        params {
+            b: b
+        }
+        
+    }
+
+    compose {
+        adversary: {
+            GET_RAND: Coll
+        }
+    }
+}

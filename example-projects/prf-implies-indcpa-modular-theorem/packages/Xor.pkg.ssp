@@ -1,0 +1,18 @@
+package Xor {
+    params {
+        b: Integer,
+        Xor: fn Bits(256), Bits(256) -> Bits(256)
+    }
+
+    oracle XOR(m: Bits(256), pad: Bits(256)) -> Bits(256) {
+        if (b == 1) {
+            r <-$ Bits(256) sample-name r;
+            return r;
+        }
+        if (b == 0) {
+            pad <-$ Bits(256) sample-name pad;
+        }
+        return Xor(pad, m);
+    }
+
+}

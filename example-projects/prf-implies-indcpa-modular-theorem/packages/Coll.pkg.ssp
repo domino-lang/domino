@@ -1,0 +1,21 @@
+package Coll {
+    params {
+        b: Bool
+    }
+
+    state {
+        T: Table(Bits(256), Bool)
+    }
+
+    oracle GET_RAND() -> (Bits(256), Bool) {
+        x <-$ Bits(256) sample-name x;
+        if b {
+            return (x, false);
+        }
+        if (T[x] != None) {
+            return (x, true);
+        }
+        T[x] <- Some(true);
+        return (x, false);
+    }
+}
