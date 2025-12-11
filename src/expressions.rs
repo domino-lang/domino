@@ -13,6 +13,7 @@ pub enum Expression {
     StringLiteral(String),
     IntegerLiteral(i64),
     BooleanLiteral(String),
+    BitsLiteral(String, Type),
     Identifier(Identifier),
     EmptyTable(Type),
     TableAccess(Identifier, Box<Expression>),
@@ -68,6 +69,7 @@ impl Expression {
             Expression::StringLiteral(_) => Type::String,
             Expression::BooleanLiteral(_) => Type::Boolean,
             Expression::IntegerLiteral(_) => Type::Integer,
+            Expression::BitsLiteral(_, ty) => ty.clone(),
             Expression::Identifier(ident) => ident.get_type(),
             Expression::EmptyTable(t) => t.clone(),
             Expression::TableAccess(ident, _) => match ident.get_type() {
@@ -138,7 +140,8 @@ impl Expression {
             | Expression::IntegerLiteral(_)
             | Expression::EmptyTable(_)
             | Expression::None(_)
-            | Expression::BooleanLiteral(_) => true,
+            | Expression::BooleanLiteral(_)
+            | Expression::BitsLiteral(_, _) => true,
 
             Expression::TableAccess(_, _) | Expression::FnCall(_, _) | Expression::Sample(_) => {
                 false
@@ -243,6 +246,7 @@ impl Expression {
             | Expression::StringLiteral(_)
             | Expression::IntegerLiteral(_)
             | Expression::BooleanLiteral(_)
+            | Expression::BitsLiteral(_, _)
             | Expression::Identifier(_) => self.clone(),
 
             Expression::Not(expr) => Expression::Not(Box::new(expr.borrow_map(f))),
@@ -307,6 +311,7 @@ impl Expression {
             | Expression::StringLiteral(_)
             | Expression::IntegerLiteral(_)
             | Expression::BooleanLiteral(_)
+            | Expression::BitsLiteral(_, _)
             | Expression::Identifier(_) => (init, self.clone()),
 
             Expression::Not(expr) => {
