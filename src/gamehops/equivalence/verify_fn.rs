@@ -92,7 +92,7 @@ fn verify_oracle<UI: TheoremUI>(
         );
 
         log::info!("verify: oracle:{oracle_sig:?}");
-        write!(prover, "(push 1)").unwrap();
+        writeln!(prover, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut prover, &oracle_sig.name)?;
         eqctx.emit_invariant(&mut prover, &oracle_sig.name)?;
 
@@ -104,7 +104,7 @@ fn verify_oracle<UI: TheoremUI>(
                 claim.name(),
             );
 
-            write!(prover, "(push 1)").unwrap();
+            writeln!(prover, "(push 1)").unwrap();
             eqctx.emit_claim_assert(&mut prover, &oracle_sig.name, &claim)?;
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
@@ -124,7 +124,7 @@ fn verify_oracle<UI: TheoremUI>(
                     });
                 }
             }
-            write!(prover, "(pop 1)").unwrap();
+            writeln!(prover, "(pop 1)").unwrap();
             ui.lock().unwrap().finish_lemma(
                 &eqctx.theorem().name,
                 &proofstep_name,
@@ -133,7 +133,7 @@ fn verify_oracle<UI: TheoremUI>(
             );
         }
 
-        write!(prover, "(pop 1)").unwrap();
+        writeln!(prover, "(pop 1)").unwrap();
         ui.lock()
             .unwrap()
             .finish_oracle(&eqctx.theorem().name, &proofstep_name, &oracle_sig.name);

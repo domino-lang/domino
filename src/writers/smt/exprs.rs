@@ -218,25 +218,85 @@ impl<
     }
 }
 
+// # Formating Strategy
+//
+// For Lists of Lists, each element list gets a new line:
+// ```
+// ((test)
+//  (test))
+// ```
+// That works for forall and let!
+// Next, for lists of length at least three we put all further elements below the second
+// ```
+// (foo bar
+//      baz
+//      bar)
+// ```
+// Finally, it would make sense to put a list all in one line if it is short enough
+// ```
+// (+ 1 2)
+// ```
 impl Display for SmtExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SmtExpr::Comment(str) => write!(f, "; {str}"),
-            SmtExpr::Atom(str) => write!(f, "{str}"),
-            SmtExpr::List(lst) => {
-                let mut peek = lst.iter().peekable();
+        fn helper(
+            f: &mut std::fmt::Formatter<'_>,
+            expr: &SmtExpr,
+            parcount: usize,
+            indent: usize,
+        ) -> std::fmt::Result {
+            match expr {
+                SmtExpr::Atom(str) => write!(f, "{str}"),
+                SmtExpr::List(lst) => {
+                    write!(f, "(")?;
+                    if lst.is_empty() {
+                    } else if matches!(lst[0], SmtExpr::List(_)) || lst.len() == 1 {
+                        let mut peek = lst.iter().peekable();
 
-                write!(f, "(")?;
-                while let Some(elem) = peek.next() {
-                    elem.fmt(f)?;
+                        while let Some(elem) = peek.next() {
+                            helper(f, elem, parcount + 1, indent + 1)?;
 
-                    if peek.peek().is_some() {
-                        write!(f, " ")?;
+                            if peek.peek().is_some() {
+                                writeln!(f)?;
+                                write!(f, "{}", " ".repeat(indent + 1))?;
+                            }
+                        }
+                    } else {
+                        let mut peek = lst.iter().peekable();
+
+                        // we know the first element exists and is a non-list!
+                        let indent_inc = if let Some(SmtExpr::Atom(str)) = peek.next() {
+                            write!(f, "{str} ")?;
+                            str.len() + 1
+                        } else {
+                            unreachable!()
+                        };
+
+                        while let Some(elem) = peek.next() {
+                            helper(f, elem, parcount + 1, indent + indent_inc + 1)?;
+
+                            if peek.peek().is_some() {
+                                writeln!(f)?;
+                                write!(f, "{}", " ".repeat(indent + indent_inc + 1))?;
+                            }
+                        }
+                    }
+                    write!(f, ")")?;
+                    if parcount == 0 {
+                        writeln!(f)?;
+                    }
+                    Ok(())
+                }
+                SmtExpr::Comment(str) => {
+                    if parcount == 0 {
+                        writeln!(f, ";; {str}")
+                    } else {
+                        unreachable!()
                     }
                 }
-                writeln!(f, ")")
             }
         }
+
+        helper(f, self, 0, 0)
     }
 }
 
