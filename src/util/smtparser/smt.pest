@@ -6,16 +6,17 @@ defun = { "(" ~ "define-fun" ~ atom ~ list ~ ty ~ sexp ~ ")" }
 sampleid = { "(" ~ "sample-id" ~ stringlit ~ stringlit ~ stringlit ~ ")" }
 
 // Fallback Entries
-atom = @{ ( ASCII_ALPHA | "_" | "-" | "=" | "<" | ">" | "$" | "!" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "<" | ">" | "$" | "!" )* }
+atom = @{ ( ASCII_ALPHA | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" )* }
 stringlit = _{ "\"" ~ string ~ "\"" }
 string = { (!"\"" ~ ANY)* }
 
-integer = { ASCII_DIGIT+ }
-ty = { "Int" | "Bool" }
+boolean = { "true" | "false" }
+integer = @{"-"? ~ ASCII_DIGIT+ }
+ty = { "Int" | "Bool" | sexp }
 list = { "(" ~ sexp*~ ")" }
 
 // Big Or, Fallback Entries last!
-sexp = { sampleid | defun | list | integer | stringlit | atom }
+sexp = { sampleid | defun | list | integer | boolean | stringlit | atom }
 sexps = { SOI ~ sexp+ ~ EOI }
 
 

@@ -19,6 +19,10 @@ pub(super) trait SmtParser<T> {
         self.handle_atom(content)
     }
 
+    fn handle_boolean(&mut self, content: &str) -> T {
+        self.handle_atom(content)
+    }
+
     fn handle_definefun(&mut self, funname: &str, args: Vec<T>, ty: &str, body: T) -> T {
         let funname = self.handle_atom(funname);
         let args = self.handle_list(args);
@@ -36,8 +40,16 @@ pub(super) trait SmtParser<T> {
         self.handle_list(list)
     }
 
-    fn parse_sexp(&mut self, from: &str) {
-        let parse_result = PestSmtParser::parse(Rule::sexp, from).unwrap();
+    fn parse_sexp(&mut self, from: &str) -> usize {
+        let parse_result = PestSmtParser::parse(Rule::sexp, from)
+            .unwrap()
+            .next()
+            .unwrap();
+        let parsed = self.rule_sexp(&parse_result);
+
+        self.handle_sexp(parsed);
+
+        parse_result.as_span().end()
     }
 
     fn parse_sexps(&mut self, from: &str) {
@@ -52,7 +64,7 @@ pub(super) trait SmtParser<T> {
 
             let parsed = self.rule_sexp(&sexp);
 
-            self.handle_sexp(parsed)
+            self.handle_sexp(parsed);
         }
     }
 
@@ -62,6 +74,7 @@ pub(super) trait SmtParser<T> {
         match inner.as_rule() {
             Rule::atom => self.handle_atom(inner.as_str()),
             Rule::integer => self.handle_integer(inner.as_str()),
+            Rule::boolean => self.handle_boolean(inner.as_str()),
             Rule::list => {
                 let list = inner
                     .into_inner()
