@@ -1379,9 +1379,9 @@ impl<'a> EquivalenceContext<'a> {
                 right_exports
                     .iter()
                     .find(|right_sig| sig.name == right_sig.name && sig.types_match(right_sig))
-                    == None
+                    .is_none()
             })
-            .map(|sig| sig.clone())
+            .cloned()
             .collect();
         let only_right: Vec<_> = right_exports
             .iter()
@@ -1389,9 +1389,9 @@ impl<'a> EquivalenceContext<'a> {
                 left_exports
                     .iter()
                     .find(|left_sig| sig.name == left_sig.name && sig.types_match(left_sig))
-                    == None
+                    .is_none()
             })
-            .map(|sig| sig.clone())
+            .cloned()
             .collect();
 
         (only_left, only_right)
