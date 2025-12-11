@@ -1378,8 +1378,7 @@ impl<'a> EquivalenceContext<'a> {
             .filter(|sig| {
                 right_exports
                     .iter()
-                    .find(|right_sig| sig.name == right_sig.name && sig.types_match(right_sig))
-                    .is_none()
+                    .any(|right_sig| sig.name == right_sig.name && sig.types_match(right_sig))
             })
             .cloned()
             .collect();
@@ -1388,8 +1387,7 @@ impl<'a> EquivalenceContext<'a> {
             .filter(|sig| {
                 left_exports
                     .iter()
-                    .find(|left_sig| sig.name == left_sig.name && sig.types_match(left_sig))
-                    .is_none()
+                    .any(|left_sig| sig.name == left_sig.name && sig.types_match(left_sig))
             })
             .cloned()
             .collect();
