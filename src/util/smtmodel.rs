@@ -36,9 +36,12 @@ pub struct SmtModel {
 }
 
 impl SmtModel {
-    pub fn from_string(from: &str) -> Self {
-        let (model, _len) = parse_model(from);
-        model
+    pub fn from_string(from: &str) -> Option<Self> {
+        if let Ok((model, _len)) = parse_model(from) {
+            Some(model)
+        } else {
+            None
+        }
     }
 
     pub fn get_value(&self, name: &str) -> Option<SmtModelEntry> {

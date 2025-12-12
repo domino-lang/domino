@@ -18,10 +18,7 @@ use std::io::Write as IOWrite;
 use std::mem::swap;
 use std::sync::mpsc::Sender;
 
-use crate::util::{
-    smtmodel::SmtModel,
-    smtparser::parse_model
-};
+use crate::util::{smtmodel::SmtModel, smtparser::parse_model};
 
 pub struct Communicator {
     stdout: std::process::ChildStdout,
@@ -118,16 +115,17 @@ impl Communicator {
             self.pos += self.stdout.read(&mut self.buf[self.pos..])?;
             let data = String::from_utf8(self.buf[..self.pos].to_vec())?;
 
-            let (model, cnt) = parse_model(&data);
-            let modelstring = data[..cnt].to_string();
+            if let Ok((model, cnt)) = parse_model(&data) {
+                let modelstring = data[..cnt].to_string();
 
-            let rest_bs = &data.as_bytes()[cnt..];
+                let rest_bs = &data.as_bytes()[cnt..];
 
-            self.buf.fill(0);
-            self.pos = rest_bs.len();
-            self.buf[..self.pos].copy_from_slice(rest_bs);
+                self.buf.fill(0);
+                self.pos = rest_bs.len();
+                self.buf[..self.pos].copy_from_slice(rest_bs);
 
-            return Ok((cnt, modelstring, model));
+                return Ok((cnt, modelstring, model));
+            }
         }
     }
 

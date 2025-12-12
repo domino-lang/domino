@@ -6,8 +6,8 @@ use std::result;
 
 use thiserror::Error;
 
-use crate::writers::smt::exprs::SmtExpr;
 use crate::util::smtmodel::SmtModel;
+use crate::writers::smt::exprs::SmtExpr;
 
 use super::process;
 use clap::ValueEnum;

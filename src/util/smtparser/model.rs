@@ -77,9 +77,11 @@ impl SmtParser<ModelExtractorState> for SmtModel {
     }
 }
 
-pub fn parse(content: &str) -> (SmtModel, usize) {
+pub fn parse(
+    content: &str,
+) -> Result<(SmtModel, usize), pest::error::Error<super::implementation::Rule>> {
     let mut model = SmtModel { values: Vec::new() };
-    let length = model.parse_sexp(content);
+    let length = model.parse_sexp(content)?;
 
-    (model, length)
+    Ok((model, length))
 }
