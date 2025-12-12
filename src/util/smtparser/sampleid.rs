@@ -89,7 +89,9 @@ impl SmtParser<Vec<ExtractedSampleId>> for SampleIdExtractor {
 
 pub fn extract(content: &str) -> Vec<ExtractedSampleId> {
     let mut extractor = SampleIdExtractor::new();
-    extractor.parse_sexps(content);
-
-    extractor.sample_ids
+    if extractor.parse_sexps(content).is_err() {
+        Vec::new()
+    } else {
+        extractor.sample_ids
+    }
 }

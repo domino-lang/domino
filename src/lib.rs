@@ -56,3 +56,10 @@ macro_rules! debug_assert_matches {
         debug_assert!(matches!($v, $p))
     };
 }
+
+#[macro_export]
+macro_rules! assert_matches {
+    ($v:expr, $p:pat) => {
+        assert!(matches!($v, $p))
+    };
+}

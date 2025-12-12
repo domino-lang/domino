@@ -1,7 +1,7 @@
 use crate::debug_assert_matches;
+use pest::error::Error;
 use pest::iterators::Pair;
 use pest::Parser;
-
 extern crate pest;
 
 #[derive(Parser)]
@@ -40,23 +40,17 @@ pub(super) trait SmtParser<T> {
         self.handle_list(list)
     }
 
-    fn parse_sexp(&mut self, from: &str) -> usize {
-        let parse_result = PestSmtParser::parse(Rule::sexp, from)
-            .unwrap()
-            .next()
-            .unwrap();
+    fn parse_sexp(&mut self, from: &str) -> Result<usize, Error<Rule>> {
+        let parse_result = PestSmtParser::parse(Rule::sexp, from)?.next().unwrap();
         let parsed = self.rule_sexp(&parse_result);
 
         self.handle_sexp(parsed);
 
-        parse_result.as_span().end()
+        Ok(parse_result.as_span().end())
     }
 
-    fn parse_sexps(&mut self, from: &str) {
-        let sexps = PestSmtParser::parse(Rule::sexps, from)
-            .unwrap()
-            .next()
-            .unwrap();
+    fn parse_sexps(&mut self, from: &str) -> Result<(), Error<Rule>> {
+        let sexps = PestSmtParser::parse(Rule::sexps, from)?.next().unwrap();
         for sexp in sexps.into_inner() {
             if !matches!(sexp.as_rule(), Rule::sexp) {
                 continue;
@@ -66,6 +60,8 @@ pub(super) trait SmtParser<T> {
 
             self.handle_sexp(parsed);
         }
+
+        Ok(())
     }
 
     fn rule_sexp(&mut self, p: &Pair<Rule>) -> T {
