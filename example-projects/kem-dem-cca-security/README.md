@@ -22,12 +22,72 @@ There are two key differences with the proof introduced in [[1]]:
 
 ## Project structure
 
-A Domino project contains en empty file `ssp.toml` at the root of the project 
-along with three subdirectories `proofs`, `packages`, and `games`, which 
-respectively contain the proofs to be verified, SSP package definition, and 
-security games as package compositions. The proof file `proofs/proof.ssp` 
-contains instances of the security games and game hops to be verified by Domino. 
-See the comments in the file for more explanation of the game hops.
+A Domino project contains an empty file `ssp.toml` at the root of the project
+along with three subdirectories `proofs`, `packages`, and `games`, which
+respectively contain the proofs to be verified, SSP package definitions, and
+security games as package compositions.
+
+### Files Overview
+
+**Root:**
+- `ssp.toml` - Empty configuration file marking this as a Domino project
+
+**proofs/**
+- `proof.ssp` - Main proof file containing instances of security games and game hops to be verified by Domino. Defines the proof structure showing equivalence between monolithic and modular PKE implementations through a sequence of game hops
+- `invariant*.smt2` - SMT2 files containing invariant conditions used in the formal verification process
+
+**packages/**
+- `KEM.pkg.ssp` - Key Encapsulation Mechanism package with KEMGEN, ENCAPS, and DECAPS oracles
+- `DEM.pkg.ssp` - Data Encapsulation Mechanism package with ENC and DEC oracles, supporting idealization parameter
+- `Key.pkg.ssp` - Key management package handling key generation and storage
+- `KemScheme.pkg.ssp` - Concrete KEM scheme implementation
+- `DemScheme.pkg.ssp` - Concrete DEM scheme implementation
+- `PkeScheme.pkg.ssp` - Public key encryption scheme package
+- `MOD_CCA.pkg.ssp` - Modular PKE-CCA security game package (composition-based approach)
+- `MON_CCA.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
+
+**games/**
+- `modular_pke_cca_game.comp.ssp` - Composition defining the modular PKE-CCA security game by combining KEM, DEM, and Key packages
+- `monolithic_pke_cca_game.comp.ssp` - Composition defining the monolithic PKE-CCA security game as a direct implementation
+- `kem_cca_game.comp.ssp` - KEM-specific CCA security game composition
+- `dem_cca_game.comp.ssp` - DEM-specific CCA security game composition
+
+## Proof Structure and Game Hops
+
+We use five game hops to show indistinguishability of the real and ideal games based on the KEM-CCA and DEM-CCA assumptions.
+
+**Goal:** `monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game`
+
+**Assumptions**:
+
+- KEM-CCA Security: The underlying KEM scheme is CCA-secure (`kem_cca_game_real ~ kem_cca_game_ideal`)
+- DEM-CCA Security: The underlying DEM scheme is CCA-secure (`dem_cca_game_real ~ dem_cca_game_ideal`)
+
+**Game Hops**:
+
+1. **Code Equivalence (Real → Modular Real)**
+   - `monolithic_pke_cca_real_game ≡ modular_pke_cca_game_with_real_kem_and_real_dem`
+   - Shows the monolithic implementation is equivalent to the modular composition
+   - Verified through SMT-based code equivalence checking with invariants
+
+2. **KEM Idealization (First Reduction)**
+   - `modular_pke_cca_game_with_real_kem_and_real_dem ~ modular_pke_cca_game_with_ideal_kem_and_real_dem`
+   - Reduces to KEM-CCA security assumption
+   - Uses graph cuts to map KEM-related packages to the KEM-CCA game
+
+3. **DEM Idealization (Second Reduction)**
+   - `modular_pke_cca_game_with_ideal_kem_and_real_dem ~ modular_pke_cca_game_with_ideal_kem_and_ideal_dem`
+   - Reduces to DEM-CCA security assumption
+   - Maps DEM-related packages to the DEM-CCA game
+
+4. **KEM De-idealization (Third Reduction)**
+   - `modular_pke_cca_game_with_ideal_kem_and_ideal_dem ~ modular_pke_cca_game_with_real_kem_and_ideal_dem`
+   - Second reduction to KEM-CCA security (reverse direction)
+   - Demonstrates that KEM can be de-idealized when DEM is ideal
+
+5. **Code Equivalence (Modular Ideal → Ideal)**
+   - `monolithic_pke_cca_ideal_game ≡ modular_pke_cca_game_with_real_kem_and_ideal_dem`
+   - Final equivalence showing the modular construction matches the ideal monolithic game
 
 ## How to run the verification?
 
