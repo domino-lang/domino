@@ -63,7 +63,7 @@ impl<'a> BlockWriter<'a> {
         match ty {
             Type::Tuple(_) => "\\O{Tuple[..]}".to_string(),
             Type::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
-            Type::Table(_from, _to) => format!("\\O{{Table}}"),
+            Type::Table(_from, _to) => "\\O{{Table}}".to_string(),
             _ => format!("\\O{{{ty:?}}}"),
         }
     }
