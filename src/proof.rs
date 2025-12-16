@@ -164,8 +164,8 @@ impl<'a> Proof<'a> {
     }
 }
 
-/// Specialize a game instance that matches generic_match to one that matches generic_other. Use
-/// the assignments of the current specialization.
+// Specialize a game instance that matches generic_match to one that matches generic_other. Use
+// the assignments of the current specialization.
 
 /** There is a gamehop between generic_match and generic_other.
  ** specialization[game] is compatible with generic_match.
