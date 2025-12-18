@@ -309,6 +309,19 @@ fn handle_reduction_body<'a>(
     let left_game_inst = &ctx.game_instance(left_name.as_str()).unwrap().1;
     let right_game_inst = &ctx.game_instance(right_name.as_str()).unwrap().1;
 
+    debug_assert!(left_game_inst
+        .game()
+        .exports
+        .iter()
+        .map(|exp| &exp.sig().name)
+        .all_unique());
+    debug_assert!(right_game_inst
+        .game()
+        .exports
+        .iter()
+        .map(|exp| &exp.sig().name)
+        .all_unique());
+
     let left_exports = &left_game_inst.game().exports;
 
     for left_export in left_exports {
