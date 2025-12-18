@@ -3,10 +3,11 @@
 use super::{
     common::*,
     error::{
-        DuplicateEdgeDefinitionError, DuplicatePackageParameterDefinitionError,
-        MissingEdgeForImportedOracleError, MissingPackageParameterDefinitionError,
-        NoSuchPackageParameterError, OracleSigMismatchError, UndefinedOracleError,
-        UndefinedPackageError, UndefinedPackageInstanceError, UnusedEdgeError,
+        DuplicateEdgeDefinitionError, DuplicateExportError,
+        DuplicatePackageParameterDefinitionError, MissingEdgeForImportedOracleError,
+        MissingPackageParameterDefinitionError, NoSuchPackageParameterError,
+        OracleSigMismatchError, UndefinedOracleError, UndefinedPackageError,
+        UndefinedPackageInstanceError, UnusedEdgeError,
     },
     package::{handle_expression, ForComp, MultiInstanceIndices, ParsePackageError},
     ParseContext, Rule,
@@ -156,8 +157,17 @@ impl<'a> ParseGameContext<'a> {
     fn add_edge(&mut self, edge: Edge) {
         self.edges.push(edge)
     }
-    fn add_export(&mut self, export: Export) {
-        self.exports.push(export)
+    fn add_export(&mut self, export: &Export) -> bool {
+        if self
+            .exports
+            .iter()
+            .any(|exp| exp.sig().name == export.sig().name)
+        {
+            false
+        } else {
+            self.exports.push(export.clone());
+            true
+        }
     }
 
     fn add_multi_inst_edge(&mut self, edge: MultiInstanceEdge) {
@@ -213,6 +223,10 @@ pub enum ParseGameError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     UnusedEdge(#[from] UnusedEdgeError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    DuplicateExport(#[from] DuplicateExportError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -463,8 +477,18 @@ pub fn handle_compose_assign_body_list(
                 handle_export_compose_assign_list_multi_inst(ctx, compose_assign_list_ast)?
             {
                 match multi_inst_export.try_into() {
-                    Ok(export) => ctx.add_export(export),
+                    Ok(export) => {
+                        if !ctx.add_export(&export) {
+                            return Err(ParseGameError::DuplicateExport(DuplicateExportError {
+                                source_code: ctx.named_source(),
+                                at: (src_inst_name_span.start()..src_inst_name_span.end()).into(),
+                                oracle_name: export.1.name,
+                                game_name: ctx.game_name.to_string(),
+                            }));
+                        }
+                    }
                     Err(NotSingleInstanceExportError(multi_export)) => {
+                        // TODO: should we do something about duplicates here as well?
                         ctx.add_multi_inst_export(multi_export)
                     }
                 }
