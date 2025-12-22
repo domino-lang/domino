@@ -1,0 +1,19 @@
+package SimProxy {
+    params {
+        p: Integer
+    }
+
+    import oracles {
+        GBLG(l: Integer, r: Integer, op: Table((Bool, Bool), Bool), j: Integer) -> Table(Bits(p), Bool),
+    }
+
+    oracle GBLGSIM(
+        l: Integer, 
+        r: Integer, 
+        op: Table((Bool, Bool), Bool), 
+        j: Integer) -> Table(Bits(p), Bool) 
+    {
+        T <- invoke GBLG(l, r, op, j);
+        return T;
+    }
+}

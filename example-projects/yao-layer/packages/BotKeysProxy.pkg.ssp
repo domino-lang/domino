@@ -1,0 +1,15 @@
+package BotKeysProxy {
+    params {
+        n: Integer
+    }
+    
+    import oracles {
+        GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)),
+    }
+
+    oracle GETKEYSINRED(h: Integer) -> Table(Bool, Bits(n))
+    {
+        T <- invoke GETKEYSIN(h);
+        return T;
+    }
+}

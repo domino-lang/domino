@@ -34,7 +34,6 @@ composition LayerHybrid {
             n: n,
             m: m,
             p: p,
-            h: 0,
             zeron: zeron,
         }
     }

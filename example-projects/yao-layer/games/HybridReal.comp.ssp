@@ -1,0 +1,196 @@
+composition HybridReal {
+    const j: Integer; /* hybrid parameter */
+    const n: Integer; /* garbled wire ciphertext */
+    const p: Integer; /* garbled circuit entry ciphertext */
+    const m: Integer; /* why do we need m ? */
+    const d: Integer; /* depth parameter */
+    const gt: fn Integer, Integer -> Bool; /* f(a, b) := (a > b) */
+    const zeron: Bits(n);
+    const zerom: Bits(m); /* why do we need m ? */
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p); /* why do we need m ? */
+
+    instance Mod = ModHyb {
+        params {
+            d: d,
+            j: j,
+            p: p,
+            n: n,
+            gt: gt
+        }
+    }
+
+    instance Gate = Gate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance GateRed = Gate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance Keys = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance KeysTop = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance KeysBot = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance LayerMap = LayerMap {
+        params {
+            n: n,
+            j: j
+        }
+    }
+
+    instance Enc = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance EncRed = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance SimProxy = SimProxy {
+        params {
+            p: p
+        }
+    }
+    
+    instance RedProxy = RedProxy {
+        params {
+            p: p
+        }
+    }
+
+    instance Lev = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance Sim = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            zerom: zerom,
+        }
+    }
+
+    instance TopProxy = TopKeysProxy {
+        params {
+            n: n
+        }
+    }
+
+    instance BotProxy = BotKeysProxy {
+        params {
+            n: n
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: Mod,
+            SETBIT: Mod,
+            GBLG: Mod,
+            GETKEYSIN: Mod,
+        }
+        Mod: {
+            GBLGSIM: SimProxy,
+            GBLGRED: RedProxy,
+            GBLG: Gate,
+            SETBIT: LayerMap,
+            GETAOUT: LayerMap,
+            GETKEYSIN: LayerMap,
+            SETLAYER: LayerMap
+        }
+        SimProxy: {
+            GBLG: Sim
+        }
+        RedProxy: {
+            GBLG: GateRed
+        }
+        Sim: {  
+            GETAIN: LayerMap,
+            GETINAIN: LayerMap,
+            EVAL: Lev,
+            GETAOUT: LayerMap,
+        }
+        Lev: {
+            GETBIT: LayerMap,
+            SETBIT: LayerMap,
+        }
+        Gate: {
+            ENCN: Enc,
+            ENCM: Enc,
+            GETKEYSOUT: LayerMap,
+        }
+        Enc: {
+            GETKEYSIN: LayerMap,
+        }
+        GateRed: {
+            ENCN: EncRed,
+            ENCM: EncRed,
+            GETKEYSOUT: KeysBot,
+        }
+        EncRed: {
+            GETKEYSIN: KeysTop,
+        }
+        TopProxy: {
+            SETBIT: KeysTop,
+            GETAOUT: KeysTop,
+        }
+        BotProxy: {
+            GETKEYSIN: KeysBot
+        }
+        LayerMap: {
+            GETBIT: Keys,
+            SETBIT: Keys,
+            GETKEYSIN: Keys,
+            GETKEYSOUT: Keys,
+            GETAIN: Keys,
+            GETINAIN: Keys,
+            GETAOUT: Keys,
+            SETBITRED: TopProxy,
+            GETAOUTRED: TopProxy,
+            GETKEYSINRED: BotProxy
+        }
+    }
+}

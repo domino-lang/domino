@@ -1,0 +1,69 @@
+composition YaoIdeal {
+    const n: Integer;
+    const p: Integer;
+    const m: Integer;
+    const d: Integer;
+    const gt: fn Integer, Integer -> Bool;
+    const zeron: Bits(n);
+    const zerom: Bits(m);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Mod = Mod {
+        params {
+            d: d,
+            gt: gt,
+            p: p,
+            n: n
+        }
+    }
+
+    instance Keys = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance Lev = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance Sim = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            zerom: zerom,
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: Mod,
+            SETBIT: Mod,
+            GBLG: Mod,
+            GETKEYSIN: Mod,
+        }
+        Mod: {
+            GBLG: Sim,
+            SETBIT: Keys,
+            GETAOUT: Keys,
+            GETKEYSIN: Keys
+        }
+        Sim: {  
+            GETAIN: Keys,
+            GETINAIN: Keys,
+            EVAL: Lev,
+            GETAOUT: Keys,
+        }
+        Lev: {
+            GETBIT: Keys,
+            SETBIT: Keys,
+        }
+    }
+}

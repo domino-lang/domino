@@ -1,0 +1,68 @@
+composition YaoReal {
+    const n: Integer;
+    const p: Integer;
+    const m: Integer;
+    const d: Integer;
+    const gt: fn Integer, Integer -> Bool;
+    const zeron: Bits(n);
+    const zerom: Bits(m);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Mod = Mod {
+        params {
+            d: d,
+            gt: gt,
+            p: p,
+            n: n
+        }
+    }
+
+    instance Gate = Gate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance Keys = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance Enc = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: Mod,
+            SETBIT: Mod,
+            GBLG: Mod,
+            GETKEYSIN: Mod,
+        }
+        Mod: {
+            GBLG: Gate,
+            GETAOUT: Keys,
+            SETBIT: Keys,
+            GETKEYSIN: Keys
+        }
+        Gate: {
+            ENCN: Enc,
+            ENCM: Enc,
+            GETKEYSOUT: Keys,
+        }
+        Enc: {
+            GETKEYSIN: Keys,
+        }
+    }
+}

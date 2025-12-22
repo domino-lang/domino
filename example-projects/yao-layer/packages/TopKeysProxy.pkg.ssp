@@ -1,0 +1,21 @@
+package TopKeysProxy {
+    params {
+        n: Integer
+    }
+    
+    import oracles {
+        SETBIT(h: Integer, zz: Bool),
+        GETAOUT(h: Integer) -> Bits(n),
+    }
+
+    oracle SETBITRED(h: Integer, zz: Bool)
+    {
+        _ <- invoke SETBIT(h, zz);
+    }
+
+    oracle GETAOUTRED(h: Integer) -> Bits(n)
+    {
+        k <- invoke GETAOUT(h);
+        return k;
+    }
+}

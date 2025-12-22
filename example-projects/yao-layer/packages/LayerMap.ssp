@@ -1,0 +1,87 @@
+package LayerMap {
+    params {
+        j: Integer, /* hybrid paraemeter */
+        n: Integer,
+    }
+
+    state {
+        Layer: Table(Integer, Integer)
+    }
+
+    import oracles {
+        GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)),
+        GETAIN(h: Integer) -> Bits(n),
+        GETINAIN(h: Integer) -> Bits(n),
+        GETAOUT(h: Integer) -> Bits(n),
+        GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)),
+        GETBIT(h: Integer) -> Bool,
+        SETBIT(h: Integer, zz: Bool),
+        /* for reduction keys */
+        GETAOUTRED(h: Integer) -> Bits(n),
+        GETKEYSINRED(h: Integer) -> Table(Bool, Bits(n)),
+        SETBITRED(h: Integer, zz: Bool),
+    }
+
+    oracle SETLAYER(h: Integer, l: Integer) {
+        assert (Layer[h] == None);
+        Layer[h] <- Some(l);
+    }
+
+    oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
+        assert (Layer[h] != None);
+        if (Unwrap(Layer[h]) == (j + 1)) {
+            T <- invoke GETKEYSINRED(h);
+        } else {
+            T <- invoke GETKEYSIN(h);
+        }
+        return T;
+    }
+
+    oracle GETAIN(h: Integer) -> Bits(n) {
+        assert (Layer[h] != None);
+        assert not ((Unwrap(Layer[h]) == j) or (Unwrap(Layer[h]) == (j + 1)));
+        k <- invoke GETAIN(h);
+        return k;
+    }
+
+    oracle GETINAIN(h: Integer) -> Bits(n) {
+        assert (Layer[h] != None);
+        assert not ((Unwrap(Layer[h]) == j) or (Unwrap(Layer[h]) == (j + 1)));
+        k <- invoke GETINAIN(h);
+        return k;
+    }
+
+    oracle GETAOUT(h: Integer) -> Bits(n) {
+        assert (Layer[h] != None);
+        if (Unwrap(Layer[h]) == j) {
+            k <- invoke GETAOUTRED(h);
+        } else {
+            k <- invoke GETAOUT(h);
+        }
+        return k;
+    }
+
+    oracle GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)) {
+        assert (Layer[h] != None);
+        assert not ((Unwrap(Layer[h]) == j) or (Unwrap(Layer[h]) == (j + 1)));
+        T <- invoke GETKEYSOUT(h);
+        return T;
+    }
+
+    oracle GETBIT(h: Integer) -> Bool {
+        assert (Layer[h] != None);
+        assert not ((Unwrap(Layer[h]) == j) or (Unwrap(Layer[h]) == (j + 1)));
+        b <- invoke GETBIT(h);
+        return b;
+    }
+
+    oracle SETBIT(h: Integer, zz: Bool) {
+        assert (Layer[h] != None);
+        if (Unwrap(Layer[h]) == j) {
+            _ <- invoke SETBITRED(h, zz);
+        } else {
+            _ <- invoke SETBIT(h, zz);
+        }
+    }
+
+}

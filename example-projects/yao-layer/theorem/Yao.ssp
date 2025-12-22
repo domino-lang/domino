@@ -1,15 +1,15 @@
 theorem Yao {
-    const w: Integer;
-    const n: Integer;
-    const m: Integer;
-    const p: Integer;
-    const d: Integer;
+    const n: Integer; /* garbled circuit entry ciphertext */
+    const m: Integer; 
+    const p: Integer; /* garbled wire ciphertext */
+    const d: Integer; /* depth parameter */
+    const j: Integer; /* hybrid parameter */
+    const gt: fn Integer, Integer -> Bool; /* f(a, b) := (a > b) */
     const zeron: Bits(n);
     const zerom: Bits(m);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-  
     instance Indcpa0 = Indcpa0 {
         params {
             n: n,
@@ -68,76 +68,108 @@ theorem Yao {
         }
     }
 
-
-    instance Sec0 = Hybrid0 {
+    instance Hybrid0 = HybridReal {
         params {
             n: n,
             m: m,
             p: p,
+            d: d,
             zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
+            j: 0,
+            gt: gt
         }
     }
 
-    instance Sec1 = Hybrid3 {
+    instance HybridD = HybridReal {
         params {
             n: n,
             m: m,
             p: p,
+            d: d,
             zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
+            j: d,
+            gt: gt
         }
     }
 
-    instance Hybrid0 = Hybrid0 {
+    instance HybridReal = HybridReal {
         params {
             n: n,
             m: m,
             p: p,
+            d: d,
             zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
+            j: j,
+            gt: gt
         }
     }
 
-    instance Hybrid1 = Hybrid1 {
+    /*
+    instance HybridRealJ = HybridReal {
         params {
             n: n,
             m: m,
             p: p,
+            d: d,
             zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
+            j: (j + 1),
+            gt: gt
+        }
+    }
+    */
+
+    instance HybridIdeal = HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            d: d,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+            j: j,
+            gt: gt
         }
     }
 
-    instance Hybrid2 = Hybrid2 {
+    instance YaoReal = YaoReal {
         params {
             n: n,
             m: m,
             p: p,
+            d: d,
             zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
+            gt: gt
         }
     }
 
-    instance Hybrid3 = Hybrid3 {
+    instance YaoIdeal = YaoIdeal {
         params {
             n: n,
             m: m,
             p: p,
+            d: d,
             zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
+            gt: gt
         }
     }
 
@@ -147,60 +179,173 @@ theorem Yao {
     }
 
     gamehops {
+        /*
+        equivalence YaoReal Hybrid0 {
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-YaoReal-HybridReal.smt2
+                ]
 
-        reduction Hybrid0 Hybrid1 {
-            assumption Layer
-
-            map LayerReal Hybrid0 {
-                keys_top: keys0
-                keys_bottom: keys1
-                enc: enc1
-                gate: gate1
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
             }
 
-            map LayerIdeal Hybrid1 {
-                keys_top: keys0
-                keys_bottom: keys1
-                ev: ev1
-                simgate: simgate1            
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-YaoReal-HybridReal.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-YaoReal-HybridReal.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-YaoReal-HybridReal.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+        */
+
+        reduction HybridReal HybridIdeal {
+            assumption Layer
+
+            map LayerReal HybridReal {
+                keys_top: KeysTop
+                keys_bottom: KeysBot
+                enc: EncRed
+                gate: GateRed
+            }
+
+            map LayerIdeal HybridIdeal {
+                keys_top: KeysTop
+                keys_bottom: KeysBot
+                ev: LevRed
+                simgate: SimRed
             }
         }
 
-        reduction Hybrid1 Hybrid2 {
-            assumption Layer
+        /*
+        equivalence HybridIdeal HybridRealJ {
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridRealJ.smt2
+                ]
 
-            map LayerReal Hybrid1 {
-                keys_top: keys1
-                keys_bottom: keys2
-                enc: enc2
-                gate: gate2
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
             }
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridRealJ.smt2
+                ]
 
-            map LayerIdeal Hybrid2 {
-                keys_top: keys1
-                keys_bottom: keys2
-                ev: ev2
-                simgate: simgate2            
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridRealJ.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridRealJ.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
             }
         }
+        */
 
-        reduction Hybrid2 Hybrid3 {
-            assumption Layer
+        /*
+        equivalence HybridD YaoIdeal {
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-HybridD-YaoIdeal.smt2
+                ]
 
-            map LayerReal Hybrid2 {
-                keys_top: keys2
-                keys_bottom: keys3
-                enc: enc3
-                gate: gate3
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
             }
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-HybridD-YaoIdeal.smt2
+                ]
 
-            map LayerIdeal Hybrid3 {
-                keys_top: keys2
-                keys_bottom: keys3
-                ev: ev3
-                simgate: simgate3            
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-HybridD-YaoIdeal.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-HybridD-YaoIdeal.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
             }
         }
+        */
 
         reduction LayerReal LayerHybrid {
             assumption Indcpa
@@ -266,6 +411,5 @@ theorem Yao {
     }
     propositions {
         Layer: LayerReal ~ LayerIdeal
-        Hybrid: Sec0 ~ Sec1
     }
 }

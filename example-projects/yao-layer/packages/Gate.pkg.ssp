@@ -3,7 +3,6 @@ package Gate {
         n: Integer,
         m: Integer,
         p: Integer,
-        h: Integer,
         zeron: Bits(n),
     }
 

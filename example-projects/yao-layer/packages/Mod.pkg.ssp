@@ -1,0 +1,84 @@
+package Mod {
+    params {
+        d: Integer, /* depth parameter */
+        p: Integer, /* garbled circuit entry ciphertext */
+        n: Integer, /* garbled wire ciphertext */
+        gt: fn Integer, Integer -> Bool, /* f(a, b) := (a > b) */
+    }
+
+    state {
+        gate_count: Integer,
+        input_count: Integer,
+        layer_count: Integer,
+        input_finished: Bool,
+        garbling_finished: Bool,
+        /* input wires (for lookup purpose only) */
+        inputs: Table(Integer, Bool),
+        /* input layer (for lookup purpose only) */
+        input_layer: Table(Integer, Bool),
+        /* output layer (for lookup purpose only) */
+        output_layer: Table(Integer, Bool),
+    }
+
+    import oracles {
+        SETBIT(h: Integer, z: Bool),
+        GETAOUT(h: Integer) -> Bits(n),
+        GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)),
+        GBLG(l: Integer, r: Integer, op: Table((Bool, Bool), Bool), j: Integer) -> Table(Bits(p), Bool),
+    }
+
+    oracle SETBIT(z: Bool) -> Integer {
+        assert not input_finished;
+        input_count <- (input_count + 1);
+        inputs[input_count] <- Some(true);
+        input_layer[input_count] <- Some(true);
+        _ <- invoke SETBIT(input_count, z);
+        return input_count;
+    }
+
+    oracle GETAOUT(h: Integer) -> Bits(n) {
+        assert (inputs[h] != None);
+        k <- invoke GETAOUT(h);
+        return k;
+    }
+
+    oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
+        if not garbling_finished {
+            garbling_finished <- true;
+        }
+        assert (output_layer[h] != None);
+        T <- invoke GETKEYSIN(h);
+        return T;
+    }
+
+    oracle GBLG( /* garble gate */
+        l: Integer,
+        r: Integer,
+        op: Table((Bool, Bool), Bool)) -> Table(Bits(p), Bool)
+    {
+        if not input_finished {
+            input_finished <- true;
+            gate_count <- 0;
+            layer_count <- 0;
+            output_layer <- new Table(Integer, Bool);
+        }
+        assert not garbling_finished;
+        /* ensure layered circuit */
+        /* first ensure whetber both inputs belong to the input layer */
+        assert (input_layer[l] == input_layer[r]);
+        if ((input_layer[l] == None) and (input_layer[r] == None)) {
+            /* perhaps we progressed to the next layer */
+            layer_count <- (layer_count + 1);
+            assert gt(d, layer_count); /* layer_count < d */
+            input_layer <- output_layer;
+            output_layer <- new Table(Integer, Bool);
+            /* ensure inputs belong to the new input layer */
+            assert ((input_layer[l] != None) and (input_layer[r] != None));
+        }
+        gate_count <- (gate_count + 1);
+        wire <- (input_count + gate_count);
+        output_layer[wire] <- Some(true);
+        C <- invoke GBLG(l, r, op, wire);
+        return C;
+    }
+}
