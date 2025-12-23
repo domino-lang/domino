@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+// We have a lot of large errors.
+// This is fine for now. We will want to address that at some point in the future.
+#![allow(clippy::result_large_err)]
+
 /*
 
 What is the functionality of the tool:
@@ -133,7 +137,7 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
-    assert!(p.proofstep == None || p.proof != None);
+    assert!(p.proofstep.is_none() || p.proof.is_some());
 
     project.prove(
         p.prover,

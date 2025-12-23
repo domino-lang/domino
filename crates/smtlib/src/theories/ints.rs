@@ -44,9 +44,6 @@ pub fn int() -> Sort {
     }
 }
 
-use super::def_fun_assoc;
-use super::def_fun_plain;
-
 def_fun_assoc!(add, Symbols::Plus);
 def_fun_assoc!(sub, Symbols::Minus);
 def_fun_assoc!(mul, Symbols::Asterisk);

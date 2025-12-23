@@ -437,11 +437,8 @@ fn format_import_oracles(
                 };
 
                 let args = args.into_inner().next();
-                let args = if args.is_none() {
-                    Vec::new()
-                } else {
-                    args.unwrap()
-                        .into_inner()
+                let args = if let Some(args) = args {
+                    args.into_inner()
                         .map(|arg| {
                             let mut inner = arg.into_inner();
                             let arg = inner.next().unwrap().as_str();
@@ -449,7 +446,10 @@ fn format_import_oracles(
                             Ok::<String, project::error::Error>(format!("{arg}: {ty}"))
                         })
                         .collect::<Result<Vec<String>, _>>()?
+                } else {
+                    Vec::new()
                 };
+
                 let return_type = inner.next();
                 let return_type = match return_type {
                     None => "",
@@ -522,8 +522,8 @@ fn format_pkg_spec(
         ctx.add_indent();
         for type_block in types_rules {
             let inner = type_block.clone().into_inner().next();
-            if inner.is_some() {
-                format_types_block(ctx, inner.unwrap())?;
+            if let Some(inner) = inner {
+                format_types_block(ctx, inner)?;
             }
         }
         ctx.remove_indent();
@@ -536,8 +536,8 @@ fn format_pkg_spec(
         ctx.add_indent();
         for param_block in params_rules {
             let inner = param_block.clone().into_inner().next();
-            if inner.is_some() {
-                format_decl_list(ctx, inner.unwrap())?;
+            if let Some(inner) = inner {
+                format_decl_list(ctx, inner)?;
             }
         }
         ctx.remove_indent();
@@ -550,8 +550,8 @@ fn format_pkg_spec(
         ctx.add_indent();
         for state_block in state_rules {
             let inner = state_block.clone().into_inner().next();
-            if inner.is_some() {
-                format_decl_list(ctx, inner.unwrap())?;
+            if let Some(inner) = inner {
+                format_decl_list(ctx, inner)?;
             }
         }
         ctx.remove_indent();

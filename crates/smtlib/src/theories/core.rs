@@ -44,9 +44,6 @@ pub fn bool_() -> Sort {
     }
 }
 
-use super::def_fun_assoc;
-use super::def_fun_plain;
-
 def_fun_plain!(true_, Symbols::True, ());
 def_fun_plain!(false_, Symbols::False, ());
 def_fun_plain!(not, Symbols::Not, (term));
