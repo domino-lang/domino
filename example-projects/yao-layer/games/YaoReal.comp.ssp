@@ -9,24 +9,6 @@ composition YaoReal {
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-    instance Mod = Mod {
-        params {
-            d: d,
-            gt: gt,
-            p: p,
-            n: n
-        }
-    }
-
-    instance Gate = Gate {
-        params {
-            p: p,
-            n: n,
-            m: m,
-            zeron: zeron
-        }
-    }
-
     instance Keys = Keys {
         params {
             n: n,
@@ -40,6 +22,24 @@ composition YaoReal {
             p: p,
             encn: encn,
             encm: encm,
+        }
+    }
+
+    instance Gate = Gate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance Mod = Mod {
+        params {
+            d: d,
+            gt: gt,
+            p: p,
+            n: n
         }
     }
 

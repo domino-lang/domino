@@ -68,30 +68,31 @@ package ModHyb {
             output_layer <- new Table(Integer, Bool);
         }
         assert not garbling_finished;
-        /* ensure layered circuit */
-        /* first ensure whetber both inputs belong to the input layer */
-        assert (input_layer[l] == input_layer[r]);
+        /* BEGIN ensure layered circuit */
         if ((input_layer[l] == None) and (input_layer[r] == None)) {
             /* perhaps we progressed to the next layer */
             layer_count <- (layer_count + 1);
             assert gt(d, layer_count); /* layer_count < d */
             input_layer <- output_layer;
             output_layer <- new Table(Integer, Bool);
-            /* ensure inputs belong to the new input layer */
-            assert ((input_layer[l] != None) and (input_layer[r] != None));
         }
+        /* ensure inputs belong to the input layer */
+        assert ((input_layer[l] != None) and (input_layer[r] != None));
+        /* END ensure layered circuit */
         gate_count <- (gate_count + 1);
         wire <- (input_count + gate_count);
         output_layer[wire] <- Some(true);
         _ <- invoke SETLAYER(wire, layer_count);
         if (layer_count == j) {
             C <- invoke GBLGRED(l, r, op, wire);
-        }
-        if gt(j, layer_count) { /* layer < j */
-            C <- invoke GBLGSIM(l, r, op, wire);
-        }
-        if gt(layer_count, j) { /* layer > j */
-            C <- invoke GBLG(l, r, op, wire);
+        } else {
+            if gt(j, layer_count) { /* layer < j */
+                C <- invoke GBLGSIM(l, r, op, wire);
+            }
+            else {
+                /* layer > j */
+                C <- invoke GBLG(l, r, op, wire);
+            }
         }
         return C;
     }

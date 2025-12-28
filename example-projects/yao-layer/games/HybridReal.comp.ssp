@@ -10,33 +10,7 @@ composition HybridReal {
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p); /* why do we need m ? */
 
-    instance Mod = ModHyb {
-        params {
-            d: d,
-            j: j,
-            p: p,
-            n: n,
-            gt: gt
-        }
-    }
 
-    instance Gate = Gate {
-        params {
-            p: p,
-            n: n,
-            m: m,
-            zeron: zeron
-        }
-    }
-
-    instance GateRed = Gate {
-        params {
-            p: p,
-            n: n,
-            m: m,
-            zeron: zeron
-        }
-    }
 
     instance Keys = Keys {
         params {
@@ -53,6 +27,18 @@ composition HybridReal {
     instance KeysBot = Keys {
         params {
             n: n,
+        }
+    }
+
+    instance TopProxy = TopKeysProxy {
+        params {
+            n: n
+        }
+    }
+
+    instance BotProxy = BotKeysProxy {
+        params {
+            n: n
         }
     }
 
@@ -83,25 +69,13 @@ composition HybridReal {
         }
     }
 
-    instance SimProxy = SimProxy {
-        params {
-            p: p
-        }
-    }
-    
-    instance RedProxy = RedProxy {
-        params {
-            p: p
-        }
-    }
-
     instance Lev = Lev {
         params {
             n: n,
         }
     }
 
-    instance Sim = Simgate {
+   instance Sim = Simgate {
         params {
             n: n,
             m: m,
@@ -113,15 +87,43 @@ composition HybridReal {
         }
     }
 
-    instance TopProxy = TopKeysProxy {
+    instance SimProxy = SimProxy {
         params {
-            n: n
+            p: p
+        }
+    }
+    
+    instance GateRed = Gate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
         }
     }
 
-    instance BotProxy = BotKeysProxy {
+    instance RedProxy = RedProxy {
         params {
-            n: n
+            p: p
+        }
+    }
+
+    instance Gate = Gate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance Mod = ModHyb {
+        params {
+            d: d,
+            j: j,
+            p: p,
+            n: n,
+            gt: gt
         }
     }
 

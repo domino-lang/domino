@@ -1,0 +1,60 @@
+digraph G {
+    rankdir=LR;
+    node [shape=box, fontname="Arial"];
+    edge [fontname="Arial", fontsize=10];
+
+    "adversary" -> "Mod" [label="GETAOUT"];
+    "adversary" -> "Mod" [label="SETBIT"];
+    "adversary" -> "Mod" [label="GBLG"];
+    "adversary" -> "Mod" [label="GETKEYSIN"];
+
+    "Mod" -> "SimProxy" [label="GBLGSIM"];
+    "Mod" -> "RedProxy" [label="GBLGRED"];
+    "Mod" -> "Gate" [label="GBLG"];
+    "Mod" -> "LayerMap" [label="SETBIT"];
+    "Mod" -> "LayerMap" [label="GETAOUT"];
+    "Mod" -> "LayerMap" [label="GETKEYSIN"];
+    "Mod" -> "LayerMap" [label="SETLAYER"];
+
+    "SimProxy" -> "Sim" [label="GBLG"];
+
+    "RedProxy" -> "SimRed" [label="GBLG"];
+
+    "Sim" -> "LayerMap" [label="GETAIN"];
+    "Sim" -> "LayerMap" [label="GETINAIN"];
+    "Sim" -> "Lev" [label="EVAL"];
+    "Sim" -> "LayerMap" [label="GETAOUT"];
+
+    "Lev" -> "LayerMap" [label="GETBIT"];
+    "Lev" -> "LayerMap" [label="SETBIT"];
+
+    "Gate" -> "Enc" [label="ENCN"];
+    "Gate" -> "Enc" [label="ENCM"];
+    "Gate" -> "LayerMap" [label="GETKEYSOUT"];
+
+    "Enc" -> "LayerMap" [label="GETKEYSIN"];
+
+    "LevRed" -> "KeysTop" [label="GETBIT"];
+    "LevRed" -> "KeysBot" [label="SETBIT"];
+
+    "SimRed" -> "KeysTop" [label="GETAIN"];
+    "SimRed" -> "KeysTop" [label="GETINAIN"];
+    "SimRed" -> "LevRed" [label="EVAL"];
+    "SimRed" -> "KeysBot" [label="GETAOUT"];
+
+    "TopProxy" -> "KeysTop" [label="SETBIT"];
+    "TopProxy" -> "KeysTop" [label="GETAOUT"];
+
+    "BotProxy" -> "KeysBot" [label="GETKEYSIN"];
+
+    "LayerMap" -> "Keys" [label="GETBIT"];
+    "LayerMap" -> "Keys" [label="SETBIT"];
+    "LayerMap" -> "Keys" [label="GETKEYSIN"];
+    "LayerMap" -> "Keys" [label="GETKEYSOUT"];
+    "LayerMap" -> "Keys" [label="GETAIN"];
+    "LayerMap" -> "Keys" [label="GETINAIN"];
+    "LayerMap" -> "Keys" [label="GETAOUT"];
+    "LayerMap" -> "TopProxy" [label="SETBITRED"];
+    "LayerMap" -> "TopProxy" [label="GETAOUTRED"];
+    "LayerMap" -> "BotProxy" [label="GETKEYSINRED"];
+}

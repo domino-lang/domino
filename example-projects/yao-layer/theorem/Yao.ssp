@@ -4,6 +4,7 @@ theorem Yao {
     const p: Integer; /* garbled wire ciphertext */
     const d: Integer; /* depth parameter */
     const j: Integer; /* hybrid parameter */
+    const jplusone: Integer; /* hybrid parameter */
     const gt: fn Integer, Integer -> Bool; /* f(a, b) := (a > b) */
     const zeron: Bits(n);
     const zerom: Bits(m);
@@ -113,7 +114,6 @@ theorem Yao {
         }
     }
 
-    /*
     instance HybridRealJ = HybridReal {
         params {
             n: n,
@@ -124,11 +124,10 @@ theorem Yao {
             zeron: zeron,
             encm: encm,
             encn: encn,
-            j: (j + 1),
+            j: jplusone, /* (j + 1), */
             gt: gt
         }
     }
-    */
 
     instance HybridIdeal = HybridIdeal {
         params {
@@ -179,7 +178,6 @@ theorem Yao {
     }
 
     gamehops {
-        /*
         equivalence YaoReal Hybrid0 {
             GETAOUT: {
                 invariant: [
@@ -229,7 +227,6 @@ theorem Yao {
                 }
             }
         }
-        */
 
         reduction HybridReal HybridIdeal {
             assumption Layer
