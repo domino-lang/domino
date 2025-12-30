@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/smtlib", "crates/domino"]
+members = [".", "crates/smtlib", "crates/domino", "crates/domino-web"]
 
 [workspace.package]
 version = "0.1.0"
@@ -23,12 +23,19 @@ publish = false
 [profile.release]
 debug = true
 
+[features]
+web = []
+cmd = ["dep:tempfile", "dep:clap", "dep:subprocess"]
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.0", features = ["derive"], optional = true }
 env_logger = "0.11"
-expectrl = "0.5.2"
+expectrl = { version = "0.5.2", optional = true }
 indicatif = "0.18"
 indicatif-log-bridge = "0.2"
 itertools = "0.10"
@@ -40,8 +47,8 @@ rayon = "1.10"
 serde = "1.0.137"
 serde_derive = "1.0.137"
 sspverif-smtlib = { workspace = true }
-subprocess = "0.2"
-tempfile = "3"
+subprocess = {version = "0.2", optional = true }
+tempfile = { version = "3", optional = true }
 thiserror = "1.0.61"
 walkdir = "2"
 

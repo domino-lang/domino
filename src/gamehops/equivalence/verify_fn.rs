@@ -4,6 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
 use crate::ui::TheoremUI;
 use crate::{
@@ -109,6 +110,7 @@ fn verify_oracle<UI: TheoremUI>(
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
+                    #[cfg(not(feature = "web"))]
                     let modelfile = prover.get_model().map(|model| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
@@ -116,6 +118,8 @@ fn verify_oracle<UI: TheoremUI>(
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
+                    #[cfg(feature = "web")]
+                    let modelfile = Ok(PathBuf::new());
                     return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle_sig.name.clone(),

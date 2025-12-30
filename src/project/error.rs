@@ -25,6 +25,7 @@ pub enum Error {
     RedefinedTheorem(String, String, String),
     #[error("error parsing utf-8")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
+    #[cfg(not(feature = "web"))]
     #[error("error in interaction with child process")]
     ChildProcessInteractionError(#[from] expectrl::Error),
     #[error("error interactiv with prover process")]

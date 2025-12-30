@@ -9,11 +9,21 @@ use thiserror::Error;
 use crate::writers::smt::exprs::SmtExpr;
 
 use super::process;
+#[cfg(not(feature = "web"))]
 use clap::ValueEnum;
 
 pub struct Communicator(process::Communicator);
 
+#[cfg(not(feature = "web"))]
 #[derive(ValueEnum, Clone, Debug, Copy)]
+pub enum ProverBackend {
+    Cvc4,
+    Cvc5,
+    Z3,
+}
+
+#[cfg(feature = "web")]
+#[derive(Clone, Debug, Copy)]
 pub enum ProverBackend {
     Cvc4,
     Cvc5,
