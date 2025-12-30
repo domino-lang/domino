@@ -20,7 +20,7 @@ use crate::types::CountSpec;
 use crate::types::Type;
 use crate::util::prover_process::ProverBackend;
 use crate::util::prover_process::{Communicator, ProverResponse};
-use crate::util::smtmodel::{SmtModel, SmtModelEntry};
+use crate::util::smtmodel::SmtModel;
 
 // TODO: Move to struct so we can have verbose versions (e.g. writing types to expressions)
 
@@ -628,9 +628,8 @@ fn tex_solve_composition_graph(
     if comm.check_sat().unwrap() != ProverResponse::Sat {
         return None;
     } else {
-        model = comm.get_model().unwrap();
-        let model = SmtModel::from_string(&model);
-        let SmtModelEntry::IntEntry { value, .. } = model.get_value("width").unwrap();
+        model = Some(comm.get_model().unwrap().1);
+        let value = model.clone()?.get_value_as_int("width").unwrap();
 
         max_width = value;
     }
@@ -647,9 +646,8 @@ fn tex_solve_composition_graph(
 
         if comm.check_sat().unwrap() == ProverResponse::Sat {
             max_width = width;
-            model = comm.get_model().unwrap();
-            let model = SmtModel::from_string(&model);
-            let SmtModelEntry::IntEntry { value, .. } = model.get_value("height").unwrap();
+            model = Some(comm.get_model().unwrap().1);
+            let value = model.clone()?.get_value_as_int("height").unwrap();
 
             max_height = value;
         } else {
@@ -680,14 +678,7 @@ fn tex_solve_composition_graph(
             }
         }
     }
-
-    if model.is_empty() {
-        None
-    } else {
-        let model = SmtModel::from_string(&model);
-        println!("{}\n{:#?}", composition.name, model);
-        Some(model)
-    }
+    model
 }
 
 fn tex_write_composition_graph(
@@ -735,12 +726,13 @@ fn tex_write_composition_graph(
         //writeln!(file, "\\draw[gray!50,step=.5] (-1,-1) grid (10,5);")?;
         for i in 0..composition.pkgs.len() {
             let pkgname = &composition.pkgs[i].name;
-            let SmtModelEntry::IntEntry { value: top, .. } =
-                model.get_value(&format!("{pkgname}-top")).unwrap();
-            let SmtModelEntry::IntEntry { value: bottom, .. } =
-                model.get_value(&format!("{pkgname}-bottom")).unwrap();
-            let SmtModelEntry::IntEntry { value: column, .. } =
-                model.get_value(&format!("{pkgname}-column")).unwrap();
+            let top = model.get_value_as_int(&format!("{pkgname}-top")).unwrap();
+            let bottom = model
+                .get_value_as_int(&format!("{pkgname}-bottom"))
+                .unwrap();
+            let column = model
+                .get_value_as_int(&format!("{pkgname}-column"))
+                .unwrap();
 
             write_node(file, pkgname, &composition.name, i, top, bottom, column)?;
         }
@@ -764,13 +756,11 @@ fn tex_write_composition_graph(
                 let pkga = &composition.pkgs[from].name;
                 let pkgb = &composition.pkgs[to].name;
 
-                let SmtModelEntry::IntEntry { value: height, .. } = model
-                    .get_value(&format!("edge-{pkga}-{pkgb}-height"))
+                let height = model
+                    .get_value_as_int(&format!("edge-{pkga}-{pkgb}-height"))
                     .unwrap();
-                let SmtModelEntry::IntEntry { value: acolumn, .. } =
-                    model.get_value(&format!("{pkga}-column")).unwrap();
-                let SmtModelEntry::IntEntry { value: bcolumn, .. } =
-                    model.get_value(&format!("{pkgb}-column")).unwrap();
+                let acolumn = model.get_value_as_int(&format!("{pkga}-column")).unwrap();
+                let bcolumn = model.get_value_as_int(&format!("{pkgb}-column")).unwrap();
 
                 let height = f64::from(height) / 2.0;
                 let oracles = oracles
@@ -808,12 +798,11 @@ fn tex_write_composition_graph(
 
             let pkgb = &composition.pkgs[to].name;
 
-            let SmtModelEntry::IntEntry { value: height, .. } =
-                model.get_value(&format!("edge---{pkgb}-height")).unwrap();
-            let SmtModelEntry::IntEntry { value: acolumn, .. } =
-                model.get_value("--column").unwrap();
-            let SmtModelEntry::IntEntry { value: bcolumn, .. } =
-                model.get_value(&format!("{pkgb}-column")).unwrap();
+            let height = model
+                .get_value_as_int(&format!("edge---{pkgb}-height"))
+                .unwrap();
+            let acolumn = model.get_value_as_int("--column").unwrap();
+            let bcolumn = model.get_value_as_int(&format!("{pkgb}-column")).unwrap();
 
             let height = f64::from(height) / 2.0;
             let oracles = oracles
