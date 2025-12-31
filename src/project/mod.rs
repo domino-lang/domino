@@ -11,6 +11,9 @@ use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 use walkdir;
 
+use std::fmt::Write;
+use std::io::{Read, Seek};
+
 use error::{Error, Result};
 
 use crate::parser::ast::Identifier;
@@ -41,6 +44,7 @@ mod resolve;
 
 pub mod error;
 
+#[derive(Debug)]
 pub struct Files {
     theorems: Vec<(String, String)>,
     games: Vec<(String, String)>,
@@ -74,6 +78,40 @@ impl Files {
             theorems: load_files(root.join(THEOREM_DIR))?,
             games: load_files(root.join(GAMES_DIR))?,
             packages: load_files(root.join(PACKAGES_DIR))?,
+        })
+    }
+
+    pub fn load_zip(reader: impl Read + Seek) -> Result<Self> {
+        let mut zip = zip::ZipArchive::new(reader)?;
+        let mut theorems = Vec::new();
+        let mut games = Vec::new();
+        let mut packages = Vec::new();
+
+        for i in 0..zip.len() {
+            let file = zip.by_index(i)?;
+            if !file.is_file() {
+                continue;
+            }
+
+            let filename = file.name().to_string();
+            if !filename.ends_with(".ssp") {
+                continue;
+            }
+
+            let content = std::io::read_to_string(file)?;
+
+            match filename {
+                _ if filename.starts_with(THEOREM_DIR) => theorems.push((filename, content)),
+                _ if filename.starts_with(GAMES_DIR) => games.push((filename, content)),
+                _ if filename.starts_with(PACKAGES_DIR) => packages.push((filename, content)),
+                _ => {}
+            }
+        }
+
+        Ok(Self {
+            theorems,
+            games,
+            packages,
         })
     }
 

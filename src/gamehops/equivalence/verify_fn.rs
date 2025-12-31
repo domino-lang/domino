@@ -3,8 +3,8 @@
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use crate::ui::TheoremUI;
 use crate::{

@@ -32,11 +32,12 @@ pub enum Error {
     ProcessError(#[from] crate::util::process::Error),
     #[error("error interactiv with prover process")]
     ProverProcessError(#[from] crate::util::prover_process::Error),
-    //#[error("got a formatting error")]
-    //FmtError(#[from] std::fmt::Error),
+    #[error("got a formatting error")]
+    FmtError(#[from] std::fmt::Error),
     #[error("error finding project root")]
     FindProjectRoot(#[from] FindProjectRootError),
-
+    #[error("Error processing zipfile")]
+    ZipFileError(#[from] zip::result::ZipError),
     // confirmed needed errors are below:
     #[error("syntax error: {0} at {1:?} / {2:?}")]
     PestParseError(
