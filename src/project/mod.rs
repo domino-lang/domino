@@ -156,7 +156,7 @@ impl<'a> Project<'a> {
     }
 
     pub fn load(files: &'a Files) -> Result<Project<'a>> {
-        let root_dir = find_project_root()?;
+        //let root_dir = find_project_root()?;
 
         let packages: HashMap<_, _> = files
             .packages()
@@ -189,7 +189,7 @@ impl<'a> Project<'a> {
         let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
 
         let project = Project {
-            root_dir,
+            root_dir: PathBuf::new(),
             games,
             theorems,
         };
@@ -197,7 +197,7 @@ impl<'a> Project<'a> {
         Ok(project)
     }
 
-    pub fn proofsteps(&self) -> Result<()> {
+    pub fn proofsteps(&self, mut to: impl Write) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
         theorem_keys.sort();
 
@@ -211,29 +211,31 @@ impl<'a> Project<'a> {
                 .max()
                 .unwrap_or(0);
 
-            println!("{theorem_key}:");
+            writeln!(to, "{theorem_key}:")?;
             for (i, game_hop) in theorem.game_hops.iter().enumerate() {
                 match game_hop {
                     GameHop::Equivalence(eq) => {
                         let left_name = eq.left_name();
                         let right_name = eq.right_name();
                         let spaces = " ".repeat(max_width_left - left_name.len());
-                        println!("{i}: Equivalence {left_name}{spaces} == {right_name}");
+                        writeln!(to, "{i}: Equivalence {left_name}{spaces} == {right_name}")?;
                     }
                     GameHop::Reduction(red) => {
-                        println!(
+                        writeln!(
+                            to,
                             "{i}: Reduction   {} ~= {} using {}",
                             red.left().construction_game_instance_name().as_str(),
                             red.right().construction_game_instance_name().as_str(),
                             red.assumption_name()
-                        );
+                        )?;
                     }
                     GameHop::Conjecture(conj) => {
-                        println!(
+                        writeln!(
+                            to,
                             "{i}: Conjecture   {} ~= {}",
                             conj.left_name().as_str(),
                             conj.right_name().as_str()
-                        );
+                        )?;
                     }
                 }
             }
