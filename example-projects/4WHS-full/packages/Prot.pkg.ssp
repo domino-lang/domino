@@ -2,7 +2,7 @@ package Prot {
     params {
         n: Integer,
         zeron: Bits(256),
-        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
         mac: fn Bits(256), Bits(256), Integer -> Bits(256),
     }
 
@@ -40,8 +40,8 @@ package Prot {
         assert (v    == true );              /* session belongs to responder */
 
 		nr         <-$ Bits(256);
-        k          <-  prf(ltk,U,V,ni,nr,true); 
-        kmac       <-  prf(ltk,U,V,ni,nr,false);
+        k          <-  prf(ltk,(U,V,ni,nr,true)); 
+        kmac       <-  prf(ltk,(U,V,ni,nr,false));
         tau        <-  mac(kmac,nr,2);
         sid        <- (U,V,ni,nr,tau);
 
@@ -65,8 +65,8 @@ package Prot {
 
         (nr,tau) <- parse msg;
 
-        k          <- prf(ltk,U,V,Unwrap(ni),nr,true);
-		kmac       <- prf(ltk,U,V,Unwrap(ni),nr,false);
+        k          <- prf(ltk,(U,V,Unwrap(ni),nr,true));
+		kmac       <- prf(ltk,(U,V,Unwrap(ni),nr,false));
         tau_       <- mac(kmac,Unwrap(ni),3);
         sid        <- (U,V,Unwrap(ni),nr,tau);
 

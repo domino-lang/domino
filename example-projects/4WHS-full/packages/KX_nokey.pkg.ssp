@@ -3,7 +3,7 @@ package KX_nokey {
         b: Bool,
         n: Integer,
         zeron: Bits(256),
-        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
         mac: fn Bits(256), Bits(256), Integer -> Bits(256),
     }
     
@@ -211,7 +211,7 @@ oracle Reveal(ctr: Integer) -> Bits(256)
 	/* mark key as revealed */
     RevTested[Unwrap(sid)] <- Some(false);    
 
-    k <- prf(ltk,U,V,Unwrap(ni),Unwrap(nr) ,true);
+    k <- prf(ltk,(U,V,Unwrap(ni),Unwrap(nr) ,true));
     return k;
     }
 
@@ -232,7 +232,7 @@ oracle Test(ctr: Integer) -> Bits(256)
     if b {
 	    k <-$ Bits(256);
 	} else {
-      k <- prf(ltk,U,V,Unwrap(ni),Unwrap(nr) ,true);
+      k <- prf(ltk,(U,V,Unwrap(ni),Unwrap(nr) ,true));
     }
     return k;
     }

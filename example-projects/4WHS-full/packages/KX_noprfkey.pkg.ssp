@@ -3,7 +3,6 @@ package KX_noprfkey {
         b: Bool,
         n: Integer,
         zeron: Bits(256),
-        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
         mac: fn Bits(256), Bits(256), Integer -> Bits(256),
     }
     
@@ -52,7 +51,7 @@ package KX_noprfkey {
 
     import oracles {
 	     Hon(h: Integer) -> Bool,
-		 Eval(h: Integer, a: Integer, aa: Integer, c: Bits(256), d: Bits(256), e: Bool) -> Bits(256),
+		 Eval(h: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256),
          Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
                         Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
                         Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
@@ -198,7 +197,7 @@ oracle Reveal(ctr: Integer) -> Bits(256)
     RevTested[Unwrap(sid)] <- Some(false);    
 
 	  RevTestEval[(kid,U,V,Unwrap(ni),Unwrap(nr))] <- Some(ctr);
-      k <- invoke Eval(kid,U,V,Unwrap(ni),Unwrap(nr),true);
+      k <- invoke Eval(kid,(U,V,Unwrap(ni),Unwrap(nr),true));
     return k;
     }
 
@@ -220,7 +219,7 @@ oracle Test(ctr: Integer) -> Bits(256)
 	  k <-$ Bits(256);
 	} else {
 	     RevTestEval[(kid,U,V,Unwrap(ni),Unwrap(nr))] <- Some(ctr);
-         k <- invoke Eval(kid,U,V,Unwrap(ni),Unwrap(nr) ,true);
+         k <- invoke Eval(kid,(U,V,Unwrap(ni),Unwrap(nr) ,true));
     }
     return k;
     }

@@ -1,13 +1,13 @@
 package CR {
     params {
         n: Integer,
-        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
         mac: fn Bits(256), Bits(256), Integer -> Bits(256),
         b: Bool
     }
     
     state {
-          PRFinverse:   Table(Bits(256),(Bits(256),Integer,Integer,Bits(256),Bits(256),Bool)),
+          PRFinverse:   Table(Bits(256),(Bits(256),(Integer,Integer,Bits(256),Bits(256),Bool))),
           MACinverse:   Table(Bits(256),(Bits(256), Bits(256), Integer)),
     }
 
@@ -20,12 +20,12 @@ package CR {
         return y;
     }
 
-    oracle PRF(k: Bits(256), a: Integer, aa: Integer, c: Bits(256), d: Bits(256), e: Bool) -> Bits(256) {
-        y <- prf(k,a,aa,c,d,e);
+    oracle PRF(k: Bits(256), x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256) {
+        y <- prf(k,x);
 		if b {
-             assert ((PRFinverse[y] == None) or (PRFinverse[y] == Some((k,a,aa,c,d,e))));
+             assert ((PRFinverse[y] == None) or (PRFinverse[y] == Some((k,x))));
 		}
-        PRFinverse[y] <- Some((k,a,aa,c,d,e));
+        PRFinverse[y] <- Some((k,x));
         return y;
     }
 }

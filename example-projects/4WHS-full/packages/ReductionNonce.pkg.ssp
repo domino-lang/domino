@@ -2,7 +2,7 @@ package ReductionNonce {
     params {
         n: Integer,
         zeron: Bits(256),
-        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
         mac: fn Bits(256), Bits(256), Integer -> Bits(256),
     }
 
@@ -44,8 +44,8 @@ package ReductionNonce {
         assert (v == true);
 
 		nr         <- invoke Sample();
-        kmac       <-  prf(ltk,U,V,ni,nr,false); /* need role agreement here, to be fixed */
-        k          <-  prf(ltk,U,V,ni,nr,true); /* need role agreement here, to be fixed */
+        kmac       <-  prf(ltk,(U,V,ni,nr,false)); /* need role agreement here, to be fixed */
+        k          <-  prf(ltk,(U,V,ni,nr,true)); /* need role agreement here, to be fixed */
         tau        <-  mac(kmac,nr,2);
         sid        <- (U,V,ni,nr,tau);
 
@@ -69,8 +69,8 @@ package ReductionNonce {
         
 		(nr,tau) <- parse msg;
 
-		kmac       <- prf(ltk,U,V,Unwrap(ni),nr,false);
-        k          <- prf(ltk,U,V,Unwrap(ni),nr,true);
+		kmac       <- prf(ltk,(U,V,Unwrap(ni),nr,false));
+        k          <- prf(ltk,(U,V,Unwrap(ni),nr,true));
         tau_       <- mac(kmac,Unwrap(ni),3);
         sid        <- (U,V,Unwrap(ni),nr,tau);
 

@@ -2,7 +2,7 @@ package ProtNoKey {
     params {
         n: Integer,
         zeron: Bits(256),
-        prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256),
+        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
         mac: fn Bits(256), Bits(256), Integer -> Bits(256),
     }
 
@@ -44,7 +44,7 @@ package ProtNoKey {
         assert (v == true);
 
 		nr         <- invoke Sample();
-        kmac       <-  prf(ltk,U,V,ni,nr,false); 
+        kmac       <-  prf(ltk,(U,V,ni,nr,false)); 
         tau        <-  mac(kmac,nr,2);
         sid        <- (U,V,ni,nr,tau);
 
@@ -68,7 +68,7 @@ package ProtNoKey {
         
 		(nr,tau) <- parse msg;
 
-		kmac       <- prf(ltk,U,V,Unwrap(ni),nr,false);
+		kmac       <- prf(ltk,(U,V,Unwrap(ni),nr,false));
         tau_       <- mac(kmac,Unwrap(ni),3);
         sid        <- (U,V,Unwrap(ni),nr,tau);
 

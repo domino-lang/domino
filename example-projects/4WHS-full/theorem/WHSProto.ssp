@@ -3,7 +3,7 @@ theorem WHSProto {
     const n: Integer;
     const m: Integer;
     const zeron: Bits(256);
-    const prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256);
+    const prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256);
     const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
 
     instance Noncesideal = Nonces {
@@ -1389,9 +1389,9 @@ theorem WHSProto {
 
                 lemmas {
                     lemma-debug:  [no-abort]
+                    same-output:  [no-abort]
                     equal-aborts: []
                     invariant:    [no-abort]
-                    same-output:  [no-abort]
                 }
             }
             NewKey: {

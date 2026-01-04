@@ -1,7 +1,7 @@
 composition H6 {
         const n: Integer;
         const zeron: Bits(256);
-        const prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256);
+        const prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256);
         const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
         const b: Bool;
         const bprf: Bool;
@@ -23,7 +23,6 @@ composition H6 {
         params {
         n: n,
         zeron: zeron,
-        prf: prf,
         mac: mac,
         }
     }
@@ -32,7 +31,6 @@ composition H6 {
         b: b,
         n: n,
         zeron: zeron,
-        prf: prf,
         mac: mac,
         }
     }

@@ -1,7 +1,7 @@
 composition CR {
         const n: Integer;
         const b: Bool;
-        const prf: fn Bits(256), Integer, Integer, Bits(256), Bits(256), Bool ->  Bits(256);
+        const prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256);
         const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
 
     instance cr = CR {
