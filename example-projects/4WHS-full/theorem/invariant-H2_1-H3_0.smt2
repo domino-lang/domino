@@ -1,5 +1,5 @@
 
-(define-fun helper-collision-resistance-singleside ((h2-prf (Array Bits_256 (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))
+(define-fun helper-collision-resistance-singleside ((h2-prf (Array Bits_256 (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))
 													(h2-mac (Array Bits_256 (Maybe (Tuple3 Bits_256 Bits_256 Int))))
 													(k Bits_256))
   Bool
@@ -11,26 +11,27 @@
 			   (label (el3-3 (maybe-get entry))))
 		   (= k (<<func-mac>> kmac nonce label)))))                            ; then k has been computed correctly from kmac and inputs (and is stored at correct location)
    (let ((entry (select h2-prf k)))                                            ; for all k
-	 (=> (not (= entry (as mk-none (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))) ; if entry at k not none
-		 (let ((ltk (el6-1 (maybe-get entry)))
-			   (U    (el6-2 (maybe-get entry)))
-			   (V    (el6-3 (maybe-get entry)))
-			   (ni   (el6-4 (maybe-get entry)))
-			   (nr   (el6-5 (maybe-get entry)))
-			   (flag (el6-6 (maybe-get entry))))
-		   (= k (<<func-prf>> ltk U V ni nr flag)))))))                        ; then k has been compute
+	 (=> (not (= entry (as mk-none (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))) ; if entry at k not none
+		 (let ((ltk (el2-1 (maybe-get entry)))
+               (x (el2-2 (maybe-get entry))))
+           (let ((U    (el5-1 x))
+			     (V    (el5-2 x))
+			     (ni   (el5-3 x))
+			     (nr   (el5-4 x))
+			     (flag (el5-5 x)))
+		   (= k (<<func-prf>> ltk (mk-tuple5 U V ni nr flag)))))))))                        ; then k has been compute
 
 
 
-(define-fun helper-collision-resistance-pairwise ((h2-prf (Array Bits_256 (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))
+(define-fun helper-collision-resistance-pairwise ((h2-prf (Array Bits_256 (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))
 												  (h2-mac (Array Bits_256 (Maybe (Tuple3 Bits_256 Bits_256 Int))))
 												  (k1 Bits_256) (k2 Bits_256))
   Bool
   (and
    (let ((entry1 (select h2-prf k1))
 		 (entry2 (select h2-prf k2)))
-	 (=> (and (not (= entry1 (as mk-none (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool)))))
-			  (not (= entry2 (as mk-none (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))))
+	 (=> (and (not (= entry1 (as mk-none (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool))))))
+			  (not (= entry2 (as mk-none (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))))
 		 (=> (not (= k1 k2))
 			 (not (= entry1 entry2)))))
    (let ((entry1 (select h2-mac k1))
@@ -41,7 +42,7 @@
 			 (not (= entry1 entry2)))))))
 
 
-(define-fun helper-gamestate-singleside ((h2-prf (Array Bits_256 (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))
+(define-fun helper-gamestate-singleside ((h2-prf (Array Bits_256 (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))
 										 (h2-mac (Array Bits_256 (Maybe (Tuple3 Bits_256 Bits_256 Int))))
 										 (h2-nonces (Array Bits_256 (Maybe Bool)))
 										 (U Int) (u Bool) (V Int) (ltk Bits_256)
@@ -58,27 +59,27 @@
    ;;      (not (= kmac (as mk-none (Maybe Bits_256)))))
    (=> (not (= kmac (as mk-none (Maybe Bits_256))))
 	   (and (not (= k (as mk-none (Maybe Bits_256))))
-			(= kmac (mk-some (<<func-prf>> ltk U V     ; then kmac has the right value.
-										   (maybe-get ni)
-										   (maybe-get nr)
-										   false)))
+			(= kmac (mk-some (<<func-prf>> ltk (mk-tuple5 U V     ; then kmac has the right value.
+										                  (maybe-get ni)
+										                  (maybe-get nr)
+										                  false))))
 			(= (select h2-prf (maybe-get kmac))        ; then PRF value kmac is also in PRF table (at correct position).
-			   (mk-some (mk-tuple6 ltk U V
-								   (maybe-get ni)
-								   (maybe-get nr)
-								   false)))))
+			   (mk-some (mk-tuple2 ltk (mk-tuple5 U V
+								                  (maybe-get ni)
+								                  (maybe-get nr)
+								                  false))))))
 
    (=> (not (= k (as mk-none (Maybe Bits_256))))
 	   (and (not (= kmac (as mk-none (Maybe Bits_256))))
-			(= k (mk-some (<<func-prf>> ltk U V
-										(maybe-get ni)
-										(maybe-get nr)
-										true)))
+			(= k (mk-some (<<func-prf>> ltk (mk-tuple5 U V
+										               (maybe-get ni)
+										               (maybe-get nr)
+										               true))))
 			(= (select h2-prf (maybe-get k))           ; then PRF value k is also in PRF table (at correct position).
-			   (mk-some (mk-tuple6 ltk U V
-								   (maybe-get ni)
-								   (maybe-get nr)
-								   true)))))
+			   (mk-some (mk-tuple2 ltk (mk-tuple5 U V
+								                  (maybe-get ni)
+								                  (maybe-get nr)
+								                  true))))))
 			;; (= kmac (mk-some (<<func-prf>> ltk (ite u V U) (ite u U V)     ; then kmac has the right value.
 			;;                             (maybe-get ni)
 			;;                             (maybe-get nr)
@@ -115,7 +116,7 @@
 												 (maybe-get nr)
 												 2))))))))
 
-(define-fun helper-gamestate-responder ((h2-prf (Array Bits_256 (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))
+(define-fun helper-gamestate-responder ((h2-prf (Array Bits_256 (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))
 										(h2-mac (Array Bits_256 (Maybe (Tuple3 Bits_256 Bits_256 Int))))
 										(h2-nonces (Array Bits_256 (Maybe Bool)))
 										(U Int) (u Bool) (V Int) (ltk Bits_256)
@@ -142,7 +143,7 @@
 														 (maybe-get nr)
 														 2)))))))))
 
-(define-fun helper-gamestate-initiator ((h2-prf (Array Bits_256 (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))
+(define-fun helper-gamestate-initiator ((h2-prf (Array Bits_256 (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))
 										(h2-mac (Array Bits_256 (Maybe (Tuple3 Bits_256 Bits_256 Int))))
 										(h2-nonces (Array Bits_256 (Maybe Bool)))
 										(U Int) (u Bool) (V Int) (ltk Bits_256)
@@ -171,7 +172,7 @@
 														 2)))))))))
 
 
-(define-fun helper-gamestate-pairwise ((h2-prf (Array Bits_256 (Maybe (Tuple6 Bits_256 Int Int Bits_256 Bits_256 Bool))))
+(define-fun helper-gamestate-pairwise ((h2-prf (Array Bits_256 (Maybe (Tuple2 Bits_256 (Tuple5 Int Int Bits_256 Bits_256 Bool)))))
 									   (h2-mac (Array Bits_256 (Maybe (Tuple3 Bits_256 Bits_256 Int))))
 									   (h2-nonces (Array Bits_256 (Maybe Bool)))
 									   (ctr1 Int)
@@ -205,15 +206,15 @@
 	   (and ;(= kmac1 kmac2)
 			(= ltk1 ltk2)
 			;(= U1 V2) (= U2 V1)
-			(= ni1 ni2 (mk-some (el6-4 (maybe-get (select h2-prf (maybe-get key1))))))
-			(= nr1 nr2 (mk-some (el6-5 (maybe-get (select h2-prf (maybe-get key1))))))))
+			(= ni1 ni2 (mk-some (el5-3 (el2-2 (maybe-get (select h2-prf (maybe-get key1)))))))
+			(= nr1 nr2 (mk-some (el5-4 (el2-2 (maybe-get (select h2-prf (maybe-get key1)))))))))
 
    (=> (and (not (= kmac1 (as mk-none (Maybe Bits_256))))
 			(= kmac1 kmac2))
 	   (and ;(= key1 key2)
 			(= ltk1 ltk2)
-			(= ni1 ni2 (mk-some (el6-4 (maybe-get (select h2-prf (maybe-get kmac1))))))
-			(= nr1 nr2 (mk-some (el6-5 (maybe-get (select h2-prf (maybe-get kmac1))))))))
+			(= ni1 ni2 (mk-some (el5-3 (el2-2 (maybe-get (select h2-prf (maybe-get kmac1)))))))
+			(= nr1 nr2 (mk-some (el5-4 (el2-2 (maybe-get (select h2-prf (maybe-get kmac1)))))))))
 
    (=> (and (not (= sid1 (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))))
 			(not (= sid2 (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256))))))

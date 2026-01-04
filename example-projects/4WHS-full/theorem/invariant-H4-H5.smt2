@@ -80,10 +80,10 @@
 				   (=> (= acc (mk-some true))
 					   (not (= k (as mk-none (Maybe Bits_256)))))
 				   (=> (not (= k (as mk-none (Maybe Bits_256))))
-					   (and (= k (mk-some (<<func-prf>> ltk U V
-														(maybe-get ni)
-														(maybe-get nr)
-														true)))))))))))
+					   (and (= k (mk-some (<<func-prf>> ltk (mk-tuple5 U V
+														               (maybe-get ni)
+														               (maybe-get nr)
+														               true))))))))))))
 
 (define-fun invariant-H5
 	((state-H5 (Array Int (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
