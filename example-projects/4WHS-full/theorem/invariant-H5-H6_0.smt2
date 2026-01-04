@@ -1,12 +1,12 @@
 
 (define-fun state-equality
-    ((state-H5 (Array Int (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (state-H6 (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (prf-H6 (Array Int (Maybe Bits_256)))
+    ((state-H5 (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (state-H6 (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (prf-H6 (Array Int (Maybe Bits_n)))
      (hon-H6 (Array Int (Maybe Bool))))
   Bool
   (forall ((ctr Int))
@@ -27,11 +27,11 @@
                             (mess (el11-11 (maybe-get state))))
                        (let ((ltk (select prf-H6 kid))
                              (hon (select hon-H6 kid)))
-                         (and (= k (as mk-none (Maybe Bits_256)))
-                              (not (= ltk (as mk-none (Maybe Bits_256))))
+                         (and (= k (as mk-none (Maybe Bits_n)))
+                              (not (= ltk (as mk-none (Maybe Bits_n))))
                               (not (= hon (as mk-none (Maybe Bool))))
                               (= (select state-H5 ctr)
-                                 (mk-some (mk-tuple11 U u V (maybe-get ltk) acc (as mk-none (Maybe Bits_256))
+                                 (mk-some (mk-tuple11 U u V (maybe-get ltk) acc (as mk-none (Maybe Bits_n))
                                                       ni nr kmac sid mess)))))))))))
 
 
@@ -57,13 +57,13 @@
 ;; ni and nr are not none when accepted!
 
 (define-fun nonces-are-not-none 
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
             (let ((state (select state ctr)))
               (=> (not (= state none))
@@ -79,18 +79,18 @@
                          (sid  (el11-10 (maybe-get state)))
                          (mess (el11-11 (maybe-get state))))
                     (=> (= acc (mk-some true))
-                        (and (not (= ni (as mk-none (Maybe Bits_256))))
-                             (not (= nr (as mk-none (Maybe Bits_256))))))))))))
+                        (and (not (= ni (as mk-none (Maybe Bits_n))))
+                             (not (= nr (as mk-none (Maybe Bits_n))))))))))))
 
 
 (define-fun stuff-not-initialized-early
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
             (let ((state (select state ctr)))
               (=> (not (= state none))
@@ -107,18 +107,18 @@
                          (mess (el11-11 (maybe-get state))))
                     (and (ite u
                               (ite (> mess 0)
-                                   (and (not (= kmac (as mk-none (Maybe Bits_256))))
-                                        (not (= ni (as mk-none (Maybe Bits_256))))
-                                        (not (= nr (as mk-none (Maybe Bits_256)))))
-                                   (= ni nr kmac (as mk-none (Maybe Bits_256))))
+                                   (and (not (= kmac (as mk-none (Maybe Bits_n))))
+                                        (not (= ni (as mk-none (Maybe Bits_n))))
+                                        (not (= nr (as mk-none (Maybe Bits_n)))))
+                                   (= ni nr kmac (as mk-none (Maybe Bits_n))))
                               (ite (= mess 0)
-                                   (= ni nr kmac (as mk-none (Maybe Bits_256)))
+                                   (= ni nr kmac (as mk-none (Maybe Bits_n)))
                                    (ite (= mess 1)
-                                        (and (not (= ni (as mk-none (Maybe Bits_256))))
-                                             (= nr kmac (as mk-none (Maybe Bits_256))))
-                                        (and (not (= kmac (as mk-none (Maybe Bits_256))))
-                                             (not (= ni (as mk-none (Maybe Bits_256))))
-                                             (not (= nr (as mk-none (Maybe Bits_256)))))))))))))))
+                                        (and (not (= ni (as mk-none (Maybe Bits_n))))
+                                             (= nr kmac (as mk-none (Maybe Bits_n))))
+                                        (and (not (= kmac (as mk-none (Maybe Bits_n))))
+                                             (not (= ni (as mk-none (Maybe Bits_n))))
+                                             (not (= nr (as mk-none (Maybe Bits_n)))))))))))))))
 
 
 (define-fun invariant

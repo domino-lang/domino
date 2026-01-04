@@ -4,26 +4,26 @@ package MAC {
      */
     params {
         n: Integer,
-        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
         b: Bool,
     }
 
     state {
-        Keys: Table((Integer, Integer,Integer,Bits(256),Bits(256)),Bits(256)),
-        Values: Table(((Integer, Integer,Integer,Bits(256),Bits(256)),
-                       (Bits(256), Integer)), Bits(256)),
+        Keys: Table((Integer, Integer,Integer,Bits(n),Bits(n)),Bits(n)),
+        Values: Table(((Integer, Integer,Integer,Bits(n),Bits(n)),
+                       (Bits(n), Integer)), Bits(n)),
     }
 
-    oracle Init(handle: (Integer, Integer,Integer,Bits(256),Bits(256))) {
+    oracle Init(handle: (Integer, Integer,Integer,Bits(n),Bits(n))) {
         if (Keys[handle] == None) {
-            key <-$ Bits(256);
+            key <-$ Bits(n);
             Keys[handle] <- Some(key);
 		}
     }
 
-    oracle Mac(handle: (Integer, Integer,Integer,Bits(256),Bits(256)),
-               value: (Bits(256), Integer))
-           -> Bits(256) {
+    oracle Mac(handle: (Integer, Integer,Integer,Bits(n),Bits(n)),
+               value: (Bits(n), Integer))
+           -> Bits(n) {
         key <- Keys[handle];
         assert not (key == None);
 
@@ -34,9 +34,9 @@ package MAC {
         return tag;
     }
 
-    oracle Verify(handle: (Integer, Integer,Integer,Bits(256),Bits(256)),
-                  value: (Bits(256), Integer),
-                  tag: Bits(256))
+    oracle Verify(handle: (Integer, Integer,Integer,Bits(n),Bits(n)),
+                  value: (Bits(n), Integer),
+                  tag: Bits(n))
            -> Bool {
         key <- Keys[handle];
         assert not (key == None);

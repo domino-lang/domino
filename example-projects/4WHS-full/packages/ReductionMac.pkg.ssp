@@ -1,30 +1,30 @@
 package ReductionMac {
     params {
         n: Integer,
-        zeron: Bits(256),
-        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+        zeron: Bits(n),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
 
     import oracles {
-        Init(handle: (Integer,Integer,Integer,Bits(256),Bits(256))),
-        Mac(handle: (Integer, Integer,Integer,Bits(256),Bits(256)),
-            value: (Bits(256),Integer)) -> Bits(256),
-        Verify(handle: (Integer, Integer,Integer,Bits(256),Bits(256)),
-               value: (Bits(256),Integer),
-               tag: Bits(256)) -> Bool,
+        Init(handle: (Integer,Integer,Integer,Bits(n),Bits(n))),
+        Mac(handle: (Integer, Integer,Integer,Bits(n),Bits(n)),
+            value: (Bits(n),Integer)) -> Bits(n),
+        Verify(handle: (Integer, Integer,Integer,Bits(n),Bits(n)),
+               value: (Bits(n),Integer),
+               tag: Bits(n)) -> Bool,
         Hon(h: Integer) -> Bool,
-        Sample() -> Bits(256),
-        Eval(kid: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256),
+        Sample() -> Bits(n),
+        Eval(kid: Integer, x: (Integer, Integer, Bits(n), Bits(n), Bool)) -> Bits(n),
     }
 
     oracle Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                                       Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                                       Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                                       Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                                       Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                                        Integer),
-                                      (Bits(256))) {
+                                      (Bits(n))) {
         (U,u,V,kid,acc,k,ni_,nr,kmac,sid,mess) <- parse state;
         assert (acc  == None );              /* session is still running           */
         assert (mess == 0);
@@ -37,14 +37,14 @@ package ReductionMac {
     }
 
     oracle Run2(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-                ni:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                ni:Bits(n)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                                    Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                                     Integer),
-                                   (Bits(256), Bits(256))) {
+                                   (Bits(n), Bits(n))) {
         (U,v,V,kid,acc,k_,ni_,nr_,kmac__,sid_,mess) <- parse state;
         assert (acc  == None );              /* session is still running           */
         assert (mess == 0);
@@ -55,7 +55,7 @@ package ReductionMac {
         if hon {
             _          <- invoke Init( (kid,U,V,ni,nr) );
             tau        <- invoke Mac( (kid,U,V,ni,nr), (nr,2) );
-            kmac       <- None as Bits(256);
+            kmac       <- None as Bits(n);
         } else {
             kmac_      <- invoke Eval(kid,(U,V,ni,nr,false)); /* need role agreement here, to be fixed */
             tau        <- mac(kmac_,nr,2);
@@ -68,14 +68,14 @@ package ReductionMac {
     }
 
     oracle Run3(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-                msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                                            Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                msg:(Bits(n),Bits(n))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                            Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                                            Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                                             Integer),
-                                           (Bits(256), Bits(256))) {
+                                           (Bits(n), Bits(n))) {
         (U,u,V,kid,acc,k_,ni,nr_,kmac__,sid_,mess) <- parse state;
         assert (mess == 1);
         assert (acc  == None );              /* session is still running           */
@@ -87,7 +87,7 @@ package ReductionMac {
         if hon {
             _          <- invoke Init( (kid,U,V,Unwrap(ni),nr) );
             /*tau_       <- invoke Mac( (kid,U,V,Unwrap(ni),nr), (Unwrap(ni),3));*/
-            kmac       <- None as Bits(256);
+            kmac       <- None as Bits(n);
         } else {
             kmac_      <- invoke Eval(kid,(U,V,Unwrap(ni),nr,false));
             /*tau_       <- mac(kmac_,Unwrap(ni),3);*/
@@ -114,14 +114,14 @@ package ReductionMac {
     }
 
     oracle Run4(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-                msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                                            Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                msg:(Bits(n),Bits(n))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                            Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                                            Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                                             Integer),
-                                           (Bits(256))) {
+                                           (Bits(n))) {
         (U,v,V,kid,acc,k,ni_,nr,kmac,sid,mess) <- parse state;
         assert (acc  == None );              /* session is still running           */
         assert (mess == 1);
@@ -156,12 +156,12 @@ package ReductionMac {
 
 
     oracle Run5(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-                tau:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                tau:Bits(n)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+                                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                                    Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                                     Integer),
                                    (Bool)) {
         (U,u,V,kid,acc,k,ni,nr,kmac,sid,mess) <- parse state;

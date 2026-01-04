@@ -2,15 +2,15 @@
 
 (define-fun select-kmac
     ((ctr Int)
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
-  (Maybe Bits_256)
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
+  (Maybe Bits_n)
   (let ((state (select State ctr)))
     (ite (is-mk-none state)
-         (as mk-none (Maybe Bits_256))
+         (as mk-none (Maybe Bits_n))
          (let  ((U    (el11-1  (maybe-get state)))
                 (u    (el11-2  (maybe-get state)))
                 (V    (el11-3  (maybe-get state)))
@@ -32,20 +32,20 @@
 
 
 (define-fun prfeval-has-matching-session
-    ((prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
-     (revtesteval (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Int)))
-     (revtesteval1 (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Int)))
-     (revtest (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Bool)))
-     (state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
+     (revtesteval (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
+     (revtesteval1 (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
+     (revtest (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Bool)))
+     (state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
-    (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+    (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
             (let ((pos-prf (mk-tuple6 kid U V ni nr true))
                   (pos-rev (mk-tuple5 kid U V ni nr)))
               (and (=> (not (is-mk-none (select prf pos-prf)))
@@ -85,14 +85,14 @@
 
 
 (define-fun sid-matches
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr1 Int) (ctr2 Int))
             (let ((state1 (select state ctr1))
                   (state2 (select state ctr2)))
@@ -114,20 +114,20 @@
                       (kmac2 (el11-9 (maybe-get state2)))
                       (sid1  (el11-10 (maybe-get state1)))
                       (sid2  (el11-10 (maybe-get state2))))
-                  (=> (and (not (= sid1 (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))))
-                           (not (= sid2 (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))))
+                  (=> (and (not (= sid1 (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
+                           (not (= sid2 (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
                            (= (mk-tuple5 kid1 U1 V1 ni1 nr1)
                               (mk-tuple5 kid2 U2 V2 ni2 nr2)))
                       (= sid1 sid2))))))))
 
 
 (define-fun sid-is-wellformed
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
   (forall ((ctr Int))
           (let ((state (select state ctr)))
@@ -160,23 +160,23 @@
 
 
 (define-fun key-not-computed-unless-test-or-reveal
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (revtest (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Bool)))
-     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (revtest (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Bool)))
+     (prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
      (H (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
   (and
    ;; mac keys are computed before output keys
    (forall ((kid Int)
             (U Int)
             (V Int)
-            (ni Bits_256)
-            (nr Bits_256))
+            (ni Bits_n)
+            (nr Bits_n))
            (=> (not (= (select prf (mk-tuple6 kid U V ni nr true))
-                       (as mk-none (Maybe Bits_256))))
+                       (as mk-none (Maybe Bits_n))))
                (ite (= (select H kid) (mk-some true))
                     (not (is-mk-none (select Keys (mk-tuple5 kid U V ni nr))))
                     (not (is-mk-none (select prf (mk-tuple6 kid U V ni nr false)))))))
@@ -185,9 +185,9 @@
    (forall ((kid Int)
             (U Int)
             (V Int)
-            (ni Bits_256)
-            (nr Bits_256)
-            (kmac-prime Bits_256))
+            (ni Bits_n)
+            (nr Bits_n)
+            (kmac-prime Bits_n))
            (and
             ;; entry in PRF table => entry in revtest
             (=> (not (is-mk-none (select prf (mk-tuple6 kid U V ni nr true))))
@@ -207,26 +207,26 @@
                                      (select prf (mk-tuple6 kid U V ni nr false)))
                        (mk-some kmac-prime))
                     (= (select prf (mk-tuple6 kid U V ni nr true))
-                       (as mk-none (Maybe Bits_256)))))))))
+                       (as mk-none (Maybe Bits_n)))))))))
 
 (define-fun key-not-computed-unless-reveal
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (revtest (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Bool)))
-     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (revtest (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Bool)))
+     (prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
      (H (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
   (and
    ;; mac keys are computed before output keys
    (forall ((kid Int)
             (U Int)
             (V Int)
-            (ni Bits_256)
-            (nr Bits_256))
+            (ni Bits_n)
+            (nr Bits_n))
            (=> (not (= (select prf (mk-tuple6 kid U V ni nr true))
-                       (as mk-none (Maybe Bits_256))))
+                       (as mk-none (Maybe Bits_n))))
                (ite (= (select H kid) (mk-some true))
                     (not (is-mk-none (select Keys (mk-tuple5 kid U V ni nr))))
                     (not (is-mk-none (select prf (mk-tuple6 kid U V ni nr false)))))))
@@ -235,9 +235,9 @@
    (forall ((kid Int)
             (U Int)
             (V Int)
-            (ni Bits_256)
-            (nr Bits_256)
-            (kmac-prime Bits_256))
+            (ni Bits_n)
+            (nr Bits_n)
+            (kmac-prime Bits_n))
            (and
             ;; entry in PRF table => false entry in revtest
             (=> (not (is-mk-none (select prf (mk-tuple6 kid U V ni nr true))))
@@ -257,7 +257,7 @@
                                      (select prf (mk-tuple6 kid U V ni nr false)))
                        (mk-some kmac-prime))
                     (= (select prf (mk-tuple6 kid U V ni nr true))
-                       (as mk-none (Maybe Bits_256)))))
+                       (as mk-none (Maybe Bits_n)))))
             ;; tested => prf none
             (=> (let ((tau (<<func-mac>> kmac-prime nr 2)))
                   (= (select revtest (mk-tuple5 U V ni nr tau))
@@ -267,7 +267,7 @@
                                      (select prf (mk-tuple6 kid U V ni nr false)))
                        (mk-some kmac-prime))
                     (= (select prf (mk-tuple6 kid U V ni nr true))
-                       (as mk-none (Maybe Bits_256)))))            
+                       (as mk-none (Maybe Bits_n)))))            
                        ))))
 
 
@@ -278,16 +278,16 @@
 ;;
 (define-fun no-overwriting-prf
     ((kid Int)
-     (Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+     (Prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
      (H (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256)))
-     (Ltk (Array Int (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
+     (Ltk (Array Int (Maybe Bits_n))))
   Bool
-    (forall ((i Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+    (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
             (and
              (=> (= (select H i) (as mk-none (Maybe Bool)))
-                 (= (select Ltk i) (as mk-none (Maybe Bits_256))))
-             (=> (= (select Ltk i) (as mk-none (Maybe Bits_256)))
+                 (= (select Ltk i) (as mk-none (Maybe Bits_n))))
+             (=> (= (select Ltk i) (as mk-none (Maybe Bits_n)))
                  (= (select H i) (as mk-none (Maybe Bool))))
              (=> (> i kid)
                  (and
@@ -298,9 +298,9 @@
                   (is-mk-none (select Prf (mk-tuple6 i U V ni nr false))))))))
 
 (define-fun no-overwriting-game
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (ctr Int))
   Bool
   (forall ((i Int))
@@ -309,28 +309,28 @@
 
 
 (define-fun mac-keys-equal-in-prf
-    ((prf0 (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
-     (prf1 (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256))))
+    ((prf0 (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
+     (prf1 (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n))))
   Bool
-  (forall ((in (Tuple6 Int Int Int Bits_256 Bits_256 Bool)))
+  (forall ((in (Tuple6 Int Int Int Bits_n Bits_n Bool)))
           (=> (= false (el6-6 in))
               (= (select prf0 in)
                  (select prf1 in)))))
 
 
 (define-fun kmac-and-tau-are-computed-correctly
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
      (honesty (Array Int (Maybe Bool)))
-     (ltk (Array Int (Maybe Bits_256)))
+     (ltk (Array Int (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
             (let ((state (select state ctr)))
               (=> (not (= state none))
@@ -346,25 +346,25 @@
                          (sid  (el11-10 (maybe-get state)))
                          (mess (el11-11 (maybe-get state))))
                     (and
-                     (not (= (select ltk kid) (as mk-none (Maybe Bits_256))))
+                     (not (= (select ltk kid) (as mk-none (Maybe Bits_n))))
                      (not (= (select honesty kid) (as mk-none (Maybe Bool))))
                      (and
-                      (=> (and (not (= kmac (as mk-none (Maybe Bits_256))))
+                      (=> (and (not (= kmac (as mk-none (Maybe Bits_n))))
                                (= (select honesty kid) (mk-some false)))
                           (= kmac (mk-some (<<func-prf>> (maybe-get (select ltk kid)) U V
                                                          (maybe-get ni) (maybe-get nr) false))))))))))))
 
 
 (define-fun stuff-not-initialized-early
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
             (let ((state (select State ctr)))
               (=> (not (= state none))
@@ -381,39 +381,39 @@
                          (mess (el11-11 (maybe-get state))))
                     (and (ite u
                               (ite (> mess 0)
-                                   (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))))
+                                   (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
                                         (ite (= (select Fresh ctr) (mk-some true))
                                              (not (is-mk-none (select Keys (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr)))))
                                              (not (is-mk-none kmac)))
-                                        (not (= ni (as mk-none (Maybe Bits_256))))
-                                        (not (= nr (as mk-none (Maybe Bits_256)))))
-                                   (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256))))
-                                        (= ni nr kmac (as mk-none (Maybe Bits_256)))))
+                                        (not (= ni (as mk-none (Maybe Bits_n))))
+                                        (not (= nr (as mk-none (Maybe Bits_n)))))
+                                   (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))))
+                                        (= ni nr kmac (as mk-none (Maybe Bits_n)))))
                               (ite (= mess 0)
-                                   (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256))))
-                                        (= ni nr kmac (as mk-none (Maybe Bits_256))))
+                                   (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))))
+                                        (= ni nr kmac (as mk-none (Maybe Bits_n))))
                                    (ite (= mess 1)
-                                        (and (not (= ni (as mk-none (Maybe Bits_256))))
-                                             (= nr kmac (as mk-none (Maybe Bits_256)))
-                                             (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))))
-                                        (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))))
+                                        (and (not (= ni (as mk-none (Maybe Bits_n))))
+                                             (= nr kmac (as mk-none (Maybe Bits_n)))
+                                             (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
+                                        (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
                                              (ite (= (select Fresh ctr) (mk-some true))
                                                   (not (is-mk-none (select Keys (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr)))))
                                                   (not (is-mk-none kmac)))
-                                             (not (= ni (as mk-none (Maybe Bits_256))))
-                                             (not (= nr (as mk-none (Maybe Bits_256)))))))))))))))
+                                             (not (= ni (as mk-none (Maybe Bits_n))))
+                                             (not (= nr (as mk-none (Maybe Bits_n)))))))))))))))
 
 
 
 (define-fun own-nonce-is-unique
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (nonces (Array Bits_256 (Maybe Bool))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (nonces (Array Bits_n (Maybe Bool))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (and
      (forall ((ctr Int))
              (let ((state (select state ctr)))
@@ -430,9 +430,9 @@
                           (sid  (el11-10 (maybe-get state)))
                           (mess (el11-11 (maybe-get state))))
                      (ite u
-                          (=> (not (= nr (as mk-none (Maybe Bits_256))))
+                          (=> (not (= nr (as mk-none (Maybe Bits_n))))
                               (= (select nonces (maybe-get nr)) (mk-some true)))
-                          (=> (not (= ni (as mk-none (Maybe Bits_256))))
+                          (=> (not (= ni (as mk-none (Maybe Bits_n))))
                               (= (select nonces (maybe-get ni)) (mk-some true))))))))
 
      (forall ((ctr1 Int)(ctr2 Int))
@@ -450,40 +450,40 @@
                       (let ((nonce1 (ite u1 nr1 ni1))
                             (nonce2 (ite u2 nr2 ni2)))
                         (=> (and (not (= ctr1 ctr2))
-                                 (not (= nonce1 (as mk-none (Maybe Bits_256)))))
+                                 (not (= nonce1 (as mk-none (Maybe Bits_n)))))
                             (not (= nonce1 nonce2))))))))))))
 
 
 (define-fun revtesteval-populated
-    ((revtesteval (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Int)))
+    ((revtesteval (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
      (H (Array Int (Maybe Bool)))
-     (prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256))))
+     (prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n))))
   Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
           (let ((pos-prf (mk-tuple6 kid U V ni nr true))
                 (pos-rev (mk-tuple5 kid U V ni nr)))
             (and
              (=> (= (select prf pos-prf)
-                    (as mk-none (Maybe Bits_256)))
+                    (as mk-none (Maybe Bits_n)))
                  (or (= (select H kid) (mk-some false))
                      (= (select revtesteval pos-rev)
                         (as mk-none (Maybe Int)))))
              (=> (= (select revtesteval pos-rev)
                     (as mk-none (Maybe Int)))
                  (= (select prf pos-prf)
-                    (as mk-none (Maybe Bits_256))))))))
+                    (as mk-none (Maybe Bits_n))))))))
 
 
 (define-fun revtesteval-matches-sometimes
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (revtesteval0 (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Int)))
-     (revtesteval1 (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Int)))
-     (revtest (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Bool))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (revtesteval0 (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
+     (revtesteval1 (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
+     (revtest (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Bool))))
   Bool
      (and
-      (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+      (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
               (=> (not (is-mk-none (select revtesteval1 (mk-tuple5 kid U V ni nr))))
                   (= (select revtesteval1 (mk-tuple5 kid U V ni nr))
                      (select revtesteval0 (mk-tuple5 kid U V ni nr)))))))
@@ -491,15 +491,15 @@
 
 
 (define-fun freshness-and-honesty-matches
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (fresh (Array Int (Maybe Bool)))
      (honest (Array Int (Maybe Bool))))
   Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                          (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                          (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
             (let ((state (select state ctr)))
               (=> (not (= state none))
@@ -509,11 +509,11 @@
 
 
 (define-fun mac-table-wellformed
-    ((Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256))))
+    ((Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
+     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
-  (forall ((idx (Tuple5 Int Int Int Bits_256 Bits_256))
-           (msg1 Bits_256)
+  (forall ((idx (Tuple5 Int Int Int Bits_n Bits_n))
+           (msg1 Bits_n)
            (msg2 Int))
           (let ((val-idx (mk-tuple2 idx (mk-tuple2 msg1 msg2))))
             (and (=> (is-mk-none (select Keys idx))
@@ -527,14 +527,14 @@
 
 (define-fun no-ideal-values-for-dishonest-keys
     ((H (Array Int (Maybe Bool)))
-     (Prf (Array (Tuple6 Int Int Int Bits_256 Bits_256 Bool) (Maybe Bits_256)))
-     (Keys (Array (Tuple5 Int Int Int Bits_256 Bits_256) (Maybe Bits_256))))
+     (Prf (Array (Tuple6 Int Int Int Bits_n Bits_n Bool) (Maybe Bits_n)))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
   (forall ((kid Int)
            (U Int)
            (V Int)
-           (ni Bits_256)
-           (nr Bits_256))
+           (ni Bits_n)
+           (nr Bits_n))
           (=> (= (select H kid) (mk-some false))
               (and
                (is-mk-none (select Keys (mk-tuple5 kid U V ni nr)))
@@ -543,12 +543,12 @@
 
 
 (define-fun honest-sessions-to-first-and-second
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh (Array Int (Maybe Bool)))
-     (First (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Int))))
+     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -573,22 +573,22 @@
                            (= (mk-some ctr) (select Second (maybe-get sid))))))))))
     
 (define-fun sessions-in-first-exist
-    ((First (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Int)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (forall ((sid (Tuple5 Int Int Bits_256 Bits_256 Bits_256)))
+  (forall ((sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
           (=> (not (is-mk-none (select First sid)))
               (not (is-mk-none (select State (maybe-get (select First sid))))))))
 
 
 (define-fun honest-sid-have-tau-in-mac
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh (Array Int (Maybe Bool)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256))))
+     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -616,14 +616,14 @@
 
 
 (define-fun first-set-by-initiator
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int))))
-     (First (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Int)))
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
      (Fresh (Array Int (Maybe Bool)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256))))
+     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
-  (forall ((U Int) (V Int) (ni Bits_256) (nr Bits_256) (tau Bits_256))
+  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((sid (mk-tuple5 U V ni nr tau)))
             (=> (not (is-mk-none (select First sid)))
                 (let ((ctr (maybe-get (select First sid))))
@@ -635,28 +635,28 @@
                         (and (= u false)))))))))
 
 (define-fun three-mac-implies-two-mac
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256))))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
           (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                          (mk-tuple2 ni 3)))))
               (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                          (mk-tuple2 nr 2))))))))                  
 
 (define-fun four-mac-implies-three-mac
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256))))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
           (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                          (mk-tuple2 nr 4)))))
               (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                          (mk-tuple2 ni 3))))))))                  
 
 (define-fun two-mac-implies-first
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256)))
-     (First (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Int))))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
+     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
   Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
           (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                          (mk-tuple2 nr 2)))))
               (let ((tau (maybe-get (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
@@ -664,10 +664,10 @@
                 (not (is-mk-none (select First (mk-tuple5 U V ni nr tau))))))))
 
 (define-fun three-mac-implies-second
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256)))
-     (Second (Array (Tuple5 Int Int Bits_256 Bits_256 Bits_256) (Maybe Int))))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
   Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_256) (nr Bits_256))
+  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
           (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                          (mk-tuple2 ni 3)))))
               (let ((tau (maybe-get (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
@@ -677,11 +677,11 @@
 
 
 (define-fun initiator-accepts-with-mac-four-only
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256)))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -704,11 +704,11 @@
                                                                  (mk-tuple2 (maybe-get nr) 4)))))))))))
 
 (define-fun initiator-msg-2-with-mac-three-only
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256)))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -732,11 +732,11 @@
 
 
 (define-fun initiator-accepts-with-msg-2-only
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256)))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
@@ -758,11 +758,11 @@
                       (> mess 1)))))))
 
 (define-fun responder-accepts-with-mac-three-only
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_256 Bits_256) (Tuple2 Bits_256 Int)) (Maybe Bits_256)))
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_256)
-                                       (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-                                       (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256)) Int)))))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))

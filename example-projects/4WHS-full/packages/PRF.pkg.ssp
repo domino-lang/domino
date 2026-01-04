@@ -1,22 +1,22 @@
 package PRF {
     params {
         n: Integer,
-      prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
+      prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),
         b: Bool
     }
     
     state {
-          LTK:   Table(Integer, Bits(256)),       /* administrative kid, keys    */
+          LTK:   Table(Integer, Bits(n)),       /* administrative kid, keys    */
           H:     Table(Integer, Bool),          /* administrative kid, honesty */
-          PRF:   Table((Integer,(Integer,Integer,Bits(256),Bits(256),Bool)), Bits(256)), /* output keys */
+          PRF:   Table((Integer,(Integer,Integer,Bits(n),Bits(n),Bool)), Bits(n)), /* output keys */
           kid_:  Integer,                       /* counter */
     }
 
-oracle NewKey(ltk: Maybe(Bits(256))) -> Integer {
+oracle NewKey(ltk: Maybe(Bits(n))) -> Integer {
       kid_ <- (kid_ + 1);
       if (ltk == None)
       {
-        ltk_ <-$Bits(256);
+        ltk_ <-$Bits(n);
         LTK[kid_] <- Some(ltk_);
         H[kid_]   <- Some(true); 
       }
@@ -26,7 +26,7 @@ oracle NewKey(ltk: Maybe(Bits(256))) -> Integer {
       return kid_;
     }
 
-    oracle Eval(kid: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256) {
+    oracle Eval(kid: Integer, x: (Integer, Integer, Bits(n), Bits(n), Bool)) -> Bits(n) {
         assert not (LTK[kid] == None);
         if ((H[kid] == Some(false)) or not b)
             {
@@ -34,7 +34,7 @@ oracle NewKey(ltk: Maybe(Bits(256))) -> Integer {
               return prf(k,x);
             }
         if (PRF[(kid,x)] == None) {
-            temp <-$ Bits(256);
+            temp <-$ Bits(n);
             PRF[(kid,x)] <- Some(temp);
         }
         y <- PRF[(kid,x)];

@@ -1,23 +1,23 @@
 package ProtNoKeyOnlyKid {
     params {
         n: Integer,
-        zeron: Bits(256),
-        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+        zeron: Bits(n),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
 
     import oracles {
-        Sample() -> Bits(256),
-		Eval(kid: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256),
+        Sample() -> Bits(n),
+		Eval(kid: Integer, x: (Integer, Integer, Bits(n), Bits(n), Bool)) -> Bits(n),
 	}
 
 	oracle Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                       Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						               Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+				                       Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						               Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						               Integer),
-						              (Bits(256))) {
+						              (Bits(n))) {
 	    (U,u,V,kid,acc,k,ni_,nr,kmac,sid,mess) <- parse state;
         assert (acc  == None );              /* session is still running           */
         assert (mess == 0);
@@ -30,14 +30,14 @@ package ProtNoKeyOnlyKid {
 	}
 
 	oracle Run2(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            ni:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-							        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            ni:Bits(n)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+							        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 							        Integer),
-							       (Bits(256), Bits(256))) {
+							       (Bits(n), Bits(n))) {
 	    (U,v,V,kid,acc,k_,ni_,nr_,kmac_,sid_,mess) <- parse state;
         assert (acc  == None );              /* session is still running           */
         assert (mess == 0);
@@ -53,14 +53,14 @@ package ProtNoKeyOnlyKid {
 	}
 
 	oracle Run3(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-							                Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            msg:(Bits(n),Bits(n))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                            Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+							                Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 							                Integer),
-							               (Bits(256), Bits(256))) {
+							               (Bits(n), Bits(n))) {
 	    (U,u,V,kid,acc,k_,ni,nr_,kmac_,sid_,mess) <- parse state;
         assert (mess == 1);
         assert (acc  == None );              /* session is still running           */
@@ -81,14 +81,14 @@ package ProtNoKeyOnlyKid {
 	}
 
 	oracle Run4(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            msg:(Bits(256),Bits(256))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                            Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-							                Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            msg:(Bits(n),Bits(n))) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                            Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+							                Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 							                Integer),
-							               (Bits(256))) {
+							               (Bits(n))) {
 	    (U,v,V,kid,acc,k,ni_,nr,kmac,sid,mess) <- parse state;
         assert (acc  == None );              /* session is still running           */
 		assert (mess == 1);
@@ -111,12 +111,12 @@ package ProtNoKeyOnlyKid {
 
 
 	oracle Run5(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-	                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-						Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+						Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 						Integer),
-	            tau:Bits(256)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-				                    Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-				                    Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+	            tau:Bits(n)) -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
+				                    Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+				                    Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
 				                    Integer),
 				                   (Bool)) {
 	    (U,u,V,kid,acc,k,ni,nr,kmac,sid,mess) <- parse state;

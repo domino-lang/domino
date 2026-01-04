@@ -10,7 +10,7 @@
 	 (H2-return <OracleReturn-H2-<$<!n!><!b!><!true!><!zeron!>$>-Game-<$<!b!><!n!><!zeron!>$>-Send2>)
 	 (H3-return <OracleReturn-H3-<$<!n!><!b!><!true!><!zeron!>$>-Game_nochecks-<$<!b!><!n!><!zeron!>$>-Send2>)
 	 (ctr Int)
-	 (msg Bits_256))
+	 (msg Bits_n))
   Bool
   (let (
 		(gamestate-H2  (<game-H2-<$<!n!><!b!><!true!><!zeron!>$>-pkgstate-Game>
@@ -67,17 +67,17 @@
 
 	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	   ;; Local Statement on MAC & PRF collision-freeness
-	   (forall ((k1 Bits_256) (k2 Bits_256)) (helper-collision-resistance-pairwise h2-prf h2-mac k1 k2))
-	   (forall ((k Bits_256)) (helper-collision-resistance-singleside h2-prf h2-mac k))
+	   (forall ((k1 Bits_n) (k2 Bits_n)) (helper-collision-resistance-pairwise h2-prf h2-mac k1 k2))
+	   (forall ((k Bits_n)) (helper-collision-resistance-singleside h2-prf h2-mac k))
 
 	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	   ;; Local statement on single entries in the game state
 	   (forall ((ctr Int))
 			   (let ((state (select H2-state ctr)))
 				 (=> (not (= state
-							 (as mk-none (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-														 (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-														 (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256))
+							 (as mk-none (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+														 (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+														 (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))
 														 Int)))))
 					 (let ((U    (el11-1  (maybe-get state)))
 						   (u    (el11-2  (maybe-get state)))
@@ -107,14 +107,14 @@
 			   (let ((state1 (select H2-state ctr1))
 					 (state2 (select H2-state ctr2)))
 				 (=> (and (not (= state1
-								  (as mk-none (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-															  (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-															  (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256))
+								  (as mk-none (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+															  (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+															  (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))
 															  Int)))))
 						  (not (= state2
-								  (as mk-none (Maybe (Tuple11 Int Bool Int Bits_256 (Maybe Bool) (Maybe Bits_256)
-															  (Maybe Bits_256) (Maybe Bits_256) (Maybe Bits_256)
-															  (Maybe (Tuple5 Int Int Bits_256 Bits_256 Bits_256))
+								  (as mk-none (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+															  (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+															  (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))
 															  Int))))))
 					 (let ((U1    (el11-1  (maybe-get (select H2-state ctr1))))
 						   (U2    (el11-1  (maybe-get (select H2-state ctr2))))

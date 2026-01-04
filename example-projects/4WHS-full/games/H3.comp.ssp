@@ -1,8 +1,8 @@
 composition H3 {
         const n: Integer;
-        const zeron: Bits(256);
-        const prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256);
-        const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
+        const zeron: Bits(n);
+        const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
+        const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const b: Bool;
         const bcr: Bool;
     

@@ -5,11 +5,11 @@ package Nonces {
     }
     
     state {
-          Nonces:   Table(Bits(256),Bool),       /* store nonces */
+          Nonces:   Table(Bits(n),Bool),       /* store nonces */
     }
 
-    oracle Sample() -> Bits(256) {
-        ni         <-$ Bits(256);
+    oracle Sample() -> Bits(n) {
+        ni         <-$ Bits(n);
         if b
         {
 			assert (Nonces[ni] == None);

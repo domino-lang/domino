@@ -1,17 +1,17 @@
 package CR {
     params {
         n: Integer,
-        prf: fn Bits(256), (Integer, Integer, Bits(256), Bits(256), Bool) ->  Bits(256),
-        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+        prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
         b: Bool
     }
     
     state {
-          PRFinverse:   Table(Bits(256),(Bits(256),(Integer,Integer,Bits(256),Bits(256),Bool))),
-          MACinverse:   Table(Bits(256),(Bits(256), Bits(256), Integer)),
+          PRFinverse:   Table(Bits(n),(Bits(n),(Integer,Integer,Bits(n),Bits(n),Bool))),
+          MACinverse:   Table(Bits(n),(Bits(n), Bits(n), Integer)),
     }
 
-    oracle MAC(k: Bits(256), nonce: Bits(256), i: Integer) -> Bits(256) {
+    oracle MAC(k: Bits(n), nonce: Bits(n), i: Integer) -> Bits(n) {
         y <- mac(k,nonce,i);
 		if b {
             assert ((MACinverse[y] == None) or (MACinverse[y] == Some((k,nonce,i))));
@@ -20,7 +20,7 @@ package CR {
         return y;
     }
 
-    oracle PRF(k: Bits(256), x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256) {
+    oracle PRF(k: Bits(n), x: (Integer, Integer, Bits(n), Bits(n), Bool)) -> Bits(n) {
         y <- prf(k,x);
 		if b {
              assert ((PRFinverse[y] == None) or (PRFinverse[y] == Some((k,x))));

@@ -1,7 +1,7 @@
 composition MAC {
         const n: Integer;
         const b: Bool;
-        const mac: fn Bits(256), Bits(256), Integer -> Bits(256);
+        const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
 
     instance MAC = MAC {
         params {

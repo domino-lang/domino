@@ -2,8 +2,8 @@ package KX_noprfkey {
     params {
         b: Bool,
         n: Integer,
-        zeron: Bits(256),
-        mac: fn Bits(256), Bits(256), Integer -> Bits(256),
+        zeron: Bits(n),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
     
     state {
@@ -11,13 +11,13 @@ package KX_noprfkey {
           ctr_:  Integer,                       /* administrative sid  */
           /* kid_:  Integer, */                      /* administrative kid  */
 		  /* session key table, reveal -> (.,false) ; test -> (.,true) */
-          RevTested:  Table((Integer,Integer,Bits(256),Bits(256),Bits(256)),
+          RevTested:  Table((Integer,Integer,Bits(n),Bits(n),Bits(n)),
 		               Bool),
 		  Fresh: Table(Integer, Bool),
-		  RevTestEval: Table((Integer,Integer,Integer,Bits(256),Bits(256)),Integer),
+		  RevTestEval: Table((Integer,Integer,Integer,Bits(n),Bits(n)),Integer),
           /* Authentication */
-          First:  Table((Integer,Integer,Bits(256),Bits(256),Bits(256)), Integer),
-          Second: Table((Integer,Integer,Bits(256),Bits(256),Bits(256)), Integer),
+          First:  Table((Integer,Integer,Bits(n),Bits(n),Bits(n)), Integer),
+          Second: Table((Integer,Integer,Bits(n),Bits(n),Bits(n)), Integer),
           State: Table(Integer,
                   /*    administrative sid  */
                 (
@@ -34,15 +34,15 @@ package KX_noprfkey {
                   /* None: running, 
                         true: accepted, 
                         false: rejected   */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* session key */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* initiator nonce */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* responder nonce */
-                 Maybe(Bits(256)),
+                 Maybe(Bits(n)),
                         /* MAC key */
-                 Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                 Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         /* SID */
                  Integer))
                         /* nbr of messages sent */
@@ -51,50 +51,50 @@ package KX_noprfkey {
 
     import oracles {
 	     Hon(h: Integer) -> Bool,
-		 Eval(h: Integer, x: (Integer, Integer, Bits(256), Bits(256), Bool)) -> Bits(256),
+		 Eval(h: Integer, x: (Integer, Integer, Bits(n), Bits(n), Bool)) -> Bits(n),
          Run1(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer))                            
          -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256))), 
+            (Bits(n))), 
          Run2(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), ni: Bits(256))               
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), ni: Bits(n))               
          -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256),Bits(256))), 
+            (Bits(n),Bits(n))), 
          Run3(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), msg: (Bits(256), Bits(256))) 
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), msg: (Bits(n), Bits(n))) 
          -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256),Bits(256))), 
+            (Bits(n),Bits(n))), 
          Run4(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), msg: (Bits(256), Bits(256))) 
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), msg: (Bits(n), Bits(n))) 
          -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
-            (Bits(256))), 
+            (Bits(n))), 
          Run5(state: (Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
-                        Integer), tau: Bits(256))              
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
+                        Integer), tau: Bits(n))              
          -> ((Integer,Bool,Integer,Integer,Maybe(Bool),
-                        Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),Maybe(Bits(256)),
-                        Maybe((Integer,Integer,Bits(256),Bits(256),Bits(256))),
+                        Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),Maybe(Bits(n)),
+                        Maybe((Integer,Integer,Bits(n),Bits(n),Bits(n))),
                         Integer),
             (Bool)),
     }
@@ -109,7 +109,7 @@ oracle NewSession(U: Integer, u: Bool, V: Integer, kid: Integer) -> Integer {
         return ctr_;
     }
 
-oracle Send1(ctr: Integer) -> (Bits(256))
+oracle Send1(ctr: Integer) -> (Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state <- Unwrap(State[ctr]);
@@ -119,7 +119,7 @@ oracle Send1(ctr: Integer) -> (Bits(256))
         return msg;
     } 
 
-oracle Send2(ctr: Integer, msg: Bits(256)) -> (Bits(256),Bits(256))
+oracle Send2(ctr: Integer, msg: Bits(n)) -> (Bits(n),Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state   <- Unwrap(State[ctr]);
@@ -129,7 +129,7 @@ oracle Send2(ctr: Integer, msg: Bits(256)) -> (Bits(256),Bits(256))
         return msg_;
     } 
 
-oracle Send3(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256), Bits(256))
+oracle Send3(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n), Bits(n))
     {
         assert not (State[ctr] == None);    /* session has been initialized */
         state                                           <- Unwrap(State[ctr]);
@@ -151,7 +151,7 @@ oracle Send3(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256), Bits(256))
         return msg_;
     } 
 
-oracle Send4(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256))
+oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state                                          <- Unwrap(State[ctr]);
@@ -172,7 +172,7 @@ oracle Send4(ctr: Integer, msg: (Bits(256),Bits(256))) -> (Bits(256))
         return msg_;  
     } 
 
-oracle Send5(ctr: Integer, msg: Bits(256)) -> (Bool)
+oracle Send5(ctr: Integer, msg: Bits(n)) -> (Bool)
     {
         assert not (State[ctr] == None);    /* session has been initialized */
         state                                       <- Unwrap(State[ctr]);
@@ -183,7 +183,7 @@ oracle Send5(ctr: Integer, msg: Bits(256)) -> (Bool)
         return stop;
     } 
 
-oracle Reveal(ctr: Integer) -> Bits(256)
+oracle Reveal(ctr: Integer) -> Bits(n)
     {
     (U,u,V,kid,acc,_k,ni,nr,kmac,sid,mess) <- parse Unwrap(State[ctr]);
 
@@ -201,7 +201,7 @@ oracle Reveal(ctr: Integer) -> Bits(256)
     return k;
     }
 
-oracle Test(ctr: Integer) -> Bits(256)
+oracle Test(ctr: Integer) -> Bits(n)
     {
     (U,u,V,kid,acc,_k,ni,nr,kmac,sid,mess) <- parse Unwrap(State[ctr]);
 	
@@ -216,7 +216,7 @@ oracle Test(ctr: Integer) -> Bits(256)
     RevTested[Unwrap(sid)] <- Some(true);
 
     if b {
-	  k <-$ Bits(256);
+	  k <-$ Bits(n);
 	} else {
 	     RevTestEval[(kid,U,V,Unwrap(ni),Unwrap(nr))] <- Some(ctr);
          k <- invoke Eval(kid,(U,V,Unwrap(ni),Unwrap(nr) ,true));
@@ -239,7 +239,7 @@ oracle AtMost(ctr1: Integer, ctr2: Integer, ctr3: Integer) -> Bool {
 	return false;
 	}
 
-oracle AtLeast(sid: (Integer,Integer,Bits(256),Bits(256),Bits(256))) -> Bool {
+oracle AtLeast(sid: (Integer,Integer,Bits(n),Bits(n),Bits(n))) -> Bool {
 
    if ((b == false) and (First[sid] != None as Integer)
                     and (Second[sid] == None)){
