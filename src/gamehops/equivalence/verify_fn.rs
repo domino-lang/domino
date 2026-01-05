@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use futures::executor::block_on;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
@@ -16,16 +17,16 @@ use crate::{
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
-    util::prover_process::{Communicator, ProverBackend, ProverResponse},
+    util::prover::process::{Communicator, ProverBackend, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
 use super::EquivalenceContext;
 
-fn verify_oracle<UI: TheoremUI>(
-    project: &Project,
+async fn verify_oracle<UI: TheoremUI>(
+    project: &Project<'_>,
     ui: Arc<Mutex<&mut UI>>,
-    eqctx: &EquivalenceContext,
+    eqctx: &EquivalenceContext<'_>,
     backend: ProverBackend,
     transcript: bool,
     req_oracles: &[&OracleSig],
@@ -145,11 +146,11 @@ fn verify_oracle<UI: TheoremUI>(
     Ok(())
 }
 
-pub fn verify<UI: TheoremUI>(
-    project: &Project,
+pub async fn verify<UI: TheoremUI>(
+    project: &Project<'_>,
     ui: &mut UI,
     eq: &Equivalence,
-    orig_theorem: &Theorem,
+    orig_theorem: &Theorem<'_>,
     backend: ProverBackend,
     transcript: bool,
     req_oracle: &Option<String>,
@@ -185,16 +186,16 @@ pub fn verify<UI: TheoremUI>(
 
     let ui = Arc::new(Mutex::new(ui));
 
-    verify_oracle(project, ui, &eqctx, backend, transcript, &oracle_sequence)?;
+    verify_oracle(project, ui, &eqctx, backend, transcript, &oracle_sequence).await?;
 
     Ok(())
 }
 
-pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project,
+pub async fn verify_parallel<UI: TheoremUI + std::marker::Send>(
+    project: &Project<'_>,
     ui: &mut UI,
     eq: &Equivalence,
-    orig_theorem: &Theorem,
+    orig_theorem: &Theorem<'_>,
     backend: ProverBackend,
     transcript: bool,
     parallel: usize,
@@ -239,14 +240,14 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
             let result_count = oracle_sequence
                 .par_iter()
                 .map(|oracle_sig| -> Result<()> {
-                    let result = verify_oracle(
+                    let result = block_on(verify_oracle(
                         project,
                         ui.clone(),
                         &eqctx,
                         backend,
                         transcript,
                         &[*oracle_sig],
-                    );
+                    ));
                     if let Err(ref e) = result {
                         ui.lock().unwrap().println(&format!("{e}")).unwrap();
                     }

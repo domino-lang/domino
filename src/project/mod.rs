@@ -16,6 +16,8 @@ use std::io::{Read, Seek};
 
 use error::{Error, Result};
 
+use futures::executor::block_on;
+
 use crate::parser::ast::Identifier;
 use crate::parser::package::handle_pkg;
 use crate::parser::SspParser;
@@ -24,7 +26,7 @@ use crate::{
     package::{Composition, Package},
     theorem::Theorem,
     transforms::Transformation,
-    util::prover_process::ProverBackend,
+    util::prover::process::ProverBackend,
 };
 
 use crate::ui::{BaseUI, TheoremUI};
@@ -243,9 +245,30 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
+    pub fn prove(
+        &self,
+        ui: impl BaseUI,
+        backend: ProverBackend,
+        transcript: bool,
+        parallel: usize,
+        req_theorem: &Option<String>,
+        req_proofstep: Option<usize>,
+        req_oracle: &Option<String>,
+    ) -> Result<()> {
+        block_on(self.prove_async(
+            ui,
+            backend,
+            transcript,
+            parallel,
+            req_theorem,
+            req_proofstep,
+            req_oracle,
+        ))
+    }
+
     // we might want to return a theorem trace here instead
     // we could then extract the theorem viewer output and other useful info trom the trace
-    pub fn prove(
+    pub async fn prove_async(
         &self,
         ui: impl BaseUI,
         backend: ProverBackend,
@@ -293,11 +316,13 @@ impl<'a> Project<'a> {
                             equivalence::verify_parallel(
                                 self, &mut ui, eq, theorem, backend, transcript, parallel,
                                 req_oracle,
-                            )?;
+                            )
+                            .await?;
                         } else {
                             equivalence::verify(
                                 self, &mut ui, eq, theorem, backend, transcript, req_oracle,
-                            )?;
+                            )
+                            .await?;
                         }
                     }
                 }

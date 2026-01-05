@@ -2,7 +2,7 @@
 
 use crate::{
     gamehops::equivalence::Equivalence,
-    util::prover_process::{ProverResponse, Result as ProverResponseResult},
+    util::prover::process::{ProverResponse, Result as ProverResponseResult},
 };
 use std::path::PathBuf;
 
@@ -12,7 +12,7 @@ pub enum Error {
         equivalence: Equivalence,
         oracle_name: String,
     },
-    ProverProcessError(crate::util::prover_process::Error),
+    ProverProcessError(crate::util::prover::process::Error),
     InvariantFileReadError {
         oracle_name: String,
         invariant_file_name: String,
@@ -91,13 +91,13 @@ impl std::fmt::Display for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl From<crate::util::prover_process::Error> for Error {
-    fn from(err: crate::util::prover_process::Error) -> Self {
+impl From<crate::util::prover::process::Error> for Error {
+    fn from(err: crate::util::prover::process::Error) -> Self {
         new_prover_process_error(err)
     }
 }
 
-pub(crate) fn new_prover_process_error(err: crate::util::prover_process::Error) -> Error {
+pub(crate) fn new_prover_process_error(err: crate::util::prover::process::Error) -> Error {
     Error::ProverProcessError(err)
 }
 

@@ -1,8 +1,8 @@
 use std::io::Cursor;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use sspverif::util::prover_process::ProverBackend;
-use web_sys::console::{log_1,error_1};
+use sspverif::util::prover::process::ProverBackend;
+use web_sys::console::{error_1, log_1};
 
 #[wasm_bindgen]
 pub fn proofsteps(zipfile: &[u8]) -> String {
@@ -34,7 +34,9 @@ pub fn prove(zipfile: &[u8]) {
             unreachable!()
         }
     };
-    project.prove(ui, ProverBackend::Cvc5, false, 1, &None, None, &None).unwrap();
+    project
+        .prove(ui, ProverBackend::Cvc5, false, 1, &None, None, &None)
+        .unwrap();
 }
 
 #[wasm_bindgen]

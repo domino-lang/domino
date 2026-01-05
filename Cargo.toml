@@ -25,7 +25,7 @@ debug = true
 
 [features]
 web = ["dep:web-sys", "dep:js-sys", "dep:wasm-bindgen"]
-cmd = ["dep:tempfile", "dep:clap", "dep:subprocess"]
+cmd = ["dep:tempfile", "dep:clap", "dep:subprocess", "dep:expectrl"]
 
 [lib]
 crate-type = ["rlib", "cdylib"]
@@ -36,6 +36,7 @@ crate-type = ["rlib", "cdylib"]
 clap = { version = "4.0", features = ["derive"], optional = true }
 env_logger = "0.11"
 expectrl = { version = "0.5.2", optional = true }
+futures = "0.3"
 indicatif = "0.18"
 indicatif-log-bridge = "0.2"
 itertools = "0.10"
