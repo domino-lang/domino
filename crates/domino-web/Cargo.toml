@@ -11,3 +11,4 @@ crate-type = ["rlib", "cdylib"]
 wasm-bindgen = "0.2"
 zip = { version = "7.0", features = ["deflate"], default-features = false }
 sspverif = { workspace = true, features = ["web"] }
+web-sys = "0.3"

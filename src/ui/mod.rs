@@ -4,6 +4,10 @@ pub mod indicatif;
 #[cfg(test)]
 pub(crate) mod mock;
 
+#[cfg(feature = "web")]
+pub mod webui;
+
+
 pub trait TheoremUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
