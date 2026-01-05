@@ -27,7 +27,7 @@ use crate::{
     util::prover_process::ProverBackend,
 };
 
-use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
+use crate::ui::{BaseUI, TheoremUI};
 
 pub const PROJECT_FILE: &str = "ssp.toml";
 
@@ -247,6 +247,7 @@ impl<'a> Project<'a> {
     // we could then extract the theorem viewer output and other useful info trom the trace
     pub fn prove(
         &self,
+        ui: impl BaseUI,
         backend: ProverBackend,
         transcript: bool,
         parallel: usize,
@@ -257,7 +258,7 @@ impl<'a> Project<'a> {
         let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
         theorem_keys.sort();
 
-        let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
+        let mut ui = ui.into_theorem_ui(theorem_keys.len().try_into().unwrap());
 
         for theorem_key in theorem_keys.into_iter() {
             let theorem = &self.theorems[theorem_key];
