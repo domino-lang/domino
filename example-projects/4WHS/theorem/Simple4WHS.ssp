@@ -1,0 +1,465 @@
+theorem Simple4WHS {
+    const b: Bool;
+    const n: Integer;
+    const zeron: Bits(n);
+    const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
+    const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
+
+    instance Real = Hybrid0 {
+        params {
+            b       : false ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Ideal = Hybrid0 {
+        params {
+            b       : true ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Hybrid0 = Hybrid0 {
+        params {
+            b       : b ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Hybrid1 = Hybrid1 {
+        params {
+            b       : b ,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
+    instance Hybrid2 = Hybrid2 {
+        params {
+            b       : b ,
+            bprf    : false,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Hybrid3 = Hybrid2 {
+        params {
+            b       : b ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Real_Hybrid3 = Hybrid2 {
+        params {
+            b       : false ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance Ideal_Hybrid3 = Hybrid2 {
+        params {
+            b       : true ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
+    instance Ideal_PRF = PRF {
+        params {
+            b  : true,
+            n  : n   ,
+            prf: prf ,
+        }
+    }
+
+    instance Real_PRF = PRF {
+        params {
+            b  : false,
+            n  : n    ,
+            prf: prf  ,
+        }
+    }
+
+    assumptions {
+        prf: Real_PRF ~ Ideal_PRF
+    }
+
+    gamehops {
+        equivalence Hybrid0 Hybrid1 {
+            Send1: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2,
+                    ./theorem/simple/randomness-Hybrid0-Hybrid1.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+        
+        equivalence Hybrid1 Hybrid2 {
+            Send1: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
+                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+
+        reduction Hybrid2 Hybrid3
+        {
+            assumption prf
+
+            map Real_PRF Hybrid2 {
+               PRF: Prf
+            }
+
+            map Ideal_PRF Hybrid3 {
+               PRF: Prf
+            }
+        }
+
+        equivalence Real_Hybrid3 Ideal_Hybrid3 {
+            Send1: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
+                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+                    ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+
+    propositions {
+        KXSecurity: Real ~ Ideal
+    }
+}
