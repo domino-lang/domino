@@ -86,6 +86,21 @@
                            (and (> mess 1) (not u)))
                        (not (is-mk-none nr)))))))))
 
+(define-fun time-of-sid
+    ((left-State (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+                                            (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                            (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (forall ((ctr Int))
+          (let ((state (select left-State ctr)))
+            (=> (not (is-mk-none state))
+                (let  ((u    (el11-2  (maybe-get state)))
+                       (sid  (el11-10 (maybe-get state)))
+                       (mess (el11-11 (maybe-get state))))
+                  (=> (or (and (> mess 0) u)
+                          (and (> mess 1) (not u)))
+                      (not (is-mk-none sid))))))))
+
 
 (define-fun invariant
     ((left-game <GameState_Hybrid0_<$<!n!>$>>)
@@ -121,4 +136,5 @@
        (keys-computed-correctly left-State)
 
        (time-of-nonces left-State)
+       (time-of-sid left-State)
        (time-of-acceptance left-State)))))
