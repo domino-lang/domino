@@ -25,7 +25,15 @@ class Solver {
         const cvc = this.cvc;
         const err = cvc._malloc(4);
         while (! cvc._parser_done(this.parser)) {
+            cvc._set_value(err, 0, 'i32');
             const cmd = cvc._parser_next_command(this.parser, err);
+            const errval = cvc._get_value(err, 'i32');
+            if (errval) {
+                msg = cvc._utf8_to_string(errval);
+                console.error(msg);
+                cvc._free(err);
+                break;
+            }
             if (cmd == 0) break;
             const out = cvc._cmd_invoke(cmd, this.solver, this.sm);
             console.log(out);
@@ -33,6 +41,7 @@ class Solver {
         const result = cvc._check_sat(this.solver);
         const ret = cvc._result_to_string(result);
         cvc._result_release(result);
+        cvc._free(err);
         cvc._parser_set_inc_str_input(this.parser, 0, "domino");
         return ret;
     }
@@ -68,8 +77,11 @@ class CVC {
         this._result_is_unknown = module.cwrap('cvc5_result_is_unknown', 'number', ['number']);
         this._result_release = module.cwrap('cvc5_result_release', null, ['number']);
 
-        this._malloc = module.cwrap('malloc', 'number', ['number']);
-        this._free = module.cwrap('free', null, ['number']);
+        this._malloc = module._malloc;
+        this._free = module._free;
+        this._set_value = module.setValue;
+        this._get_value = module.getValue;
+        this._utf8_to_string = module.UTF8ToString;
     }
 }
 
