@@ -21,6 +21,13 @@ dominoWorker.onmessage = (e) => {
         dominoOutput.appendChild(clone);
         break;
     }
+    case "domino-test": {
+        const clone = document.importNode(dominoOutputTemplate.content, true);
+        clone.querySelector("h5").innerHTML = `${e.data.func}`;
+        clone.querySelector("pre").innerHTML = e.data.data;
+        dominoOutput.appendChild(clone);
+        break;
+    }
     case "domino-ui": {
         const clone = document.importNode(dominoOutputTemplate.content, true);
         clone.querySelector("h5").innerHTML = `${e.data.func}`;
@@ -55,6 +62,11 @@ proofstep_button.addEventListener("click", function() {
 let cvctest_button = document.getElementById("button_cvctest");
 cvctest_button.addEventListener("click", function() {
     dominoWorker.postMessage({func: 'cvctest'})
+});
+
+let dominotest_button = document.getElementById("button_dominotest");
+dominotest_button.addEventListener("click", function() {
+    dominoWorker.postMessage({func: 'dominotest'})
 });
 
 let prove_button = document.getElementById("button_prove");
