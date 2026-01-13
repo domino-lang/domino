@@ -96,7 +96,7 @@ onmessage = (e) => {
         console.log("proofsteps");
         postMessage({func: "proofsteps", data: proofsteps(e.data.data), filename: e.data.filename});
         break
-    case "cvctest":
+    case "cvctest": {
         const solver = new Solver(cvc);
         solver.add_smt("(declare-const foo Int)");
         solver.add_smt("(declare-const bar Int)");
@@ -106,6 +106,19 @@ onmessage = (e) => {
         console.log(solver.check_sat());
         postMessage({func: "cvc-solve", data: solver.get_model()});
         break;
+    }
+    case "check-sat": {
+        const solver = new Solver(cvc);
+        solver.add_smt(e.data.data);
+        postMessage({func: "cvc-solve", data: solver.check_sat()});
+        break;
+    }
+    case "get-model":
+        const solver = new Solver(cvc);
+        solver.add_smt(e.data.data);
+        postMessage({func: "cvc-solve", data: solver.check_sat()});
+        postMessage({func: "cvc-solve", data: solver.get_model()});
+        break;
     case "prove":
         console.log("prove start");
         prove(e.data.data);
@@ -113,6 +126,7 @@ onmessage = (e) => {
         break;
     }
 }
+
 
 
 

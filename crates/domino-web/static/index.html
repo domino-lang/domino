@@ -1,124 +1,40 @@
 <!doctype html>
 <html>
   <head>
+    <link rel="stylesheet" href="/pure-min.css"></link>
+    <link rel="stylesheet" href="/index.css"></link>
   </head>
   <body>
-    <h1>Domino Web</h1>
+    <div class="document">
+      <h1>Domino Web</h1>
 
-    <p>Please supply a zip of your project! If you don't have any by hand, you can use <a href="hello-world.zip">hello-world</a> or <a href="4WHS-full.zip">4WHS-full</a> to play!</p>
-    <input type="file" id="file_upload"></input>
-    <input type="button" value="CVC5 Test" id="button_cvctest"></input>
-    <input type="button" value="Proof Steps" id="button_proof_steps"></input>
-    <input type="button" value="Prove" id="button_prove"></input>
+      <p>Please supply a zip of your project! If you don't have any by hand, you can use <a href="hello-world.zip">hello-world</a> or <a href="4WHS-full.zip">4WHS-full</a> to play!</p>
+      <input type="file" id="file_upload"></input>
+      <input type="button" value="CVC5 Test" id="button_cvctest"></input>
+      <input type="button" value="Proof Steps" id="button_proof_steps"></input>
+      <input type="button" value="Prove" id="button_prove"></input>
 
-    <h3>Domino Output</h3>
-    <div id="domino_output"></div>
-    <template id="domino_output_template">
-      <h5 class="domino_output_heading">TODO</h5>
-      <pre class="domino_output_pre"></pre>
-    </template>
+      <h3>Domino Output</h3>
+      <div id="domino_output"></div>
+      <template id="domino_output_template">
+        <h5 class="domino_output_heading">TODO</h5>
+        <pre class="domino_output_pre"></pre>
+      </template>
 
-    <h3>CVC5 Input</h3>
-    <textarea id="cvc_input_element" cols="60" rows="8">
-      (set-logic ALL)
-      (check-sat)
-    </textarea>
+      <h3>CVC5 Input</h3>
+      <textarea id="cvc_input_element" cols="60" rows="8"></textarea>
+      
+      <input type="button" value="Check Sat" id="button_check_sat"></input>
+      <input type="button" value="Get Model" id="button_get_model"></input>
 
-    <h3>CVC5 Output</h3>
-    <pre id="cvc_output_element"></pre>
+      
+      <h3>CVC5 Output</h3>
+      <pre id="cvc_output_element"></pre>
 
-    <h3>Log Messages</h3>
-    <pre id="log_output"></pre>
+      <h3>Log Messages</h3>
+      <pre id="log_output"></pre>
 
-
-    <script>
-      const dominoWorker = new Worker("domino-worker.js", {type: "module"});
-      const dominoOutput = document.getElementById("domino_output");
-      const dominoOutputTemplate = document.getElementById("domino_output_template");
-      const logOutput = document.getElementById("log_output");
-
-      dominoWorker.onmessage = (e) => {
-          console.log(e.data);
-          console.log(e.data.func);
-          switch (e.data.func) {
-          case "proofsteps": {
-              const clone = document.importNode(dominoOutputTemplate.content, true);
-              clone.querySelector("h5").innerHTML = `${e.data.func} (${e.data.filename})`;
-              clone.querySelector("pre").innerHTML = e.data.data;
-              dominoOutput.appendChild(clone);
-              break;
-          }
-          case "cvc-solve": {
-              const clone = document.importNode(dominoOutputTemplate.content, true);
-              clone.querySelector("h5").innerHTML = `${e.data.func}`;
-              clone.querySelector("pre").innerHTML = e.data.data;
-              dominoOutput.appendChild(clone);
-              break;
-          }
-          case "domino-ui": {
-              const clone = document.importNode(dominoOutputTemplate.content, true);
-              clone.querySelector("h5").innerHTML = `${e.data.func}`;
-              clone.querySelector("pre").innerHTML = "";
-              dominoOutput.appendChild(clone);
-              break;
-          }
-          case "log": {
-              const elem = document.createElement("p");
-              pelem.innerHTML = e.data;
-              logOutput.appendChild(elem);
-              break;
-          }
-          }
-      }
-      dominoWorker.onerror = (error) => {
-          console.log(error.message);
-          console.log(error);
-      }
-      console.log(dominoWorker);
-
-      let proofstep_button = document.getElementById("button_proof_steps");
-      proofstep_button.addEventListener("click", function() {
-          let zipfile = document.getElementById("file_upload").files[0];
-          console.log(zipfile);
-          zipfile.arrayBuffer().then(function (bs) {
-              dominoWorker.postMessage({func: 'proofsteps', data: new Uint8Array(bs), filename: zipfile.name})
-          });
-      });
-      let cvctest_button = document.getElementById("button_cvctest");
-      cvctest_button.addEventListener("click", function() {
-          dominoWorker.postMessage({func: 'cvctest'})
-      });
-      let prove_button = document.getElementById("button_prove");
-      prove_button.addEventListener("click", function() {
-          let zipfile = document.getElementById("file_upload").files[0];
-          console.log(zipfile);
-          zipfile.bytes().then(function (bs) {
-              let output_element = document.getElementById("domino_output_element");
-              dominoWorker.postMessage({func: 'prove', data: bs, filename: zipfile.name})
-          });
-      });
-    </script>
-
-    <!-- <script type="module"> -->
-    <!--   import Cvc5Module from "./cvc5/cvc5.js"; -->
-    <!-- </script> -->
-
-    <!-- <script src="./cvc5/cvc5.js"></script> -->
-    <!-- <script> -->
-
-    <!--   Cvc5Module({ -->
-    <!--       print: function(text) { -->
-    <!--           postMessage({func: "cvc-solve", data: text}); -->
-    <!--       }, -->
-    <!--   }).then((cvc_module) => { -->
-
-    <!--   console.log(cvc_module); -->
-
-    <!--   cvc_module.preRun = function() { -->
-    <!--       cvc_module.FS.writeFile('input.smt2', "(check-sat))"); -->
-    <!--   } -->
-    <!--   shouldRunNow = true; -->
-    <!--   }) -->
-    <!-- </script> -->
+      <script src="/index.js"></script>
+    </div>
   </body>
 </html>
