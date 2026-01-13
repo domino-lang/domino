@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use futures::executor::block_on;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
@@ -23,8 +22,8 @@ use crate::{
 
 use super::EquivalenceContext;
 
-async fn verify_oracle<UI: TheoremUI>(
-    project: &Project<'_>,
+fn verify_oracle<UI: TheoremUI>(
+    project: &impl Project,
     ui: Arc<Mutex<&mut UI>>,
     eqctx: &EquivalenceContext<'_>,
     backend: ProverBackend,
@@ -41,7 +40,7 @@ async fn verify_oracle<UI: TheoremUI>(
             None
         };
 
-        let transcript_file: std::fs::File = project
+        let transcript_file = project
             .get_joined_smt_file(eq.left_name(), eq.right_name(), oracle)
             .unwrap();
 
@@ -146,8 +145,8 @@ async fn verify_oracle<UI: TheoremUI>(
     Ok(())
 }
 
-pub async fn verify<UI: TheoremUI>(
-    project: &Project<'_>,
+pub fn verify<UI: TheoremUI>(
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem<'_>,
@@ -186,13 +185,13 @@ pub async fn verify<UI: TheoremUI>(
 
     let ui = Arc::new(Mutex::new(ui));
 
-    verify_oracle(project, ui, &eqctx, backend, transcript, &oracle_sequence).await?;
+    verify_oracle(project, ui, &eqctx, backend, transcript, &oracle_sequence)?;
 
     Ok(())
 }
 
-pub async fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project<'_>,
+pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
+    project: &(impl Project + Sync),
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem<'_>,
@@ -240,14 +239,14 @@ pub async fn verify_parallel<UI: TheoremUI + std::marker::Send>(
             let result_count = oracle_sequence
                 .par_iter()
                 .map(|oracle_sig| -> Result<()> {
-                    let result = block_on(verify_oracle(
+                    let result = verify_oracle(
                         project,
                         ui.clone(),
                         &eqctx,
                         backend,
                         transcript,
                         &[*oracle_sig],
-                    ));
+                    );
                     if let Err(ref e) = result {
                         ui.lock().unwrap().println(&format!("{e}")).unwrap();
                     }

@@ -2,6 +2,7 @@ use std::io::Cursor;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use sspverif::util::prover::ProverBackend;
+use sspverif::project::Project;
 use web_sys::console::{error_1, log_1};
 
 #[wasm_bindgen(module = "/static/cvc.js")]
@@ -27,7 +28,7 @@ extern "C" {
 pub fn proofsteps(zipfile: &[u8]) -> String {
     let zipfile = Cursor::new(zipfile);
     let files = sspverif::project::Files::load_zip(zipfile).unwrap();
-    let project = match sspverif::project::Project::load(&files) {
+    let project = match sspverif::project::DirectoryProject::load(&files) {
         Ok(project) => project,
         Err(e) => {
             error_1(&format!("{}", e).into());
@@ -46,7 +47,7 @@ pub fn prove(zipfile: &[u8]) {
     let ui = sspverif::ui::webui::WebBaseUI::new();
     let zipfile = Cursor::new(zipfile);
     let files = sspverif::project::Files::load_zip(zipfile).unwrap();
-    let project = match sspverif::project::Project::load(&files) {
+    let project = match sspverif::project::DirectoryProject::load(&files) {
         Ok(project) => project,
         Err(e) => {
             error_1(&format!("{}", e).into());

@@ -14,6 +14,7 @@ use crate::package::{Composition, Edge, Export, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
 use crate::parser::package::ForComp;
 use crate::parser::reduction::ReductionMappingEntry;
+use crate::project::Project;
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
 use crate::theorem::Theorem;
 use crate::types::CountSpec;
@@ -33,12 +34,12 @@ fn genindentation(cnt: u8) -> String {
 }
 
 struct BlockWriter<'a> {
-    file: &'a mut File,
+    file: &'a mut dyn Write,
     lossy: bool,
 }
 
 impl<'a> BlockWriter<'a> {
-    fn new(file: &'a mut File, lossy: bool) -> BlockWriter<'a> {
+    fn new(file: &mut impl Write, lossy: bool) -> BlockWriter {
         BlockWriter { file, lossy }
     }
 
@@ -401,16 +402,16 @@ pub fn tex_write_oracle(
     oracle: &OracleDef,
     pkgname: &str,
     compname: &str,
-    target: &Path,
+    project: &impl Project,
 ) -> std::io::Result<String> {
-    let fname = target.join(format!(
+    let fname = format!(
         "Oracle_{}_{}_in_{}{}.tex",
         pkgname,
         oracle.sig.name,
         compname,
         if lossy { "_lossy" } else { "" }
-    ));
-    let mut file = File::create(fname.clone())?;
+    );
+    let mut file = project.get_output_file(format!("latex/{fname}"))?;
     let mut writer = BlockWriter::new(&mut file, lossy);
 
     writeln!(
@@ -430,22 +431,22 @@ pub fn tex_write_oracle(
     writer.write_codeblock(codeblock, 0)?;
 
     writeln!(writer.file, "}}")?;
-    Ok(fname.to_str().unwrap().to_string())
+    Ok(fname)
 }
 
 pub fn tex_write_package(
     lossy: bool,
     composition: &Composition,
     package: &PackageInstance,
-    target: &Path,
+    project: &impl Project,
 ) -> std::io::Result<String> {
-    let fname = target.join(format!(
+    let fname = format!(
         "Package_{}_in_{}{}.tex",
         package.name,
         composition.name,
         if lossy { "_lossy" } else { "" }
-    ));
-    let mut file = File::create(fname.clone())?;
+    );
+    let mut file = project.get_output_file(format!("latex/{fname}"))?;
 
     writeln!(
         file,
@@ -455,19 +456,15 @@ pub fn tex_write_package(
 
     for oracle in &package.pkg.oracles {
         let oraclefname =
-            tex_write_oracle(lossy, oracle, &package.name, &composition.name, target)?;
-        let oraclefname = Path::new(&oraclefname)
-            .strip_prefix(fname.clone().parent().unwrap())
-            .unwrap()
-            .to_str();
-        writeln!(file, "\\input{{{}}}\\pcvspace", oraclefname.unwrap())?;
+            tex_write_oracle(lossy, oracle, &package.name, &composition.name, project)?;
+        writeln!(file, "\\input{{{}}}\\pcvspace", oraclefname)?;
     }
     writeln!(file, "\\end{{pcvstack}}\\end{{pcvstack}}")?;
 
-    Ok(fname.to_str().unwrap().to_string())
+    Ok(fname)
 }
 
-fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
+fn tex_write_document_header(mut file: &mut impl Write) -> std::io::Result<()> {
     writeln!(file, "\\documentclass[a0paper]{{article}}")?;
     writeln!(file, "\\usepackage[margin=.25in]{{geometry}}")?;
     writeln!(file, "\\usepackage[sets,operators]{{cryptocode}}")?;
@@ -692,17 +689,18 @@ fn tex_solve_composition_graph(
 
 fn tex_write_composition_graph(
     backend: &Option<ProverBackend>,
-    mut file: &File,
+    mut file: &mut impl Write,
     composition: &Composition,
     pkgmap: &[ReductionMappingEntry],
 ) -> std::io::Result<()> {
-    let write_node = |mut file: &File,
-                      pkgname: &str,
-                      _compname: &str,
-                      idx,
-                      top,
-                      bottom,
-                      column|
+    fn write_node(file: &mut impl Write,
+                  pkgmap: &[ReductionMappingEntry],
+                  pkgname: &str,
+                  _compname: &str,
+                  idx: usize,
+                  top: i32,
+                  bottom: i32,
+                  column: i32)
      -> std::io::Result<()> {
         let fill = if pkgmap
             .iter()
@@ -726,7 +724,7 @@ fn tex_write_composition_graph(
             pkgname.replace('_', "\\_")
         )?;
         Ok(())
-    };
+    }
 
     let solution = tex_solve_composition_graph(backend, composition);
 
@@ -742,7 +740,7 @@ fn tex_write_composition_graph(
             let SmtModelEntry::IntEntry { value: column, .. } =
                 model.get_value(&format!("{pkgname}-column")).unwrap();
 
-            write_node(file, pkgname, &composition.name, i, top, bottom, column)?;
+            write_node(file, pkgmap, pkgname, &composition.name, i, top, bottom, column)?;
         }
         for from in 0..composition.pkgs.len() {
             for to in 0..composition.pkgs.len() {
@@ -855,6 +853,7 @@ fn tex_write_composition_graph(
                 {
                     write_node(
                         file,
+                        pkgmap,
                         &composition.pkgs[i].name,
                         &composition.name,
                         i,
@@ -893,14 +892,14 @@ fn tex_write_composition_graph_file(
     backend: &Option<ProverBackend>,
     composition: &Composition,
     name: &str,
-    target: &Path,
+    project: &impl Project,
 ) -> std::io::Result<String> {
-    let fname = target.join(format!("CompositionGraph_{name}.tex"));
-    let file = File::create(fname.clone())?;
+    let fname = format!("CompositionGraph_{name}.tex");
+    let mut file = project.get_output_file(format!("latex/{fname}"))?;
 
-    tex_write_composition_graph(backend, &file, composition, &Vec::new())?;
+    tex_write_composition_graph(backend, &mut file, composition, &Vec::new())?;
 
-    Ok(fname.to_str().unwrap().to_string())
+    Ok(fname)
 }
 
 pub fn tex_write_composition(
@@ -908,39 +907,31 @@ pub fn tex_write_composition(
     lossy: bool,
     composition: &Composition,
     name: &str,
-    target: &Path,
+    project: &impl Project,
 ) -> std::io::Result<()> {
-    let fname = target.join(format!(
-        "Composition_{}{}.tex",
+    let fname = format!(
+        "latex/Composition_{}{}.tex",
         name,
         if lossy { "_lossy" } else { "" }
-    ));
-    let mut file = File::create(fname.clone())?;
+    );
+    let mut file = project.get_output_file(fname)?;
 
-    tex_write_document_header(&file)?;
+    tex_write_document_header(&mut file)?;
 
     writeln!(file, "\\title{{{name} Game}}")?;
     writeln!(file, "\\begin{{document}}")?;
     writeln!(file, "\\maketitle")?;
 
-    let graphfname = tex_write_composition_graph_file(backend, composition, name, target)?;
-    let graphfname = Path::new(&graphfname)
-        .strip_prefix(fname.clone().parent().unwrap())
-        .unwrap()
-        .to_str();
+    let graphfname = tex_write_composition_graph_file(backend, composition, name, project)?;
     writeln!(file, "\\begin{{center}}")?;
-    writeln!(file, "\\input{{{}}}", graphfname.unwrap())?;
+    writeln!(file, "\\input{{{}}}", graphfname)?;
     writeln!(file, "\\end{{center}}")?;
 
     writeln!(file, "\\begin{{pchstack}}")?;
     for pkg in &composition.pkgs {
-        let pkgfname = tex_write_package(lossy, composition, pkg, target)?;
-        let pkgfname = Path::new(&pkgfname)
-            .strip_prefix(fname.clone().parent().unwrap())
-            .unwrap()
-            .to_str();
+        let pkgfname = tex_write_package(lossy, composition, pkg, project)?;
         //writeln!(file, "\\begin{{center}}")?;
-        writeln!(file, "\\input{{{}}}", pkgfname.unwrap())?;
+        writeln!(file, "\\input{{{}}}", pkgfname)?;
         writeln!(file, "\\pchspace")?;
         //writeln!(file, "\\end{{center}}")?;
     }
@@ -956,16 +947,16 @@ pub fn tex_write_theorem(
     lossy: bool,
     theorem: &Theorem,
     name: &str,
-    target: &Path,
+    project: &impl Project,
 ) -> std::io::Result<()> {
-    let fname = target.join(format!(
-        "Theorem_{}{}.tex",
+    let fname = format!(
+        "latex/Theorem_{}{}.tex",
         name,
         if lossy { "_lossy" } else { "" }
-    ));
-    let mut file = File::create(fname)?;
+    );
+    let mut file = project.get_output_file(fname)?;
 
-    tex_write_document_header(&file)?;
+    tex_write_document_header(&mut file)?;
 
     writeln!(file, "\\title{{Theorem: {}}}", name.replace('_', "\\_"))?;
     writeln!(file, "\\begin{{document}}")?;
@@ -1061,7 +1052,7 @@ pub fn tex_write_theorem(
                     .unwrap();
                 tex_write_composition_graph(
                     backend,
-                    &file,
+                    &mut file,
                     left_game_instance.game(),
                     red.left().entries(),
                 )?;
@@ -1089,7 +1080,7 @@ pub fn tex_write_theorem(
                     .unwrap();
                 tex_write_composition_graph(
                     backend,
-                    &file,
+                    &mut file,
                     right_game_instance.game(),
                     red.right().entries(),
                 )?;
