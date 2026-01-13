@@ -31,7 +31,7 @@ use crate::{
         samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
     },
     types::Type,
-    util::prover::process::{Communicator, ProverResponse},
+    util::prover::{Communicator, ProverResponse},
     writers::smt::{
         contexts::{self, GenericOracleContext},
         declare,

@@ -18,8 +18,8 @@ use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
 use crate::theorem::Theorem;
 use crate::types::CountSpec;
 use crate::types::Type;
-use crate::util::prover::process::ProverBackend;
-use crate::util::prover::process::{Communicator, ProverResponse};
+use crate::util::prover::ProverBackend;
+use crate::util::prover::{Communicator, ProverResponse};
 use crate::util::smtmodel::{SmtModel, SmtModelEntry};
 
 // TODO: Move to struct so we can have verbose versions (e.g. writing types to expressions)
@@ -502,7 +502,7 @@ fn tex_solve_composition_graph(
     use std::fmt::Write;
 
     let mut model;
-    let write_model = |comm: &mut crate::util::prover::process::Communicator| {
+    let write_model = |comm: &mut crate::util::prover::Communicator| {
         let mut edges: HashSet<(usize, usize)> = HashSet::new();
 
         writeln!(comm, "(declare-const num-pkgs Int)").unwrap();

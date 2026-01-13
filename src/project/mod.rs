@@ -26,7 +26,7 @@ use crate::{
     package::{Composition, Package},
     theorem::Theorem,
     transforms::Transformation,
-    util::prover::process::ProverBackend,
+    util::prover::ProverBackend,
 };
 
 use crate::ui::{BaseUI, TheoremUI};

@@ -17,7 +17,7 @@ use crate::{
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
-    util::prover::process::{Communicator, ProverBackend, ProverResponse},
+    util::prover::{Communicator, ProverBackend, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
