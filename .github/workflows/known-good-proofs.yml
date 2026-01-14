@@ -14,7 +14,7 @@ jobs:
       - name: Install CVC5
         run: sudo apt install cvc5
 
-      - name: Build ssbee
+      - name: Build Domino
         run: |
           cargo build --release -p domino
           echo "DOMINO=$(pwd)/target/release/domino">>$GITHUB_ENV
