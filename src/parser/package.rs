@@ -3,9 +3,9 @@
 use super::{
     common::*,
     error::{
-        ExpectedExpressionIdentifierError, IdentifierAlreadyDeclaredError, TypeMismatchError,
-        UndefinedIdentifierError, UntypedNoneTypeInferenceError,
-        WrongArgumentCountInInvocationError,
+        ArgumentCountMismatchError, ExpectedExpressionIdentifierError,
+        IdentifierAlreadyDeclaredError, TypeMismatchError, UndefinedIdentifierError,
+        UntypedNoneTypeInferenceError, WrongArgumentCountInInvocationError,
     },
     ParseContext, Rule,
 };
@@ -133,6 +133,10 @@ pub enum ParsePackageError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     TypeMismatch(#[from] TypeMismatchError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ArgumentCountMismatch(#[from] ArgumentCountMismatchError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -312,6 +316,10 @@ pub enum ParseExpressionError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     UndefinedIdentifier(#[from] UndefinedIdentifierError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ArgumentCountMismatch(#[from] ArgumentCountMismatchError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -629,14 +637,10 @@ pub fn handle_expression(
             }
             if exp_args_tys.len() != arg_asts.len() {
                 // callee has wrong number of args
-                // TODO: introduce a new error type for this
-                return Err(TypeMismatchError {
+                return Err(ArgumentCountMismatchError {
                     at: (span.start()..span.end()).into(),
-                    expected: Type::Fn(exp_args_tys, ret_ty),
-                    got: Type::Fn(
-                        vec![Type::Unknown; arg_asts.len()],
-                        Box::new(expected_type.cloned().unwrap_or(Type::Unknown)),
-                    ),
+                    expected: exp_args_tys.len(),
+                    got: arg_asts.len(),
                     source_code: ctx.named_source(),
                 }
                 .into());
