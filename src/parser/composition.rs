@@ -485,7 +485,6 @@ pub fn handle_compose_assign_body_list(
                         ctx.add_export(&export);
                     }
                     Err(NotSingleInstanceExportError(multi_export)) => {
-                        // TODO: should we do something about duplicates here as well?
                         ctx.add_multi_inst_export(multi_export)
                     }
                 }
