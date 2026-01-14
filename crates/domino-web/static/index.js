@@ -73,9 +73,9 @@ let prove_button = document.getElementById("button_prove");
 prove_button.addEventListener("click", function() {
     let zipfile = document.getElementById("file_upload").files[0];
     console.log(zipfile);
-    zipfile.bytes().then(function (bs) {
+    zipfile.arrayBuffer().then(function (bs) {
         let output_element = document.getElementById("domino_output_element");
-        dominoWorker.postMessage({func: 'prove', data: bs, filename: zipfile.name})
+        dominoWorker.postMessage({func: 'prove', data: new UInt8Array(bs), filename: zipfile.name})
     });
 });
 
