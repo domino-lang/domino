@@ -604,6 +604,21 @@ pub struct UnusedEdgeError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("game {game_name} exports oracle {oracle_name} multiple times")]
+#[diagnostic(code(domino::code::game::unused_edge))]
+pub struct DuplicateExportError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    // this should be the package instance definition
+    #[label("oracle {oracle_name} re-exported here")]
+    pub at: SourceSpan,
+
+    pub oracle_name: String,
+    pub game_name: String,
+}
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("oracle {oracle_name} wired to incompatible oracle signature")]
 #[diagnostic(code(domino::code::game::unused_edge))]
 pub struct OracleSigMismatchError {

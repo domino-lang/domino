@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::result_large_err)]
+// miette currently gives a lot of warnings if we don't have that allows in here
+#![allow(unused_assignments)]
 
 pub mod common;
 pub mod composition;
