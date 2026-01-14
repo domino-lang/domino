@@ -1,0 +1,4 @@
+package A {
+  import oracles { Run(), }
+  oracle Run () {_ <- invoke Run();}
+}

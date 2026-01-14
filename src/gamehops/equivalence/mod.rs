@@ -1600,13 +1600,10 @@ impl<'a> EquivalenceContext<'a> {
             })
             .filter(move |gctx| seen_game_names.insert(gctx.game_name()))
             .flat_map(|gctx| {
-                gctx.game()
-                    .ordered_pkgs()
-                    .into_iter()
-                    .flat_map(move |pkg_inst| {
-                        define_pkg_const_mapping_fun(gctx.game(), &pkg_inst.pkg, &pkg_inst.name)
-                            .map(SmtExpr::from)
-                    })
+                gctx.game().pkgs.iter().flat_map(move |pkg_inst| {
+                    define_pkg_const_mapping_fun(gctx.game(), &pkg_inst.pkg, &pkg_inst.name)
+                        .map(SmtExpr::from)
+                })
             })
     }
 
