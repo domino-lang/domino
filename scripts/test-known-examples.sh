@@ -1,8 +1,10 @@
 #!/bin/bash
 
+failed_path=$(realpath .)/failed
+
 function fail() {
     echo $1 >&2
-    touch failed
+    touch $failed_path
 }
 
 DOMINO=$(realpath $DOMINO)
@@ -43,6 +45,6 @@ sed -e 's/[[:space:]]*#.*// ; /^[[:space:]]*$/d' "example-projects/known-good.tx
     )
 done
 
-if [ -f failed ]; then
+if [ -f $failed_path ]; then
     exit 1
 fi
