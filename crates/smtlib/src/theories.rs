@@ -17,9 +17,6 @@ macro_rules! def_fun_plain {
     };
 }
 
-use def_fun_assoc;
-use def_fun_plain;
-
 pub mod array_ex;
 pub mod core;
 pub mod ints;

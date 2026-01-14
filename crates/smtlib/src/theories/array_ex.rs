@@ -34,8 +34,8 @@ pub fn array(key: impl Into<Sort>, value: impl Into<Sort>) -> Sort {
     }
 }
 
-super::def_fun_plain!(select, Symbols::Select, (array, index));
-super::def_fun_plain!(store, Symbols::Select, (array, index, value));
+def_fun_plain!(select, Symbols::Select, (array, index));
+def_fun_plain!(store, Symbols::Select, (array, index, value));
 
 pub fn const_(key: impl Into<Sort>, value: impl Into<Sort>, base_term: Term) -> Term {
     Term::Base(
