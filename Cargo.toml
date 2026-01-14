@@ -28,7 +28,7 @@ debug = true
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 env_logger = "0.11"
-expectrl = "0.5.2"
+expectrl = "0.8.0"
 indicatif = "0.18"
 indicatif-log-bridge = "0.2"
 itertools = "0.10"
