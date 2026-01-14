@@ -4,7 +4,7 @@ use crate::{
     expressions::Expression,
     gamehops::{reduction::Assumption, GameHop},
     identifier::game_ident::GameConstIdentifier,
-    package::{Composition, Package},
+    package::{Composition, Edge, Export, Package},
     packageinstance::instantiate::InstantiationContext,
     proof::Proof,
     types::Type,
@@ -138,10 +138,24 @@ impl GameInstance {
             .map(|(ident, ty)| (ident.clone(), inst_ctx.rewrite_type(ty.clone())))
             .collect();
 
+        let new_edges = game
+            .edges
+            .into_iter()
+            .map(|Edge(from, to, sig)| Edge(from, to, inst_ctx.rewrite_oracle_sig(sig)))
+            .collect();
+
+        let new_exports = game
+            .exports
+            .into_iter()
+            .map(|Export(to, sig)| Export(to, inst_ctx.rewrite_oracle_sig(sig)))
+            .collect();
+
         let game = Composition {
             name: game.name.clone(),
             pkgs: new_pkg_instances,
             consts: resolved_params,
+            edges: new_edges,
+            exports: new_exports,
 
             ..game
         };
