@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use crate::{expressions::Expression, gamehops::GameHop, theorem::GameInstance};
 
@@ -307,6 +307,8 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     // 1. if the specific game uses an identifier, then the general one uses the same
     // 2. if the specific game uses a concrete value (i.e. int or bool literal), then the general
     //    either uses the same value or an identifier.
+    let mut general_const_assignments = HashMap::new();
+
     specific.consts.iter().all(|(var, val)| {
         let other_val = general
             .consts
@@ -325,7 +327,20 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
         if matches!(val, Expression::BooleanLiteral(_))
             || matches!(val, Expression::IntegerLiteral(_))
         {
-            return val == other_val || matches!(other_val, Expression::Identifier(_));
+            if val == other_val {
+                return true;
+            }
+            if let Expression::Identifier(ident) = other_val {
+                if let Entry::Vacant(e) = general_const_assignments.entry(ident) {
+                    e.insert(val);
+                    return true;
+                }
+                if general_const_assignments.get(&ident) == Some(&val) {
+                    return true;
+                }
+                return false;
+            }
+            return false;
         }
         unimplemented!()
     })
@@ -417,5 +432,74 @@ impl std::fmt::Display for Proof<'_> {
         }
         writeln!(f, "Ideal")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use crate::parser::{
+        composition::handle_composition, package::handle_pkg, theorem::handle_theorem, SspParser,
+    };
+
+    // Bug 196,
+    // assignment of incompatible literals
+    #[test]
+    fn bug192_should_fail_incompatible_assing() {
+        let pkgstring = "package Pkg {params {a: Bool, b: Bool,} state {}}";
+        let mut pkgast = SspParser::parse_package(pkgstring).unwrap();
+        let pkg = handle_pkg("test", pkgstring, pkgast.next().unwrap()).unwrap();
+
+        let mut pkg_map = HashMap::new();
+        pkg_map.insert(pkg.0, pkg.1);
+
+        let compstring = "composition Comp {const a: Bool; const b: Bool;}";
+        let mut compast = SspParser::parse_composition(compstring).unwrap();
+        let comp =
+            handle_composition("test", compstring, compast.next().unwrap(), &pkg_map).unwrap();
+
+        let mut comp_map = HashMap::new();
+        comp_map.insert("Comp".to_string(), comp);
+
+        let thmstring = "theorem Thm {const b: Bool; \
+                         instance Ia = Comp {params{ a:true,b:false }} \
+                         instance Ib = Comp {params{ a:b,b:b }} \
+                         gamehops {}}";
+        let mut thmast = SspParser::parse_theorem(thmstring).unwrap();
+        let thm =
+            handle_theorem("test", thmstring, thmast.next().unwrap(), pkg_map, comp_map).unwrap();
+
+        let [ref instance_a, ref instance_b] = thm.instances[..] else {
+            unreachable!()
+        };
+
+        assert!(!super::game_is_compatible(instance_a, instance_b));
+    }
+    #[test]
+    fn bug192_should_succeed_compatible_assignment() {
+        let pkg_map = HashMap::new();
+
+        let compstring = "composition Comp {const a: Bool; const b: Bool;}";
+        let mut compast = SspParser::parse_composition(compstring).unwrap();
+        let comp =
+            handle_composition("test", compstring, compast.next().unwrap(), &pkg_map).unwrap();
+
+        let mut comp_map = HashMap::new();
+        comp_map.insert("Comp".to_string(), comp);
+
+        let thmstring = "theorem Thm {const b: Bool; \
+                         instance Ia = Comp {params{ a:true,b:true }} \
+                         instance Ib = Comp {params{ a:b,b:b }} \
+                         gamehops {}}";
+        let mut thmast = SspParser::parse_theorem(thmstring).unwrap();
+        let thm =
+            handle_theorem("test", thmstring, thmast.next().unwrap(), pkg_map, comp_map).unwrap();
+
+        let [ref instance_a, ref instance_b] = thm.instances[..] else {
+            unreachable!()
+        };
+
+        assert!(super::game_is_compatible(instance_a, instance_b));
     }
 }
