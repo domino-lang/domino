@@ -15,10 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Set the rust toolchain version to 1.91
+      run: rustup override set 1.91.1
+    - name: Add rustfmt for override version
+      run: rustup component add rustfmt
     - name: Run cargo fmt
       run: cargo fmt --check
   Check:
     runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set the rust toolchain version to 1.91
+      run: rustup override set 1.91.1
+    - name: Run cargo check
+      run: RUSTFLAGS="-D warnings" cargo check --workspace --verbose
+  Check_Latest:
+    runs-on: ubuntu-latest
+    name: Check (latest rust)
     steps:
     - uses: actions/checkout@v2
     - name: Run cargo check
@@ -27,11 +40,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Set the rust toolchain version to 1.91
+      run: rustup override set 1.91.1
+    - name: Run cargo test
+      run: cargo test --workspace --verbose
+  Tests_Latest:
+    runs-on: ubuntu-latest
+    name: Tests (latest rust)
+    steps:
+    - uses: actions/checkout@v2
     - name: Run cargo test
       run: cargo test --workspace --verbose
   Clippy:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Set the rust toolchain version to 1.91
+      run: rustup override set 1.91.1
+    - name: Add clippy for override version
+      run: rustup component add clippy
     - name: Run Clippy
-      run: cargo clippy -- -D warnings
+      run: cargo clippy --workspace -- -D warnings
+  Clippy_Latest:
+    runs-on: ubuntu-latest
+    name: Clippy (latest rust)
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run Clippy
+      run: cargo clippy --workspace -- -D warnings

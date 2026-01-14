@@ -1682,9 +1682,8 @@ impl<'a> EquivalenceContext<'a> {
                             theorem_ident.is_some(),
                             "expected {identifier:?} to be completely resolved"
                         );
-                        *identifier = Box::new(Identifier::TheoremIdentifier(
-                            theorem_ident.cloned().unwrap(),
-                        ));
+                        **identifier =
+                            Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
                     }
                     Type::Bits(count_spec)
                 }
