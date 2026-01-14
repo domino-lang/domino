@@ -215,7 +215,7 @@ pub trait Project: Sync {
     fn get_game(&self, name: &str) -> Option<&Composition>;
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
-    
+
     fn get_output_file(
         &self,
         extension: String,

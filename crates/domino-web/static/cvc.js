@@ -1,3 +1,20 @@
+import Cvc5Module from "/cvc5/cvc5.js";
+
+let cvc;
+
+Cvc5Module({
+    locateFile: function(fname) {
+        return `cvc5/${fname}`;
+    },
+    print: function(text) {
+        postMessage({func: "cvc-solve", data: text});
+    },
+
+}).then(instance => {cvc = new CVC(instance)});
+
+function get_cvc() {
+    return cvc;
+}
 
 class Solver {
     constructor(cvc) {
@@ -7,12 +24,12 @@ class Solver {
         this.sm = cvc._symbol_manager_new(this.tm);
         this.parser = cvc._parser_new(this.solver, this.sm);
         cvc._parser_set_inc_str_input(this.parser, 0, "domino");
-        this.add_smt('(set-logic ALL)');
         this.add_smt('(set-option :produce-models true)');
         this.add_smt('(set-option :incremental true)');
     }
 
     add_smt(smt) {
+        console.log(smt);
         const cvc = this.cvc;
         cvc._parser_append_inc_str_input(this.parser, smt);
     }
@@ -81,4 +98,4 @@ class CVC {
 }
 
 
-export {CVC, Solver};
+export {CVC, Solver, get_cvc};

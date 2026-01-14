@@ -1,9 +1,5 @@
 import init, { helloworld, proofsteps, prove, test } from './pkg/domino_web.js';
-import Cvc5Module from "./cvc5/cvc5.js";
-import {CVC, Solver} from "./cvc.js";
-
-
-let cvc;
+import {CVC, Solver, get_cvc} from "./cvc.js";
 
 onmessage = (e) => {
     console.log(e.data.func, e.data);
@@ -13,7 +9,7 @@ onmessage = (e) => {
         postMessage({func: "proofsteps", data: proofsteps(e.data.data), filename: e.data.filename});
         break
     case "cvctest": {
-        const solver = new Solver(cvc);
+        const solver = new Solver(get_cvc());
         solver.add_smt("(declare-const foo Int)");
         solver.add_smt("(declare-const bar Int)");
         console.log(solver.check_sat());
@@ -27,13 +23,13 @@ onmessage = (e) => {
         postMessage({func: "domino-test", data: test(cvc)});
         break;
     case "check-sat": {
-        const solver = new Solver(cvc);
+        const solver = new Solver(get_cvc());
         solver.add_smt(e.data.data);
         postMessage({func: "cvc-solve", data: solver.check_sat()});
         break;
     }
     case "get-model":
-        const solver = new Solver(cvc);
+        const solver = new Solver(get_cvc());
         solver.add_smt(e.data.data);
         postMessage({func: "cvc-solve", data: solver.check_sat()});
         postMessage({func: "cvc-solve", data: solver.get_model()});
@@ -46,17 +42,6 @@ onmessage = (e) => {
     }
 }
 
-
-
-Cvc5Module({
-    locateFile: function(fname) {
-        return `cvc5/${fname}`;
-    },
-    print: function(text) {
-        postMessage({func: "cvc-solve", data: text});
-    },
-
-}).then(instance => {cvc = new CVC(instance)});
 
 async function init_domino() {
     await init()

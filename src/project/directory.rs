@@ -121,9 +121,7 @@ impl<'a> Project for DirectoryProject<'a> {
     fn read_input_file(&self, extension: &str) -> std::io::Result<String> {
         let mut path = self.root_dir.clone();
         path.push(extension);
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(path)?;
+        let file = std::fs::OpenOptions::new().read(true).open(path)?;
         std::io::read_to_string(file)
     }
 }
@@ -164,26 +162,23 @@ impl<'a, R: Read + Seek + Clone> ZipProject<'a, R> {
         }
 
         Ok(ZipFiles {
-            archive: reader,            
+            archive: reader,
             theorems,
             games,
             packages,
         })
     }
-    
-    pub fn new(files: &'a ZipFiles<R>) -> Result<Self> {
 
+    pub fn new(files: &'a ZipFiles<R>) -> Result<Self> {
         let packages = load::packages(&files.packages)?;
         let games = load::games(&files.games, &packages)?;
         let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
 
-        Ok(
-            Self {
-                files,
-                games,
-                theorems,
-            }
-        )
+        Ok(Self {
+            files,
+            games,
+            theorems,
+        })
     }
 
     pub fn init(&'a mut self) -> Result<()> {

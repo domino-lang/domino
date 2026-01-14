@@ -5,11 +5,11 @@ use std::fmt::Write;
 use std::iter::FromIterator;
 
 use crate::expressions::Expression;
-use crate::project::Project;
 use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
 use crate::identifier::Identifier;
+use crate::project::Project;
 use crate::types::CountSpec;
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::declare::declare_const;
@@ -783,7 +783,12 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_invariant(&self, project: &impl Project, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+    fn emit_invariant(
+        &self,
+        project: &impl Project,
+        comm: &mut Communicator,
+        oracle_name: &str,
+    ) -> Result<()> {
         for file_name in &self.equivalence.invariants_by_oracle_name(oracle_name) {
             log::info!("reading file {file_name}");
             let file_contents = project.read_input_file(file_name).map_err(|err| {

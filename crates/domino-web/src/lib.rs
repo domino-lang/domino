@@ -31,7 +31,6 @@ pub fn start() {
     wasm_logger::init(wasm_logger::Config::default());
 }
 
-
 #[wasm_bindgen]
 pub fn proofsteps(zipfile: &[u8]) -> Result<String> {
     let zipfile = Cursor::new(zipfile);
@@ -40,7 +39,7 @@ pub fn proofsteps(zipfile: &[u8]) -> Result<String> {
     let project = sspverif::project::ZipProject::new(&files)?;
     log::warn!("{:?}", project);
     log::warn!("{:?}", files);
-    
+
     let mut out = "test".to_string();
     project.proofsteps(&mut out)?;
 
@@ -51,7 +50,7 @@ pub fn proofsteps(zipfile: &[u8]) -> Result<String> {
 pub fn prove(zipfile: &[u8]) -> Result<()> {
     let ui = sspverif::ui::webui::WebBaseUI::new();
     let zipfile = Cursor::new(zipfile);
-    
+
     let files = sspverif::project::ZipProject::load(zipfile.clone())?;
     let project = sspverif::project::ZipProject::new(&files)?;
 
