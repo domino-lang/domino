@@ -1,0 +1,18 @@
+theorem Theorem {
+  instance X = X {}
+
+  instance Y = Y {}
+
+  gamehops {
+    equivalence X Y {
+      Run: {
+        invariant: [ ./theorem/invariant.smt2 ]
+        lemmas {
+          same-output:  [no-abort]
+          invariant:    [no-abort]
+          equal-aborts: []
+        }
+      }
+    }
+  }
+}

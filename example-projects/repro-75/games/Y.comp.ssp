@@ -1,0 +1,13 @@
+composition Y {
+  instance B = B {}
+  instance A = A {}
+
+  compose {
+    adversary: {
+      Run: A
+    }
+    A: {
+      Run: B
+    }
+  }
+}
