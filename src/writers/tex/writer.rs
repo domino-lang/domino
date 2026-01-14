@@ -464,7 +464,7 @@ pub fn tex_write_package(
     Ok(fname)
 }
 
-fn tex_write_document_header(mut file: &mut impl Write) -> std::io::Result<()> {
+fn tex_write_document_header(file: &mut impl Write) -> std::io::Result<()> {
     writeln!(file, "\\documentclass[a0paper]{{article}}")?;
     writeln!(file, "\\usepackage[margin=.25in]{{geometry}}")?;
     writeln!(file, "\\usepackage[sets,operators]{{cryptocode}}")?;
@@ -689,19 +689,20 @@ fn tex_solve_composition_graph(
 
 fn tex_write_composition_graph(
     backend: &Option<ProverBackend>,
-    mut file: &mut impl Write,
+    file: &mut impl Write,
     composition: &Composition,
     pkgmap: &[ReductionMappingEntry],
 ) -> std::io::Result<()> {
-    fn write_node(file: &mut impl Write,
-                  pkgmap: &[ReductionMappingEntry],
-                  pkgname: &str,
-                  _compname: &str,
-                  idx: usize,
-                  top: i32,
-                  bottom: i32,
-                  column: i32)
-     -> std::io::Result<()> {
+    fn write_node(
+        file: &mut impl Write,
+        pkgmap: &[ReductionMappingEntry],
+        pkgname: &str,
+        _compname: &str,
+        idx: usize,
+        top: i32,
+        bottom: i32,
+        column: i32,
+    ) -> std::io::Result<()> {
         let fill = if pkgmap
             .iter()
             .any(|entry| pkgname == entry.assumption().as_str())
@@ -740,7 +741,16 @@ fn tex_write_composition_graph(
             let SmtModelEntry::IntEntry { value: column, .. } =
                 model.get_value(&format!("{pkgname}-column")).unwrap();
 
-            write_node(file, pkgmap, pkgname, &composition.name, i, top, bottom, column)?;
+            write_node(
+                file,
+                pkgmap,
+                pkgname,
+                &composition.name,
+                i,
+                top,
+                bottom,
+                column,
+            )?;
         }
         for from in 0..composition.pkgs.len() {
             for to in 0..composition.pkgs.len() {

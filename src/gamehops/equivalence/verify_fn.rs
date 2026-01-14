@@ -48,7 +48,7 @@ fn verify_oracle<UI: TheoremUI>(
     } else {
         Communicator::new(backend)?
     };
-    std::thread::sleep(std::time::Duration::from_millis(20));
+    //std::thread::sleep(std::time::Duration::from_millis(20));
 
     log::debug!(
         "emitting base declarations for {}-{}",
@@ -95,7 +95,7 @@ fn verify_oracle<UI: TheoremUI>(
         log::info!("verify: oracle:{oracle_sig:?}");
         write!(prover, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut prover, &oracle_sig.name)?;
-        eqctx.emit_invariant(&mut prover, &oracle_sig.name)?;
+        eqctx.emit_invariant(project, &mut prover, &oracle_sig.name)?;
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(

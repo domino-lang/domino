@@ -1,146 +1,36 @@
+use walkdir;
 
 use std::{
-    path::{Path, PathBuf},
-    io::{Read,Write,Seek},
     collections::HashMap,
+    io::{Read, Seek, Write},
+    path::{Path, PathBuf},
 };
+use zip::ZipArchive;
 
 use crate::{
-    ui::{BaseUI, TheoremUI},
-    util::prover::ProverBackend,
-    transforms::Transformation,
-    package::{Composition, Package},
-    parser::{
-        SspParser,
-        package::handle_pkg,
-        ast::Identifier,
-    },
     gamehops::{equivalence, GameHop},
+    package::{Composition, Package},
+    parser::{ast::Identifier, package::handle_pkg, SspParser},
     project::{
         error::{Error, Result},
-        Project,
-        load,
-        GAMES_DIR,
-        PACKAGES_DIR,
-        THEOREM_DIR,
+        load, Project, GAMES_DIR, PACKAGES_DIR, PROJECT_FILE, THEOREM_DIR,
     },
     theorem::Theorem,
+    transforms::Transformation,
+    ui::{BaseUI, TheoremUI},
+    util::prover::ProverBackend,
 };
-
-
 
 #[derive(Debug)]
 pub struct DirectoryProject<'a> {
+    files: DirectoryFiles,
     root_dir: PathBuf,
     games: HashMap<String, Composition>,
     theorems: HashMap<String, Theorem<'a>>,
 }
 
 impl<'a> DirectoryProject<'a> {
-
-    #[cfg(test)]
-    pub(crate) fn empty() -> Self {
-        Self {
-            root_dir: PathBuf::new(),
-            games: HashMap::new(),
-            theorems: HashMap::new(),
-        }
-    }
-
-    pub fn load(files: &'a Files) -> Result<DirectoryProject<'a>> {
-        //let root_dir = find_project_root()?;
-
-        let packages: HashMap<_, _> = files
-            .packages()
-            .map(|pkg| pkg.map(|pkg| (pkg.name.clone(), pkg)))
-            .collect::<Result<_>>()?;
-
-        /* we already typecheck during parsing, and the typecheck transform uses a bunch of deprecated
-           stuff, so we just comment it out.
-
-        let mut pkg_names: Vec<_> = packages.keys().collect();
-        pkg_names.sort();
-
-        for pkg_name in pkg_names.into_iter() {
-            let pkg = &packages[pkg_name];
-            let mut scope = TypeCheckScope::new();
-            typecheck_pkg(pkg, &mut scope)?;
-        }
-         */
-
-        let games = load::games(&files.games, &packages)?;
-        // let mut game_names: Vec<_> = games.keys().collect();
-        // game_names.sort();
-        //
-        // for game_name in game_names.into_iter() {
-        //     let game = &games[game_name];
-        //     let mut scope = Scope::new();
-        //     typecheck_comp(game, &mut scope)?;
-        // }
-
-        let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
-
-        let project = DirectoryProject {
-            root_dir: PathBuf::new(),
-            games,
-            theorems,
-        };
-
-        Ok(project)
-    }
-
-    fn get_root_dir(&self) -> PathBuf {
-        self.root_dir.clone()
-    }
-
-    
-}
-
-impl<'a> Project for DirectoryProject<'a> {
-
-    fn theorems(&self) -> impl Iterator<Item = &String> {
-        self.theorems.keys()
-    }
-    
-    fn get_theorem<'b>(&'b self, name: &str) -> Option<&Theorem> {
-        self.theorems.get(name)
-    }
-
-    fn games(&self) -> impl Iterator<Item = &String> {
-        self.games.keys()
-    }
-
-    fn get_game(&self, name: &str) -> Option<&Composition> {
-        self.games.get(name)
-    }
-
-    fn get_output_file(&self, extension: String)  -> std::io::Result<impl Write + Send + Sync + 'static> {
-        let mut path = self.root_dir.clone();
-        path.push("_build/");
-        path.push(extension);
-
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(&parent)?;
-        }
-        Ok(std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?)
-    }
-    
-
-}
-
-#[derive(Debug)]
-pub struct Files {
-    theorems: Vec<(String, String)>,
-    games: Vec<(String, String)>,
-    packages: Vec<(String, String)>,
-}
-
-impl Files {
-    pub fn load(root: &Path) -> Result<Self> {
+    pub fn new(root: &Path) -> Result<Self> {
         fn load_files(path: impl AsRef<Path>) -> Result<Vec<(String, String)>> {
             walkdir::WalkDir::new(path.as_ref())
                 .into_iter()
@@ -162,21 +52,98 @@ impl Files {
                 .collect()
         }
 
-        Ok(Self {
-            theorems: load_files(root.join(THEOREM_DIR))?,
-            games: load_files(root.join(GAMES_DIR))?,
-            packages: load_files(root.join(PACKAGES_DIR))?,
+        let root_dir = find_project_root()?;
+
+        let theorems = load_files(root.join(THEOREM_DIR))?;
+        let games = load_files(root.join(GAMES_DIR))?;
+        let packages = load_files(root.join(PACKAGES_DIR))?;
+
+        let files = DirectoryFiles {
+            theorems,
+            games,
+            packages,
+        };
+        Ok(DirectoryProject {
+            files,
+            root_dir,
+            games: HashMap::new(),
+            theorems: HashMap::new(),
         })
     }
 
-    pub fn load_zip(reader: impl Read + Seek) -> Result<Self> {
-        let mut zip = zip::ZipArchive::new(reader)?;
+    pub fn init(&'a mut self) -> Result<()> {
+        let packages = load::packages(&self.files.packages)?;
+        self.games = load::games(&self.files.games, &packages)?;
+        self.theorems = load::theorems(
+            &self.files.theorems,
+            packages.to_owned(),
+            self.games.to_owned(),
+        )?;
+
+        Ok(())
+    }
+}
+
+impl<'a> Project for DirectoryProject<'a> {
+    fn theorems(&self) -> impl Iterator<Item = &String> {
+        self.theorems.keys()
+    }
+
+    fn get_theorem(&self, name: &str) -> Option<&Theorem> {
+        self.theorems.get(name)
+    }
+
+    fn games(&self) -> impl Iterator<Item = &String> {
+        self.games.keys()
+    }
+
+    fn get_game(&self, name: &str) -> Option<&Composition> {
+        self.games.get(name)
+    }
+
+    fn get_output_file(
+        &self,
+        extension: String,
+    ) -> std::io::Result<impl Write + Send + Sync + 'static> {
+        let mut path = self.root_dir.clone();
+        path.push("_build/");
+        path.push(extension);
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(&parent)?;
+        }
+        Ok(std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?)
+    }
+    fn read_input_file(&self, extension: &str) -> std::io::Result<String> {
+        let mut path = self.root_dir.clone();
+        path.push(extension);
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(path)?;
+        std::io::read_to_string(file)
+    }
+}
+
+#[derive(Debug)]
+pub struct ZipProject<'a, R> {
+    files: &'a ZipFiles<R>,
+    games: HashMap<String, Composition>,
+    theorems: HashMap<String, Theorem<'a>>,
+}
+
+impl<'a, R: Read + Seek + Clone> ZipProject<'a, R> {
+    pub fn load(reader: R) -> Result<ZipFiles<R>> {
+        let mut archive = zip::ZipArchive::new(reader.clone())?;
         let mut theorems = Vec::new();
         let mut games = Vec::new();
         let mut packages = Vec::new();
 
-        for i in 0..zip.len() {
-            let file = zip.by_index(i)?;
+        for i in 0..archive.len() {
+            let file = archive.by_index(i)?;
             if !file.is_file() {
                 continue;
             }
@@ -196,32 +163,115 @@ impl Files {
             }
         }
 
-        Ok(Self {
+        Ok(ZipFiles {
+            archive: reader,            
             theorems,
             games,
             packages,
         })
     }
+    
+    pub fn new(files: &'a ZipFiles<R>) -> Result<Self> {
 
-    pub(crate) fn packages(&self) -> impl Iterator<Item = Result<Package>> + '_ {
-        let mut filenames: HashMap<String, &String> = HashMap::new();
+        let packages = load::packages(&files.packages)?;
+        let games = load::games(&files.games, &packages)?;
+        let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
 
-        self.packages.iter().map(move |(file_name, file_content)| {
-            let mut ast =
-                SspParser::parse_package(file_content).map_err(|e| (file_name.as_str(), e))?;
-
-            let (pkg_name, pkg) = handle_pkg(file_name, file_content, ast.next().unwrap())
-                .map_err(Error::ParsePackage)?;
-
-            if let Some(other_filename) = filenames.insert(pkg_name.clone(), file_name) {
-                return Err(Error::RedefinedPackage(
-                    pkg_name,
-                    file_name.to_string(),
-                    other_filename.to_string(),
-                ));
+        Ok(
+            Self {
+                files,
+                games,
+                theorems,
             }
-
-            Ok(pkg)
-        })
+        )
     }
+
+    pub fn init(&'a mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<'a, R: Sync + Read + Seek + Clone> Project for ZipProject<'a, R> {
+    fn theorems(&self) -> impl Iterator<Item = &String> {
+        self.theorems.keys()
+    }
+
+    fn get_theorem(&self, name: &str) -> Option<&Theorem> {
+        self.theorems.get(name)
+    }
+
+    fn games(&self) -> impl Iterator<Item = &String> {
+        self.games.keys()
+    }
+
+    fn get_game(&self, name: &str) -> Option<&Composition> {
+        self.games.get(name)
+    }
+
+    fn get_output_file(
+        &self,
+        extension: String,
+    ) -> std::io::Result<impl std::io::Write + Send + Sync + 'static> {
+        unimplemented!("Can not write to zip file based projects");
+        Ok(std::io::Cursor::new(Vec::<u8>::new()))
+    }
+
+    fn read_input_file(&self, extension: &str) -> std::io::Result<String> {
+        let extension = if extension.starts_with("./") {
+            &extension[2..]
+        } else {
+            extension
+        };
+        let mut archive = zip::ZipArchive::new(self.files.archive.clone())?;
+        let file = archive.by_name(extension)?;
+        std::io::read_to_string(file)
+    }
+}
+
+#[derive(Debug)]
+pub struct DirectoryFiles {
+    theorems: Vec<(String, String)>,
+    games: Vec<(String, String)>,
+    packages: Vec<(String, String)>,
+}
+
+#[derive(Debug)]
+pub struct ZipFiles<R> {
+    archive: R,
+    theorems: Vec<(String, String)>,
+    games: Vec<(String, String)>,
+    packages: Vec<(String, String)>,
+}
+
+pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjectRootError> {
+    let mut dir = std::env::current_dir().map_err(FindProjectRootError::CurrentDir)?;
+
+    loop {
+        let lst = dir.read_dir().map_err(FindProjectRootError::ReadDir)?;
+        for entry in lst {
+            let entry = entry.map_err(FindProjectRootError::ReadDir)?;
+            let file_name = match entry.file_name().into_string() {
+                Err(_) => continue,
+                Ok(name) => name,
+            };
+            if file_name == PROJECT_FILE {
+                return Ok(dir);
+            }
+        }
+
+        match dir.parent() {
+            None => return Err(FindProjectRootError::NotInProject),
+            Some(parent) => dir = parent.into(),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FindProjectRootError {
+    #[error("Error determining current directory:")]
+    CurrentDir(std::io::Error),
+    #[error("Error reading directory:")]
+    ReadDir(std::io::Error),
+    #[error("Not in project: no ssp.toml file in this or any parent directory")]
+    NotInProject,
 }

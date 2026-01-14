@@ -5,7 +5,7 @@ use miette::Diagnostic;
 use std::io::Error as IOError;
 use thiserror::Error;
 
-use super::FindProjectRootError;
+use super::directory::FindProjectRootError;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum Error {
@@ -73,5 +73,15 @@ impl<'a, R: pest::RuleType> From<(&'a str, pest::error::Error<R>)> for Error {
             e.location,
             e.line_col,
         )
+    }
+}
+
+#[cfg(feature = "web")]
+use wasm_bindgen::JsValue;
+
+#[cfg(feature = "web")]
+impl Into<JsValue> for Error {
+    fn into(self) -> JsValue {
+        format!("{self:?}").into()
     }
 }

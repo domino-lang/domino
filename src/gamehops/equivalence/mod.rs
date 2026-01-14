@@ -5,6 +5,7 @@ use std::fmt::Write;
 use std::iter::FromIterator;
 
 use crate::expressions::Expression;
+use crate::project::Project;
 use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
@@ -782,10 +783,10 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_invariant(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+    fn emit_invariant(&self, project: &impl Project, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
         for file_name in &self.equivalence.invariants_by_oracle_name(oracle_name) {
             log::info!("reading file {file_name}");
-            let file_contents = std::fs::read_to_string(file_name).map_err(|err| {
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
                 let file_name = file_name.clone();
                 error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
             })?;

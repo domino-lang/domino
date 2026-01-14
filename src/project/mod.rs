@@ -8,8 +8,6 @@
  *
  */
 use std::path::Path;
-use std::{collections::HashMap, path::PathBuf};
-use walkdir;
 
 use itertools::Itertools;
 
@@ -48,9 +46,9 @@ pub mod error;
 
 mod directory;
 pub use directory::DirectoryProject;
-pub use directory::Files;
+pub use directory::ZipProject;
 
-pub trait Project : Sync {
+pub trait Project: Sync {
     fn proofsteps(&self, mut to: impl std::fmt::Write) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
@@ -97,7 +95,6 @@ pub trait Project : Sync {
         Ok(())
     }
 
-
     fn prove(
         &self,
         ui: impl BaseUI,
@@ -107,7 +104,10 @@ pub trait Project : Sync {
         req_theorem: &Option<String>,
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
-    ) -> Result<()> where Self: Sized {
+    ) -> Result<()>
+    where
+        Self: Sized,
+    {
         let mut theorem_keys = self.theorems().sorted();
 
         let mut ui = ui.into_theorem_ui(theorem_keys.len().try_into().unwrap());
@@ -162,8 +162,14 @@ pub trait Project : Sync {
         Ok(())
     }
 
-    fn latex(&self, backend: Option<ProverBackend>) -> Result<()> where Self: Sized {
-        for (name, game) in self.games().map(|name| (name, self.get_game(name).unwrap())) {
+    fn latex(&self, backend: Option<ProverBackend>) -> Result<()>
+    where
+        Self: Sized,
+    {
+        for (name, game) in self
+            .games()
+            .map(|name| (name, self.get_game(name).unwrap()))
+        {
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
@@ -181,14 +187,13 @@ pub trait Project : Sync {
             }
         }
 
-        for (name, theorem) in self.theorems().map(|name| (name, self.get_theorem(name).unwrap())) {
+        for (name, theorem) in self
+            .theorems()
+            .map(|name| (name, self.get_theorem(name).unwrap()))
+        {
             for lossy in [true, false] {
                 crate::writers::tex::writer::tex_write_theorem(
-                    &backend,
-                    lossy,
-                    theorem,
-                    name,
-                    self,
+                    &backend, lossy, theorem, name, self,
                 )?;
             }
         }
@@ -209,7 +214,12 @@ pub trait Project : Sync {
     fn games(&self) -> impl Iterator<Item = &String>;
     fn get_game(&self, name: &str) -> Option<&Composition>;
 
-    fn get_output_file(&self, extension: String) -> std::io::Result<impl std::io::Write + Send + Sync + 'static>;
+    fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
+    
+    fn get_output_file(
+        &self,
+        extension: String,
+    ) -> std::io::Result<impl std::io::Write + Send + Sync + 'static>;
 
     fn get_joined_smt_file(
         &self,
@@ -218,47 +228,10 @@ pub trait Project : Sync {
         oracle_name: Option<&str>,
     ) -> std::io::Result<impl std::io::Write + Send + Sync + 'static> {
         let extension = if let Some(oracle_name) = oracle_name {
-            format!(
-                "code_eq/joined/{left_game_name}_{right_game_name}_{oracle_name}.smt2"
-            )
+            format!("code_eq/joined/{left_game_name}_{right_game_name}_{oracle_name}.smt2")
         } else {
             format!("code_eq/joined/{left_game_name}_{right_game_name}.smt2")
         };
         self.get_output_file(extension)
     }
-}
-
-
-
-pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjectRootError> {
-    let mut dir = std::env::current_dir().map_err(FindProjectRootError::CurrentDir)?;
-
-    loop {
-        let lst = dir.read_dir().map_err(FindProjectRootError::ReadDir)?;
-        for entry in lst {
-            let entry = entry.map_err(FindProjectRootError::ReadDir)?;
-            let file_name = match entry.file_name().into_string() {
-                Err(_) => continue,
-                Ok(name) => name,
-            };
-            if file_name == PROJECT_FILE {
-                return Ok(dir);
-            }
-        }
-
-        match dir.parent() {
-            None => return Err(FindProjectRootError::NotInProject),
-            Some(parent) => dir = parent.into(),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum FindProjectRootError {
-    #[error("Error determining current directory:")]
-    CurrentDir(std::io::Error),
-    #[error("Error reading directory:")]
-    ReadDir(std::io::Error),
-    #[error("Not in project: no ssp.toml file in this or any parent directory")]
-    NotInProject,
 }

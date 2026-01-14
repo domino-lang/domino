@@ -1,9 +1,11 @@
 use std::io::Cursor;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use sspverif::util::prover::ProverBackend;
 use sspverif::project::Project;
+use sspverif::util::prover::ProverBackend;
 use web_sys::console::{error_1, log_1};
+
+use sspverif::project::error::Result;
 
 #[wasm_bindgen(module = "/static/cvc.js")]
 extern "C" {
@@ -24,39 +26,36 @@ extern "C" {
     fn add_smt(this: &Solver, content: &str);
 }
 
+#[wasm_bindgen(start)]
+pub fn start() {
+    wasm_logger::init(wasm_logger::Config::default());
+}
+
+
 #[wasm_bindgen]
-pub fn proofsteps(zipfile: &[u8]) -> String {
+pub fn proofsteps(zipfile: &[u8]) -> Result<String> {
     let zipfile = Cursor::new(zipfile);
-    let files = sspverif::project::Files::load_zip(zipfile).unwrap();
-    let project = match sspverif::project::DirectoryProject::load(&files) {
-        Ok(project) => project,
-        Err(e) => {
-            error_1(&format!("{}", e).into());
-            unreachable!()
-        }
-    };
 
-    let mut out = String::new();
+    let files = sspverif::project::ZipProject::load(zipfile.clone())?;
+    let project = sspverif::project::ZipProject::new(&files)?;
+    log::warn!("{:?}", project);
+    log::warn!("{:?}", files);
+    
+    let mut out = "test".to_string();
+    project.proofsteps(&mut out)?;
 
-    project.proofsteps(&mut out).unwrap();
-    out
+    Ok(out)
 }
 
 #[wasm_bindgen]
-pub fn prove(zipfile: &[u8]) {
+pub fn prove(zipfile: &[u8]) -> Result<()> {
     let ui = sspverif::ui::webui::WebBaseUI::new();
     let zipfile = Cursor::new(zipfile);
-    let files = sspverif::project::Files::load_zip(zipfile).unwrap();
-    let project = match sspverif::project::DirectoryProject::load(&files) {
-        Ok(project) => project,
-        Err(e) => {
-            error_1(&format!("{}", e).into());
-            unreachable!()
-        }
-    };
-    project
-        .prove(ui, ProverBackend::Cvc5, false, 1, &None, None, &None)
-        .unwrap();
+    
+    let files = sspverif::project::ZipProject::load(zipfile.clone())?;
+    let project = sspverif::project::ZipProject::new(&files)?;
+
+    project.prove(ui, ProverBackend::Cvc5, false, 1, &None, None, &None)
 }
 
 #[wasm_bindgen]

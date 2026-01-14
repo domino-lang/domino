@@ -12,3 +12,5 @@ wasm-bindgen = "0.2"
 zip = { version = "7.0", features = ["deflate"], default-features = false }
 sspverif = { workspace = true, features = ["web"] }
 web-sys = "0.3"
+log = "0.4.6"
+wasm-logger = "0.2.0"
