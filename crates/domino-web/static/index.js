@@ -82,6 +82,7 @@ class ProofUI {
         elem.style.margin = "0 auto";
         elem.innerHTML = msg.lemma;
         this.current_lemma = this.current_oracle.querySelector(".ui-lemmata").appendChild(elem);
+        this.current_lemma.scrollIntoView();
     }
 
     finish_lemma(msg) {
@@ -167,15 +168,3 @@ prove_button.addEventListener("click", function() {
         dominoWorker.postMessage({func: 'prove', data: new Uint8Array(bs), filename: zipfile.name})
     });
 });
-
-let check_sat_button = document.getElementById("button_check_sat");
-check_sat_button.addEventListener("click", function() {
-    const smt = document.getElementById("cvc_input_element").value;
-    dominoWorker.postMessage({func: 'check-sat', data: smt})
-});
-
-let check_get_model = document.getElementById("button_get_model");
-check_get_model.addEventListener("click", function() {
-    const smt = document.getElementById("cvc_input_element").value;
-    dominoWorker.postMessage({func: 'get-model', data: smt})
-});        
