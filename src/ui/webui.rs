@@ -47,7 +47,15 @@ impl TheoremUI for WebTheoremUI {
         postMessage(Object::from_entries(&resp).unwrap());
     }
 
-    fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str) {}
+    fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str) {
+        let resp = js_sys::Map::new();
+        resp.set(&"func".into(), &"domino-ui".into());
+        resp.set(&"stage".into(), &"proofstep-is-reduction".into());
+        resp.set(&"theorem-name".into(), &theorem_name.into());
+        resp.set(&"proofstep-name".into(), &proofstep_name.into());
+
+        postMessage(Object::from_entries(&resp).unwrap());
+    }
 
     fn proofstep_set_oracles(
         &mut self,
@@ -65,7 +73,15 @@ impl TheoremUI for WebTheoremUI {
         postMessage(Object::from_entries(&resp).unwrap());
     }
 
-    fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str) {}
+    fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str) {
+        let resp = js_sys::Map::new();
+        resp.set(&"func".into(), &"domino-ui".into());
+        resp.set(&"stage".into(), &"finish-proofstep".into());
+        resp.set(&"theorem-name".into(), &theorem_name.into());
+        resp.set(&"proofstep-name".into(), &proofstep_name.into());
+
+        postMessage(Object::from_entries(&resp).unwrap());
+    }
 
     fn start_oracle(
         &mut self,
@@ -76,16 +92,25 @@ impl TheoremUI for WebTheoremUI {
     ) {
         let resp = js_sys::Map::new();
         resp.set(&"func".into(), &"domino-ui".into());
-        resp.set(&"stage".into(), &"set-oracles".into());
+        resp.set(&"stage".into(), &"start-oracle".into());
         resp.set(&"theorem-name".into(), &theorem_name.into());
         resp.set(&"proofstep-name".into(), &proofstep_name.into());
         resp.set(&"oracle".into(), &oracle_name.into());
-        resp.set(&"lemata".into(), &num_lemmata.into());
+        resp.set(&"lemmata".into(), &num_lemmata.into());
 
         postMessage(Object::from_entries(&resp).unwrap());
     }
 
-    fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str) {}
+    fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str) {
+        let resp = js_sys::Map::new();
+        resp.set(&"func".into(), &"domino-ui".into());
+        resp.set(&"stage".into(), &"finish-oracle".into());
+        resp.set(&"theorem-name".into(), &theorem_name.into());
+        resp.set(&"proofstep-name".into(), &proofstep_name.into());
+        resp.set(&"oracle".into(), &oracle_name.into());
+
+        postMessage(Object::from_entries(&resp).unwrap());
+    }
 
     fn start_lemma(
         &mut self,
@@ -94,6 +119,15 @@ impl TheoremUI for WebTheoremUI {
         oracle_name: &str,
         lemma_name: &str,
     ) {
+        let resp = js_sys::Map::new();
+        resp.set(&"func".into(), &"domino-ui".into());
+        resp.set(&"stage".into(), &"start-lemma".into());
+        resp.set(&"theorem-name".into(), &theorem_name.into());
+        resp.set(&"proofstep-name".into(), &proofstep_name.into());
+        resp.set(&"oracle".into(), &oracle_name.into());
+        resp.set(&"lemma".into(), &lemma_name.into());
+
+        postMessage(Object::from_entries(&resp).unwrap());
     }
 
     fn finish_lemma(
@@ -103,6 +137,15 @@ impl TheoremUI for WebTheoremUI {
         oracle_name: &str,
         lemma_name: &str,
     ) {
+        let resp = js_sys::Map::new();
+        resp.set(&"func".into(), &"domino-ui".into());
+        resp.set(&"stage".into(), &"finish-lemma".into());
+        resp.set(&"theorem-name".into(), &theorem_name.into());
+        resp.set(&"proofstep-name".into(), &proofstep_name.into());
+        resp.set(&"oracle".into(), &oracle_name.into());
+        resp.set(&"lemma".into(), &lemma_name.into());
+
+        postMessage(Object::from_entries(&resp).unwrap());
     }
 }
 

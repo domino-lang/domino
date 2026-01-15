@@ -21,14 +21,34 @@
         <h5 class="domino_output_heading">TODO</h5>
         <pre class="domino_output_pre"></pre>
       </template>
+      <template id="template_ui_theorem">
+        <div style="background-color: #ddd; width: 95%; margin: 0 auto;">
+          <h4></h4>
+        </div>
+      </template>
+      <template id="template_ui_proofstep">
+        <div style="background-color: #ccc; width: 95%; margin: 0 auto;">
+          <h5></h5>
+        </div>
+      </template>
+      <template id="template_ui_oracle">
+        <div style="background-color: #bbb; width: 95%; margin: 0 auto;">
+          <h6></h6>
+          <div class="ui-lemmata"></div>
+        </div>
+      </template>
+      <template id="proof_ui_template">
+        <div style="background-color: #eee; width: 100%">
+        </div>
+      </template>
 
       <h3>CVC5 Input</h3>
       <textarea id="cvc_input_element" cols="60" rows="8"></textarea>
-      
+
       <input type="button" value="Check Sat" id="button_check_sat"></input>
       <input type="button" value="Get Model" id="button_get_model"></input>
 
-      
+
       <h3>CVC5 Output</h3>
       <pre id="cvc_output_element"></pre>
 

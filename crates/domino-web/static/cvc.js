@@ -29,7 +29,6 @@ class Solver {
     }
 
     add_smt(smt) {
-        console.log(smt);
         const cvc = this.cvc;
         cvc._parser_append_inc_str_input(this.parser, smt);
     }
