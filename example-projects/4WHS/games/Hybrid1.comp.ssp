@@ -13,7 +13,7 @@ composition Hybrid1 {
         mac: mac,
         }
     }
-    instance KX = KX_NoKey {
+    instance KX = KX_NoKeys {
         params {
         b: b,
         n: n,

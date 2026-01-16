@@ -1,4 +1,4 @@
-package KX_NoKey {
+package KX_NoKeys {
     params {
         b: Bool,
         n: Integer,
