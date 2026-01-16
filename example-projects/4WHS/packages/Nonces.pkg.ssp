@@ -8,11 +8,13 @@ package Nonces {
           Nonces:   Table(Bits(n),Bool),       /* store nonces */
     }
 
-oracle Sample() -> Bits(n) {
+    oracle Sample() -> Bits(n) {
         ni         <-$ Bits(n);
         if b
-        {assert (Nonces[ni] == None);
-        Nonces[ni] <- Some(true);}
+        {
+			assert (Nonces[ni] == None);
+        	Nonces[ni] <- Some(true);
+		}
         return ni;
     }
 }
