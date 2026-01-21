@@ -19,6 +19,8 @@ pub(super) enum PyType<'a> {
     Any,
     List(Box<Self>),
     Dict(Box<Self>, Box<Self>),
+    Callable(Vec<Self>, Box<Self>),
+    Tuple(Vec<Self>),
 
     PackageState(PackageStateTypeName<'a>),
     PackageConstParams(PackageConstParamsTypeName<'a>),
@@ -41,6 +43,14 @@ impl<'a> ToDoc<'a> for PyType<'a> {
                 .append(RcDoc::text(", "))
                 .append(v.to_doc())
                 .append(RcDoc::text("]")),
+            PyType::Tuple(tys) => RcDoc::text("tuple[")
+                .append(RcDoc::intersperse(tys.iter().map(Self::to_doc), ","))
+                .append(RcDoc::text("]")),
+            PyType::Callable(args, ret) => RcDoc::text("Callable[[")
+                .append(RcDoc::intersperse(args.iter().map(Self::to_doc), ","))
+                .append(RcDoc::text("],"))
+                .append(ret.to_doc())
+                .append("]"),
 
             PyType::PackageState(name) => RcDoc::as_string(name),
             PyType::PackageConstParams(name) => RcDoc::as_string(name),
@@ -68,6 +78,13 @@ impl<'a> TryFrom<&'a crate::types::Type> for PyType<'a> {
             crate::types::Type::Table(k, v) => Ok(PyType::Dict(
                 Box::new(PyType::try_from(&**k)?),
                 Box::new(PyType::try_from(&**v)?),
+            )),
+            crate::types::Type::Fn(args, ret) => Ok(PyType::Callable(
+                args.iter().map(Self::try_from).collect::<Result<_, _>>()?,
+                Box::new(Self::try_from(ret.as_ref())?),
+            )),
+            crate::types::Type::Tuple(tys) => Ok(PyType::Tuple(
+                tys.iter().map(Self::try_from).collect::<Result<_, _>>()?,
             )),
             other => todo!("not implemented yet: {other:?}"),
         }

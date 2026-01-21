@@ -53,6 +53,8 @@ pub enum PyExpression<'a> {
     LocalIdentifier(&'a str),
     Equals(Box<Self>, Box<Self>),
     Add(Box<Self>, Box<Self>),
+    And(Box<Self>, Box<Self>),
+    Or(Box<Self>, Box<Self>),
     Not(Box<Self>),
     Sample(PyType<'a>),
     TableAccess(Box<Self>, Box<Self>),
@@ -90,6 +92,8 @@ impl<'a> ToDoc<'a> for PyExpression<'a> {
                 left.to_doc().append(" == ").append(right.to_doc())
             }
             PyExpression::Add(left, right) => left.to_doc().append(" + ").append(right.to_doc()),
+            PyExpression::And(left, right) => left.to_doc().append(" and ").append(right.to_doc()),
+            PyExpression::Or(left, right) => left.to_doc().append(" or ").append(right.to_doc()),
             PyExpression::Not(expr) => RcDoc::text("not ").append(expr.to_doc()),
             PyExpression::Sample(ty) => match ty {
                 PyType::BitVec(_) => RcDoc::text("secrets.token_bytes(32)"),
@@ -142,18 +146,79 @@ impl<'a> TryFrom<&'a Expression> for PyExpression<'a> {
                 PackageIdentifier::OracleArg(ident),
             )) => Ok(PyExpression::LocalIdentifier(ident.ident_ref())),
 
-            Expression::Equals(items) => {
-                assert_eq!(items.len(), 2);
-
-                Ok(PyExpression::Equals(
-                    Box::new(items.get(0).unwrap().try_into()?),
-                    Box::new(items.get(1).unwrap().try_into()?),
-                ))
-            }
             Expression::Add(lhs, rhs) => Ok(PyExpression::Add(
-                Box::new((&**lhs).try_into()?),
-                Box::new((&**rhs).try_into()?),
+                Box::new(Self::try_from(&**lhs)?),
+                Box::new(Self::try_from(&**rhs)?),
             )),
+            Expression::Equals(items) => {
+                let items = items
+                    .iter()
+                    .map(Self::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                fn helper<'b>(mut items: Vec<PyExpression<'b>>) -> PyExpression<'b> {
+                    assert!(
+                        items.len() >= 2,
+                        "expected at least two operands for equals, got: {items:?}"
+                    );
+                    let eq =
+                        PyExpression::Equals(Box::new(items.remove(0)), Box::new(items[0].clone()));
+
+                    if items.len() > 2 {
+                        PyExpression::And(Box::new(eq), Box::new(helper(items)))
+                    } else {
+                        eq
+                    }
+                }
+
+                Ok(helper(items))
+            }
+            Expression::Or(items) => {
+                let items = items
+                    .iter()
+                    .map(Self::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                fn helper<'b>(mut items: Vec<PyExpression<'b>>) -> PyExpression<'b> {
+                    assert!(
+                        items.len() >= 2,
+                        "expected at least two operands for or, got: {items:?}"
+                    );
+                    let or =
+                        PyExpression::Or(Box::new(items.remove(0)), Box::new(items[0].clone()));
+
+                    if items.len() > 2 {
+                        PyExpression::And(Box::new(or), Box::new(helper(items)))
+                    } else {
+                        or
+                    }
+                }
+
+                Ok(helper(items))
+            }
+            Expression::And(items) => {
+                let items = items
+                    .iter()
+                    .map(Self::try_from)
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                fn helper<'b>(mut items: Vec<PyExpression<'b>>) -> PyExpression<'b> {
+                    assert!(
+                        items.len() >= 2,
+                        "expected at least two operands for and, got: {items:?}"
+                    );
+                    let and =
+                        PyExpression::And(Box::new(items.remove(0)), Box::new(items[0].clone()));
+
+                    if items.len() > 2 {
+                        PyExpression::And(Box::new(and), Box::new(helper(items)))
+                    } else {
+                        and
+                    }
+                }
+
+                Ok(helper(items))
+            }
             Expression::Not(expr) => Ok(PyExpression::Not(Box::new(PyExpression::try_from(
                 &**expr,
             )?))),
