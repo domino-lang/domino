@@ -23,7 +23,7 @@ impl<'a> Dataclass<'a> for PackageConstParamsPattern<'a> {
     }
 
     fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'a>)> {
-        self.pkg.state.iter().map(|(name, ty, _)| {
+        self.pkg.params.iter().map(|(name, ty, _)| {
             (
                 PackageConstParamsFieldName(name.as_str()),
                 ty.try_into().unwrap(),

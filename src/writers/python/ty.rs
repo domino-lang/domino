@@ -4,7 +4,7 @@ use pretty::RcDoc;
 
 static UNIT: () = ();
 
-use super::{dataclass::Dataclass, util::ToDoc};
+use super::util::ToDoc;
 use crate::writers::python::identifier::*;
 
 #[derive(Clone, Copy, Debug)]

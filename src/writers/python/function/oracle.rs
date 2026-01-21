@@ -5,6 +5,7 @@ use pretty::RcDoc;
 use crate::{
     package::OracleDef,
     writers::python::{
+        contexts::oracle_context::OracleContext,
         identifier::{OracleFunctionArg, OracleFunctionName},
         ty::PyType,
         util::ToDoc,
@@ -13,13 +14,13 @@ use crate::{
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct OracleFunction<'a> {
-    pkg_name: &'a str,
+    context: &'a OracleContext<'a>,
     oracle: &'a OracleDef,
 }
 
 impl<'a> OracleFunction<'a> {
-    pub(crate) fn new(pkg_name: &'a str, oracle: &'a OracleDef) -> Self {
-        Self { pkg_name, oracle }
+    pub(crate) fn new(context: &'a OracleContext<'a>, oracle: &'a OracleDef) -> Self {
+        Self { context, oracle }
     }
 }
 
@@ -52,7 +53,7 @@ impl<'a> super::Function<'a> for OracleFunction<'a> {
 
     fn name(&self) -> OracleFunctionName<'a> {
         OracleFunctionName {
-            pkg_name: self.pkg_name,
+            pkg_inst_name: self.context.pkg_inst_context.pkg_inst_name,
             oracle_name: &self.oracle.sig.name,
         }
     }
@@ -73,6 +74,6 @@ impl<'a> super::Function<'a> for OracleFunction<'a> {
             .code
             .0
             .iter()
-            .map(|stmt| (self.pkg_name, stmt).try_into().unwrap())
+            .map(|stmt| (self.context, stmt).try_into().unwrap())
     }
 }

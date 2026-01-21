@@ -21,17 +21,17 @@ macro_rules! ident_type {
 // not using macro for this because it has more than one field
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OracleFunctionName<'a> {
-    pub(crate) pkg_name: &'a str,
+    pub(crate) pkg_inst_name: &'a str,
     pub(crate) oracle_name: &'a str,
 }
 
 impl<'a> Display for OracleFunctionName<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let Self {
-            pkg_name,
+            pkg_inst_name,
             oracle_name,
         } = self;
-        write!(f, "oracle_{pkg_name}_{oracle_name}")
+        write!(f, "oracle_{pkg_inst_name}_{oracle_name}")
     }
 }
 
@@ -47,12 +47,14 @@ ident_type!(PureFunctionName, "fun_{}");
 ident_type!(PureFunctionArg, "{}");
 ident_type!(VariableName, "{}");
 
+#[derive(Clone, Copy)]
 pub(super) enum GameStateFieldName<'a> {
     PackageConstParams(&'a str),
     PackageState(&'a str),
     Randomness(&'a str),
 }
 
+#[derive(Clone, Copy)]
 pub(crate) enum OracleFunctionArg<'a> {
     GameState,
     PackageInstanceName,
@@ -62,9 +64,9 @@ pub(crate) enum OracleFunctionArg<'a> {
 impl<'a> Display for GameStateFieldName<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            GameStateFieldName::PackageConstParams(name) => write!(f, "consts_{name}"),
             GameStateFieldName::PackageState(name) => write!(f, "pkg_{name}"),
             GameStateFieldName::Randomness(_) => todo!(),
-            GameStateFieldName::PackageConstParams(name) => write!(f, "consts_{name}"),
         }
     }
 }

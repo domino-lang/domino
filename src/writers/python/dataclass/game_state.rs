@@ -6,7 +6,9 @@ use crate::{
     theorem::GameInstance,
     writers::python::{
         dataclass::Dataclass,
-        identifier::{GameStateFieldName, GameStateTypeName, PackageStateTypeName},
+        identifier::{
+            GameStateFieldName, GameStateTypeName, PackageConstParamsTypeName, PackageStateTypeName,
+        },
         ty::PyType,
     },
 };
@@ -29,11 +31,17 @@ impl<'a> Dataclass<'a> for GameStatePattern<'a> {
     }
 
     fn fields(&self) -> impl IntoIterator<Item = (impl Display, PyType<'a>)> {
-        self.game_inst.game.pkgs.iter().map(|pkg_inst| {
-            (
-                GameStateFieldName::PackageState(pkg_inst.name()),
-                PyType::PackageState(PackageStateTypeName(pkg_inst.pkg_name())),
-            )
+        self.game_inst.game.pkgs.iter().flat_map(|pkg_inst| {
+            [
+                (
+                    GameStateFieldName::PackageState(pkg_inst.name()),
+                    PyType::PackageState(PackageStateTypeName(pkg_inst.pkg_name())),
+                ),
+                (
+                    GameStateFieldName::PackageConstParams(pkg_inst.name()),
+                    PyType::PackageConstParams(PackageConstParamsTypeName(pkg_inst.pkg_name())),
+                ),
+            ]
         })
     }
 }

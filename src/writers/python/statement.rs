@@ -8,7 +8,10 @@ use crate::{
     writers::python::{expression::PyExpression, identifier::VariableName},
 };
 
-use super::{expression::PyFunctionCall, identifier::OracleFunctionName, ty::PyType, util::ToDoc};
+use super::{
+    contexts::oracle_context::OracleContext, expression::PyFunctionCall,
+    identifier::OracleFunctionName, ty::PyType, util::ToDoc,
+};
 
 const GAME_STATE_ARGNAME: &str = "game_state";
 
@@ -128,11 +131,11 @@ impl<'a> ToDoc<'a> for PyStatement<'a> {
     }
 }
 
-impl<'a> TryFrom<(&'a str, &'a Statement)> for PyStatement<'a> {
+impl<'a> TryFrom<(&'a OracleContext<'a>, &'a Statement)> for PyStatement<'a> {
     type Error = ();
 
-    fn try_from(value: (&'a str, &'a Statement)) -> Result<Self, Self::Error> {
-        let (pkg_name, stmt) = value;
+    fn try_from(value: (&'a OracleContext<'a>, &'a Statement)) -> Result<Self, Self::Error> {
+        let (context, stmt) = value;
         match stmt {
             Statement::Return(expression, source_span) => Ok(PyStatement::Return(
                 expression.as_ref().unwrap().try_into()?,
@@ -148,12 +151,12 @@ impl<'a> TryFrom<(&'a str, &'a Statement)> for PyStatement<'a> {
                 then: (&ite.then_block)
                     .0
                     .iter()
-                    .map(|stmt| (pkg_name, stmt).try_into())
+                    .map(|stmt| (context, stmt).try_into())
                     .collect::<Result<Vec<_>, _>>()?,
                 els: (&ite.else_block)
                     .0
                     .iter()
-                    .map(|stmt| (pkg_name, stmt).try_into())
+                    .map(|stmt| (context, stmt).try_into())
                     .collect::<Result<Vec<_>, _>>()?,
             })),
             Statement::Sample(name, _, _, ty, _, _) => Ok(PyStatement::Assignment(PyAssignment {
@@ -178,7 +181,7 @@ impl<'a> TryFrom<(&'a str, &'a Statement)> for PyStatement<'a> {
                     lhs: PyPattern::Simple(VariableName(invoke.id.ident_ref())),
                     rhs: PyExpression::OracleCall(PyFunctionCall {
                         fun_name: OracleFunctionName {
-                            pkg_name,
+                            pkg_inst_name: context.pkg_inst_context.pkg_inst_name,
                             oracle_name: &invoke.name,
                         },
                         args,

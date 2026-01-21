@@ -18,6 +18,9 @@ use crate::parser::ast::Identifier;
 use crate::parser::package::handle_pkg;
 use crate::parser::SspParser;
 use crate::theorem::GameInstance;
+use crate::writers::python::contexts::oracle_context::OracleContext;
+use crate::writers::python::contexts::pkg_inst_context::PackageInstanceContext;
+use crate::writers::python::dataclass::pkg_consts::PackageConstParamsPattern;
 use crate::writers::python::function::oracle::OracleFunction;
 use crate::writers::python::function::FunctionDefinitionWriter;
 use crate::{
@@ -287,7 +290,7 @@ impl<'a> Project<'a> {
 
         println!("from dataclasses import dataclass");
 
-        for (_name, proof) in &self.theorems {
+        for (theorem_name, proof) in &self.theorems {
             for game_inst in &proof.instances {
                 let (new_game, _) =
                     crate::transforms::resolveoracles::Transformation(&game_inst.game)
@@ -304,13 +307,31 @@ impl<'a> Project<'a> {
                     DataclassWriter::new(GameStatePattern::new(&new_game_inst))
                 );
 
-                for PackageInstance { pkg, .. } in &new_game_inst.game.pkgs {
+                for pkg_inst in &new_game_inst.game.pkgs {
+                    let pkg = &pkg_inst.pkg;
                     println!("{}", DataclassWriter::new(PackageStatePattern::new(pkg)));
+                    println!(
+                        "{}",
+                        DataclassWriter::new(PackageConstParamsPattern::new(pkg))
+                    );
+
+                    let context = PackageInstanceContext {
+                        theorem_name: theorem_name.as_str(),
+                        game_inst_name: game_inst.name(),
+                        game_name: game_inst.game_name(),
+                        pkg_inst_name: pkg_inst.name(),
+                        pkg_name: pkg_inst.pkg_name(),
+                    };
 
                     for odef in &pkg.oracles {
+                        let context = OracleContext {
+                            pkg_inst_context: context,
+                            oracle_name: &odef.sig.name,
+                        };
+
                         println!(
                             "{}",
-                            FunctionDefinitionWriter::new(OracleFunction::new(&pkg.name, odef))
+                            FunctionDefinitionWriter::new(OracleFunction::new(&context, odef))
                         )
                     }
                 }
