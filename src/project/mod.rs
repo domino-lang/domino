@@ -13,9 +13,11 @@ use walkdir;
 
 use error::{Error, Result};
 
+use crate::package::PackageInstance;
 use crate::parser::ast::Identifier;
 use crate::parser::package::handle_pkg;
 use crate::parser::SspParser;
+use crate::theorem::GameInstance;
 use crate::writers::python::function::oracle::OracleFunction;
 use crate::writers::python::function::FunctionDefinitionWriter;
 use crate::{
@@ -275,34 +277,43 @@ impl<'a> Project<'a> {
     }
 
     pub fn python(&self) -> Result<()> {
+        use crate::writers::python::dataclass::{
+            game_state::GameStatePattern, pkg_state::PackageStatePattern, DataclassWriter,
+        };
+
         let mut path = self.root_dir.clone();
         path.push("_build/python/");
         std::fs::create_dir_all(&path)?;
 
         println!("from dataclasses import dataclass");
 
-        for (_name, pkg) in &self.packages {
-            use crate::writers::python::dataclass::{
-                pkg_state::PackageStatePattern, DataclassWriter,
-            };
-
-            println!("{}", DataclassWriter::new(PackageStatePattern::new(pkg)));
-
-            for odef in &pkg.oracles {
-                println!(
-                    "{}",
-                    FunctionDefinitionWriter::new(OracleFunction::new(odef))
-                )
-            }
-        }
-
         for (_name, proof) in &self.theorems {
             for game_inst in &proof.instances {
-                use crate::writers::python::dataclass::{
-                    game_state::GameStatePattern, DataclassWriter,
+                let (new_game, _) =
+                    crate::transforms::resolveoracles::Transformation(&game_inst.game)
+                        .transform()
+                        .expect("unexpected error applying the resolveoracles transformation");
+
+                let new_game_inst = GameInstance {
+                    game: new_game,
+                    ..game_inst.clone()
                 };
 
-                println!("{}", DataclassWriter::new(GameStatePattern::new(game_inst)));
+                println!(
+                    "{}",
+                    DataclassWriter::new(GameStatePattern::new(&new_game_inst))
+                );
+
+                for PackageInstance { pkg, .. } in &new_game_inst.game.pkgs {
+                    println!("{}", DataclassWriter::new(PackageStatePattern::new(pkg)));
+
+                    for odef in &pkg.oracles {
+                        println!(
+                            "{}",
+                            FunctionDefinitionWriter::new(OracleFunction::new(&pkg.name, odef))
+                        )
+                    }
+                }
             }
         }
 

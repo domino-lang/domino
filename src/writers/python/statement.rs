@@ -48,7 +48,7 @@ impl<'a> ToDoc<'a> for PyAssignment<'a> {
 }
 
 #[derive(Clone, Debug)]
-struct PyIfThenElse<'a> {
+pub(crate) struct PyIfThenElse<'a> {
     cond: PyExpression<'a>,
     then: Vec<PyStatement<'a>>,
     els: Vec<PyStatement<'a>>,
@@ -128,10 +128,11 @@ impl<'a> ToDoc<'a> for PyStatement<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
+impl<'a> TryFrom<(&'a str, &'a Statement)> for PyStatement<'a> {
     type Error = ();
 
-    fn try_from(stmt: &'a Statement) -> Result<Self, Self::Error> {
+    fn try_from(value: (&'a str, &'a Statement)) -> Result<Self, Self::Error> {
+        let (pkg_name, stmt) = value;
         match stmt {
             Statement::Return(expression, source_span) => Ok(PyStatement::Return(
                 expression.as_ref().unwrap().try_into()?,
@@ -147,12 +148,12 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                 then: (&ite.then_block)
                     .0
                     .iter()
-                    .map(|stmt| stmt.try_into())
+                    .map(|stmt| (pkg_name, stmt).try_into())
                     .collect::<Result<Vec<_>, _>>()?,
                 els: (&ite.else_block)
                     .0
                     .iter()
-                    .map(|stmt| stmt.try_into())
+                    .map(|stmt| (pkg_name, stmt).try_into())
                     .collect::<Result<Vec<_>, _>>()?,
             })),
             Statement::Sample(name, _, _, ty, _, _) => Ok(PyStatement::Assignment(PyAssignment {
@@ -176,7 +177,10 @@ impl<'a> TryFrom<&'a Statement> for PyStatement<'a> {
                 Ok(PyStatement::Assignment(PyAssignment {
                     lhs: PyPattern::Simple(VariableName(invoke.id.ident_ref())),
                     rhs: PyExpression::OracleCall(PyFunctionCall {
-                        fun_name: OracleFunctionName(&invoke.name),
+                        fun_name: OracleFunctionName {
+                            pkg_name,
+                            oracle_name: &invoke.name,
+                        },
                         args,
                         _phantom: PhantomData,
                     }),

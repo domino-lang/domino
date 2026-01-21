@@ -18,6 +18,23 @@ macro_rules! ident_type {
     };
 }
 
+// not using macro for this because it has more than one field
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct OracleFunctionName<'a> {
+    pub(crate) pkg_name: &'a str,
+    pub(crate) oracle_name: &'a str,
+}
+
+impl<'a> Display for OracleFunctionName<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self {
+            pkg_name,
+            oracle_name,
+        } = self;
+        write!(f, "oracle_{pkg_name}_{oracle_name}")
+    }
+}
+
 ident_type!(GameStateTypeName, "GameState_{}");
 ident_type!(PackageStateTypeName, "PackageState_{}");
 ident_type!(PackageStateFieldName, "{}");
@@ -26,8 +43,6 @@ ident_type!(PackageConstParamsFieldName, "{}");
 ident_type!(FunctionName, "{}");
 ident_type!(FunctionArgName, "{}");
 
-// XXX: Shouldn't this contain both the package name and the oracle name?
-ident_type!(OracleFunctionName, "oracle_{}");
 ident_type!(PureFunctionName, "fun_{}");
 ident_type!(PureFunctionArg, "{}");
 ident_type!(VariableName, "{}");

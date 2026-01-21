@@ -13,12 +13,13 @@ use crate::{
 
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct OracleFunction<'a> {
+    pkg_name: &'a str,
     oracle: &'a OracleDef,
 }
 
 impl<'a> OracleFunction<'a> {
-    pub(crate) fn new(oracle: &'a OracleDef) -> Self {
-        Self { oracle }
+    pub(crate) fn new(pkg_name: &'a str, oracle: &'a OracleDef) -> Self {
+        Self { pkg_name, oracle }
     }
 }
 
@@ -50,7 +51,10 @@ impl<'a> super::Function<'a> for OracleFunction<'a> {
     type ArgName = OracleFunctionArg<'a>;
 
     fn name(&self) -> OracleFunctionName<'a> {
-        OracleFunctionName(&self.oracle.sig.name)
+        OracleFunctionName {
+            pkg_name: self.pkg_name,
+            oracle_name: &self.oracle.sig.name,
+        }
     }
 
     fn args(&self) -> impl IntoIterator<Item = (Self::ArgName, PyType<'a>)> {
@@ -69,6 +73,6 @@ impl<'a> super::Function<'a> for OracleFunction<'a> {
             .code
             .0
             .iter()
-            .map(|stmt| stmt.try_into().unwrap())
+            .map(|stmt| (self.pkg_name, stmt).try_into().unwrap())
     }
 }
