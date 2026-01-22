@@ -233,6 +233,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     InvalidGameInstanceInReduction(#[from] InvalidGameInstanceInReductionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ScopeError(#[from] ScopeError),
 }
 
 pub fn handle_theorem<'a>(
@@ -262,7 +266,7 @@ pub fn handle_theorem<'a>(
                         inst_info: None,
                     },
                 )));
-                ctx.declare(&const_name, clone).unwrap();
+                ctx.declare(&const_name, clone)?;
                 ctx.add_const(const_name, ty);
             }
             Rule::assumptions => {
