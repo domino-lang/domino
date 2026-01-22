@@ -1,0 +1,38 @@
+theorem Hybrid {
+  const n: Integer;
+
+  instance real = A {params{i:0,b:false}}
+  instance ideal = A {params{i:n,b:true}}
+
+  hybrid instance h i b = A {params{i:i, b:b}}
+
+  assumptions {
+    identity: real ~ real
+  }
+
+  gamehops {
+    hybrid h {
+      reduction {
+        assumption identity
+
+        map real h[b=false] {
+          a: a
+        }
+        map real h[b=true] {
+          a: a
+        }
+      }
+      equivalence {
+        Run: {
+          invariant: [ ./theorem/invariant.smt2 ]
+          lemmas {}
+        }
+      }
+    }
+  }
+/*
+  propositions {
+    main: real ~ ideal
+  }
+  */
+}

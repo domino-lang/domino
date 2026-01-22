@@ -1,0 +1,14 @@
+composition A {
+  const i: Integer;
+  const b: Bool;
+  
+  instance a = A {
+    params {i:i}
+  }
+
+  compose {
+    adversary: {
+      Run: a,
+    }
+  }
+}
