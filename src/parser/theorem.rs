@@ -367,7 +367,6 @@ fn handle_hybrid_instance_decl<'a>(
 
     if !ctx.consts.contains_key("hybrid$loop") {
         ctx.consts.insert("hybrid$loop".to_string(), Type::Integer);
-        ctx.consts.insert("hybrid$bit".to_string(), Type::Boolean);
     }
 
     let mut ast = ast.into_inner();
@@ -436,7 +435,7 @@ fn handle_hybrid_instance_decl<'a>(
         ))
     }
     let game_inst = GameInstance::new(
-        format!("{game_inst_name}$current$real"),
+        format!("{game_inst_name}$false$"),
         ctx.theorem_name.to_string(),
         game.clone(),
         types.clone(),
@@ -455,7 +454,7 @@ fn handle_hybrid_instance_decl<'a>(
         ))
     }
     let game_inst = GameInstance::new(
-        format!("{game_inst_name}$current$ideal"),
+        format!("{game_inst_name}$true$"),
         ctx.theorem_name.to_string(),
         game.clone(),
         types.clone(),
@@ -480,7 +479,7 @@ fn handle_hybrid_instance_decl<'a>(
         ))
     }
     let game_inst = GameInstance::new(
-        format!("{game_inst_name}$next$real"),
+        format!("{game_inst_name}$false$+"),
         ctx.theorem_name.to_string(),
         game.clone(),
         types,
@@ -647,11 +646,19 @@ pub(crate) fn handle_hybrid<'a>(
     let equivalence_ast = ast.next().unwrap();
     debug_assert_eq!(equivalence_ast.as_rule(), Rule::hybrid_equivalence);
 
-    let left_equiv_name = format!("{}$current$ideal", hybrid_name_ast.as_str());
-    let right_equiv_name = format!("{}$next$real", hybrid_name_ast.as_str());
+    let left_reduction_name = format!("{}$false$", hybrid_name_ast.as_str());
+    let right_reduction_name = format!("{}$true$", hybrid_name_ast.as_str());
+    let reduction = super::reduction::handle_reduction_body(
+        ctx,
+        &left_reduction_name,
+        &right_reduction_name,
+        hybrid_name_ast.as_span().start()..hybrid_name_ast.as_span().end(),
+        reduction_ast.into_inner().next().unwrap(),
+        true,
+    )?;
 
-    let reduction = {};
-
+    let left_equiv_name = format!("{}$true$", hybrid_name_ast.as_str());
+    let right_equiv_name = format!("{}$false$+", hybrid_name_ast.as_str());
     let equivalence = {
         let equivalence_data: Vec<_> = equivalence_ast
             .into_inner()
@@ -698,6 +705,7 @@ pub(crate) fn handle_hybrid<'a>(
     Ok(GameHop::Hybrid(Hybrid::new(
         hybrid_name_ast.into(),
         equivalence,
+        reduction,
     )))
 }
 

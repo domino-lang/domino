@@ -37,7 +37,7 @@ use super::{
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
-    theorem::{handle_identifiers, ParseTheoremContext, ParseTheoremError},
+    theorem::{ParseTheoremContext, ParseTheoremError},
     Rule,
 };
 
@@ -58,6 +58,7 @@ pub(crate) fn handle_reduction<'a>(
         right_name_ast.as_str(),
         header_span,
         body_ast,
+        false,
     )?;
     Ok(GameHop::Reduction(reduction))
 }
@@ -203,13 +204,16 @@ fn compare_reduction(
     Ok(())
 }
 
-fn handle_reduction_body<'a>(
+pub(super) fn handle_reduction_body<'a>(
     ctx: &mut ParseTheoremContext,
     left_name: &str,
     right_name: &str,
     header_span: Range<usize>,
     body: Pair<'a, Rule>,
+    is_hybrid: bool,
 ) -> Result<Reduction<'a>, ParseTheoremError> {
+    debug_assert_eq!(body.as_rule(), Rule::reduction_spec);
+
     let reduction_span = body.as_span();
     let mut ast = body.into_inner();
     let assumptions_spec_ast = ast.next().unwrap();
@@ -261,55 +265,54 @@ fn handle_reduction_body<'a>(
     let map1_ast = ast.next().unwrap();
     let map2_ast = ast.next().unwrap();
 
-    let mapping1 = handle_mapspec_assumption(ctx, map1_ast, assumption)?;
-    let mapping2 = handle_mapspec_assumption(ctx, map2_ast, assumption)?;
+    let (mapping1, parsed_name1) = handle_mapspec_assumption(ctx, map1_ast, assumption, is_hybrid)?;
+    let (mapping2, parsed_name2) = handle_mapspec_assumption(ctx, map2_ast, assumption, is_hybrid)?;
 
-    let (mapping_left, mapping_right) =
-        if mapping1.construction_game_instance_name().as_str() != right_name {
-            // we know mapping1 should be for left and mapping2 should be for right
+    let (mapping_left, mapping_right) = if parsed_name1 != right_name {
+        // we know mapping1 should be for left and mapping2 should be for right
 
-            if mapping1.construction_game_instance_name().as_str() != left_name {
-                return Err(InvalidGameInstanceInReductionError::new(
-                    ctx.named_source(),
-                    mapping1.construction_game_instance_name(),
-                    header_span,
-                )
-                .into());
-            }
+        if parsed_name1 != left_name {
+            return Err(InvalidGameInstanceInReductionError::new(
+                ctx.named_source(),
+                mapping1.construction_game_instance_name(),
+                header_span,
+            )
+            .into());
+        }
 
-            if mapping2.construction_game_instance_name().as_str() != right_name {
-                return Err(InvalidGameInstanceInReductionError::new(
-                    ctx.named_source(),
-                    mapping2.construction_game_instance_name(),
-                    header_span,
-                )
-                .into());
-            }
+        if parsed_name2 != right_name {
+            return Err(InvalidGameInstanceInReductionError::new(
+                ctx.named_source(),
+                mapping2.construction_game_instance_name(),
+                header_span,
+            )
+            .into());
+        }
 
-            (mapping1, mapping2)
-        } else {
-            // we know mapping1 should be for right and mapping2 should be for left
+        (mapping1, mapping2)
+    } else {
+        // we know mapping1 should be for right and mapping2 should be for left
 
-            if mapping1.construction_game_instance_name().as_str() != right_name {
-                return Err(InvalidGameInstanceInReductionError::new(
-                    ctx.named_source(),
-                    mapping1.construction_game_instance_name(),
-                    header_span,
-                )
-                .into());
-            }
+        if parsed_name1 != right_name {
+            return Err(InvalidGameInstanceInReductionError::new(
+                ctx.named_source(),
+                mapping1.construction_game_instance_name(),
+                header_span,
+            )
+            .into());
+        }
 
-            if mapping2.construction_game_instance_name().as_str() != left_name {
-                return Err(InvalidGameInstanceInReductionError::new(
-                    ctx.named_source(),
-                    mapping2.construction_game_instance_name(),
-                    header_span,
-                )
-                .into());
-            }
+        if parsed_name2 != left_name {
+            return Err(InvalidGameInstanceInReductionError::new(
+                ctx.named_source(),
+                mapping2.construction_game_instance_name(),
+                header_span,
+            )
+            .into());
+        }
 
-            (mapping2, mapping1)
-        };
+        (mapping2, mapping1)
+    };
 
     let left_game_inst = &ctx.game_instance(left_name).unwrap().1;
     let right_game_inst = &ctx.game_instance(right_name).unwrap().1;
@@ -442,12 +445,13 @@ fn handle_mapspec_assumption<'a>(
     ctx: &ParseTheoremContext,
     ast: Pair<'a, Rule>,
     assumption: &Assumption,
-) -> Result<ReductionMapping<'a>, ParseTheoremError> {
+    is_hybrid: bool,
+) -> Result<(ReductionMapping<'a>, String), ParseTheoremError> {
     let mapping_span = ast.as_span();
     let mut ast = ast.into_inner();
 
-    let [assumption_game_inst_name_ast, construction_game_inst_name_ast]: [GameInstanceName; 2] =
-        handle_identifiers(&mut ast);
+    let assumption_game_inst_name_ast: GameInstanceName = ast.next().unwrap().into();
+    let construction_game_inst_name_ast = ast.next().unwrap();
     // let (
     //     (assumption_game_inst_name, assumption_game_inst_name_span),
     //     (construction_game_inst_name, construction_game_inst_name_span),
@@ -456,7 +460,16 @@ fn handle_mapspec_assumption<'a>(
     let assumption_game_inst_name_span = assumption_game_inst_name_ast.as_span();
     let construction_game_inst_name_span = construction_game_inst_name_ast.as_span();
     let assumption_game_inst_name = assumption_game_inst_name_ast.as_str();
-    let construction_game_inst_name = construction_game_inst_name_ast.as_str();
+    let construction_game_inst_name = if is_hybrid {
+        let mut inner = construction_game_inst_name_ast.clone().into_inner();
+        let instance_name = inner.next().unwrap().as_str();
+        let _bit_var_name = inner.next().unwrap().as_str();
+        let bit_var_const = inner.next().unwrap().as_str();
+
+        &format!("{instance_name}${bit_var_const}$")
+    } else {
+        construction_game_inst_name_ast.as_str()
+    };
 
     // check that game instance names can be resolved
     let (_, assumption_game_inst) =
@@ -931,7 +944,7 @@ fn handle_mapspec_assumption<'a>(
 
     let mapping = ReductionMapping {
         assumption: assumption_game_inst_name_ast,
-        construction: construction_game_inst_name_ast,
+        construction: construction_game_inst_name_ast.into(),
         entries: mappings
             .into_iter()
             .map(|(left, right)| ReductionMappingEntry {
@@ -940,7 +953,7 @@ fn handle_mapspec_assumption<'a>(
             })
             .collect_vec(),
     };
-    Ok(mapping)
+    Ok((mapping, construction_game_inst_name.to_string()))
 }
 
 fn package_instances_diff(
