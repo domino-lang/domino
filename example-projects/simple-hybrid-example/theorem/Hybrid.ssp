@@ -1,13 +1,18 @@
 theorem Hybrid {
   const n: Integer;
+  const n_real: Integer;
+  const n_ideal: Integer;
 
-  instance real = A {params{i:0,b:false}}
-  instance ideal = A {params{i:n,b:true}}
+  instance real = AB {params{i:0,b:false}}
+  instance ideal = AB {params{i:n,b:true}}
 
-  hybrid instance h i b = A {params{i:i, b:b}}
+  instance real_assumption = B {params{b:false}}
+  instance ideal_assumption = B {params{b:true}}
+
+  hybrid instance h i b = AB {params{i:i, b:b}}
 
   assumptions {
-    identity: real ~ real
+    identity: real_assumption ~ ideal_assumption
   }
 
   gamehops {
@@ -15,15 +20,19 @@ theorem Hybrid {
       reduction {
         assumption identity
 
-        map real h[b=false] {
-          a: a
+        map real_assumption h[b=false] {
+          b: b
         }
-        map real h[b=true] {
-          a: a
+        map ideal_assumption h[b=true] {
+          b: b
         }
       }
       equivalence {
         Run: {
+          invariant: [ ./theorem/invariant.smt2 ]
+          lemmas {}
+        }
+        Eval: {
           invariant: [ ./theorem/invariant.smt2 ]
           lemmas {}
         }
