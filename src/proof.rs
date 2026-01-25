@@ -75,7 +75,7 @@ impl<'a> Proof<'a> {
         workque.push_back(left);
 
         // A table of backlinks: specialization index -> (specialization index, game hop index)
-        let mut predecessors = HashMap::new();
+        let mut predecessors: HashMap<usize, _> = HashMap::new();
 
         while !workque.is_empty() {
             let current_inst_idx = workque.pop_front().unwrap();
@@ -90,6 +90,9 @@ impl<'a> Proof<'a> {
                 &instances[right],
                 &specialization[current_inst_idx].game_instance,
             ) {
+                if !predecessors.contains_key(&right) {
+                    predecessors.insert(right, predecessors[&current_inst_idx]);
+                }
                 // If we are done, build the proof path from the backlinks.
                 let mut path = Vec::new();
                 let mut hops = Vec::new();
