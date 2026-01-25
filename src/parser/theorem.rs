@@ -706,6 +706,8 @@ pub(crate) fn handle_hybrid<'a>(
         hybrid_name_ast.into(),
         equivalence,
         reduction,
+        left_reduction_name,
+        right_reduction_name,
     )))
 }
 

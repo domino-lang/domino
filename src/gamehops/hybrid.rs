@@ -8,7 +8,10 @@ use crate::parser::ast::GameInstanceName;
 pub struct Hybrid<'a> {
     hybrid_game: GameInstanceName<'a>,
     equivalence: Equivalence,
+    #[allow(unused)]
     reduction: Reduction<'a>,
+    left_name: String,
+    right_name: String,
 }
 
 impl<'a> Hybrid<'a> {
@@ -16,11 +19,15 @@ impl<'a> Hybrid<'a> {
         hybrid_game: GameInstanceName<'a>,
         equivalence: Equivalence,
         reduction: Reduction<'a>,
+        left_name: String,
+        right_name: String,
     ) -> Self {
         Self {
             hybrid_game,
             equivalence,
             reduction,
+            left_name,
+            right_name,
         }
     }
     pub(crate) fn hybrid_name(&self) -> &GameInstanceName<'a> {
@@ -29,7 +36,10 @@ impl<'a> Hybrid<'a> {
     pub(crate) fn equivalence(&self) -> &Equivalence {
         &self.equivalence
     }
-    // pub(crate) fn right_name(&self) -> &GameInstanceName<'a> {
-    //     &self.right_game
-    // }
+    pub(crate) fn left_name(&self) -> &str {
+        &self.left_name
+    }
+    pub(crate) fn right_name(&self) -> &str {
+        &self.right_name
+    }
 }

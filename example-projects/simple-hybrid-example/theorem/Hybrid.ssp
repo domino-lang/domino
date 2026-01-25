@@ -39,9 +39,8 @@ theorem Hybrid {
       }
     }
   }
-/*
+
   propositions {
     main: real ~ ideal
   }
-  */
 }

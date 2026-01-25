@@ -63,7 +63,7 @@ impl<'a> GameHop<'a> {
                 reduction.left().construction_game_instance_name().as_str()
             }
             GameHop::Equivalence(equivalence) => equivalence.left_name(),
-            GameHop::Hybrid(hybrid) => hybrid.hybrid_name().as_str(),
+            GameHop::Hybrid(hybrid) => hybrid.left_name(),
         }
     }
 
@@ -74,7 +74,7 @@ impl<'a> GameHop<'a> {
                 reduction.right().construction_game_instance_name().as_str()
             }
             GameHop::Equivalence(equivalence) => equivalence.right_name(),
-            GameHop::Hybrid(hybrid) => hybrid.hybrid_name().as_str(),
+            GameHop::Hybrid(hybrid) => hybrid.right_name(),
         }
     }
 }
