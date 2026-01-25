@@ -132,7 +132,7 @@ mod test {
 
     use super::returnify;
     use crate::block;
-    use crate::expressions::Expression;
+    use crate::expressions::{Expression, ExpressionKind};
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
     use crate::statement::{CodeBlock, IfThenElse, Statement};
@@ -171,7 +171,7 @@ mod test {
         let d = pkg_local_test_ident("d", Type::Integer);
         let code = block! {
             Statement::Sample(d, None, None, Type::Integer, None, file_pos),
-            Statement::Return(Some(Expression::IntegerLiteral(5)), file_pos)
+            Statement::Return(Some(Expression::from_kind(ExpressionKind::IntegerLiteral(5))), file_pos)
         };
         assert_eq!(
             code,
@@ -224,8 +224,8 @@ mod test {
             Statement::IfThenElse(IfThenElse {
                 cond:
 
-                Expression::new_equals(vec![&(a.clone().into()),
-                                            &(a.clone().into())]),
+                Expression::new_equals(vec![(a.clone().into()),
+                                            (a.clone().into())]),
                 then_block:
                 block!{
                     Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos)
@@ -244,8 +244,8 @@ mod test {
         let after = block! {
             Statement::IfThenElse( IfThenElse {
                 cond:
-                Expression::new_equals(vec![&(a.clone().into()),
-                                            &(a.clone().into())]),
+                Expression::new_equals(vec![(a.clone().into()),
+                                            (a.clone().into())]),
 
                 then_block:
                 block!{
@@ -282,8 +282,8 @@ mod test {
         let e = pkg_local_test_ident("e", Type::Integer);
         let before = block! {
             Statement::IfThenElse(IfThenElse{
-                cond: Expression::new_equals(vec![&(a.clone().into()),
-                                                  &(a.clone().into())]),
+                cond: Expression::new_equals(vec![(a.clone().into()),
+                                                  (a.clone().into())]),
                 then_block: block!{
                     Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos)
                 },
@@ -297,8 +297,8 @@ mod test {
         };
         let after = block! {
             Statement::IfThenElse(IfThenElse {
-                cond: Expression::new_equals(vec![&(a.clone().into()),
-                                                  &(a.clone().into())]),
+                cond: Expression::new_equals(vec![(a.clone().into()),
+                                                  (a.clone().into())]),
                 then_block: block!{
                     Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos),
                     Statement::Return(None, file_pos)

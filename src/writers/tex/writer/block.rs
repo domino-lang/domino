@@ -5,6 +5,7 @@ use std::{fs::File, io::Write};
 
 use crate::{
     expressions::Expression,
+    expressions::ExpressionKind,
     identifier::pkg_ident::PackageIdentifier,
     identifier::pkg_ident::PackageOracleCodeLoopVarIdentifier,
     identifier::Identifier,
@@ -125,13 +126,13 @@ impl<'a> BlockWriter<'a> {
     }
 
     fn expression_to_tex(&self, expr: &Expression) -> String {
-        match expr {
-            Expression::Bot => "\\bot".to_string(),
-            Expression::IntegerLiteral(val) => format!("{val}"),
-            Expression::BooleanLiteral(val) => format!("\\lit{{{val}}}"),
-            Expression::Identifier(ident) => self.ident_to_tex(ident),
-            Expression::Not(expr) if matches!(&**expr, Expression::Equals(exprs) if exprs.len() == 2) => {
-                if let Expression::Equals(exprs) = &**expr {
+        match expr.kind() {
+            ExpressionKind::Bot => "\\bot".to_string(),
+            ExpressionKind::IntegerLiteral(val) => format!("{val}"),
+            ExpressionKind::BooleanLiteral(val) => format!("\\lit{{{val}}}"),
+            ExpressionKind::Identifier(ident) => self.ident_to_tex(ident),
+            ExpressionKind::Not(expr) if matches!(expr.kind(), ExpressionKind::Equals(exprs) if exprs.len() == 2) => {
+                if let ExpressionKind::Equals(exprs) = expr.kind() {
                     format!(
                         "({} \\neq {})",
                         self.expression_to_tex(&exprs[0]),
@@ -141,8 +142,8 @@ impl<'a> BlockWriter<'a> {
                     unreachable!()
                 }
             }
-            Expression::Not(expr) => format!("\\neg {}", self.expression_to_tex(expr)),
-            Expression::Unwrap(expr) => {
+            ExpressionKind::Not(expr) => format!("\\neg {}", self.expression_to_tex(expr)),
+            ExpressionKind::Unwrap(expr) => {
                 if self.lossy {
                     self.expression_to_tex(expr)
                 } else {
@@ -152,36 +153,36 @@ impl<'a> BlockWriter<'a> {
                     )
                 }
             }
-            Expression::Some(expr) => {
+            ExpressionKind::Some(expr) => {
                 if self.lossy {
                     self.expression_to_tex(expr)
                 } else {
                     format!("\\O{{some}}\\left({}\\right)", self.expression_to_tex(expr))
                 }
             }
-            Expression::None(ty) => {
+            ExpressionKind::None(ty) => {
                 if self.lossy {
                     "\\bot".to_string()
                 } else {
                     format!("\\O{{none}}\\left({}\\right)", self.type_to_tex_short(ty))
                 }
             }
-            Expression::Add(lhs, rhs) => format!(
+            ExpressionKind::Add(lhs, rhs) => format!(
                 "({} + {})",
                 self.expression_to_tex(lhs),
                 self.expression_to_tex(rhs)
             ),
-            Expression::TableAccess(ident, expr) => format!(
+            ExpressionKind::TableAccess(ident, expr) => format!(
                 "{}[{}]",
                 self.ident_to_tex(ident),
                 self.expression_to_tex(expr)
             ),
-            Expression::Equals(exprs) => exprs
+            ExpressionKind::Equals(exprs) => exprs
                 .iter()
                 .map(|expr| self.expression_to_tex(expr))
                 .collect::<Vec<_>>()
                 .join(" = "),
-            Expression::Or(exprs) => format!(
+            ExpressionKind::Or(exprs) => format!(
                 "\\left({}\\right)",
                 self.logic_to_matrix(
                     " \\vee ",
@@ -191,7 +192,7 @@ impl<'a> BlockWriter<'a> {
                         .collect::<Vec<_>>()
                 )
             ),
-            Expression::And(exprs) => format!(
+            ExpressionKind::And(exprs) => format!(
                 "\\left({}\\right)",
                 self.logic_to_matrix(
                     " \\wedge ",
@@ -201,7 +202,7 @@ impl<'a> BlockWriter<'a> {
                         .collect::<Vec<_>>()
                 )
             ),
-            Expression::Tuple(exprs) => {
+            ExpressionKind::Tuple(exprs) => {
                 format!(
                     "\\left({}\\right)",
                     self.list_to_matrix(
@@ -212,7 +213,7 @@ impl<'a> BlockWriter<'a> {
                     )
                 )
             }
-            Expression::FnCall(name, args) => {
+            ExpressionKind::FnCall(name, args) => {
                 format!(
                     "\\O{{{}}}({})",
                     self.ident_to_tex(name),
@@ -222,7 +223,7 @@ impl<'a> BlockWriter<'a> {
                         .join(", ")
                 )
             }
-            Expression::EmptyTable(ty) => {
+            ExpressionKind::EmptyTable(ty) => {
                 format!("\\O{{EmptyTable}}({})", self.type_to_tex(ty))
             }
             _ => {

@@ -4,7 +4,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use std::iter::FromIterator;
 
-use crate::expressions::Expression;
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
@@ -170,23 +170,23 @@ impl<'a> EquivalenceContext<'a> {
                     crate::types::CountSpec::Identifier(ident) => match ident.as_ref() {
                         Identifier::TheoremIdentifier(ident) => ident.ident(),
                         Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident)) => {
-                            match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
-                                Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
-                                Some(Expression::Identifier(_)) => unreachable!("other identifiers can't occur here"),
+                            match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
+                                Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
+                                Some(ExpressionKind::Identifier(_)) => unreachable!("other identifiers can't occur here"),
                                 Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                                 None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
                             }
                         } ,
-                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref() {
-                            Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
-                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
-                                    Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
-                                    Some(Expression::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
+                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref().kind() {
+                            ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
+                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
+                                    Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
+                                    Some(ExpressionKind::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
                                     Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                                     None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
                                 }
                             },
-                            Expression::Identifier(_) => unreachable!("other identifiers can't occur here"),
+                            ExpressionKind::Identifier(_) => unreachable!("other identifiers can't occur here"),
                             other => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                         }
                         Identifier::PackageIdentifier(_) => unreachable!("non-const package identifiers can't occur here"),

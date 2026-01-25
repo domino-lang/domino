@@ -4,7 +4,7 @@ use std::convert::Infallible;
 
 use miette::SourceSpan;
 
-use crate::expressions::Expression;
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
 use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
@@ -62,7 +62,7 @@ impl Unwrapifier {
     /// Returns the
     fn replace_unwrap(&mut self, expr: &Expression) -> (Expression, Vec<(Expression, String)>) {
         let (result, newexpr) = expr.mapfold(Vec::new(), |mut acc, e| {
-            if let Expression::Unwrap(_) = e {
+            if let ExpressionKind::Unwrap(_) = e.kind() {
                 // This closure as Fn + Copy, so we can't mutate self.ctr in here.
                 // So instead, we use the initial counter, plus the length of the accumulator.
                 // This has the same effect, because we'd increment at exactly the same place we
@@ -249,7 +249,7 @@ mod test {
 
     use super::Unwrapifier;
     use crate::block;
-    use crate::expressions::Expression;
+    use crate::expressions::{Expression, ExpressionKind};
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
     use crate::statement::{CodeBlock, Statement};
@@ -277,7 +277,7 @@ mod test {
     }
 
     fn unwrap<E: Clone + Into<Expression>>(expr: &E) -> Expression {
-        Expression::Unwrap(Box::new(expr.clone().into()))
+        Expression::from_kind(ExpressionKind::Unwrap(Box::new(expr.clone().into())))
     }
 
     #[test]

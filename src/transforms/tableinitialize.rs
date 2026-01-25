@@ -2,7 +2,7 @@
 
 use std::convert::Infallible;
 
-use crate::expressions::Expression;
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
 use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
@@ -76,7 +76,7 @@ pub fn tableinitialize(
                     newcode.push(Statement::Assign(
                         Identifier::Generated(id.clone(), tabletype.clone()),
                         None,
-                        Expression::EmptyTable(tabletype),
+                        Expression::from_kind(ExpressionKind::EmptyTable(tabletype)),
                         *file_pos,
                     ))
                 }
@@ -100,7 +100,7 @@ pub fn tableinitialize(
                     newcode.push(Statement::Assign(
                         Identifier::Generated(id.clone(), tabletype.clone()),
                         None,
-                        Expression::EmptyTable(tabletype),
+                        Expression::from_kind(ExpressionKind::EmptyTable(tabletype)),
                         *file_pos,
                     ))
                 }
@@ -126,7 +126,7 @@ pub fn tableinitialize(
                     newcode.push(Statement::Assign(
                         Identifier::Generated(id.clone(), tabletype.clone()),
                         None,
-                        Expression::EmptyTable(tabletype),
+                        Expression::from_kind(ExpressionKind::EmptyTable(tabletype)),
                         *file_pos,
                     ))
                 }

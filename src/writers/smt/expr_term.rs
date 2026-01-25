@@ -2,6 +2,7 @@
 
 use crate::{
     expressions::Expression,
+    expressions::ExpressionKind,
     identifier::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
@@ -32,8 +33,8 @@ fn build_some<T: Into<Term>>(term: T) -> Term {
 impl From<Expression> for Term {
     fn from(expr: Expression) -> Self {
         let ty = expr.get_type();
-        match expr {
-            Expression::EmptyTable(t) => {
+        match expr.into_kind() {
+            ExpressionKind::EmptyTable(t) => {
                 if let Type::Table(ty_idx, ty_val) = t {
                     let none = build_none(*ty_val.clone());
                     sspverif_smtlib::theories::array_ex::const_(*ty_idx, *ty_val, none)
@@ -41,20 +42,20 @@ impl From<Expression> for Term {
                     panic!("Empty table of type {t:?}")
                 }
             }
-            Expression::Unwrap(inner) => {
+            ExpressionKind::Unwrap(inner) => {
                 panic!("found an unwrap and don't knwo what to do with it -- {inner:?}");
                 //panic!("unwrap expressions need to be on the right hand side of an assign!");
                 // TODO find a better way to present that error to the user.
             }
-            Expression::Some(inner) => build_some(*inner),
-            Expression::None(ty) => build_none(ty),
+            ExpressionKind::Some(inner) => build_some(*inner),
+            ExpressionKind::None(ty) => build_none(ty),
 
-            Expression::StringLiteral(text) => StringLiteral::from(text).into_const().into(),
-            Expression::IntegerLiteral(num) if num < 0 => {
+            ExpressionKind::StringLiteral(text) => StringLiteral::from(text).into_const().into(),
+            ExpressionKind::IntegerLiteral(num) if num < 0 => {
                 panic!("smt-lib does not support negative literals at the moment")
             }
-            Expression::IntegerLiteral(num) => Numeral::from(num as u64).into_const().into(),
-            Expression::BooleanLiteral(bit) => match bit.as_str() {
+            ExpressionKind::IntegerLiteral(num) => Numeral::from(num as u64).into_const().into(),
+            ExpressionKind::BooleanLiteral(bit) => match bit.as_str() {
                 "true" => theories::core::true_(),
                 "false" => theories::core::false_(),
                 _ => unreachable!(
@@ -62,37 +63,37 @@ impl From<Expression> for Term {
                 ),
             },
 
-            Expression::Equals(exprs) => theories::core::eq(exprs),
-            Expression::GreaterThen(lhs, rhs) => theories::ints::gt(*lhs, *rhs),
-            Expression::LessThen(lhs, rhs) => theories::ints::lt(*lhs, *rhs),
-            Expression::GreaterThenEq(lhs, rhs) => theories::ints::gte(*lhs, *rhs),
-            Expression::LessThenEq(lhs, rhs) => theories::ints::lte(*lhs, *rhs),
-            Expression::Add(lhs, rhs) => theories::ints::add(vec![*lhs, *rhs]),
-            Expression::Sub(lhs, rhs) => theories::ints::sub(vec![*lhs, *rhs]),
-            Expression::Mul(lhs, rhs) => theories::ints::mul(vec![*lhs, *rhs]),
-            Expression::Div(lhs, rhs) => theories::ints::div(vec![*lhs, *rhs]),
-            Expression::Mod(lhs, rhs) => theories::ints::modulo(*lhs, *rhs),
-            Expression::Neg(expr) => theories::ints::negate(*expr),
-            Expression::Not(expr) => theories::core::not(*expr),
-            Expression::And(exprs) => theories::core::and(exprs),
-            Expression::Or(exprs) => theories::core::or(exprs),
-            Expression::Xor(exprs) => theories::core::xor(exprs),
-            Expression::Identifier(ident) => ident.into(),
-            Expression::Bot => "bot".into(),
-            Expression::TableAccess(table, index) => theories::array_ex::select(table, *index),
+            ExpressionKind::GreaterThen(lhs, rhs) => theories::ints::gt(*lhs, *rhs),
+            ExpressionKind::LessThen(lhs, rhs) => theories::ints::lt(*lhs, *rhs),
+            ExpressionKind::GreaterThenEq(lhs, rhs) => theories::ints::gte(*lhs, *rhs),
+            ExpressionKind::LessThenEq(lhs, rhs) => theories::ints::lte(*lhs, *rhs),
+            ExpressionKind::Equals(exprs) => theories::core::eq(exprs),
+            ExpressionKind::Add(lhs, rhs) => theories::ints::add(vec![*lhs, *rhs]),
+            ExpressionKind::Sub(lhs, rhs) => theories::ints::sub(vec![*lhs, *rhs]),
+            ExpressionKind::Mul(lhs, rhs) => theories::ints::mul(vec![*lhs, *rhs]),
+            ExpressionKind::Div(lhs, rhs) => theories::ints::div(vec![*lhs, *rhs]),
+            ExpressionKind::Mod(lhs, rhs) => theories::ints::modulo(*lhs, *rhs),
+            ExpressionKind::Neg(expr) => theories::ints::negate(*expr),
+            ExpressionKind::Not(expr) => theories::core::not(*expr),
+            ExpressionKind::And(exprs) => theories::core::and(exprs),
+            ExpressionKind::Or(exprs) => theories::core::or(exprs),
+            ExpressionKind::Xor(exprs) => theories::core::xor(exprs),
+            ExpressionKind::Identifier(ident) => ident.into(),
+            ExpressionKind::Bot => "bot".into(),
+            ExpressionKind::TableAccess(table, index) => theories::array_ex::select(table, *index),
 
-            Expression::Tuple(exprs) => Term::Base(
+            ExpressionKind::Tuple(exprs) => Term::Base(
                 format!("mk-tuple{}", exprs.len()).into(),
                 exprs.into_iter().map(|expr| expr.into()).collect(),
             ),
-            Expression::List(exprs) => {
+            ExpressionKind::List(exprs) => {
                 let nil = QualifiedIdentifier("nil".into(), Some(ty.into())).into();
 
                 exprs.into_iter().rev().fold(nil, |acc, cur| {
                     Term::Base("insert".into(), vec![acc, cur.into()])
                 })
             }
-            Expression::Set(exprs) => {
+            ExpressionKind::Set(exprs) => {
                 let empty_set = Term::Base(
                     QualifiedIdentifier("const".into(), Some(ty.into())),
                     vec![theories::core::false_()],
@@ -105,7 +106,7 @@ impl From<Expression> for Term {
                     )
                 })
             }
-            Expression::FnCall(id, exprs) => {
+            ExpressionKind::FnCall(id, exprs) => {
                 let func_name = match id {
                     Identifier::PackageIdentifier(PackageIdentifier::Const(
                         PackageConstIdentifier {
@@ -139,17 +140,17 @@ impl From<Expression> for Term {
                 )
             }
 
-            Expression::Inv(_) => todo!(),
-            Expression::Pow(_, _) => todo!(),
-            Expression::Sum(_) => todo!(),
-            Expression::Prod(_) => todo!(),
-            Expression::Any(_) => todo!(),
-            Expression::All(_) => todo!(),
-            Expression::Union(_) => todo!(),
-            Expression::Cut(_) => todo!(),
-            Expression::SetDiff(_) => todo!(),
-            Expression::Concat(_) => todo!(),
-            Expression::Sample(_) => todo!(),
+            ExpressionKind::Inv(_) => todo!(),
+            ExpressionKind::Pow(_, _) => todo!(),
+            ExpressionKind::Sum(_) => todo!(),
+            ExpressionKind::Prod(_) => todo!(),
+            ExpressionKind::Any(_) => todo!(),
+            ExpressionKind::All(_) => todo!(),
+            ExpressionKind::Union(_) => todo!(),
+            ExpressionKind::Cut(_) => todo!(),
+            ExpressionKind::SetDiff(_) => todo!(),
+            ExpressionKind::Concat(_) => todo!(),
+            ExpressionKind::Sample(_) => todo!(),
         }
     }
 }

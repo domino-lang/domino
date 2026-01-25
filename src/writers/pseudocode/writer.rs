@@ -2,7 +2,7 @@
 
 use std::io::Write;
 
-use crate::expressions::Expression;
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, OracleSig, Package};
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
@@ -110,8 +110,8 @@ impl<W: Write> Writer<W> {
     }
 
     pub fn write_expression(&mut self, expr: &Expression) -> Result {
-        match expr {
-            Expression::EmptyTable(t @ Type::Table(t_k, t_v)) => {
+        match expr.kind() {
+            ExpressionKind::EmptyTable(t @ Type::Table(t_k, t_v)) => {
                 self.write_string("new Table(")?;
                 self.write_type(t_k)?;
                 self.write_string(", ")?;
@@ -121,23 +121,23 @@ impl<W: Write> Writer<W> {
                 self.write_type(t)?;
                 self.write_string(" */ ")?;
             }
-            Expression::EmptyTable(invalid_type) => {
+            ExpressionKind::EmptyTable(invalid_type) => {
                 panic!("invalid type in EmptyTable expression: {invalid_type:?}");
             }
 
-            Expression::BooleanLiteral(x) => {
+            ExpressionKind::BooleanLiteral(x) => {
                 self.write_string(x)?;
             }
-            Expression::IntegerLiteral(x) => {
+            ExpressionKind::IntegerLiteral(x) => {
                 self.write_string(&format!("{x}"))?;
             }
-            Expression::StringLiteral(x) => {
+            ExpressionKind::StringLiteral(x) => {
                 self.write_string(x)?;
             }
-            Expression::Identifier(id) => {
+            ExpressionKind::Identifier(id) => {
                 self.write_identifier(id)?;
             }
-            Expression::Tuple(exprs) => {
+            ExpressionKind::Tuple(exprs) => {
                 self.write_string("(")?;
                 let mut maybe_comma = "";
                 for expr in exprs {
@@ -147,10 +147,10 @@ impl<W: Write> Writer<W> {
                 }
                 self.write_string(")")?;
             }
-            Expression::FnCall(id, args) => {
+            ExpressionKind::FnCall(id, args) => {
                 self.write_call(id.ident_ref(), args.as_slice())?;
             }
-            Expression::Equals(exprs) => {
+            ExpressionKind::Equals(exprs) => {
                 assert_eq!(exprs.len(), 2);
 
                 let left = &exprs[0];
@@ -160,7 +160,7 @@ impl<W: Write> Writer<W> {
                 self.write_string(" == ")?;
                 self.write_expression(right)?;
             }
-            Expression::And(exprs) => {
+            ExpressionKind::And(exprs) => {
                 assert_eq!(exprs.len(), 2);
 
                 let left = &exprs[0];
@@ -170,7 +170,7 @@ impl<W: Write> Writer<W> {
                 self.write_string(" and ")?;
                 self.write_expression(right)?;
             }
-            Expression::Or(exprs) => {
+            ExpressionKind::Or(exprs) => {
                 assert_eq!(exprs.len(), 2);
 
                 let left = &exprs[0];
@@ -180,34 +180,34 @@ impl<W: Write> Writer<W> {
                 self.write_string(" or ")?;
                 self.write_expression(right)?;
             }
-            Expression::Add(left, right) => {
+            ExpressionKind::Add(left, right) => {
                 self.write_expression(left)?;
                 self.write_string(" + ")?;
                 self.write_expression(right)?;
             }
-            Expression::Sub(left, right) => {
+            ExpressionKind::Sub(left, right) => {
                 self.write_expression(left)?;
                 self.write_string(" - ")?;
                 self.write_expression(right)?;
             }
-            Expression::Unwrap(expr) => {
+            ExpressionKind::Unwrap(expr) => {
                 self.write_string("Unwrap(")?;
                 self.write_expression(expr)?;
                 self.write_string(")")?;
             }
-            Expression::None(_) => {
+            ExpressionKind::None(_) => {
                 self.write_string("None")?;
             }
-            Expression::Some(expr) => {
+            ExpressionKind::Some(expr) => {
                 self.write_string("Some(")?;
                 self.write_expression(expr)?;
                 self.write_string(")")?;
             }
-            Expression::Not(expr) => {
+            ExpressionKind::Not(expr) => {
                 self.write_string("!")?;
                 self.write_expression(expr)?;
             }
-            Expression::TableAccess(id, idx) => {
+            ExpressionKind::TableAccess(id, idx) => {
                 self.write_identifier(id)?;
                 self.write_string("[")?;
                 self.write_expression(idx)?;

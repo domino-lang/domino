@@ -3,7 +3,7 @@
 use itertools::Itertools as _;
 
 use crate::{
-    expressions::Expression,
+    expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
         Identifier,
@@ -95,9 +95,11 @@ impl PackageInstance {
             .iter()
             .filter(|(_, expr)| matches!(expr.get_type(), Type::Integer))
             .map(|(ident, expr)| {
-                let assigned_value = match expr {
-                    Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident.clone())),
-                    Expression::IntegerLiteral(num) => CountSpec::Literal(*num as u64),
+                let assigned_value = match expr.kind() {
+                    ExpressionKind::Identifier(ident) => {
+                        CountSpec::Identifier(Box::new(ident.clone()))
+                    }
+                    ExpressionKind::IntegerLiteral(num) => CountSpec::Literal(*num as u64),
                     _ => unreachable!(),
                 };
 
@@ -584,23 +586,29 @@ pub(crate) mod instantiate {
 
     impl InstantiationContext<'_> {
         pub(crate) fn rewrite_expression(&self, expr: &Expression) -> Expression {
-            expr.map(|expr| match expr {
-                Expression::Identifier(ident) => {
-                    Expression::Identifier(self.rewrite_identifier(ident))
-                }
+            expr.map(|expr| {
+                let kind = match expr.into_kind() {
+                    ExpressionKind::Identifier(ident) => {
+                        ExpressionKind::Identifier(self.rewrite_identifier(ident))
+                    }
 
-                // can only happen in oracle code, i.e. package code
-                Expression::TableAccess(ident, expr) => {
-                    Expression::TableAccess(self.rewrite_identifier(ident), expr)
-                }
-                Expression::EmptyTable(ty) => Expression::EmptyTable(self.rewrite_type(ty)),
-                Expression::FnCall(ident, args) => {
-                    Expression::FnCall(self.rewrite_identifier(ident), args)
-                }
-                Expression::None(ty) => Expression::None(self.rewrite_type(ty)),
-                Expression::Sample(ty) => Expression::Sample(self.rewrite_type(ty)),
+                    // can only happen in oracle code, i.e. package code
+                    ExpressionKind::TableAccess(ident, expr) => {
+                        ExpressionKind::TableAccess(self.rewrite_identifier(ident), expr)
+                    }
+                    ExpressionKind::EmptyTable(ty) => {
+                        ExpressionKind::EmptyTable(self.rewrite_type(ty))
+                    }
+                    ExpressionKind::FnCall(ident, args) => {
+                        ExpressionKind::FnCall(self.rewrite_identifier(ident), args)
+                    }
+                    ExpressionKind::None(ty) => ExpressionKind::None(self.rewrite_type(ty)),
+                    ExpressionKind::Sample(ty) => ExpressionKind::Sample(self.rewrite_type(ty)),
 
-                expr => expr,
+                    expr => expr,
+                };
+
+                Expression::from_kind(kind)
             })
         }
 
@@ -631,7 +639,9 @@ pub(crate) mod instantiate {
                 InstantiationSource::Game { .. } => {
                     if let Some(ident) = &mut pkg_ident.as_const_mut() {
                         if let Some(assignment) = ident.game_assignment.as_mut() {
-                            if let Expression::Identifier(ident) = assignment.as_mut() {
+                            if let ExpressionKind::Identifier(ident) =
+                                assignment.as_mut().kind_mut()
+                            {
                                 *ident = self.rewrite_identifier(ident.clone())
                             }
                         }

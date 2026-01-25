@@ -3,8 +3,8 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use crate::{
-    expressions::Expression, gamehops::equivalence::Equivalence, gamehops::reduction::Reduction,
-    gamehops::GameHop, theorem::GameInstance,
+    expressions::ExpressionKind, gamehops::equivalence::Equivalence,
+    gamehops::reduction::Reduction, gamehops::GameHop, theorem::GameInstance,
 };
 
 #[derive(Debug, Clone)]
@@ -224,7 +224,7 @@ fn specialize<'a>(
             .into_iter()
             .map(|(var, val)| {
                 // Find all constants that the other side of the game hop has set to identifiers
-                if let Expression::Identifier(ref ident) = val {
+                if let ExpressionKind::Identifier(ref ident) = val.kind() {
                     if ident.ident() == "hybrid$loop" {
                         return (var, val);
                     }
@@ -244,10 +244,10 @@ fn specialize<'a>(
                         .unwrap();
 
                     // if it is a literal, copy it over, otherwise keep the identifier
-                    match other_val {
-                        Expression::Identifier(_) => (var, val),
-                        Expression::BooleanLiteral(_) => (var, other_val.clone()),
-                        Expression::IntegerLiteral(_) => (var, other_val.clone()),
+                    match other_val.kind() {
+                        ExpressionKind::Identifier(_) => (var, val),
+                        ExpressionKind::BooleanLiteral(_) => (var, other_val.clone()),
+                        ExpressionKind::IntegerLiteral(_) => (var, other_val.clone()),
                         _ => {
                             unimplemented!()
                         }
@@ -369,21 +369,21 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
                 }
             })
             .unwrap();
-        if matches!(val, Expression::Identifier(_)) {
-            if let Expression::Identifier(ident) = other_val {
+        if matches!(val.kind(), ExpressionKind::Identifier(_)) {
+            if let ExpressionKind::Identifier(ident) = other_val.kind() {
                 if ident.ident() == "hybrid$loop" {
                     return true;
                 };
             }
             return val == other_val;
         }
-        if matches!(val, Expression::BooleanLiteral(_))
-            || matches!(val, Expression::IntegerLiteral(_))
+        if matches!(val.kind(), ExpressionKind::BooleanLiteral(_))
+            || matches!(val.kind(), ExpressionKind::IntegerLiteral(_))
         {
             if val == other_val {
                 return true;
             }
-            if let Expression::Identifier(ident) = other_val {
+            if let ExpressionKind::Identifier(ident) = other_val.kind() {
                 if ident.ident() == "hybrid$loop" {
                     return true;
                 };
@@ -422,14 +422,14 @@ fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<ConstAssign
                 .unwrap();
 
             // if the referenced is an identifier, write down the value assigned in game
-            if let Expression::Identifier(ident) = other_val {
-                if let Expression::BooleanLiteral(lit) = val {
+            if let ExpressionKind::Identifier(ident) = other_val.kind() {
+                if let ExpressionKind::BooleanLiteral(lit) = val.kind() {
                     return Some(ConstAssignment {
                         name: ident.ident(),
                         assigned_value: lit.clone(),
                     });
                 }
-                if let Expression::IntegerLiteral(lit) = val {
+                if let ExpressionKind::IntegerLiteral(lit) = val.kind() {
                     return Some(ConstAssignment {
                         name: ident.ident(),
                         assigned_value: lit.to_string(),

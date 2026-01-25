@@ -6,7 +6,7 @@ use super::{
     theorems,
 };
 use crate::{
-    expressions::Expression,
+    expressions::{Expression, ExpressionKind},
     gamehops::{equivalence, GameHop},
     identifier::{
         game_ident::{GameConstIdentifier, GameIdentifier},
@@ -90,8 +90,8 @@ fn small_game() {
     assert_eq!(game.pkgs[0].params[0].0.ident_ref(), "n");
     assert_eq!(
         game.pkgs[0].params[0].1,
-        Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
-            GameConstIdentifier {
+        Expression::from_kind(ExpressionKind::Identifier(Identifier::GameIdentifier(
+            GameIdentifier::Const(GameConstIdentifier {
                 name: "n".to_string(),
                 ty: Type::Integer,
                 game_name: "SmallGame".to_string(),
@@ -99,7 +99,7 @@ fn small_game() {
                 theorem_name: None,
                 assigned_value: None,
                 inst_info: None,
-            }
+            })
         )))
     );
 }
@@ -228,8 +228,8 @@ fn game_instantiating_with_literal_works() {
             .find(|(id, _expr)| id.name == "n")
             .unwrap()
             .1,
-        Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
-            GameConstIdentifier {
+        Expression::from_kind(ExpressionKind::Identifier(Identifier::GameIdentifier(
+            GameIdentifier::Const(GameConstIdentifier {
                 game_name: "ConstructionReal".to_string(),
                 name: "n".to_string(),
                 ty: Type::Integer,
@@ -237,7 +237,7 @@ fn game_instantiating_with_literal_works() {
                 theorem_name: None,
                 inst_info: None,
                 assigned_value: None
-            }
+            })
         )))
     );
 }
@@ -265,13 +265,17 @@ fn package_empty_loop_works() {
 
     assert!(pkg.imports.is_empty());
     assert!(
-        matches!(&pkg.oracles[0].code.0[0], Statement::For(i, Expression::IntegerLiteral(1), Expression::Identifier(n), _,_)
-                if n.ident() == "n" && i.ident() == "i"
+        matches!(&pkg.oracles[0].code.0[0], Statement::For(i, start, end , _,_)
+                if i.ident() == "i" && matches!(start.kind(), ExpressionKind::IntegerLiteral(1)) && matches!(end.kind(), ExpressionKind::Identifier(n) if n.ident() == "n"  )
         )
     );
     match &pkg.oracles[0].code.0[0] {
-        Statement::For(i, Expression::IntegerLiteral(1), Expression::Identifier(n), _, _) => {
+        Statement::For(i, start, end, _, _) => {
+            assert!(matches!(start.kind(), ExpressionKind::IntegerLiteral(1)));
             assert_eq!(i.ident(), "i");
+            let ExpressionKind::Identifier(n) = end.kind() else {
+                panic!("expected identifier in loop end expression, got {end:?}")
+            };
             assert_eq!(n.ident(), "n")
         }
         other => panic!("expected For, got {other:?}"),

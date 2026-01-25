@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::expressions::ExpressionKind;
 use crate::identifier::game_ident::{GameConstIdentifier, GameIdentifier};
 use crate::identifier::pkg_ident::{PackageConstIdentifier, PackageIdentifier};
 use crate::identifier::Identifier;
@@ -205,10 +206,10 @@ pub(crate) fn handle_game_params_def_list(
                     Some(&expected_type),
                 )?;
 
-                let assigned_countspec = match value {
-                    Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident)),
+                let assigned_countspec = match value.into_kind() {
+                    ExpressionKind::Identifier(ident) => CountSpec::Identifier(Box::new(ident)),
                     // TODO:: enforce somehow that this number is not negative
-                    Expression::IntegerLiteral(num) => CountSpec::Literal(num as u64),
+                    ExpressionKind::IntegerLiteral(num) => CountSpec::Literal(num as u64),
                     _ => {
                         //return Err(todo!());
                         todo!()
@@ -370,10 +371,10 @@ pub(crate) fn handle_theorem_params_def_list(
             Some(expected_type),
         )?;
 
-        let assigned_countspec = match value {
-            Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident)),
+        let assigned_countspec = match value.into_kind() {
+            ExpressionKind::Identifier(ident) => CountSpec::Identifier(Box::new(ident)),
             // TODO:: enforce somehow that this number is not negative
-            Expression::IntegerLiteral(num) => CountSpec::Literal(num as u64),
+            ExpressionKind::IntegerLiteral(num) => CountSpec::Literal(num as u64),
             _ => {
                 //return Err(todo!());
                 todo!()

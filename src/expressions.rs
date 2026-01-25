@@ -5,9 +5,432 @@ use std::ops::Deref as _;
 use crate::identifier::Identifier;
 use crate::types::Type;
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Expression {
+    kind: ExpressionKind,
+}
+
+impl Expression {
+    pub(crate) fn boolean(b: bool) -> Self {
+        Self {
+            kind: ExpressionKind::BooleanLiteral(if b {
+                "true".to_string()
+            } else {
+                "false".to_string()
+            }),
+        }
+    }
+
+    pub(crate) fn integer(i: i64) -> Self {
+        Self {
+            kind: ExpressionKind::IntegerLiteral(i),
+        }
+    }
+
+    pub(crate) fn add(lhs: Expression, rhs: Expression) -> Self {
+        Self {
+            kind: ExpressionKind::Add(Box::new(lhs), Box::new(rhs)),
+        }
+    }
+
+    pub(crate) fn into_kind(self) -> ExpressionKind {
+        self.kind
+    }
+
+    pub(crate) fn from_kind(kind: ExpressionKind) -> Self {
+        Self { kind }
+    }
+
+    pub(crate) fn kind(&self) -> &ExpressionKind {
+        &self.kind
+    }
+
+    pub(crate) fn kind_mut(&mut self) -> &mut ExpressionKind {
+        &mut self.kind
+    }
+
+    pub(crate) fn get_type(&self) -> Type {
+        self.kind.get_type()
+    }
+
+    pub(crate) fn is_const(&self) -> bool {
+        self.kind.is_const()
+    }
+
+    pub fn new_equals(exprs: Vec<Expression>) -> Expression {
+        Expression {
+            kind: ExpressionKind::Equals(exprs.into_iter().collect()),
+        }
+    }
+
+    pub fn into_identifier(self) -> Option<Identifier> {
+        if let ExpressionKind::Identifier(v) = self.kind {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_identifier_mut(&mut self) -> Option<&mut Identifier> {
+        if let ExpressionKind::Identifier(v) = &mut self.kind {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_identifier(&self) -> Option<&Identifier> {
+        if let ExpressionKind::Identifier(v) = &self.kind {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
+    pub fn map<F>(&self, f: F) -> Expression
+    where
+        F: Fn(Expression) -> Expression,
+    {
+        self.borrow_map(&f)
+    }
+
+    pub fn walk(&mut self, f: &mut impl FnMut(&mut Expression) -> bool) {
+        if !f(self) {
+            return;
+        }
+
+        match &mut self.kind {
+            ExpressionKind::Bot
+            | ExpressionKind::EmptyTable(_)
+            | ExpressionKind::None(_)
+            | ExpressionKind::Sample(_)
+            | ExpressionKind::StringLiteral(_)
+            | ExpressionKind::IntegerLiteral(_)
+            | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::Identifier(_) => {}
+
+            ExpressionKind::Not(expr)
+            | ExpressionKind::Some(expr)
+            | ExpressionKind::Unwrap(expr)
+            | ExpressionKind::TableAccess(_, expr) => expr.as_mut().walk(f),
+
+            ExpressionKind::Tuple(exprs)
+            | ExpressionKind::Equals(exprs)
+            | ExpressionKind::And(exprs)
+            | ExpressionKind::Or(exprs)
+            | ExpressionKind::FnCall(_, exprs)
+            | ExpressionKind::List(exprs)
+            | ExpressionKind::Set(exprs)
+            | ExpressionKind::Xor(exprs) => {
+                for expr in exprs {
+                    expr.walk(f)
+                }
+            }
+
+            ExpressionKind::Add(lhs, rhs)
+            | ExpressionKind::Sub(lhs, rhs)
+            | ExpressionKind::Mul(lhs, rhs)
+            | ExpressionKind::Div(lhs, rhs)
+            | ExpressionKind::LessThen(lhs, rhs)
+            | ExpressionKind::GreaterThen(lhs, rhs)
+            | ExpressionKind::LessThenEq(lhs, rhs)
+            | ExpressionKind::GreaterThenEq(lhs, rhs) => {
+                lhs.as_mut().walk(f);
+                rhs.as_mut().walk(f)
+            }
+
+            _ => {
+                panic!("Expression: not implemented: {self:#?}")
+            }
+        }
+    }
+
+    pub fn borrow_map<F>(&self, f: &F) -> Expression
+    where
+        F: Fn(Expression) -> Expression,
+    {
+        let kind = match &self.kind {
+            ExpressionKind::Bot
+            | ExpressionKind::EmptyTable(_)
+            | ExpressionKind::None(_)
+            | ExpressionKind::Sample(_)
+            | ExpressionKind::StringLiteral(_)
+            | ExpressionKind::IntegerLiteral(_)
+            | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::Identifier(_) => self.kind.clone(),
+
+            ExpressionKind::Not(expr) => ExpressionKind::Not(Box::new(expr.borrow_map(f))),
+            ExpressionKind::Some(expr) => ExpressionKind::Some(Box::new(expr.borrow_map(f))),
+            ExpressionKind::Unwrap(expr) => ExpressionKind::Unwrap(Box::new(expr.borrow_map(f))),
+            ExpressionKind::TableAccess(id, expr) => {
+                ExpressionKind::TableAccess(id.clone(), Box::new(expr.borrow_map(f)))
+            }
+            ExpressionKind::Tuple(exprs) => {
+                ExpressionKind::Tuple(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            ExpressionKind::Equals(exprs) => {
+                ExpressionKind::Equals(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            ExpressionKind::Xor(exprs) => {
+                ExpressionKind::Xor(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            ExpressionKind::And(exprs) => {
+                ExpressionKind::And(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            ExpressionKind::Or(exprs) => {
+                ExpressionKind::Or(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            ExpressionKind::Add(lhs, rhs) => {
+                ExpressionKind::Add(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            ExpressionKind::Sub(lhs, rhs) => {
+                ExpressionKind::Sub(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            ExpressionKind::Mul(lhs, rhs) => {
+                ExpressionKind::Mul(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            ExpressionKind::Div(lhs, rhs) => {
+                ExpressionKind::Div(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            ExpressionKind::LessThen(lhs, rhs) => {
+                ExpressionKind::LessThen(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            ExpressionKind::GreaterThen(lhs, rhs) => ExpressionKind::GreaterThen(
+                Box::new(lhs.borrow_map(f)),
+                Box::new(rhs.borrow_map(f)),
+            ),
+            ExpressionKind::LessThenEq(lhs, rhs) => {
+                ExpressionKind::LessThenEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            ExpressionKind::GreaterThenEq(lhs, rhs) => ExpressionKind::GreaterThenEq(
+                Box::new(lhs.borrow_map(f)),
+                Box::new(rhs.borrow_map(f)),
+            ),
+            ExpressionKind::FnCall(name, exprs) => ExpressionKind::FnCall(
+                name.clone(),
+                exprs.iter().map(|expr| expr.borrow_map(f)).collect(),
+            ),
+            ExpressionKind::List(exprs) => {
+                ExpressionKind::List(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            ExpressionKind::Set(exprs) => {
+                ExpressionKind::Set(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
+            }
+            _ => {
+                panic!("Expression: not implemented: {self:#?}")
+            }
+        };
+
+        f(Expression { kind })
+    }
+
+    pub fn mapfold<F, Ac>(&self, init: Ac, f: F) -> (Ac, Expression)
+    where
+        F: Fn(Ac, Expression) -> (Ac, Expression) + Copy,
+        Ac: Clone,
+    {
+        let (ac, kind) = match &self.kind {
+            ExpressionKind::Bot
+            | ExpressionKind::EmptyTable(_)
+            | ExpressionKind::None(_)
+            | ExpressionKind::Sample(_)
+            | ExpressionKind::StringLiteral(_)
+            | ExpressionKind::IntegerLiteral(_)
+            | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::Identifier(_) => (init, self.kind.clone()),
+
+            ExpressionKind::Not(expr) => {
+                let (ac, e) = expr.mapfold(init, f);
+                (ac, ExpressionKind::Not(Box::new(e)))
+            }
+            ExpressionKind::Some(expr) => {
+                let (ac, e) = expr.mapfold(init, f);
+                (ac, ExpressionKind::Some(Box::new(e)))
+            }
+            ExpressionKind::Unwrap(expr) => {
+                let (ac, e) = expr.mapfold(init, f);
+                (ac, ExpressionKind::Unwrap(Box::new(e)))
+            }
+            ExpressionKind::TableAccess(id, expr) => {
+                let (ac, e) = expr.mapfold(init, f);
+                (ac, ExpressionKind::TableAccess(id.clone(), Box::new(e)))
+            }
+            ExpressionKind::Tuple(exprs) => {
+                let mut ac = init;
+                let newexprs = exprs
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::Tuple(newexprs))
+            }
+            ExpressionKind::Xor(exprs) => {
+                let mut ac = init;
+                let newexprs = exprs
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::Xor(newexprs))
+            }
+            ExpressionKind::Equals(exprs) => {
+                let mut ac = init;
+                let newexprs = exprs
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::Equals(newexprs))
+            }
+            ExpressionKind::And(exprs) => {
+                let mut ac = init;
+                let newexprs = exprs
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::And(newexprs))
+            }
+            ExpressionKind::Or(exprs) => {
+                let mut ac = init;
+                let newexprs = exprs
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::Or(newexprs))
+            }
+            ExpressionKind::Add(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (ac, ExpressionKind::Add(Box::new(newlhs), Box::new(newrhs)))
+            }
+            ExpressionKind::Sub(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (ac, ExpressionKind::Sub(Box::new(newlhs), Box::new(newrhs)))
+            }
+            ExpressionKind::Mul(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (ac, ExpressionKind::Mul(Box::new(newlhs), Box::new(newrhs)))
+            }
+            ExpressionKind::Div(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (ac, ExpressionKind::Div(Box::new(newlhs), Box::new(newrhs)))
+            }
+            ExpressionKind::LessThen(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    ExpressionKind::LessThen(Box::new(newlhs), Box::new(newrhs)),
+                )
+            }
+            ExpressionKind::GreaterThen(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    ExpressionKind::GreaterThen(Box::new(newlhs), Box::new(newrhs)),
+                )
+            }
+            ExpressionKind::LessThenEq(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    ExpressionKind::LessThenEq(Box::new(newlhs), Box::new(newrhs)),
+                )
+            }
+            ExpressionKind::GreaterThenEq(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    ExpressionKind::GreaterThenEq(Box::new(newlhs), Box::new(newrhs)),
+                )
+            }
+            ExpressionKind::FnCall(name, exprs) => {
+                let mut ac = init;
+                let newexprs = exprs
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+
+                (ac, ExpressionKind::FnCall(name.clone(), newexprs))
+            }
+            ExpressionKind::List(inner) => {
+                let mut ac = init;
+                let newexprs = inner
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::List(newexprs))
+            }
+            ExpressionKind::Set(inner) => {
+                let mut ac = init;
+                let newexprs = inner
+                    .iter()
+                    .map(|expr| {
+                        let (newac, e) = expr.mapfold(ac.clone(), f);
+                        ac = newac;
+                        e
+                    })
+                    .collect();
+                (ac, ExpressionKind::Set(newexprs))
+            }
+            _ => {
+                panic!("Expression: not implemented: {self:#?}")
+            }
+        };
+        f(ac, Expression { kind })
+    }
+}
+
+impl From<Identifier> for Expression {
+    fn from(value: Identifier) -> Self {
+        Expression {
+            kind: ExpressionKind::Identifier(value),
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Expression {
+pub enum ExpressionKind {
     Bot,
     Sample(Type),
     StringLiteral(String),
@@ -58,7 +481,7 @@ pub enum Expression {
     Concat(Vec<Expression>),
 }
 
-impl Expression {
+impl ExpressionKind {
     /*
     fn new_identifier(name: &str) -> Expression {
         Expression::Identifier(name.to_string())
@@ -67,27 +490,29 @@ impl Expression {
 
     pub fn get_type(&self) -> Type {
         match self {
-            Expression::Bot => Type::Empty,
-            Expression::Sample(ty) => ty.clone(),
-            Expression::StringLiteral(_) => Type::String,
-            Expression::BooleanLiteral(_) => Type::Boolean,
-            Expression::IntegerLiteral(_) => Type::Integer,
-            Expression::Identifier(ident) => ident.get_type(),
-            Expression::EmptyTable(t) => t.clone(),
-            Expression::TableAccess(ident, _) => match ident.get_type() {
+            ExpressionKind::Bot => Type::Empty,
+            ExpressionKind::Sample(ty) => ty.clone(),
+            ExpressionKind::StringLiteral(_) => Type::String,
+            ExpressionKind::BooleanLiteral(_) => Type::Boolean,
+            ExpressionKind::IntegerLiteral(_) => Type::Integer,
+            ExpressionKind::Identifier(ident) => ident.get_type(),
+            ExpressionKind::EmptyTable(t) => t.clone(),
+            ExpressionKind::TableAccess(ident, _) => match ident.get_type() {
                 Type::Table(_, value_type) => Type::Maybe(Box::new(value_type.deref().clone())),
                 _ => unreachable!(),
             },
-            Expression::Tuple(exprs) => {
+            ExpressionKind::Tuple(exprs) => {
                 Type::Tuple(exprs.iter().map(|expr| expr.get_type()).collect())
             }
-            Expression::List(exprs) if !exprs.is_empty() => {
+            ExpressionKind::List(exprs) if !exprs.is_empty() => {
                 Type::List(Box::new(exprs[0].get_type()))
             }
-            Expression::List(_exprs) => todo!(),
-            Expression::Set(exprs) if !exprs.is_empty() => Type::Set(Box::new(exprs[0].get_type())),
-            Expression::Set(_exprs) => todo!(),
-            Expression::FnCall(ident, _) => match ident.get_type() {
+            ExpressionKind::List(_exprs) => todo!(),
+            ExpressionKind::Set(exprs) if !exprs.is_empty() => {
+                Type::Set(Box::new(exprs[0].get_type()))
+            }
+            ExpressionKind::Set(_exprs) => todo!(),
+            ExpressionKind::FnCall(ident, _) => match ident.get_type() {
                 Type::Fn(_args, ret_type) => *ret_type.clone(),
                 other => unreachable!(
                     "found non-function type {:?} when calling function `{}`",
@@ -95,449 +520,97 @@ impl Expression {
                     ident.ident()
                 ),
             },
-            Expression::None(ty) => Type::Maybe(Box::new(ty.clone())),
-            Expression::Some(expr) => Type::Maybe(Box::new(expr.get_type())),
-            Expression::Unwrap(expr) => match expr.get_type() {
+            ExpressionKind::None(ty) => Type::Maybe(Box::new(ty.clone())),
+            ExpressionKind::Some(expr) => Type::Maybe(Box::new(expr.get_type())),
+            ExpressionKind::Unwrap(expr) => match expr.get_type() {
                 Type::Maybe(ty) => *ty,
                 _ => unreachable!("Unwrapping non-maybe {expr:?}", expr = expr),
             },
 
-            Expression::Sum(expr)
-            | Expression::Prod(expr)
-            | Expression::Neg(expr)
-            | Expression::Inv(expr)
-            | Expression::Add(expr, _)
-            | Expression::Sub(expr, _)
-            | Expression::Mul(expr, _)
-            | Expression::Div(expr, _)
-            | Expression::Pow(expr, _)
-            | Expression::Mod(expr, _) => expr.get_type(),
+            ExpressionKind::Sum(expr)
+            | ExpressionKind::Prod(expr)
+            | ExpressionKind::Neg(expr)
+            | ExpressionKind::Inv(expr)
+            | ExpressionKind::Add(expr, _)
+            | ExpressionKind::Sub(expr, _)
+            | ExpressionKind::Mul(expr, _)
+            | ExpressionKind::Div(expr, _)
+            | ExpressionKind::Pow(expr, _)
+            | ExpressionKind::Mod(expr, _) => expr.get_type(),
 
-            Expression::GreaterThen(_, _)
-            | Expression::LessThen(_, _)
-            | Expression::GreaterThenEq(_, _)
-            | Expression::LessThenEq(_, _)
-            | Expression::Not(_)
-            | Expression::Any(_)
-            | Expression::All(_)
-            | Expression::Equals(_)
-            | Expression::And(_)
-            | Expression::Or(_)
-            | Expression::Xor(_) => Type::Boolean,
+            ExpressionKind::GreaterThen(_, _)
+            | ExpressionKind::LessThen(_, _)
+            | ExpressionKind::GreaterThenEq(_, _)
+            | ExpressionKind::LessThenEq(_, _)
+            | ExpressionKind::Not(_)
+            | ExpressionKind::Any(_)
+            | ExpressionKind::All(_)
+            | ExpressionKind::Equals(_)
+            | ExpressionKind::And(_)
+            | ExpressionKind::Or(_)
+            | ExpressionKind::Xor(_) => Type::Boolean,
 
-            Expression::Concat(exprs) => match exprs[0].get_type() {
+            ExpressionKind::Concat(exprs) => match exprs[0].get_type() {
                 Type::List(t) => *t,
                 _ => unreachable!(),
             },
 
-            Expression::Union(expr) | Expression::Cut(expr) | Expression::SetDiff(expr) => {
-                match expr.get_type() {
-                    Type::List(t) => *t,
-                    _ => unreachable!(),
-                }
-            }
+            ExpressionKind::Union(expr)
+            | ExpressionKind::Cut(expr)
+            | ExpressionKind::SetDiff(expr) => match expr.get_type() {
+                Type::List(t) => *t,
+                _ => unreachable!(),
+            },
         }
     }
 
     pub fn is_const(&self) -> bool {
         match self {
-            Expression::Bot
-            | Expression::StringLiteral(_)
-            | Expression::IntegerLiteral(_)
-            | Expression::EmptyTable(_)
-            | Expression::None(_)
-            | Expression::BooleanLiteral(_) => true,
+            ExpressionKind::Bot
+            | ExpressionKind::StringLiteral(_)
+            | ExpressionKind::IntegerLiteral(_)
+            | ExpressionKind::EmptyTable(_)
+            | ExpressionKind::None(_)
+            | ExpressionKind::BooleanLiteral(_) => true,
 
-            Expression::TableAccess(_, _) | Expression::FnCall(_, _) | Expression::Sample(_) => {
-                false
-            }
+            ExpressionKind::TableAccess(_, _)
+            | ExpressionKind::FnCall(_, _)
+            | ExpressionKind::Sample(_) => false,
 
-            Expression::Not(expression)
-            | Expression::Neg(expression)
-            | Expression::Inv(expression)
-            | Expression::Some(expression)
-            | Expression::Unwrap(expression)
-            | Expression::Sum(expression)
-            | Expression::Prod(expression)
-            | Expression::Any(expression)
-            | Expression::All(expression)
-            | Expression::Union(expression)
-            | Expression::Cut(expression)
-            | Expression::SetDiff(expression) => expression.is_const(),
+            ExpressionKind::Not(expression)
+            | ExpressionKind::Neg(expression)
+            | ExpressionKind::Inv(expression)
+            | ExpressionKind::Some(expression)
+            | ExpressionKind::Unwrap(expression)
+            | ExpressionKind::Sum(expression)
+            | ExpressionKind::Prod(expression)
+            | ExpressionKind::Any(expression)
+            | ExpressionKind::All(expression)
+            | ExpressionKind::Union(expression)
+            | ExpressionKind::Cut(expression)
+            | ExpressionKind::SetDiff(expression) => expression.is_const(),
 
-            Expression::Identifier(ident) => ident.is_const(),
+            ExpressionKind::Identifier(ident) => ident.is_const(),
 
-            Expression::Tuple(exprs)
-            | Expression::List(exprs)
-            | Expression::Set(exprs)
-            | Expression::Equals(exprs)
-            | Expression::And(exprs)
-            | Expression::Or(exprs)
-            | Expression::Xor(exprs)
-            | Expression::Concat(exprs) => exprs.iter().all(Expression::is_const),
+            ExpressionKind::Tuple(exprs)
+            | ExpressionKind::List(exprs)
+            | ExpressionKind::Set(exprs)
+            | ExpressionKind::Equals(exprs)
+            | ExpressionKind::And(exprs)
+            | ExpressionKind::Or(exprs)
+            | ExpressionKind::Xor(exprs)
+            | ExpressionKind::Concat(exprs) => exprs.iter().all(Expression::is_const),
 
-            Expression::Add(lhs, rhs)
-            | Expression::Sub(lhs, rhs)
-            | Expression::Mul(lhs, rhs)
-            | Expression::Div(lhs, rhs)
-            | Expression::Pow(lhs, rhs)
-            | Expression::Mod(lhs, rhs)
-            | Expression::GreaterThen(lhs, rhs)
-            | Expression::LessThen(lhs, rhs)
-            | Expression::GreaterThenEq(lhs, rhs)
-            | Expression::LessThenEq(lhs, rhs) => lhs.is_const() && rhs.is_const(),
-        }
-    }
-
-    pub fn walk(&mut self, f: &mut impl FnMut(&mut Expression) -> bool) {
-        if !f(self) {
-            return;
-        }
-
-        match self {
-            Expression::Bot
-            | Expression::EmptyTable(_)
-            | Expression::None(_)
-            | Expression::Sample(_)
-            | Expression::StringLiteral(_)
-            | Expression::IntegerLiteral(_)
-            | Expression::BooleanLiteral(_)
-            | Expression::Identifier(_) => {}
-
-            Expression::Not(expr)
-            | Expression::Some(expr)
-            | Expression::Unwrap(expr)
-            | Expression::TableAccess(_, expr) => expr.as_mut().walk(f),
-
-            Expression::Tuple(exprs)
-            | Expression::Equals(exprs)
-            | Expression::And(exprs)
-            | Expression::Or(exprs)
-            | Expression::FnCall(_, exprs)
-            | Expression::List(exprs)
-            | Expression::Set(exprs)
-            | Expression::Xor(exprs) => {
-                for expr in exprs {
-                    expr.walk(f)
-                }
-            }
-
-            Expression::Add(lhs, rhs)
-            | Expression::Sub(lhs, rhs)
-            | Expression::Mul(lhs, rhs)
-            | Expression::Div(lhs, rhs)
-            | Expression::LessThen(lhs, rhs)
-            | Expression::GreaterThen(lhs, rhs)
-            | Expression::LessThenEq(lhs, rhs)
-            | Expression::GreaterThenEq(lhs, rhs) => {
-                lhs.as_mut().walk(f);
-                rhs.as_mut().walk(f)
-            }
-
-            _ => {
-                panic!("Expression: not implemented: {self:#?}")
-            }
-        }
-    }
-
-    pub fn map<F>(&self, f: F) -> Expression
-    where
-        F: Fn(Expression) -> Expression,
-    {
-        self.borrow_map(&f)
-    }
-
-    pub fn borrow_map<F>(&self, f: &F) -> Expression
-    where
-        F: Fn(Expression) -> Expression,
-    {
-        f(match &self {
-            Expression::Bot
-            | Expression::EmptyTable(_)
-            | Expression::None(_)
-            | Expression::Sample(_)
-            | Expression::StringLiteral(_)
-            | Expression::IntegerLiteral(_)
-            | Expression::BooleanLiteral(_)
-            | Expression::Identifier(_) => self.clone(),
-
-            Expression::Not(expr) => Expression::Not(Box::new(expr.borrow_map(f))),
-            Expression::Some(expr) => Expression::Some(Box::new(expr.borrow_map(f))),
-            Expression::Unwrap(expr) => Expression::Unwrap(Box::new(expr.borrow_map(f))),
-            Expression::TableAccess(id, expr) => {
-                Expression::TableAccess(id.clone(), Box::new(expr.borrow_map(f)))
-            }
-            Expression::Tuple(exprs) => {
-                Expression::Tuple(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            Expression::Equals(exprs) => {
-                Expression::Equals(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            Expression::Xor(exprs) => {
-                Expression::Xor(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            Expression::And(exprs) => {
-                Expression::And(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            Expression::Or(exprs) => {
-                Expression::Or(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            Expression::Add(lhs, rhs) => {
-                Expression::Add(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::Sub(lhs, rhs) => {
-                Expression::Sub(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::Mul(lhs, rhs) => {
-                Expression::Mul(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::Div(lhs, rhs) => {
-                Expression::Div(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::LessThen(lhs, rhs) => {
-                Expression::LessThen(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::GreaterThen(lhs, rhs) => {
-                Expression::GreaterThen(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::LessThenEq(lhs, rhs) => {
-                Expression::LessThenEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::GreaterThenEq(lhs, rhs) => {
-                Expression::GreaterThenEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
-            }
-            Expression::FnCall(name, exprs) => Expression::FnCall(
-                name.clone(),
-                exprs.iter().map(|expr| expr.borrow_map(f)).collect(),
-            ),
-            Expression::List(exprs) => {
-                Expression::List(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            Expression::Set(exprs) => {
-                Expression::Set(exprs.iter().map(|expr| expr.borrow_map(f)).collect())
-            }
-            _ => {
-                panic!("Expression: not implemented: {self:#?}")
-            }
-        })
-    }
-
-    pub fn mapfold<F, Ac>(&self, init: Ac, f: F) -> (Ac, Expression)
-    where
-        F: Fn(Ac, Expression) -> (Ac, Expression) + Copy,
-        Ac: Clone,
-    {
-        let (ac, ex) = match &self {
-            Expression::Bot
-            | Expression::EmptyTable(_)
-            | Expression::None(_)
-            | Expression::Sample(_)
-            | Expression::StringLiteral(_)
-            | Expression::IntegerLiteral(_)
-            | Expression::BooleanLiteral(_)
-            | Expression::Identifier(_) => (init, self.clone()),
-
-            Expression::Not(expr) => {
-                let (ac, e) = expr.mapfold(init, f);
-                (ac, Expression::Not(Box::new(e)))
-            }
-            Expression::Some(expr) => {
-                let (ac, e) = expr.mapfold(init, f);
-                (ac, Expression::Some(Box::new(e)))
-            }
-            Expression::Unwrap(expr) => {
-                let (ac, e) = expr.mapfold(init, f);
-                (ac, Expression::Unwrap(Box::new(e)))
-            }
-            Expression::TableAccess(id, expr) => {
-                let (ac, e) = expr.mapfold(init, f);
-                (ac, Expression::TableAccess(id.clone(), Box::new(e)))
-            }
-            Expression::Tuple(exprs) => {
-                let mut ac = init;
-                let newexprs = exprs
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::Tuple(newexprs))
-            }
-            Expression::Xor(exprs) => {
-                let mut ac = init;
-                let newexprs = exprs
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::Xor(newexprs))
-            }
-            Expression::Equals(exprs) => {
-                let mut ac = init;
-                let newexprs = exprs
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::Equals(newexprs))
-            }
-            Expression::And(exprs) => {
-                let mut ac = init;
-                let newexprs = exprs
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::And(newexprs))
-            }
-            Expression::Or(exprs) => {
-                let mut ac = init;
-                let newexprs = exprs
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::Or(newexprs))
-            }
-            Expression::Add(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::Add(Box::new(newlhs), Box::new(newrhs)))
-            }
-            Expression::Sub(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::Sub(Box::new(newlhs), Box::new(newrhs)))
-            }
-            Expression::Mul(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::Mul(Box::new(newlhs), Box::new(newrhs)))
-            }
-            Expression::Div(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::Div(Box::new(newlhs), Box::new(newrhs)))
-            }
-            Expression::LessThen(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::LessThen(Box::new(newlhs), Box::new(newrhs)))
-            }
-            Expression::GreaterThen(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (
-                    ac,
-                    Expression::GreaterThen(Box::new(newlhs), Box::new(newrhs)),
-                )
-            }
-            Expression::LessThenEq(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (
-                    ac,
-                    Expression::LessThenEq(Box::new(newlhs), Box::new(newrhs)),
-                )
-            }
-            Expression::GreaterThenEq(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (
-                    ac,
-                    Expression::GreaterThenEq(Box::new(newlhs), Box::new(newrhs)),
-                )
-            }
-            Expression::FnCall(name, exprs) => {
-                let mut ac = init;
-                let newexprs = exprs
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-
-                (ac, Expression::FnCall(name.clone(), newexprs))
-            }
-            Expression::List(inner) => {
-                let mut ac = init;
-                let newexprs = inner
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::List(newexprs))
-            }
-            Expression::Set(inner) => {
-                let mut ac = init;
-                let newexprs = inner
-                    .iter()
-                    .map(|expr| {
-                        let (newac, e) = expr.mapfold(ac.clone(), f);
-                        ac = newac;
-                        e
-                    })
-                    .collect();
-                (ac, Expression::Set(newexprs))
-            }
-            _ => {
-                panic!("Expression: not implemented: {self:#?}")
-            }
-        };
-        f(ac, ex)
-    }
-
-    pub fn new_equals(exprs: Vec<&Expression>) -> Expression {
-        Expression::Equals(exprs.into_iter().cloned().collect())
-    }
-
-    pub fn into_identifier(self) -> Option<Identifier> {
-        if let Self::Identifier(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-
-    pub fn as_identifier_mut(&mut self) -> Option<&mut Identifier> {
-        if let Self::Identifier(v) = self {
-            Some(v)
-        } else {
-            None
-        }
-    }
-    pub fn as_identifier(&self) -> Option<&Identifier> {
-        if let Self::Identifier(v) = self {
-            Some(v)
-        } else {
-            None
+            ExpressionKind::Add(lhs, rhs)
+            | ExpressionKind::Sub(lhs, rhs)
+            | ExpressionKind::Mul(lhs, rhs)
+            | ExpressionKind::Div(lhs, rhs)
+            | ExpressionKind::Pow(lhs, rhs)
+            | ExpressionKind::Mod(lhs, rhs)
+            | ExpressionKind::GreaterThen(lhs, rhs)
+            | ExpressionKind::LessThen(lhs, rhs)
+            | ExpressionKind::GreaterThenEq(lhs, rhs)
+            | ExpressionKind::LessThenEq(lhs, rhs) => lhs.is_const() && rhs.is_const(),
         }
     }
 }
@@ -546,7 +619,7 @@ impl Expression {
 macro_rules! tuple {
     ( $($e:expr),* ) => {
         {
-            Expression::Tuple(vec![ $( $e.clone(), )* ])
+            ExpressionKind::Tuple(vec![ $( $e.clone(), )* ])
         }
     };
 }
@@ -555,7 +628,7 @@ macro_rules! tuple {
 macro_rules! list {
     ( $($e:expr),* ) => {
         {
-            Expression::List(vec![ $( $e.clone(), )* ])
+            ExpressionKind::List(vec![ $( $e.clone(), )* ])
         }
     };
 }
@@ -564,7 +637,7 @@ macro_rules! list {
 macro_rules! oracleinvoc {
     ( $name:expr, $($e:expr),* ) => {
         {
-            Expression::OracleInvoc(
+            ExpressionKind::OracleInvoc(
                 $name.to_string(),
                 vec![ $( $e.clone(), )* ],
             )
@@ -576,7 +649,7 @@ macro_rules! oracleinvoc {
 macro_rules! fncall {
     ( $name:expr, $($e:expr),* ) => {
         {
-            Expression::FnCall(
+            ExpressionKind::FnCall(
                 Identifier::Scalar($name.to_string()),
                 vec![ $( $e.clone(), )* ],
             )

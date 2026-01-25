@@ -138,7 +138,7 @@ impl Scope {
 #[cfg(test)]
 mod test {
     use super::Declaration;
-    use crate::{expressions::Expression, types};
+    use crate::{expressions::ExpressionKind, types};
 
     use super::Scope;
 
@@ -182,7 +182,7 @@ mod test {
         //assert_matches!(t_, Type::Type(t_), "t_ should be a real type, found {t_:?}");
 
         if let Declaration::Identifier(ident) = decl {
-            let t_ = Expression::Identifier(ident).get_type();
+            let t_ = ExpressionKind::Identifier(ident).get_type();
             assert_eq!(t, t_, "lookup returned wrong type");
         } else {
             panic!("t_ should be a real type, found {decl:?}");
@@ -278,7 +278,7 @@ mod test {
         //assert_matches!(t_, Type::Type(t_), "t_ should be a real type, found {t_:?}");
 
         if let Declaration::Identifier(ident) = decl {
-            let t_ = Expression::Identifier(ident).get_type();
+            let t_ = ExpressionKind::Identifier(ident).get_type();
             assert_eq!(t, t_, "lookup returned wrong type");
         } else {
             panic!("t_ should be a real type, found {decl:?}");

@@ -450,10 +450,7 @@ fn handle_hybrid_instance_decl<'a>(
         patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
     }
     if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((
-            bitvar_const.0.clone(),
-            Expression::BooleanLiteral("false".to_string()),
-        ))
+        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(false)))
     }
     let game_inst = GameInstance::new(
         format!("{game_inst_name}$false$"),
@@ -469,10 +466,7 @@ fn handle_hybrid_instance_decl<'a>(
         patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
     }
     if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((
-            bitvar_const.0.clone(),
-            Expression::BooleanLiteral("true".to_string()),
-        ))
+        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(true)))
     }
     let game_inst = GameInstance::new(
         format!("{game_inst_name}$true$"),
@@ -487,17 +481,11 @@ fn handle_hybrid_instance_decl<'a>(
     if let Some(loopvar_const) = loopvar_const {
         patched_consts.push((
             loopvar_const.0.clone(),
-            Expression::Add(
-                Box::new(loopvar_const.1.clone()),
-                Box::new(Expression::IntegerLiteral(1)),
-            ),
+            Expression::add(loopvar_const.1.clone(), Expression::integer(1)),
         ))
     }
     if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((
-            bitvar_const.0.clone(),
-            Expression::BooleanLiteral("false".to_string()),
-        ))
+        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(false)))
     }
     let game_inst = GameInstance::new(
         format!("{game_inst_name}$false$+"),

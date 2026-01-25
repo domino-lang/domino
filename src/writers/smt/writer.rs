@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use crate::expressions::Expression;
+use crate::expressions::ExpressionKind;
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, PackageInstance};
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
@@ -838,7 +839,7 @@ impl<'a> CompositionSmtWriter<'a> {
         //eprintln!(r#"DEBUG code_smt_helper Assign {expr:?} to identifier {ident:?}")"#);
 
         // first build the unwrap expression, if we have to
-        let outexpr = if let Expression::Unwrap(inner) = expr {
+        let outexpr = if let ExpressionKind::Unwrap(inner) = expr.kind() {
             ("maybe-get", *inner.clone()).into()
         } else {
             expr.clone().into()
@@ -861,7 +862,7 @@ impl<'a> CompositionSmtWriter<'a> {
         .into();
 
         // if it's an unwrap, also wrap it with the unwrap check.
-        if let Expression::Unwrap(inner) = expr {
+        if let ExpressionKind::Unwrap(inner) = expr.kind() {
             SmtIte {
                 cond: SmtEq2 {
                     lhs: *inner.clone(),
@@ -1245,7 +1246,10 @@ mod tests {
     #[test]
     fn test_smtlet() -> TestResult {
         let l = SmtLet {
-            bindings: vec![("x".into(), Expression::IntegerLiteral(42).into())],
+            bindings: vec![(
+                "x".into(),
+                Expression::from_kind(ExpressionKind::IntegerLiteral(42)).into(),
+            )],
             body: SmtExpr::Atom(String::from("x")),
         };
 

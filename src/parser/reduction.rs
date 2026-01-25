@@ -7,7 +7,7 @@ use itertools::Itertools as _;
 use pest::iterators::Pair;
 
 use crate::{
-    expressions::Expression,
+    expressions::{Expression, ExpressionKind},
     gamehops::{
         reduction::{Assumption, Reduction},
         GameHop,
@@ -999,23 +999,23 @@ fn package_instances_diff(
             game_inst_const_mapping: &[(GameConstIdentifier, Expression)],
             expr: Expression,
         ) -> Expression {
-            match expr {
+            let kind = match expr.into_kind() {
                 // redact game and package specific information from theorem identifiers
-                Expression::Identifier(Identifier::TheoremIdentifier(
+                ExpressionKind::Identifier(Identifier::TheoremIdentifier(
                     TheoremIdentifier::Const(mut theorem_const),
                 )) => {
                     theorem_const.inst_info = None;
-                    Expression::Identifier(theorem_const.into())
+                    ExpressionKind::Identifier(theorem_const.into())
                 }
-                Expression::Identifier(Identifier::TheoremIdentifier(
+                ExpressionKind::Identifier(Identifier::TheoremIdentifier(
                     TheoremIdentifier::LoopVar(mut theorem_loopvar),
                 )) => {
                     theorem_loopvar.inst_info = None;
-                    Expression::Identifier(theorem_loopvar.into())
+                    ExpressionKind::Identifier(theorem_loopvar.into())
                 }
 
                 // resolve game const identifiers
-                Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
+                ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
                     ref game_const,
                 ))) => {
                     let (_, assigned_expr) = game_inst_const_mapping
@@ -1025,12 +1025,16 @@ fn package_instances_diff(
                         // happen and panic
                         .unwrap_or_else(|| panic!("couldn't find identifier {game_const:?} in const mapping {game_inst_const_mapping:?}"));
 
-                    assigned_expr.map(|expr| resolve_and_redact_expr(game_inst_const_mapping, expr))
+                    assigned_expr
+                        .map(|expr| resolve_and_redact_expr(game_inst_const_mapping, expr))
+                        .into_kind()
                 }
 
                 // leave the rest
                 other => other,
-            }
+            };
+
+            Expression::from_kind(kind)
         }
 
         let redacted_left_param_expr =
