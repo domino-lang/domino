@@ -91,7 +91,7 @@
                       (kmac (el11-9  (maybe-get state)))
                       (sid  (el11-10 (maybe-get state)))
                       (mess (el11-11 (maybe-get state))))
-                   (is-mk-none (select Prf0-old (mk-tuple6 kid U V (maybe-get ni) (maybe-get nr) true))))))
+                   (is-mk-none (select Prf0-old (mk-tuple2 kid (mk-tuple5 U V (maybe-get ni) (maybe-get nr) true)))))))
 
          
              )))))
