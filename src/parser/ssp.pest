@@ -57,7 +57,7 @@ theorem_spec_list = { const_decl* ~ instance_decl* ~ hybrid_instance_decl* ~ ass
       reduction_spec = { assumption_spec ~ map_spec ~ map_spec }
         assumption_spec = { kw_assumption ~ identifier }
         map_spec = { kw_map ~ identifier ~ ( hybrid_map_spec_ident | identifier ) ~ map_spec_block }
-          hybrid_map_spec_ident = { identifier ~ "[" ~ identifier ~ "=" ~  literal_boolean ~ "]" }
+          hybrid_map_spec_ident = { identifier ~ "[" ~ literal_boolean ~ "]" }
           map_spec_block = { "{" ~ ( identifier ~ ":" ~ identifier )* ~ "}" }
 
     equivalence = { kw_equivalence ~ identifier ~ identifier ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}

@@ -463,7 +463,6 @@ fn handle_mapspec_assumption<'a>(
     let construction_game_inst_name = if is_hybrid {
         let mut inner = construction_game_inst_name_ast.clone().into_inner();
         let instance_name = inner.next().unwrap().as_str();
-        let _bit_var_name = inner.next().unwrap().as_str();
         let bit_var_const = inner.next().unwrap().as_str();
 
         &format!("{instance_name}${bit_var_const}$")

@@ -20,10 +20,10 @@ theorem Hybrid {
       reduction {
         assumption identity
 
-        map real_assumption h[b=false] {
+        map real_assumption h[false] {
           b: b
         }
-        map ideal_assumption h[b=true] {
+        map ideal_assumption h[true] {
           b: b
         }
       }
