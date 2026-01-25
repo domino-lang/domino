@@ -384,7 +384,7 @@ fn handle_hybrid_instance_decl<'a>(
             inst_info: None,
         },
     )));
-    ctx.declare(&loop_var_name, clone)?;
+    ctx.declare(loop_var_name, clone)?;
 
     let bit_var_ast = ast.next().unwrap();
     let _bit_var_span = bit_var_ast.as_span();
@@ -397,7 +397,7 @@ fn handle_hybrid_instance_decl<'a>(
             inst_info: None,
         },
     )));
-    ctx.declare(&bit_var_name, clone)?;
+    ctx.declare(bit_var_name, clone)?;
 
     let game_name_ast = ast.next().unwrap();
     let game_name_span = game_name_ast.as_span();
