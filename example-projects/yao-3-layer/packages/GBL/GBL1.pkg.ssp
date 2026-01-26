@@ -1,0 +1,16 @@
+package GBL1 {
+    params {
+        p: Integer
+    }
+
+    import oracles {
+        GBL(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+             -> Table(Integer, Table(Bits(p), Bool)),
+    }
+
+    oracle GBL1(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+             -> Table(Integer, Table(Bits(p), Bool)) {
+        g <- invoke GBL(Ci);
+        return g;
+    }
+}

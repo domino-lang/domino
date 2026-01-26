@@ -89,19 +89,43 @@ composition Hybrid1 {
         }
     }
 
-    instance GBLG1 = GBLG1 {
+    instance modgb1 = MODGB {
+        params {
+            p: p,
+            n: n,
+            w: 1,
+        }
+    }
+
+    instance modgb2 = MODGB {
+        params {
+            p: p,
+            n: n,
+            w: 1,
+        }
+    }
+
+    instance modgb3 = MODGB {
+        params {
+            p: p,
+            n: n,
+            w: 1,
+        }
+    }
+
+    instance GBL1 = GBL1 {
         params {
             p: p
         }
     }
 
-    instance GBLG2 = GBLG2 {
+    instance GBL2 = GBL2 {
         params {
             p: p
         }
     }
 
-    instance GBLG3 = GBLG3 {
+    instance GBL3 = GBL3 {
         params {
             p: p
         }
@@ -111,13 +135,16 @@ composition Hybrid1 {
         adversary: {
             GETAOUT: keys0,
             SETBIT: keys0,
-            GBLG1: GBLG1,
-            GBLG2: GBLG2,
-            GBLG3: GBLG3,
+            GBL1: GBL1,
+            GBL2: GBL2,
+            GBL3: GBL3,
             GETKEYSIN: keys3,
         }
 
-        GBLG1: {
+        GBL1: {
+            GBL: modgb1,
+        }
+        modgb1: {
             GBLG: simgate1,
         }
         simgate1: {
@@ -131,7 +158,10 @@ composition Hybrid1 {
             SETBIT: keys1,
         }        
 
-        GBLG2: {
+        GBL2: {
+            GBL: modgb2,
+        }
+        modgb2: {
             GBLG: gate2,
         }
         gate2: {
@@ -143,7 +173,10 @@ composition Hybrid1 {
             GETKEYSIN: keys1,
         }
 
-        GBLG3: {
+        GBL3: {
+            GBL: modgb3,
+        }
+        modgb3: {
             GBLG: gate3,
         }
         gate3: {
