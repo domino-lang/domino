@@ -38,6 +38,13 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
                     else_block: transform_helper(table, ite.else_block.clone(), err_stmts),
                     ..ite.clone()
                 })),
+                Statement::For(var, lower, upper, code, span) => Some(Statement::For(
+                    var,
+                    lower,
+                    upper,
+                    transform_helper(table, code.clone(), err_stmts),
+                    span,
+                )),
                 _ => Some(stmt),
             })
             .collect();
