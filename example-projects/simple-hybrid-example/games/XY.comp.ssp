@@ -1,18 +1,18 @@
-composition AB {
+composition XY {
   const i: Integer;
   const b: Bool;
   
-  instance a = A {
+  instance x = X {
     params {i:i}
   }
-  instance b = B {
+  instance y = Y {
     params {b:b}
   }
 
   compose {
     adversary: {
-      Run: a,
-      Eval: b,
+      Run: x,
+      Eval: y,
     }
   }
 }

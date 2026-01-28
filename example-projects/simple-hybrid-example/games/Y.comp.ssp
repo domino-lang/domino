@@ -1,13 +1,13 @@
-composition B {
+composition Y {
   const b: Bool;
   
-  instance b = B {
+  instance y = Y {
     params {b:b}
   }
 
   compose {
     adversary: {
-      Eval: b,
+      Eval: y,
     }
   }
 }

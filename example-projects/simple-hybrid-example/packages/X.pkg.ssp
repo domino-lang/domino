@@ -1,4 +1,4 @@
-package A {
+package X {
    params {
      i: Integer,
    }

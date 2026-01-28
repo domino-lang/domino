@@ -3,13 +3,13 @@ theorem Hybrid {
   const n_real: Integer;
   const n_ideal: Integer;
 
-  instance real = AB {params{i:0,b:false}}
-  instance ideal = AB {params{i:n,b:true}}
+  instance real = XY {params{i:0,b:false}}
+  instance ideal = XY {params{i:n,b:true}}
 
-  instance real_assumption = B {params{b:false}}
-  instance ideal_assumption = B {params{b:true}}
+  instance real_assumption = Y {params{b:false}}
+  instance ideal_assumption = Y {params{b:true}}
 
-  hybrid instance h i b = AB {params{i:i, b:b}}
+  hybrid instance h i b = XY {params{i:i, b:b}}
 
   assumptions {
     identity: real_assumption ~ ideal_assumption
@@ -21,10 +21,10 @@ theorem Hybrid {
         assumption identity
 
         map real_assumption h[false] {
-          b: b
+          y: y
         }
         map ideal_assumption h[true] {
-          b: b
+          y: y
         }
       }
       equivalence {
