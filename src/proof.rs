@@ -2,7 +2,10 @@
 
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
-use crate::{expressions::Expression, gamehops::GameHop, theorem::GameInstance};
+use crate::{
+    expressions::Expression, gamehops::equivalence::Equivalence, gamehops::reduction::Reduction,
+    gamehops::GameHop, theorem::GameInstance,
+};
 
 #[derive(Debug, Clone)]
 pub struct Proof<'a> {
@@ -46,7 +49,7 @@ impl Specialization {
 impl<'a> Proof<'a> {
     /// Tries to find a swquence of game hops that proves that the game instance with name
     /// `left_name` is indistinguishable from the game instance with name `right_name`
-    pub(crate) fn try_new(
+    pub fn try_new(
         instances: &[GameInstance],
         gamehops: &[GameHop<'a>],
         name: String,
@@ -130,10 +133,48 @@ impl<'a> Proof<'a> {
         }
         None
     }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn left_name(&self) -> &str {
+        &self.left_name
+    }
+    pub fn right_name(&self) -> &str {
+        &self.right_name
+    }
+
+    pub fn reductions(&self) -> impl Iterator<Item = &Reduction<'_>> {
+        self.game_hops().filter_map(GameHop::as_reduction)
+    }
+
+    pub fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
+        self.game_hops().filter_map(GameHop::as_equivalence)
+    }
+
+    pub fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {
+        self.hops.iter().map(|hopid| &self.gamehops[*hopid])
+    }
+
+    pub fn instances(&self) -> impl Iterator<Item = &GameInstance> {
+        self.sequence
+            .iter()
+            .map(|instid| &self.specialization[*instid].game_instance)
+    }
 }
 
-/// Specialize a game instance that matches generic_match to one that matches generic_other. Use
-/// the assignments of the current specialization.
+// Specialize a game instance that matches generic_match to one that matches generic_other. Use
+// the assignments of the current specialization.
+
+/** There is a gamehop between generic_match and generic_other.
+ ** specialization[game] is compatible with generic_match.
+ **
+ ** Goal is to create a specialized game hop. We already have a
+ ** specialized version of generic_match at specialization[game] and
+ ** will create a specialization for generic_other and return the
+ ** position of that newly added instance.
+ */
 fn specialize<'a>(
     specializations: &mut Vec<Specialization>,
     spec_game_inst_idx: usize,
