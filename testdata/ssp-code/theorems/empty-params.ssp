@@ -1,0 +1,5 @@
+theorem Test {
+  instance inst = TinyGame {}
+
+  gamehops {}
+}

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use itertools::Itertools;
 use std::collections::HashMap;
 
 use crate::{
@@ -498,6 +499,7 @@ fn handle_instance_assign_list(
     game: &Composition,
     ast: Pair<Rule>,
 ) -> Result<(Vec<(String, Type)>, Vec<(GameConstIdentifier, Expression)>), ParseTheoremError> {
+    let span = ast.as_span();
     let ast = ast.into_inner();
 
     let types = vec![];
@@ -534,6 +536,31 @@ fn handle_instance_assign_list(
                 unreachable!("unexpected {:?} at {:?}", otherwise, ast.as_span())
             }
         }
+    }
+
+    let missing_params_vec: Vec<_> = game
+        .consts
+        .iter()
+        .filter_map(|(name, _)| {
+            if consts.iter().any(|(p, _)| &p.name == name) {
+                None
+            } else {
+                Some(name.clone())
+            }
+        })
+        .collect();
+
+    if !missing_params_vec.is_empty() {
+        let missing_params = missing_params_vec.iter().join(", ");
+        return Err(MissingGameParameterDefinitionError {
+            source_code: ctx.named_source(),
+            at: (span.start()..span.end()).into(),
+            game_name: game.name.clone(),
+            game_inst_name: game_inst_name.to_string(),
+            missing_params_vec,
+            missing_params,
+        }
+        .into());
     }
 
     Ok((types, consts))
