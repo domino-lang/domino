@@ -4,8 +4,9 @@ use super::{
     common::*,
     error::{
         ArgumentCountMismatchError, ExpectedExpressionIdentifierError,
-        IdentifierAlreadyDeclaredError, TypeMismatchError, UndefinedIdentifierError,
-        UntypedNoneTypeInferenceError, WrongArgumentCountInInvocationError,
+        IdentifierAlreadyDeclaredError, ParserScopeError, TypeMismatchError,
+        UndefinedIdentifierError, UntypedNoneTypeInferenceError,
+        WrongArgumentCountInInvocationError,
     },
     ParseContext, Rule,
 };
@@ -144,7 +145,7 @@ pub enum ParsePackageError {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
-    Scope(#[from] crate::util::scope::Error),
+    Scope(#[from] ParserScopeError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -1280,21 +1281,29 @@ pub fn handle_oracle_def(
     ctx.scope.enter();
 
     for (name, ty) in &sig.args {
-        ctx.scope.declare(
-            name,
-            Declaration::Identifier(Identifier::PackageIdentifier(PackageIdentifier::OracleArg(
-                PackageOracleArgIdentifier {
-                    pkg_name: ctx.pkg_name.to_string(),
-                    oracle_name: sig.name.clone(),
-                    name: name.clone(),
-                    ty: ty.clone(),
-                    pkg_inst_name: None,
-                    game_name: None,
-                    game_inst_name: None,
-                    theorem_name: None,
-                },
-            ))),
-        )?;
+        ctx.scope
+            .declare(
+                name,
+                Declaration::Identifier(Identifier::PackageIdentifier(
+                    PackageIdentifier::OracleArg(PackageOracleArgIdentifier {
+                        pkg_name: ctx.pkg_name.to_string(),
+                        oracle_name: sig.name.clone(),
+                        name: name.clone(),
+                        ty: ty.clone(),
+                        pkg_inst_name: None,
+                        game_name: None,
+                        game_inst_name: None,
+                        theorem_name: None,
+                    }),
+                )),
+            )
+            .map_err(|e| {
+                ParsePackageError::Scope(ParserScopeError {
+                    source_code: ctx.named_source(),
+                    at: (span.start()..span.end()).into(),
+                    related: vec![e],
+                })
+            })?;
     }
 
     let code = handle_code(ctx, inner.next().unwrap(), &sig)?;
@@ -1718,17 +1727,25 @@ pub fn handle_import_oracles_oracle_sig(
         .into());
     }
 
-    ctx.scope.declare(
-        &sig.name,
-        Declaration::Oracle(
-            OracleContext::Package {
-                pkg_name: ctx.pkg_name.to_string(),
-            },
-            sig.clone(),
-        ),
-        // we already checked that the oracle has not yet been imported, so this
-        // shouldn't fail?
-    )?;
+    ctx.scope
+        .declare(
+            &sig.name,
+            Declaration::Oracle(
+                OracleContext::Package {
+                    pkg_name: ctx.pkg_name.to_string(),
+                },
+                sig.clone(),
+            ),
+            // we already checked that the oracle has not yet been imported, so this
+            // shouldn't fail?
+        )
+        .map_err(|e| {
+            ParsePackageError::Scope(ParserScopeError {
+                source_code: ctx.named_source(),
+                at: (span.start()..span.end()).into(),
+                related: vec![e],
+            })
+        })?;
 
     Ok(())
 }
