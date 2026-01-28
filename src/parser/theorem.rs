@@ -46,7 +46,7 @@ use super::{
         AssumptionMappingParameterMismatchError,
         AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameParameterDefinitionError,
         InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
-        NoSuchGameParameterError, ReductionInconsistentAssumptionBoundaryError,
+        NoSuchGameParameterError, ParserScopeError, ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -238,7 +238,7 @@ pub enum ParseTheoremError {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
-    ScopeError(#[from] ScopeError),
+    ScopeError(#[from] ParserScopeError),
 }
 
 pub fn handle_theorem<'a>(
@@ -259,6 +259,7 @@ pub fn handle_theorem<'a>(
     for ast in theorem_ast.into_inner() {
         match ast.as_rule() {
             Rule::const_decl => {
+                let span = ast.as_span();
                 let (const_name, ty) = common::handle_const_decl(&ctx.parse_ctx(), ast)?;
                 let clone = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
                     TheoremConstIdentifier {
@@ -268,7 +269,13 @@ pub fn handle_theorem<'a>(
                         inst_info: None,
                     },
                 )));
-                ctx.declare(&const_name, clone)?;
+                ctx.declare(&const_name, clone).map_err(|e| {
+                    ParseTheoremError::ScopeError(ParserScopeError {
+                        source_code: ctx.named_source(),
+                        at: (span.start()..span.end()).into(),
+                        related: vec![e],
+                    })
+                })?;
                 ctx.add_const(const_name, ty);
             }
             Rule::assumptions => {
@@ -364,6 +371,7 @@ fn handle_hybrid_instance_decl<'a>(
     ast: Pair<'a, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
+    let span = ast.as_span();
     ctx.scope.enter();
 
     if !ctx.consts.contains_key("hybrid$loop") {
@@ -385,7 +393,13 @@ fn handle_hybrid_instance_decl<'a>(
             inst_info: None,
         },
     )));
-    ctx.declare(loop_var_name, clone)?;
+    ctx.declare(loop_var_name, clone).map_err(|e| {
+        ParseTheoremError::ScopeError(ParserScopeError {
+            source_code: ctx.named_source(),
+            at: (span.start()..span.end()).into(),
+            related: vec![e],
+        })
+    })?;
 
     let bit_var_ast = ast.next().unwrap();
     let _bit_var_span = bit_var_ast.as_span();
@@ -398,7 +412,13 @@ fn handle_hybrid_instance_decl<'a>(
             inst_info: None,
         },
     )));
-    ctx.declare(bit_var_name, clone)?;
+    ctx.declare(bit_var_name, clone).map_err(|e| {
+        ParseTheoremError::ScopeError(ParserScopeError {
+            source_code: ctx.named_source(),
+            at: (span.start()..span.end()).into(),
+            related: vec![e],
+        })
+    })?;
 
     let game_name_ast = ast.next().unwrap();
     let game_name_span = game_name_ast.as_span();
