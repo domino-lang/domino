@@ -1,0 +1,4 @@
+package Test {
+    oracle N() -> Integer {
+    }
+}

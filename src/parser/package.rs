@@ -4,7 +4,7 @@ use super::{
     common::*,
     error::{
         ArgumentCountMismatchError, ExpectedExpressionIdentifierError,
-        IdentifierAlreadyDeclaredError, ParserScopeError, TypeMismatchError,
+        IdentifierAlreadyDeclaredError, MissingReturnError, ParserScopeError, TypeMismatchError,
         UndefinedIdentifierError, UntypedNoneTypeInferenceError,
         WrongArgumentCountInInvocationError,
     },
@@ -154,6 +154,10 @@ pub enum ParsePackageError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     WrongArgumentCountInInvocation(#[from] WrongArgumentCountInInvocationError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    MissingReturn(#[from] MissingReturnError),
 }
 
 #[derive(Error, Debug)]
@@ -1333,6 +1337,44 @@ pub fn handle_oracle_def(
     let code = handle_code(ctx, inner.next().unwrap(), &sig)?;
 
     ctx.scope.leave();
+
+    if sig.ty != Type::Empty {
+        fn check_block(
+            ctx: &ParsePackageContext,
+            oracle_name: &str,
+            span: &SourceSpan,
+            code: &CodeBlock,
+        ) -> Result<(), ParsePackageError> {
+            let stmt = code
+                .0
+                .iter()
+                .last()
+                .ok_or(ParsePackageError::MissingReturn(MissingReturnError {
+                    at: *span,
+                    oracle_name: oracle_name.to_string(),
+                    source_code: ctx.named_source(),
+                }))?;
+            match stmt {
+                Statement::Return(Some(_), _) => {
+                    // Type is already verified by parse_expression
+                    Ok(())
+                }
+                Statement::IfThenElse(ite) => {
+                    let then = &ite.then_block;
+                    let els = &ite.else_block;
+
+                    check_block(ctx, oracle_name, span, then)?;
+                    check_block(ctx, oracle_name, span, els)
+                }
+                _ => Err(ParsePackageError::MissingReturn(MissingReturnError {
+                    at: *span,
+                    oracle_name: oracle_name.to_string(),
+                    source_code: ctx.named_source(),
+                })),
+            }
+        }
+        check_block(ctx, &sig.name, &source_span, &code)?;
+    }
 
     let oracle_def = OracleDef {
         sig,
