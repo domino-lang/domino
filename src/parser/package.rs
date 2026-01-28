@@ -909,8 +909,9 @@ pub fn handle_code(
     oracle_sig: &OracleSig,
 ) -> Result<CodeBlock, ParsePackageError> {
     let oracle_name = &oracle_sig.name;
+    ctx.scope.enter();
     let parse_ctx = ctx.parse_ctx();
-    code.into_inner()
+    let ret: Result<CodeBlock, ParsePackageError> = code.into_inner()
         .map(|stmt| {
             let span = stmt.as_span();
             let full_span = (span.start()..span.end()).into();
@@ -1257,7 +1258,10 @@ pub fn handle_code(
             Ok(stmt)
         })
         .collect::<Result<_, _>>()
-        .map(CodeBlock)
+        .map(CodeBlock);
+
+    ctx.scope.leave();
+    ret
 }
 
 #[derive(Error, Debug, Diagnostic)]
