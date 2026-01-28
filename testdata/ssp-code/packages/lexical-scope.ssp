@@ -1,0 +1,10 @@
+package Test {
+    oracle N() -> Integer {
+        if true {
+            x <- 12;
+        } else {
+            x <- 13;
+        }
+        return x;
+    }
+}
