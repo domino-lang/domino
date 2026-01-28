@@ -412,6 +412,18 @@ pub fn handle_expression(
             let rhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
             Expression::Div(Box::new(lhs), Box::new(rhs))
         }
+        Rule::expr_smaller => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::Smaller(Box::new(lhs), Box::new(rhs))
+        }
+        Rule::expr_greater => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::Greater(Box::new(lhs), Box::new(rhs))
+        }
 
         Rule::expr_and => Expression::And(
             ast.into_inner()
