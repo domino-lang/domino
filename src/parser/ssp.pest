@@ -198,7 +198,7 @@ for_ = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_co
 for_comp = { ( "<=" | "<" ) }
 table_index = { expression }
 
-expression = _{ expr_list | expr_set | expr_none | expr_untyped_none | expr_some | expr_unwrap | expr_add | expr_sub | expr_mul | expr_div | expr_smaller | expr_greater | expr_or | expr_and | expr_xor | expr_not | expr_tuple | expr_equals | expr_not_equals | expr_newtable | fn_call | table_access | literal | identifier }
+expression = _{ expr_list | expr_set | expr_none | expr_untyped_none | expr_some | expr_unwrap | expr_add | expr_sub | expr_mul | expr_div | expr_smaller | expr_greater | expr_smaller_eq | expr_greater_eq | expr_or | expr_and | expr_xor | expr_not | expr_tuple | expr_equals | expr_not_equals | expr_newtable | fn_call | table_access | literal | identifier }
 
 expr_equals   = { "("  ~ expression ~ ("==" ~ expression)+ ~ ")" }
 expr_not_equals = { "("  ~ expression ~ ("!=" ~ expression)+ ~ ")" }
@@ -208,8 +208,10 @@ expr_sub   = { "("  ~ expression ~ "-" ~ expression ~ ")" }
 expr_mul   = { "("  ~ expression ~ "*" ~ expression ~ ")" }
 expr_div   = { "("  ~ expression ~ "/" ~ expression ~ ")" }
 
-expr_smaller = { "("  ~ expression ~ "<" ~ expression ~ ")" }
-expr_greater = { "("  ~ expression ~ ">" ~ expression ~ ")" }
+expr_smaller    = { "("  ~ expression ~ "<"  ~ expression ~ ")" }
+expr_greater    = { "("  ~ expression ~ ">"  ~ expression ~ ")" }
+expr_smaller_eq = { "("  ~ expression ~ "<=" ~ expression ~ ")" }
+expr_greater_eq = { "("  ~ expression ~ ">=" ~ expression ~ ")" }
 
 expr_and   = { "("  ~ expression ~ ("and" ~ expression)+ ~ ")" }
 expr_or    = { "("  ~ expression ~ ("or"  ~ expression)+ ~ ")" }

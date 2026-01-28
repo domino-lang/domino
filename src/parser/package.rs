@@ -424,6 +424,30 @@ pub fn handle_expression(
             let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
             Expression::Greater(Box::new(lhs), Box::new(rhs))
         }
+        Rule::expr_smaller_eq => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::Smaller(
+                Box::new(lhs),
+                Box::new(Expression::Add(
+                    Box::new(rhs),
+                    Box::new(Expression::IntegerLiteral(1)),
+                )),
+            )
+        }
+        Rule::expr_greater_eq => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::Greater(
+                Box::new(Expression::Add(
+                    Box::new(lhs),
+                    Box::new(Expression::IntegerLiteral(1)),
+                )),
+                Box::new(rhs),
+            )
+        }
 
         Rule::expr_and => Expression::And(
             ast.into_inner()
