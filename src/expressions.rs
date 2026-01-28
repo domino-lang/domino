@@ -219,7 +219,9 @@ impl Expression {
             Expression::Add(lhs, rhs)
             | Expression::Sub(lhs, rhs)
             | Expression::Mul(lhs, rhs)
-            | Expression::Div(lhs, rhs) => {
+            | Expression::Div(lhs, rhs)
+            | Expression::Smaller(lhs, rhs)
+            | Expression::Greater(lhs, rhs) => {
                 lhs.as_mut().walk(f);
                 rhs.as_mut().walk(f)
             }
@@ -283,6 +285,12 @@ impl Expression {
             }
             Expression::Div(lhs, rhs) => {
                 Expression::Div(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            Expression::Smaller(lhs, rhs) => {
+                Expression::Smaller(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            Expression::Greater(lhs, rhs) => {
+                Expression::Greater(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
             Expression::FnCall(name, exprs) => Expression::FnCall(
                 name.clone(),
@@ -414,6 +422,18 @@ impl Expression {
                 let (ac, newlhs) = lhs.mapfold(ac, f);
                 let (ac, newrhs) = rhs.mapfold(ac, f);
                 (ac, Expression::Div(Box::new(newlhs), Box::new(newrhs)))
+            }
+            Expression::Smaller(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (ac, Expression::Smaller(Box::new(newlhs), Box::new(newrhs)))
+            }
+            Expression::Greater(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (ac, Expression::Greater(Box::new(newlhs), Box::new(newrhs)))
             }
             Expression::FnCall(name, exprs) => {
                 let mut ac = init;
