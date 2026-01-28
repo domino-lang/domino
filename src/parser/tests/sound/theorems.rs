@@ -3,12 +3,42 @@
 use crate::parser::{
     error::{
         AssumptionExportsNotSufficientError, AssumptionMappingContainsDifferentPackagesError,
-        ReductionPackageInstanceParameterMismatchError,
+        MissingGameParameterDefinitionError, ReductionPackageInstanceParameterMismatchError,
     },
     tests::{games, packages, slice_source_span, theorems},
     theorem::ParseTheoremError,
 };
 
+use std::collections::HashMap;
+
+#[test]
+fn missing_game_instance_params_block() {
+    let games = games::parse_files(&["tiny.ssp"], &HashMap::new());
+    let err = theorems::parse_file_fails("empty-params.ssp", &HashMap::new(), &games);
+
+    assert!(
+        matches!(
+            &err,
+            ParseTheoremError::MissingGameParameterDefinition( MissingGameParameterDefinitionError {
+                game_name,
+                game_inst_name,
+                missing_params_vec,
+                missing_params,
+                ..
+            }) if game_inst_name == "inst"
+                    && game_name == "TinyGame"
+                    && missing_params == "n"
+                    && missing_params_vec.len() == 1
+                    && missing_params_vec[0] == "n"
+        ),
+        "got instead:\n{err:?}",
+        //err = err,
+        err = miette::Report::new(err)
+    );
+
+    let report = miette::Report::new(err);
+    println!("{report:?}");
+}
 #[test]
 fn fail_reduction_assumption_is_second() {
     let pkgs = packages::parse_files(&[
