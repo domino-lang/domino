@@ -95,6 +95,19 @@ pub struct IdentifierAlreadyDeclaredError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("oracle '{oracle_name}' declares return type but lacks return statement")]
+#[diagnostic(code(domino::code::return_missing))]
+pub struct MissingReturnError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this identifier here")]
+    pub at: SourceSpan,
+
+    pub oracle_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("oracle '{oracle_name}' has already been declared")]
 #[diagnostic(code(domino::code::oracle_already_declared))]
 pub struct OracleAlreadyImportedError {

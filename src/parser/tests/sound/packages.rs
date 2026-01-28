@@ -4,7 +4,7 @@ use crate::{
     parser::{
         common::HandleTypeError,
         error::{
-            NoSuchTypeError, TypeMismatchError, UndefinedIdentifierError,
+            MissingReturnError, NoSuchTypeError, TypeMismatchError, UndefinedIdentifierError,
             WrongArgumentCountInInvocationError,
         },
         package::{ParseExpressionError, ParsePackageError},
@@ -12,6 +12,16 @@ use crate::{
     },
     types::{CountSpec, Type},
 };
+
+#[test]
+fn missing_return() {
+    let err = packages::parse_file_fails("missing-return.ssp");
+    dbg!(&err);
+    assert!(matches!(
+        err,
+        ParsePackageError::MissingReturn(MissingReturnError { .. })
+    ))
+}
 
 #[test]
 fn undefined_type_in_pkg_params() {
