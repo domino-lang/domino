@@ -34,13 +34,14 @@ kw_propositions = _{ "propositions" }
 kw_reduction = _{ "reduction" }
 kw_equivalence = _{ "equivalence" }
 kw_conjecture = _{ "conjecture" }
+kw_hybrid = _{ "hybrid" }
 kw_gamehops = _{ "gamehops" }
 kw_map = _{ "map" }
 kw_invariant = _{ "invariant" }
 kw_lemmas = _{ "lemmas" }
 
 theorem = { kw_theorem ~ identifier ~ "{" ~ theorem_spec_list ~ "}" }
-theorem_spec_list = { const_decl* ~ instance_decl* ~ assumptions? ~ game_hops ~ propositions? }
+theorem_spec_list = { const_decl* ~ instance_decl* ~ hybrid_instance_decl* ~ assumptions? ~ game_hops ~ propositions? }
   assumptions = { kw_assumptions ~ "{" ~ ( assumption_entry )* ~ "}" }
     assumption_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
@@ -48,22 +49,27 @@ theorem_spec_list = { const_decl* ~ instance_decl* ~ assumptions? ~ game_hops ~ 
     proposition_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
 
-  game_hops = { kw_gamehops ~ "{" ~ ( reduction | equivalence | conjecture )* ~ "}"}
+  game_hops = { kw_gamehops ~ "{" ~ ( reduction | equivalence | conjecture | hybrid )* ~ "}"}
 
     conjecture = { kw_conjecture ~ identifier ~ identifier }
 
     reduction = { kw_reduction ~ identifier ~ identifier ~ "{" ~ reduction_spec ~ "}"}
       reduction_spec = { assumption_spec ~ map_spec ~ map_spec }
         assumption_spec = { kw_assumption ~ identifier }
-        map_spec = { kw_map ~ identifier ~ identifier ~ map_spec_block }
-        map_spec_block = { "{" ~ ( identifier ~ ":" ~ identifier )* ~ "}" }
+        map_spec = { kw_map ~ identifier ~ ( hybrid_map_spec_ident | identifier ) ~ map_spec_block }
+          hybrid_map_spec_ident = { identifier ~ "[" ~ literal_boolean ~ "]" }
+          map_spec_block = { "{" ~ ( identifier ~ ":" ~ identifier )* ~ "}" }
 
     equivalence = { kw_equivalence ~ identifier ~ identifier ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
       equivalence_oracle = { identifier ~ ":" ~ "{" ~ invariant_spec ~ lemmas_spec ~ "}"}
         invariant_spec  = {kw_invariant ~ ":" ~ (("[" ~ path ~ (","? ~ path)* ~ "]") | path)}
         lemmas_spec = {kw_lemmas ~ "{" ~ (lemma_line)* ~ "}"}
-        lemma_line = {smt_identifier ~ ":" ~ "[" ~ ( smt_identifier  ~ ","?)* ~ "]"}
+          lemma_line = {smt_identifier ~ ":" ~ "[" ~ ( smt_identifier  ~ ","?)* ~ "]"}
 
+    hybrid = { kw_hybrid ~ identifier ~ "{" ~ hybrid_reduction ~ hybrid_equivalence ~ "}" }
+      hybrid_equivalence = { kw_equivalence ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
+      hybrid_reduction = { kw_reduction ~  "{" ~ reduction_spec ~ "}"}
+  
 smt_identifier = @{ ( ASCII_ALPHA | "_" | "-" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" )* }
 path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT |  "/" | "_" | "-" | "." )* }
 
@@ -80,6 +86,7 @@ index_id_list = _{ identifier ~ ("," ~ identifier)* }
 index_expr_list = _{ expression ~ ("," ~ expression)* }
 
 instance_decl            = { kw_instance ~ identifier ~ (indices_expr)? ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+hybrid_instance_decl     = { kw_hybrid ~ kw_instance ~ identifier ~ identifier ~ identifier ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
 instance_assign_list = { ( instance_assign )* }
 instance_assign = _{ params_def | types_def }
 

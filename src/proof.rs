@@ -224,7 +224,11 @@ fn specialize<'a>(
             .into_iter()
             .map(|(var, val)| {
                 // Find all constants that the other side of the game hop has set to identifiers
-                if let Expression::Identifier(_) = val {
+                if let Expression::Identifier(ref ident) = val {
+                    if ident.ident() == "hybrid$loop" {
+                        return (var, val);
+                    }
+
                     // find the values that our current specialization assigns to it
                     let other_val = specializations[spec_game_inst_idx]
                         .game_instance
@@ -366,6 +370,11 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
             })
             .unwrap();
         if matches!(val, Expression::Identifier(_)) {
+            if let Expression::Identifier(ident) = other_val {
+                if ident.ident() == "hybrid$loop" {
+                    return true;
+                };
+            }
             return val == other_val;
         }
         if matches!(val, Expression::BooleanLiteral(_))
@@ -375,6 +384,10 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
                 return true;
             }
             if let Expression::Identifier(ident) = other_val {
+                if ident.ident() == "hybrid$loop" {
+                    return true;
+                };
+
                 if let Entry::Vacant(e) = general_const_assignments.entry(ident) {
                     e.insert(val);
                     return true;

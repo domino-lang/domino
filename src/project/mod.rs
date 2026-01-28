@@ -197,6 +197,10 @@ impl<'a> Project<'a> {
                             conj.right_name().as_str()
                         );
                     }
+                    GameHop::Hybrid(hybrid) => {
+                        let hybrid_name = hybrid.hybrid_name().as_str();
+                        println!("hybrid: {hybrid_name}");
+                    }
                 }
             }
         }
@@ -258,6 +262,31 @@ impl<'a> Project<'a> {
                                 self, &mut ui, eq, theorem, backend, transcript, req_oracle,
                             )?;
                         }
+                    }
+                    GameHop::Hybrid(hyb) => {
+                        if parallel > 1 {
+                            equivalence::verify_parallel(
+                                self,
+                                &mut ui,
+                                hyb.equivalence(),
+                                theorem,
+                                backend,
+                                transcript,
+                                parallel,
+                                req_oracle,
+                            )?;
+                        } else {
+                            equivalence::verify(
+                                self,
+                                &mut ui,
+                                hyb.equivalence(),
+                                theorem,
+                                backend,
+                                transcript,
+                                req_oracle,
+                            )?;
+                        }
+                        //unimplemented!()
                     }
                 }
                 ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));

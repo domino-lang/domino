@@ -1,0 +1,46 @@
+theorem Hybrid {
+  const n: Integer;
+  const n_real: Integer;
+  const n_ideal: Integer;
+
+  instance real = XY {params{i:0,b:false}}
+  instance ideal = XY {params{i:n,b:true}}
+
+  instance real_assumption = Y {params{b:false}}
+  instance ideal_assumption = Y {params{b:true}}
+
+  hybrid instance h i b = XY {params{i:i, b:b}}
+
+  assumptions {
+    identity: real_assumption ~ ideal_assumption
+  }
+
+  gamehops {
+    hybrid h {
+      reduction {
+        assumption identity
+
+        map real_assumption h[false] {
+          y: y
+        }
+        map ideal_assumption h[true] {
+          y: y
+        }
+      }
+      equivalence {
+        Run: {
+          invariant: [ ./theorem/invariant.smt2 ]
+          lemmas {}
+        }
+        Eval: {
+          invariant: [ ./theorem/invariant.smt2 ]
+          lemmas {}
+        }
+      }
+    }
+  }
+
+  propositions {
+    main: real ~ ideal
+  }
+}

@@ -4,12 +4,14 @@ use std::fmt;
 
 use conjecture::Conjecture;
 use equivalence::Equivalence;
+use hybrid::Hybrid;
 use reduction::Reduction;
 
 use crate::parser::ast::Identifier;
 
 pub mod conjecture;
 pub mod equivalence;
+pub mod hybrid;
 pub mod reduction;
 //
 // TODO: add a HybridArgument variant
@@ -18,6 +20,7 @@ pub enum GameHop<'a> {
     Conjecture(Conjecture<'a>),
     Reduction(Reduction<'a>),
     Equivalence(Equivalence),
+    Hybrid(Hybrid<'a>),
 }
 
 impl<'a> GameHop<'a> {
@@ -60,6 +63,7 @@ impl<'a> GameHop<'a> {
                 reduction.left().construction_game_instance_name().as_str()
             }
             GameHop::Equivalence(equivalence) => equivalence.left_name(),
+            GameHop::Hybrid(hybrid) => hybrid.left_name(),
         }
     }
 
@@ -70,6 +74,7 @@ impl<'a> GameHop<'a> {
                 reduction.right().construction_game_instance_name().as_str()
             }
             GameHop::Equivalence(equivalence) => equivalence.right_name(),
+            GameHop::Hybrid(hybrid) => hybrid.right_name(),
         }
     }
 }
@@ -94,6 +99,14 @@ impl<'a> fmt::Display for GameHop<'a> {
                 let right_name = red.right().construction_game_instance_name().as_str();
                 let assumption = red.assumption_name();
                 write!(f, "{left_name} ~= {right_name} ({assumption})")?;
+                Ok(())
+            }
+            GameHop::Hybrid(hybrid) => {
+                // let hybrid_name = hybrid.hybrid_name().as_str();
+                // write!(f, "hybrid: {hybrid_name}")?;
+                let left_name = hybrid.equivalence().left_name();
+                let right_name = hybrid.equivalence().right_name();
+                write!(f, "{left_name} == {right_name}")?;
                 Ok(())
             }
         }

@@ -401,6 +401,7 @@ pub fn tex_write_theorem(
                                   where $\\rdv_{{{redcount}}}$ is defined in Fig.~\\ref{{{label}}}.")?;
                     redcount += 1;
                 }
+                GameHop::Hybrid(_) => todo!(),
             }
             writeln!(file, "\\end{{claim}}")?;
         }
@@ -555,6 +556,7 @@ pub fn tex_write_theorem(
                         con.right_name().as_str().replace('_', "\\_")
                     )?;
                 }
+                GameHop::Hybrid(_) => todo!(),
             }
         }
     }
