@@ -6,6 +6,7 @@ use crate::{
     expressions::Expression,
     gamehops::conjecture::Conjecture,
     gamehops::equivalence::Equivalence,
+    gamehops::hybrid::Hybrid,
     gamehops::reduction::Assumption,
     gamehops::GameHop,
     identifier::{
@@ -281,6 +282,9 @@ pub fn handle_theorem<'a>(
             Rule::instance_decl => {
                 handle_instance_decl(&mut ctx, ast, &games)?;
             }
+            Rule::hybrid_instance_decl => {
+                handle_hybrid_instance_decl(&mut ctx, ast, &games)?;
+            }
             otherwise => unreachable!("found {:?} in theorem", otherwise),
         }
     }
@@ -350,6 +354,141 @@ fn handle_instance_decl<'a>(
         consts_as_ident,
     );
     ctx.add_game_instance(game_inst);
+
+    Ok(())
+}
+
+fn handle_hybrid_instance_decl<'a>(
+    ctx: &mut ParseTheoremContext<'a>,
+    ast: Pair<'a, Rule>,
+    games: &HashMap<String, Composition>,
+) -> Result<(), ParseTheoremError> {
+    ctx.scope.enter();
+
+    if !ctx.consts.contains_key("hybrid$loop") {
+        ctx.consts.insert("hybrid$loop".to_string(), Type::Integer);
+        ctx.consts.insert("hybrid$bit".to_string(), Type::Boolean);
+    }
+
+    let mut ast = ast.into_inner();
+
+    let game_inst_name = ast.next().unwrap().as_str().to_string();
+
+    let loop_var_ast = ast.next().unwrap();
+    let _loop_var_span = loop_var_ast.as_span();
+    let loop_var_name = loop_var_ast.as_str();
+    let clone = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
+        TheoremConstIdentifier {
+            theorem_name: ctx.theorem_name.to_string(),
+            name: "hybrid$loop".to_string(),
+            ty: Type::Integer,
+            inst_info: None,
+        },
+    )));
+    ctx.declare(&loop_var_name, clone)?;
+
+    let bit_var_ast = ast.next().unwrap();
+    let _bit_var_span = bit_var_ast.as_span();
+    let bit_var_name = bit_var_ast.as_str();
+    let clone = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
+        TheoremConstIdentifier {
+            theorem_name: ctx.theorem_name.to_string(),
+            name: "hybrid$bit".to_string(),
+            ty: Type::Boolean,
+            inst_info: None,
+        },
+    )));
+    ctx.declare(&bit_var_name, clone)?;
+
+    let game_name_ast = ast.next().unwrap();
+    let game_name_span = game_name_ast.as_span();
+    let game_name = game_name_ast.as_str();
+
+    let body_ast = ast.next().unwrap();
+
+    let game = games.get(game_name).ok_or(UndefinedGameError {
+        source_code: ctx.named_source(),
+        at: (game_name_span.start()..game_name_span.end()).into(),
+        game_name: game_name.to_string(),
+    })?;
+
+    let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
+
+    let (hybrid_const, consts_as_ident): (Vec<_>, Vec<_>) = consts
+        .iter()
+        .map(|(ident, expr)| (ident.clone(), expr.clone()))
+        .partition(|(ident, _expr)| ident.name == loop_var_name || ident.name == bit_var_name);
+    let loopvar_const = hybrid_const
+        .iter()
+        .find(|(ident, _expr)| ident.name == loop_var_name);
+    let bitvar_const = hybrid_const
+        .iter()
+        .find(|(ident, _expr)| ident.name == bit_var_name);
+
+    let mut patched_consts = consts_as_ident.clone();
+    if let Some(loopvar_const) = loopvar_const {
+        patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
+    }
+    if let Some(bitvar_const) = bitvar_const {
+        patched_consts.push((
+            bitvar_const.0.clone(),
+            Expression::BooleanLiteral("false".to_string()),
+        ))
+    }
+    let game_inst = GameInstance::new(
+        format!("{game_inst_name}$current$real"),
+        ctx.theorem_name.to_string(),
+        game.clone(),
+        types.clone(),
+        patched_consts,
+    );
+    ctx.add_game_instance(game_inst);
+
+    let mut patched_consts = consts_as_ident.clone();
+    if let Some(loopvar_const) = loopvar_const {
+        patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
+    }
+    if let Some(bitvar_const) = bitvar_const {
+        patched_consts.push((
+            bitvar_const.0.clone(),
+            Expression::BooleanLiteral("true".to_string()),
+        ))
+    }
+    let game_inst = GameInstance::new(
+        format!("{game_inst_name}$current$ideal"),
+        ctx.theorem_name.to_string(),
+        game.clone(),
+        types.clone(),
+        patched_consts,
+    );
+    ctx.add_game_instance(game_inst);
+
+    let mut patched_consts = consts_as_ident;
+    if let Some(loopvar_const) = loopvar_const {
+        patched_consts.push((
+            loopvar_const.0.clone(),
+            Expression::Add(
+                Box::new(loopvar_const.1.clone()),
+                Box::new(Expression::IntegerLiteral(1)),
+            ),
+        ))
+    }
+    if let Some(bitvar_const) = bitvar_const {
+        patched_consts.push((
+            bitvar_const.0.clone(),
+            Expression::BooleanLiteral("false".to_string()),
+        ))
+    }
+    let game_inst = GameInstance::new(
+        format!("{game_inst_name}$next$real"),
+        ctx.theorem_name.to_string(),
+        game.clone(),
+        types,
+        patched_consts,
+    );
+    ctx.add_game_instance(game_inst);
+
+    ctx.scope.leave();
 
     Ok(())
 }
@@ -486,6 +625,7 @@ fn handle_game_hops<'a>(
         let game_hop = match hop_ast.as_rule() {
             Rule::conjecture => handle_conjecture(ctx, hop_ast)?,
             Rule::equivalence => handle_equivalence(ctx, hop_ast)?,
+            Rule::hybrid => handle_hybrid(ctx, hop_ast)?,
             Rule::reduction => super::reduction::handle_reduction(ctx, hop_ast)?,
             otherwise => unreachable!("found {:?} in game_hops", otherwise),
         };
@@ -493,6 +633,72 @@ fn handle_game_hops<'a>(
     }
 
     Ok(())
+}
+
+pub(crate) fn handle_hybrid<'a>(
+    ctx: &mut ParseTheoremContext<'a>,
+    ast: Pair<'a, Rule>,
+) -> Result<GameHop<'a>, ParseTheoremError> {
+    let mut ast = ast.into_inner();
+
+    let hybrid_name_ast = ast.next().unwrap();
+    let reduction_ast = ast.next().unwrap();
+    debug_assert_eq!(reduction_ast.as_rule(), Rule::hybrid_reduction);
+    let equivalence_ast = ast.next().unwrap();
+    debug_assert_eq!(equivalence_ast.as_rule(), Rule::hybrid_equivalence);
+
+    let left_equiv_name = format!("{}$current$ideal", hybrid_name_ast.as_str());
+    let right_equiv_name = format!("{}$next$real", hybrid_name_ast.as_str());
+
+    let reduction = {};
+
+    let equivalence = {
+        let equivalence_data: Vec<_> = equivalence_ast
+            .into_inner()
+            .map(handle_equivalence_oracle)
+            .collect();
+
+        let trees: Vec<_> = equivalence_data
+            .iter()
+            .cloned()
+            .map(|(oracle_name, _, lemmas)| {
+                (
+                    oracle_name,
+                    lemmas.into_iter().map(Claim::from_tuple).collect(),
+                )
+            })
+            .collect();
+
+        let invariants: Vec<_> = equivalence_data
+            .iter()
+            .cloned()
+            .map(|(oracle_name, inv_paths, _)| (oracle_name, inv_paths))
+            .collect();
+
+        if ctx.game_instance(&left_equiv_name).is_none() {
+            return Err(UndefinedGameInstanceError {
+                source_code: ctx.named_source(),
+                at: (hybrid_name_ast.as_span().start()..hybrid_name_ast.as_span().end()).into(),
+                game_inst_name: hybrid_name_ast.as_str().to_string(),
+            }
+            .into());
+        }
+        if ctx.game_instance(&right_equiv_name).is_none() {
+            return Err(UndefinedGameInstanceError {
+                source_code: ctx.named_source(),
+                at: (hybrid_name_ast.as_span().start()..hybrid_name_ast.as_span().end()).into(),
+                game_inst_name: hybrid_name_ast.as_str().to_string(),
+            }
+            .into());
+        }
+
+        Equivalence::new(left_equiv_name, right_equiv_name, invariants, trees)
+    };
+
+    Ok(GameHop::Hybrid(Hybrid::new(
+        hybrid_name_ast.into(),
+        equivalence,
+    )))
 }
 
 pub(crate) fn handle_conjecture<'a>(
