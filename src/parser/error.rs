@@ -2,6 +2,7 @@
 
 use std::fmt::{Debug, Display};
 
+use crate::util::scope::Error as ScopeError;
 use miette::{Diagnostic, SourceSpan};
 use pest::error::ErrorVariant;
 use thiserror::Error;
@@ -39,6 +40,20 @@ impl Display for PestErrorVariantPrinter {
 
         Ok(())
     }
+}
+
+#[derive(Error, Diagnostic, Debug)]
+#[error("scope error: '{}'", related[0])]
+#[diagnostic(code(domino::code::scope_error))]
+pub struct ParserScopeError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("here")]
+    pub at: SourceSpan,
+
+    #[related]
+    pub related: Vec<ScopeError>,
 }
 
 #[derive(Error, Diagnostic, Debug)]
