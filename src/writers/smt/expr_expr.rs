@@ -4,21 +4,23 @@ use super::exprs::SmtExpr;
 use crate::expressions::Expression;
 use crate::expressions::ExpressionKind;
 use crate::types::Type;
+use crate::types::TypeKind;
 
 impl From<Expression> for SmtExpr {
     fn from(expr: Expression) -> SmtExpr {
         match expr.into_kind() {
-            ExpressionKind::EmptyTable(t) => {
-                if let Type::Table(idxty, valty) = t {
+            ExpressionKind::EmptyTable(t) => match t.into_kind() {
+                TypeKind::Table(idxty, valty) => (
                     (
-                        ("as", "const", ("Array", *idxty, Type::Maybe(valty.clone()))),
-                        ("as", "mk-none", Type::Maybe(valty)),
-                    )
-                        .into()
-                } else {
-                    panic!("Empty table of type {t:?}")
-                }
-            }
+                        "as",
+                        "const",
+                        ("Array", *idxty, Type::maybe(*valty.clone())),
+                    ),
+                    ("as", "mk-none", Type::maybe(*valty)),
+                )
+                    .into(),
+                other => panic!("Empty table of type {other:?}"),
+            },
             ExpressionKind::Unwrap(inner) => {
                 panic!("found an unwrap and don't knwo what to do with it -- {inner:?}");
                 //panic!("unwrap expressions need to be on the right hand side of an assign!");
@@ -30,7 +32,7 @@ impl From<Expression> for SmtExpr {
             ExpressionKind::None(inner) => SmtExpr::List(vec![
                 SmtExpr::Atom("as".into()),
                 SmtExpr::Atom("mk-none".into()),
-                Type::Maybe(Box::new(inner)).into(),
+                Type::maybe(inner).into(),
             ]),
             ExpressionKind::StringLiteral(litname) => SmtExpr::Atom(format!("\"{litname}\"")),
             ExpressionKind::BooleanLiteral(litname) => SmtExpr::Atom(litname),

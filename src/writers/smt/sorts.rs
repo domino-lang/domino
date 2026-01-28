@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 use super::exprs::SmtExpr;
 
@@ -28,11 +28,11 @@ impl From<Sort> for SmtlibSort {
 
 impl From<&Type> for SmtlibSort {
     fn from(ty: &Type) -> Self {
-        match ty {
-            Type::Integer => theories::ints::int(),
-            Type::String => "String".into(),
-            Type::Boolean => theories::core::bool_(),
-            Type::Bits(length) => {
+        match ty.kind() {
+            TypeKind::Integer => theories::ints::int(),
+            TypeKind::String => "String".into(),
+            TypeKind::Boolean => theories::core::bool_(),
+            TypeKind::Bits(length) => {
                 let length = match length {
                     crate::types::CountSpec::Identifier(identifier) => identifier.ident(),
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
@@ -40,31 +40,31 @@ impl From<&Type> for SmtlibSort {
                 };
                 format!("Bits_{length}").into()
             }
-            Type::Table(ty_idx, ty_val) => SmtlibSort {
+            TypeKind::Table(ty_idx, ty_val) => SmtlibSort {
                 name: "Array".into(),
                 parameters: vec![
                     (**ty_idx).clone().into(),
-                    Type::Maybe((*ty_val).clone()).into(),
+                    Type::maybe(*ty_val.clone()).into(),
                 ],
             },
-            Type::Maybe(ty) => SmtlibSort {
+            TypeKind::Maybe(ty) => SmtlibSort {
                 name: "Maybe".into(),
                 parameters: vec![(**ty).clone().into()],
             },
 
-            Type::Tuple(tys) => SmtlibSort {
+            TypeKind::Tuple(tys) => SmtlibSort {
                 name: format!("Tuple{}", tys.len()).into(),
                 parameters: tys.iter().map(|ty| ty.into()).collect(),
             },
 
-            Type::UserDefined(_) => todo!(),
-            Type::Set(_) => todo!(),
-            Type::List(_) => todo!(),
-            Type::Fn(_, _) => todo!(),
-            Type::AddiGroupEl(_) => todo!(),
-            Type::MultGroupEl(_) => todo!(),
-            Type::Empty => todo!(),
-            Type::Unknown => todo!(),
+            TypeKind::UserDefined(_) => todo!(),
+            TypeKind::Set(_) => todo!(),
+            TypeKind::List(_) => todo!(),
+            TypeKind::Fn(_, _) => todo!(),
+            TypeKind::AddiGroupEl(_) => todo!(),
+            TypeKind::MultGroupEl(_) => todo!(),
+            TypeKind::Empty => todo!(),
+            TypeKind::Unknown => todo!(),
         }
     }
 }
@@ -87,8 +87,8 @@ pub enum Sort {
 
 impl From<Type> for Sort {
     fn from(value: Type) -> Self {
-        match value {
-            Type::Bits(length) => {
+        match value.into_kind() {
+            TypeKind::Bits(length) => {
                 let length = match &length {
                     crate::types::CountSpec::Identifier(identifier) => identifier.ident(),
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
@@ -97,25 +97,25 @@ impl From<Type> for Sort {
 
                 Sort::Other(format!("Bits_{length}"), vec![])
             }
-            Type::Maybe(t) => Sort::Other("Maybe".to_string(), vec![(*t).into()]),
-            Type::Boolean => Sort::Bool,
-            Type::Empty => Sort::Other("Empty".to_string(), vec![]),
-            Type::Integer => Sort::Int,
-            Type::Table(t_idx, t_val) => {
-                Sort::Array(Box::new(((*t_idx).into(), Type::Maybe(t_val).into())))
+            TypeKind::Maybe(t) => Sort::Other("Maybe".to_string(), vec![(*t).into()]),
+            TypeKind::Boolean => Sort::Bool,
+            TypeKind::Empty => Sort::Other("Empty".to_string(), vec![]),
+            TypeKind::Integer => Sort::Int,
+            TypeKind::Table(t_idx, t_val) => {
+                Sort::Array(Box::new(((*t_idx).into(), Type::maybe(*t_val).into())))
             }
-            Type::Tuple(types) => Sort::Other(
+            TypeKind::Tuple(types) => Sort::Other(
                 format!("Tuple{}", types.len()),
                 types.into_iter().map(|ty| ty.into()).collect(),
             ),
-            Type::Unknown => todo!(),
-            Type::String => todo!(),
-            Type::AddiGroupEl(_) => todo!(),
-            Type::MultGroupEl(_) => todo!(),
-            Type::List(_) => todo!(),
-            Type::Set(_) => todo!(),
-            Type::Fn(_, _) => todo!(),
-            Type::UserDefined(_) => todo!(),
+            TypeKind::Unknown => todo!(),
+            TypeKind::String => todo!(),
+            TypeKind::AddiGroupEl(_) => todo!(),
+            TypeKind::MultGroupEl(_) => todo!(),
+            TypeKind::List(_) => todo!(),
+            TypeKind::Set(_) => todo!(),
+            TypeKind::Fn(_, _) => todo!(),
+            TypeKind::UserDefined(_) => todo!(),
         }
     }
 }

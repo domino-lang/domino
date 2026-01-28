@@ -6,7 +6,7 @@ use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
 use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 pub type Error = Infallible;
 
@@ -61,13 +61,10 @@ pub fn tableinitialize(
                 ref file_pos,
             ) => {
                 let indextype = idxexpr.get_type();
-                let Type::Maybe(valuetype) = expr.get_type() else {
+                let TypeKind::Maybe(valuetype) = expr.get_type().into_kind() else {
                     unreachable!("all expressions are expected to be typed at this point, and the value needs to be a maybe type! ({:?})", file_pos);
                 };
-                let tabletype = Type::Table(
-                    Box::new(indextype.clone()),
-                    Box::new(valuetype.as_ref().clone()),
-                );
+                let tabletype = Type::table(indextype.clone(), valuetype.as_ref().clone());
 
                 debug_assert_eq!(*ty, tabletype);
 
@@ -91,7 +88,7 @@ pub fn tableinitialize(
                 ref file_pos,
             ) => {
                 let indextype = idxexpr.get_type();
-                let tabletype = Type::Table(Box::new(indextype.clone()), Box::new(ty.clone()));
+                let tabletype = Type::table(indextype.clone(), ty.clone());
 
                 debug_assert_eq!(*id_ty, tabletype);
 
@@ -116,10 +113,9 @@ pub fn tableinitialize(
                 let indextype = idxexpr.get_type();
                 let valuetype = match opt_ret_ty {
                     Some(t) => t.to_owned(),
-                    _ => Type::Empty,
+                    _ => Type::empty(),
                 };
-                let tabletype =
-                    Type::Table(Box::new(indextype.clone()), Box::new(valuetype.clone()));
+                let tabletype = Type::table(indextype.clone(), valuetype.clone());
 
                 if !new_initialized.contains(id) {
                     new_initialized.push(id.clone());

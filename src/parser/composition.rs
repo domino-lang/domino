@@ -351,7 +351,7 @@ pub fn handle_compose_assign_list_multi_inst(
                         .unwrap()
                         .into_inner()
                         .map(|e| {
-                            handle_expression(&ctx.parse_ctx(), e, Some(&Type::Integer))
+                            handle_expression(&ctx.parse_ctx(), e, Some(&Type::integer()))
                                 .map_err(ParseGameError::ParseExpression)
                         })
                         .collect::<Result<Vec<Expression>, ParseGameError>>()?,
@@ -569,7 +569,7 @@ fn handle_export_compose_assign_list_multi_inst(
                     .next()
                     .unwrap()
                     .into_inner()
-                    .map(|idx| handle_expression(&ctx.parse_ctx(), idx, Some(&Type::Integer)))
+                    .map(|idx| handle_expression(&ctx.parse_ctx(), idx, Some(&Type::integer())))
                     .collect()
             })
             .transpose()?;
@@ -673,7 +673,7 @@ fn handle_edges_compose_assign_list_multi_inst(
                     .next()
                     .unwrap()
                     .into_inner()
-                    .map(|idx| handle_expression(&ctx.parse_ctx(), idx, Some(&Type::Integer)))
+                    .map(|idx| handle_expression(&ctx.parse_ctx(), idx, Some(&Type::integer())))
                     .collect()
             })
             .transpose()?;
@@ -780,11 +780,13 @@ pub fn handle_for_loop<'a>(
 ) -> Result<(), ParseGameError> {
     let mut parsed: Vec<Pair<Rule>> = ast.into_inner().collect();
     let decl_var_name = parsed[0].as_str();
-    let lower_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(1), Some(&Type::Integer))?;
+    let lower_bound =
+        handle_expression(&ctx.parse_ctx(), parsed.remove(1), Some(&Type::integer()))?;
     let lower_bound_type = parsed[1].as_str();
     let bound_var_name = parsed[2].as_str();
     let upper_bound_type = parsed[3].as_str();
-    let upper_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(4), Some(&Type::Integer))?;
+    let upper_bound =
+        handle_expression(&ctx.parse_ctx(), parsed.remove(4), Some(&Type::integer()))?;
     let body_ast = parsed.remove(4);
 
     if decl_var_name != bound_var_name {
@@ -933,7 +935,7 @@ pub fn handle_instance_decl_multi_inst<'a>(
     let indices_ast = inner.next().unwrap();
     let indices = indices_ast
         .into_inner()
-        .map(|index_ast| handle_expression(&ctx.parse_ctx(), index_ast, Some(&Type::Integer)))
+        .map(|index_ast| handle_expression(&ctx.parse_ctx(), index_ast, Some(&Type::integer())))
         .collect::<Result<Vec<_>, _>>()?;
 
     let pkg_name_ast = inner.next().unwrap();
@@ -1037,7 +1039,7 @@ pub fn handle_instance_decl<'a>(
         Rule::index_id_list => {
             let indices_ast = index_or_pkgname.into_inner();
             let indices: Vec<_> = indices_ast
-                .map(|index| handle_expression(&ctx.parse_ctx(), index, Some(&Type::Integer)))
+                .map(|index| handle_expression(&ctx.parse_ctx(), index, Some(&Type::integer())))
                 .collect::<Result<_, _>>()?;
 
             let pkg_name_ast = inner.next().unwrap();

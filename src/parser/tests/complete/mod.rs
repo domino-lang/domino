@@ -14,7 +14,7 @@ use crate::{
     },
     statement::Statement,
     theorem::{Claim, ClaimType},
-    types::{CountSpec, Type},
+    types::{CountSpec, Type, TypeKind},
     util::prover_process::ProverBackend,
 };
 use std::{
@@ -54,7 +54,7 @@ fn tiny_game_without_packages() {
 
     assert_eq!(game.name, "TinyGame");
     assert_eq!(game.consts[0].0, "n");
-    assert_eq!(game.consts[0].1, Type::Integer);
+    assert_eq!(game.consts[0].1, Type::integer());
     assert_eq!(game.consts.len(), 1);
     assert!(game.pkgs.is_empty());
 }
@@ -66,10 +66,10 @@ fn tiny_package() {
     assert_eq!(name, "TinyPkg");
     assert_eq!(pkg.params.len(), 1);
     assert_eq!(pkg.params[0].0, "n");
-    assert_eq!(pkg.params[0].1, Type::Integer);
+    assert_eq!(pkg.params[0].1, Type::integer());
     assert_eq!(pkg.oracles.len(), 1);
     assert_eq!(pkg.oracles[0].sig.name, "N");
-    assert_eq!(pkg.oracles[0].sig.ty, Type::Integer);
+    assert_eq!(pkg.oracles[0].sig.ty, Type::integer());
     assert!(pkg.oracles[0].sig.args.is_empty());
     assert!(pkg.imports.is_empty());
 }
@@ -83,7 +83,7 @@ fn small_game() {
     assert_eq!(game.name, "SmallGame");
     assert_eq!(game.consts.len(), 1);
     assert_eq!(game.consts[0].0, "n");
-    assert_eq!(game.consts[0].1, Type::Integer);
+    assert_eq!(game.consts[0].1, Type::integer());
     assert_eq!(game.pkgs.len(), 1);
     assert_eq!(game.pkgs[0].name, "tiny_instance");
     assert_eq!(game.pkgs[0].params.len(), 1);
@@ -93,7 +93,7 @@ fn small_game() {
         Expression::from_kind(ExpressionKind::Identifier(Identifier::GameIdentifier(
             GameIdentifier::Const(GameConstIdentifier {
                 name: "n".to_string(),
-                ty: Type::Integer,
+                ty: Type::integer(),
                 game_name: "SmallGame".to_string(),
                 game_inst_name: None,
                 theorem_name: None,
@@ -111,10 +111,10 @@ fn small_for_package() {
     assert_eq!(name, "SmallForPkg");
     assert_eq!(pkg.params.len(), 1);
     assert_eq!(pkg.params[0].0, "n");
-    assert_eq!(pkg.params[0].1, Type::Integer);
+    assert_eq!(pkg.params[0].1, Type::integer());
     assert_eq!(pkg.oracles.len(), 1);
     assert_eq!(pkg.oracles[0].sig.name, "Sum");
-    assert_eq!(pkg.oracles[0].sig.ty, Type::Integer);
+    assert_eq!(pkg.oracles[0].sig.ty, Type::integer());
     assert!(pkg.oracles[0].sig.args.is_empty());
 }
 
@@ -232,7 +232,7 @@ fn game_instantiating_with_literal_works() {
             GameIdentifier::Const(GameConstIdentifier {
                 game_name: "ConstructionReal".to_string(),
                 name: "n".to_string(),
-                ty: Type::Integer,
+                ty: Type::integer(),
                 game_inst_name: None,
                 theorem_name: None,
                 inst_info: None,
@@ -250,18 +250,22 @@ fn package_empty_loop_works() {
     assert_eq!(name, "EmptyLoop");
     assert_eq!(pkg.params.len(), 1);
     assert_eq!(pkg.params[0].0, "n");
-    assert_eq!(pkg.params[0].1, Type::Integer);
+    assert_eq!(pkg.params[0].1, Type::integer());
     assert_eq!(pkg.oracles.len(), 2);
     assert_eq!(pkg.oracles[0].sig.name, "Set");
-    assert_eq!(pkg.oracles[0].sig.ty, Type::Empty);
+    assert_eq!(pkg.oracles[0].sig.ty, Type::empty());
 
+    let (name, ty) = &pkg.oracles[0].sig.args[0];
+    assert_eq!(name, &k);
     assert!(matches!(
-            &pkg.oracles[0].sig.args[0],
-            (name, Type::Bits(bitlen)) if name == &k && matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
+    ty.kind(),
+            TypeKind::Bits(bitlen) if matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
 
+    let (name, ty) = &pkg.oracles[0].sig.args[1];
+    assert_eq!(name, &h);
     assert!(matches!(
-            &pkg.oracles[0].sig.args[1],
-            (name, Type::Bits(bitlen)) if name == &h && matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
+    ty.kind(),
+            TypeKind::Bits(bitlen) if matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
 
     assert!(pkg.imports.is_empty());
     assert!(

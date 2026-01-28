@@ -6,7 +6,7 @@ use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, OracleSig, Package};
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
-use crate::types::{CountSpec, Type};
+use crate::types::{CountSpec, Type, TypeKind};
 
 type Result = std::fmt::Result;
 
@@ -48,22 +48,22 @@ impl<W: Write> FmtWriter<W> {
     }
 
     pub fn write_type(&mut self, t: &Type) -> Result {
-        match t {
-            Type::String => self.write_string("String"),
-            Type::Integer => self.write_string("Integer"),
-            Type::Boolean => self.write_string("Boolean"),
-            Type::Empty => self.write_string("Empty"),
-            Type::Bits(n) => {
+        match t.kind() {
+            TypeKind::String => self.write_string("String"),
+            TypeKind::Integer => self.write_string("Integer"),
+            TypeKind::Boolean => self.write_string("Boolean"),
+            TypeKind::Empty => self.write_string("Empty"),
+            TypeKind::Bits(n) => {
                 self.write_string("Bits(")?;
                 self.write_string(&format!("{n}"))?;
                 self.write_string(")")
             }
-            Type::Maybe(t) => {
+            TypeKind::Maybe(t) => {
                 self.write_string("Maybe(")?;
                 self.write_type(t)?;
                 self.write_string(")")
             }
-            Type::Tuple(types) => {
+            TypeKind::Tuple(types) => {
                 self.write_string("(")?;
                 let mut maybe_comma = "";
                 for ty in types {
@@ -73,16 +73,16 @@ impl<W: Write> FmtWriter<W> {
                 }
                 self.write_string(")")
             }
-            Type::Table(t_key, t_value) => {
+            TypeKind::Table(t_key, t_value) => {
                 self.write_string("Table(")?;
                 self.write_type(t_key)?;
                 self.write_string(", ")?;
                 self.write_type(t_value)?;
                 self.write_string(")")
             }
-            Type::UserDefined(type_name) => self.write_string(type_name),
-            Type::Unknown => self.write_string("Unknown"),
-            Type::Fn(args, ret) => {
+            TypeKind::UserDefined(type_name) => self.write_string(type_name),
+            TypeKind::Unknown => self.write_string("Unknown"),
+            TypeKind::Fn(args, ret) => {
                 self.write_string("fn ")?;
                 let mut maybe_comma = "";
                 for ty in args {

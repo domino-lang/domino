@@ -66,7 +66,7 @@ impl<'a> DatastructurePattern<'a> for PackageConstsPattern<'a> {
             // function parameters are just declared as smtlib functions globally, so we don't
             // want them to be part of this datatype. This way we also stay compatible with
             // solvers that don't support higher-order functions.
-            .filter(|(_name, ty, _)| !matches!(ty, crate::types::Type::Fn(_, _)))
+            .filter(|(_name, ty, _)| !matches!(ty.kind(), crate::types::TypeKind::Fn(_, _)))
             .map(|(name, ty, _)| PackageConstsSelector { name, ty })
             .collect();
 

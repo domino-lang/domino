@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    expressions::Expression,
-    expressions::ExpressionKind,
+    expressions::{Expression, ExpressionKind},
     identifier::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
         Identifier,
     },
-    types::Type,
+    types::{Type, TypeKind},
 };
 use sspverif_smtlib::{
     syntax::{
@@ -21,7 +20,7 @@ use sspverif_smtlib::{
 
 fn build_none(ty: Type) -> Term {
     Term::Base(
-        QualifiedIdentifier("mk-none".into(), Some(Type::Maybe(Box::new(ty)).into())),
+        QualifiedIdentifier("mk-none".into(), Some(Type::maybe(ty).into())),
         vec![],
     )
 }
@@ -34,14 +33,13 @@ impl From<Expression> for Term {
     fn from(expr: Expression) -> Self {
         let ty = expr.get_type();
         match expr.into_kind() {
-            ExpressionKind::EmptyTable(t) => {
-                if let Type::Table(ty_idx, ty_val) = t {
+            ExpressionKind::EmptyTable(t) => match t.into_kind() {
+                TypeKind::Table(ty_idx, ty_val) => {
                     let none = build_none(*ty_val.clone());
                     sspverif_smtlib::theories::array_ex::const_(*ty_idx, *ty_val, none)
-                } else {
-                    panic!("Empty table of type {t:?}")
                 }
-            }
+                other => panic!("Empty table of type {other:?}"),
+            },
             ExpressionKind::Unwrap(inner) => {
                 panic!("found an unwrap and don't knwo what to do with it -- {inner:?}");
                 //panic!("unwrap expressions need to be on the right hand side of an assign!");

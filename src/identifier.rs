@@ -236,8 +236,8 @@ pub mod pkg_ident {
                 PackageIdentifier::Local(local_ident) => local_ident.ty.clone(),
                 PackageIdentifier::OracleArg(arg_ident) => arg_ident.ty.clone(),
                 PackageIdentifier::OracleImport(oracle_import) => oracle_import.return_type.clone(),
-                PackageIdentifier::ImportsLoopVar(_loopvar) => Type::Integer,
-                PackageIdentifier::CodeLoopVar(_loopvar) => Type::Integer,
+                PackageIdentifier::ImportsLoopVar(_loopvar) => Type::integer(),
+                PackageIdentifier::CodeLoopVar(_loopvar) => Type::integer(),
             }
         }
 
@@ -523,7 +523,7 @@ pub mod game_ident {
         pub(crate) fn get_type(&self) -> Type {
             match self {
                 GameIdentifier::Const(const_ident) => const_ident.ty.clone(),
-                GameIdentifier::LoopVar(_local_ident) => Type::Integer,
+                GameIdentifier::LoopVar(_local_ident) => Type::integer(),
             }
         }
 
@@ -679,7 +679,7 @@ pub mod theorem_ident {
         pub(crate) fn get_type(&self) -> Type {
             match self {
                 TheoremIdentifier::Const(const_ident) => const_ident.ty.clone(),
-                TheoremIdentifier::LoopVar(_local_ident) => Type::Integer,
+                TheoremIdentifier::LoopVar(_local_ident) => Type::integer(),
             }
         }
     }

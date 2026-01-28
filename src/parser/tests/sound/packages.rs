@@ -10,7 +10,7 @@ use crate::{
         package::{ParseExpressionError, ParsePackageError},
         tests::{packages, slice_source_span},
     },
-    types::{CountSpec, Type},
+    types::{CountSpec, Type, TypeKind},
 };
 
 #[test]
@@ -62,8 +62,8 @@ fn type_mismatch_in_assignment_to_statevar() {
                 source_code,
             },
         )) => {
-            assert_eq!(expected, Type::Integer);
-            assert_eq!(got, Type::Boolean);
+            assert_eq!(expected, Type::integer());
+            assert_eq!(got, Type::boolean());
             assert_eq!(slice_source_span(&source_code, &at), "false");
         }
         other => {
@@ -80,14 +80,14 @@ fn wrong_return_type_fails() {
 
     assert!(
         matches!(
-            err,
+            &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                 TypeMismatchError {
-                    expected: Type::String,
-                    got: Type::Integer,
+                     expected,
+                     got,
                     ..
                 }
-            ))
+            )) if matches!(expected.kind(), TypeKind::String) && matches!(got.kind(), TypeKind::Integer)
         ),
         "expected a different error, got {err:#?}"
     )
@@ -114,15 +114,17 @@ fn bad_add_fails_1() {
 
     assert!(
         matches!(
-            err,
+            &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                     TypeMismatchError {
-                        expected: Type::Integer,
-                        got: Type::Boolean,
+                        expected,
+                        got,
                         ref at,
                         ref source_code,
                     }
                 )) if slice_source_span(source_code, at) == "true"
+                    && matches!(expected.kind(), TypeKind::Integer)
+                    && matches!(got.kind(),  TypeKind::Boolean)
         ),
         "got: {err:#?}"
     );
@@ -136,15 +138,17 @@ fn bad_add_fails_2() {
 
     assert!(
         matches!(
-            err,
+            &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                     TypeMismatchError {
-                        expected: Type::Integer,
-                        got: Type::Boolean,
+                        expected,
+                        got,
                         ref at,
                         ref source_code,
                     }
             )) if slice_source_span(source_code, at) == "true"
+                && matches!(expected.kind(), TypeKind::Integer)
+                && matches!(got.kind(),  TypeKind::Boolean)
         ),
         "got: {err:#?}"
     );
@@ -158,15 +162,17 @@ fn bad_add_fails_3() {
 
     assert!(
         matches!(
-            err,
+            &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                     TypeMismatchError {
-                        expected: Type::Integer,
-                        got: Type::Boolean,
+                        expected,
+                        got,
                         ref at,
                         ref source_code,
                     }
             )) if slice_source_span(source_code, at) == "true"
+                && matches!(expected.kind(), TypeKind::Integer)
+                && matches!(got.kind(),  TypeKind::Boolean)
         ),
         "got: {err:#?}"
     );
@@ -180,17 +186,20 @@ fn bad_add_fails_4() {
 
     assert!(
         matches!(
-            err,
+            &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                     TypeMismatchError {
-                        expected: Type::Boolean,
-                        got: Type::Integer,
+                        expected,
+                        got,
                         ref at,
                         ref source_code,
-                    },
+                    }
             )) if slice_source_span(source_code, at) == "(3 + 2)"
+                && matches!(expected.kind(), TypeKind::Boolean)
+                && matches!(got.kind(),  TypeKind::Integer)
         ),
-        "got: {err:#?}"
+        "got: {err:#?}",
+        //err = miette::Report::new(err),
     );
 
     println!("{:?}", miette::Report::new(err));
@@ -204,11 +213,15 @@ fn loop_start_non_integer_fails() {
             &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                 TypeMismatchError {
-                    expected: Type::Integer,
-                    got: Type::Bits(countspec),
+                    expected,
+                    got,
                     ..
                 }
-            )) if matches!(&*countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n")));
+            ))  if matches!(expected.kind(), TypeKind::Integer)
+                && matches!(got.kind(),  TypeKind::Bits(countspec)
+                    if matches!(&*countspec, CountSpec::Identifier(ident)
+                        if ident.ident_ref() == "n"))
+    ));
 }
 
 #[test]
@@ -219,11 +232,14 @@ fn loop_end_non_integer_fails() {
             &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                 TypeMismatchError {
-                    expected: Type::Integer,
-                    got: Type::Bits(countspec),
+                    expected,
+                    got,
                     ..
                 }
-            )) if matches!(&*countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n")));
+            ))  if matches!(expected.kind(),  TypeKind::Integer)
+                && matches!(got.kind(), TypeKind::Bits(countspec)
+                    if matches!(&*countspec, CountSpec::Identifier(ident)
+                        if ident.ident_ref() == "n"))));
 }
 
 #[test]
@@ -235,11 +251,12 @@ fn invoke_wrong_argument_types() {
             &err,
             ParsePackageError::ParseExpression(ParseExpressionError::TypeMismatch(
                 TypeMismatchError {
-                    expected: Type::Integer,
-                    got: Type::Bits(_),
+                    expected,
+                    got,
                     ..
                 }
-            ))
+            ))  if matches!(expected.kind(),  TypeKind::Integer)
+                && matches!(got.kind(), TypeKind::Bits(_))
         ),
         "{:?}",
         miette::Report::new(err)

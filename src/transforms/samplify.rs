@@ -230,13 +230,13 @@ mod test {
     #[test]
     fn name_and_id_set() {
         let pos: SourceSpan = (0..0).into();
-        let d = local_ident("d", Type::Integer);
+        let d = local_ident("d", Type::integer());
 
         let code = block! {
             Statement::Sample(d.clone(),     // identifier
                               None,          // tableindex
                               None,          // sample-id
-                              Type::Integer, // type
+                              Type::integer(), // type
                               None,          // sample-name
                               pos)           // source-position
 
@@ -255,19 +255,19 @@ mod test {
     #[test]
     fn name_counts_named() {
         let pos: SourceSpan = (0..0).into();
-        let d = local_ident("d", Type::Integer);
+        let d = local_ident("d", Type::integer());
 
         let code = block! {
             Statement::Sample(d.clone(),             // identifier
                               None,                  // tableindex
                               None,                  // sample-id
-                              Type::Integer,         // type
+                              Type::integer(),         // type
                               Some("a".to_string()), // sample-name
                               pos),                  // source-position
             Statement::Sample(d.clone(),     // identifier
                               None,          // tableindex
                               None,          // sample-id
-                              Type::Integer, // type
+                              Type::integer(), // type
                               None,          // sample-name
                               pos)           // source-position
         };

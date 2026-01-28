@@ -3,7 +3,7 @@
 use std::ops::Deref as _;
 
 use crate::identifier::Identifier;
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Expression {
@@ -490,40 +490,36 @@ impl ExpressionKind {
 
     pub fn get_type(&self) -> Type {
         match self {
-            ExpressionKind::Bot => Type::Empty,
+            ExpressionKind::Bot => Type::empty(),
             ExpressionKind::Sample(ty) => ty.clone(),
-            ExpressionKind::StringLiteral(_) => Type::String,
-            ExpressionKind::BooleanLiteral(_) => Type::Boolean,
-            ExpressionKind::IntegerLiteral(_) => Type::Integer,
+            ExpressionKind::StringLiteral(_) => Type::string(),
+            ExpressionKind::BooleanLiteral(_) => Type::boolean(),
+            ExpressionKind::IntegerLiteral(_) => Type::integer(),
             ExpressionKind::Identifier(ident) => ident.get_type(),
             ExpressionKind::EmptyTable(t) => t.clone(),
-            ExpressionKind::TableAccess(ident, _) => match ident.get_type() {
-                Type::Table(_, value_type) => Type::Maybe(Box::new(value_type.deref().clone())),
+            ExpressionKind::TableAccess(ident, _) => match ident.get_type().into_kind() {
+                TypeKind::Table(_, value_type) => Type::maybe(value_type.deref().clone()),
                 _ => unreachable!(),
             },
             ExpressionKind::Tuple(exprs) => {
-                Type::Tuple(exprs.iter().map(|expr| expr.get_type()).collect())
+                Type::tuple(exprs.iter().map(|expr| expr.get_type()).collect())
             }
-            ExpressionKind::List(exprs) if !exprs.is_empty() => {
-                Type::List(Box::new(exprs[0].get_type()))
-            }
+            ExpressionKind::List(exprs) if !exprs.is_empty() => Type::list(exprs[0].get_type()),
             ExpressionKind::List(_exprs) => todo!(),
-            ExpressionKind::Set(exprs) if !exprs.is_empty() => {
-                Type::Set(Box::new(exprs[0].get_type()))
-            }
+            ExpressionKind::Set(exprs) if !exprs.is_empty() => Type::set(exprs[0].get_type()),
             ExpressionKind::Set(_exprs) => todo!(),
-            ExpressionKind::FnCall(ident, _) => match ident.get_type() {
-                Type::Fn(_args, ret_type) => *ret_type.clone(),
+            ExpressionKind::FnCall(ident, _) => match ident.get_type().into_kind() {
+                TypeKind::Fn(_args, ret_type) => *ret_type.clone(),
                 other => unreachable!(
                     "found non-function type {:?} when calling function `{}`",
                     other,
                     ident.ident()
                 ),
             },
-            ExpressionKind::None(ty) => Type::Maybe(Box::new(ty.clone())),
-            ExpressionKind::Some(expr) => Type::Maybe(Box::new(expr.get_type())),
-            ExpressionKind::Unwrap(expr) => match expr.get_type() {
-                Type::Maybe(ty) => *ty,
+            ExpressionKind::None(ty) => Type::maybe(ty.clone()),
+            ExpressionKind::Some(expr) => Type::maybe(expr.get_type()),
+            ExpressionKind::Unwrap(expr) => match expr.get_type().into_kind() {
+                TypeKind::Maybe(ty) => *ty,
                 _ => unreachable!("Unwrapping non-maybe {expr:?}", expr = expr),
             },
 
@@ -548,17 +544,17 @@ impl ExpressionKind {
             | ExpressionKind::Equals(_)
             | ExpressionKind::And(_)
             | ExpressionKind::Or(_)
-            | ExpressionKind::Xor(_) => Type::Boolean,
+            | ExpressionKind::Xor(_) => Type::boolean(),
 
-            ExpressionKind::Concat(exprs) => match exprs[0].get_type() {
-                Type::List(t) => *t,
+            ExpressionKind::Concat(exprs) => match exprs[0].get_type().into_kind() {
+                TypeKind::List(t) => *t,
                 _ => unreachable!(),
             },
 
             ExpressionKind::Union(expr)
             | ExpressionKind::Cut(expr)
-            | ExpressionKind::SetDiff(expr) => match expr.get_type() {
-                Type::List(t) => *t,
+            | ExpressionKind::SetDiff(expr) => match expr.get_type().into_kind() {
+                TypeKind::List(t) => *t,
                 _ => unreachable!(),
             },
         }

@@ -31,7 +31,7 @@ impl super::GameTransform for TransformNg {
                     newinst.pkg.oracles[i].code = returnify(
                         &oracle.code,
                         oracle.file_pos,
-                        oracle.sig.ty == Type::Empty,
+                        oracle.sig.ty == Type::empty(),
                         &inst.name,
                         &oracle.sig.name,
                     )?;
@@ -153,10 +153,10 @@ mod test {
 
     #[test]
     fn preserves_return_none() {
-        let d = pkg_local_test_ident("d", Type::Integer);
+        let d = pkg_local_test_ident("d", Type::integer());
         let file_pos: SourceSpan = (0..1).into();
         let code = block! {
-            Statement::Sample(d, None, None, Type::Integer, None, file_pos),
+            Statement::Sample(d, None, None, Type::integer(), None, file_pos),
             Statement::Return(None, file_pos)
         };
         assert_eq!(
@@ -168,9 +168,9 @@ mod test {
     #[test]
     fn preserves_return_some() {
         let file_pos: SourceSpan = (0..1).into();
-        let d = pkg_local_test_ident("d", Type::Integer);
+        let d = pkg_local_test_ident("d", Type::integer());
         let code = block! {
-            Statement::Sample(d, None, None, Type::Integer, None, file_pos),
+            Statement::Sample(d, None, None, Type::integer(), None, file_pos),
             Statement::Return(Some(Expression::from_kind(ExpressionKind::IntegerLiteral(5))), file_pos)
         };
         assert_eq!(
@@ -182,9 +182,9 @@ mod test {
     #[test]
     fn preserves_abort() {
         let file_pos: SourceSpan = (0..1).into();
-        let d = pkg_local_test_ident("d", Type::Integer);
+        let d = pkg_local_test_ident("d", Type::integer());
         let code = block! {
-            Statement::Sample(d, None, None, Type::Integer, None, file_pos),
+            Statement::Sample(d, None, None, Type::integer(), None, file_pos),
             Statement::Abort(file_pos)
         };
         assert_eq!(
@@ -196,12 +196,12 @@ mod test {
     #[test]
     fn adds_return() {
         let file_pos: SourceSpan = (0..1).into();
-        let d = pkg_local_test_ident("d", Type::Integer);
+        let d = pkg_local_test_ident("d", Type::integer());
         let before = block! {
-            Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos)
+            Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
         };
         let after = block! {
-            Statement::Sample(d, None, None,  Type::Integer, None, file_pos),
+            Statement::Sample(d, None, None,  Type::integer(), None, file_pos),
             Statement::Return(None, file_pos)
         };
         assert_eq!(
@@ -217,9 +217,9 @@ mod test {
     #[test]
     fn adds_if_return_with_branches() {
         let file_pos: SourceSpan = (0..1).into();
-        let a = pkg_local_test_ident("a", Type::Integer);
-        let d = pkg_local_test_ident("d", Type::Integer);
-        let e = pkg_local_test_ident("e", Type::Integer);
+        let a = pkg_local_test_ident("a", Type::integer());
+        let d = pkg_local_test_ident("d", Type::integer());
+        let e = pkg_local_test_ident("e", Type::integer());
         let before = block! {
             Statement::IfThenElse(IfThenElse {
                 cond:
@@ -228,11 +228,11 @@ mod test {
                                             (a.clone().into())]),
                 then_block:
                 block!{
-                    Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos)
+                    Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
                 },
 
                 else_block: block!{
-                    Statement::Sample(e.clone(), None, None, Type::Integer, None, file_pos),
+                    Statement::Sample(e.clone(), None, None, Type::integer(), None, file_pos),
                     Statement::Return(None, file_pos)
                 },
 
@@ -249,13 +249,13 @@ mod test {
 
                 then_block:
                 block!{
-                    Statement::Sample(d, None, None, Type::Integer, None, file_pos),
+                    Statement::Sample(d, None, None, Type::integer(), None, file_pos),
                     Statement::Return(None, file_pos)
                 },
 
                 else_block:
                 block!{
-                    Statement::Sample(e, None, None, Type::Integer, None, file_pos),
+                    Statement::Sample(e, None, None, Type::integer(), None, file_pos),
                     Statement::Return(None, file_pos)
                 },
 
@@ -277,18 +277,18 @@ mod test {
     #[test]
     fn adds_else_return_with_branches() {
         let file_pos: SourceSpan = (0..1).into();
-        let a = pkg_local_test_ident("a", Type::Integer);
-        let d = pkg_local_test_ident("d", Type::Integer);
-        let e = pkg_local_test_ident("e", Type::Integer);
+        let a = pkg_local_test_ident("a", Type::integer());
+        let d = pkg_local_test_ident("d", Type::integer());
+        let e = pkg_local_test_ident("e", Type::integer());
         let before = block! {
             Statement::IfThenElse(IfThenElse{
                 cond: Expression::new_equals(vec![(a.clone().into()),
                                                   (a.clone().into())]),
                 then_block: block!{
-                    Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos)
+                    Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
                 },
                 else_block: block!{
-                    Statement::Sample(e.clone(), None, None, Type::Integer, None, file_pos)
+                    Statement::Sample(e.clone(), None, None, Type::integer(), None, file_pos)
                 },
                 then_span: file_pos,
                 else_span: file_pos,
@@ -300,12 +300,12 @@ mod test {
                 cond: Expression::new_equals(vec![(a.clone().into()),
                                                   (a.clone().into())]),
                 then_block: block!{
-                    Statement::Sample(d.clone(), None, None, Type::Integer, None, file_pos),
+                    Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos),
                     Statement::Return(None, file_pos)
                 },
 
                 else_block: block!{
-                    Statement::Sample(e.clone(), None, None, Type::Integer, None, file_pos),
+                    Statement::Sample(e.clone(), None, None, Type::integer(), None, file_pos),
                     Statement::Return(None, file_pos)
                 },
 

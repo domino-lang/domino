@@ -152,7 +152,7 @@ mod test {
     #[test]
     fn declare_then_lookup_succeeds() {
         let id = "test_id";
-        let t = types::Type::Integer;
+        let t = types::Type::integer();
 
         let mut scope = Scope::new();
         scope.enter();
@@ -192,7 +192,7 @@ mod test {
     #[test]
     fn gone_after_leave() {
         let id = "test_id";
-        let t = types::Type::Integer;
+        let t = types::Type::integer();
 
         let mut scope = Scope::new();
         scope.enter();
@@ -225,8 +225,8 @@ mod test {
     fn still_there_after_enter_and_leave() {
         let id = "test_id";
         let id2 = "test_id2";
-        let t = types::Type::Integer;
-        let t2 = types::Type::String;
+        let t = types::Type::integer();
+        let t2 = types::Type::string();
 
         let mut scope = Scope::new();
         scope.enter();

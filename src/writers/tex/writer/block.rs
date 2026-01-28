@@ -4,14 +4,14 @@ use itertools::Itertools;
 use std::{fs::File, io::Write};
 
 use crate::{
-    expressions::Expression,
-    expressions::ExpressionKind,
-    identifier::pkg_ident::PackageIdentifier,
-    identifier::pkg_ident::PackageOracleCodeLoopVarIdentifier,
-    identifier::Identifier,
+    expressions::{Expression, ExpressionKind},
+    identifier::{
+        pkg_ident::{PackageIdentifier, PackageOracleCodeLoopVarIdentifier},
+        Identifier,
+    },
     parser::package::ForComp,
     statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement},
-    types::{CountSpec, Type},
+    types::{CountSpec, Type, TypeKind},
 };
 
 fn genindentation(cnt: u8) -> String {
@@ -49,9 +49,9 @@ impl<'a> BlockWriter<'a> {
     }
 
     fn type_to_tex(&self, ty: &Type) -> String {
-        match ty {
-            Type::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
-            Type::Table(from, to) => format!(
+        match ty.kind() {
+            TypeKind::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
+            TypeKind::Table(from, to) => format!(
                 "\\O{{Table}}[{} \\rightarrow {}]",
                 self.type_to_tex(from),
                 self.type_to_tex(to)
@@ -61,10 +61,10 @@ impl<'a> BlockWriter<'a> {
     }
 
     fn type_to_tex_short(&self, ty: &Type) -> String {
-        match ty {
-            Type::Tuple(_) => "\\O{Tuple[..]}".to_string(),
-            Type::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
-            Type::Table(_from, _to) => "\\O{{Table}}".to_string(),
+        match ty.kind() {
+            TypeKind::Tuple(_) => "\\O{Tuple[..]}".to_string(),
+            TypeKind::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
+            TypeKind::Table(_from, _to) => "\\O{{Table}}".to_string(),
             _ => format!("\\O{{{ty:?}}}"),
         }
     }

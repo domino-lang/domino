@@ -5,7 +5,7 @@ use std::fmt::Display;
 use sspverif_smtlib::syntax::s_expr::SExpr;
 
 use crate::transforms::samplify::Position as SamplePosition;
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 
 use super::sorts::Sort;
 
@@ -302,8 +302,8 @@ impl Display for SmtExpr {
 
 impl From<Type> for SmtExpr {
     fn from(t: Type) -> SmtExpr {
-        match t {
-            Type::Bits(length) => {
+        match t.into_kind() {
+            TypeKind::Bits(length) => {
                 let length = match &length {
                     crate::types::CountSpec::Identifier(identifier) => {
                         identifier.as_theorem_identifier().unwrap().ident()
@@ -314,24 +314,24 @@ impl From<Type> for SmtExpr {
 
                 SmtExpr::Atom(format!("Bits_{length}"))
             }
-            Type::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (*t).into()]),
-            Type::Boolean => SmtExpr::Atom("Bool".to_string()),
-            Type::Empty => SmtExpr::Atom("Empty".to_string()),
-            Type::Integer => SmtExpr::Atom("Int".into()),
-            Type::Table(t_idx, t_val) => SmtExpr::List(vec![
+            TypeKind::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (*t).into()]),
+            TypeKind::Boolean => SmtExpr::Atom("Bool".to_string()),
+            TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
+            TypeKind::Integer => SmtExpr::Atom("Int".into()),
+            TypeKind::Table(t_idx, t_val) => SmtExpr::List(vec![
                 SmtExpr::Atom("Array".into()),
                 (*t_idx).into(),
-                Type::Maybe(t_val).into(),
+                Type::maybe(*t_val).into(),
             ]),
-            Type::Tuple(types) => SmtExpr::List({
+            TypeKind::Tuple(types) => SmtExpr::List({
                 let mut els = vec![SmtExpr::Atom(format!("Tuple{}", types.len()))];
                 for t in types {
                     els.push(t.into());
                 }
                 els
             }),
-            _ => {
-                panic!("not implemented: {t:?}")
+            kind => {
+                panic!("not implemented: {kind:?}")
             }
         }
     }
@@ -339,8 +339,8 @@ impl From<Type> for SmtExpr {
 
 impl From<&Type> for SmtExpr {
     fn from(t: &Type) -> SmtExpr {
-        match t {
-            Type::Bits(length) => {
+        match t.kind() {
+            TypeKind::Bits(length) => {
                 let length = match length {
                     crate::types::CountSpec::Identifier(identifier) => {
                         identifier.as_theorem_identifier().unwrap().ident()
@@ -351,22 +351,22 @@ impl From<&Type> for SmtExpr {
 
                 SmtExpr::Atom(format!("Bits_{length}"))
             }
-            Type::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (&**t).into()]),
-            Type::Boolean => SmtExpr::Atom("Bool".to_string()),
-            Type::Integer => SmtExpr::Atom("Int".into()),
-            Type::Table(t_idx, t_val) => SmtExpr::List(vec![
+            TypeKind::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (&**t).into()]),
+            TypeKind::Boolean => SmtExpr::Atom("Bool".to_string()),
+            TypeKind::Integer => SmtExpr::Atom("Int".into()),
+            TypeKind::Table(t_idx, t_val) => SmtExpr::List(vec![
                 SmtExpr::Atom("Array".into()),
                 (&**t_idx).into(),
-                Type::Maybe(t_val.clone()).into(),
+                Type::maybe(*t_val.clone()).into(),
             ]),
-            Type::Tuple(types) => SmtExpr::List({
+            TypeKind::Tuple(types) => SmtExpr::List({
                 let mut els = vec![SmtExpr::Atom(format!("Tuple{}", types.len()))];
                 for t in types {
                     els.push(t.into());
                 }
                 els
             }),
-            Type::Empty => SmtExpr::Atom("Empty".to_string()),
+            TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
             _ => {
                 panic!("not implemented: {t:?}")
             }

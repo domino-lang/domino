@@ -375,7 +375,8 @@ fn handle_hybrid_instance_decl<'a>(
     ctx.scope.enter();
 
     if !ctx.consts.contains_key("hybrid$loop") {
-        ctx.consts.insert("hybrid$loop".to_string(), Type::Integer);
+        ctx.consts
+            .insert("hybrid$loop".to_string(), Type::integer());
     }
 
     let mut ast = ast.into_inner();
@@ -389,7 +390,7 @@ fn handle_hybrid_instance_decl<'a>(
         TheoremConstIdentifier {
             theorem_name: ctx.theorem_name.to_string(),
             name: "hybrid$loop".to_string(),
-            ty: Type::Integer,
+            ty: Type::integer(),
             inst_info: None,
         },
     )));
@@ -408,7 +409,7 @@ fn handle_hybrid_instance_decl<'a>(
         TheoremConstIdentifier {
             theorem_name: ctx.theorem_name.to_string(),
             name: "hybrid$bit".to_string(),
-            ty: Type::Boolean,
+            ty: Type::boolean(),
             inst_info: None,
         },
     )));

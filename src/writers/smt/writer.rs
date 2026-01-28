@@ -11,6 +11,7 @@ use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 
+use crate::types::TypeKind;
 use crate::writers::smt::exprs::{SmtExpr, SmtIte, SmtLet};
 
 use super::contexts::{
@@ -706,7 +707,7 @@ impl<'a> CompositionSmtWriter<'a> {
         idents: &[Identifier],
         expr: &Expression,
     ) -> SmtExpr {
-        let Type::Tuple(types) = expr.get_type() else {
+        let TypeKind::Tuple(types) = expr.get_type().into_kind() else {
             unreachable!("if this wasn't a tuple type, the type checker would have complained")
         };
         let bindings = idents
@@ -868,7 +869,7 @@ impl<'a> CompositionSmtWriter<'a> {
                     lhs: *inner.clone(),
                     rhs: SmtAs {
                         term: "mk-none",
-                        sort: Type::Maybe(Box::new(t)).into(),
+                        sort: Type::maybe(t).into(),
                     },
                 },
                 then: oracle_ctx.smt_construct_abort(&GameStatePattern),

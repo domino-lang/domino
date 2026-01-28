@@ -9,7 +9,7 @@ use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
 use crate::identifier::Identifier;
-use crate::types::CountSpec;
+use crate::types::{CountSpec, TypeKind};
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::declare::declare_const;
 use crate::writers::smt::patterns::const_mapping::{
@@ -163,7 +163,7 @@ impl<'a> EquivalenceContext<'a> {
         let mut bits_sort_suffixes = HashSet::new();
 
         for ty in self.types() {
-            if let Type::Bits(count_spec) = &ty {
+            if let TypeKind::Bits(count_spec) = &ty.kind() {
                 let bits_sort_suffix = match count_spec {
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
@@ -221,8 +221,8 @@ impl<'a> EquivalenceContext<'a> {
     fn emit_theorem_paramfuncs(&self, comm: &mut Communicator) -> Result<()> {
         fn get_fn<T: Clone>(arg: &(T, Type)) -> Option<(T, Vec<Type>, Type)> {
             let (other, ty) = arg;
-            match ty {
-                Type::Fn(args, ret) => Some((other.clone(), args.to_vec(), *ret.clone())),
+            match ty.kind() {
+                TypeKind::Fn(args, ret) => Some((other.clone(), args.to_vec(), *ret.clone())),
                 _ => None,
             }
         }
@@ -1227,9 +1227,15 @@ impl<'a> EquivalenceContext<'a> {
         let randomness_mapping = SmtForall {
             bindings: vec![
                 ("randmap-sample-id-left".into(), "SampleId".into()),
-                ("randmap-sample-ctr-left".into(), Type::Integer.into()),
+                (
+                    "randmap-sample-ctr-left".into(),
+                    Type::from_kind(TypeKind::Integer).into(),
+                ),
                 ("randmap-sample-id-right".into(), "SampleId".into()),
-                ("randmap-sample-ctr-right".into(), Type::Integer.into()),
+                (
+                    "randmap-sample-ctr-right".into(),
+                    Type::from_kind(TypeKind::Integer).into(),
+                ),
             ],
             body: (
                 "=>",
@@ -1290,17 +1296,18 @@ impl<'a> EquivalenceContext<'a> {
             .theorem()
             .consts
             .iter()
-            .filter_map(|(name, ty)| match ty {
-                Type::Integer => Some(Type::Bits(CountSpec::Identifier(Box::new(
+            .filter_map(|(name, ty)| match ty.kind() {
+                TypeKind::Integer => Some(TypeKind::Bits(CountSpec::Identifier(Box::new(
                     Identifier::TheoremIdentifier(TheoremIdentifier::Const(
                         TheoremConstIdentifier {
                             theorem_name: self.theorem().name.clone(),
                             name: name.clone(),
-                            ty: Type::Integer,
+                            ty: Type::from_kind(TypeKind::Integer),
                             inst_info: None,
                         },
                     )),
-                )))),
+                ))))
+                .map(Type::from_kind),
                 _ => None,
             })
             .collect();
@@ -1716,8 +1723,8 @@ impl<'a> EquivalenceContext<'a> {
          */
 
         fn type_use_theorem_ident(ty: Type) -> Type {
-            match ty {
-                Type::Bits(mut count_spec) => {
+            match ty.into_kind() {
+                TypeKind::Bits(mut count_spec) => {
                     if let CountSpec::Identifier(identifier) = &mut count_spec {
                         let theorem_ident = identifier.as_theorem_identifier();
                         assert!(
@@ -1727,9 +1734,9 @@ impl<'a> EquivalenceContext<'a> {
                         **identifier =
                             Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
                     }
-                    Type::Bits(count_spec)
+                    Type::from_kind(TypeKind::Bits(count_spec))
                 }
-                _ => ty,
+                kind => Type::from_kind(kind),
             }
         }
 
@@ -1825,8 +1832,8 @@ impl<'a> EquivalenceContext<'a> {
             (
                 ("sample-id-left", "SampleId"),
                 ("sample-id-right", "SampleId"),
-                ("sample-ctr-left", Type::Integer),
-                ("sample-ctr-right", Type::Integer),
+                ("sample-ctr-left", Type::from_kind(TypeKind::Integer)),
+                ("sample-ctr-right", Type::from_kind(TypeKind::Integer)),
             ),
             "Bool",
             body,
