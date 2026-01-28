@@ -6,7 +6,6 @@ package Simgate {
         encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
         encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
         zeron: Bits(n),
-        zerom: Bits(m),
     }
 
     import oracles {

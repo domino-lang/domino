@@ -2,7 +2,6 @@ package MODGB {
     params {
         w: Integer,
         p: Integer,
-        n: Integer,
     }
 
     import oracles {

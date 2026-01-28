@@ -3,7 +3,6 @@ composition Hybrid3 {
     const m: Integer;
     const p: Integer;
     const zeron: Bits(n);
-    const zerom: Bits(m);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -45,7 +44,6 @@ composition Hybrid3 {
             encn: encn,
             encm: encm,
             zeron: zeron,
-            zerom: zerom,
         }
     }
 
@@ -63,7 +61,6 @@ composition Hybrid3 {
             encn: encn,
             encm: encm,
             zeron: zeron,
-            zerom: zerom,
         }
     }
 
@@ -81,14 +78,12 @@ composition Hybrid3 {
             encn: encn,
             encm: encm,
             zeron: zeron,
-            zerom: zerom,
         }
     }
 
     instance modgb1 = MODGB {
         params {
             p: p,
-            n: n,
             w: 1,
         }
     }
@@ -96,7 +91,6 @@ composition Hybrid3 {
     instance modgb2 = MODGB {
         params {
             p: p,
-            n: n,
             w: 1,
         }
     }
@@ -104,7 +98,6 @@ composition Hybrid3 {
     instance modgb3 = MODGB {
         params {
             p: p,
-            n: n,
             w: 1,
         }
     }

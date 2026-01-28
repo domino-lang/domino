@@ -5,17 +5,14 @@ theorem Yao {
     const p: Integer;
     const d: Integer;
     const zeron: Bits(n);
-    const zerom: Bits(m);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-  
     instance Indcpa0 = Indcpa0 {
         params {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -27,7 +24,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -39,7 +35,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -50,7 +45,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -61,7 +55,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -74,7 +67,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -86,7 +78,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -98,7 +89,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -110,7 +100,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -122,7 +111,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -134,7 +122,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
             zeron: zeron,
             encm: encm,
             encn: encn,
