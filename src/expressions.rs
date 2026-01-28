@@ -36,6 +36,8 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
     Pow(Box<Expression>, Box<Expression>),
     Mod(Box<Expression>, Box<Expression>),
+    Smaller(Box<Expression>, Box<Expression>),
+    Greater(Box<Expression>, Box<Expression>),
 
     Equals(Vec<Expression>),
     And(Vec<Expression>),
@@ -109,7 +111,9 @@ impl Expression {
             | Expression::Pow(expr, _)
             | Expression::Mod(expr, _) => expr.get_type(),
 
-            Expression::Not(_)
+            Expression::Greater(_, _)
+            | Expression::Smaller(_, _)
+            | Expression::Not(_)
             | Expression::Any(_)
             | Expression::All(_)
             | Expression::Equals(_)
@@ -173,7 +177,9 @@ impl Expression {
             | Expression::Mul(lhs, rhs)
             | Expression::Div(lhs, rhs)
             | Expression::Pow(lhs, rhs)
-            | Expression::Mod(lhs, rhs) => lhs.is_const() && rhs.is_const(),
+            | Expression::Mod(lhs, rhs)
+            | Expression::Greater(lhs, rhs)
+            | Expression::Smaller(lhs, rhs) => lhs.is_const() && rhs.is_const(),
         }
     }
 
