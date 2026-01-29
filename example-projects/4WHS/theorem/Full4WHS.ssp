@@ -1337,8 +1337,8 @@ theorem Full4WHS {
 
                 lemmas {
                     same-output:  [no-abort]
-                    debug:        [no-abort]
-                    invariant:    [no-abort, debug]
+                    /*debug:        [no-abort]*/
+                    invariant:    [no-abort]
                     equal-aborts: []
                 }
             }
@@ -1352,8 +1352,8 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    debug:        [no-abort]
-                    invariant:    [no-abort, debug]
+                    /*debug:        [no-abort]*/
+                    invariant:    [no-abort]
                 }
             }
              Send3: {
@@ -1388,7 +1388,7 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    lemma-debug:  [no-abort]
+                    /*lemma-debug:  [no-abort]*/
                     same-output:  [no-abort]
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -1403,8 +1403,8 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    lemma-debug:  [no-abort]
-                    invariant:    [no-abort, lemma-debug]
+                    /*lemma-debug:  [no-abort]*/
+                    invariant:    [no-abort]
                     same-output:  [no-abort]
                 }
             }

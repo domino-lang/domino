@@ -796,6 +796,28 @@
 ;; For honest session U should write to one of First, Second and V should write to the other
 ;; To argue, we can use MAC security to notice that order of events is correct
 
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Unless key corruption, if we accept the mac in Send5,
+;; then it was generated in send4:
+;; * Ideal mac verify looks up the entry in the table
+;; * Entry is only added to the table in matching send4
+;;
+(define-fun send5-send4
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  true)
+
+
+
+
+
+
 (define-fun invariant
     ((state-H710  <GameState_H7_<$<!n!>$>>)
      (state-H711  <GameState_H7_<$<!n!>$>>))
@@ -865,17 +887,19 @@
            (revtesteval-populated RevTestEval1 H1 Prf1)
            (own-nonce-is-unique State0 Nonces0) ; Chris: takes 1:10 up to here for Send2
 
+           (send5-send4 State0)
 
-;          (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
+           
+           (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
 
-;           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
-;           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
+           ;(key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+           ;(key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
 
-;           (freshness-and-honesty-matches State0 Fresh0 H0)
+           (freshness-and-honesty-matches State0 Fresh0 H0)
 
-;           (stuff-not-initialized-early State0 Fresh0 Keys0)
-;           (mac-table-wellformed Keys0 Values0)
+           (stuff-not-initialized-early State0 Fresh0 Keys0)
+           (mac-table-wellformed Keys0 Values0)
 
 ;           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0)
 
@@ -885,7 +909,7 @@
 ;           (four-mac-implies-three-mac Values0)
 ;           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
 
-           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
+;           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
 ;           (three-mac-implies-second Values0 Second0)
 
  ;          (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
