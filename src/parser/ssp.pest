@@ -41,7 +41,7 @@ kw_invariant = _{ "invariant" }
 kw_lemmas = _{ "lemmas" }
 
 theorem = { kw_theorem ~ identifier ~ "{" ~ theorem_spec_list ~ "}" }
-theorem_spec_list = { const_decl* ~ instance_decl* ~ hybrid_instance_decl* ~ assumptions? ~ game_hops ~ propositions? }
+theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assumptions | game_hops | propositions)* }
   assumptions = { kw_assumptions ~ "{" ~ ( assumption_entry )* ~ "}" }
     assumption_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
