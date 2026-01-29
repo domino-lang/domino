@@ -1,0 +1,60 @@
+package Red {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+    }
+
+    state {
+        k: Maybe(Bits(n)),
+        z: Maybe(Bool),
+        flag: Maybe(Bool),
+    }
+
+    import oracles {
+        ENCN(nzero: Bits(n), none: Bits(n)) -> Bits(m),
+        ENCM(mzero: Bits(m), mone: Bits(m)) -> Bits(p),
+        SMP(),
+    }
+
+
+    oracle SETBIT(zz: Bool) {
+        assert (z == None as Bool);
+        z <- Some(zz);
+        return;
+    }
+
+    oracle GETAOUT() -> Bits(n) {
+        assert (z != None as Bool);
+        flag <- Some(true);
+        if (k == None as Bits(n)) {
+            k_ <-$ Bits(n);
+            k <- Some(k_);
+            _ <- invoke SMP();
+        }
+        k_ <- Unwrap(k);
+        return k_;
+    }
+
+    oracle ENCN(d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+        assert (flag == Some(true));
+        r <-$ Bits(n);
+        c <- encn(Unwrap(k), nzero, r);
+        if (z != Some(d)) {
+            c <- invoke ENCN(nzero, none);
+        }
+        return c;
+    }
+
+    oracle ENCM(d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+        assert (flag == Some(true));
+        r <-$ Bits(n);
+        c <- encm(Unwrap(k), mzero, r);
+        if (z != Some(d)) {
+            c <- invoke ENCM(mzero, mone);
+        }
+        return c;
+    }
+}
