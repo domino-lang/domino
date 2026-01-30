@@ -34,8 +34,8 @@ impl<'a> BlockWriter<'a> {
     fn ident_to_tex(&self, ident: &Identifier) -> String {
         ident
             .ident()
-            .split("_")
-            .map(|comp| format!("\\n{{{comp}}}"))
+            .splitn(2, "_")
+            .map(|comp| format!("\\n{{{}}}", comp.replace("_", "\\_")))
             .join("_")
     }
 
