@@ -283,9 +283,9 @@ pub fn tex_write_theorem(
         let right_esc = right.replace('_', "\\_");
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
-                      \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
-                      \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left}}}\\\\\
-                      -\\prob{{1 = \\adv\\rightarrow {right}}}\
+                      \\mathsf{{Adv}}(\\adv;{left_esc},{right_esc}):=\\abs{{\\begin{{array}}{{l}}\
+                      \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left_esc}}}\\\\\
+                      -\\prob{{1 = \\adv\\rightarrow {right_esc}}}\
                       \\end{{array}}}},
                       \\]\
                       where {left_esc} and {right_esc} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
@@ -301,9 +301,9 @@ pub fn tex_write_theorem(
 
         write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
                       \\[\
-                      \\mathsf{{Adv}}(\\adv;{left},{right}):=\\abs{{\\begin{{array}}{{l}}\
-                      \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left}}}\\\\\
-                      -\\prob{{1 = \\adv\\rightarrow {right} }}\
+                      \\mathsf{{Adv}}(\\adv;{left_esc},{right_esc}):=\\abs{{\\begin{{array}}{{l}}\
+                      \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left_esc}}}\\\\\
+                      -\\prob{{1 = \\adv\\rightarrow {right_esc} }}\
                       \\end{{array}}}},
                       \\]\
                       where {left_esc} and {right_esc} are defined in Sec.~\\ref{{section:game:{left}}} and Sec.~\\ref{{section:game:{right}}}, respectively.")?;
