@@ -860,9 +860,9 @@
      ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
      (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                               (mk-tuple2 msg tag))))
-       (=> (not (is-mk-none (select ReverseMac handle)))
-           (let ((ctr (maybe-get (select ReverseMac handle))))
-             (let ((state (select State ctr)))
+       (let ((ctr (select ReverseMac handle)))
+       (=> (not (is-mk-none ctr))
+             (let ((state (select State (maybe-get ctr))))
                (and (not (is-mk-none state))
                     (let  ((Up   (el11-1  (maybe-get state)))
                            (u    (el11-2  (maybe-get state)))
@@ -878,10 +878,10 @@
                       (and
                        (=> (and (= tag 4) (= msg zeron))
                            (and u (= acc (mk-some true)) (= mess 2)))
-                       ;;(=> (and (= tag 3) (= msg ni))
-                       ;;    (and (not u) (> mess 1)))
-                       ;;(=> (and (= tag 2) (= msg nr))
-                       ;;    (and u (> mess 0)))
+                       (=> (and (= tag 3) (= msg ni))
+                           (and (not u) (or (= mess 2) (= mess 3))))
+                       (=> (and (= tag 2) (= msg nr))
+                           (and u (or (= mess 1) (= mess 2))))
                        true))))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
