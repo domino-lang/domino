@@ -953,8 +953,10 @@
            (revtesteval-populated RevTestEval0 H0 Prf0)
            (revtesteval-populated RevTestEval1 H1 Prf1)
            (own-nonce-is-unique State0 Nonces0) ; Chris: takes 1:10 up to here for Send2
-           (reverse-mac-matches Values0 ReverseMac0)
 
+           ;; Consistency of reverse-mac-table
+           (reverse-mac-matches Values0 ReverseMac0)
+           (reverse-mac-state-consistent ReverseMac0 State0)
 
 
            ;;(mac-table-values Values0 Fresh0 State0)
@@ -993,3 +995,28 @@
                                         ;          (honest-sessions-to-first-and-second State0 Fresh0 First0 Second0)
 
            ))))
+
+
+
+(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-NewKey>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_PRF_<$<!n!>$>_NewKey>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_PRF_<$<!n!>$>_NewKey>)
+     (k (Maybe Bits_n))
+    )
+  Bool
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-PRF-<$<!n!>$>-NewKey-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-PRF-<$<!n!>$>-NewKey-game-state> H711-return)))
+    (let ((mac-H710      (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
+          (mac-H710-old  (<game-H7-<$<!n!>$>-pkgstate-MAC> H710-old))
+          (mac-H711      (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H711))
+          (mac-H711-old  (<game-H7-<$<!n!>$>-pkgstate-MAC> H711-old))
+          (game-H710     (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H710))
+          (game-H710-old (<game-H7-<$<!n!>$>-pkgstate-KX>  H710-old))
+          (game-H711     (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
+          (game-H711-old (<game-H7-<$<!n!>$>-pkgstate-KX>  H711-old)))
+      (and (= mac-H710-old mac-H710)
+           (= mac-H711-old mac-H711)
+           (= game-H710 game-H710-old)
+           (= game-H711 game-H711-old)))))
