@@ -275,9 +275,9 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         .build()
         .unwrap()
         .install(|| -> Result<()> {
-            let result_count = oracle_sequence
+            let failed_oracles: Vec<_> = oracle_sequence
                 .par_iter()
-                .map(|oracle_sig| -> Result<()> {
+                .map(|oracle_sig| -> (&str, Result<()>) {
                     let result = verify_oracle(
                         project,
                         ui.clone(),
@@ -289,15 +289,23 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
                     if let Err(ref e) = result {
                         ui.lock().unwrap().println(&format!("{e}")).unwrap();
                     }
-                    result
+                    (&oracle_sig.name, result)
                 })
-                .filter(Result::is_err)
-                .count();
-            if result_count == 0 {
+                .filter_map(|(name, res)| {
+                    if let Err(err) = res {
+                        Some((name.to_string(), err))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if failed_oracles.is_empty() {
                 Ok(())
             } else {
                 Err(Error::ParallelEquivalenceError {
-                    failed_oracles: result_count,
+                    left_game_inst_name: eq.left_name.clone(),
+                    right_game_inst_name: eq.right_name.clone(),
+                    failed_oracles,
                 })
             }
         })
