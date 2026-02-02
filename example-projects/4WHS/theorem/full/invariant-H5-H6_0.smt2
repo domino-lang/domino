@@ -59,7 +59,8 @@
 (define-fun nonces-are-not-none 
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (hon (Array Int (Maybe Bool))))
   Bool
   (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                           (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -78,9 +79,10 @@
                          (kmac (el11-9  (maybe-get state)))
                          (sid  (el11-10 (maybe-get state)))
                          (mess (el11-11 (maybe-get state))))
-                    (=> (= acc (mk-some true))
-                        (and (not (= ni (as mk-none (Maybe Bits_n))))
-                             (not (= nr (as mk-none (Maybe Bits_n))))))))))))
+                    (=> (and (= acc (mk-some true))
+                             (= (select hon ltk) (mk-some true)))
+                        (and (not (is-mk-none ni))
+                             (not (is-mk-none nr))))))))))
 
 
 (define-fun stuff-not-initialized-early
@@ -157,4 +159,6 @@
                (ltk-H6 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H6))
                (hon-H6 (<pkg-state-PRF-<$<!n!>$>-H> prf-H6)))
            (and
+            (stuff-not-initialized-early state-H6)
+            ;;(nonces-are-not-none state-H6 hon-H6)
             (state-equality state-H5 state-H6 ltk-H6 hon-H6))))))
