@@ -86,11 +86,9 @@ package ReductionMac {
         hon        <- invoke Hon(kid);
         if hon {
             _          <- invoke Init( (kid,U,V,Unwrap(ni),nr) );
-            /*tau_       <- invoke Mac( (kid,U,V,Unwrap(ni),nr), (Unwrap(ni),3));*/
             kmac       <- None as Bits(n);
         } else {
             kmac_      <- invoke Eval(kid,(U,V,Unwrap(ni),nr,false));
-            /*tau_       <- mac(kmac_,Unwrap(ni),3);*/
             kmac       <- Some(kmac_);
         }
         sid        <- (U,V,Unwrap(ni),nr,tau);
