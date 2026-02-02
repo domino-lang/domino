@@ -1403,7 +1403,7 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    /*lemma-debug:  [no-abort]*/
+                    lemma-debug:  [no-abort]
                     invariant:    [no-abort]
                     same-output:  [no-abort]
                 }
