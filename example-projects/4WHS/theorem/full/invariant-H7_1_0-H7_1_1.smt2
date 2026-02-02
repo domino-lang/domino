@@ -850,7 +850,7 @@
 ;; * Ideal mac verify looks up the entry in the table
 ;; * Entry is only added to the table in matching send4
 ;;
-(define-fun send5-send4
+(define-fun message-implies-mac
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
      (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -873,10 +873,17 @@
                          (kmac (el11-9  (maybe-get state)))
                          (sid  (el11-10 (maybe-get state)))
                          (mess (el11-11 (maybe-get state))))
-                    (and (=> (= mess 3)
-                             (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                                        (mk-tuple2 zeron 4))))))
-                         true)))))))
+                    (and
+                     (=> (= mess 3)
+                         (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                    (mk-tuple2 zeron 4))))))
+                     (=> (and u (> mess 1) (= acc (mk-some true)))
+                         (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                    (mk-tuple2 (maybe-get ni) 3))))))
+                     (=> (and (not u) (> mess 1))
+                         (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                    (mk-tuple2 (maybe-get nr) 2))))))
+                     true)))))))
 
 
 
@@ -960,7 +967,7 @@
 
 
            ;;(mac-table-values Values0 Fresh0 State0)
-           (send5-send4 Values0 Fresh0 State0)
+           (message-implies-mac Values0 Fresh0 State0)
 
 
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
