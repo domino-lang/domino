@@ -761,6 +761,37 @@
 ;; the state[ctr].u == false and prfvalues[...] = tau
 ;; (forall kid U V ni nr tau ctr
 
+(define-fun reverse-mac-state-consistent
+    ((ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
+          (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                   (mk-tuple2 msg tag))))
+            (=> (not (is-mk-none (select ReverseMac handle)))
+                (let ((ctr (maybe-get (select ReverseMac handle))))
+                  (let ((state (select State ctr)))
+                    (and (not (is-mk-none state))
+                         (let  ((Up   (el11-1  (maybe-get state)))
+                                (u    (el11-2  (maybe-get state)))
+                                (Vp   (el11-3  (maybe-get state)))
+                                (kidp (el11-4  (maybe-get state)))
+                                (acc  (el11-5  (maybe-get state)))
+                                (k    (el11-6  (maybe-get state)))
+                                (nip  (el11-7  (maybe-get state)))
+                                (nrp  (el11-8  (maybe-get state)))
+                                (kmac (el11-9  (maybe-get state)))
+                                (sid  (el11-10 (maybe-get state)))
+                                (mess (el11-11 (maybe-get state))))
+                           (and (= U Up)
+                                (= V Vp)
+                                (= kid kidp)
+                                (= (mk-some ni) nip)
+                                (= (mk-some nr) nrp))
+            ))))))))
+
 
 (define-fun reverse-mac-matches
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
