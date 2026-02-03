@@ -1023,8 +1023,8 @@
 
            (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0 Values0)
 
-                                        ;           (sessions-in-first-exist First0 State0)
-                                        ;           (sessions-in-first-exist Second0 State0)
+           (sessions-in-first-exist First0 State0)
+           (sessions-in-first-exist Second0 State0)
 
                                         ;           (four-mac-implies-three-mac Values0)
                                         ;           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
