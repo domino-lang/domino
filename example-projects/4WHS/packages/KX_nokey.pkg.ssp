@@ -175,14 +175,16 @@ oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
         (state,msg_) <- parse return;
         State[ctr]   <- Some(state);
 
-		(_U,_u,_V,_ltk,_acc,_k,_ni,_nr,_kmac,sid,_mess) <- parse state;
-		if (First[Unwrap(sid)] == None) {
-		    First[Unwrap(sid)] <- Some(ctr);
-		} else {
-		  if (Second[Unwrap(sid)] == None) {
-		      Second[Unwrap(sid)] <- Some(ctr);
-		  }
-		}
+		(_U,_u,_V,_ltk,acc,_k,_ni,_nr,_kmac,sid,_mess) <- parse state;
+        if (acc == Some(true)) {
+            if (First[Unwrap(sid)] == None) {
+                First[Unwrap(sid)] <- Some(ctr);
+            } else {
+              if (Second[Unwrap(sid)] == None) {
+                  Second[Unwrap(sid)] <- Some(ctr);
+              }
+            }
+        }
 
         return msg_;  
     } 

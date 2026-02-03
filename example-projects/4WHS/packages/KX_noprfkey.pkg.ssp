@@ -167,14 +167,14 @@ oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
         State[ctr]   <- Some(state);
 
         (U,u,V,kid,acc,k,ni,nr,kmac,sid,mess) <- parse state;
-        if (First[Unwrap(sid)] == None) {
-            First[Unwrap(sid)] <- Some(ctr);
-        } else {
-          if (Second[Unwrap(sid)] == None) {
-              Second[Unwrap(sid)] <- Some(ctr);
-          }
-        }
         if (acc == Some(true)) {
+            if (First[Unwrap(sid)] == None) {
+                First[Unwrap(sid)] <- Some(ctr);
+            } else {
+              if (Second[Unwrap(sid)] == None) {
+                  Second[Unwrap(sid)] <- Some(ctr);
+              }
+            }
             ReverseMac[((kid,U,V,Unwrap(ni),Unwrap(nr)), (zeron,4))] <- Some(ctr);
         }
 
