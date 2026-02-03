@@ -1,0 +1,168 @@
+theorem CoreSecurity {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const d: Integer;
+    const w: Integer;
+    const h: Integer;
+    const hplusone: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+  instance LayerReal = LayerReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerIdeal = LayerIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance CoreReal = CoreReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance CoreIdeal = CoreIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance FirstHybrid = HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: 1,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LastHybrid = HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: d,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridStep0 = HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: h,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridReal = HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: h,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridIdeal = HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: h,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridReal1 = HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: hplusone,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    assumptions {
+        Layer: LayerReal ~ LayerIdeal
+    }
+
+    gamehops {
+        reduction HybridReal HybridIdeal {
+            assumption Layer
+
+            map LayerReal HybridReal {
+                keys_top: KeysTop
+                keys_bottom: KeysBot
+                enc: Enc
+                gate: Gate
+            }
+
+            map LayerIdeal HybridIdeal {
+                keys_top: KeysTop
+                keys_bottom: KeysBot
+                ev: Lev
+                simgate: Sim
+            }
+        }
+    } 
+}

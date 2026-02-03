@@ -81,7 +81,7 @@ theorem LayerSecurity {
         equivalence LayerHybrid LayerIdeal {
             GETAOUT: {
                 invariant: [
-                    ./theorem/invariant-GBLG.smt2
+                    ./theorem/invariant-Layer.smt2
                 ]
 
                 lemmas {
@@ -92,7 +92,7 @@ theorem LayerSecurity {
             }
             SETBIT: {
                 invariant: [
-                    ./theorem/invariant-GBLG.smt2
+                    ./theorem/invariant-Layer.smt2
                 ]
 
                 lemmas {
@@ -103,7 +103,7 @@ theorem LayerSecurity {
             }
             GETKEYSIN: {
                 invariant: [
-                    ./theorem/invariant-GBLG.smt2
+                    ./theorem/invariant-Layer.smt2
                 ]
 
                 lemmas {
@@ -114,7 +114,7 @@ theorem LayerSecurity {
             }
             GBLG: {
                 invariant: [
-                    ./theorem/invariant-GBLG.smt2
+                    ./theorem/invariant-Layer.smt2
                 ]
 
                 lemmas {

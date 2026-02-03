@@ -12,16 +12,16 @@ package LayerMap {
     }
 
     oracle SETBIT(j: Integer, b: Bool) {
-        _ <- invoke LSETBIT(0, j, b);
+        _ <- invoke LSETBIT(1, j, b);
     }
 
     oracle GETAOUT(j: Integer) -> Bits(n) {
-        k <- invoke LGETAOUT(0, j);
+        k <- invoke LGETAOUT(1, j);
         return k;
     }
 
     oracle GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)) {
-        T <- invoke LGETKEYSIN((d - 1), j);
+        T <- invoke LGETKEYSIN(d, j);
         return T;
     }
 }
