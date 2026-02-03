@@ -1,3 +1,18 @@
+(define-fun time-of-acceptance
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (forall ((ctr Int))
+          (let ((state (select State ctr)))
+            (=> (not (is-mk-none state))
+                (let  ((u    (el11-2  (maybe-get state)))
+                       (acc  (el11-5  (maybe-get state)))
+                       (mess (el11-11 (maybe-get state))))
+                  (=> (not (is-mk-none acc))
+                      (ite u (> mess 1) (> mess 2))))))))
+
+
 (define-fun prfeval-has-matching-session
     ((prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (revtesteval (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
@@ -1012,6 +1027,8 @@
 
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
+           (time-of-acceptance State0)
+           (time-of-acceptance State1)
 
                                         ;(key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
                                         ;(key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
