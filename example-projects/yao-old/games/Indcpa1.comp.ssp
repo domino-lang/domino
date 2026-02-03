@@ -1,0 +1,42 @@
+composition Indcpa1 {
+  const n: Integer;
+  const m: Integer;
+  const p: Integer;
+  const zeron: Bits(n);
+  const zerom: Bits(m);
+  const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+  const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+  instance keys_top = GenericKeys {
+    params {
+      n: n,
+    }
+
+    types {
+      Handle: Integer,
+    }
+  }
+
+  instance enc = Enc1 {
+    params {
+      n: n,
+      m: m,
+      p: p,
+      encn: encn,
+      encm: encm,
+    }
+  }
+
+  compose { 
+    adversary: {
+      GETAOUT: keys_top,
+      SETBIT:  keys_top,
+      ENCN:    enc,
+      ENCM:    enc,
+    },
+    enc: {
+      GETKEYSIN: keys_top,
+      GETBIT: keys_top
+    },
+  }
+}

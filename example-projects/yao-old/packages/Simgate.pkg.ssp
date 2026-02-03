@@ -1,0 +1,90 @@
+package Simgate {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        zeron: Bits(n),
+        zerom: Bits(m),
+    }
+
+    state {
+    }
+
+       import oracles {
+        GETAIN(h: Integer) -> Bits(n),
+        GETINAIN(h: Integer) -> Bits(n),
+        EVAL(j: Integer,l: Integer,r: Integer,op: Table((Bool,Bool),Bool)) -> (),
+        GETAOUT(h: Integer) -> Bits(n),
+    }
+
+
+    oracle GBLG(h: Integer, l: Integer, r: Integer, op: Table((Bool,Bool),Bool), j: Integer) -> Table(Bits(p),Bool) {
+        C <- new Table(Bits(p), Bool);
+        Sl <- new Table(Bool, Bits(n));
+        Sr <- new Table(Bool, Bits(n));
+        Sj <- new Table(Bool, Bits(n));
+        _ <- invoke EVAL(j,l,r,op);
+        temp <- invoke GETAIN(l);
+        Sl[true] <- Some(temp);
+        temp <- invoke GETINAIN(l);
+        Sl[false] <- Some(temp);
+        temp <- invoke GETAIN(r);
+        Sr[true] <- Some(temp);
+        temp <- invoke GETINAIN(r);
+        Sr[true] <- Some(temp);
+        temp <- invoke GETAOUT(j);
+        Sj[false] <- Some(temp); 
+        dl <- false;
+        dr <- false;
+           kl <- Unwrap(Sl[dl]);
+           kr <- Unwrap(Sr[dr]);
+           kj <- zeron;
+           if ((not dl) and (not dr))
+              {kj <- Unwrap(Sj[false]);}
+           rin <-$ Bits(n);
+           rout <-$ Bits(n);
+           cin  <- encn(kr,kj,rin);
+           cout  <- encm(kl,cin,rout);
+           C[cout] <- Some(true);
+        dl <- true;
+        dr <- false;
+           kl <- Unwrap(Sl[dl]);
+           kr <- Unwrap(Sr[dr]);
+           kj <- zeron;
+           if ((not dl) and (not dr))
+              {kj <- Unwrap(Sj[false]);}
+           rin <-$ Bits(n);
+           rout <-$ Bits(n);
+           cin  <- encn(kr,kj,rin);
+           cout  <- encm(kl,cin,rout);
+           C[cout] <- Some(true);
+        dl <- false;
+        dr <- true;
+           kl <- Unwrap(Sl[dl]);
+           kr <- Unwrap(Sr[dr]);
+           kj <- zeron;
+           if ((not dl) and (not dr))
+              {kj <- Unwrap(Sj[false]);}
+           rin <-$ Bits(n);
+           rout <-$ Bits(n);
+           cin  <- encn(kr,kj,rin);
+           cout  <- encm(kl,cin,rout);
+           C[cout] <- Some(true);
+        dl <- true;
+        dr <- true;
+           kl <- Unwrap(Sl[dl]);
+           kr <- Unwrap(Sr[dr]);
+           kj <- zeron;
+           if ((not dl) and (not dr))
+              {kj <- Unwrap(Sj[false]);}
+           rin <-$ Bits(n);
+           rout <-$ Bits(n);
+           cin  <- encn(kr,kj,rin);
+           cout  <- encm(kl,cin,rout);
+           C[cout] <- Some(true);
+        return C;
+    }
+
+}

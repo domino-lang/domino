@@ -1,0 +1,34 @@
+package MODGB {
+    params {
+        w: Integer,
+        p: Integer,
+        n: Integer,
+        i: Integer,
+    }
+
+    import oracles {
+       GBLG[i](l: Integer, r: Integer, op: Table((Bool,Bool),Bool), j: Integer) -> Table(Bits(p),Bool),
+    }
+
+    state {
+        Ctilde:   Table(Integer, Table(Integer, Table(Bits(p), Bool))),
+    }
+
+    oracle GBL(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+             -> Table(Integer, Table(Bits(p), Bool)) {
+        assert (Ctilde[i] == None as Table(Integer, Table(Bits(p), Bool)));
+        T   <- new Table(Integer, Table(Bits(p), Bool));
+        tmp <- new Table(Bits(p),Bool);
+        for j: 1 <= j <= w {
+            (l,r,op) <- parse Unwrap(Ci[j]);
+            assert (not (op[(true,  true)] == None as Bool));
+            assert (not (op[(true, false)] == None as Bool));
+            assert (not (op[(false, true)] == None as Bool));
+            assert (not (op[(false,false)] == None as Bool));
+            tmp <- invoke GBLG[i](l, r, op, j);
+            T[j] <- Some(tmp);
+        }
+        Ctilde[i] <- Some(T);
+        return T;
+    }
+}
