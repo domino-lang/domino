@@ -1035,9 +1035,9 @@
                                         ;          (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
                                         ;          (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
                                         ;          (initiator-msg-2-with-mac-three-only Values0 Fresh0 State0)
-                                        ;          (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
+           (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
 
-                                        ;          (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
+           (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
                                         ;          (first-set-by-initiator State0 First0 Fresh0 Values0)
                                         ;          (honest-sessions-to-first-and-second State0 Fresh0 First0 Second0)
 
