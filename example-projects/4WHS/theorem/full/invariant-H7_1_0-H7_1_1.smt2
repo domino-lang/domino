@@ -671,25 +671,26 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (forall ((ctr Int))
-          (let ((state (select State ctr)))
-            (=> (and (not (is-mk-none state))
-                     (= (mk-some true) (select Fresh ctr)))
-                (let  ((U    (el11-1  (maybe-get state)))
-                       (u    (el11-2  (maybe-get state)))
-                       (V    (el11-3  (maybe-get state)))
-                       (kid  (el11-4  (maybe-get state)))
-                       (acc  (el11-5  (maybe-get state)))
-                       (k    (el11-6  (maybe-get state)))
-                       (ni   (el11-7  (maybe-get state)))
-                       (nr   (el11-8  (maybe-get state)))
-                       (kmac (el11-9  (maybe-get state)))
-                       (sid  (el11-10 (maybe-get state)))
-                       (mess (el11-11 (maybe-get state))))
-                  (=> (and (= u false)
-                           (= acc (mk-some true)))
-                      (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                                 (mk-tuple2 (maybe-get nr) 4)))))))))))
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall ((ctr Int))
+            (let ((state (select State ctr)))
+              (=> (and (not (is-mk-none state))
+                       (= (mk-some true) (select Fresh ctr)))
+                  (let  ((U    (el11-1  (maybe-get state)))
+                         (u    (el11-2  (maybe-get state)))
+                         (V    (el11-3  (maybe-get state)))
+                         (kid  (el11-4  (maybe-get state)))
+                         (acc  (el11-5  (maybe-get state)))
+                         (k    (el11-6  (maybe-get state)))
+                         (ni   (el11-7  (maybe-get state)))
+                         (nr   (el11-8  (maybe-get state)))
+                         (kmac (el11-9  (maybe-get state)))
+                         (sid  (el11-10 (maybe-get state)))
+                         (mess (el11-11 (maybe-get state))))
+                    (=> (and (= u false)
+                             (= acc (mk-some true)))
+                        (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                   (mk-tuple2 zeron 4))))))))))))
 
 (define-fun initiator-msg-2-with-mac-three-only
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
@@ -809,13 +810,20 @@
 
 (define-fun reverse-mac-matches
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
-     (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int))))
+     (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
+     (H (Array Int (Maybe Bool))))
   Bool
   (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
           (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                    (mk-tuple2 msg tag))))
-            (=> (is-mk-none (select ReverseMac handle))
-                (is-mk-none (select Values handle))))))
+            (and (= (and (is-mk-none (select ReverseMac handle))
+                         (= (select H kid) (mk-some true)))
+                    (is-mk-none (select Values handle)))
+                 (=> (not (is-mk-none (select Values handle)))
+                     (= (select H kid) (mk-some true)))
+                 ;;(=> (not (is-mk-none (select ReverseMac handle)))
+                 ;;    (= (select H kid) (mk-some true)))
+                 true))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Brainstorming on AtLeast
@@ -876,7 +884,7 @@
      (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                               (mk-tuple2 msg tag))))
        (let ((ctr (select ReverseMac handle)))
-       (=> (not (is-mk-none ctr))
+         (=> (not (is-mk-none ctr))
              (let ((state (select State (maybe-get ctr))))
                (and (not (is-mk-none state))
                     (let  ((Up   (el11-1  (maybe-get state)))
@@ -942,6 +950,21 @@
 
 
 
+
+
+(define-fun four-mac-implies-first-or-second
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
+     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
+  Bool
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
+            (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                           (mk-tuple2 zeron 4)))))
+                (let ((tau (maybe-get (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                                (mk-tuple2 ni 3))))))
+                  (or (not (is-mk-none (select First (mk-tuple5 U V ni nr tau))))
+                      (not (is-mk-none (select Second (mk-tuple5 U V ni nr tau))))))))))
 
 
 
@@ -1017,7 +1040,7 @@
            (own-nonce-is-unique State0 Nonces0) ; Chris: takes 1:10 up to here for Send2
 
            ;; Consistency of reverse-mac-table
-           (reverse-mac-matches Values0 ReverseMac0)
+           (reverse-mac-matches Values0 ReverseMac0 H0)
            (reverse-mac-state-consistent ReverseMac0 State0)
 
 
@@ -1033,7 +1056,10 @@
                                         ;(key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
                                         ;(key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
 
+           (four-mac-implies-first-or-second Values0 First0 Second0)
+
            (freshness-and-honesty-matches State0 Fresh0 H0)
+           (freshness-and-honesty-matches State1 Fresh1 H1)
 
            (stuff-not-initialized-early State0 Fresh0 Keys0)
            (mac-table-wellformed Keys0 Values0)
@@ -1050,7 +1076,7 @@
                                         ;           (three-mac-implies-second Values0 Second0)
 
                                         ;          (initiator-accepts-with-msg-2-only Values0 Fresh0 State0)
-                                        ;          (initiator-accepts-with-mac-four-only Values0 Fresh0 State0)
+           (initiator-accepts-with-mac-four-only Values0 Fresh0 State0) ;; upper
                                         ;          (initiator-msg-2-with-mac-three-only Values0 Fresh0 State0)
            (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
 
