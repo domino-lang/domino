@@ -1,0 +1,73 @@
+composition CoreReal {
+    const n: Integer;
+    const p: Integer;
+    const m: Integer;
+    const d: Integer;
+    const w: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Keys = LayeredKeys {
+        params {
+            n: n,
+        }
+    }
+
+    instance Enc = LayeredEnc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance Gate = LayeredGate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance LayerMap = LayerMap {
+        params {
+            n: n,
+            d: d
+        }
+    }
+
+    instance Proxy = LayeredGateProxy {
+        params {
+            p: p
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: LayerMap,
+            SETBIT: LayerMap,
+            GBLG: Proxy,
+            GETKEYSIN: LayerMap,
+        }
+        Proxy: {
+            LGATEGBLG: Gate,
+        }
+        LayerMap: {
+            LSETBIT: Keys,
+            LGETAOUT: Keys,
+            LGETKEYSIN: Keys,
+        }
+        Gate: {
+            LENCN: Enc,
+            LENCM: Enc,
+            LGETKEYSOUT: Keys,
+        }
+        Enc: {
+            LGETKEYSIN: Keys,
+        }
+    }
+}

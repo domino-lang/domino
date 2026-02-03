@@ -1,0 +1,101 @@
+package HybridLayeredSim {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        zeron: Bits(n),
+        h: Integer, /* hybrid parameter */
+    }
+
+    import oracles {
+        GETAOUT(j: Integer) -> Bits(n),
+
+        LGETAIN(i: Integer, j: Integer) -> Bits(n),
+        LGETINAIN(i: Integer, j: Integer) -> Bits(n),
+        LEVAL(i: Integer, j: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool)),
+        LGETAOUT(i: Integer, j: Integer) -> Bits(n),
+    }
+
+    oracle LSIMGBLG(
+        i: Integer,
+        l: Integer,
+        r: Integer,
+        op: Table((Bool, Bool), Bool),
+        j: Integer
+    ) -> Table(Bits(p), Bool) {
+        C <- new Table(Bits(p), Bool);
+        Sl <- new Table(Bool, Bits(n));
+        Sr <- new Table(Bool, Bits(n));
+        Sj <- new Table(Bool, Bits(n));
+        _ <- invoke LEVAL(i, j, l, r, op);
+        temp <- invoke LGETAIN(i, l);
+        Sl[false] <- Some(temp);
+        temp <- invoke LGETINAIN(i, l);
+        Sl[true] <- Some(temp);
+        temp <- invoke LGETAIN(i, r);
+        Sr[false] <- Some(temp);
+        temp <- invoke LGETINAIN(i, r);
+        Sr[true] <- Some(temp);
+        if (i == (h - 1)) {
+            temp <- invoke GETAOUT(j);
+        } else {
+            temp <- invoke LGETAOUT((i + 1), j);
+        }
+        Sj[true] <- Some(temp);
+        dl <- false;
+        dr <- false;
+        kl <- Unwrap(Sl[dl]);
+        kr <- Unwrap(Sr[dr]);
+        kj <- zeron;
+        if (not dl and not dr) {
+            kj <- Unwrap(Sj[true]);
+        }
+        rin <-$ Bits(n) sample-name rin_round_0;
+        rout <-$ Bits(n) sample-name rout_round_0;
+        cin <- encn(kl, kj, rin);
+        cout <- encm(kr, cin, rout);
+        C[cout] <- Some(true);
+        dl <- true;
+        dr <- false;
+        kl <- Unwrap(Sl[dl]);
+        kr <- Unwrap(Sr[dr]);
+        kj <- zeron;
+        if (not dl and not dr) {
+            kj <- Unwrap(Sj[true]);
+        }
+        rin <-$ Bits(n) sample-name rin_round_1;
+        rout <-$ Bits(n) sample-name rout_round_1;
+        cin <- encn(kl, kj, rin);
+        cout <- encm(kr, cin, rout);
+        C[cout] <- Some(true);
+        dl <- false;
+        dr <- true;
+        kl <- Unwrap(Sl[dl]);
+        kr <- Unwrap(Sr[dr]);
+        kj <- zeron;
+        if (not dl and not dr) {
+            kj <- Unwrap(Sj[true]);
+        }
+        rin <-$ Bits(n) sample-name rin_round_2;
+        rout <-$ Bits(n) sample-name rout_round_2;
+        cin <- encn(kl, kj, rin);
+        cout <- encm(kr, cin, rout);
+        C[cout] <- Some(true);
+        dl <- true;
+        dr <- true;
+        kl <- Unwrap(Sl[dl]);
+        kr <- Unwrap(Sr[dr]);
+        kj <- zeron;
+        if (not dl and not dr) {
+            kj <- Unwrap(Sj[true]);
+        }
+        rin <-$ Bits(n) sample-name rin_round_3;
+        rout <-$ Bits(n) sample-name rout_round_3;
+        cin <- encn(kl, kj, rin);
+        cout <- encm(kr, cin, rout);
+        C[cout] <- Some(true);
+        return C;
+    }
+}

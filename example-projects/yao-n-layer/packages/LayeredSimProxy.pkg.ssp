@@ -1,0 +1,26 @@
+package LayeredSimProxy {
+    params {
+        p: Integer,
+    }
+
+    import oracles {
+        LSIMGBLG(
+            i: Integer,
+            l: Integer,
+            r: Integer,
+            op: Table((Bool, Bool), Bool),
+            j: Integer
+        ) -> Table(Bits(p), Bool),
+    }
+
+    oracle GBLG(
+        i: Integer,
+        l: Integer,
+        r: Integer,
+        op: Table((Bool, Bool), Bool),
+        j: Integer
+    ) -> Table(Bits(p), Bool) {
+        C <- invoke LSIMGBLG(i, l, r, op, j);
+        return C;
+    }
+}
