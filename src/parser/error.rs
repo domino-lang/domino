@@ -633,7 +633,7 @@ pub struct UnusedEdgeError {
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("game {game_name} exports oracle {oracle_name} multiple times")]
-#[diagnostic(code(domino::code::game::unused_edge))]
+#[diagnostic(code(domino::code::game::duplicate_edge))]
 pub struct DuplicateExportError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -648,7 +648,7 @@ pub struct DuplicateExportError {
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("oracle {oracle_name} wired to incompatible oracle signature")]
-#[diagnostic(code(domino::code::game::unused_edge))]
+#[diagnostic(code(domino::code::game::signature_mismatch))]
 pub struct OracleSigMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -664,7 +664,7 @@ pub struct OracleSigMismatchError {
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("game {game_name} assigns an edge from package instance {pkg_inst_name} for oracle {oracle_name} twice")]
-#[diagnostic(code(domino::code::game::unused_edge))]
+#[diagnostic(code(domino::code::game::duplicate_edge))]
 pub struct DuplicateEdgeDefinitionError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,

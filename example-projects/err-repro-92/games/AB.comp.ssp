@@ -1,0 +1,20 @@
+composition AB {
+  const i: Integer;
+  const b: Bool;
+  
+  instance a = A {
+    params {i:i}
+  }
+  instance b = B {
+    params {b:b}
+  }
+
+  compose {
+    adversary: {
+      Run: a,
+    }
+    a: {
+      Eval: b,
+    }
+  }
+}
