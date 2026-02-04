@@ -86,7 +86,9 @@ index_id_list = _{ identifier ~ ("," ~ identifier)* }
 index_expr_list = _{ expression ~ ("," ~ expression)* }
 
 instance_decl            = { kw_instance ~ identifier ~ (indices_expr)? ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
-hybrid_instance_decl     = { kw_hybrid ~ kw_instance ~ identifier ~ identifier ~ identifier ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+hybrid_instance_decl = _{ hybrid_instance_decl_one | hybrid_instance_decl_two }
+hybrid_instance_decl_one = { kw_hybrid ~ kw_instance ~ identifier ~ identifier ~ identifier ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+hybrid_instance_decl_two = { kw_hybrid ~ kw_instance ~ identifier ~ identifier ~ "=" ~ "{" ~ identifier ~ "{" ~ instance_assign_list? ~ "}" ~ identifier ~ "{" ~ instance_assign_list? ~ "}" ~ "}" }
 instance_assign_list = { ( instance_assign )* }
 instance_assign = _{ params_def | types_def }
 
