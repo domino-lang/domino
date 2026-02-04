@@ -14,6 +14,16 @@ use crate::{
 };
 
 #[test]
+fn lexical_scope() {
+    let err = packages::parse_file_fails("lexical-scope.ssp");
+    dbg!(&err);
+    assert!(matches!(
+        err,
+        ParsePackageError::ParseExpression(ParseExpressionError::UndefinedIdentifier(uierror)) if uierror.ident_name == "x"
+    ))
+}
+
+#[test]
 fn undefined_type_in_pkg_params() {
     let err = packages::parse_file_fails("bad_param_type.ssp");
     assert!(
