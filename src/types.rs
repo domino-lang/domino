@@ -2,9 +2,110 @@
 
 use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub struct Type {
+    kind: TypeKind,
+}
+
+impl Type {
+    pub fn from_kind(kind: TypeKind) -> Self {
+        Self { kind }
+    }
+
+    pub(crate) fn empty() -> Type {
+        Self {
+            kind: TypeKind::Empty,
+        }
+    }
+
+    pub(crate) fn boolean() -> Type {
+        Self {
+            kind: TypeKind::Boolean,
+        }
+    }
+
+    pub(crate) fn integer() -> Type {
+        Self {
+            kind: TypeKind::Integer,
+        }
+    }
+
+    pub(crate) fn string() -> Type {
+        Self {
+            kind: TypeKind::String,
+        }
+    }
+
+    pub(crate) fn unknown() -> Self {
+        Self {
+            kind: TypeKind::Unknown,
+        }
+    }
+
+    pub(crate) fn maybe(ty: Type) -> Self {
+        Self {
+            kind: TypeKind::Maybe(Box::new(ty)),
+        }
+    }
+
+    pub(crate) fn tuple(tys: Vec<Type>) -> Self {
+        Self {
+            kind: TypeKind::Tuple(tys),
+        }
+    }
+
+    pub(crate) fn list(ty: Type) -> Self {
+        Self {
+            kind: TypeKind::List(Box::new(ty)),
+        }
+    }
+
+    pub(crate) fn set(ty: Type) -> Self {
+        Self {
+            kind: TypeKind::Set(Box::new(ty)),
+        }
+    }
+
+    pub(crate) fn table(key: Type, value: Type) -> Self {
+        Self {
+            kind: TypeKind::Table(Box::new(key), Box::new(value)),
+        }
+    }
+
+    pub(crate) fn fun(args: Vec<Type>, ret: Type) -> Self {
+        Self {
+            kind: TypeKind::Fn(args, Box::new(ret)),
+        }
+    }
+
+    pub(crate) fn bits(countspec: CountSpec) -> Self {
+        Self {
+            kind: TypeKind::Bits(countspec),
+        }
+    }
+
+    pub(crate) fn user_defined(name: String) -> Self {
+        Self {
+            kind: TypeKind::UserDefined(name),
+        }
+    }
+
+    pub fn into_kind(self) -> TypeKind {
+        self.kind
+    }
+
+    pub fn kind(&self) -> &TypeKind {
+        &self.kind
+    }
+
+    pub fn kind_mut(&mut self) -> &mut TypeKind {
+        &mut self.kind
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
-pub enum Type {
+pub enum TypeKind {
     Unknown,
     Empty,
     Integer,
@@ -22,61 +123,79 @@ pub enum Type {
     UserDefined(String),
 }
 
+impl TypeKind {
+    /// Returns `true` if the type kind is [`Integer`].
+    ///
+    /// [`Integer`]: TypeKind::Integer
+    #[must_use]
+    pub fn is_integer(&self) -> bool {
+        matches!(self, Self::Integer)
+    }
+
+    /// Returns `true` if the type kind is [`Unknown`].
+    ///
+    /// [`Unknown`]: TypeKind::Unknown
+    #[must_use]
+    pub fn is_unknown(&self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+}
+
 impl Type {
     pub(crate) fn rewrite_type(&self, rules: &[(Type, Type)]) -> Self {
         if let Some((_, replace)) = rules.iter().find(|(search, _)| self == search) {
             replace.clone()
         } else {
-            match self {
-                Type::Bits(CountSpec::Identifier(id)) if matches!(id.as_ref(), Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident )) if &pkg_const_ident.name == "n" && pkg_const_ident.ty == Type::Integer) => {
+            match self.kind() {
+                TypeKind::Bits(CountSpec::Identifier(id)) if matches!(id.as_ref(), Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident )) if &pkg_const_ident.name == "n" && pkg_const_ident.ty.kind().is_integer() ) => {
                     assert!(!rules.is_empty(), "no type rewrite rules found despite identifier in CountSpec: {id:?}");
                     self.clone()
                 }
 
-                Type::Empty
-                | Type::Integer
-                | Type::String
-                | Type::Boolean
-                | Type::Bits(_) // NB: This is a fallthrough, the Identifier case is handled above
-                | Type::AddiGroupEl(_)
-                | Type::MultGroupEl(_) => self.clone(),
+                TypeKind::Empty
+                | TypeKind::Integer
+                | TypeKind::String
+                | TypeKind::Boolean
+                | TypeKind::Bits(_) // NB: This is a fallthrough, the Identifier case is handled above
+                | TypeKind::AddiGroupEl(_)
+                | TypeKind::MultGroupEl(_) => self.clone(),
 
-                Type::List(t) => Type::List(Box::new(t.rewrite_type(rules))),
-                Type::Maybe(t) => Type::Maybe(Box::new(t.rewrite_type(rules))),
-                Type::Set(t) => Type::Set(Box::new(t.rewrite_type(rules))),
+                TypeKind::List(t) => Type::list(t.rewrite_type(rules)),
+                TypeKind::Maybe(t) => Type::maybe(t.rewrite_type(rules)),
+                TypeKind::Set(t) => Type::set(t.rewrite_type(rules)),
 
-                Type::Tuple(ts) => Type::Tuple(ts.iter().map(|t| t.rewrite_type(rules)).collect()),
-                Type::Table(t1, t2) => Type::Table(
-                    Box::new(t1.rewrite_type(rules)),
-                    Box::new(t2.rewrite_type(rules)),
+                TypeKind::Tuple(ts) => Type::tuple(ts.iter().map(|t| t.rewrite_type(rules)).collect()),
+                TypeKind::Table(t1, t2) => Type::table(
+                    t1.rewrite_type(rules),
+                    t2.rewrite_type(rules),
                 ),
-                Type::Fn(ts, t) => Type::Fn(
+                TypeKind::Fn(ts, t) => Type::fun(
                     ts.iter().map(|t| t.rewrite_type(rules)).collect(),
-                    Box::new(t.rewrite_type(rules)),
+                    t.rewrite_type(rules),
                 ),
-                Type::Unknown => unreachable!(),
-                Type::UserDefined(_) => unreachable!(),
+                TypeKind::Unknown => unreachable!(),
+                TypeKind::UserDefined(_) => unreachable!(),
             }
         }
     }
 
     pub(crate) fn types_match(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Type::Bits(l), Type::Bits(r)) => l.countspecs_match(r),
+        match (self.kind(), other.kind()) {
+            (TypeKind::Bits(l), TypeKind::Bits(r)) => l.countspecs_match(r),
 
-            (Type::List(l), Type::List(r))
-            | (Type::Set(l), Type::Set(r))
-            | (Type::Maybe(l), Type::Maybe(r)) => l.types_match(r.as_ref()),
+            (TypeKind::List(l), TypeKind::List(r))
+            | (TypeKind::Set(l), TypeKind::Set(r))
+            | (TypeKind::Maybe(l), TypeKind::Maybe(r)) => l.types_match(r.as_ref()),
 
-            (Type::Table(lk, lv), Type::Table(rk, rv)) => {
+            (TypeKind::Table(lk, lv), TypeKind::Table(rk, rv)) => {
                 lk.types_match(rk.as_ref()) && lv.types_match(rv)
             }
 
-            (Type::Tuple(l), Type::Tuple(r)) => {
+            (TypeKind::Tuple(l), TypeKind::Tuple(r)) => {
                 l.len() == r.len() && l.iter().zip(r.iter()).all(|(l, r)| Type::types_match(l, r))
             }
 
-            (Type::Fn(largs, lty), Type::Fn(rargs, rty)) => {
+            (TypeKind::Fn(largs, lty), TypeKind::Fn(rargs, rty)) => {
                 largs
                     .iter()
                     .zip(rargs.iter())
@@ -152,7 +271,7 @@ mod tests {
                         pkg_name: "SomePackage".to_string(),
                         name: "n".to_string(),
                         pkg_inst_name: None,
-                        ty: Type::Integer,
+                        ty: Type::integer(),
                         game_assignment: None,
                         game_inst_name: None,
                         game_name: None,

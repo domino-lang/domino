@@ -11,7 +11,7 @@ use crate::{
         package::ParseExpressionError,
         tests::{games, packages},
     },
-    types::{CountSpec, Type},
+    types::{CountSpec, Type, TypeKind},
 };
 use std::{collections::HashMap, iter::FromIterator as _};
 
@@ -26,11 +26,13 @@ fn type_mismatch_in_game_params() {
         ParseGameError::ParseExpression(ParseExpressionError::TypeMismatch(
             TypeMismatchError {
                 at,
-                expected: Type::Integer,
-                got: Type::Boolean,
+                expected,
+                got,
                 source_code,
             }
         )) if &source_code.inner()[at.offset()..(at.offset()+at.len())] == "n"
+        && matches!(expected.kind(),TypeKind::Integer)
+        && matches!(got.kind(), TypeKind::Boolean)
     ));
 
     let report = miette::Report::new(err);
@@ -105,9 +107,9 @@ fn param_wrong_type() {
         panic!("expected different error, got {err}");
     };
 
-    assert_eq!(err.expected, Type::Integer);
+    assert_eq!(err.expected, Type::integer());
     assert!(
-        matches!(&err.got, Type::Bits(countspec) if matches!(&*countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n"  ))
+        matches!(&err.got.kind(), TypeKind::Bits(countspec) if matches!(countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n"  ))
     );
 }
 

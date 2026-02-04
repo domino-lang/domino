@@ -7,12 +7,12 @@ use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::Identifier;
 use crate::package::{Composition, Edge, Export};
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
-use crate::types::{CountSpec, Type};
+use crate::types::{CountSpec, Type, TypeKind};
 
 pub struct Transformation<'a>(pub &'a Composition);
 
 fn assert_is_populated(ty: &&Type) {
-    if let Type::Bits(CountSpec::Identifier(id)) = ty {
+    if let TypeKind::Bits(CountSpec::Identifier(id)) = ty.kind() {
         if let Identifier::PackageIdentifier(PackageIdentifier::Const(i)) = &**id {
             debug_assert!(i.game_assignment.is_some());
         }

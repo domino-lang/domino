@@ -103,7 +103,7 @@ impl<'a> DatastructurePattern<'a> for GameStatePattern<'a> {
     fn selector_sort(&self, sel: &Self::Selector) -> SmtExpr {
         match sel {
             GameStateSelector::PackageInstance { sort, .. } => sort.clone().into(),
-            GameStateSelector::Randomness { .. } => Type::Integer.into(),
+            GameStateSelector::Randomness { .. } => Type::integer().into(),
         }
     }
 

@@ -11,7 +11,7 @@ use super::{
     ParseContext, Rule,
 };
 use crate::{
-    expressions::Expression,
+    expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
             PackageConstIdentifier, PackageIdentifier, PackageImportsLoopVarIdentifier,
@@ -25,7 +25,7 @@ use crate::{
         ForLoopIdentifersDontMatchError, NoSuchOracleError, OracleAlreadyImportedError,
     },
     statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracleStatement, Statement},
-    types::Type,
+    types::{Type, TypeKind},
     util::scope::{Declaration, OracleContext, Scope},
 };
 
@@ -360,14 +360,14 @@ pub fn handle_expression(
     expected_type: Option<&Type>,
 ) -> Result<Expression, ParseExpressionError> {
     let span = ast.as_span();
-    let expr = match ast.as_rule() {
+    let kind = match ast.as_rule() {
         Rule::expr_add => {
             if let Some(ty_expect) = expected_type {
-                if ty_expect != &Type::Integer {
+                if !ty_expect.kind().is_integer() {
                     return Err(TypeMismatchError {
                         at: (span.start()..span.end()).into(),
                         expected: ty_expect.clone(),
-                        got: Type::Integer,
+                        got: Type::integer(),
                         source_code: ctx.named_source(),
                     }
                     .into());
@@ -384,10 +384,10 @@ pub fn handle_expression(
 
             let ty_lhs = lhs.get_type();
 
-            if ty_lhs != Type::Integer {
+            if !ty_lhs.kind().is_integer() {
                 return Err(TypeMismatchError {
                     at: (span.start()..span.end()).into(),
-                    expected: Type::Integer,
+                    expected: Type::integer(),
                     got: ty_lhs,
                     source_code: ctx.named_source(),
                 }
@@ -396,70 +396,70 @@ pub fn handle_expression(
 
             let rhs = handle_expression(ctx, rhs_ast, Some(&ty_lhs))?;
 
-            Expression::Add(Box::new(lhs), Box::new(rhs))
+            ExpressionKind::Add(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_sub => {
             let mut inner = ast.into_inner();
             let lhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
             let rhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
-            Expression::Sub(Box::new(lhs), Box::new(rhs))
+            ExpressionKind::Sub(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_mul => {
             let mut inner = ast.into_inner();
             let lhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
             let rhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
-            Expression::Mul(Box::new(lhs), Box::new(rhs))
+            ExpressionKind::Mul(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_div => {
             let mut inner = ast.into_inner();
             let lhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
             let rhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
-            Expression::Div(Box::new(lhs), Box::new(rhs))
+            ExpressionKind::Div(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_smaller => {
             let mut inner = ast.into_inner();
-            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            Expression::LessThen(Box::new(lhs), Box::new(rhs))
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            ExpressionKind::LessThen(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_greater => {
             let mut inner = ast.into_inner();
-            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            Expression::GreaterThen(Box::new(lhs), Box::new(rhs))
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            ExpressionKind::GreaterThen(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_smaller_eq => {
             let mut inner = ast.into_inner();
-            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            Expression::LessThenEq(Box::new(lhs), Box::new(rhs))
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            ExpressionKind::LessThenEq(Box::new(lhs), Box::new(rhs))
         }
         Rule::expr_greater_eq => {
             let mut inner = ast.into_inner();
-            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
-            Expression::GreaterThenEq(Box::new(lhs), Box::new(rhs))
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::integer()))?;
+            ExpressionKind::GreaterThenEq(Box::new(lhs), Box::new(rhs))
         }
 
-        Rule::expr_and => Expression::And(
+        Rule::expr_and => ExpressionKind::And(
             ast.into_inner()
-                .map(|expr| handle_expression(ctx, expr, Some(&Type::Boolean)))
+                .map(|expr| handle_expression(ctx, expr, Some(&Type::boolean())))
                 .collect::<Result<_, _>>()?,
         ),
-        Rule::expr_or => Expression::Or(
+        Rule::expr_or => ExpressionKind::Or(
             ast.into_inner()
-                .map(|expr| handle_expression(ctx, expr, Some(&Type::Boolean)))
+                .map(|expr| handle_expression(ctx, expr, Some(&Type::boolean())))
                 .collect::<Result<_, _>>()?,
         ),
-        Rule::expr_xor => Expression::Xor(
+        Rule::expr_xor => ExpressionKind::Xor(
             ast.into_inner()
-                .map(|expr| handle_expression(ctx, expr, Some(&Type::Boolean)))
+                .map(|expr| handle_expression(ctx, expr, Some(&Type::boolean())))
                 .collect::<Result<_, _>>()?,
         ),
         Rule::expr_not => {
             let mut inner = ast.into_inner();
-            let content = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Boolean))?;
-            Expression::Not(Box::new(content))
+            let content = handle_expression(ctx, inner.next().unwrap(), Some(&Type::boolean()))?;
+            ExpressionKind::Not(Box::new(content))
         }
 
         Rule::expr_equals => {
@@ -470,7 +470,7 @@ pub fn handle_expression(
 
             let first_type = first.get_type();
 
-            Expression::Equals(
+            ExpressionKind::Equals(
                 vec![Ok(first)]
                     .into_iter()
                     .chain(pairs.map(|expr| handle_expression(ctx, expr, Some(&first_type))))
@@ -485,7 +485,7 @@ pub fn handle_expression(
 
             let first_type = first.get_type();
 
-            Expression::Not(Box::new(Expression::Equals(
+            ExpressionKind::Not(Box::new(Expression::equals(
                 vec![Ok(first)]
                     .into_iter()
                     .chain(pairs.map(|expr| handle_expression(ctx, expr, Some(&first_type))))
@@ -494,36 +494,42 @@ pub fn handle_expression(
         }
         Rule::expr_none => {
             let ty = handle_type(ctx, ast.into_inner().next().unwrap())?;
-            Expression::None(ty)
+            ExpressionKind::None(ty)
         }
 
         Rule::expr_untyped_none => match expected_type {
             None => {
+                // we can't guess the None type, need it set from outside
+                // in this case the caller didn't tell us anything
                 return Err(UntypedNoneTypeInferenceError {
                     source_code: ctx.named_source(),
                     at: (span.start()..span.end()).into(),
                 }
                 .into());
             }
-            Some(Type::Maybe(t)) if matches!(**t, Type::Unknown) => {
-                return Err(UntypedNoneTypeInferenceError {
-                    source_code: ctx.named_source(),
-                    at: (span.start()..span.end()).into(),
+            Some(expected_type) => match expected_type.kind() {
+                // we can't guess the None type, need it set from outside
+                // in this case the caller said it's a maybe but we don't know what's inside
+                TypeKind::Maybe(t) if matches!(t.as_ref().kind(), TypeKind::Unknown) => {
+                    return Err(UntypedNoneTypeInferenceError {
+                        source_code: ctx.named_source(),
+                        at: (span.start()..span.end()).into(),
+                    }
+                    .into());
                 }
-                .into());
-            }
-            Some(expected_type) => {
-                let Type::Maybe(inner_type) = expected_type else {
+                // the caller gave us the type, we use that
+                TypeKind::Maybe(inner_type) => ExpressionKind::None(*inner_type.clone()),
+                // the caller expected some none-maybe type, that's an error
+                _ => {
                     return Err(TypeMismatchError {
                         source_code: ctx.named_source(),
                         at: (span.start()..span.end()).into(),
                         expected: expected_type.to_owned(),
-                        got: Type::Maybe(Box::new(Type::Unknown)),
+                        got: Type::maybe(Type::unknown()),
                     }
                     .into());
-                };
-                Expression::None(*inner_type.clone())
-            }
+                }
+            },
         },
 
         Rule::expr_some => {
@@ -531,18 +537,18 @@ pub fn handle_expression(
             // if yes, extract the expected type for the inner expression
             // if not, abort with an error
             let expected_type = if let Some(ty_expect) = expected_type {
-                let Type::Maybe(ty) = ty_expect else {
+                let TypeKind::Maybe(ty) = ty_expect.kind() else {
                     return Err(TypeMismatchError {
                         at: (span.start()..span.end()).into(),
                         expected: ty_expect.clone(),
                         // TODO: maybe actually keep parsing here to produce better diagnostic
                         // output (whole type)
-                        got: Type::Maybe(Box::new(Type::Unknown)),
+                        got: Type::maybe(Type::unknown()),
                         source_code: ctx.named_source(),
                     }
                     .into());
                 };
-                if **ty == Type::Unknown {
+                if ty.kind().is_unknown() {
                     None
                 } else {
                     Some(*ty.clone())
@@ -556,27 +562,30 @@ pub fn handle_expression(
                 ast.into_inner().next().unwrap(),
                 expected_type.as_ref(),
             )?;
-            Expression::Some(Box::new(expr))
+            ExpressionKind::Some(Box::new(expr))
         }
         Rule::expr_unwrap => {
             let expected_type: Option<Type> = if let Some(ty) = expected_type {
-                Some(Type::Maybe(Box::new(ty.clone())))
+                Some(Type::maybe(ty.clone()))
             } else {
-                Some(Type::Maybe(Box::new(Type::Unknown)))
+                Some(Type::maybe(Type::unknown()))
             };
             let expr = handle_expression(
                 ctx,
                 ast.into_inner().next().unwrap(),
                 expected_type.as_ref(),
             )?;
-            Expression::Unwrap(Box::new(expr))
+            ExpressionKind::Unwrap(Box::new(expr))
         }
 
         Rule::expr_newtable => {
             let mut inner = ast.into_inner();
-            let idxty = handle_type(ctx, inner.next().unwrap())?;
-            let valty = handle_type(ctx, inner.next().unwrap())?;
-            Expression::EmptyTable(Type::Table(Box::new(idxty), Box::new(valty)))
+            let [idxty_ast, valty_ast] = [inner.next().unwrap(), inner.next().unwrap()];
+
+            let idxty = handle_type(ctx, idxty_ast)?;
+            let valty = handle_type(ctx, valty_ast)?;
+
+            ExpressionKind::EmptyTable(Type::table(idxty, valty))
         }
         Rule::table_access => {
             let expr_span = ast.as_span();
@@ -587,32 +596,47 @@ pub fn handle_expression(
             let ident_name = ident_ast.as_str();
             let ident = handle_identifier_in_code_rhs(ctx, &ident_ast, ident_name)?;
 
-            let Type::Table(idx_type, val_type) = ident.get_type() else {
+            // We first fetch the identifier. Since this is an identifier, we know the full type,
+            // so we learn most by doing this first. No need for inference here.
+            let TypeKind::Table(idx_type, val_type) = ident.get_type().into_kind() else {
                 return Err(ParseExpressionError::TypeMismatch(TypeMismatchError {
                     at: (ident_span.start()..ident_span.end()).into(),
-                    expected: Type::Table(Box::new(Type::Unknown), Box::new(Type::Unknown)),
+                    expected: Type::table(Type::unknown(), Type::unknown()),
                     got: ident.get_type(),
                     source_code: ctx.named_source(),
                 }));
             };
 
-            let idx_expr = handle_expression(ctx, inner.next().unwrap(), Some(&*idx_type))?;
-
+            // Check that the type we got matches the expected type, if it is set
             if let Some(expected_type) = expected_type {
-                if *expected_type != Type::Maybe(Box::new(Type::Unknown))
-                    && expected_type != &Type::Maybe(val_type.clone())
+                // The expected value should be a maybe. if it isn't we return an error
+                let TypeKind::Maybe(expected_value_type) = expected_type.kind() else {
+                    return Err(ParseExpressionError::TypeMismatch(TypeMismatchError {
+                        at: (expr_span.start()..expr_span.end()).into(),
+                        expected: expected_type.clone(),
+                        got: Type::maybe(*val_type.clone()),
+                        source_code: ctx.named_source(),
+                    }));
+                };
+
+                // Ensure that the expected type is unknown or matches
+                if !(expected_value_type.kind().is_unknown()
+                    || expected_value_type.kind() == val_type.kind())
                 {
                     return Err(ParseExpressionError::TypeMismatch(TypeMismatchError {
                         at: (expr_span.start()..expr_span.end()).into(),
                         expected: expected_type.clone(),
-                        got: Type::Table(idx_type, val_type),
+                        got: Type::maybe(*val_type.clone()),
                         source_code: ctx.named_source(),
                     }));
                 }
-            }
+            };
 
+            let idx_expr = handle_expression(ctx, inner.next().unwrap(), Some(&*idx_type))?;
+
+            // XXX: not sure what is meant with this TODO
             // TODO properly parse this identifier
-            Expression::TableAccess(ident, Box::new(idx_expr))
+            ExpressionKind::TableAccess(ident, Box::new(idx_expr))
         }
 
         Rule::fn_call => {
@@ -638,11 +662,11 @@ pub fn handle_expression(
                     oracle_name: ident.to_string(),
                     source_code: NamedSource::new(ctx.file_name, ctx.file_content.to_string()),
                 })?;
-            let Type::Fn(exp_args_tys, ret_ty) = ident.get_type() else {
+            let TypeKind::Fn(exp_args_tys, ret_ty) = ident.get_type().into_kind() else {
                 // callee is not a function
                 return Err(TypeMismatchError {
                     at: (ident_span.start()..ident_span.end()).into(),
-                    expected: Type::Fn(vec![], Box::new(Type::Unknown)),
+                    expected: Type::fun(vec![], Type::unknown()),
                     got: ident.get_type(),
                     source_code: ctx.named_source(),
                 }
@@ -680,7 +704,7 @@ pub fn handle_expression(
                 .map(|(arg_ast, exp_ty)| handle_expression(ctx, arg_ast, Some(&exp_ty)))
                 .collect::<Result<Vec<_>, _>>()?;
 
-            Expression::FnCall(ident, args)
+            ExpressionKind::FnCall(ident, args)
         }
 
         Rule::identifier => {
@@ -704,17 +728,17 @@ pub fn handle_expression(
                     todo!("handle error, user tried assigning to an oracle")
                 }
             };
-            Expression::Identifier(ident)
+            ExpressionKind::Identifier(ident)
         }
 
         Rule::literal_boolean => {
             let litval = ast.as_str().to_string();
-            Expression::BooleanLiteral(litval)
+            ExpressionKind::BooleanLiteral(litval)
         }
         Rule::literal_integer => {
             let litval = ast.as_str().trim().to_string();
 
-            Expression::IntegerLiteral(litval.parse().unwrap_or_else(|_| {
+            ExpressionKind::IntegerLiteral(litval.parse().unwrap_or_else(|_| {
                 // The grammar only allows ASCII_DIGIT+ here, so we should be fine?
                 // Maybe if the number is too big?
                 unreachable!(
@@ -728,15 +752,15 @@ pub fn handle_expression(
         // TODO: we can't infer the type for empty sets and lists.
         //       this means we either need separate expressions for empty ones (that have a type),
         //       or they all need a type, like None
-        Rule::literal_emptyset => Expression::Set(vec![]),
-        Rule::expr_list => Expression::List(
+        Rule::literal_emptyset => ExpressionKind::Set(vec![]),
+        Rule::expr_list => ExpressionKind::List(
             ast.into_inner()
                 .map(|expr| handle_expression(ctx, expr, None))
                 .collect::<Result<_, _>>()?,
         ),
         Rule::expr_tuple => {
             if let Some(expected_type) = expected_type {
-                let Type::Tuple(types) = expected_type else {
+                let TypeKind::Tuple(types) = expected_type.kind() else {
                     // what if there is an expected type, but it's not a tuple?
                     let inner_types = ast
                         .into_inner()
@@ -746,7 +770,7 @@ pub fn handle_expression(
                     return Err(TypeMismatchError {
                         at: (span.start()..span.end()).into(),
                         expected: expected_type.to_owned(),
-                        got: Type::Tuple(inner_types),
+                        got: Type::tuple(inner_types),
                         source_code: ctx.named_source(),
                     }
                     .into());
@@ -764,13 +788,13 @@ pub fn handle_expression(
                     return Err(TypeMismatchError {
                         at: (span.start()..span.end()).into(),
                         expected: expected_type.to_owned(),
-                        got: Type::Tuple(inner_types),
+                        got: Type::tuple(inner_types),
                         source_code: ctx.named_source(),
                     }
                     .into());
                 }
 
-                Expression::Tuple(
+                ExpressionKind::Tuple(
                     expr_asts
                         .into_iter()
                         .zip(types.iter())
@@ -780,27 +804,29 @@ pub fn handle_expression(
                         .collect::<Result<_, _>>()?,
                 )
             } else {
-                Expression::Tuple(
+                ExpressionKind::Tuple(
                     ast.into_inner()
                         .map(|expr| handle_expression(ctx, expr, None))
                         .collect::<Result<_, _>>()?,
                 )
             }
         }
-        Rule::expr_set => Expression::Set(
+        Rule::expr_set => ExpressionKind::Set(
             ast.into_inner()
                 .map(|expr| handle_expression(ctx, expr, None))
                 .collect::<Result<_, _>>()?,
         ),
         _ => unreachable!("Unhandled expression {:#?}", ast),
     };
+    let expr = Expression::from_kind(kind);
 
     if let Some(expected) = expected_type {
         let got = expr.get_type();
         let at: SourceSpan = (span.start()..span.end()).into();
 
-        let expecting_unknown_maybe = *expected == Type::Maybe(Box::new(Type::Unknown));
-        let got_a_maybe = matches!(got, Type::Maybe(_));
+        let expecting_unknown_maybe =
+            matches!(expected.kind(),  TypeKind::Maybe(inner) if inner.kind().is_unknown());
+        let got_a_maybe = matches!(got.kind(), TypeKind::Maybe(_));
 
         // we allow a mismatch if we don't know what the type in the maybe is, and got some kind of
         // maybe. This is effectively a form of type inference.
@@ -951,7 +977,7 @@ pub fn handle_code(
                 // assign | return_stmt | abort | ite
                 Rule::ite => {
                     let mut inner = stmt.into_inner();
-                    let cond = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&Type::Boolean))?;
+                    let cond = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&Type::boolean()))?;
                     let then_ast = inner.next().unwrap();
                     let then_span = then_ast.as_span();
                     let then_block = handle_code(
@@ -994,7 +1020,7 @@ pub fn handle_code(
                 }
                 Rule::assert => {
                     let mut inner = stmt.into_inner();
-                    let expr = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&Type::Boolean))?;
+                    let expr = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&Type::boolean()))?;
 
                     Statement::IfThenElse(IfThenElse { cond: expr, then_block: CodeBlock(vec![]), else_block: CodeBlock(vec![Statement::Abort(full_span)]), then_span: full_span, else_span: full_span, full_span })
                 }
@@ -1045,7 +1071,7 @@ pub fn handle_code(
                         ctx,
                         name_ast,
                         oracle_name,
-                        Type::Table(Box::new(index.get_type()),  Box::new(ty.clone())),
+                        Type::table(index.get_type(),  ty.clone()),
                     )
                         ?;
                     let sample_name = inner.next().map(|ast| ast.as_str().to_string());
@@ -1066,23 +1092,23 @@ pub fn handle_code(
                     };
 
                     let ty_ident = ident.get_type();
-                    let Type::Table(ty_key, ty_value_without_maybe) = &ty_ident else {
+                    let TypeKind::Table(ty_key, ty_value_without_maybe) = &ty_ident.kind() else {
                         let span = name_ast.as_span();
                         return Err(TypeMismatchError{
                             at: (span.start()..span.end()).into(),
-                            expected: Type::Table(Box::new(Type::Unknown), Box::new(Type::Unknown)),
+                            expected: Type::table(Type::unknown(), Type::unknown()),
                             got: ty_ident,
                             source_code: ctx.named_source(),
                         }.into())
                     };
 
-                    let ty_value_with_maybe = Type::Maybe(ty_value_without_maybe.clone());
+                    let ty_value_with_maybe = Type::maybe(*ty_value_without_maybe.clone());
 
                     let index = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(ty_key))?;
                     let expr = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&ty_value_with_maybe))?;
 
-                    let expected_type = match expr.get_type() {
-                        Type::Maybe(t) => Type::Table(Box::new(index.get_type()), t),
+                    let expected_type = match expr.get_type().into_kind() {
+                        TypeKind::Maybe(t) => Type::table(index.get_type(), *t),
                         _ => panic!("assigning non-maybe value to table {expr:?} in {oracle_name}, {pkg_name}", expr = expr, oracle_name=oracle_name, pkg_name=ctx.pkg_name),
                     };
 
@@ -1151,7 +1177,7 @@ pub fn handle_code(
                             Rule::oracle_call_index => {
                                 let index_expr_ast = ast.into_inner().next().unwrap();
                                 dst_inst_index =
-                                    Some(handle_expression(&ctx.parse_ctx(), index_expr_ast, Some(&Type::Integer))?);
+                                    Some(handle_expression(&ctx.parse_ctx(), index_expr_ast, Some(&Type::integer()))?);
                             }
                             Rule::fn_call_arglist => {
                                 let args_iter = ast.into_inner();
@@ -1180,9 +1206,9 @@ pub fn handle_code(
 
                     let expected_type = match opt_idx.clone() {
                         None => target_oracle_sig.ty.clone(),
-                        Some(idx) => Type::Table(
-                            Box::new(idx.get_type()),
-                            Box::new(target_oracle_sig.ty.clone())
+                        Some(idx) => Type::table(
+                            idx.get_type(),
+                            target_oracle_sig.ty.clone()
                         ),
                     };
 
@@ -1213,8 +1239,8 @@ pub fn handle_code(
                     let expr = handle_expression(&ctx.parse_ctx(),expr, None)?;
                     let ty = expr.get_type();
 
-                    let tys = match ty {
-                        Type::Tuple(tys) => tys,
+                    let tys = match ty.into_kind() {
+                        TypeKind::Tuple(tys) => tys,
                         other => panic!("expected tuple type in parse, but got {other:?} in {file_name}, {pkg_name}, {oracle_name}, {expr:?}", other=other, file_name=ctx.file_name, pkg_name=ctx.pkg_name, oracle_name=oracle_name, expr=expr)
                     };
 
@@ -1232,11 +1258,11 @@ pub fn handle_code(
                 Rule::for_ => {
                     let mut parsed: Vec<Pair<Rule>> = stmt.into_inner().collect();
                     let decl_var_name = parsed[0].as_str();
-                    let lower_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(1), Some(&Type::Integer))?;
+                    let lower_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(1), Some(&Type::integer()))?;
                     let lower_bound_type = parsed[1].as_str();
                     let bound_var_name = parsed[2].as_str();
                     let upper_bound_type = parsed[3].as_str();
-                    let upper_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(4), Some(&Type::Integer))?;
+                    let upper_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(4), Some(&Type::integer()))?;
 
                     if decl_var_name != bound_var_name {
                         todo!("return proper error here")
@@ -1338,7 +1364,7 @@ pub fn handle_oracle_def(
 
     ctx.scope.leave();
 
-    if sig.ty != Type::Empty {
+    if !matches!(sig.ty.kind(), TypeKind::Empty) {
         fn check_block(
             ctx: &ParsePackageContext,
             oracle_name: &str,
@@ -1402,7 +1428,7 @@ pub fn handle_oracle_sig(
 
     let maybe_ty = inner.next();
     let ty = match maybe_ty {
-        None => Type::Empty,
+        None => Type::empty(),
         Some(t) => handle_type(&ctx.parse_ctx(), t)?,
     };
 
@@ -1436,7 +1462,7 @@ pub fn handle_oracle_imports_oracle_sig(
                     let loopvar_ctx = ctx.clone().with_scope(loopvar_scope.clone()).parse_ctx();
                     let indices: Vec<_> = next
                         .into_inner()
-                        .map(|expr| handle_expression(&loopvar_ctx, expr, Some(&Type::Integer)))
+                        .map(|expr| handle_expression(&loopvar_ctx, expr, Some(&Type::integer())))
                         .collect::<Result<_, _>>()?;
                     multi_inst_idx.extend_from_slice(&indices);
                     inner.next();
@@ -1457,7 +1483,7 @@ pub fn handle_oracle_imports_oracle_sig(
     let parse_ctx = ctx.parse_ctx();
     let maybe_ty = inner.next();
     let ty = match maybe_ty {
-        None => Type::Empty,
+        None => Type::empty(),
         Some(t) => handle_type(&parse_ctx, t)?,
     };
 
@@ -1716,9 +1742,9 @@ pub fn handle_import_oracles_body(
                 let ident2_span = ident2_ast.as_span();
 
                 let for_start =
-                    handle_expression(&ctx.parse_ctx(), for_start_ast, Some(&Type::Integer))?;
+                    handle_expression(&ctx.parse_ctx(), for_start_ast, Some(&Type::integer()))?;
                 let for_end =
-                    handle_expression(&ctx.parse_ctx(), for_end_ast, Some(&Type::Integer))?;
+                    handle_expression(&ctx.parse_ctx(), for_end_ast, Some(&Type::integer()))?;
 
                 // the grammar ensures that try_into doesn't fail
                 let start_comp: ForComp = start_comp_ast.as_str().try_into().unwrap();

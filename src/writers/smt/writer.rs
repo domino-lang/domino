@@ -3,6 +3,7 @@
 use std::collections::HashSet;
 
 use crate::expressions::Expression;
+use crate::expressions::ExpressionKind;
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, PackageInstance};
 use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
@@ -10,6 +11,7 @@ use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 
+use crate::types::TypeKind;
 use crate::writers::smt::exprs::{SmtExpr, SmtIte, SmtLet};
 
 use super::contexts::{
@@ -705,7 +707,7 @@ impl<'a> CompositionSmtWriter<'a> {
         idents: &[Identifier],
         expr: &Expression,
     ) -> SmtExpr {
-        let Type::Tuple(types) = expr.get_type() else {
+        let TypeKind::Tuple(types) = expr.get_type().into_kind() else {
             unreachable!("if this wasn't a tuple type, the type checker would have complained")
         };
         let bindings = idents
@@ -838,7 +840,7 @@ impl<'a> CompositionSmtWriter<'a> {
         //eprintln!(r#"DEBUG code_smt_helper Assign {expr:?} to identifier {ident:?}")"#);
 
         // first build the unwrap expression, if we have to
-        let outexpr = if let Expression::Unwrap(inner) = expr {
+        let outexpr = if let ExpressionKind::Unwrap(inner) = expr.kind() {
             ("maybe-get", *inner.clone()).into()
         } else {
             expr.clone().into()
@@ -861,13 +863,13 @@ impl<'a> CompositionSmtWriter<'a> {
         .into();
 
         // if it's an unwrap, also wrap it with the unwrap check.
-        if let Expression::Unwrap(inner) = expr {
+        if let ExpressionKind::Unwrap(inner) = expr.kind() {
             SmtIte {
                 cond: SmtEq2 {
                     lhs: *inner.clone(),
                     rhs: SmtAs {
                         term: "mk-none",
-                        sort: Type::Maybe(Box::new(t)).into(),
+                        sort: Type::maybe(t).into(),
                     },
                 },
                 then: oracle_ctx.smt_construct_abort(&GameStatePattern),
@@ -1245,7 +1247,7 @@ mod tests {
     #[test]
     fn test_smtlet() -> TestResult {
         let l = SmtLet {
-            bindings: vec![("x".into(), Expression::IntegerLiteral(42).into())],
+            bindings: vec![("x".into(), Expression::integer(42).into())],
             body: SmtExpr::Atom(String::from("x")),
         };
 

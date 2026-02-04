@@ -3,7 +3,7 @@
 use super::patterns::{game_consts, pkg_consts, pkg_state, DatastructurePattern};
 use crate::{
     parser::tests::*,
-    types::{CountSpec, Type},
+    types::{CountSpec, TypeKind},
     writers::smt::{
         exprs::SmtExpr,
         patterns::{
@@ -269,8 +269,8 @@ fn test_fully_resolved_idents_103() {
 
     for game_inst in &theorem.instances {
         for (_, ty) in &game_inst.game.consts {
-            if let Type::Bits(cs) = ty {
-                match &*cs {
+            if let TypeKind::Bits(cs) = ty.kind() {
+                match cs {
                     CountSpec::Identifier(identifier) => {
                         assert!(identifier.as_theorem_identifier().is_some())
                     }
@@ -281,8 +281,8 @@ fn test_fully_resolved_idents_103() {
         }
         for package_inst in &game_inst.game.pkgs {
             for (_, ty, _) in &package_inst.pkg.params {
-                if let Type::Bits(cs) = ty {
-                    match &*cs {
+                if let TypeKind::Bits(cs) = ty.kind() {
+                    match cs {
                         CountSpec::Identifier(identifier) => {
                             assert!(identifier.as_theorem_identifier().is_some())
                         }

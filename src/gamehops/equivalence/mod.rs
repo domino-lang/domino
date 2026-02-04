@@ -4,12 +4,12 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 use std::iter::FromIterator;
 
-use crate::expressions::Expression;
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
 use crate::identifier::Identifier;
-use crate::types::CountSpec;
+use crate::types::{CountSpec, TypeKind};
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::declare::declare_const;
 use crate::writers::smt::patterns::const_mapping::{
@@ -163,30 +163,30 @@ impl<'a> EquivalenceContext<'a> {
         let mut bits_sort_suffixes = HashSet::new();
 
         for ty in self.types() {
-            if let Type::Bits(count_spec) = &ty {
+            if let TypeKind::Bits(count_spec) = &ty.kind() {
                 let bits_sort_suffix = match count_spec {
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
                     crate::types::CountSpec::Identifier(ident) => match ident.as_ref() {
                         Identifier::TheoremIdentifier(ident) => ident.ident(),
                         Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident)) => {
-                            match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
-                                Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
-                                Some(Expression::Identifier(_)) => unreachable!("other identifiers can't occur here"),
+                            match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
+                                Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
+                                Some(ExpressionKind::Identifier(_)) => unreachable!("other identifiers can't occur here"),
                                 Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                                 None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
                             }
                         } ,
-                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref() {
-                            Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
-                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref) {
-                                    Some(Expression::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
-                                    Some(Expression::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
+                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref().kind() {
+                            ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
+                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
+                                    Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
+                                    Some(ExpressionKind::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
                                     Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                                     None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
                                 }
                             },
-                            Expression::Identifier(_) => unreachable!("other identifiers can't occur here"),
+                            ExpressionKind::Identifier(_) => unreachable!("other identifiers can't occur here"),
                             other => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
                         }
                         Identifier::PackageIdentifier(_) => unreachable!("non-const package identifiers can't occur here"),
@@ -221,8 +221,8 @@ impl<'a> EquivalenceContext<'a> {
     fn emit_theorem_paramfuncs(&self, comm: &mut Communicator) -> Result<()> {
         fn get_fn<T: Clone>(arg: &(T, Type)) -> Option<(T, Vec<Type>, Type)> {
             let (other, ty) = arg;
-            match ty {
-                Type::Fn(args, ret) => Some((other.clone(), args.to_vec(), *ret.clone())),
+            match ty.kind() {
+                TypeKind::Fn(args, ret) => Some((other.clone(), args.to_vec(), *ret.clone())),
                 _ => None,
             }
         }
@@ -1227,9 +1227,9 @@ impl<'a> EquivalenceContext<'a> {
         let randomness_mapping = SmtForall {
             bindings: vec![
                 ("randmap-sample-id-left".into(), "SampleId".into()),
-                ("randmap-sample-ctr-left".into(), Type::Integer.into()),
+                ("randmap-sample-ctr-left".into(), Type::integer().into()),
                 ("randmap-sample-id-right".into(), "SampleId".into()),
-                ("randmap-sample-ctr-right".into(), Type::Integer.into()),
+                ("randmap-sample-ctr-right".into(), Type::integer().into()),
             ],
             body: (
                 "=>",
@@ -1290,17 +1290,19 @@ impl<'a> EquivalenceContext<'a> {
             .theorem()
             .consts
             .iter()
-            .filter_map(|(name, ty)| match ty {
-                Type::Integer => Some(Type::Bits(CountSpec::Identifier(Box::new(
-                    Identifier::TheoremIdentifier(TheoremIdentifier::Const(
-                        TheoremConstIdentifier {
-                            theorem_name: self.theorem().name.clone(),
-                            name: name.clone(),
-                            ty: Type::Integer,
-                            inst_info: None,
-                        },
-                    )),
-                )))),
+            .filter_map(|(name, ty)| match ty.kind() {
+                TypeKind::Integer => {
+                    let id = TheoremConstIdentifier {
+                        theorem_name: self.theorem().name.clone(),
+                        name: name.clone(),
+                        ty: Type::integer(),
+                        inst_info: None,
+                    };
+
+                    Some(Type::bits(CountSpec::Identifier(Box::new(
+                        Identifier::TheoremIdentifier(TheoremIdentifier::Const(id)),
+                    ))))
+                }
                 _ => None,
             })
             .collect();
@@ -1716,8 +1718,8 @@ impl<'a> EquivalenceContext<'a> {
          */
 
         fn type_use_theorem_ident(ty: Type) -> Type {
-            match ty {
-                Type::Bits(mut count_spec) => {
+            match ty.into_kind() {
+                TypeKind::Bits(mut count_spec) => {
                     if let CountSpec::Identifier(identifier) = &mut count_spec {
                         let theorem_ident = identifier.as_theorem_identifier();
                         assert!(
@@ -1727,9 +1729,9 @@ impl<'a> EquivalenceContext<'a> {
                         **identifier =
                             Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
                     }
-                    Type::Bits(count_spec)
+                    Type::bits(count_spec)
                 }
-                _ => ty,
+                kind => Type::from_kind(kind),
             }
         }
 
@@ -1825,8 +1827,8 @@ impl<'a> EquivalenceContext<'a> {
             (
                 ("sample-id-left", "SampleId"),
                 ("sample-id-right", "SampleId"),
-                ("sample-ctr-left", Type::Integer),
-                ("sample-ctr-right", Type::Integer),
+                ("sample-ctr-left", Type::integer()),
+                ("sample-ctr-right", Type::integer()),
             ),
             "Bool",
             body,

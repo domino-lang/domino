@@ -3,14 +3,14 @@
 use itertools::Itertools as _;
 
 use crate::{
-    expressions::Expression,
+    expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
         Identifier,
     },
     package::{OracleDef, OracleSig, Package},
     parser::package::MultiInstanceIndices,
-    types::{CountSpec, Type},
+    types::{CountSpec, Type, TypeKind},
 };
 
 use self::instantiate::InstantiationContext;
@@ -93,19 +93,21 @@ impl PackageInstance {
         let int_params = self
             .params
             .iter()
-            .filter(|(_, expr)| matches!(expr.get_type(), Type::Integer))
+            .filter(|(_, expr)| matches!(expr.get_type().kind(), TypeKind::Integer))
             .map(|(ident, expr)| {
-                let assigned_value = match expr {
-                    Expression::Identifier(ident) => CountSpec::Identifier(Box::new(ident.clone())),
-                    Expression::IntegerLiteral(num) => CountSpec::Literal(*num as u64),
+                let assigned_value = match expr.kind() {
+                    ExpressionKind::Identifier(ident) => {
+                        CountSpec::Identifier(Box::new(ident.clone()))
+                    }
+                    ExpressionKind::IntegerLiteral(num) => CountSpec::Literal(*num as u64),
                     _ => unreachable!(),
                 };
 
                 (
-                    Type::Bits(crate::types::CountSpec::Identifier(Box::new(
+                    Type::bits(crate::types::CountSpec::Identifier(Box::new(
                         ident.clone().into(),
                     ))),
-                    Type::Bits(assigned_value),
+                    Type::bits(assigned_value),
                 )
             })
             .collect_vec();
@@ -186,6 +188,7 @@ pub(crate) mod instantiate {
             },
         },
         statement::*,
+        types::TypeKind,
     };
 
     #[derive(Debug, Clone, Copy)]
@@ -345,19 +348,19 @@ pub(crate) mod instantiate {
             let mut type_rewrite_rules = self
                 .type_assignments
                 .iter()
-                .map(|(name, ty)| (Type::UserDefined(name.to_string()), ty.clone()))
+                .map(|(name, ty)| (Type::user_defined(name.to_string()), ty.clone()))
                 .collect_vec();
 
             match self.src {
                 InstantiationSource::Package { const_assignments } => {
                     type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
                         (
-                            Type::Bits(CountSpec::Identifier(Box::new(
+                            Type::bits(CountSpec::Identifier(Box::new(
                                 Identifier::PackageIdentifier(PackageIdentifier::Const(
                                     ident.clone(),
                                 )),
                             ))),
-                            Type::Bits(CountSpec::Identifier(Box::new(
+                            Type::bits(CountSpec::Identifier(Box::new(
                                 Identifier::PackageIdentifier(PackageIdentifier::Const({
                                     let mut fixed_ident: PackageConstIdentifier = ident.clone();
 
@@ -377,10 +380,10 @@ pub(crate) mod instantiate {
                 InstantiationSource::Game { const_assignments } => {
                     type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
                         (
-                            Type::Bits(CountSpec::Identifier(Box::new(
+                            Type::bits(CountSpec::Identifier(Box::new(
                                 Identifier::GameIdentifier(GameIdentifier::Const(ident.clone())),
                             ))),
-                            Type::Bits(CountSpec::Identifier(Box::new(
+                            Type::bits(CountSpec::Identifier(Box::new(
                                 Identifier::GameIdentifier(GameIdentifier::Const({
                                     let mut fixed_ident: GameConstIdentifier = ident.clone();
 
@@ -403,21 +406,24 @@ pub(crate) mod instantiate {
         }
 
         pub(crate) fn rewrite_type(&self, ty: Type) -> Type {
-            let fix_box = |bxty: Box<Type>| -> Box<Type> { Box::new(self.rewrite_type(*bxty)) };
             let fix_vec = |tys: Vec<Type>| -> Vec<Type> {
                 tys.into_iter().map(|ty| self.rewrite_type(ty)).collect()
             };
 
-            match ty {
-                Type::Bits(cs) => Type::Bits(self.rewrite_count_spec(cs)),
-                Type::Tuple(tys) => Type::Tuple(fix_vec(tys)),
-                Type::Table(kty, vty) => Type::Table(fix_box(kty), fix_box(vty)),
-                Type::Fn(arg_tys, ret_ty) => Type::Fn(fix_vec(arg_tys), fix_box(ret_ty)),
+            match ty.into_kind() {
+                TypeKind::Bits(cs) => Type::bits(self.rewrite_count_spec(cs)),
+                TypeKind::Tuple(tys) => Type::tuple(fix_vec(tys)),
+                TypeKind::Table(kty, vty) => {
+                    Type::table(self.rewrite_type(*kty), self.rewrite_type(*vty))
+                }
+                TypeKind::Fn(arg_tys, ret_ty) => {
+                    Type::fun(fix_vec(arg_tys), self.rewrite_type(*ret_ty))
+                }
 
-                Type::List(ty) => Type::List(fix_box(ty)),
-                Type::Maybe(ty) => Type::Maybe(fix_box(ty)),
-                Type::Set(ty) => Type::Set(fix_box(ty)),
-                other => other,
+                TypeKind::List(ty) => Type::list(self.rewrite_type(*ty)),
+                TypeKind::Maybe(ty) => Type::maybe(self.rewrite_type(*ty)),
+                TypeKind::Set(ty) => Type::set(self.rewrite_type(*ty)),
+                other => Type::from_kind(other),
             }
         }
 
@@ -584,23 +590,29 @@ pub(crate) mod instantiate {
 
     impl InstantiationContext<'_> {
         pub(crate) fn rewrite_expression(&self, expr: &Expression) -> Expression {
-            expr.map(|expr| match expr {
-                Expression::Identifier(ident) => {
-                    Expression::Identifier(self.rewrite_identifier(ident))
-                }
+            expr.map(|expr| {
+                let kind = match expr.into_kind() {
+                    ExpressionKind::Identifier(ident) => {
+                        ExpressionKind::Identifier(self.rewrite_identifier(ident))
+                    }
 
-                // can only happen in oracle code, i.e. package code
-                Expression::TableAccess(ident, expr) => {
-                    Expression::TableAccess(self.rewrite_identifier(ident), expr)
-                }
-                Expression::EmptyTable(ty) => Expression::EmptyTable(self.rewrite_type(ty)),
-                Expression::FnCall(ident, args) => {
-                    Expression::FnCall(self.rewrite_identifier(ident), args)
-                }
-                Expression::None(ty) => Expression::None(self.rewrite_type(ty)),
-                Expression::Sample(ty) => Expression::Sample(self.rewrite_type(ty)),
+                    // can only happen in oracle code, i.e. package code
+                    ExpressionKind::TableAccess(ident, expr) => {
+                        ExpressionKind::TableAccess(self.rewrite_identifier(ident), expr)
+                    }
+                    ExpressionKind::EmptyTable(ty) => {
+                        ExpressionKind::EmptyTable(self.rewrite_type(ty))
+                    }
+                    ExpressionKind::FnCall(ident, args) => {
+                        ExpressionKind::FnCall(self.rewrite_identifier(ident), args)
+                    }
+                    ExpressionKind::None(ty) => ExpressionKind::None(self.rewrite_type(ty)),
+                    ExpressionKind::Sample(ty) => ExpressionKind::Sample(self.rewrite_type(ty)),
 
-                expr => expr,
+                    expr => expr,
+                };
+
+                Expression::from_kind(kind)
             })
         }
 
@@ -631,7 +643,9 @@ pub(crate) mod instantiate {
                 InstantiationSource::Game { .. } => {
                     if let Some(ident) = &mut pkg_ident.as_const_mut() {
                         if let Some(assignment) = ident.game_assignment.as_mut() {
-                            if let Expression::Identifier(ident) = assignment.as_mut() {
+                            if let ExpressionKind::Identifier(ident) =
+                                assignment.as_mut().kind_mut()
+                            {
                                 *ident = self.rewrite_identifier(ident.clone())
                             }
                         }

@@ -375,7 +375,8 @@ fn handle_hybrid_instance_decl<'a>(
     ctx.scope.enter();
 
     if !ctx.consts.contains_key("hybrid$loop") {
-        ctx.consts.insert("hybrid$loop".to_string(), Type::Integer);
+        ctx.consts
+            .insert("hybrid$loop".to_string(), Type::integer());
     }
 
     let mut ast = ast.into_inner();
@@ -389,7 +390,7 @@ fn handle_hybrid_instance_decl<'a>(
         TheoremConstIdentifier {
             theorem_name: ctx.theorem_name.to_string(),
             name: "hybrid$loop".to_string(),
-            ty: Type::Integer,
+            ty: Type::integer(),
             inst_info: None,
         },
     )));
@@ -408,7 +409,7 @@ fn handle_hybrid_instance_decl<'a>(
         TheoremConstIdentifier {
             theorem_name: ctx.theorem_name.to_string(),
             name: "hybrid$bit".to_string(),
-            ty: Type::Boolean,
+            ty: Type::boolean(),
             inst_info: None,
         },
     )));
@@ -450,10 +451,7 @@ fn handle_hybrid_instance_decl<'a>(
         patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
     }
     if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((
-            bitvar_const.0.clone(),
-            Expression::BooleanLiteral("false".to_string()),
-        ))
+        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(false)))
     }
     let game_inst = GameInstance::new(
         format!("{game_inst_name}$false$"),
@@ -469,10 +467,7 @@ fn handle_hybrid_instance_decl<'a>(
         patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
     }
     if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((
-            bitvar_const.0.clone(),
-            Expression::BooleanLiteral("true".to_string()),
-        ))
+        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(true)))
     }
     let game_inst = GameInstance::new(
         format!("{game_inst_name}$true$"),
@@ -487,17 +482,11 @@ fn handle_hybrid_instance_decl<'a>(
     if let Some(loopvar_const) = loopvar_const {
         patched_consts.push((
             loopvar_const.0.clone(),
-            Expression::Add(
-                Box::new(loopvar_const.1.clone()),
-                Box::new(Expression::IntegerLiteral(1)),
-            ),
+            Expression::add(loopvar_const.1.clone(), Expression::integer(1)),
         ))
     }
     if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((
-            bitvar_const.0.clone(),
-            Expression::BooleanLiteral("false".to_string()),
-        ))
+        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(false)))
     }
     let game_inst = GameInstance::new(
         format!("{game_inst_name}$false$+"),

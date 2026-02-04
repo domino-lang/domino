@@ -138,7 +138,7 @@ impl Scope {
 #[cfg(test)]
 mod test {
     use super::Declaration;
-    use crate::{expressions::Expression, types};
+    use crate::{expressions::ExpressionKind, types};
 
     use super::Scope;
 
@@ -152,7 +152,7 @@ mod test {
     #[test]
     fn declare_then_lookup_succeeds() {
         let id = "test_id";
-        let t = types::Type::Integer;
+        let t = types::Type::integer();
 
         let mut scope = Scope::new();
         scope.enter();
@@ -182,7 +182,7 @@ mod test {
         //assert_matches!(t_, Type::Type(t_), "t_ should be a real type, found {t_:?}");
 
         if let Declaration::Identifier(ident) = decl {
-            let t_ = Expression::Identifier(ident).get_type();
+            let t_ = ExpressionKind::Identifier(ident).get_type();
             assert_eq!(t, t_, "lookup returned wrong type");
         } else {
             panic!("t_ should be a real type, found {decl:?}");
@@ -192,7 +192,7 @@ mod test {
     #[test]
     fn gone_after_leave() {
         let id = "test_id";
-        let t = types::Type::Integer;
+        let t = types::Type::integer();
 
         let mut scope = Scope::new();
         scope.enter();
@@ -225,8 +225,8 @@ mod test {
     fn still_there_after_enter_and_leave() {
         let id = "test_id";
         let id2 = "test_id2";
-        let t = types::Type::Integer;
-        let t2 = types::Type::String;
+        let t = types::Type::integer();
+        let t2 = types::Type::string();
 
         let mut scope = Scope::new();
         scope.enter();
@@ -278,7 +278,7 @@ mod test {
         //assert_matches!(t_, Type::Type(t_), "t_ should be a real type, found {t_:?}");
 
         if let Declaration::Identifier(ident) = decl {
-            let t_ = Expression::Identifier(ident).get_type();
+            let t_ = ExpressionKind::Identifier(ident).get_type();
             assert_eq!(t, t_, "lookup returned wrong type");
         } else {
             panic!("t_ should be a real type, found {decl:?}");

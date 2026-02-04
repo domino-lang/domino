@@ -4,7 +4,11 @@ use game_ident::GameIdentifier;
 use pkg_ident::PackageConstIdentifier;
 use theorem_ident::TheoremIdentifier;
 
-use crate::{expressions::Expression, parser::package::ForComp, types::Type};
+use crate::{
+    expressions::{Expression, ExpressionKind},
+    parser::package::ForComp,
+    types::Type,
+};
 
 use self::{
     game_ident::GameConstIdentifier,
@@ -97,8 +101,8 @@ impl Identifier {
             ) => {
                 if let (Some(l), Some(r)) = (l.game_assignment.as_ref(), r.game_assignment.as_ref())
                 {
-                    match (l.as_ref(), r.as_ref()) {
-                        (Expression::Identifier(l), Expression::Identifier(r)) => {
+                    match (l.as_ref().kind(), r.as_ref().kind()) {
+                        (ExpressionKind::Identifier(l), ExpressionKind::Identifier(r)) => {
                             l.identifiers_match(r)
                         }
                         _ => l == r,
@@ -113,8 +117,8 @@ impl Identifier {
                 Identifier::GameIdentifier(GameIdentifier::Const(r)),
             ) => {
                 if let (Some(l), Some(r)) = (l.assigned_value.as_ref(), r.assigned_value.as_ref()) {
-                    match (l.as_ref(), r.as_ref()) {
-                        (Expression::Identifier(l), Expression::Identifier(r)) => {
+                    match (l.as_ref().kind(), r.as_ref().kind()) {
+                        (ExpressionKind::Identifier(l), ExpressionKind::Identifier(r)) => {
                             l.identifiers_match(r)
                         }
                         _ => l == r,
@@ -144,8 +148,8 @@ impl Identifier {
                 })),
             ) => {
                 let assignment = &**game_assignment.as_ref().unwrap();
-                match assignment {
-                    Expression::Identifier(inner_ident) => {
+                match assignment.kind() {
+                    ExpressionKind::Identifier(inner_ident) => {
                         game_ident.identifiers_match(inner_ident)
                     }
                     _ => false,
@@ -232,8 +236,8 @@ pub mod pkg_ident {
                 PackageIdentifier::Local(local_ident) => local_ident.ty.clone(),
                 PackageIdentifier::OracleArg(arg_ident) => arg_ident.ty.clone(),
                 PackageIdentifier::OracleImport(oracle_import) => oracle_import.return_type.clone(),
-                PackageIdentifier::ImportsLoopVar(_loopvar) => Type::Integer,
-                PackageIdentifier::CodeLoopVar(_loopvar) => Type::Integer,
+                PackageIdentifier::ImportsLoopVar(_loopvar) => Type::integer(),
+                PackageIdentifier::CodeLoopVar(_loopvar) => Type::integer(),
             }
         }
 
@@ -519,7 +523,7 @@ pub mod game_ident {
         pub(crate) fn get_type(&self) -> Type {
             match self {
                 GameIdentifier::Const(const_ident) => const_ident.ty.clone(),
-                GameIdentifier::LoopVar(_local_ident) => Type::Integer,
+                GameIdentifier::LoopVar(_local_ident) => Type::integer(),
             }
         }
 
@@ -675,7 +679,7 @@ pub mod theorem_ident {
         pub(crate) fn get_type(&self) -> Type {
             match self {
                 TheoremIdentifier::Const(const_ident) => const_ident.ty.clone(),
-                TheoremIdentifier::LoopVar(_local_ident) => Type::Integer,
+                TheoremIdentifier::LoopVar(_local_ident) => Type::integer(),
             }
         }
     }
@@ -750,12 +754,6 @@ pub mod theorem_ident {
         fn from(value: T) -> Self {
             Identifier::TheoremIdentifier(value.into())
         }
-    }
-}
-
-impl From<Identifier> for Expression {
-    fn from(value: Identifier) -> Self {
-        Expression::Identifier(value)
     }
 }
 

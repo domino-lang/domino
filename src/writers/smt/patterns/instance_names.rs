@@ -2,14 +2,14 @@
 
 use std::borrow::Borrow;
 
-use crate::{expressions::Expression, types::Type, writers::smt::exprs::SmtExpr};
+use crate::{expressions::Expression, types::TypeKind, writers::smt::exprs::SmtExpr};
 
 pub fn only_ints<'a, T: 'a, I: IntoIterator<Item = &'a (T, Expression)>>(
     iter: I,
 ) -> impl Iterator<Item = &'a Expression> {
     iter.into_iter()
-        .filter_map(|(_, expr)| match expr.get_type() {
-            Type::Integer => Some(expr),
+        .filter_map(|(_, expr)| match expr.get_type().kind() {
+            TypeKind::Integer => Some(expr),
             _ => None,
         })
 }
@@ -18,8 +18,8 @@ pub fn only_ints_and_funs<'a, T: 'a, I: IntoIterator<Item = &'a (T, Expression)>
     iter: I,
 ) -> impl Iterator<Item = &'a Expression> {
     iter.into_iter()
-        .filter_map(|(_, expr)| match expr.get_type() {
-            Type::Integer | Type::Fn(_, _) => Some(expr),
+        .filter_map(|(_, expr)| match expr.get_type().kind() {
+            TypeKind::Integer | TypeKind::Fn(_, _) => Some(expr),
             _ => None,
         })
 }
@@ -28,8 +28,8 @@ pub fn only_non_function_expression<'a, T: 'a, I: IntoIterator<Item = &'a (T, Ex
     iter: I,
 ) -> impl Iterator<Item = &'a Expression> {
     iter.into_iter()
-        .filter_map(|(_, expr)| match expr.get_type() {
-            Type::Fn(_, _) => None,
+        .filter_map(|(_, expr)| match expr.get_type().kind() {
+            TypeKind::Fn(_, _) => None,
             _ => Some(expr),
         })
 }

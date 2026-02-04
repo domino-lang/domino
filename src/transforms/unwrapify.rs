@@ -4,7 +4,7 @@ use std::convert::Infallible;
 
 use miette::SourceSpan;
 
-use crate::expressions::Expression;
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
 use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
@@ -62,7 +62,7 @@ impl Unwrapifier {
     /// Returns the
     fn replace_unwrap(&mut self, expr: &Expression) -> (Expression, Vec<(Expression, String)>) {
         let (result, newexpr) = expr.mapfold(Vec::new(), |mut acc, e| {
-            if let Expression::Unwrap(_) = e {
+            if let ExpressionKind::Unwrap(_) = e.kind() {
                 // This closure as Fn + Copy, so we can't mutate self.ctr in here.
                 // So instead, we use the initial counter, plus the length of the accumulator.
                 // This has the same effect, because we'd increment at exactly the same place we
@@ -249,7 +249,7 @@ mod test {
 
     use super::Unwrapifier;
     use crate::block;
-    use crate::expressions::Expression;
+    use crate::expressions::{Expression, ExpressionKind};
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
     use crate::statement::{CodeBlock, Statement};
@@ -272,20 +272,16 @@ mod test {
         Identifier::Generated(name.to_string(), ty)
     }
 
-    fn maybe(ty: Type) -> Type {
-        Type::Maybe(Box::new(ty))
-    }
-
     fn unwrap<E: Clone + Into<Expression>>(expr: &E) -> Expression {
-        Expression::Unwrap(Box::new(expr.clone().into()))
+        Expression::from_kind(ExpressionKind::Unwrap(Box::new(expr.clone().into())))
     }
 
     #[test]
     fn unwrap_assign() {
         let pos: SourceSpan = (0..0).into();
-        let d = local_ident("d", Type::Integer);
-        let e = local_ident("e", maybe(Type::Integer));
-        let u1 = gend_ident("unwrap-1", Type::Integer);
+        let d = local_ident("d", Type::integer());
+        let e = local_ident("e", Type::maybe(Type::integer()));
+        let u1 = gend_ident("unwrap-1", Type::integer());
 
         let code = block! {
             Statement::Assign(d.clone(), None, unwrap(&e), pos)
@@ -302,13 +298,13 @@ mod test {
         let pos0: SourceSpan = (0..0).into();
         let pos1: SourceSpan = (1..1).into();
 
-        let d = local_ident("d", Type::Integer);
-        let e = local_ident("e", maybe(Type::Integer));
-        let u1 = gend_ident("unwrap-1", Type::Integer);
+        let d = local_ident("d", Type::integer());
+        let e = local_ident("e", Type::maybe(Type::integer()));
+        let u1 = gend_ident("unwrap-1", Type::integer());
 
-        let f = local_ident("f", Type::Integer);
-        let g = local_ident("g", maybe(Type::Integer));
-        let u2 = gend_ident("unwrap-2", Type::Integer);
+        let f = local_ident("f", Type::integer());
+        let g = local_ident("g", Type::maybe(Type::integer()));
+        let u2 = gend_ident("unwrap-2", Type::integer());
 
         let code = block! {
             Statement::Assign(d.clone(), None, unwrap(&e), pos0),
@@ -328,10 +324,10 @@ mod test {
     fn nested_statements() {
         let pos: SourceSpan = (0..0).into();
 
-        let d = local_ident("d", Type::Integer);
-        let e = local_ident("e", maybe(maybe(Type::Integer)));
-        let u1 = gend_ident("unwrap-1", maybe(Type::Integer));
-        let u2 = gend_ident("unwrap-2", Type::Integer);
+        let d = local_ident("d", Type::integer());
+        let e = local_ident("e", Type::maybe(Type::maybe(Type::integer())));
+        let u1 = gend_ident("unwrap-1", Type::maybe(Type::integer()));
+        let u2 = gend_ident("unwrap-2", Type::integer());
 
         let code = block! {
             Statement::Assign(d.clone(), None, unwrap(&unwrap(&e)), pos)
