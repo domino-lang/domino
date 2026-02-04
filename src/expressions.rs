@@ -36,10 +36,10 @@ pub enum Expression {
     Div(Box<Expression>, Box<Expression>),
     Pow(Box<Expression>, Box<Expression>),
     Mod(Box<Expression>, Box<Expression>),
-    Smaller(Box<Expression>, Box<Expression>),
-    Greater(Box<Expression>, Box<Expression>),
-    SmallerEq(Box<Expression>, Box<Expression>),
-    GreaterEq(Box<Expression>, Box<Expression>),
+    LessThen(Box<Expression>, Box<Expression>),
+    GreaterThen(Box<Expression>, Box<Expression>),
+    LessThenEq(Box<Expression>, Box<Expression>),
+    GreaterThenEq(Box<Expression>, Box<Expression>),
 
     Equals(Vec<Expression>),
     And(Vec<Expression>),
@@ -113,10 +113,10 @@ impl Expression {
             | Expression::Pow(expr, _)
             | Expression::Mod(expr, _) => expr.get_type(),
 
-            Expression::Greater(_, _)
-            | Expression::Smaller(_, _)
-            | Expression::GreaterEq(_, _)
-            | Expression::SmallerEq(_, _)
+            Expression::GreaterThen(_, _)
+            | Expression::LessThen(_, _)
+            | Expression::GreaterThenEq(_, _)
+            | Expression::LessThenEq(_, _)
             | Expression::Not(_)
             | Expression::Any(_)
             | Expression::All(_)
@@ -182,10 +182,10 @@ impl Expression {
             | Expression::Div(lhs, rhs)
             | Expression::Pow(lhs, rhs)
             | Expression::Mod(lhs, rhs)
-            | Expression::Greater(lhs, rhs)
-            | Expression::Smaller(lhs, rhs)
-            | Expression::GreaterEq(lhs, rhs)
-            | Expression::SmallerEq(lhs, rhs) => lhs.is_const() && rhs.is_const(),
+            | Expression::GreaterThen(lhs, rhs)
+            | Expression::LessThen(lhs, rhs)
+            | Expression::GreaterThenEq(lhs, rhs)
+            | Expression::LessThenEq(lhs, rhs) => lhs.is_const() && rhs.is_const(),
         }
     }
 
@@ -226,10 +226,10 @@ impl Expression {
             | Expression::Sub(lhs, rhs)
             | Expression::Mul(lhs, rhs)
             | Expression::Div(lhs, rhs)
-            | Expression::Smaller(lhs, rhs)
-            | Expression::Greater(lhs, rhs)
-            | Expression::SmallerEq(lhs, rhs)
-            | Expression::GreaterEq(lhs, rhs) => {
+            | Expression::LessThen(lhs, rhs)
+            | Expression::GreaterThen(lhs, rhs)
+            | Expression::LessThenEq(lhs, rhs)
+            | Expression::GreaterThenEq(lhs, rhs) => {
                 lhs.as_mut().walk(f);
                 rhs.as_mut().walk(f)
             }
@@ -294,17 +294,17 @@ impl Expression {
             Expression::Div(lhs, rhs) => {
                 Expression::Div(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
-            Expression::Smaller(lhs, rhs) => {
-                Expression::Smaller(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            Expression::LessThen(lhs, rhs) => {
+                Expression::LessThen(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
-            Expression::Greater(lhs, rhs) => {
-                Expression::Greater(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            Expression::GreaterThen(lhs, rhs) => {
+                Expression::GreaterThen(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
-            Expression::SmallerEq(lhs, rhs) => {
-                Expression::SmallerEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            Expression::LessThenEq(lhs, rhs) => {
+                Expression::LessThenEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
-            Expression::GreaterEq(lhs, rhs) => {
-                Expression::GreaterEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            Expression::GreaterThenEq(lhs, rhs) => {
+                Expression::GreaterThenEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
             Expression::FnCall(name, exprs) => Expression::FnCall(
                 name.clone(),
@@ -437,34 +437,37 @@ impl Expression {
                 let (ac, newrhs) = rhs.mapfold(ac, f);
                 (ac, Expression::Div(Box::new(newlhs), Box::new(newrhs)))
             }
-            Expression::Smaller(lhs, rhs) => {
+            Expression::LessThen(lhs, rhs) => {
                 let ac = init;
                 let (ac, newlhs) = lhs.mapfold(ac, f);
                 let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::Smaller(Box::new(newlhs), Box::new(newrhs)))
+                (ac, Expression::LessThen(Box::new(newlhs), Box::new(newrhs)))
             }
-            Expression::Greater(lhs, rhs) => {
-                let ac = init;
-                let (ac, newlhs) = lhs.mapfold(ac, f);
-                let (ac, newrhs) = rhs.mapfold(ac, f);
-                (ac, Expression::Greater(Box::new(newlhs), Box::new(newrhs)))
-            }
-            Expression::SmallerEq(lhs, rhs) => {
+            Expression::GreaterThen(lhs, rhs) => {
                 let ac = init;
                 let (ac, newlhs) = lhs.mapfold(ac, f);
                 let (ac, newrhs) = rhs.mapfold(ac, f);
                 (
                     ac,
-                    Expression::SmallerEq(Box::new(newlhs), Box::new(newrhs)),
+                    Expression::GreaterThen(Box::new(newlhs), Box::new(newrhs)),
                 )
             }
-            Expression::GreaterEq(lhs, rhs) => {
+            Expression::LessThenEq(lhs, rhs) => {
                 let ac = init;
                 let (ac, newlhs) = lhs.mapfold(ac, f);
                 let (ac, newrhs) = rhs.mapfold(ac, f);
                 (
                     ac,
-                    Expression::GreaterEq(Box::new(newlhs), Box::new(newrhs)),
+                    Expression::LessThenEq(Box::new(newlhs), Box::new(newrhs)),
+                )
+            }
+            Expression::GreaterThenEq(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    Expression::GreaterThenEq(Box::new(newlhs), Box::new(newrhs)),
                 )
             }
             Expression::FnCall(name, exprs) => {
