@@ -379,7 +379,7 @@ pub(crate) fn solve_composition_graph(
 
     let mut model;
     let mut comm = Communicator::new(*backend).unwrap();
-    write!(comm, "{}", constraints).unwrap();
+    write!(comm, "{constraints}").unwrap();
 
     if comm.check_sat().unwrap() != ProverResponse::Sat {
         return None;
@@ -396,7 +396,7 @@ pub(crate) fn solve_composition_graph(
         let width = min_width + (max_width - min_width) / 2;
 
         let mut comm = Communicator::new(*backend).unwrap();
-        write!(comm, "{}", constraints).unwrap();
+        write!(comm, "{constraints}").unwrap();
         writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< width {width}))").unwrap();
 
@@ -423,7 +423,7 @@ pub(crate) fn solve_composition_graph(
         let height = min_height + (max_height - min_height) / 2;
 
         let mut comm = Communicator::new(*backend).unwrap();
-        write!(comm, "{}", constraints).unwrap();
+        write!(comm, "{constraints}").unwrap();
         writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< height {height}))").unwrap();
         writeln!(comm, "(assert (< width {max_width}))").unwrap();
@@ -444,7 +444,7 @@ pub(crate) fn solve_composition_graph(
 
     log::debug!("Conclusion: height = {max_height}, width = {max_width}");
     let mut comm = Communicator::new(*backend).unwrap();
-    write!(comm, "{}", constraints).unwrap();
+    write!(comm, "{constraints}").unwrap();
     writeln!(comm, "(assert (< height {max_height}))").unwrap();
     writeln!(comm, "(assert (< width {max_width}))").unwrap();
 

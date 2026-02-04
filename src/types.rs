@@ -94,7 +94,7 @@ impl Type {
         self.kind
     }
 
-    pub fn kind<'a>(&'a self) -> &'a TypeKind {
+    pub fn kind(&self) -> &TypeKind {
         &self.kind
     }
 

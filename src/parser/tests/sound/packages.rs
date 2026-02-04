@@ -219,7 +219,7 @@ fn loop_start_non_integer_fails() {
                 }
             ))  if matches!(expected.kind(), TypeKind::Integer)
                 && matches!(got.kind(),  TypeKind::Bits(countspec)
-                    if matches!(&*countspec, CountSpec::Identifier(ident)
+                    if matches!(countspec, CountSpec::Identifier(ident)
                         if ident.ident_ref() == "n"))
     ));
 }
@@ -238,7 +238,7 @@ fn loop_end_non_integer_fails() {
                 }
             ))  if matches!(expected.kind(),  TypeKind::Integer)
                 && matches!(got.kind(), TypeKind::Bits(countspec)
-                    if matches!(&*countspec, CountSpec::Identifier(ident)
+                    if matches!(countspec, CountSpec::Identifier(ident)
                         if ident.ident_ref() == "n"))));
 }
 

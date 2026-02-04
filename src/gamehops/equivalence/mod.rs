@@ -1297,7 +1297,7 @@ impl<'a> EquivalenceContext<'a> {
             .consts
             .iter()
             .filter_map(|(name, ty)| match ty.kind() {
-                TypeKind::Integer => Some(TypeKind::Bits(CountSpec::Identifier(Box::new(
+                TypeKind::Integer => Some(Type::from_kind(TypeKind::Bits(CountSpec::Identifier(Box::new(
                     Identifier::TheoremIdentifier(TheoremIdentifier::Const(
                         TheoremConstIdentifier {
                             theorem_name: self.theorem().name.clone(),
@@ -1306,8 +1306,7 @@ impl<'a> EquivalenceContext<'a> {
                             inst_info: None,
                         },
                     )),
-                ))))
-                .map(Type::from_kind),
+                ))))),
                 _ => None,
             })
             .collect();

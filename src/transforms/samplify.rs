@@ -219,7 +219,7 @@ mod test {
             pkg_name: "TestPackage".to_string(),
             oracle_name: "TestOracle".to_string(),
             name: name.to_string(),
-            ty: ty,
+            ty,
             pkg_inst_name: None,
             game_name: None,
             game_inst_name: None,

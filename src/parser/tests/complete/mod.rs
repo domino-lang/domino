@@ -259,13 +259,13 @@ fn package_empty_loop_works() {
     assert_eq!(name, &k);
     assert!(matches!(
     ty.kind(),
-            TypeKind::Bits(bitlen) if matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
+            TypeKind::Bits(bitlen) if matches!(bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
 
     let (name, ty) = &pkg.oracles[0].sig.args[1];
     assert_eq!(name, &h);
     assert!(matches!(
     ty.kind(),
-            TypeKind::Bits(bitlen) if matches!(&*bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
+            TypeKind::Bits(bitlen) if matches!(bitlen, CountSpec::Identifier(bitlen) if bitlen.ident() == "n") ));
 
     assert!(pkg.imports.is_empty());
     assert!(
