@@ -4,13 +4,12 @@
 #    right = "Right"
 #    invariant_path = "invariant-GBLG.smt2"
 [[Hops]]
-    [Hops.Reduction]
-    left = "Left"
-    right = "Right"
-	assumption = "LeftRight"
+[Hops.Reduction]
+left = "Left"
+right = "Right"
+assumption = "LeftRight"
 #[[Hops]]
 #    [Hops.Equivalence]
 #    left = "Asd"
 #    right = "rte"
 #    invariant_path = "s;lvksf"
-    

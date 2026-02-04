@@ -208,7 +208,7 @@ fn loop_start_non_integer_fails() {
                     got: Type::Bits(countspec),
                     ..
                 }
-            )) if matches!(&*countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n")));
+            )) if matches!(countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n")));
 }
 
 #[test]
@@ -223,7 +223,7 @@ fn loop_end_non_integer_fails() {
                     got: Type::Bits(countspec),
                     ..
                 }
-            )) if matches!(&*countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n")));
+            )) if matches!(countspec, CountSpec::Identifier(ident) if ident.ident_ref() == "n")));
 }
 
 #[test]

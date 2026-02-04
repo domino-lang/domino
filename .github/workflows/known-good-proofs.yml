@@ -2,7 +2,7 @@ name: Run Known-Good Proofs
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
