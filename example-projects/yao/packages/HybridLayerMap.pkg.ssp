@@ -38,6 +38,7 @@ package HybridLayerMap {
     }
 
     oracle GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)) {
+        assert (d > 0);
         if (h == d) {
             T <- invoke GETKEYSIN(j);
         } else {
@@ -53,6 +54,7 @@ package HybridLayerMap {
         op: Table((Bool, Bool), Bool),
         j: Integer) -> Table(Bits(p), Bool)
     {
+        assert (i > 0);
         if (i < h) {
             C <- invoke LSIMGBLG(i, l, r, op, j);
             return C;
@@ -61,7 +63,7 @@ package HybridLayerMap {
             C <- invoke LGATEGBLG(i, l, r, op, j);
             return C;
         }
-        /* i == h */
+        assert (i == h);
         C <- invoke GBLG(l, r, op, j);
         return C;
     }

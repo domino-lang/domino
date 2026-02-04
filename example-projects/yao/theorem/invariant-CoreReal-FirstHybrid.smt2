@@ -34,7 +34,7 @@
         (sample-ctr-right Int)
     )
     Bool
-    true
+    false
 )
 
 (define-fun randomness-mapping-GBLG
@@ -47,7 +47,60 @@
         (sample-ctr-right Int)
     )
     Bool
-    true
+    (or
+        (and
+            (= <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "r"))
+            (= sample-id-right (sample-id "KeysBot" "GETKEYSOUT" "r"))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+        (and
+            (= <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "rr"))
+            (= sample-id-right (sample-id "KeysBot" "GETKEYSOUT" "rr"))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+        (and
+            (= <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Enc" "LENCN" "r"))
+            (= sample-id-right (sample-id "Enc" "ENCN" "r"))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+        )
+        (and
+            (= <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Enc" "LENCM" "r"))
+            (= sample-id-right (sample-id "Enc" "ENCM" "r"))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+        )
+        (and
+            (> <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "r"))
+            (= sample-id-right (sample-id "RealLayersKeys" "LGETKEYSOUT" "r"))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+        (and
+            (> <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "rr"))
+            (= sample-id-right (sample-id "RealLayersKeys" "LGETKEYSOUT" "rr"))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+        (and
+            (> <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Enc" "LENCN" "r"))
+            (= sample-id-right (sample-id "LayeredEnc0" "LENCN" "r"))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+        )
+        (and
+            (> <arg-GBLG-i> 1)
+            (= sample-id-left (sample-id "Enc" "LENCM" "r"))
+            (= sample-id-right (sample-id "LayeredEnc0" "LENCM" "r"))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+        )
+    )
 )
 
 (define-fun randomness-mapping-GETKEYSIN
@@ -60,7 +113,7 @@
         (sample-ctr-right Int)
     )
     Bool
-    true
+    false
 )
 
 (define-fun equal-z
@@ -216,6 +269,109 @@
     (> (<theorem-consts-CoreSecurity-d> <<theorem-consts>>) 0)
 )
 
+(define-fun <relation-i-is-positive-CoreReal-FirstHybrid-GBLG>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    Bool
+    (> i 0)
+)
+
+(define-fun <relation-equal-Z-CoreReal-FirstHybrid-GBLG>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    Bool
+    (let 
+        (
+            (state-left (<oracle-return-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredGateProxy-<$<!p!>$>-GBLG-game-state> return-left))
+            (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
+        )
+        (let
+            (
+                (Z-left (<pkg-state-LayeredGate-<$<!m!><!n!><!p!>$>-Z> 
+                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Gate> state-left)))
+                (Z-right (<pkg-state-LayeredGate-<$<!m!><!n!><!p!>$>-Z>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-LayeredGate> state-right)))
+                (Z-bot-right (<pkg-state-Gate-<$<!m!><!n!><!p!>$>-Z>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-Gate> state-right)))
+            )
+            (= Z-left Z-bot-right)
+        )
+    )
+)
+
+(define-fun <relation-equal-Z1-CoreReal-FirstHybrid-GBLG>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    Bool
+    (let 
+        (
+            (state-left (<oracle-return-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredGateProxy-<$<!p!>$>-GBLG-game-state> return-left))
+            (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
+        )
+        (let
+            (
+                (rr-left (<pkg-state-LayeredKeys-<$<!n!>$>-rr>
+                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
+                (rr-right (<pkg-state-LayeredKeys-<$<!n!>$>-rr>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
+                (rr-bot-right (<pkg-state-Keys-<$<!n!>$>-rr>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
+                (r-left (<pkg-state-LayeredKeys-<$<!n!>$>-r>
+                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
+                (r-right (<pkg-state-LayeredKeys-<$<!n!>$>-r>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
+                (r-bot-right (<pkg-state-Keys-<$<!n!>$>-r>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
+                (Z1-left (<pkg-state-LayeredKeys-<$<!n!>$>-Z1>
+                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
+                (Z1-right (<pkg-state-LayeredKeys-<$<!n!>$>-Z1>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
+                (Z1-bot-right (<pkg-state-Keys-<$<!n!>$>-Z1>
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
+                (T-left 
+                    (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
+                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
+                (T-real-right 
+                    (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
+                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
+            )
+            (and
+                (= r-left r-bot-right)
+                (= rr-left rr-bot-right)
+                (= Z1-left Z1-bot-right)
+            )
+            
+        )
+    )
+)
+
 (define-fun invariant
     (
         (state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
@@ -226,6 +382,5 @@
         (equal-z state-left state-right)
         (equal-T state-left state-right)
         (equal-flag state-left state-right)
-    
     )
 )

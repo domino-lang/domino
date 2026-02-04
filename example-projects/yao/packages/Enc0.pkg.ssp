@@ -14,14 +14,14 @@ package Enc0 {
 
     oracle ENCN(j: Integer, b: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
         K <- invoke GETKEYSIN(j);
-        r <-$ Bits(n);
+        r <-$ Bits(n) sample-name r;
         c <- encn(Unwrap(K[b]), nzero, r);
         return c;
     }
 
     oracle ENCM(j: Integer, b: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
         K <- invoke GETKEYSIN(j);
-        r <-$ Bits(n);
+        r <-$ Bits(n) sample-name r;
         c <- encm(Unwrap(K[b]), mzero, r);
         return c;
     }

@@ -25,7 +25,7 @@ package HybridLayeredEnc0 {
         } else {
             K <- invoke LGETKEYSIN(i, j);
         }
-        r <-$ Bits(n);
+        r <-$ Bits(n) sample-name r;
         c <- encn(Unwrap(K[b]), nzero, r);
         return c;
     }
@@ -42,7 +42,7 @@ package HybridLayeredEnc0 {
         } else {
             K <- invoke LGETKEYSIN(i, j);
         }
-        r <-$ Bits(n);
+        r <-$ Bits(n) sample-name r;
         c <- encm(Unwrap(K[b]), mzero, r);
         return c;
     }

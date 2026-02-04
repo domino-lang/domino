@@ -12,6 +12,9 @@ package LayeredGate {
         LENCM(i: Integer, j: Integer, b: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
     }
 
+    state {
+        Z: Table(Bool, Bits(n)),
+    }
 
     oracle LGATEGBLG(
         i: Integer,

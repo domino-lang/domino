@@ -178,6 +178,10 @@ theorem CoreSecurity {
                 ]
 
                 lemmas {
+                    /*
+                    equal-Z1: [no-abort]
+                    equal-Z: [no-abort]
+                    */
                     same-output:  [no-abort]
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -190,8 +194,8 @@ theorem CoreSecurity {
                 ]
 
                 lemmas {
-                    same-output:  [no-abort, depth-is-positive]
-                    equal-aborts: [depth-is-positive]
+                    same-output:  [no-abort]
+                    equal-aborts: []
                     invariant:    [no-abort]
                 }
             }
