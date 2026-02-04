@@ -1,0 +1,8 @@
+package B {
+   params {
+     b: Bool,
+   }
+   oracle Eval () {
+
+   }
+}
