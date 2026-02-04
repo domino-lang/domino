@@ -1133,6 +1133,29 @@
            (= game-H710 game-H710-old)
            (= game-H711 game-H711-old)))))
 
+(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-AtMost>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtMost>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtMost>)
+     (ctr1 Int)(ctr2 Int)(ctr3 Int))
+  Bool
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-AtMost-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-AtMost-game-state> H711-return)))
+    (let ((mac-H710      (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
+          (mac-H710-old  (<game-H7-<$<!n!>$>-pkgstate-MAC> H710-old))
+          (mac-H711      (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H711))
+          (mac-H711-old  (<game-H7-<$<!n!>$>-pkgstate-MAC> H711-old))
+          (game-H710     (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H710))
+          (game-H710-old (<game-H7-<$<!n!>$>-pkgstate-KX>  H710-old))
+          (game-H711     (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
+          (game-H711-old (<game-H7-<$<!n!>$>-pkgstate-KX>  H711-old)))
+      (and (= mac-H710-old mac-H710)
+           (= mac-H711-old mac-H711)
+           (= game-H710 game-H710-old)
+           (= game-H711 game-H711-old)))))
+
+
 (define-fun <relation-lemma-aux-H7_1_0-H7_1_1-AtLeast>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)

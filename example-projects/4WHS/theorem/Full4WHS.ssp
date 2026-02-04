@@ -1482,8 +1482,9 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort, lemma-aux]
                 }
             }
         }
