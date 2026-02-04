@@ -290,8 +290,11 @@ pub fn handle_theorem<'a>(
             Rule::instance_decl => {
                 handle_instance_decl(&mut ctx, ast, &games)?;
             }
-            Rule::hybrid_instance_decl => {
-                handle_hybrid_instance_decl(&mut ctx, ast, &games)?;
+            Rule::hybrid_instance_decl_one => {
+                handle_hybrid_instance_decl_one(&mut ctx, ast, &games)?;
+            }
+            Rule::hybrid_instance_decl_two => {
+                handle_hybrid_instance_decl_two(&mut ctx, ast, &games)?;
             }
             otherwise => unreachable!("found {:?} in theorem", otherwise),
         }
@@ -366,12 +369,69 @@ fn handle_instance_decl<'a>(
     Ok(())
 }
 
-fn handle_hybrid_instance_decl<'a>(
+fn patch_game_instance(
+    game: Composition,
+    theorem_name: &str,
+    game_inst_name: &str,
+    types: Vec<(String, Type)>,
+    consts: &[(GameConstIdentifier, Expression)],
+    loop_var_name: &str,
+    bit_var_name: Option<&str>,
+    ideal: bool,
+    next: bool,
+) -> GameInstance {
+    let (hybrid_const, mut consts_as_ident): (Vec<_>, Vec<_>) = consts
+        .iter()
+        .map(|(ident, expr)| (ident.clone(), expr.clone()))
+        .partition(|(ident, _expr)| {
+            if ident.name == loop_var_name {
+                return true;
+            };
+            if let Some(bit_var_name) = bit_var_name {
+                if ident.name == bit_var_name {
+                    return true;
+                };
+            }
+            false
+        });
+    let loopvar = hybrid_const
+        .iter()
+        .find(|(ident, _expr)| ident.name == loop_var_name);
+    let bitvar = bit_var_name.and_then(|bit_var_name| {
+        hybrid_const
+            .iter()
+            .find(|(ident, _expr)| ident.name == bit_var_name)
+    });
+
+    let bitval = if ideal { "true" } else { "false" };
+    let nextval = if next { "+" } else { "" };
+    if let Some(loopvar) = loopvar {
+        if next {
+            consts_as_ident.push((
+                loopvar.0.clone(),
+                Expression::add(Expression::integer(1), loopvar.1.clone()),
+            ))
+        } else {
+            consts_as_ident.push((loopvar.0.clone(), loopvar.1.clone()))
+        }
+    }
+    if let Some(bitvar) = bitvar {
+        consts_as_ident.push((bitvar.0.clone(), Expression::boolean(ideal)))
+    }
+    GameInstance::new(
+        format!("{game_inst_name}${bitval}${nextval}"),
+        theorem_name.to_string(),
+        game,
+        types,
+        consts_as_ident,
+    )
+}
+
+fn handle_hybrid_instance_decl_one<'a>(
     ctx: &mut ParseTheoremContext<'a>,
     ast: Pair<'a, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
-    let span = ast.as_span();
     ctx.scope.enter();
 
     if !ctx.consts.contains_key("hybrid$loop") {
@@ -380,13 +440,12 @@ fn handle_hybrid_instance_decl<'a>(
     }
 
     let mut ast = ast.into_inner();
-
     let game_inst_name = ast.next().unwrap().as_str().to_string();
 
     let loop_var_ast = ast.next().unwrap();
-    let _loop_var_span = loop_var_ast.as_span();
+    let loop_var_span = loop_var_ast.as_span();
     let loop_var_name = loop_var_ast.as_str();
-    let clone = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
+    let loop_var = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
         TheoremConstIdentifier {
             theorem_name: ctx.theorem_name.to_string(),
             name: "hybrid$loop".to_string(),
@@ -394,18 +453,18 @@ fn handle_hybrid_instance_decl<'a>(
             inst_info: None,
         },
     )));
-    ctx.declare(loop_var_name, clone).map_err(|e| {
+    ctx.declare(loop_var_name, loop_var).map_err(|e| {
         ParseTheoremError::ScopeError(ParserScopeError {
             source_code: ctx.named_source(),
-            at: (span.start()..span.end()).into(),
+            at: (loop_var_span.start()..loop_var_span.end()).into(),
             related: vec![e],
         })
     })?;
 
     let bit_var_ast = ast.next().unwrap();
-    let _bit_var_span = bit_var_ast.as_span();
+    let bit_var_span = bit_var_ast.as_span();
     let bit_var_name = bit_var_ast.as_str();
-    let clone = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
+    let bit_var = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
         TheoremConstIdentifier {
             theorem_name: ctx.theorem_name.to_string(),
             name: "hybrid$bit".to_string(),
@@ -413,10 +472,10 @@ fn handle_hybrid_instance_decl<'a>(
             inst_info: None,
         },
     )));
-    ctx.declare(bit_var_name, clone).map_err(|e| {
+    ctx.declare(bit_var_name, bit_var).map_err(|e| {
         ParseTheoremError::ScopeError(ParserScopeError {
             source_code: ctx.named_source(),
-            at: (span.start()..span.end()).into(),
+            at: (bit_var_span.start()..bit_var_span.end()).into(),
             related: vec![e],
         })
     })?;
@@ -435,67 +494,148 @@ fn handle_hybrid_instance_decl<'a>(
 
     let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
 
-    let (hybrid_const, consts_as_ident): (Vec<_>, Vec<_>) = consts
-        .iter()
-        .map(|(ident, expr)| (ident.clone(), expr.clone()))
-        .partition(|(ident, _expr)| ident.name == loop_var_name || ident.name == bit_var_name);
-    let loopvar_const = hybrid_const
-        .iter()
-        .find(|(ident, _expr)| ident.name == loop_var_name);
-    let bitvar_const = hybrid_const
-        .iter()
-        .find(|(ident, _expr)| ident.name == bit_var_name);
-
-    let mut patched_consts = consts_as_ident.clone();
-    if let Some(loopvar_const) = loopvar_const {
-        patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
-    }
-    if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(false)))
-    }
-    let game_inst = GameInstance::new(
-        format!("{game_inst_name}$false$"),
-        ctx.theorem_name.to_string(),
+    // H[i,false]
+    ctx.add_game_instance(patch_game_instance(
         game.clone(),
+        ctx.theorem_name,
+        &game_inst_name,
         types.clone(),
-        patched_consts,
-    );
-    ctx.add_game_instance(game_inst);
-
-    let mut patched_consts = consts_as_ident.clone();
-    if let Some(loopvar_const) = loopvar_const {
-        patched_consts.push((loopvar_const.0.clone(), loopvar_const.1.clone()))
-    }
-    if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(true)))
-    }
-    let game_inst = GameInstance::new(
-        format!("{game_inst_name}$true$"),
-        ctx.theorem_name.to_string(),
+        &consts,
+        loop_var_name,
+        Some(bit_var_name),
+        false,
+        false,
+    ));
+    // H[i+1,false]
+    ctx.add_game_instance(patch_game_instance(
         game.clone(),
+        ctx.theorem_name,
+        &game_inst_name,
         types.clone(),
-        patched_consts,
-    );
-    ctx.add_game_instance(game_inst);
+        &consts,
+        loop_var_name,
+        Some(bit_var_name),
+        false,
+        true,
+    ));
 
-    let mut patched_consts = consts_as_ident;
-    if let Some(loopvar_const) = loopvar_const {
-        patched_consts.push((
-            loopvar_const.0.clone(),
-            Expression::add(loopvar_const.1.clone(), Expression::integer(1)),
-        ))
-    }
-    if let Some(bitvar_const) = bitvar_const {
-        patched_consts.push((bitvar_const.0.clone(), Expression::boolean(false)))
-    }
-    let game_inst = GameInstance::new(
-        format!("{game_inst_name}$false$+"),
-        ctx.theorem_name.to_string(),
+    // H[i,true]
+    ctx.add_game_instance(patch_game_instance(
         game.clone(),
-        types,
-        patched_consts,
-    );
-    ctx.add_game_instance(game_inst);
+        ctx.theorem_name,
+        &game_inst_name,
+        types.clone(),
+        &consts,
+        loop_var_name,
+        Some(bit_var_name),
+        true,
+        false,
+    ));
+
+    ctx.scope.leave();
+
+    Ok(())
+}
+
+fn handle_hybrid_instance_decl_two<'a>(
+    ctx: &mut ParseTheoremContext<'a>,
+    ast: Pair<'a, Rule>,
+    games: &HashMap<String, Composition>,
+) -> Result<(), ParseTheoremError> {
+    ctx.scope.enter();
+
+    if !ctx.consts.contains_key("hybrid$loop") {
+        ctx.consts
+            .insert("hybrid$loop".to_string(), Type::integer());
+    }
+
+    let mut ast = ast.into_inner();
+    let game_inst_name = ast.next().unwrap().as_str().to_string();
+
+    let loop_var_ast = ast.next().unwrap();
+    let loop_var_span = loop_var_ast.as_span();
+    let loop_var_name = loop_var_ast.as_str();
+    let loop_var = Declaration::Identifier(Identifier::TheoremIdentifier(Const(
+        TheoremConstIdentifier {
+            theorem_name: ctx.theorem_name.to_string(),
+            name: "hybrid$loop".to_string(),
+            ty: Type::integer(),
+            inst_info: None,
+        },
+    )));
+    ctx.declare(loop_var_name, loop_var).map_err(|e| {
+        ParseTheoremError::ScopeError(ParserScopeError {
+            source_code: ctx.named_source(),
+            at: (loop_var_span.start()..loop_var_span.end()).into(),
+            related: vec![e],
+        })
+    })?;
+
+    let game_name_ast = ast.next().unwrap();
+    let game_name_span = game_name_ast.as_span();
+    let game_name = game_name_ast.as_str();
+
+    let body_ast = ast.next().unwrap();
+
+    let game = games.get(game_name).ok_or(UndefinedGameError {
+        source_code: ctx.named_source(),
+        at: (game_name_span.start()..game_name_span.end()).into(),
+        game_name: game_name.to_string(),
+    })?;
+
+    let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
+
+    // H[i,false]
+    ctx.add_game_instance(patch_game_instance(
+        game.clone(),
+        ctx.theorem_name,
+        &game_inst_name,
+        types.clone(),
+        &consts,
+        loop_var_name,
+        None,
+        false,
+        false,
+    ));
+    // H[i+1,false]
+    ctx.add_game_instance(patch_game_instance(
+        game.clone(),
+        ctx.theorem_name,
+        &game_inst_name,
+        types.clone(),
+        &consts,
+        loop_var_name,
+        None,
+        false,
+        true,
+    ));
+
+    let game_name_ast = ast.next().unwrap();
+    let game_name_span = game_name_ast.as_span();
+    let game_name = game_name_ast.as_str();
+
+    let body_ast = ast.next().unwrap();
+
+    let game = games.get(game_name).ok_or(UndefinedGameError {
+        source_code: ctx.named_source(),
+        at: (game_name_span.start()..game_name_span.end()).into(),
+        game_name: game_name.to_string(),
+    })?;
+
+    let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
+
+    // H[i,true]
+    ctx.add_game_instance(patch_game_instance(
+        game.clone(),
+        ctx.theorem_name,
+        &game_inst_name,
+        types.clone(),
+        &consts,
+        loop_var_name,
+        None,
+        true,
+        false,
+    ));
 
     ctx.scope.leave();
 
