@@ -1,0 +1,33 @@
+theorem Theorem {
+  const n: Integer;
+
+  instance real = AB {params{i:0,b:false}}
+  instance real_ = AB {params{i:0,b:false}}
+  instance ideal_ = AB {params{i:0,b:true}}
+  instance ideal = AB {params{i:0,b:true}}
+
+  instance real_assumption = B {params{b:false}}
+  instance ideal_assumption = B {params{b:true}}
+
+  assumptions {
+    identity: real_assumption ~ ideal_assumption
+  }
+
+  gamehops {
+      reduction real_ ideal_ {
+        assumption identity
+
+        map real_assumption real_ {
+          b: b
+        }
+        map ideal_assumption ideal_ {
+          b: b
+        }
+      }
+    }
+  
+
+  propositions {
+    main: real ~ ideal
+  }
+}
