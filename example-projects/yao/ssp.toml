@@ -10,18 +10,66 @@ right = "Right"
 left = "Left"
 right = "Right"
 assumption = "LeftRight"
-leftmap = [["keys_top", "keys_top"], ["keys_bottom", "keys_bottom"],["gate","gate"], ["enc", "enc"]]
-rightmap = [["keys_top", "keys_top"], ["keys_bottom", "keys_bottom"],["simgate", "simgate"],["ev", "ev"]]
+leftmap = [
+  [
+    "keys_top",
+    "keys_top",
+  ],
+  [
+    "keys_bottom",
+    "keys_bottom",
+  ],
+  [
+    "gate",
+    "gate",
+  ],
+  [
+    "enc",
+    "enc",
+  ],
+]
+rightmap = [
+  [
+    "keys_top",
+    "keys_top",
+  ],
+  [
+    "keys_bottom",
+    "keys_bottom",
+  ],
+  [
+    "simgate",
+    "simgate",
+  ],
+  [
+    "ev",
+    "ev",
+  ],
+]
 
 [[game_hops]]
 [game_hops.Equivalence]
-left  = "Indcpamod0"
+left = "Indcpamod0"
 right = "Indcpamon0"
 invariant_path = "./invariant-Indcpa0.smt2"
-trees.SETBIT = [ ["invariant-SETBIT-post", []],
-                  ["aborts-equal-SETBIT", []],
-                  ["same-output-SETBIT", ["no-abort-SETBIT"]]
-                ]
+trees.SETBIT = [
+  [
+    "invariant-SETBIT-post",
+    [
+    ],
+  ],
+  [
+    "aborts-equal-SETBIT",
+    [
+    ],
+  ],
+  [
+    "same-output-SETBIT",
+    [
+      "no-abort-SETBIT",
+    ],
+  ],
+]
 
 
 [[game_hops]]
@@ -30,27 +78,150 @@ trees.SETBIT = [ ["invariant-SETBIT-post", []],
 left = "Left"
 right = "Right"
 invariant_path = "./invariant-GBLG.smt2"
-trees.GETAOUT = [ ["invariant-GETAOUT-post", []],
-                  ["aborts-equal-GETAOUT", []],
-                  ["same-output-GETAOUT", ["no-abort-GETAOUT"]]
-                ]
-trees.SETBIT = [ ["invariant-SETBIT-post", []],
-                  ["aborts-equal-SETBIT", []],
-                  ["same-output-SETBIT", ["no-abort-SETBIT"]]
-             ]
-trees.GETKEYSIN = [ ["invariant-GETKEYSIN-post", []],
-                  ["aborts-equal-GETKEYSIN", []],
-                  ["same-output-GETKEYSIN", ["no-abort-GETKEYSIN"]]
-             ]
-trees.GBLG = [ ["right-all-aborts", []],
-               ["right-all-aborts-inverse", []],
-               ["left-all-aborts", []],
-               ["left-inverse-all-aborts", []],
-               ["aborts-equal", ["left-all-aborts","left-inverse-all-aborts","right-all-aborts","right-all-aborts-inverse"]],
-               ["top-whole-left-neu-right-neu", ["no-abort","left-inverse-all-aborts","right-all-aborts-inverse",]],
-               ["bot-left-neu",["no-abort","left-all-aborts","left-inverse-all-aborts"]],
-               ["bot-right-neu",["no-abort","right-all-aborts","right-all-aborts-inverse"]],
-               ["temp",["no-abort","left-all-aborts","left-inverse-all-aborts","right-all-aborts","right-all-aborts-inverse","bot-left-neu","bot-right-neu"]],
-               ["same-output", ["temp","no-abort","left-all-aborts","left-inverse-all-aborts","right-all-aborts","right-all-aborts-inverse","bot-left-neu","bot-right-neu"]],
-               ["invariant-GBLG-post", ["temp","no-abort","left-all-aborts","left-inverse-all-aborts","right-all-aborts","right-all-aborts-inverse","bot-left-neu","bot-right-neu"]]
-             ]
+trees.GETAOUT = [
+  [
+    "invariant-GETAOUT-post",
+    [
+    ],
+  ],
+  [
+    "aborts-equal-GETAOUT",
+    [
+    ],
+  ],
+  [
+    "same-output-GETAOUT",
+    [
+      "no-abort-GETAOUT",
+    ],
+  ],
+]
+trees.SETBIT = [
+  [
+    "invariant-SETBIT-post",
+    [
+    ],
+  ],
+  [
+    "aborts-equal-SETBIT",
+    [
+    ],
+  ],
+  [
+    "same-output-SETBIT",
+    [
+      "no-abort-SETBIT",
+    ],
+  ],
+]
+trees.GETKEYSIN = [
+  [
+    "invariant-GETKEYSIN-post",
+    [
+    ],
+  ],
+  [
+    "aborts-equal-GETKEYSIN",
+    [
+    ],
+  ],
+  [
+    "same-output-GETKEYSIN",
+    [
+      "no-abort-GETKEYSIN",
+    ],
+  ],
+]
+trees.GBLG = [
+  [
+    "right-all-aborts",
+    [
+    ],
+  ],
+  [
+    "right-all-aborts-inverse",
+    [
+    ],
+  ],
+  [
+    "left-all-aborts",
+    [
+    ],
+  ],
+  [
+    "left-inverse-all-aborts",
+    [
+    ],
+  ],
+  [
+    "aborts-equal",
+    [
+      "left-all-aborts",
+      "left-inverse-all-aborts",
+      "right-all-aborts",
+      "right-all-aborts-inverse",
+    ],
+  ],
+  [
+    "top-whole-left-neu-right-neu",
+    [
+      "no-abort",
+      "left-inverse-all-aborts",
+      "right-all-aborts-inverse",
+    ],
+  ],
+  [
+    "bot-left-neu",
+    [
+      "no-abort",
+      "left-all-aborts",
+      "left-inverse-all-aborts",
+    ],
+  ],
+  [
+    "bot-right-neu",
+    [
+      "no-abort",
+      "right-all-aborts",
+      "right-all-aborts-inverse",
+    ],
+  ],
+  [
+    "temp",
+    [
+      "no-abort",
+      "left-all-aborts",
+      "left-inverse-all-aborts",
+      "right-all-aborts",
+      "right-all-aborts-inverse",
+      "bot-left-neu",
+      "bot-right-neu",
+    ],
+  ],
+  [
+    "same-output",
+    [
+      "temp",
+      "no-abort",
+      "left-all-aborts",
+      "left-inverse-all-aborts",
+      "right-all-aborts",
+      "right-all-aborts-inverse",
+      "bot-left-neu",
+      "bot-right-neu",
+    ],
+  ],
+  [
+    "invariant-GBLG-post",
+    [
+      "temp",
+      "no-abort",
+      "left-all-aborts",
+      "left-inverse-all-aborts",
+      "right-all-aborts",
+      "right-all-aborts-inverse",
+      "bot-left-neu",
+      "bot-right-neu",
+    ],
+  ],
+]
