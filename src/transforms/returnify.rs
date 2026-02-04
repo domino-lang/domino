@@ -224,7 +224,7 @@ mod test {
             Statement::IfThenElse(IfThenElse {
                 cond:
 
-                Expression::new_equals(vec![(a.clone().into()),
+                Expression::equals(vec![(a.clone().into()),
                                             (a.clone().into())]),
                 then_block:
                 block!{
@@ -244,7 +244,7 @@ mod test {
         let after = block! {
             Statement::IfThenElse( IfThenElse {
                 cond:
-                Expression::new_equals(vec![(a.clone().into()),
+                Expression::equals(vec![(a.clone().into()),
                                             (a.clone().into())]),
 
                 then_block:
@@ -282,7 +282,7 @@ mod test {
         let e = pkg_local_test_ident("e", Type::integer());
         let before = block! {
             Statement::IfThenElse(IfThenElse{
-                cond: Expression::new_equals(vec![(a.clone().into()),
+                cond: Expression::equals(vec![(a.clone().into()),
                                                   (a.clone().into())]),
                 then_block: block!{
                     Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
@@ -297,7 +297,7 @@ mod test {
         };
         let after = block! {
             Statement::IfThenElse(IfThenElse {
-                cond: Expression::new_equals(vec![(a.clone().into()),
+                cond: Expression::equals(vec![(a.clone().into()),
                                                   (a.clone().into())]),
                 then_block: block!{
                     Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos),

@@ -57,7 +57,7 @@ impl Expression {
         self.kind.is_const()
     }
 
-    pub fn new_equals(exprs: Vec<Expression>) -> Expression {
+    pub fn equals(exprs: Vec<Expression>) -> Expression {
         Expression {
             kind: ExpressionKind::Equals(exprs.into_iter().collect()),
         }

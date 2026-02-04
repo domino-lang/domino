@@ -485,7 +485,7 @@ pub fn handle_expression(
 
             let first_type = first.get_type();
 
-            ExpressionKind::Not(Box::new(Expression::new_equals(
+            ExpressionKind::Not(Box::new(Expression::equals(
                 vec![Ok(first)]
                     .into_iter()
                     .chain(pairs.map(|expr| handle_expression(ctx, expr, Some(&first_type))))
