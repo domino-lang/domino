@@ -101,7 +101,7 @@ fn treeify(cb: &CodeBlock) -> CodeBlock {
 mod treeify_fn_test {
     use miette::SourceSpan;
 
-    use crate::expressions::{Expression, ExpressionKind};
+    use crate::expressions::Expression;
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
     use crate::statement::{CodeBlock, IfThenElse, Statement};
@@ -142,7 +142,7 @@ mod treeify_fn_test {
                 then_block: CodeBlock(vec![Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(4)),
+                    Expression::integer(4),
                     file_pos_1,
                 )]),
                 else_block: CodeBlock(vec![]),
@@ -158,12 +158,7 @@ mod treeify_fn_test {
         let after = CodeBlock(vec![Statement::IfThenElse(IfThenElse {
             cond: y.clone().into(),
             then_block: CodeBlock(vec![
-                Statement::Assign(
-                    x.clone(),
-                    None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(4)),
-                    file_pos_1,
-                ),
+                Statement::Assign(x.clone(), None, Expression::integer(4), file_pos_1),
                 Statement::Return(Some(x.clone().into()), file_pos_2),
             ]),
             else_block: CodeBlock(vec![Statement::Return(Some(x.clone().into()), file_pos_2)]),
@@ -224,7 +219,7 @@ mod treeify_fn_test {
                     then_block: CodeBlock(vec![Statement::Assign(
                         x.clone(),
                         None,
-                        Expression::from_kind(ExpressionKind::IntegerLiteral(42)),
+                        Expression::integer(42),
                         file_pos_assign,
                     )]),
                     else_block: CodeBlock(vec![]),
@@ -248,12 +243,7 @@ mod treeify_fn_test {
             then_block: CodeBlock(vec![Statement::IfThenElse(IfThenElse {
                 cond: z.clone().into(),
                 then_block: CodeBlock(vec![
-                    Statement::Assign(
-                        x.clone(),
-                        None,
-                        Expression::from_kind(ExpressionKind::IntegerLiteral(42)),
-                        file_pos_assign,
-                    ),
+                    Statement::Assign(x.clone(), None, Expression::integer(42), file_pos_assign),
                     Statement::Return(Some(x.clone().into()), file_pos_return),
                 ]),
                 else_block: CodeBlock(vec![Statement::Return(
@@ -334,13 +324,13 @@ mod treeify_fn_test {
                 then_block: CodeBlock(vec![Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(1)),
+                    Expression::integer(1),
                     file_pos_firstifassign,
                 )]),
                 else_block: CodeBlock(vec![Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(2)),
+                    Expression::integer(2),
                     file_pos_firstselseassign,
                 )]),
                 then_span: file_pos_firstifassign,
@@ -352,13 +342,13 @@ mod treeify_fn_test {
                 then_block: CodeBlock(vec![Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(3)),
+                    Expression::integer(3),
                     file_pos_secondifassign,
                 )]),
                 else_block: CodeBlock(vec![Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(4)),
+                    Expression::integer(4),
                     file_pos_secondselseassign,
                 )]),
                 then_span: file_pos_secondifassign,
@@ -374,7 +364,7 @@ mod treeify_fn_test {
                 Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(1)),
+                    Expression::integer(1),
                     file_pos_firstifassign,
                 ),
                 Statement::IfThenElse(IfThenElse {
@@ -383,7 +373,7 @@ mod treeify_fn_test {
                         Statement::Assign(
                             x.clone(),
                             None,
-                            Expression::from_kind(ExpressionKind::IntegerLiteral(3)),
+                            Expression::integer(3),
                             file_pos_secondifassign,
                         ),
                         Statement::Return(Some(x.clone().into()), file_pos_return),
@@ -392,7 +382,7 @@ mod treeify_fn_test {
                         Statement::Assign(
                             x.clone(),
                             None,
-                            Expression::from_kind(ExpressionKind::IntegerLiteral(4)),
+                            Expression::integer(4),
                             file_pos_secondselseassign,
                         ),
                         Statement::Return(Some(x.clone().into()), file_pos_return),
@@ -406,7 +396,7 @@ mod treeify_fn_test {
                 Statement::Assign(
                     x.clone(),
                     None,
-                    Expression::from_kind(ExpressionKind::IntegerLiteral(2)),
+                    Expression::integer(2),
                     file_pos_firstselseassign,
                 ),
                 Statement::IfThenElse(IfThenElse {
@@ -415,7 +405,7 @@ mod treeify_fn_test {
                         Statement::Assign(
                             x.clone(),
                             None,
-                            Expression::from_kind(ExpressionKind::IntegerLiteral(3)),
+                            Expression::integer(3),
                             file_pos_secondifassign,
                         ),
                         Statement::Return(Some(x.clone().into()), file_pos_return),
@@ -424,7 +414,7 @@ mod treeify_fn_test {
                         Statement::Assign(
                             x.clone(),
                             None,
-                            Expression::from_kind(ExpressionKind::IntegerLiteral(4)),
+                            Expression::integer(4),
                             file_pos_secondselseassign,
                         ),
                         Statement::Return(Some(x.clone().into()), file_pos_return),

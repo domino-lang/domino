@@ -132,7 +132,7 @@ mod test {
 
     use super::returnify;
     use crate::block;
-    use crate::expressions::{Expression, ExpressionKind};
+    use crate::expressions::Expression;
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
     use crate::statement::{CodeBlock, IfThenElse, Statement};
@@ -171,7 +171,7 @@ mod test {
         let d = pkg_local_test_ident("d", Type::integer());
         let code = block! {
             Statement::Sample(d, None, None, Type::integer(), None, file_pos),
-            Statement::Return(Some(Expression::from_kind(ExpressionKind::IntegerLiteral(5))), file_pos)
+            Statement::Return(Some(Expression::integer(5)), file_pos)
         };
         assert_eq!(
             code,

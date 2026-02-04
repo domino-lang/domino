@@ -1247,10 +1247,7 @@ mod tests {
     #[test]
     fn test_smtlet() -> TestResult {
         let l = SmtLet {
-            bindings: vec![(
-                "x".into(),
-                Expression::from_kind(ExpressionKind::IntegerLiteral(42)).into(),
-            )],
+            bindings: vec![("x".into(), Expression::integer(42).into())],
             body: SmtExpr::Atom(String::from("x")),
         };
 

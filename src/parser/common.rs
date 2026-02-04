@@ -221,21 +221,21 @@ pub(crate) fn handle_game_params_def_list(
                 let name: &str = name_ast.as_str();
 
                 bits_rewrite_rules.push((
-                    Type::from_kind(crate::types::TypeKind::Bits(CountSpec::Identifier(
-                        Box::new(Identifier::PackageIdentifier(PackageIdentifier::Const(
+                    Type::bits(CountSpec::Identifier(Box::new(
+                        Identifier::PackageIdentifier(PackageIdentifier::Const(
                             PackageConstIdentifier {
                                 pkg_name: pkg.name.clone(),
                                 name: name.to_string(),
-                                ty: Type::from_kind(crate::types::TypeKind::Integer),
+                                ty: Type::integer(),
                                 game_name: None,
                                 pkg_inst_name: None,
                                 game_inst_name: None,
                                 theorem_name: None,
                                 game_assignment: None,
                             },
-                        ))),
+                        )),
                     ))),
-                    Type::from_kind(TypeKind::Bits(assigned_countspec)),
+                    Type::bits(assigned_countspec),
                 ));
 
                 Ok((pair_span, name_ast, value_ast, expected_type))
@@ -388,8 +388,8 @@ pub(crate) fn handle_theorem_params_def_list(
         let name: &str = name_ast.as_str();
 
         bits_rewrite_rules.push((
-            Type::from_kind(TypeKind::Bits(CountSpec::Identifier(Box::new(
-                Identifier::GameIdentifier(GameIdentifier::Const(GameConstIdentifier {
+            Type::bits(CountSpec::Identifier(Box::new(Identifier::GameIdentifier(
+                GameIdentifier::Const(GameConstIdentifier {
                     game_name: game.name.clone(),
                     name: name.to_string(),
                     ty: Type::integer(),
@@ -397,9 +397,9 @@ pub(crate) fn handle_theorem_params_def_list(
                     theorem_name: None,
                     inst_info: None,
                     assigned_value: None,
-                })),
+                }),
             )))),
-            Type::from_kind(TypeKind::Bits(assigned_countspec)),
+            Type::bits(assigned_countspec),
         ));
     }
 

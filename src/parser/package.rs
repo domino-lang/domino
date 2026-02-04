@@ -485,12 +485,12 @@ pub fn handle_expression(
 
             let first_type = first.get_type();
 
-            ExpressionKind::Not(Box::new(Expression::from_kind(ExpressionKind::Equals(
+            ExpressionKind::Not(Box::new(Expression::new_equals(
                 vec![Ok(first)]
                     .into_iter()
                     .chain(pairs.map(|expr| handle_expression(ctx, expr, Some(&first_type))))
                     .collect::<Result<_, _>>()?,
-            ))))
+            )))
         }
         Rule::expr_none => {
             let ty = handle_type(ctx, ast.into_inner().next().unwrap())?;

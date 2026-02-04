@@ -160,19 +160,19 @@ impl Type {
                 | TypeKind::AddiGroupEl(_)
                 | TypeKind::MultGroupEl(_) => self.clone(),
 
-                TypeKind::List(t) => Type::from_kind(TypeKind::List(Box::new(t.rewrite_type(rules)))),
-                TypeKind::Maybe(t) => Type::from_kind(TypeKind::Maybe(Box::new(t.rewrite_type(rules)))),
-                TypeKind::Set(t) => Type::from_kind(TypeKind::Set(Box::new(t.rewrite_type(rules)))),
+                TypeKind::List(t) => Type::list(t.rewrite_type(rules)),
+                TypeKind::Maybe(t) => Type::maybe(t.rewrite_type(rules)),
+                TypeKind::Set(t) => Type::set(t.rewrite_type(rules)),
 
-                TypeKind::Tuple(ts) => Type::from_kind(TypeKind::Tuple(ts.iter().map(|t| t.rewrite_type(rules)).collect())),
-                TypeKind::Table(t1, t2) => Type::from_kind(TypeKind::Table(
-                    Box::new(t1.rewrite_type(rules)),
-                    Box::new(t2.rewrite_type(rules)),
-                )),
-                TypeKind::Fn(ts, t) => Type::from_kind(TypeKind::Fn(
+                TypeKind::Tuple(ts) => Type::tuple(ts.iter().map(|t| t.rewrite_type(rules)).collect()),
+                TypeKind::Table(t1, t2) => Type::table(
+                    t1.rewrite_type(rules),
+                    t2.rewrite_type(rules),
+                ),
+                TypeKind::Fn(ts, t) => Type::fun(
                     ts.iter().map(|t| t.rewrite_type(rules)).collect(),
-                    Box::new(t.rewrite_type(rules)),
-                )),
+                    t.rewrite_type(rules),
+                ),
                 TypeKind::Unknown => unreachable!(),
                 TypeKind::UserDefined(_) => unreachable!(),
             }
@@ -256,7 +256,7 @@ mod tests {
         Identifier,
     };
 
-    use super::{CountSpec, Type, TypeKind};
+    use super::{CountSpec, Type};
 
     #[test]
     fn display_countspec() {
@@ -271,7 +271,7 @@ mod tests {
                         pkg_name: "SomePackage".to_string(),
                         name: "n".to_string(),
                         pkg_inst_name: None,
-                        ty: Type::from_kind(TypeKind::Integer),
+                        ty: Type::integer(),
                         game_assignment: None,
                         game_inst_name: None,
                         game_name: None,

@@ -1227,15 +1227,9 @@ impl<'a> EquivalenceContext<'a> {
         let randomness_mapping = SmtForall {
             bindings: vec![
                 ("randmap-sample-id-left".into(), "SampleId".into()),
-                (
-                    "randmap-sample-ctr-left".into(),
-                    Type::from_kind(TypeKind::Integer).into(),
-                ),
+                ("randmap-sample-ctr-left".into(), Type::integer().into()),
                 ("randmap-sample-id-right".into(), "SampleId".into()),
-                (
-                    "randmap-sample-ctr-right".into(),
-                    Type::from_kind(TypeKind::Integer).into(),
-                ),
+                ("randmap-sample-ctr-right".into(), Type::integer().into()),
             ],
             body: (
                 "=>",
@@ -1297,16 +1291,18 @@ impl<'a> EquivalenceContext<'a> {
             .consts
             .iter()
             .filter_map(|(name, ty)| match ty.kind() {
-                TypeKind::Integer => Some(Type::from_kind(TypeKind::Bits(CountSpec::Identifier(
-                    Box::new(Identifier::TheoremIdentifier(TheoremIdentifier::Const(
-                        TheoremConstIdentifier {
-                            theorem_name: self.theorem().name.clone(),
-                            name: name.clone(),
-                            ty: Type::from_kind(TypeKind::Integer),
-                            inst_info: None,
-                        },
-                    ))),
-                )))),
+                TypeKind::Integer => {
+                    let id = TheoremConstIdentifier {
+                        theorem_name: self.theorem().name.clone(),
+                        name: name.clone(),
+                        ty: Type::integer(),
+                        inst_info: None,
+                    };
+
+                    Some(Type::bits(CountSpec::Identifier(Box::new(
+                        Identifier::TheoremIdentifier(TheoremIdentifier::Const(id)),
+                    ))))
+                }
                 _ => None,
             })
             .collect();
@@ -1733,7 +1729,7 @@ impl<'a> EquivalenceContext<'a> {
                         **identifier =
                             Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
                     }
-                    Type::from_kind(TypeKind::Bits(count_spec))
+                    Type::bits(count_spec)
                 }
                 kind => Type::from_kind(kind),
             }
@@ -1831,8 +1827,8 @@ impl<'a> EquivalenceContext<'a> {
             (
                 ("sample-id-left", "SampleId"),
                 ("sample-id-right", "SampleId"),
-                ("sample-ctr-left", Type::from_kind(TypeKind::Integer)),
-                ("sample-ctr-right", Type::from_kind(TypeKind::Integer)),
+                ("sample-ctr-left", Type::integer()),
+                ("sample-ctr-right", Type::integer()),
             ),
             "Bool",
             body,
