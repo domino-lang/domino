@@ -1453,8 +1453,9 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort, lemma-aux]
                 }
             }
             AtLeast: {
@@ -1468,8 +1469,9 @@ theorem Full4WHS {
                     /*lemma-debug:  [no-abort]*/
                     /*lemma-false:  []*/
                     equal-aborts: []
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort, lemma-aux]
                 }
             }
             AtMost: {
