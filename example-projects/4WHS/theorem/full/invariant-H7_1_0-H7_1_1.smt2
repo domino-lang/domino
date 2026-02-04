@@ -634,11 +634,12 @@
 (define-fun four-mac-implies-three-mac
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
           (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                         (mk-tuple2 nr 4)))))
+                                                         (mk-tuple2 zeron 4)))))
               (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                         (mk-tuple2 ni 3))))))))
+                                                         (mk-tuple2 ni 3)))))))))
 
 (define-fun two-mac-implies-first
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
