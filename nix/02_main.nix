@@ -74,10 +74,14 @@ ctx: ctx.scoped rec {
     meta.license = with pkgs.lib.licenses; [ mit asl20 ];
     meta.platforms = pkgs.lib.platforms.all;
     cargoBuildFlags = ["--workspace"];
-    checkPhase = "
-      cargo test --workspace
-      cargo clippy --workspace --all-targets -- --deny warnings
-    ";
+    checkPhase = ''
+      export RUSTFLAGS="-D warnings" 
+      cargo test --verbose --workspace --all-targets
+      cargo test --verbose --workspace --doc
+      cargo check --verbose --workspace --all-targets
+      cargo clippy --verbose --workspace --all-targets -- --deny warnings
+      cargo fmt --all --verbose --check
+    '';
   };
 
   checks.default = packages.domino;
