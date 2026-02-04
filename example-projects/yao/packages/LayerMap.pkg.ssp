@@ -21,7 +21,7 @@ package LayerMap {
     }
 
     oracle GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)) {
-        T <- invoke LGETKEYSIN(d, j);
+        T <- invoke LGETKEYSIN((d + 1), j);
         return T;
     }
 }

@@ -95,13 +95,16 @@
             (and
                 (=>
                     (= i 1)
-                    true
                     (= (select z-left (mk-tuple2 i j)) (select z-top-right j))
                 )
-                ;(=>
-                ;    (not (= i 1))
-                ;    (= (select z-left (mk-tuple2 i j)) (select z-top-right j))
-                ;)
+                (=>
+                    (= i 2)
+                    (= (select z-left (mk-tuple2 i j)) (select z-bot-right j))
+                )
+                (=>
+                    (> i 2)
+                    (= (select z-left (mk-tuple2 i j)) (select z-real-right (mk-tuple2 i j)))
+                )
             )
         )
     )
@@ -139,16 +142,78 @@
             (and
                 (=>
                     (= i 1)
-                    true
                     (= (select T-left (mk-tuple2 i j)) (select T-top-right j))
                 )
-                ;(=>
-                ;    (not (= i 1))
-                ;    (= (select z-left (mk-tuple2 i j)) (select z-top-right j))
-                ;)
+                (=>
+                    (= i 2)
+                    (= (select T-left (mk-tuple2 i j)) (select T-bot-right j))
+                )
+                (=>
+                    (> i 2)
+                    (= (select T-left (mk-tuple2 i j)) (select T-real-right (mk-tuple2 i j)))
+                )
             )
         )
     )
+)
+
+(define-fun equal-flag
+    (
+        (state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+    )
+    Bool
+    (let 
+        (
+            (flag-left 
+                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
+                    (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
+            (flag-real-right 
+                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
+                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
+            (flag-sim-right 
+                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
+                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-SimulatedLayersKeys> state-right)))
+            (flag-top-right
+                (<pkg-state-Keys-<$<!n!>$>-flag> 
+                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysTop> state-right)))
+            (flag-bot-right
+                (<pkg-state-Keys-<$<!n!>$>-flag> 
+                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
+        )
+        (forall 
+            (
+                (i Int)
+                (j Int)
+            )
+            (and
+                (=>
+                    (= i 1)
+                    (= (select flag-left (mk-tuple2 i j)) (select flag-top-right j))
+                )
+                (=>
+                    (= i 2)
+                    (= (select flag-left (mk-tuple2 i j)) (select flag-bot-right j))
+                )
+                (=>
+                    (> i 2)
+                    (= (select flag-left (mk-tuple2 i j)) (select flag-real-right (mk-tuple2 i j)))
+                )
+            )
+        )
+    )
+)
+
+(define-fun <relation-depth-is-positive-CoreReal-FirstHybrid-GETKEYSIN>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayerMap_<$<!d!><!n!>$>_GETKEYSIN>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GETKEYSIN>)
+        (j Int)
+    )
+    Bool
+    (> (<theorem-consts-CoreSecurity-d> <<theorem-consts>>) 0)
 )
 
 (define-fun invariant
@@ -160,5 +225,7 @@
     (and
         (equal-z state-left state-right)
         (equal-T state-left state-right)
+        (equal-flag state-left state-right)
+    
     )
 )

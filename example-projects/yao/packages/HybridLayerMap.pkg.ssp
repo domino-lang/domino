@@ -41,7 +41,7 @@ package HybridLayerMap {
         if (h == d) {
             T <- invoke GETKEYSIN(j);
         } else {
-            T <- invoke LGETKEYSIN(d, j);
+            T <- invoke LGETKEYSIN((d + 1), j);
         }
         return T;
     }
