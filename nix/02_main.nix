@@ -21,6 +21,15 @@ ctx: ctx.scoped rec {
     rustc = packages.dominoToolchain;
   }) buildRustPackage;
 
+  packages.dominoToolchain = fenix.default.withComponents [
+    "cargo"
+    "rustc"
+    "clippy"
+    "rustfmt"
+    "rust-std"
+  ];
+
+
   git = {
     revision = ctx.flake.self.rev or ctx.flake.self.dirtyRev;
   };
@@ -53,9 +62,6 @@ ctx: ctx.scoped rec {
 
   packages.default = packages.domino;
 
-  # TODO: This is out of sync with the main package
-  packages.dominoToolchain = fenix.default.toolchain;
-
   packages.domino = buildRustPackage {
     name = toml.package.name;
     version = toml.package.version;
@@ -68,7 +74,10 @@ ctx: ctx.scoped rec {
     meta.license = with pkgs.lib.licenses; [ mit asl20 ];
     meta.platforms = pkgs.lib.platforms.all;
     cargoBuildFlags = ["--workspace"];
-    cargoTestFlags = ["--workspace"];
+    checkPhase = "
+      cargo test --workspace
+      cargo clippy --workspace --all-targets -- --deny warnings
+    ";
   };
 
   checks.default = packages.domino;
@@ -83,8 +92,8 @@ ctx: ctx.scoped rec {
       cvc4
     ];
     buildCommand = ''
-      cp -Rv "$src" src/
-      chmod -Rv u+w src/
+      cp -R "$src" src/
+      chmod -R u+w src/
       cd src
       DOMINO="$(type -p domino)" ${pkgs.bash}/bin/bash ./scripts/test-known-examples.sh
       touch $out
@@ -92,7 +101,7 @@ ctx: ctx.scoped rec {
   };
 
   devShellPackages = []
-    ++ [fenix.complete.toolchain]
+    ++ [packages.dominoToolchain]
     ++ (with pkgs; [
       cargo-release
       rustfmt
