@@ -412,6 +412,30 @@ pub fn handle_expression(
             let rhs = handle_expression(ctx, inner.next().unwrap(), expected_type)?;
             Expression::Div(Box::new(lhs), Box::new(rhs))
         }
+        Rule::expr_smaller => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::LessThen(Box::new(lhs), Box::new(rhs))
+        }
+        Rule::expr_greater => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::GreaterThen(Box::new(lhs), Box::new(rhs))
+        }
+        Rule::expr_smaller_eq => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::LessThenEq(Box::new(lhs), Box::new(rhs))
+        }
+        Rule::expr_greater_eq => {
+            let mut inner = ast.into_inner();
+            let lhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            let rhs = handle_expression(ctx, inner.next().unwrap(), Some(&Type::Integer))?;
+            Expression::GreaterThenEq(Box::new(lhs), Box::new(rhs))
+        }
 
         Rule::expr_and => Expression::And(
             ast.into_inner()

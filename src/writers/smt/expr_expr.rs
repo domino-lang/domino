@@ -62,6 +62,26 @@ impl From<Expression> for SmtExpr {
                 SmtExpr::from(*lhs),
                 SmtExpr::from(*rhs),
             ]),
+            Expression::LessThen(lhs, rhs) => SmtExpr::List(vec![
+                SmtExpr::Atom("<".to_string()),
+                SmtExpr::from(*lhs),
+                SmtExpr::from(*rhs),
+            ]),
+            Expression::GreaterThen(lhs, rhs) => SmtExpr::List(vec![
+                SmtExpr::Atom(">".to_string()),
+                SmtExpr::from(*lhs),
+                SmtExpr::from(*rhs),
+            ]),
+            Expression::LessThenEq(lhs, rhs) => SmtExpr::List(vec![
+                SmtExpr::Atom("<=".to_string()),
+                SmtExpr::from(*lhs),
+                SmtExpr::from(*rhs),
+            ]),
+            Expression::GreaterThenEq(lhs, rhs) => SmtExpr::List(vec![
+                SmtExpr::Atom(">=".to_string()),
+                SmtExpr::from(*lhs),
+                SmtExpr::from(*rhs),
+            ]),
             Expression::Not(expr) => {
                 SmtExpr::List(vec![SmtExpr::Atom("not".to_string()), (*expr).into()])
             }
