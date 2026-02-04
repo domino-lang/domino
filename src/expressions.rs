@@ -38,6 +38,8 @@ pub enum Expression {
     Mod(Box<Expression>, Box<Expression>),
     Smaller(Box<Expression>, Box<Expression>),
     Greater(Box<Expression>, Box<Expression>),
+    SmallerEq(Box<Expression>, Box<Expression>),
+    GreaterEq(Box<Expression>, Box<Expression>),
 
     Equals(Vec<Expression>),
     And(Vec<Expression>),
@@ -113,6 +115,8 @@ impl Expression {
 
             Expression::Greater(_, _)
             | Expression::Smaller(_, _)
+            | Expression::GreaterEq(_, _)
+            | Expression::SmallerEq(_, _)
             | Expression::Not(_)
             | Expression::Any(_)
             | Expression::All(_)
@@ -179,7 +183,9 @@ impl Expression {
             | Expression::Pow(lhs, rhs)
             | Expression::Mod(lhs, rhs)
             | Expression::Greater(lhs, rhs)
-            | Expression::Smaller(lhs, rhs) => lhs.is_const() && rhs.is_const(),
+            | Expression::Smaller(lhs, rhs)
+            | Expression::GreaterEq(lhs, rhs)
+            | Expression::SmallerEq(lhs, rhs) => lhs.is_const() && rhs.is_const(),
         }
     }
 
@@ -221,7 +227,9 @@ impl Expression {
             | Expression::Mul(lhs, rhs)
             | Expression::Div(lhs, rhs)
             | Expression::Smaller(lhs, rhs)
-            | Expression::Greater(lhs, rhs) => {
+            | Expression::Greater(lhs, rhs)
+            | Expression::SmallerEq(lhs, rhs)
+            | Expression::GreaterEq(lhs, rhs) => {
                 lhs.as_mut().walk(f);
                 rhs.as_mut().walk(f)
             }
@@ -291,6 +299,12 @@ impl Expression {
             }
             Expression::Greater(lhs, rhs) => {
                 Expression::Greater(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            Expression::SmallerEq(lhs, rhs) => {
+                Expression::SmallerEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
+            }
+            Expression::GreaterEq(lhs, rhs) => {
+                Expression::GreaterEq(Box::new(lhs.borrow_map(f)), Box::new(rhs.borrow_map(f)))
             }
             Expression::FnCall(name, exprs) => Expression::FnCall(
                 name.clone(),
@@ -434,6 +448,24 @@ impl Expression {
                 let (ac, newlhs) = lhs.mapfold(ac, f);
                 let (ac, newrhs) = rhs.mapfold(ac, f);
                 (ac, Expression::Greater(Box::new(newlhs), Box::new(newrhs)))
+            }
+            Expression::SmallerEq(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    Expression::SmallerEq(Box::new(newlhs), Box::new(newrhs)),
+                )
+            }
+            Expression::GreaterEq(lhs, rhs) => {
+                let ac = init;
+                let (ac, newlhs) = lhs.mapfold(ac, f);
+                let (ac, newrhs) = rhs.mapfold(ac, f);
+                (
+                    ac,
+                    Expression::GreaterEq(Box::new(newlhs), Box::new(newrhs)),
+                )
             }
             Expression::FnCall(name, exprs) => {
                 let mut ac = init;

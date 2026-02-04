@@ -65,6 +65,8 @@ impl From<Expression> for Term {
             Expression::Equals(exprs) => theories::core::eq(exprs),
             Expression::Greater(lhs, rhs) => theories::ints::gt(*lhs, *rhs),
             Expression::Smaller(lhs, rhs) => theories::ints::lt(*lhs, *rhs),
+            Expression::GreaterEq(lhs, rhs) => theories::ints::gte(*lhs, *rhs),
+            Expression::SmallerEq(lhs, rhs) => theories::ints::lte(*lhs, *rhs),
             Expression::Add(lhs, rhs) => theories::ints::add(vec![*lhs, *rhs]),
             Expression::Sub(lhs, rhs) => theories::ints::sub(vec![*lhs, *rhs]),
             Expression::Mul(lhs, rhs) => theories::ints::mul(vec![*lhs, *rhs]),
