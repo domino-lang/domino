@@ -38,6 +38,7 @@ theorem LayerSecurity {
             encn: encn,
         }
     }
+
     instance LayerHybrid = LayerHybrid {
         params {
             n: n,
@@ -48,6 +49,7 @@ theorem LayerSecurity {
             encn: encn,
         }
     }
+
     instance LayerIdeal = LayerIdeal {
         params {
             n: n,

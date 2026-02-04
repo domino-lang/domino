@@ -147,6 +147,56 @@ theorem CoreSecurity {
     }
 
     gamehops {
+        equivalence CoreReal FirstHybrid {
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+
         reduction HybridReal HybridIdeal {
             assumption Layer
 

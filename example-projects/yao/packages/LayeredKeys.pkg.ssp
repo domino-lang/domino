@@ -37,9 +37,9 @@ package LayeredKeys {
         flag[(i, j)] <- Some(true);
         Z <- new Table(Bool, Bits(n));
         if (T[(i, j)] == None as Table(Bool, Bits(n))) {
-            r <-$ Bits(n);
+            r <-$ Bits(n) sample-name r;
             Z[true] <- Some(r);
-            rr <-$ Bits(n);
+            rr <-$ Bits(n) sample-name rr;
             Z[false] <- Some(rr);
             T[(i, j)] <- Some(Z);
         }
