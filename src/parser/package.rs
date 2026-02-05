@@ -11,6 +11,7 @@ use super::{
     ParseContext, Rule,
 };
 use crate::{
+    debug_assert_matches,
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
@@ -1123,20 +1124,30 @@ pub fn handle_code(
                     Statement::Assign(ident, Some(index), expr, full_span)
                 }
 
-                Rule::invocation => {
-                    let mut inner = stmt.into_inner();
-                    let target_ident_name_ast = inner.next().unwrap();
-                    let maybe_index = inner.next().unwrap();
+                Rule::invocation_table | Rule::invocation_return | Rule::invocation_noreturn => {
+                    let (mut inner, target_ident_name_ast, opt_idx) =
+                        if matches!(stmt.as_rule(), Rule::invocation_table) {
+                            let mut inner = stmt.into_inner();
+                            let target_ident_name_ast = inner.next().unwrap();
+                            assert!(target_ident_name_ast.as_str() != "_", "Special value _ disallowed for tables");
 
-                    // TODO: this should be used in type checking somehow
-                    let (opt_idx, oracle_inv) = if maybe_index.as_rule() == Rule::table_index {
-                        let mut inner_index = maybe_index.into_inner();
-                        let index =
-                            handle_expression(&ctx.parse_ctx(), inner_index.next().unwrap(), None)?;
-                        (Some(index), inner.next().unwrap())
-                    } else {
-                        (None, maybe_index)
-                    };
+                            let mut opt_index = inner.next().unwrap().into_inner();
+                            let opt_index = handle_expression(&ctx.parse_ctx(), opt_index.next().unwrap(), None)?;
+                            (inner, Some(target_ident_name_ast), Some(opt_index))
+                        } else if matches!(stmt.as_rule(), Rule::invocation_return) {
+                            let mut inner = stmt.into_inner();
+                            let target_ident_name_ast = inner.next().unwrap();
+                            if target_ident_name_ast.as_str() == "_" {
+                                (inner, None, None)
+                            } else {
+                                (inner, Some(target_ident_name_ast), None)
+                            }
+                        } else {
+                            debug_assert_matches!(stmt.as_rule(), Rule::invocation_noreturn);
+                            (stmt.into_inner(), None, None)
+                        };
+
+                    let oracle_inv = inner.next().unwrap();
 
                     assert!(matches!(oracle_inv.as_rule(), Rule::oracle_call));
 
@@ -1212,13 +1223,13 @@ pub fn handle_code(
                         ),
                     };
 
-                    let target_ident = handle_identifier_in_code_lhs(
+                    let target_ident = target_ident_name_ast.map(|target_ident_name_ast| handle_identifier_in_code_lhs(
                         ctx,
                         target_ident_name_ast,
                         oracle_name,
                         expected_type.clone(),
                     )
-                    ?;
+                    ).transpose()?;
 
                     Statement::InvokeOracle (InvokeOracleStatement{
                         id: target_ident,
