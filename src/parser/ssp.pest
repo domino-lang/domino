@@ -1,6 +1,29 @@
+//! This grammar describes the syntax of Domino.
+//! We are modeling cryptographic games, with the theory based in 
+//! State-Separating Proofs.
+//! That means we describe games by composing stateful packages in order
+//! to perform game-hopping proofs. Domino extends this by introducing a
+//! mode that shows game equivalence using formal methods.
+//
+//
+//! A package has parameters and state, and exposes oracles, which are
+//! Defined using code. This code has access to the parameters an state.
+//! The state can be mutated.
+//! A package can also make oracle calls to other packages, if the respective
+//! oracle signature has been 
+//! 
+
+
+// -- some basic definitions --
+
+/// Ignore Whitespace.
+/// TODO: Do this a bit less so we can handle double-slash comments better
 WHITESPACE = _{ " " | "\r" | "\n" | "\t" }
+
+/// C-style multiline comments
 COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
+// -- keywords --
 
 kw_package = _{ "package" }
 kw_params = _{ "params" }
@@ -40,204 +63,469 @@ kw_map = _{ "map" }
 kw_invariant = _{ "invariant" }
 kw_lemmas = _{ "lemmas" }
 
+// -- base types --
+
+/// An identifier.
+identifier = @{ ( ASCII_ALPHA | "_" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" )* }
+
+/// A number. 
+num = { ASCII_DIGIT+ }
+
+// -- literals --
+
+/// A union of all the different literals.
+literal = _{ literal_boolean | literal_emptyset | literal_integer }
+
+/// A boolean literal: true or false
+literal_boolean = { kw_true | kw_false }
+
+/// An integer literal. Basically an alias for num.
+literal_integer = { num }
+
+/// An empty set. We can't usually infer the type, so make that explicit.
+literal_emptyset = { kw_emptyset ~ "as" ~ tipe }
+
+// -- types --
+
+/// A union of all the different types.
+tipe = _{ type_integer | type_bool | type_string | type_bits | type_maybe | type_fn | type_tuple | type_table | type_list | type_empty | type_userdefined }
+
+/// The int type.
+type_integer = { "Integer" }
+
+/// The boolean type
+type_bool = { "Bool" }
+
+/// The string type
+type_string = { "String" }
+
+/// This describes the length of a bit string. It could be a variable,
+/// a number or '*', which means "could be any length"
+countspec = { identifier | num | "*" }
+
+/// A type for bitstrings of a certain length
+type_bits = { "Bits(" ~ countspec ~ ")" }
+
+/// Our optional type
+type_maybe = { "Maybe(" ~ tipe ~ ")" }
+
+/// A function.
+type_fn = { "fn" ~ fn_arglist ~ "->" ~ tipe }
+
+/// The arguments in the function type. Notable does not contain the argument names.
+fn_arglist = { fn_arg_spec ~ ( "," ~ fn_arg_spec )* }
+
+/// and entry in the list of arguments: the type (no name!)
+fn_arg_spec = { tipe }
+
+/// Tuple types
+type_tuple = { "(" ~ tipe ~ ( "," ~ tipe )* ~ ")"}
+
+/// The unit type (not the empty type, a bit of a misnomer)
+type_empty = { "()" }
+
+/// List types where entries have the given type
+type_list = { "List(" ~ tipe ~ ")"}
+
+/// Table types where keys and values have the respective types
+type_table = { "Table(" ~ tipe ~ "," ~ tipe ~ ")" }
+
+/// This is basically an identifier for types that the user can define (e.g. using aliases.)
+/// This is not currently implemented.
+type_userdefined = @{ ( ASCII_ALPHA | "_" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" )* }
+
+// -- expressions --
+
+/// A union of all the different expressions.
+expression = _{ expr_list | expr_set | expr_none | expr_untyped_none | expr_some | expr_unwrap | expr_add | expr_sub | expr_mul | expr_div | expr_smaller | expr_greater | expr_smaller_eq | expr_greater_eq | expr_or | expr_and | expr_xor | expr_not | expr_tuple | expr_equals | expr_not_equals | expr_newtable | fn_call | table_access | literal | identifier }
+
+/// Compares two expressions. Evaluates to a boolean
+expr_equals   = { "("  ~ expression ~ ("==" ~ expression)+ ~ ")" }
+
+/// Compares two expressions. Evaluates to a boolean (but negated)
+expr_not_equals = { "("  ~ expression ~ ("!=" ~ expression)+ ~ ")" }
+
+/// Compares two expression and evalueates to true if the left-hand-side
+/// is less than the right-hand-side.
+expr_smaller    = { "("  ~ expression ~ "<"  ~ expression ~ ")" }
+
+/// Compares two expression and evalueates to true if the left-hand-side
+/// is greater than the right-hand-side.
+expr_greater    = { "("  ~ expression ~ ">"  ~ expression ~ ")" }
+
+/// Compares two expression and evalueates to true if the left-hand-side
+/// is less than or equal to the right-hand-side.
+expr_smaller_eq = { "("  ~ expression ~ "<=" ~ expression ~ ")" }
+
+/// Compares two expression and evalueates to true if the left-hand-side
+/// is greater than or equal to the right-hand-side.
+expr_greater_eq = { "("  ~ expression ~ ">=" ~ expression ~ ")" }
+
+/// Adds two expressions.
+expr_add   = { "("  ~ expression ~ "+" ~ expression ~ ")" }
+
+/// Subtracts an expression from another.
+expr_sub   = { "("  ~ expression ~ "-" ~ expression ~ ")" }
+
+/// Multiplies two expressions.
+expr_mul   = { "("  ~ expression ~ "*" ~ expression ~ ")" }
+
+/// Dives an expression by another.
+expr_div   = { "("  ~ expression ~ "/" ~ expression ~ ")" }
+
+/// Boolean and (both for booleans and bit strings) 
+expr_and   = { "("  ~ expression ~ ("and" ~ expression)+ ~ ")" }
+
+/// Boolean or (both for booleans and bit strings) 
+expr_or    = { "("  ~ expression ~ ("or"  ~ expression)+ ~ ")" }
+
+/// Boolean xor (both for booleans and bit strings) 
+expr_xor   = { "("  ~ expression ~ ("xor" ~ expression)+ ~ ")" }
+
+/// Boolean not (both for booleans and bit strings) 
+expr_not   = { "not" ~ expression }
+
+/// A new table. Here too the type needs to be specified because it usually
+/// can not be inferred.
+expr_newtable = { "new" ~ "Table" ~ "(" ~ tipe ~ "," ~ tipe ~ ")" }
+
+/// Invocation of an oracle call.
+oracle_call =  { identifier ~ oracle_call_index? ~ "(" ~ fn_call_arglist? ~ ")" }
+
+/// The index of the oracle call. This is needed needed for n-wise parallel
+/// composition, which is not really supported right now.
+oracle_call_index = { "[" ~ expression ~ "]" }
+
+/// The list of arguments sent to the oracle.
+oracle_call_arglist = { expression ~ ( "," ~ expression)* }
+
+/// This expression calls/applies a function.
+fn_call =  { identifier ~ "(" ~ fn_call_arglist? ~ ")" }
+
+/// This describes the arguments to the function call.
+fn_call_arglist = { expression ~ ( "," ~ expression)* }
+
+/// The empty constructor of our optional type Maybe. Often the type can be inferred,
+/// so we have a variant where it does not need to be specified.
+expr_untyped_none = { "None" }
+
+/// The empty constructor of our optional type Maybe. Sometimes the type can not be
+/// inferred, so we have a variant where it needs to be specified.
+expr_none = { "None" ~ "as" ~ tipe }
+
+/// The populated constructor of our optional type Maybe.
+expr_some = { "Some" ~ "(" ~ expression ~ ")" }
+
+/// Evaluates to the value inside the Some, and aborts execution if it is
+/// None (similar to a panic or exception).
+expr_unwrap = { "Unwrap" ~ "(" ~ expression ~ ")" }
+
+/// Reads a value out of a table.
+table_access = { identifier ~ "[" ~ expression ~             "]" }
+
+/// Constructs a tuple.
+expr_tuple   = {        "(" ~ expression ~ ("," ~ expression)* ~ ")" }
+
+/// A list of values.
+/// Currently not really implemented, so type inference doesn't have to work well.
+expr_list  = { "List"   ~ "(" ~ expression ~ ("," ~ expression)* ~ ")" }
+
+/// A set of values.
+/// Currently not really implemented, so type inference doesn't have to work well.
+expr_set   = { "Set"    ~ "(" ~ expression ~ ("," ~ expression)* ~ ")" }
+
+// -- theorem definitions --
+
+/// A theorem declaration that contains assumptions, propositions, and game hops
+/// to prove security properties.
 theorem = { kw_theorem ~ identifier ~ "{" ~ theorem_spec_list ~ "}" }
+
+/// The list of specifications inside a theorem, which can include constants,
+/// instances, assumptions, game hops, and propositions.
 theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assumptions | game_hops | propositions)* }
+
+  /// Block containing the assumptions needed for this theorem.
   assumptions = { kw_assumptions ~ "{" ~ ( assumption_entry )* ~ "}" }
+
+    /// An assumption entry relating two games with a distinguishing advantage.
     assumption_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
+  /// Block containing the propositions (security claims) this theorem establishes.
   propositions = { kw_propositions ~ "{" ~ ( proposition_entry )* ~ "}" }
+
+    /// A proposition entry relating two games with a distinguishing advantage.
     proposition_entry = { identifier ~ ":" ~ identifier ~ "~" ~ identifier }
 
 
+  /// Block containing game hops: the sequence of transformations from assumptions
+  /// to propositions.
   game_hops = { kw_gamehops ~ "{" ~ ( reduction | equivalence | conjecture | hybrid )* ~ "}"}
 
+    /// A conjecture that two games are indistinguishable (not yet proven).
     conjecture = { kw_conjecture ~ identifier ~ identifier }
 
+    /// A reduction from one game to another using an underlying assumption.
     reduction = { kw_reduction ~ identifier ~ identifier ~ "{" ~ reduction_spec ~ "}"}
+
+      /// Specification of a reduction: which assumption to use and how to map
+      /// games and oracles.
       reduction_spec = { assumption_spec ~ map_spec ~ map_spec }
+
+        /// References the assumption being used in this reduction.
         assumption_spec = { kw_assumption ~ identifier }
+
+        /// Specifies how to map a game and its oracles.
         map_spec = { kw_map ~ identifier ~ ( hybrid_map_spec_ident | identifier ) ~ map_spec_block }
+
+          /// For hybrid games, specifies which variant (true/false) to use.
           hybrid_map_spec_ident = { identifier ~ "[" ~ literal_boolean ~ "]" }
+
+          /// Block mapping oracle names from one game to another.
           map_spec_block = { "{" ~ ( identifier ~ ":" ~ identifier )* ~ "}" }
 
+    /// An equivalence proof showing two games are indistinguishable using
+    /// formal verification.
     equivalence = { kw_equivalence ~ identifier ~ identifier ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
+
+      /// Specification for proving a single oracle pair equivalent.
       equivalence_oracle = { identifier ~ ":" ~ "{" ~ invariant_spec ~ lemmas_spec ~ "}"}
+
+        /// The invariant(s) needed to prove this oracle equivalence.
         invariant_spec  = {kw_invariant ~ ":" ~ (("[" ~ path ~ (","? ~ path)* ~ "]") | path)}
+
+        /// The SMT lemmas to use in the proof.
         lemmas_spec = {kw_lemmas ~ "{" ~ (lemma_line)* ~ "}"}
+
+          /// A single lemma with its dependencies.
           lemma_line = {smt_identifier ~ ":" ~ "[" ~ ( smt_identifier  ~ ","?)* ~ "]"}
 
+    /// A hybrid argument combining both reduction and equivalence steps.
     hybrid = { kw_hybrid ~ identifier ~ "{" ~ hybrid_reduction ~ hybrid_equivalence ~ "}" }
+
+      /// The equivalence part of the hybrid argument.
       hybrid_equivalence = { kw_equivalence ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
+
+      /// The reduction part of the hybrid argument.
       hybrid_reduction = { kw_reduction ~  "{" ~ reduction_spec ~ "}"}
-  
+
+/// An identifier for SMT lemmas (allows hyphens).
 smt_identifier = @{ ( ASCII_ALPHA | "_" | "-" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" )* }
+
+/// A file path (allows slashes, dots, hyphens).
 path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT |  "/" | "_" | "-" | "." )* }
 
+// -- composition definitions --
+
+/// A composition describes how to combine packages into a complete game.
 composition = { kw_composition ~ identifier ~ "{" ~ composition_spec_list ~ "}" }
+
+/// List of specifications in a composition: constants, instances, loops, and compose blocks.
 composition_spec_list = { const_decl* ~ instance_decl* ~ game_for* ~ compose_decl* ~ game_for*}
 
+/// A for loop in a composition, used for parallel composition.
 game_for = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ game_for_spec_list ~ "}" }
+
+/// The body of a for loop in a composition.
 game_for_spec_list = { game_for* ~ ( instance_decl+ | compose_decl_multi_inst )?}
 
+/// A constant declaration with a type.
 const_decl = { kw_const ~ identifier ~ ":" ~ tipe ~ ";" }
 
+/// An instance declaration with indices (for parallel composition).
 instance_decl_multi_inst = { kw_instance ~ identifier ~ indices_expr ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+
+/// List of identifiers used as indices (internal rule).
 index_id_list = _{ identifier ~ ("," ~ identifier)* }
+
+/// List of expressions used as index values (internal rule).
 index_expr_list = _{ expression ~ ("," ~ expression)* }
 
+/// Creates an instance of a package with parameter and type assignments.
 instance_decl            = { kw_instance ~ identifier ~ (indices_expr)? ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+
+/// Union of the two hybrid instance declaration forms (internal rule).
 hybrid_instance_decl = _{ hybrid_instance_decl_one | hybrid_instance_decl_two }
+
+/// Hybrid instance with a single implementation (switches based on a boolean).
 hybrid_instance_decl_one = { kw_hybrid ~ kw_instance ~ identifier ~ identifier ~ identifier ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+
+/// Hybrid instance with two separate implementations (one for true, one for false).
 hybrid_instance_decl_two = { kw_hybrid ~ kw_instance ~ identifier ~ identifier ~ "=" ~ "{" ~ identifier ~ "{" ~ instance_assign_list? ~ "}" ~ identifier ~ "{" ~ instance_assign_list? ~ "}" ~ "}" }
+
+/// List of assignments in an instance (params and types).
 instance_assign_list = { ( instance_assign )* }
+
+/// An assignment in an instance block (internal rule).
 instance_assign = _{ params_def | types_def }
 
-
-
+/// A compose block wires together oracle calls between instances.
 compose_decl            = { kw_compose ~ "{" ~ compose_assign_body_list? ~ "}" }
+
+/// A compose block for multi-instance compositions (with indices).
 compose_decl_multi_inst = { kw_compose ~ "{" ~ compose_assign_body_list_multi_inst? ~ "}" }
 
-
+/// List of compose assignment bodies (internal rule).
 compose_assign_body_list            = _{ (compose_assign_body ~  ","? )+ }
+
+/// List of compose assignment bodies for multi-instance (internal rule).
 compose_assign_body_list_multi_inst = _{ (compose_assign_body_multi_inst ~ ","? )+ }
 
+/// Assignment body for a single oracle in the compose block.
 compose_assign_body             = { identifier ~ ":" ~ "{" ~ compose_assign_list? ~ "}" }
+
+/// Assignment body for an oracle with indices.
 compose_assign_body_multi_inst  = { identifier ~ indices_ident? ~ ":" ~ "{" ~ compose_assign_list? ~ "}" }
 
+/// List of oracle wirings in a compose assignment.
 compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
 
+/// A single oracle wiring: maps an imported oracle to an instance's oracle.
 compose_assign      =  { compose_assign_modifier? ~ identifier ~ ":" ~ identifier }
 
+/// Modifier for compose assignments (internal rule).
 compose_assign_modifier            = _{ compose_assign_modifier_with_index }
+
+/// Specifies an index when wiring to a multi-instance oracle.
 compose_assign_modifier_with_index =  { "with" ~ "index" ~ indices_expr}
 
+/// Index specification using identifiers.
 indices_ident =  { "[" ~ index_id_list ~ "]" }
+
+/// Index specification using expressions.
 indices_expr  =  { "[" ~ index_expr_list ~ "]" }
 
+// -- package definitions --
+
+/// A package is a stateful component with parameters, state, and oracles.
 package = { kw_package ~ identifier ~ "{" ~ package_spec_list ~ "}" }
 
+/// List of specifications in a package.
 package_spec_list = { package_spec* }
 
+/// A package specification (internal rule).
 package_spec = _{
   types | params | state | import_oracles | oracle_def
 }
 
-// these are for package files
+// -- package parameters and types (for package declarations) --
+
+/// Parameters block in a package: declares typed parameters that must be
+/// provided when instantiating the package.
 params = { kw_params ~ ("{" ~ decl_list ~ "}" | "{" ~ "}") }
+
+/// List of parameter declarations.
 decl_list = { decl_spec ~ ( "," ~ decl_spec )* ~ ","? }
+
+/// A single parameter declaration with its type.
 decl_spec = { identifier ~ ":" ~ tipe  }
 
+/// Types block in a package: declares user-defined type names that will be
+/// instantiated later.
 types = { kw_types ~ ("{" ~ types_list ~ "}" | "{" ~ "}") }
+
+/// List of user-defined type names.
 types_list = { type_userdefined ~ ( "," ~ type_userdefined )* ~ ","? }
 
-// these are for composition files in instance blocks
+// -- parameter and type definitions (for instance assignments) --
+
+/// Parameters definition block in an instance: assigns concrete values to
+/// the package's parameters.
 params_def = { kw_params ~ ("{" ~ params_def_list ~ "}" | "{" ~ "}") }
+
+/// List of parameter assignments.
 params_def_list = { params_def_spec ~ ( "," ~ params_def_spec )* ~ ","? }
+
+/// A single parameter assignment: name and value.
 params_def_spec = { identifier ~ ":" ~ expression  }
 
+/// Types definition block in an instance: assigns concrete types to
+/// user-defined type names.
 types_def = { kw_types ~ ("{" ~ types_def_list ~ "}" | "{" ~ "}") }
+
+/// List of type assignments.
 types_def_list = { types_def_spec ~ ( "," ~ types_def_spec )* ~ ","? }
+
+/// A single type assignment: user-defined type name to concrete type.
 types_def_spec = { type_userdefined ~ ":" ~ tipe }
 
-countspec = { identifier | num | "*" }
-
-tipe = _{ type_integer | type_bool | type_string | type_bits | type_maybe | type_fn | type_tuple | type_table | type_list | type_empty | type_userdefined }
-  type_integer = { "Integer" }
-  type_bool = { "Bool" }
-  type_string = { "String" }
-  type_bits = { "Bits(" ~ countspec ~ ")" }
-  type_maybe = { "Maybe(" ~ tipe ~ ")" }
-  type_fn = { "fn" ~ fn_arglist ~ "->" ~ tipe }
-    fn_arglist = { fn_arg_spec ~ ( "," ~ fn_arg_spec )* }
-    fn_arg_spec = { tipe }
-  type_tuple = { "(" ~ tipe ~ ( "," ~ tipe )* ~ ")"}
-  type_empty = { "()" }
-  type_list = { "List(" ~ tipe ~ ")"}
-  type_table = { "Table(" ~ tipe ~ "," ~ tipe ~ ")" }
-  type_userdefined = @{ ( ASCII_ALPHA | "_" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" )* }
-
+/// State block: declares the mutable state variables of the package.
 state = { kw_state ~ "{" ~ decl_list? ~ "}"  }
 
+/// Import oracles block: declares the oracle signatures that this package
+/// expects to call from other packages.
 import_oracles = {kw_import ~ kw_oracles ~ "{" ~ import_oracles_body ~ "}" }
+
+/// Body of the import oracles block, may contain loops for parallel composition.
 import_oracles_body = { (import_oracles_for | import_oracles_oracle_sig ~ "," )* }
+
+/// An imported oracle signature with optional indices and return type.
 import_oracles_oracle_sig = { identifier ~ indices_expr? ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
+
+/// A for loop in the import oracles block (for parallel composition).
 import_oracles_for = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ import_oracles_body ~ "}" }
 
+/// An oracle definition: the implementation of an oracle with its signature and code.
 oracle_def = { kw_oracle ~ oracle_sig ~ "{" ~ code ~ "}" }
+
+/// The signature of an oracle: name, arguments, and optional return type.
 oracle_sig = { identifier ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
+
+    /// Optional argument list for oracle signatures.
     oracle_maybe_arglist = { oracle_arglist? }
+
+    /// List of oracle arguments.
     oracle_arglist = { oracle_arg_spec ~ ( "," ~ oracle_arg_spec )* }
+
+    /// A single oracle argument with name and type.
     oracle_arg_spec = { identifier ~ ":" ~ tipe }
 
+// -- code and statements --
 
-
-identifier = @{ ( ASCII_ALPHA | "_" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" )* }
-num = { ASCII_DIGIT+ }
-
-literal_boolean = { kw_true | kw_false }
-literal_integer = { num }
-literal_emptyset = { kw_emptyset ~ "as" ~ tipe }
-
-literal = _{ literal_boolean | literal_emptyset | literal_integer }
-
-
+/// A block of code: a sequence of statements.
 code = { (stmt )* }
+
+/// A statement (internal rule).
 stmt = _{ table_sample | table_assign | sample | parse | invocation | assign | return_stmt | assert | abort | ite | for_ }
 
+/// An if-then-else statement.
 ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
 
+/// Sample a random value from a type and assign it to a variable.
 sample = { identifier ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
+
+/// Assign an expression to a variable.
 assign = { identifier ~ "<-" ~ expression ~ ";" }
+
+/// Invoke an oracle and store the result.
 invocation = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
+
+/// Parse a tuple into multiple variables.
 parse = { parse_tuple ~ "<-" ~  kw_parse ~ expression ~ ";" }
+
+  /// The left-hand side of a parse statement: a tuple of identifiers.
   parse_tuple = { "(" ~ identifier ~ ("," ~ identifier )+ ~ ")" }
+
+/// Sample a random value and assign it to a table entry.
 table_sample = { identifier ~ "[" ~ expression ~ "]" ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
+
+/// Assign a value to a table entry.
 table_assign = { identifier ~ "[" ~ expression ~ "]" ~ "<-" ~ expression ~ ";" }
+
+/// Return from an oracle, optionally with a value.
 return_stmt = { kw_return ~ expression? ~ ";" }
+
+/// Assert that a condition is true (for verification).
 assert = { kw_assert ~ expression ~ ";" }
+
+/// Abort execution (similar to panic).
 abort = { kw_abort ~ ";" }
+
+/// A for loop statement.
 for_ = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ code ~ "}" }
+
+/// Comparison operator in for loops (< or <=).
 for_comp = { ( "<=" | "<" ) }
+
+/// The index expression for table access.
 table_index = { expression }
 
-expression = _{ expr_list | expr_set | expr_none | expr_untyped_none | expr_some | expr_unwrap | expr_add | expr_sub | expr_mul | expr_div | expr_smaller | expr_greater | expr_smaller_eq | expr_greater_eq | expr_or | expr_and | expr_xor | expr_not | expr_tuple | expr_equals | expr_not_equals | expr_newtable | fn_call | table_access | literal | identifier }
-
-expr_equals   = { "("  ~ expression ~ ("==" ~ expression)+ ~ ")" }
-expr_not_equals = { "("  ~ expression ~ ("!=" ~ expression)+ ~ ")" }
-
-expr_add   = { "("  ~ expression ~ "+" ~ expression ~ ")" }
-expr_sub   = { "("  ~ expression ~ "-" ~ expression ~ ")" }
-expr_mul   = { "("  ~ expression ~ "*" ~ expression ~ ")" }
-expr_div   = { "("  ~ expression ~ "/" ~ expression ~ ")" }
-
-expr_smaller    = { "("  ~ expression ~ "<"  ~ expression ~ ")" }
-expr_greater    = { "("  ~ expression ~ ">"  ~ expression ~ ")" }
-expr_smaller_eq = { "("  ~ expression ~ "<=" ~ expression ~ ")" }
-expr_greater_eq = { "("  ~ expression ~ ">=" ~ expression ~ ")" }
-
-expr_and   = { "("  ~ expression ~ ("and" ~ expression)+ ~ ")" }
-expr_or    = { "("  ~ expression ~ ("or"  ~ expression)+ ~ ")" }
-expr_xor   = { "("  ~ expression ~ ("xor" ~ expression)+ ~ ")" }
-expr_not   = { "not" ~ expression }
-
-expr_newtable = { "new" ~ "Table" ~ "(" ~ tipe ~ "," ~ tipe ~ ")" }
-
-oracle_call =  { identifier ~ oracle_call_index? ~ "(" ~ fn_call_arglist? ~ ")" }
-oracle_call_index = { "[" ~ expression ~ "]" }
-oracle_call_arglist = { expression ~ ( "," ~ expression)* }
-
-fn_call =  { identifier ~ "(" ~ fn_call_arglist? ~ ")" }
-fn_call_arglist = { expression ~ ( "," ~ expression)* }
-
-expr_untyped_none = { "None" }
-expr_none = { "None" ~ "as" ~ tipe }
-expr_some = { "Some" ~ "(" ~ expression ~ ")" }
-expr_unwrap = { "Unwrap" ~ "(" ~ expression ~ ")" }
-
-table_access = { identifier ~ "[" ~ expression ~             "]" }
-expr_tuple   = {        "(" ~ expression ~ ("," ~ expression)* ~ ")" }
-// TODO: in the future we might want to allow empty lists and sets,
-//     but that complicates type inference. We could probably do
-//     what we also do with None, i.e. `List() of Integer` or `Set() of Bool`
-expr_list  = { "List"   ~ "(" ~ expression ~ ("," ~ expression)* ~ ")" }
-expr_set   = { "Set"    ~ "(" ~ expression ~ ("," ~ expression)* ~ ")" }
