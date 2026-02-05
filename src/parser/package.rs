@@ -11,6 +11,7 @@ use super::{
     ParseContext, Rule,
 };
 use crate::{
+    debug_assert_matches,
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
@@ -1118,14 +1119,21 @@ pub fn handle_code(
                         if matches!(stmt.as_rule(), Rule::invocation_table) {
                             let mut inner = stmt.into_inner();
                             let target_ident_name_ast = inner.next().unwrap();
+                            assert!(target_ident_name_ast.as_str() != "_", "Special value _ disallowed for tables");
+
                             let mut opt_index = inner.next().unwrap().into_inner();
                             let opt_index = handle_expression(&ctx.parse_ctx(), opt_index.next().unwrap(), None)?;
                             (inner, Some(target_ident_name_ast), Some(opt_index))
                         } else if matches!(stmt.as_rule(), Rule::invocation_return) {
                             let mut inner = stmt.into_inner();
                             let target_ident_name_ast = inner.next().unwrap();
-                            (inner, Some(target_ident_name_ast), None)
+                            if target_ident_name_ast.as_str() == "_" {
+                                (inner, None, None)
+                            } else {
+                                (inner, Some(target_ident_name_ast), None)
+                            }
                         } else {
+                            debug_assert_matches!(stmt.as_rule(), Rule::invocation_noreturn);
                             (stmt.into_inner(), None, None)
                         };
 

@@ -794,19 +794,17 @@ impl<'a> CompositionSmtWriter<'a> {
                         let mut bindings = let_bindings.clone();
 
                         if let Some(assignee_ident) = assignee_ident {
-                            if assignee_ident.ident() != "_" {
-                                bindings.push((
-                                    assignee_ident.ident(),
-                                    return_value_pattern
-                                        .access(
-                                            &return_value_spec,
-                                            &ReturnValueSelector,
-                                            called_oracle_context
-                                                .smt_access_return_value(names::var_ret_name()),
-                                        )
-                                        .unwrap(),
-                                ));
-                            }
+                            bindings.push((
+                                assignee_ident.ident(),
+                                return_value_pattern
+                                    .access(
+                                        &return_value_spec,
+                                        &ReturnValueSelector,
+                                        called_oracle_context
+                                            .smt_access_return_value(names::var_ret_name()),
+                                    )
+                                    .unwrap(),
+                            ));
                         }
 
                         bindings
