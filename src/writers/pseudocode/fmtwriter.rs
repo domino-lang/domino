@@ -272,15 +272,19 @@ impl<W: Write> FmtWriter<W> {
                 ty: opt_ty,
                 ..
             }) => {
-                self.write_identifier(id)?;
+                if let Some(id) = id {
+                    self.write_identifier(id)?;
 
-                if let Some(idx) = opt_idx {
-                    self.write_string("[")?;
-                    self.write_expression(idx)?;
-                    self.write_string("]")?;
+                    if let Some(idx) = opt_idx {
+                        self.write_string("[")?;
+                        self.write_expression(idx)?;
+                        self.write_string("]")?;
+                    }
+
+                    self.write_string(" <- invoke ")?;
+                } else {
+                    self.write_string(" <- invoke ")?;
                 }
-
-                self.write_string(" <- invoke ")?;
                 self.write_call(name, args)?;
                 if self.annotate {
                     if let Some(target_inst_name) = target_inst_name {
