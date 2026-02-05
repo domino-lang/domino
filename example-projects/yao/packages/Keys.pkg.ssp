@@ -7,9 +7,6 @@ package Keys {
         T: Table(Integer, Table(Bool, Bits(n))),
         z: Table(Integer, Bool),
         flag: Table(Integer, Bool),
-        r: Bits(n),
-        rr: Bits(n),
-        Z1: Table(Bool, Bits(n)),
     }
 
 
@@ -39,7 +36,7 @@ package Keys {
         assert (z[h] != None as Bool);
         flag[h] <- Some(true);
         Z <- new Table(Bool, Bits(n));
-        if (T[h] == None as Table(Bool, Bits(n))) {
+        if (T[h] == None) {
             r <-$ Bits(n) sample-name r;
             Z[true] <- Some(r);
             rr <-$ Bits(n) sample-name rr;
@@ -56,7 +53,7 @@ package Keys {
         assert (flag[h] != Some(true));
         flag[h] <- Some(true);
         Z <- new Table(Bool, Bits(n));
-        if (T[h] == None as Table(Bool, Bits(n))) {
+        if (T[h] == None) {
             r <-$ Bits(n) sample-name r;
             Z[true] <- Some(r);
             rr <-$ Bits(n) sample-name rr;

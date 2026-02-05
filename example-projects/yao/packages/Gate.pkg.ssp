@@ -22,7 +22,6 @@ package Gate {
         op: Table((Bool, Bool), Bool),
         j: Integer
     ) -> Table(Bits(p), Bool) {
-        assert (j > 0);
         C <- new Table(Bits(p), Bool);
         Z <- invoke GETKEYSOUT(j);
         bl <- false;

@@ -178,12 +178,8 @@ theorem CoreSecurity {
                 ]
 
                 lemmas {
-                    /*
-                    equal-Z1: [no-abort]
-                    equal-Z: [no-abort]
-                    */
-                    same-output:  [no-abort]
                     equal-aborts: []
+                    same-output:  [no-abort]
                     invariant:    [no-abort]
                 }
             }

@@ -7,9 +7,6 @@ package LayeredKeys {
         T: Table((Integer, Integer), Table(Bool, Bits(n))),
         z: Table((Integer, Integer), Bool),
         flag: Table((Integer, Integer), Bool),
-        r: Bits(n),
-        rr: Bits(n),
-        Z1: Table(Bool, Bits(n)),
     }
 
 
@@ -56,7 +53,6 @@ package LayeredKeys {
         assert (flag[(i, j)] != Some(true));
         flag[(i, j)] <- Some(true);
         Z <- new Table(Bool, Bits(n));
-        assert (T[(i, j)] == None);
         if (T[(i, j)] == None) {
             r <-$ Bits(n) sample-name r;
             Z[true] <- Some(r);

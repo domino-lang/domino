@@ -303,17 +303,7 @@
             (state-left (<oracle-return-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredGateProxy-<$<!p!>$>-GBLG-game-state> return-left))
             (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
         )
-        (let
-            (
-                (Z-left (<pkg-state-LayeredGate-<$<!m!><!n!><!p!>$>-Z> 
-                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Gate> state-left)))
-                (Z-right (<pkg-state-LayeredGate-<$<!m!><!n!><!p!>$>-Z>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-LayeredGate> state-right)))
-                (Z-bot-right (<pkg-state-Gate-<$<!m!><!n!><!p!>$>-Z>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-Gate> state-right)))
-            )
-            (= Z-left Z-bot-right)
-        )
+        true
     )
 )
 
@@ -335,40 +325,7 @@
             (state-left (<oracle-return-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredGateProxy-<$<!p!>$>-GBLG-game-state> return-left))
             (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
         )
-        (let
-            (
-                (rr-left (<pkg-state-LayeredKeys-<$<!n!>$>-rr>
-                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-                (rr-right (<pkg-state-LayeredKeys-<$<!n!>$>-rr>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-                (rr-bot-right (<pkg-state-Keys-<$<!n!>$>-rr>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
-                (r-left (<pkg-state-LayeredKeys-<$<!n!>$>-r>
-                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-                (r-right (<pkg-state-LayeredKeys-<$<!n!>$>-r>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-                (r-bot-right (<pkg-state-Keys-<$<!n!>$>-r>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
-                (Z1-left (<pkg-state-LayeredKeys-<$<!n!>$>-Z1>
-                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-                (Z1-right (<pkg-state-LayeredKeys-<$<!n!>$>-Z1>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-                (Z1-bot-right (<pkg-state-Keys-<$<!n!>$>-Z1>
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
-                (T-left 
-                    (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                        (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-                (T-real-right 
-                    (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                        (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-            )
-            (and
-                (= r-left r-bot-right)
-                (= rr-left rr-bot-right)
-                (= Z1-left Z1-bot-right)
-            )
-            
-        )
+        true
     )
 )
 
