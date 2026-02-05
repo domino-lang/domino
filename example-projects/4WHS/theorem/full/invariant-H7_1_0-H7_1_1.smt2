@@ -635,11 +635,11 @@
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
   (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-          (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                         (mk-tuple2 zeron 4)))))
-              (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                         (mk-tuple2 ni 3)))))))))
+    (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
+            (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                           (mk-tuple2 zeron 4)))))
+                (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                           (mk-tuple2 ni 3)))))))))
 
 (define-fun two-mac-implies-first
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
@@ -908,6 +908,9 @@
                            (and u (or (= mess 1) (= mess 2))))
                        true))))))))))
 
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Unless key corruption, if we accept the mac in Send5,
 ;; then it was generated in send4:
@@ -952,6 +955,20 @@
 
 
 
+(define-fun three-mac-implies-first-or-second
+    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
+     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
+  Bool
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
+            (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                           (mk-tuple2 ni 3)))))
+                (let ((tau (maybe-get (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                                (mk-tuple2 ni 3))))))
+                  (or (not (is-mk-none (select First (mk-tuple5 U V ni nr tau))))
+                      (not (is-mk-none (select Second (mk-tuple5 U V ni nr tau))))))))))
+
 
 (define-fun four-mac-implies-first-or-second
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
@@ -968,6 +985,48 @@
                       (not (is-mk-none (select Second (mk-tuple5 U V ni nr tau))))))))))
 
 
+(define-fun second-after-first
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
+  Bool
+  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
+          (let ((handle (mk-tuple5 U V ni nr tau)))
+            (and ;;(=> (not (is-mk-none (select Second handle)))
+                 ;;    (not (= (select First handle) (select Second handle))))
+                 (=> (is-mk-none (select First handle))
+                     (is-mk-none (select Second handle)))))))
+
+(define-fun nonces-unique-after-message-2
+    ((Fresh (Array Int (Maybe Bool)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (forall
+   ((ctr1 Int)(ctr2 Int))
+   (let ((state1 (select State ctr1))
+         (state2 (select State ctr2)))
+     (=> (and (not (is-mk-none state1))
+              (not (is-mk-none state2))
+              (not (is-mk-some (select Fresh ctr1)))
+              (not (is-mk-none (select Fresh ctr2))))
+         (let ((U1    (el11-1 (maybe-get state1)))
+               (U2    (el11-1 (maybe-get state2)))
+               (u1    (el11-2 (maybe-get state1)))
+               (u2    (el11-2 (maybe-get state2)))
+               (V1    (el11-3 (maybe-get state1)))
+               (V2    (el11-3 (maybe-get state2)))
+               (ni1   (el11-7 (maybe-get state1)))
+               (ni2   (el11-7 (maybe-get state2)))
+               (nr1   (el11-8 (maybe-get state1)))
+               (nr2   (el11-8 (maybe-get state2))))
+           (=> (and (not (= ctr1 ctr2))
+                    (= U1 U2)
+                    (= V1 V2)
+                    (= ni1 ni2)
+                    (= nr1 nr2))
+               (not (= u1 u2)))
+           )))))
 
 (define-fun invariant
     ((state-H710  <GameState_H7_<$<!n!>$>>)
@@ -1049,6 +1108,8 @@
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
 
+           (nonces-unique-after-message-2 Fresh0 State0)
+
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
            (time-of-acceptance State0)
@@ -1057,7 +1118,8 @@
                                         ;(key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
                                         ;(key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
 
-           (four-mac-implies-first-or-second Values0 First0 Second0)
+           ;;(four-mac-implies-first-or-second Values0 First0 Second0)
+           ;;(three-mac-implies-first-or-second Values0 First0 Second0)
 
            (freshness-and-honesty-matches State0 Fresh0 H0)
            (freshness-and-honesty-matches State1 Fresh1 H1)
@@ -1070,7 +1132,9 @@
            (sessions-in-first-exist First0 State0)
            (sessions-in-first-exist Second0 State0)
 
-                                        ;           (four-mac-implies-three-mac Values0)
+           (second-after-first First0 Second0)
+
+           (four-mac-implies-three-mac Values0)
                                         ;           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
 
                                         ;           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
