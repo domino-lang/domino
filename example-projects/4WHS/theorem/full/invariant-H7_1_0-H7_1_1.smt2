@@ -1135,7 +1135,7 @@
            (second-after-first First0 Second0)
 
            (four-mac-implies-three-mac Values0)
-                                        ;           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
+           (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
 
                                         ;           (two-mac-implies-first Values0 First0) ; <--- This condition is wrong.
                                         ;           (three-mac-implies-second Values0 Second0)
@@ -1241,3 +1241,25 @@
            (= mac-H711-old mac-H711)
            (= game-H710 game-H710-old)
            (= game-H711 game-H711-old)))))
+
+(define-fun <relation-empty-second-H7_1_0-H7_1_1-Send4>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
+     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
+  Bool
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send4-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send4-game-state> H711-return)))
+  true))
+
+(define-fun <relation-empty-second-H7_1_0-H7_1_1-Send3>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
+     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
+  Bool
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-game-state> H711-return)))
+  true))
