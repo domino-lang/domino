@@ -20,6 +20,7 @@ package LayeredSimProxy {
         op: Table((Bool, Bool), Bool),
         j: Integer
     ) -> Table(Bits(p), Bool) {
+        assert (i > 0);
         C <- invoke LSIMGBLG(i, l, r, op, j);
         return C;
     }

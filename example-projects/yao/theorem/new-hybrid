@@ -1,0 +1,98 @@
+hybrid instance Hyb g = {
+    HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: g,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+    HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: g,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+}
+
+hybrid Hyb {
+    reduction {
+        assumption Layer
+
+        map LayerReal Hyb[false] {
+            keys_top: KeysTop
+            keys_bottom: KeysBot
+            enc: Enc
+            gate: Gate
+        }
+
+        map LayerIdeal Hyb[true] {
+            keys_top: KeysTop
+            keys_bottom: KeysBot
+            ev: Lev
+            simgate: Sim
+        }
+    }
+
+    equivalence {
+        GETAOUT: {
+            invariant: [
+                ./theorem/invariant-Hyb.smt2
+            ]
+
+            lemmas {
+                equal-aborts: []
+                invariant: [no-abort]
+                same-output: [no-abort]
+            }
+        }
+
+        SETBIT: {
+            invariant: [
+                ./theorem/invariant-Hyb.smt2
+            ]
+
+            lemmas {
+                equal-aborts: []
+                invariant: [no-abort]
+                same-output: [no-abort]
+            }
+        }
+
+        GETKEYSIN: {
+            invariant: [
+                ./theorem/invariant-Hyb.smt2
+            ]
+
+            lemmas {
+                equal-aborts: []
+                invariant: [no-abort]
+                same-output: [no-abort]
+            }
+        }
+
+        GBLG: {
+            invariant: [
+                ./theorem/invariant-Hyb.smt2
+            ]
+
+            lemmas {
+                equal-aborts: []
+                invariant: [no-abort]
+                same-output: [no-abort]
+            }
+        }
+    }
+}

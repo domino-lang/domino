@@ -10,7 +10,7 @@ theorem CoreSecurity {
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-  instance LayerReal = LayerReal {
+    instance LayerReal = LayerReal {
         params {
             n: n,
             m: m,
@@ -80,20 +80,6 @@ theorem CoreSecurity {
             w: w,
             d: d,
             h: d,
-            zeron: zeron,
-            encm: encm,
-            encn: encn,
-        }
-    }
-
-    instance HybridStep0 = HybridIdeal {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            w: w,
-            d: d,
-            h: h,
             zeron: zeron,
             encm: encm,
             encn: encn,
@@ -187,6 +173,57 @@ theorem CoreSecurity {
             GETKEYSIN: {
                 invariant: [
                     ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+
+        equivalence HybridIdeal HybridReal1 {
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    /* debug-rand-mapping: [no-abort, value-of-h] */
+                    /* debug-invariant: [no-abort, value-of-h] */
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
                 ]
 
                 lemmas {
