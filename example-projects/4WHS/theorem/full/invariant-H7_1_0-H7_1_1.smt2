@@ -987,6 +987,33 @@
                       (not (is-mk-none (select Second (mk-tuple5 U V ni nr tau))))))))))
 
 
+(define-fun sessions-in-first-second-sufficiently-advanced
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Fresh (Array Int (Maybe Bool)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall
+     ((ctr Int))
+     (let ((state (select State ctr)))
+       (=> (and (not (is-mk-none state))
+                (= (mk-some true) (select Fresh ctr)))
+           (let  ((U    (el11-1  (maybe-get state)))
+                  (u    (el11-2  (maybe-get state)))
+                  (V    (el11-3  (maybe-get state)))
+                  (kid  (el11-4  (maybe-get state)))
+                  (acc  (el11-5  (maybe-get state)))
+                  (k    (el11-6  (maybe-get state)))
+                  (ni   (el11-7  (maybe-get state)))
+                  (nr   (el11-8  (maybe-get state)))
+                  (kmac (el11-9  (maybe-get state)))
+                  (sid  (el11-10 (maybe-get state)))
+                  (mess (el11-11 (maybe-get state))))
+             (let ((first (select First (maybe-get sid))))
+               (or (= mess 2)
+                   (= mess 3)))))))))
 (define-fun second-after-first
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
      (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
@@ -1123,6 +1150,9 @@
 
            ;;(four-mac-implies-first-or-second Values0 First0 Second0)
            ;;(three-mac-implies-first-or-second Values0 First0 Second0)
+
+           (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
+           (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
 
            (freshness-and-honesty-matches State0 Fresh0 H0)
            (freshness-and-honesty-matches State1 Fresh1 H1)
