@@ -283,11 +283,13 @@
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (fresh (Array Int (Maybe Bool)))
      (ctr Int))
   Bool
   (forall ((i Int))
           (=> (> i ctr)
-              (is-mk-none (select state i)))))
+              (and (is-mk-none (select fresh i))
+                   (is-mk-none (select state i))))))
 
 
 (define-fun mac-keys-equal-in-prf
@@ -1086,7 +1088,8 @@
            (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
            (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
 
-           (no-overwriting-game State0 ctr0)
+           (no-overwriting-game State0 Fresh0 ctr0)
+           (no-overwriting-game State1 Fresh1 ctr1)
            (sid-is-wellformed State0 Prf0 Fresh0 Keys0)
 
            (revtesteval-matches-sometimes State0 RevTestEval0 RevTestEval1 RevTested0)
