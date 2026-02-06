@@ -67,7 +67,39 @@
         (sample-ctr-right Int)
     )
     Bool
-    false
+    (or
+        (and 
+            (< <arg-GBLG-i> h)
+            (or 
+                (= sample-id-left sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
+                (= sample-id-left sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_0"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_1"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_2"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_3"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_0"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_1"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_2"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_3"))
+            )
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+        (and 
+            (= <arg-GBLG-i> (- h 1))
+            (= sample-id-left (sample-id "KeysTop" "GETAOUT" "r"))
+            (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+        (and 
+            (= <arg-GBLG-i> (- h 1))
+            (= sample-id-left (sample-id "KeysTop" "GETAOUT" "rr"))
+            (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )
+    )
 )
 
 (define-fun randomness-mapping-GETKEYSIN
@@ -305,6 +337,22 @@
     (= h 1)
 )
 
+(define-fun <relation-value-of-i-HybridIdeal-HybridReal1-GBLG>
+    (
+        (old-state-left <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!h!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>>)
+        (return-left <OracleReturn_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!h!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    Bool
+    (< i h)
+)
+
 (define-fun <relation-debug-invariant-HybridIdeal-HybridReal1-GETAOUT>
     (
         (old-state-left <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!h!>$>>)
@@ -390,20 +438,20 @@
             (state-left (<oracle-return-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!h!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GETAOUT-game-state> return-left))
             (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GETAOUT-game-state> return-right))
         )
-            (let 
-                (
-                    ; left
-                    (r-left 
-                        (<pkg-state-Keys-<$<!n!>$>-rr> 
-                            (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!h!>$>-pkgstate-KeysTop> state-left)))
-                    ; right
-                    (r-right 
-                        (<pkg-state-LayeredKeys-<$<!n!>$>-rr> 
-                            (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-
-                )
-                (= r-left r-right)
-            )
+        true
+            ;(let 
+            ;    (
+            ;        ; left
+            ;        (r-left 
+            ;            (<pkg-state-Keys-<$<!n!>$>-rr> 
+            ;                (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!h!>$>-pkgstate-KeysTop> state-left)))
+            ;        ; right
+            ;        (r-right 
+            ;            (<pkg-state-LayeredKeys-<$<!n!>$>-rr> 
+            ;                (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>-pkgstate-SimulatedLayersKeys> state-right)))
+            ;    )
+            ;    (= r-left r-right)
+            ;)
     )
 )
 
