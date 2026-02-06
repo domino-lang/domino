@@ -157,7 +157,11 @@ oracle Send3(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n), Bits(n))
 		} else {
 		  if (Second[Unwrap(sid)] == None) {
 		      Second[Unwrap(sid)] <- Some(ctr);
-		  }
+		  }/* else {
+              if (Fresh[ctr] == Some(true)) {
+                  abort;
+              }
+          }*/
 		}
         }
 
