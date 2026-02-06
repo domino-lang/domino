@@ -1,0 +1,78 @@
+package GenericKeys {
+    params {
+        n: Integer,
+    }
+
+    state {
+        T: Table(Integer, Table(Bool, Bits(n))),
+        z: Table(Integer, Bool),
+        flag: Table(Integer, Bool),
+    }
+
+
+    oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
+        assert (flag[h] == Some(true));
+        Z <- Unwrap(T[h]);
+        return Z;
+    }
+
+    oracle GETAIN(h: Integer) -> Bits(n) {
+        assert (flag[h] == Some(true));
+        Z <- Unwrap(T[h]);
+        zz <- Unwrap(z[h]);
+        k <- Unwrap(Z[zz]);
+        return k;
+    }
+
+    oracle GETINAIN(h: Integer) -> Bits(n) {
+        assert (flag[h] == Some(true));
+        Z <- Unwrap(T[h]);
+        zz <- Unwrap(z[h]);
+        k <- Unwrap(Z[not zz]);
+        return k;
+    }
+
+    oracle GETAOUT(h: Integer) -> Bits(n) {
+        assert (z[h] != None as Bool);
+        flag[h] <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T[h] == None as Table(Bool, Bits(n))) {
+            r <-$ Bits(n);
+            Z[true] <- Some(r);
+            rr <-$ Bits(n);
+            Z[false] <- Some(rr);
+            T[h] <- Some(Z);
+        }
+        Z <- Unwrap(T[h]);
+        zz <- Unwrap(z[h]);
+        k <- Unwrap(Z[zz]);
+        return k;
+    }
+
+    oracle GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)) {
+        assert (flag[h] != Some(true));
+        flag[h] <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T[h] == None as Table(Bool, Bits(n))) {
+            r <-$ Bits(n);
+            Z[true] <- Some(r);
+            rr <-$ Bits(n);
+            Z[false] <- Some(rr);
+            T[h] <- Some(Z);
+        }
+        Z <- Unwrap(T[h]);
+        return Z;
+    }
+
+    oracle GETBIT(h: Integer) -> Bool {
+        assert (z[h] != None as Bool);
+        zz <- Unwrap(z[h]);
+        return zz;
+    }
+
+    oracle SETBIT(h: Integer, zz: Bool) {
+        assert (z[h] == None as Bool);
+        z[h] <- Some(zz);
+        return;
+    }
+}

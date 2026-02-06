@@ -1,0 +1,22 @@
+composition CR {
+        const n: Integer;
+        const b: Bool;
+        const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
+        const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
+
+    instance cr = CR {
+        params {
+        n: n,
+        b: b,
+        prf: prf,
+        mac: mac,
+        }
+    }
+
+    compose {
+        adversary: {
+            MAC: cr,
+            PRF: cr,
+        },
+    }
+}

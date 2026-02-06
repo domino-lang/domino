@@ -1,4 +1,4 @@
-package KX {
+package KX_nochecks {
     params {
         b: Bool,
         n: Integer,
@@ -6,7 +6,7 @@ package KX {
     }
     
     state {
-          LTK:   Table(Integer, Bits(n)),       /* administrative kid, keys    */
+          LTK:   Table(Integer, Bits(n)),     /* administrative kid, keys    */
           H:     Table(Integer, Bool),          /* administrative kid, honesty */
           ctr_:  Integer,                       /* administrative sid  */
           kid_:  Integer,                       /* administrative kid  */
@@ -136,7 +136,8 @@ oracle Send2(ctr: Integer, msg: Bits(n)) -> (Bits(n),Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state   <- Unwrap(State[ctr]);
-        return         <- invoke Run2(state,msg);
+
+        return      <- invoke Run2(state,msg);
         (state,msg_)   <- parse return;
         State[ctr]     <-  Some(state);
         return msg_;
@@ -156,8 +157,10 @@ oracle Send3(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n), Bits(n))
 		} else {
 		  if (Second[Unwrap(sid)] == None) {
 		      Second[Unwrap(sid)] <- Some(ctr);
-		  }
-		}
+		  } /* else {
+                  abort;
+                 } */
+                 }
         }
 
         State[ctr]     <-  Some(state);
@@ -168,6 +171,7 @@ oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
     {
         assert not (State[ctr] == None);     /* session has been initialized */
         state                                          <- Unwrap(State[ctr]);
+
         return       <- invoke Run4(state,msg);
         (state,msg_) <- parse return;
         State[ctr]   <- Some(state);
@@ -178,8 +182,10 @@ oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
                 First[Unwrap(sid)] <- Some(ctr);
             } else {
               if (Second[Unwrap(sid)] == None) {
-                  Second[Unwrap(sid)] <- Some(ctr);
-              }
+                  Second[Unwrap(sid)] <- Some(ctr);}
+            /*  else {
+                  abort;
+                 }*/
             }
         }
 
@@ -190,7 +196,6 @@ oracle Send5(ctr: Integer, msg: Bits(n)) -> (Bool)
     {
         assert not (State[ctr] == None);    /* session has been initialized */
         state                                       <- Unwrap(State[ctr]);
-		
 		
         return      <- invoke Run5(state,msg);
         (state,stop) <- parse return;
@@ -239,16 +244,6 @@ oracle SameKey(ctr1: Integer, ctr2: Integer) -> Bool {
     (_U,_u,_V,_ltk,acc1,k1,_ni,_nr,_kmac,sid1,_mess) <- parse Unwrap(State[ctr1]);
     (_U,_u,_V,_ltk,acc2,k2,_ni,_nr,_kmac,sid2,_mess) <- parse Unwrap(State[ctr2]);
 
-	if (b == false) {
-	    if (acc1 == acc2 == Some(true)) {
-	        if (sid1 == sid2) {
-	       	    if (k1 != k2) {
-	       	  	    return true;
-	    	    }
-	        }
-	    }
-	}
-
 	return false;
 	}
 
@@ -257,13 +252,6 @@ oracle AtMost(ctr1: Integer, ctr2: Integer, ctr3: Integer) -> Bool {
     (_U,_u,_V,_ltk,acc2,_k,_ni,_nr,_kmac,sid2,_mess) <- parse Unwrap(State[ctr2]);
     (_U,_u,_V,_ltk,acc3,_k,_ni,_nr,_kmac,sid3,_mess) <- parse Unwrap(State[ctr3]);
 
-	if ((b == false) and (ctr1 != ctr2) and (ctr1 != ctr3) and (ctr2 != ctr3)) {
-        if (acc1 == acc2 == acc3 == Some(true)) {
-	        if (sid1 == sid2 == sid3) {
-	       	    return true;
-	        }
-	    }
-	}
 	return false;
 	}
 
@@ -277,5 +265,6 @@ oracle AtLeast(sid: (Integer,Integer,Bits(n),Bits(n),Bits(n))) -> Bool {
 	  }
    }
    return false;
-}
-}
+   }
+
+    }
