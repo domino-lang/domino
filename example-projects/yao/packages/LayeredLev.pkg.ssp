@@ -19,12 +19,10 @@ package LayeredLev {
         zr <- invoke LGETBIT(i, r);
         z <- Unwrap(op[(zl, zr)]);
         _ <- invoke LSETBIT((i + 1), j, z);
-        /* what are the following lines for? 
         _op <- Unwrap(op[(false, false)]);
         _op <- Unwrap(op[(false, true)]);
         _op <- Unwrap(op[(true, false)]);
         _op <- Unwrap(op[(true, true)]);
         return;
-        */
     }
 }

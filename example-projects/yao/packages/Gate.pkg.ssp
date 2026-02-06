@@ -12,10 +12,6 @@ package Gate {
         ENCM(j: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
     }
 
-    state {
-        Z: Table(Bool, Bits(n)),
-    }
-
     oracle GBLG(
         l: Integer,
         r: Integer,
