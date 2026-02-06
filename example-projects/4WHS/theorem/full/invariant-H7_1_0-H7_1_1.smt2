@@ -1084,6 +1084,8 @@
                (nr1   (el11-8 (maybe-get state1)))
                (nr2   (el11-8 (maybe-get state2))))
            (=> (and (not (= ctr1 ctr2))
+                    (not (is-mk-none ni1))
+                    (not (is-mk-none nr1))
                     (= U1 U2)
                     (= V1 V2)
                     (= ni1 ni2)
