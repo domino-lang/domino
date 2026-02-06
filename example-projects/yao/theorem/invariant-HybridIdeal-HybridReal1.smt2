@@ -129,12 +129,12 @@
                     (= (select z-sim-left (mk-tuple2 i j)) (select z-sim-right (mk-tuple2 i j)))
                 ) 
                 (= (select z-top-left j) (select z-sim-right (mk-tuple2 h j))) ; h ; needed for SETBIT and GETAOUT
-                ;(= (select z-bot-left j) (select z-top-right j)) ; h + 1
-                ;(= (select z-real-left (mk-tuple2 (+ h 2) j)) (select z-bot-right j)) ; h + 2
-                ;(=>
-                ;    (> i (+ h 2))
-                ;    (= (select z-real-left (mk-tuple2 i j)) (select z-real-right (mk-tuple2 i j)))
-                ;)
+                (= (select z-bot-left j) (select z-top-right j)) ; h + 1
+                (= (select z-real-left (mk-tuple2 (+ h 2) j)) (select z-bot-right j)) ; h + 2
+                (=>
+                    (> i (+ h 2))
+                    (= (select z-real-left (mk-tuple2 i j)) (select z-real-right (mk-tuple2 i j)))
+                )
             )
         )
     )
@@ -186,7 +186,7 @@
                     (= (select T-sim-left (mk-tuple2 i j)) (select T-sim-right (mk-tuple2 i j)))
                 )
                 (= (select T-top-left j) (select T-sim-right (mk-tuple2 h j))) ; h ; needed for GETAOUT
-                ;(= (select T-bot-left j) (select T-top-right j)) ; h + 1
+                (= (select T-bot-left j) (select T-top-right j)) ; h + 1
                 (= (select T-real-left (mk-tuple2 (+ h 2) j)) (select T-bot-right j)) ; h + 2 ; needed for GETKEYSIN
                 (=> ; needed for GETKEYSIN
                     (> i (+ h 2))
@@ -238,12 +238,12 @@
                 (j Int)
             )
             (and
-                ;(=>
-                ;    (< i h)
-                ;    (= (select flag-sim-left (mk-tuple2 i j)) (select flag-sim-right (mk-tuple2 i j)))
-                ;)
-                ;(= (select flag-top-left j) (select flag-sim-right (mk-tuple2 h j))) ; h
-                ;(= (select flag-bot-left j) (select flag-top-right j)) ; h + 1
+                (=>
+                    (< i h)
+                    (= (select flag-sim-left (mk-tuple2 i j)) (select flag-sim-right (mk-tuple2 i j)))
+                )
+                (= (select flag-top-left j) (select flag-sim-right (mk-tuple2 h j))) ; h
+                (= (select flag-bot-left j) (select flag-top-right j)) ; h + 1
                 (= (select flag-real-left (mk-tuple2 (+ h 2) j)) (select flag-bot-right j)) ; h + 2 ; needed for GETKEYSIN
                 (=> ; needed for GETKEYSIN
                     (> i (+ h 2))
@@ -263,7 +263,7 @@
     (and
         (equal-z state-left state-right)
         (equal-T state-left state-right)
-        ;(equal-flag state-left state-right)
+        (equal-flag state-left state-right)
     )
 )
 
