@@ -1012,8 +1012,9 @@
                   (sid  (el11-10 (maybe-get state)))
                   (mess (el11-11 (maybe-get state))))
              (let ((first (select First (maybe-get sid))))
-               (or (= mess 2)
-                   (= mess 3)))))))))
+               (=> (not (is-mk-none first))
+                   (or (= mess 2)
+                       (= mess 3))))))))))
 
 (define-fun responder-in-first-second-always-accepted
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
@@ -1047,6 +1048,15 @@
                     (=> (and u (= second (mk-some ctr)))
                         (= acc (mk-some true)))))))))))
 
+(define-fun first-second-distinct
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
+  Bool
+  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
+          (let ((handle (mk-tuple5 U V ni nr tau)))
+            (and (=> (not (is-mk-none (select Second handle)))
+                     (not (= (select First handle) (select Second handle))))))))
+
 
 (define-fun second-after-first
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
@@ -1054,9 +1064,7 @@
   Bool
   (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((handle (mk-tuple5 U V ni nr tau)))
-            (and ;;(=> (not (is-mk-none (select Second handle)))
-                 ;;    (not (= (select First handle) (select Second handle))))
-                 (=> (is-mk-none (select First handle))
+            (and (=> (is-mk-none (select First handle))
                      (is-mk-none (select Second handle)))))))
 
 (define-fun nonces-unique-after-message-2
@@ -1174,7 +1182,7 @@
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
 
-           (nonces-unique-after-message-2 Fresh0 State0)
+           ;;(nonces-unique-after-message-2 Fresh0 State0)
 
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
@@ -1187,10 +1195,10 @@
            ;;(four-mac-implies-first-or-second Values0 First0 Second0)
            ;;(three-mac-implies-first-or-second Values0 First0 Second0)
 
-           (responder-in-first-second-always-accepted First0 Second0 Fresh0 State0)
+           ;;(responder-in-first-second-always-accepted First0 Second0 Fresh0 State0)
 
-           (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
-           (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
+           ;;(sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
+           ;;(sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
 
            (freshness-and-honesty-matches State0 Fresh0 H0)
            (freshness-and-honesty-matches State1 Fresh1 H1)
@@ -1204,6 +1212,7 @@
            (sessions-in-first-exist Second0 State0)
 
            (second-after-first First0 Second0)
+           ;;(first-second-distinct First0 Second0)
 
            (four-mac-implies-three-mac Values0)
            (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2

@@ -1345,7 +1345,6 @@ theorem Full4WHS {
              Send2: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
                 ]
 
@@ -1360,21 +1359,26 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
                 lemmas {
+                    /*
+                    always-aborts: []
+                    debug: []
+                    */
                     equal-aborts: []
                     same-output:  [no-abort]
                     invariant:    [no-abort,empty-second,empty-first]
                     empty-second: [no-abort]
                     empty-first:  [no-abort]
-                    always-aborts: []
                 }
             }
             Send4: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
                 lemmas {
@@ -1382,7 +1386,9 @@ theorem Full4WHS {
                     same-output:  [no-abort]
                     invariant:    [no-abort,empty-second]
                     empty-second: [no-abort]
+                    /*
                     always-aborts: []
+                    */
                 }
             }
             Send5: {
