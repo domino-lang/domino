@@ -1,0 +1,47 @@
+(and
+            (= <arg-GBLG-i> h)
+            (or
+                (and
+                    (= sample-id-left (sample-id "KeysBot" "GETAOUT" "r"))
+                    (= sample-id-right (sample-id "KeysTop" "GETAOUT" "r"))
+                )
+                (and
+                    (= sample-id-left (sample-id "KeysBot" "GETAOUT" "rr"))
+                    (= sample-id-right (sample-id "KeysTop" "GETAOUT" "rr"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_0"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_0"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_0"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_0"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_1"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_1"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_1"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_1"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_2"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_2"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_2"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_2"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_3"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_3"))
+                )
+                (and
+                    (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_3"))
+                    (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_3"))
+                )
+            )
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+        )

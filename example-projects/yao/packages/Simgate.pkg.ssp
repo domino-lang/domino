@@ -15,6 +15,12 @@ package Simgate {
         GETAOUT(h: Integer) -> Bits(n),
     }
 
+    state {
+        temp1: Bits(n),
+        rin: Bits(n),
+        rout: Bits(n),
+    }
+
 
     oracle GBLG(
         l: Integer,
@@ -27,8 +33,8 @@ package Simgate {
         Sr <- new Table(Bool, Bits(n));
         Sj <- new Table(Bool, Bits(n));
         _ <- invoke EVAL(j, l, r, op);
-        temp <- invoke GETAIN(l);
-        Sl[false] <- Some(temp);
+        temp1 <- invoke GETAIN(l);
+        Sl[false] <- Some(temp1);
         temp <- invoke GETINAIN(l);
         Sl[true] <- Some(temp);
         temp <- invoke GETAIN(r);

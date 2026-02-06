@@ -60,11 +60,9 @@ package HybridLayerMap {
             return C;
         }
         if (i > h) {
-            abort;
             C <- invoke LGATEGBLG(i, l, r, op, j);
             return C;
         }
-        abort;
         assert (i == h);
         C <- invoke GBLG(l, r, op, j);
         return C;

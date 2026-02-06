@@ -215,7 +215,8 @@ theorem CoreSecurity {
                 ]
 
                 lemmas {
-                    same-output:  [no-abort, value-of-i]
+                    /* debug: [no-abort, value-of-i] */
+                    same-output:  [no-abort]
                     equal-aborts: []
                     invariant:    [no-abort]
                 }

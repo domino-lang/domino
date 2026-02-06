@@ -18,6 +18,12 @@ package HybridLayeredSim {
         LGETAOUT(i: Integer, j: Integer) -> Bits(n),
     }
 
+    state {
+        temp1: Bits(n),
+        rin: Bits(n),
+        rout: Bits(n),
+    }
+
     oracle LSIMGBLG(
         i: Integer,
         l: Integer,
@@ -30,8 +36,8 @@ package HybridLayeredSim {
         Sr <- new Table(Bool, Bits(n));
         Sj <- new Table(Bool, Bits(n));
         _ <- invoke LEVAL(i, j, l, r, op);
-        temp <- invoke LGETAIN(i, l);
-        Sl[false] <- Some(temp);
+        temp1 <- invoke LGETAIN(i, l);
+        Sl[false] <- Some(temp1);
         temp <- invoke LGETINAIN(i, l);
         Sl[true] <- Some(temp);
         temp <- invoke LGETAIN(i, r);

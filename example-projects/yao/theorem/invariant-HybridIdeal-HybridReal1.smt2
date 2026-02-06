@@ -99,6 +99,128 @@
             (= sample-ctr-left sample-ctr-old-left)
             (= sample-ctr-right sample-ctr-old-right)
         )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+                    (= sample-id-left (sample-id "KeysBot" "GETAOUT" "r"))
+                    (= sample-id-right (sample-id "KeysTop" "GETAOUT" "r"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+                    (= sample-id-left (sample-id "KeysBot" "GETAOUT" "rr"))
+                    (= sample-id-right (sample-id "KeysTop" "GETAOUT" "rr"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_0"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_0"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_0"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_0"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_1"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_1"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_1"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_1"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_2"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_2"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_2"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_2"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rin_round_3"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_3"))
+        )
+        (and 
+            (= <arg-GBLG-i> h)
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "Sim" "GBLG" "rout_round_3"))
+            (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_3"))
+        )
+        (and 
+            (= <arg-GBLG-i> (+ h 1))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "RealLayersKeys" "LGETKEYSOUT" "r"))
+            (= sample-id-right (sample-id "KeysBot" "GETKEYSOUT" "r"))
+        )
+        (and 
+            (= <arg-GBLG-i> (+ h 1))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "RealLayersKeys" "LGETKEYSOUT" "rr"))
+            (= sample-id-right (sample-id "KeysBot" "GETKEYSOUT" "rr"))
+        )
+        (and 
+            (= <arg-GBLG-i> (+ h 1))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+            (= sample-id-left (sample-id "LayeredEnc0" "LENCN" "r"))
+            (= sample-id-right (sample-id "Enc" "ENCN" "r"))
+        )
+        (and 
+            (= <arg-GBLG-i> (+ h 1))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+            (= sample-id-left (sample-id "LayeredEnc0" "LENCM" "r"))
+            (= sample-id-right (sample-id "Enc" "ENCM" "r"))
+        )
+        (and 
+            (> <arg-GBLG-i> (+ h 1))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "RealLayersKeys" "LGETKEYSOUT" "r"))
+            (= sample-id-right (sample-id "RealLayersKeys" "LGETKEYSOUT" "r"))
+        )
+        (and 
+            (> <arg-GBLG-i> (+ h 1))
+            (= sample-ctr-left sample-ctr-old-left)
+            (= sample-ctr-right sample-ctr-old-right)
+            (= sample-id-left (sample-id "RealLayersKeys" "LGETKEYSOUT" "rr"))
+            (= sample-id-right (sample-id "RealLayersKeys" "LGETKEYSOUT" "rr"))
+        )
+        (and 
+            (> <arg-GBLG-i> (+ h 1))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+            (= sample-id-left (sample-id "LayeredEnc0" "LENCN" "r"))
+            (= sample-id-right (sample-id "LayeredEnc0" "LENCN" "r"))
+        )
+        (and 
+            (> <arg-GBLG-i> (+ h 1))
+            (= (- sample-ctr-left sample-ctr-old-left) (- sample-ctr-right sample-ctr-old-right))
+            (= sample-id-left (sample-id "LayeredEnc0" "LENCM" "r"))
+            (= sample-id-right (sample-id "LayeredEnc0" "LENCM" "r"))
+        )
     )
 )
 
@@ -350,7 +472,39 @@
         (j Int)
     )
     Bool
-    (< i h)
+    (> i (+ 1 h))
+)
+
+(define-fun <relation-debug-HybridIdeal-HybridReal1-GBLG>
+    (
+        (old-state-left <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!h!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>>)
+        (return-left <OracleReturn_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!h!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    Bool
+    (let
+        (
+            (state-left (<oracle-return-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!h!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-left))
+            (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
+        )
+        (let 
+            (
+                (rin-left
+                            (<pkg-state-Simgate-<$<!m!><!n!><!p!>$>-rin>
+                            (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!h!>$>-pkgstate-Sim> state-left)))
+                (rin-right
+                            (<pkg-state-HybridLayeredSim-<$<!h!><!m!><!n!><!p!>$>-rin>
+                            (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!hplusone!>$>-pkgstate-LayeredSim> state-right)))
+            )
+            (= rin-left rin-right)
+        )
+    )
 )
 
 (define-fun <relation-debug-invariant-HybridIdeal-HybridReal1-GETAOUT>
