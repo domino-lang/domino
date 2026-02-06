@@ -1368,6 +1368,7 @@ theorem Full4WHS {
                     invariant:    [no-abort,empty-second,empty-first]
                     empty-second: [no-abort]
                     empty-first:  [no-abort]
+                    always-aborts: []
                 }
             }
             Send4: {
@@ -1381,6 +1382,7 @@ theorem Full4WHS {
                     same-output:  [no-abort]
                     invariant:    [no-abort,empty-second]
                     empty-second: [no-abort]
+                    always-aborts: []
                 }
             }
             Send5: {

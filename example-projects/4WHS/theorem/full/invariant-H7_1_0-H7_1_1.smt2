@@ -1427,3 +1427,22 @@
                      (mess (el11-11 (maybe-get state))))
                 (=> (not (is-mk-none sid))
                     (is-mk-none (select First0-old (maybe-get sid)))))))))))
+
+
+(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Send3>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
+     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
+  Bool
+  (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-return-value-or-abort> H710-return)))
+
+(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Send4>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
+     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
+  Bool
+  (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send4-return-value-or-abort> H710-return)))
