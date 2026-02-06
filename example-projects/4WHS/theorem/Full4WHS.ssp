@@ -1365,8 +1365,9 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    invariant:    [no-abort,empty-second]
+                    invariant:    [no-abort,empty-second,empty-first]
                     empty-second: [no-abort]
+                    empty-first:  [no-abort]
                 }
             }
             Send4: {
