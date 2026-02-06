@@ -157,12 +157,10 @@ oracle Send3(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n), Bits(n))
 		} else {
 		  if (Second[Unwrap(sid)] == None) {
 		      Second[Unwrap(sid)] <- Some(ctr);
-		  }/* else {
-              if (Fresh[ctr] == Some(true)) {
+		  } /* else {
                   abort;
-              }
-          }*/
-		}
+                 } */
+                 }
         }
 
         State[ctr]     <-  Some(state);
@@ -184,8 +182,10 @@ oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
                 First[Unwrap(sid)] <- Some(ctr);
             } else {
               if (Second[Unwrap(sid)] == None) {
-                  Second[Unwrap(sid)] <- Some(ctr);
-              }
+                  Second[Unwrap(sid)] <- Some(ctr);}
+            /*  else {
+                  abort;
+                 }*/
             }
         }
 

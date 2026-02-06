@@ -1,3 +1,46 @@
+;new (define-fun nonces-unique-after-message-2
+;new     ((Fresh (Array Int (Maybe Bool)))
+;new      (State (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+;new                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+;new                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+;new   Bool
+;new   (forall
+;new    ((ctr1 Int)(ctr2 Int))
+;new    (let ((state1 (select State ctr1))
+;new          (state2 (select State ctr2)))
+;new      (=> (and (not (is-mk-none state1))
+;new               (not (is-mk-none state2))
+;new               (not (is-mk-some (select Fresh ctr1)))
+;new               (not (is-mk-none (select Fresh ctr2))))
+;new          (let ((U1    (el11-1 (maybe-get state1)))
+;new                (U2    (el11-1 (maybe-get state2)))
+;new                (u1    (el11-2 (maybe-get state1)))
+;new                (u2    (el11-2 (maybe-get state2)))
+;new                (V1    (el11-3 (maybe-get state1)))
+;new                (V2    (el11-3 (maybe-get state2)))
+;new                (ni1   (el11-7 (maybe-get state1)))
+;new                (ni2   (el11-7 (maybe-get state2)))
+;new                (nr1   (el11-8 (maybe-get state1)))
+;new                (nr2   (el11-8 (maybe-get state2))))
+;new            (=> (and (not (= ctr1 ctr2))
+;new                     (= U1 U2)
+;new                     (= V1 V2)
+;new                     (= ni1 ni2)
+;new                     (= nr1 nr2))
+;new                (not (= u1 u2)))
+;new            )))))
+
+;new (define-fun no-overwriting-game
+;new     ((fresh (Array Int (Maybe Bool)))
+;new      (state (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
+;new                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+;new                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+;new      (ctr Int))
+;new   Bool
+;new   (forall ((i Int))
+;new           (=> (> i ctr)
+;new               (and (is-mk-none (select fresh i))
+;new                    (is-mk-none (select state i))))))
 
 (define-fun helper-collision-resistance-singleside ((h2-prf (Array Bits_n (Maybe (Tuple2 Bits_n (Tuple5 Int Int Bits_n Bits_n Bool)))))
 													(h2-mac (Array Bits_n (Maybe (Tuple3 Bits_n Bits_n Int))))
@@ -251,7 +294,13 @@
 		  (h2-nonces (<pkg-state-Nonces-<$<!n!>$>-Nonces> noncestate-H2))
 		  (h3-nonces (<pkg-state-Nonces-<$<!n!>$>-Nonces> noncestate-H3))
 		  (H2-state (<pkg-state-KX-<$<!n!>$>-State> gamestate-H2))
-		  (H3-state (<pkg-state-KX_nochecks-<$<!n!>$>-State> gamestate-H3)))
+		  (H3-state (<pkg-state-KX_nochecks-<$<!n!>$>-State> gamestate-H3))
+		  (H2-fresh (<pkg-state-KX-<$<!n!>$>-Fresh> gamestate-H2))
+		  (H3-fresh (<pkg-state-KX_nochecks-<$<!n!>$>-Fresh> gamestate-H3))
+		  (H2-ctr_ (<pkg-state-KX-<$<!n!>$>-ctr_> gamestate-H2))
+		  (H3-ctr_ (<pkg-state-KX_nochecks-<$<!n!>$>-ctr_> gamestate-H3)))
+
+
 	  (and
 	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	   ;; Package states are, in general, equal
@@ -306,6 +355,10 @@
 						;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 						;; For any side
 						(helper-gamestate-singleside h2-prf h2-mac h2-nonces U u V ltk acc k ni nr kmac sid mess)
+					;new	(nonces-unique-after-message-2 H2-fresh H2-state)
+					;new	(no-overwriting-game H2-fresh H2-state H2-ctr_)
+					;new    (nonces-unique-after-message-2 H3-fresh H3-state)
+					;new	(no-overwriting-game H3-fresh H3-state H3-ctr_)
 						;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 						;; Responder
 						(helper-gamestate-responder h2-prf h2-mac h2-nonces U u V ltk acc k ni nr kmac sid mess)
