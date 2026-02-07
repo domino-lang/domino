@@ -287,9 +287,9 @@
      (ctr Int))
   Bool
   (forall ((i Int))
-          (=> (> i ctr)
-              (and (is-mk-none (select fresh i))
-                   (is-mk-none (select state i))))))
+          (= (> i ctr)
+             (and (is-mk-none (select fresh i))
+                  (is-mk-none (select state i))))))
 
 
 (define-fun mac-keys-equal-in-prf
@@ -1100,9 +1100,7 @@
    (let ((state1 (select State ctr1))
          (state2 (select State ctr2)))
      (=> (and (not (is-mk-none state1))
-              (not (is-mk-none state2))
-              (= (select Fresh ctr1) (mk-some true))
-              (= (select Fresh ctr2) (mk-some true)))
+              (not (is-mk-none state2)))
          (let ((U1    (el11-1 (maybe-get state1)))
                (U2    (el11-1 (maybe-get state2)))
                (u1    (el11-2 (maybe-get state1)))
