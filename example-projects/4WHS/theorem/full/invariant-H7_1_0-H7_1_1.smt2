@@ -1226,7 +1226,9 @@
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
 
-           ;;(nonces-unique-after-message-2 Fresh0 State0)
+           ;;fre  6 feb 2026 16:18:16 CET
+           (nonces-unique-after-message-2 Fresh0 State0)
+
 
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
