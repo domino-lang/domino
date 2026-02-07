@@ -56,5 +56,5 @@
         (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
     )
     Bool
-    false
+    true
 )
