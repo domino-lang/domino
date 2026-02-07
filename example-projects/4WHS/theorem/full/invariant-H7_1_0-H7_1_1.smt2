@@ -133,6 +133,8 @@
                                        kmac)))
                         (and
                          (not (is-mk-none kmac))
+                         (not (is-mk-none ni))
+                         (not (is-mk-none nr))
                          (let ((tau (<<func-mac>> (maybe-get kmac) (maybe-get nr) 2)))
                            (= (mk-tuple5 U V
                                          (maybe-get ni)
@@ -271,13 +273,12 @@
                (= (select Ltk i) (as mk-none (Maybe Bits_n))))
            (=> (= (select Ltk i) (as mk-none (Maybe Bits_n)))
                (= (select H i) (as mk-none (Maybe Bool))))
-           (=> (> i kid)
-               (and
-                (is-mk-none (select H i))
-                (is-mk-none (select Ltk i))
-                (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
-                (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
-                (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))))
+           (= (> i kid)
+              (is-mk-none (select H i))
+              (is-mk-none (select Ltk i))
+              (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
+              (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
+              (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false))))))))
 
 (define-fun no-overwriting-game
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -288,8 +289,8 @@
   Bool
   (forall ((i Int))
           (= (> i ctr)
-             (and (is-mk-none (select fresh i))
-                  (is-mk-none (select state i))))))
+             (is-mk-none (select fresh i))
+             (is-mk-none (select state i)))))
 
 
 (define-fun mac-keys-equal-in-prf
