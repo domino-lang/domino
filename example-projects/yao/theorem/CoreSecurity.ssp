@@ -215,9 +215,19 @@ theorem CoreSecurity {
                 ]
 
                 lemmas {
-                    /* debug: [no-abort, value-of-i] */
-                    same-output:  [no-abort]
-                    equal-aborts: []
+                    /* debug: [value-of-i]
+                    equal-aborts: [value-of-i]
+                    same-output: [no-abort, value-of-i] */
+                    same-output:  [no-abort, case-i-lt-h, case-i-is-h, case-i-is-hplusone, case-i-gt-hplusone]
+                    equal-aborts: [case-i-lt-h, case-i-is-h, case-i-is-hplusone, case-i-gt-hplusone]
+                    case-i-is-h: [no-abort]
+                    case-i-is-hplusone: [no-abort]
+                    case-i-lt-h: [no-abort]
+                    case-i-gt-hplusone: [no-abort]
+                    case-i-is-h: []
+                    case-i-is-hplusone: []
+                    case-i-lt-h: []
+                    case-i-gt-hplusone: []
                     invariant:    [no-abort]
                 }
             }
@@ -225,6 +235,56 @@ theorem CoreSecurity {
             GETKEYSIN: {
                 invariant: [
                     ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+
+        equivalence CoreIdeal LastHybrid {
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
                 ]
 
                 lemmas {

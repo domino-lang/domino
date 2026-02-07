@@ -10,6 +10,10 @@ package HybridLayeredLev {
         LSETBIT(i: Integer, j: Integer, b: Bool),
     }
 
+    state {
+        y: Integer
+    }
+
     oracle LEVAL(
         i: Integer, 
         j: Integer, 
@@ -25,12 +29,12 @@ package HybridLayeredLev {
         } else {
             _ <- invoke LSETBIT((i + 1), j, z);
         }
-        /* what are the following lines for? 
+        /* what are the following lines for? */
         _op <- Unwrap(op[(false, false)]);
         _op <- Unwrap(op[(false, true)]);
         _op <- Unwrap(op[(true, false)]);
         _op <- Unwrap(op[(true, true)]);
         return;
-        */
+
     }
 }
