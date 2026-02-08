@@ -1010,7 +1010,37 @@
                       (not (is-mk-none (select Second (mk-tuple5 U V ni nr tau))))))))))
 
 
+
 (define-fun sessions-in-first-second-sufficiently-advanced
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Fresh (Array Int (Maybe Bool)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall
+     ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
+     (let ((first (select First (mk-tuple5 U V ni nr tau))))
+       (=> (not (is-mk-none first))
+           (let ((state (select State (maybe-get first))))
+             (and (not (is-mk-none state))
+                  (let  ((U    (el11-1  (maybe-get state)))
+                         (u    (el11-2  (maybe-get state)))
+                         (V    (el11-3  (maybe-get state)))
+                         (kid  (el11-4  (maybe-get state)))
+                         (acc  (el11-5  (maybe-get state)))
+                         (k    (el11-6  (maybe-get state)))
+                         (ni   (el11-7  (maybe-get state)))
+                         (nr   (el11-8  (maybe-get state)))
+                         (kmac (el11-9  (maybe-get state)))
+                         (sid  (el11-10 (maybe-get state)))
+                         (mess (el11-11 (maybe-get state))))
+                    (or (= mess 2)
+                        (= mess 3))))))))))
+
+
+(define-fun sessions-in-first-second-sufficiently-advanced-reverse
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
      (Fresh (Array Int (Maybe Bool)))
      (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -1228,6 +1258,9 @@
            ;;fre  6 feb 2026 16:18:16 CET
            (nonces-unique-after-message-2 Fresh0 State0)
 
+           ;;fre  6 feb 2026 16:10:59 CET
+           ;;fre  6 feb 2026 17:13:48 CET
+           (sids-unique Fresh0 State0)
 
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
 
@@ -1242,8 +1275,8 @@
 
            ;;(responder-in-first-second-always-accepted First0 Second0 Fresh0 State0)
 
-           ;;(sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
-           ;;(sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
+           (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
+           (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
 
            (freshness-and-honesty-matches State0 Fresh0 H0)
            (freshness-and-honesty-matches State1 Fresh1 H1)
