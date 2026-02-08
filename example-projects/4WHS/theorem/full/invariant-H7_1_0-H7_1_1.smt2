@@ -1136,7 +1136,7 @@
          (let ((u1    (el11-2 (maybe-get state1)))
                (u2    (el11-2 (maybe-get state2)))
                (sid1  (el11-10 (maybe-get state1)))
-               (sid2  (el11-10 (maybe-get state1))))
+               (sid2  (el11-10 (maybe-get state2))))
            (=> (and (not (= ctr1 ctr2))
                     (not (is-mk-none sid1))
                     (= sid1 sid2))
