@@ -571,7 +571,10 @@
   Bool
   (forall ((sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
           (=> (not (is-mk-none (select First sid)))
-              (not (is-mk-none (select State (maybe-get (select First sid))))))))
+              (let ((state (select State (maybe-get (select First sid)))))
+                (and (not (is-mk-none state))
+                     (= (mk-some sid)
+                        (el11-10 (maybe-get state))))))))
 
 
 (define-fun honest-sid-have-tau-in-mac
