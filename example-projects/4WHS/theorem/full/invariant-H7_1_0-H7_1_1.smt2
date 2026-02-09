@@ -1228,6 +1228,7 @@
            (= Values0 Values1)
            (= First0 First1)
            (= Second0 Second1)
+           (= ReverseMac0 ReverseMac1)
 
            (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
            (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
