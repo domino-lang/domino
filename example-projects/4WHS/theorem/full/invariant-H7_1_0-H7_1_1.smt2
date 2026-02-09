@@ -1242,7 +1242,7 @@
            (sessions-in-first-exist Second0 State0)
 
            (second-after-first First0 Second0)
-           ;;(first-second-distinct First0 Second0)
+           (first-second-distinct First0 Second0)
 
            (four-mac-implies-three-mac Values0)
            (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
