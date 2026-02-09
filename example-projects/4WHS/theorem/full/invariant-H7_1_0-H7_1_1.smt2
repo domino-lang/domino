@@ -400,28 +400,6 @@
                                           (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                           (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (and
-       ;; (forall ((ctr1 Int)(ctr2 Int))
-       ;;         (let ((state1 (select State ctr1))
-       ;;               (state2 (select State ctr2)))
-       ;;           (=> (and (not (is-mk-none state1))
-       ;;                    (not (is-mk-none state2)))
-       ;;               (let ((U1    (el11-1 (maybe-get state1)))
-       ;;                     (U2    (el11-1 (maybe-get state2)))
-       ;;                     (u1    (el11-2 (maybe-get state1)))
-       ;;                     (u2    (el11-2 (maybe-get state2)))
-       ;;                     (V1    (el11-3 (maybe-get state1)))
-       ;;                     (V2    (el11-3 (maybe-get state2)))
-       ;;                     (ni1   (el11-7 (maybe-get state1)))
-       ;;                     (ni2   (el11-7 (maybe-get state2)))
-       ;;                     (nr1   (el11-8 (maybe-get state1)))
-       ;;                     (nr2   (el11-8 (maybe-get state2))))
-       ;;                 (=> (= u1 u2)
-       ;;                     (ite u
-       ;;                          (=> (not (is-mk-none nr1))
-       ;;                              (not (= nr1 nr2)))
-       ;;                          (=> (not (is-mk-none ni1))
-       ;;                              (not (= ni1 ni2)))))))))
-
      (forall ((ctr Int))
              (let ((state (select state ctr)))
                (=> (not (= state none))
@@ -446,7 +424,8 @@
              (let ((state1 (select state ctr1))
                    (state2 (select state ctr2)))
                (=> (and (not (= none state1))
-                        (not (= none state2)))
+                        (not (= none state2))
+                        (= ctr1 ctr2))
                    (let ((u1    (el11-2 (maybe-get state1)))
                          (u2    (el11-2 (maybe-get state2)))
                          (ni1   (el11-7 (maybe-get state1)))
@@ -456,9 +435,13 @@
                      (and
                       (let ((nonce1 (ite u1 nr1 ni1))
                             (nonce2 (ite u2 nr2 ni2)))
-                        (=> (and (not (= ctr1 ctr2))
-                                 (not (= nonce1 (as mk-none (Maybe Bits_n)))))
-                            (not (= nonce1 nonce2))))))))))))
+                        (=> (not (is-mk-none nonce1))
+                            (not (= nonce1 nonce2))))
+                      (=> (and (not (is-mk-none ni1))
+                               (not (is-mk-none nr1))
+                               (= ni1 ni2)
+                               (= nr1 nr2))
+                          (not (= u1 u2)))))))))))
 
 
 (define-fun revtesteval-populated
@@ -1120,34 +1103,6 @@
             (and (=> (is-mk-none (select First handle))
                      (is-mk-none (select Second handle)))))))
 
-(define-fun nonces-unique-after-message-2
-    ((Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall
-   ((ctr1 Int)(ctr2 Int))
-   (let ((state1 (select State ctr1))
-         (state2 (select State ctr2)))
-     (=> (and (not (is-mk-none state1))
-              (not (is-mk-none state2)))
-         (let ((U1    (el11-1 (maybe-get state1)))
-               (U2    (el11-1 (maybe-get state2)))
-               (u1    (el11-2 (maybe-get state1)))
-               (u2    (el11-2 (maybe-get state2)))
-               (V1    (el11-3 (maybe-get state1)))
-               (V2    (el11-3 (maybe-get state2)))
-               (ni1   (el11-7 (maybe-get state1)))
-               (ni2   (el11-7 (maybe-get state2)))
-               (nr1   (el11-8 (maybe-get state1)))
-               (nr2   (el11-8 (maybe-get state2))))
-           (=> (and (not (= ctr1 ctr2))
-                    (not (is-mk-none ni1))
-                    (not (is-mk-none nr1))
-                    (= ni1 ni2)
-                    (= nr1 nr2))
-               (not (= u1 u2))))))))
 
 (define-fun sids-unique
     ((Fresh (Array Int (Maybe Bool)))
@@ -1256,8 +1211,9 @@
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
 
-           ;;fre  6 feb 2026 16:18:16 CET
-           (nonces-unique-after-message-2 Fresh0 State0)
+           ;; fre  6 feb 2026 16:18:16 CET
+           ;; merged into own-nonce
+           ;; (nonces-unique-after-message-2 Fresh0 State0)
 
            ;;fre  6 feb 2026 16:10:59 CET
            ;;fre  6 feb 2026 17:13:48 CET
@@ -1334,6 +1290,7 @@
            (= game-H710 game-H710-old)
            (= game-H711 game-H711-old)))))
 
+
 (define-fun <relation-lemma-aux-H7_1_0-H7_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
@@ -1362,8 +1319,7 @@
       (and
        (= mac-H710-old mac-H710)
        (= mac-H711-old mac-H711)
-       (= nonces-H710-old nonces-H710)
-       (= nonces-H711-old nonces-H711)
+       (= nonces-H710-old nonces-H710 nonces-H711-old nonces-H711)
        (= prf-H710-old prf-H710)
        (= prf-H711-old prf-H711)
        (let ((retval0 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H710-return))
@@ -1398,13 +1354,12 @@
                         (= (not (= ctr ctr0))
                            (= (select State0 ctr)
                               (select State0-old ctr))
-                           (= (select Fresh0 ctr)
-                              (select Fresh0-old ctr))
                            (= (select State1 ctr)
                               (select State1-old ctr))
-                           (= (select Fresh1 ctr)
-                              (select Fresh1-old ctr))
-                           )))))))))
+                           (= (select Fresh0 ctr)
+                              (select Fresh0-old ctr)
+                              (select Fresh1 ctr)
+                              (select Fresh1-old ctr)))))))))))
 
 
 (define-fun <relation-lemma-aux-H7_1_0-H7_1_1-SameKey>
