@@ -1082,12 +1082,22 @@
 
 (define-fun first-second-distinct
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((handle (mk-tuple5 U V ni nr tau)))
             (and (=> (not (is-mk-none (select Second handle)))
-                     (not (= (select First handle) (select Second handle))))))))
+                     (and (not (= (select First handle) (select Second handle)))
+                          (let ((state-first (select State (maybe-get (select First handle))))
+                                (state-second (select State (maybe-get (select Second handle)))))
+                            (and (not (is-mk-none state-first))
+                                 (not (is-mk-none state-second))
+                                 (not (= (el11-2 (maybe-get state-first))
+                                         (el11-2 (maybe-get state-second))
+                          ))))))))))
 
 
 (define-fun second-after-first
@@ -1237,7 +1247,7 @@
            (sessions-in-first-exist Second0 State0)
 
            (second-after-first First0 Second0)
-           (first-second-distinct First0 Second0)
+           (first-second-distinct First0 Second0 State0)
 
            (first-set-by-initiator State0 First0 Fresh0)
 
