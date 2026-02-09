@@ -1386,6 +1386,7 @@ theorem Full4WHS {
                     same-output:  [no-abort]
                     invariant:    [no-abort,empty-second]
                     empty-second: [no-abort]
+                    first-exists: [no-abort]
                     /*
                     always-aborts: []
                     */
