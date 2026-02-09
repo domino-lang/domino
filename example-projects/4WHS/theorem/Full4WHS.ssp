@@ -1441,18 +1441,21 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
                     same-output:  [no-abort]
+                    always-aborts: []
                 }
             }
             Reveal: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
                 lemmas {
@@ -1460,6 +1463,7 @@ theorem Full4WHS {
                     equal-aborts: []
                     invariant:    [no-abort]
                     same-output:  [no-abort]
+                    always-aborts: []
                 }
             }
             SameKey: {
