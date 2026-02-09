@@ -622,9 +622,14 @@
                 (let ((ctr (maybe-get (select First sid))))
                   (let ((kid (el11-4 (maybe-get (select State ctr))))
                         (acc  (el11-5  (maybe-get (select State ctr))))
+                        (mess (el11-11 (maybe-get (select State ctr))))
                         (u   (el11-2 (maybe-get (select State ctr)))))
                     (=> (= (select Fresh ctr) (mk-some true))
-                        (= u false))))))))
+                        (and (= u false)
+                             (ite (= acc (mk-some true))
+                                  (= mess 3)
+                                  (= mess 2)
+                             )))))))))
 
 (define-fun three-mac-implies-two-mac
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
