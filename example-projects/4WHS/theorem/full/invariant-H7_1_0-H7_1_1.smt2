@@ -611,8 +611,7 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Fresh (Array Int (Maybe Bool)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
+     (Fresh (Array Int (Maybe Bool))))
   Bool
   (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((sid (mk-tuple5 U V ni nr tau)))
@@ -621,9 +620,8 @@
                   (let ((kid (el11-4 (maybe-get (select State ctr))))
                         (acc  (el11-5  (maybe-get (select State ctr))))
                         (u   (el11-2 (maybe-get (select State ctr)))))
-                    (=> (and (= (select Fresh ctr) (mk-some true))
-                             (not (= acc (mk-some false))))
-                        (and (= u false)))))))))
+                    (=> (= (select Fresh ctr) (mk-some true))
+                        (= u false))))))))
 
 (define-fun three-mac-implies-two-mac
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
@@ -1206,12 +1204,6 @@
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
 
-           ;; fre  6 feb 2026 16:18:16 CET
-           ;; merged into own-nonce
-           ;; (nonces-unique-after-message-2 Fresh0 State0)
-
-           ;;fre  6 feb 2026 16:10:59 CET
-           ;;fre  6 feb 2026 17:13:48 CET
            (sids-unique Fresh0 State0)
 
            (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
@@ -1243,6 +1235,8 @@
 
            (second-after-first First0 Second0)
            (first-second-distinct First0 Second0)
+
+           (first-set-by-initiator State0 First0 Fresh0)
 
            (four-mac-implies-three-mac Values0)
            (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
