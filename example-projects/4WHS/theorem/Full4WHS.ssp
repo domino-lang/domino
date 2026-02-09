@@ -1371,6 +1371,7 @@ theorem Full4WHS {
                     same-output:  [no-abort]
                     invariant:    [no-abort]
                     other-session: [no-abort]
+                    not-in-first-second: [no-abort]
                     empty-second: [no-abort]
                     empty-first:  [no-abort]
                 }
@@ -1388,6 +1389,7 @@ theorem Full4WHS {
                     invariant:     [no-abort]
                     empty-second:  [no-abort]
                     other-session: [no-abort]
+                    not-in-first-second: [no-abort]
                     first-exists:  [no-abort]
                     /*
                     always-aborts: []
