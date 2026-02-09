@@ -1622,7 +1622,7 @@
                      (kmac (el11-9  (maybe-get state)))
                      (sid  (el11-10 (maybe-get state)))
                      (mess (el11-11 (maybe-get state))))
-                (=> (not (is-mk-none sid))
+                (=> (and (not (is-mk-none sid)) (= acc (mk-some true)))
                     (not (is-mk-none (select First0 (maybe-get sid))))))))))))
 
 
