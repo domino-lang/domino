@@ -425,7 +425,7 @@
                    (state2 (select state ctr2)))
                (=> (and (not (= none state1))
                         (not (= none state2))
-                        (= ctr1 ctr2))
+                        (not (= ctr1 ctr2)))
                    (let ((u1    (el11-2 (maybe-get state1)))
                          (u2    (el11-2 (maybe-get state2)))
                          (ni1   (el11-7 (maybe-get state1)))
