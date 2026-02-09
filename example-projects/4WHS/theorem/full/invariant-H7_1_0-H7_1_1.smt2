@@ -9,8 +9,8 @@
                 (let  ((u    (el11-2  (maybe-get state)))
                        (acc  (el11-5  (maybe-get state)))
                        (mess (el11-11 (maybe-get state))))
-                  (=> (not (is-mk-none acc))
-                      (ite u (> mess 1) (> mess 2))))))))
+                  (= (not (is-mk-none acc))
+                     (ite u (> mess 1) (> mess 2))))))))
 
 
 (define-fun prfeval-has-matching-session
@@ -268,17 +268,12 @@
      (Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-          (and
-           (=> (= (select H i) (as mk-none (Maybe Bool)))
-               (= (select Ltk i) (as mk-none (Maybe Bits_n))))
-           (=> (= (select Ltk i) (as mk-none (Maybe Bits_n)))
-               (= (select H i) (as mk-none (Maybe Bool))))
-           (= (> i kid)
-              (is-mk-none (select H i))
-              (is-mk-none (select Ltk i))
-              (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
-              (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
-              (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false))))))))
+          (= (> i kid)
+             (is-mk-none (select H i))
+             (is-mk-none (select Ltk i))
+             (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
+             (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
+             (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))
 
 (define-fun no-overwriting-game
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -908,12 +903,12 @@
                            (sid  (el11-10 (maybe-get state)))
                            (mess (el11-11 (maybe-get state))))
                       (and
-                       (=> (and (= tag 4) (= msg zeron))
-                           (and u (= acc (mk-some true)) (= mess 2)))
-                       (=> (and (= tag 3) (= msg ni))
-                           (and (not u) (or (= mess 2) (= mess 3))))
-                       (=> (and (= tag 2) (= msg nr))
-                           (and u (or (= mess 1) (= mess 2))))
+                       (= (and (= tag 4) (= msg zeron))
+                          (and u (= acc (mk-some true)) (= mess 2)))
+                       (= (and (= tag 3) (= msg ni))
+                          (and (not u) (or (= mess 2) (= mess 3))))
+                       (= (and (= tag 2) (= msg nr))
+                          (and u (or (= mess 1) (= mess 2))))
                        true))))))))))
 
 
