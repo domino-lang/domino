@@ -1369,7 +1369,7 @@ theorem Full4WHS {
                     */
                     equal-aborts: []
                     same-output:  [no-abort]
-                    invariant:    [no-abort,empty-second,empty-first]
+                    invariant:    [no-abort]
                     empty-second: [no-abort]
                     empty-first:  [no-abort]
                 }
@@ -1384,7 +1384,7 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    invariant:    [no-abort,empty-second]
+                    invariant:    [no-abort]
                     empty-second: [no-abort]
                     first-exists: [no-abort]
                     /*
