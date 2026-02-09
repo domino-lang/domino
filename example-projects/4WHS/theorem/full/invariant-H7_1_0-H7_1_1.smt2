@@ -415,10 +415,10 @@
                           (sid  (el11-10 (maybe-get state)))
                           (mess (el11-11 (maybe-get state))))
                      (ite u
-                          (= (not (= nr (as mk-none (Maybe Bits_n))))
-                             (= (select nonces (maybe-get nr)) (mk-some true)))
-                          (= (not (= ni (as mk-none (Maybe Bits_n))))
-                             (= (select nonces (maybe-get ni)) (mk-some true))))))))
+                          (=> (not (= nr (as mk-none (Maybe Bits_n))))
+                              (= (select nonces (maybe-get nr)) (mk-some true)))
+                          (=> (not (= ni (as mk-none (Maybe Bits_n))))
+                              (= (select nonces (maybe-get ni)) (mk-some true))))))))
 
      (forall ((ctr1 Int)(ctr2 Int))
              (let ((state1 (select state ctr1))
