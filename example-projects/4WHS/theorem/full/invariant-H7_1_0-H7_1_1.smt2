@@ -1333,6 +1333,52 @@
            (= game-H710 game-H710-old)
            (= game-H711 game-H711-old)))))
 
+(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-NewSession>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int)(u Bool)(V Int)(kid Int))
+  Bool
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
+    (let ((mac-H710      (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
+          (mac-H710-old  (<game-H7-<$<!n!>$>-pkgstate-MAC> H710-old))
+          (mac-H711      (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H711))
+          (mac-H711-old  (<game-H7-<$<!n!>$>-pkgstate-MAC> H711-old))
+          (game-H710     (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H710))
+          (game-H710-old (<game-H7-<$<!n!>$>-pkgstate-KX>  H710-old))
+          (game-H711     (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
+          (game-H711-old (<game-H7-<$<!n!>$>-pkgstate-KX>  H711-old)))
+      (and
+       (= mac-H710-old mac-H710)
+       (= mac-H711-old mac-H711)
+       (let ((retval0 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H710-return))
+             (retval1 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H711-return))
+             (State0 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H710))
+             (State1 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H711))
+             (Fresh0 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H710))
+             (Fresh1 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H711))
+             (State0-old (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H710-old))
+             (State1-old (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H711-old))
+             (Fresh0-old (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H710-old))
+             (Fresh1-old (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H711-old)))
+         (let ((ctr0 (return-value retval0))
+               (ctr1 (return-value retval1)))
+           (and (= ctr0 ctr1)
+                (forall ((ctr Int))
+                        (= (not (= ctr ctr0))
+                           (= (select State0 ctr)
+                              (select State0-old ctr))
+                           (= (select Fresh0 ctr)
+                              (select Fresh0-old ctr))
+                           (= (select State1 ctr)
+                              (select State1-old ctr))
+                           (= (select Fresh1 ctr)
+                              (select Fresh1-old ctr))
+                           )))))))))
+
+
 (define-fun <relation-lemma-aux-H7_1_0-H7_1_1-SameKey>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
@@ -1514,22 +1560,3 @@
                      (mess (el11-11 (maybe-get state))))
                 (=> (not (is-mk-none sid))
                     (is-mk-none (select First0-old (maybe-get sid)))))))))))
-
-
-(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Send3>
-    ((H710-old <GameState_H7_<$<!n!>$>>)
-     (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
-     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
-  Bool
-  (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-return-value-or-abort> H710-return)))
-
-(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Send4>
-    ((H710-old <GameState_H7_<$<!n!>$>>)
-     (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
-     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
-  Bool
-  (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send4-return-value-or-abort> H710-return)))
