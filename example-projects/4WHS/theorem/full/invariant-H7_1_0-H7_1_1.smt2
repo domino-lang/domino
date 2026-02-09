@@ -631,6 +631,25 @@
                                   (= mess 2)
                              )))))))))
 
+(define-fun second-set-before-initiator-accepts
+    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Fresh (Array Int (Maybe Bool))))
+  Bool
+  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
+          (let ((sid (mk-tuple5 U V ni nr tau)))
+            (=> (not (is-mk-none (select First sid)))
+                (let ((ctr (maybe-get (select First sid))))
+                  (let ((kid (el11-4 (maybe-get (select State ctr))))
+                        (acc  (el11-5  (maybe-get (select State ctr))))
+                        (mess (el11-11 (maybe-get (select State ctr))))
+                        (u   (el11-2 (maybe-get (select State ctr)))))
+                    (=> (= acc (mk-some true))
+                        (not (is-mk-none (select Second sid))))))))))
+
 (define-fun three-mac-implies-two-mac
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
@@ -1255,6 +1274,7 @@
            (first-second-distinct First0 Second0 State0)
 
            (first-set-by-initiator State0 First0 Fresh0)
+           (second-set-before-initiator-accepts State0 First0 Second0 Fresh0)
 
            (four-mac-implies-three-mac Values0)
            (three-mac-implies-two-mac Values0) ; Chris: takes 17 up to here for Send2
