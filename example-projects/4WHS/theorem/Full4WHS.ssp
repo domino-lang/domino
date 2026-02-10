@@ -1359,6 +1359,7 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/lemma-H7_1_0-H7_1_1-Send3.smt2
                     ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
@@ -1380,6 +1381,7 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/lemma-H7_1_0-H7_1_1-Send4.smt2
                     ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
@@ -1400,6 +1402,7 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
                     ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/lemma-H7_1_0-H7_1_1-Send5.smt2
                     ./theorem/full/debug-H7_1_0-H7_1_1.smt2
                 ]
 
@@ -1407,6 +1410,8 @@ theorem Full4WHS {
                     /*lemma-debug:  [no-abort]*/
                     same-output:  [no-abort]
                     equal-aborts: []
+                    in-first-or-second: [no-abort]
+                    in-first:     [no-abort]
                     invariant:    [no-abort]
                 }
             }
