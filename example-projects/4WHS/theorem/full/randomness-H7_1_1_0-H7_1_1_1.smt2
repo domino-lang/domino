@@ -63,8 +63,7 @@
   (and
    (= scr-1 base-ctr-1)
    (= scr-0 base-ctr-0)
-   (= id-0 (sample-id "PRF" "Eval" "1"))
-   (= id-1 (sample-id "KX" "Test" "1"))))
+   (= id-0 id-1)))
 
 (define-fun randomness-mapping-Reveal
     ((base-ctr-0 Int) (base-ctr-1 Int)

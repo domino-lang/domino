@@ -333,14 +333,6 @@
              (is-mk-none (select state i)))))
 
 
-(define-fun mac-keys-equal-in-prf
-    ((prf0 (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
-     (prf1 (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n))))
-  Bool
-  (forall ((in (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool))))
-          (=> (= false (el5-5 (el2-2 in)))
-              (= (select prf0 in)
-                 (select prf1 in)))))
 
 
 (define-fun kmac-and-tau-are-computed-correctly
@@ -1223,12 +1215,14 @@
            (= ctr0 ctr1)
            (= State0 State1)
            (= RevTested0 RevTested1)
+           (= RevTestEval0 RevTestEval1)
            (= Fresh0 Fresh1)
            (= Keys0 Keys1)
            (= Values0 Values1)
            (= First0 First1)
            (= Second0 Second1)
            (= ReverseMac0 ReverseMac1)
+           (= Prf0 Prf1)
 
            (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
            (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
@@ -1237,17 +1231,10 @@
            (no-overwriting-game State1 Fresh1 ctr1)
            (sid-is-wellformed State0 Fresh0 Keys0)
 
-           (revtesteval-matches-sometimes State0 RevTestEval0 RevTestEval1 )
-           (mac-keys-equal-in-prf Prf0 Prf1)
            (kmac-and-tau-are-computed-correctly State0 Prf0 H0 Ltk0 Fresh0 Keys0)
            (kmac-and-tau-are-computed-correctly State1 Prf1 H1 Ltk1 Fresh1 Keys1)
 
            (sid-matches State0) ; this property needs mac properties as pre-conditions to hold
-           (revtesteval-populated RevTestEval0 H0 Prf0)
-           (revtesteval-populated RevTestEval1 H1 Prf1)
-
-           (revtesteval-empty RevTestEval0 RevTested0 State0)
-           (revtesteval-empty RevTestEval1 RevTested1 State1)
            
            (own-nonce-is-unique State0 Nonces0) ; Chris: takes 1:10 up to here for Send2
 
@@ -1262,16 +1249,8 @@
 
            (sids-unique Fresh0 State0)
 
-           (prfeval-has-matching-session Prf0 RevTestEval0 RevTestEval1 RevTested0 State0 Fresh0 Keys0)
-
            (time-of-acceptance State0)
            (time-of-acceptance State1)
-
-           ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-           ;; WARN: WE NEED THEESE TWO!!!!
-           ;;(key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
-           ;;(key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
-           ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
            
            ;;(four-mac-implies-first-or-second Values0 First0 Second0)
            ;;(three-mac-implies-first-or-second Values0 First0 Second0)
@@ -1317,7 +1296,7 @@
 
 
 
-(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-NewKey>
+(define-fun <relation-lemma-aux-H7_1_1_0-H7_1_1_1-NewKey>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_PRF_<$<!n!>$>_NewKey>)
@@ -1340,7 +1319,7 @@
            (= game-H711 game-H711-old)))))
 
 
-(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-NewSession>
+(define-fun <relation-lemma-aux-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
@@ -1411,7 +1390,7 @@
                               (select Fresh1-old ctr)))))))))))
 
 
-(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-SameKey>
+(define-fun <relation-lemma-aux-H7_1_1_0-H7_1_1_1-SameKey>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_SameKey>)
@@ -1444,7 +1423,7 @@
            (= prf-H710-old prf-H710)
            (= prf-H711-old prf-H711)))))
 
-(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-AtMost>
+(define-fun <relation-lemma-aux-H7_1_1_0-H7_1_1_1-AtMost>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtMost>)
@@ -1477,7 +1456,7 @@
            (= prf-H710-old prf-H710)
            (= prf-H711-old prf-H711)))))
 
-(define-fun <relation-lemma-aux-H7_1_0-H7_1_1-AtLeast>
+(define-fun <relation-lemma-aux-H7_1_1_0-H7_1_1_1-AtLeast>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtLeast>)

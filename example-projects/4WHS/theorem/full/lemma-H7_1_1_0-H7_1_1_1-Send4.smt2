@@ -1,4 +1,4 @@
-(define-fun <relation-not-in-first-second-H7_1_0-H7_1_1-Send4>
+(define-fun <relation-not-in-first-second-H7_1_1_0-H7_1_1_1-Send4>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
@@ -40,7 +40,7 @@
                                  (select Second0-old (maybe-get sid)))))))))))))
 
 
-(define-fun <relation-empty-second-H7_1_0-H7_1_1-Send4>
+(define-fun <relation-empty-second-H7_1_1_0-H7_1_1_1-Send4>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
@@ -79,7 +79,7 @@
                     (is-mk-none (select Second0-old (maybe-get sid)))))))))))
 
 
-(define-fun <relation-first-exists-H7_1_0-H7_1_1-Send4>
+(define-fun <relation-first-exists-H7_1_1_0-H7_1_1_1-Send4>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
@@ -118,7 +118,7 @@
                     (not (is-mk-none (select First0 (maybe-get sid))))))))))))
 
 
-(define-fun <relation-other-session-H7_1_0-H7_1_1-Send4>
+(define-fun <relation-other-session-H7_1_1_0-H7_1_1_1-Send4>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)

@@ -1,4 +1,4 @@
-(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Send3>
+(define-fun <relation-always-aborts-H7_1_1_0-H7_1_1_1-Send3>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
@@ -7,7 +7,7 @@
   Bool
   (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-return-value-or-abort> H710-return)))
 
-(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Send4>
+(define-fun <relation-always-aborts-H7_1_1_0-H7_1_1_1-Send4>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send4>)
@@ -16,7 +16,7 @@
   Bool
   (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send4-return-value-or-abort> H710-return)))
 
-(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Test>
+(define-fun <relation-always-aborts-H7_1_1_0-H7_1_1_1-Test>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Test>)
@@ -25,7 +25,7 @@
   Bool
   (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Test-return-value-or-abort> H710-return)))
 
-(define-fun <relation-always-aborts-H7_1_0-H7_1_1-Reveal>
+(define-fun <relation-always-aborts-H7_1_1_0-H7_1_1_1-Reveal>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Reveal>)
@@ -35,7 +35,7 @@
   (is-mk-abort (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Reveal-return-value-or-abort> H710-return)))
 
 
-(define-fun <relation-debug-H7_1_0-H7_1_1-Reveal>
+(define-fun <relation-debug-H7_1_1_0-H7_1_1_1-Reveal>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Reveal>)
@@ -116,7 +116,7 @@
                          (not (is-mk-none (select RevTested0-old (maybe-get sid)))))))))))))
 
 
-(define-fun <relation-lemma-debug-H7_1_0-H7_1_1-NewKey>
+(define-fun <relation-lemma-debug-H7_1_1_0-H7_1_1_1-NewKey>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_PRF_<$<!n!>$>_NewKey>)
@@ -216,7 +216,7 @@
              )))))
 
 
-(define-fun <relation-debug-H7_1_0-H7_1_1-Send3>
+(define-fun <relation-debug-H7_1_1_0-H7_1_1_1-Send3>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
      (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)

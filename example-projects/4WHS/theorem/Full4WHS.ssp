@@ -1661,7 +1661,7 @@ theorem Full4WHS {
                     equal-aborts: []
                     invariant:    [no-abort]
                     same-output:  [no-abort]
-                    always-aborts: []
+                    /*always-aborts: []*/
                 }
             }
             Reveal: {
@@ -1673,11 +1673,10 @@ theorem Full4WHS {
 
                 lemmas {
                     /*lemma-key-not-yet-computed: []*/
-                    debug: []
                     equal-aborts: []
                     invariant:    [no-abort]
                     same-output:  [no-abort]
-                    always-aborts: []
+                    /*always-aborts: []*/
                 }
             }
             SameKey: {
