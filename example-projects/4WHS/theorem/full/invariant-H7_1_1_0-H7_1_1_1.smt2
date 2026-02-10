@@ -224,8 +224,7 @@
 (define-fun sid-matches
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n))))
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                           (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -262,7 +261,6 @@
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
      (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
@@ -313,12 +311,14 @@
      (Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-          (= (> i kid)
-             (is-mk-none (select H i))
-             (is-mk-none (select Ltk i))
-             (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
-             (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
-             (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))
+          (and 
+           (= (> i kid)
+              (is-mk-none (select H i))
+              (is-mk-none (select Ltk i)))
+           (=> (> i kid)
+               (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
+               (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
+               (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false))))))))
 
 (define-fun no-overwriting-game
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -1235,14 +1235,14 @@
 
            (no-overwriting-game State0 Fresh0 ctr0)
            (no-overwriting-game State1 Fresh1 ctr1)
-           (sid-is-wellformed State0 Prf0 Fresh0 Keys0)
+           (sid-is-wellformed State0 Fresh0 Keys0)
 
            (revtesteval-matches-sometimes State0 RevTestEval0 RevTestEval1 )
            (mac-keys-equal-in-prf Prf0 Prf1)
            (kmac-and-tau-are-computed-correctly State0 Prf0 H0 Ltk0 Fresh0 Keys0)
            (kmac-and-tau-are-computed-correctly State1 Prf1 H1 Ltk1 Fresh1 Keys1)
 
-           (sid-matches State0 Prf0) ; this property needs mac properties as pre-conditions to hold
+           (sid-matches State0) ; this property needs mac properties as pre-conditions to hold
            (revtesteval-populated RevTestEval0 H0 Prf0)
            (revtesteval-populated RevTestEval1 H1 Prf1)
 
@@ -1267,9 +1267,12 @@
            (time-of-acceptance State0)
            (time-of-acceptance State1)
 
-           (key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
-           (key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
-
+           ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+           ;; WARN: WE NEED THEESE TWO!!!!
+           ;;(key-not-computed-unless-test-or-reveal State0 RevTested0 Prf0 H0 Keys0)
+           ;;(key-not-computed-unless-reveal         State1 RevTested1 Prf1 H1 Keys1)
+           ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+           
            ;;(four-mac-implies-first-or-second Values0 First0 Second0)
            ;;(three-mac-implies-first-or-second Values0 First0 Second0)
 

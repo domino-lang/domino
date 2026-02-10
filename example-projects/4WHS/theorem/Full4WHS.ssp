@@ -208,7 +208,7 @@ theorem Full4WHS {
         }
     }
 
-    instance H7_1_0 = H7 {
+    instance H7_1_0_0 = H7 {
         params {
             btest   : false ,
             bleast  : false ,
@@ -220,7 +220,19 @@ theorem Full4WHS {
         }
     }
 
-    instance H7_1_1 = H7 {
+    instance H7_1_1_0 = H7 {
+        params {
+            btest   : true ,
+            bleast  : false ,
+            bmac    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+    instance H7_1_1_1 = H7 {
         params {
             btest   : true ,
             bleast  : true ,
@@ -1331,12 +1343,12 @@ theorem Full4WHS {
             }
         }
 
-        equivalence H7_1_0 H7_1_1 {
+        equivalence H7_1_0_0 H7_1_1_0 {
             Send1: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1348,8 +1360,8 @@ theorem Full4WHS {
             }
              Send2: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1361,10 +1373,10 @@ theorem Full4WHS {
             }
              Send3: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/lemma-H7_1_0-H7_1_1-Send3.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/lemma-H7_1_0_0-H7_1_1_0-Send3.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1383,10 +1395,10 @@ theorem Full4WHS {
             }
             Send4: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/lemma-H7_1_0-H7_1_1-Send4.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/lemma-H7_1_0_0-H7_1_1_0-Send4.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1404,10 +1416,10 @@ theorem Full4WHS {
             }
             Send5: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/lemma-H7_1_0-H7_1_1-Send5.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/lemma-H7_1_0_0-H7_1_1_0-Send5.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1423,9 +1435,9 @@ theorem Full4WHS {
             }
             NewKey: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1437,8 +1449,8 @@ theorem Full4WHS {
             }
             NewSession: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1450,9 +1462,9 @@ theorem Full4WHS {
             }
             Test: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
@@ -1464,13 +1476,14 @@ theorem Full4WHS {
             }
             Reveal: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/debug-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
                     /*lemma-key-not-yet-computed: []*/
+                    debug: []
                     equal-aborts: []
                     invariant:    [no-abort]
                     same-output:  [no-abort]
@@ -1479,22 +1492,22 @@ theorem Full4WHS {
             }
             SameKey: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
                     lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    invariant:    [no-abort]
                 }
             }
             AtLeast: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
-                    /*./theorem/full/debug-H7_1_0-H7_1_1.smt2*/
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                    /*./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2*/
                 ]
 
                 lemmas {
@@ -1508,8 +1521,198 @@ theorem Full4WHS {
             }
             AtMost: {
                 invariant: [
-                    ./theorem/full/invariant-H7_1_0-H7_1_1.smt2
-                    ./theorem/full/randomness-H7_1_0-H7_1_1.smt2
+                    ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
+                    ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort, lemma-aux]
+                }
+            }
+        }
+        equivalence H7_1_1_0 H7_1_1_1 {
+            Send1: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    /*debug:        [no-abort]*/
+                    invariant:    [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    /*debug:        [no-abort]*/
+                    invariant:    [no-abort]
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send3.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    /*
+                    always-aborts: []
+                    debug: []
+                    */
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                    other-session: [no-abort]
+                    not-in-first-second: [no-abort]
+                    empty-second: [no-abort]
+                    empty-first:  [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send4.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    equal-aborts:  []
+                    same-output:   [no-abort]
+                    invariant:     [no-abort]
+                    empty-second:  [no-abort]
+                    other-session: [no-abort]
+                    not-in-first-second: [no-abort]
+                    first-exists:  [no-abort]
+                    /*
+                    always-aborts: []
+                    */
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send5.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    /*lemma-debug:  [no-abort]*/
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    first-exists: [no-abort]
+                    second-exists: [no-abort]
+                    in-first-or-second: [no-abort]
+                    in-first:     [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort, lemma-aux]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    lemma-aux:    [no-abort]
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort,lemma-aux]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    always-aborts: []
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    /*lemma-key-not-yet-computed: []*/
+                    debug: []
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    always-aborts: []
+                }
+            }
+            SameKey: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            AtLeast: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
+                    /*./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2*/
+                ]
+
+                lemmas {
+                    /*lemma-debug:  [no-abort]*/
+                    /*lemma-false:  []*/
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    lemma-aux:    [no-abort]
+                    invariant:    [no-abort, lemma-aux]
+                }
+            }
+            AtMost: {
+                invariant: [
+                    ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
