@@ -3,7 +3,8 @@ composition H6 {
         const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
-        const b: Bool;
+        const btest: Bool;
+        const bleast: Bool;
         const bprf: Bool;
     
 	instance PRF = PRF {
@@ -28,8 +29,8 @@ composition H6 {
     }
     instance KX = KX_noprfkey {
         params {
-        btest: b,
-        bleast: b,
+        btest: btest,
+        bleast: bleast,
         n: n,
         zeron: zeron,
         mac: mac,
