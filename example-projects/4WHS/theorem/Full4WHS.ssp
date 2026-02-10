@@ -185,6 +185,17 @@ theorem Full4WHS {
         }
     }
 
+    instance H65 = H65 {
+        params {
+            b       : b ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
     instance H7_0 = H7 {
         params {
             btest   : b ,
@@ -1180,6 +1191,153 @@ theorem Full4WHS {
 
             map PRFideal H6_1 {
                PRF: PRF
+            }
+        }
+
+        equivalence H6_1 H65 {
+            Send1: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send2: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                }
+            }
+             Send3: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send4: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Send5: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewKey: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            NewSession: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Test: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort] /*, lemma-randomness]*/
+                    same-output:  [no-abort] /*, lemma-randomness]*/
+                }
+            }
+            Reveal: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            SameKey: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            AtLeast: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            AtMost: {
+                invariant: [
+                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/randomness-H6_1-H65.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
             }
         }
 
