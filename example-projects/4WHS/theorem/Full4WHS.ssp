@@ -1353,7 +1353,6 @@ theorem Full4WHS {
 
                 lemmas {
                     same-output:  [no-abort]
-                    /*debug:        [no-abort]*/
                     invariant:    [no-abort]
                     equal-aborts: []
                 }
@@ -1367,7 +1366,6 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    /*debug:        [no-abort]*/
                     invariant:    [no-abort]
                 }
             }
@@ -1375,29 +1373,19 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
                     ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
-                    ./theorem/full/lemma-H7_1_0_0-H7_1_1_0-Send3.smt2
                     ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
-                    /*
-                    always-aborts: []
-                    debug: []
-                    */
                     equal-aborts: []
                     same-output:  [no-abort]
                     invariant:    [no-abort]
-                    other-session: [no-abort]
-                    not-in-first-second: [no-abort]
-                    empty-second: [no-abort]
-                    empty-first:  [no-abort]
                 }
             }
             Send4: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
                     ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
-                    ./theorem/full/lemma-H7_1_0_0-H7_1_1_0-Send4.smt2
                     ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
@@ -1405,31 +1393,18 @@ theorem Full4WHS {
                     equal-aborts:  []
                     same-output:   [no-abort]
                     invariant:     [no-abort]
-                    empty-second:  [no-abort]
-                    other-session: [no-abort]
-                    not-in-first-second: [no-abort]
-                    first-exists:  [no-abort]
-                    /*
-                    always-aborts: []
-                    */
                 }
             }
             Send5: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_0_0-H7_1_1_0.smt2
                     ./theorem/full/randomness-H7_1_0_0-H7_1_1_0.smt2
-                    ./theorem/full/lemma-H7_1_0_0-H7_1_1_0-Send5.smt2
                     ./theorem/full/debug-H7_1_0_0-H7_1_1_0.smt2
                 ]
 
                 lemmas {
-                    /*lemma-debug:  [no-abort]*/
                     same-output:  [no-abort]
                     equal-aborts: []
-                    first-exists: [no-abort]
-                    second-exists: [no-abort]
-                    in-first-or-second: [no-abort]
-                    in-first:     [no-abort]
                     invariant:    [no-abort]
                 }
             }
@@ -1443,8 +1418,7 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    invariant:    [no-abort]
                 }
             }
             NewSession: {
@@ -1454,10 +1428,9 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    lemma-aux:    [no-abort]
                     equal-aborts: []
                     same-output:  [no-abort]
-                    invariant:    [no-abort,lemma-aux]
+                    invariant:    [no-abort]
                 }
             }
             Test: {
@@ -1469,8 +1442,8 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    invariant:    [no-abort]
                     always-aborts: []
                 }
             }
@@ -1482,11 +1455,9 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    /*lemma-key-not-yet-computed: []*/
-                    debug: []
                     equal-aborts: []
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    invariant:    [no-abort]
                     always-aborts: []
                 }
             }
@@ -1499,7 +1470,6 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
                     invariant:    [no-abort]
                 }
             }
@@ -1515,8 +1485,7 @@ theorem Full4WHS {
                     /*lemma-false:  []*/
                     equal-aborts: []
                     same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    invariant:    [no-abort]
                 }
             }
             AtMost: {
@@ -1528,8 +1497,7 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    invariant:    [no-abort]
                 }
             }
         }
