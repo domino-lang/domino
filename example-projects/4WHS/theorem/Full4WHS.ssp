@@ -1410,6 +1410,8 @@ theorem Full4WHS {
                     /*lemma-debug:  [no-abort]*/
                     same-output:  [no-abort]
                     equal-aborts: []
+                    first-exists: [no-abort]
+                    second-exists: [no-abort]
                     in-first-or-second: [no-abort]
                     in-first:     [no-abort]
                     invariant:    [no-abort]
