@@ -187,7 +187,8 @@ theorem Full4WHS {
 
     instance H7_0 = H7 {
         params {
-            b       : b ,
+            btest   : b ,
+            bleast  : b ,
             bmac    : false,
             n       : n    ,
             zeron   : zeron,
@@ -197,7 +198,8 @@ theorem Full4WHS {
     }
     instance H7_1 = H7 {
         params {
-            b       : b ,
+            btest   : b ,
+            bleast  : b ,
             bmac    : true,
             n       : n    ,
             zeron   : zeron,
@@ -208,7 +210,8 @@ theorem Full4WHS {
 
     instance H7_1_0 = H7 {
         params {
-            b       : false ,
+            btest   : false ,
+            bleast  : false ,
             bmac    : true,
             n       : n    ,
             zeron   : zeron,
@@ -219,7 +222,8 @@ theorem Full4WHS {
 
     instance H7_1_1 = H7 {
         params {
-            b       : true,
+            btest   : true ,
+            bleast  : true ,
             bmac    : true,
             n       : n    ,
             zeron   : zeron,

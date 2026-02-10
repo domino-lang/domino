@@ -1,6 +1,7 @@
 package KX_noprfkey {
     params {
-        b: Bool,
+        btest: Bool,
+        bleast: Bool,
         n: Integer,
         zeron: Bits(n),
         mac: fn Bits(n), Bits(n), Integer -> Bits(n),
@@ -224,7 +225,7 @@ oracle Test(ctr: Integer) -> Bits(n)
     /* mark key as tested */
     RevTested[Unwrap(sid)] <- Some(true);
 
-    if b {
+    if btest {
       k <-$ Bits(n);
     } else {
          RevTestEval[(kid,U,V,Unwrap(ni),Unwrap(nr))] <- Some(ctr);
@@ -250,7 +251,7 @@ oracle AtMost(ctr1: Integer, ctr2: Integer, ctr3: Integer) -> Bool {
 
 oracle AtLeast(sid: (Integer,Integer,Bits(n),Bits(n),Bits(n))) -> Bool {
 
-   if ((b == false) and (First[sid] != None as Integer)
+   if ((bleast == false) and (First[sid] != None as Integer)
                     and (Second[sid] == None)){
       (_U,_u,_V,_kid,acc1,_k,_ni,_nr,_kmac,_sid,_mess) <- parse Unwrap(State[Unwrap(First[sid])]);
       if ((acc1 == Some(true)) and (Fresh[Unwrap(First[sid])] == Some(true))) {

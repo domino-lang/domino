@@ -28,7 +28,8 @@ composition H6 {
     }
     instance KX = KX_noprfkey {
         params {
-        b: b,
+        btest: b,
+        bleast: b,
         n: n,
         zeron: zeron,
         mac: mac,
