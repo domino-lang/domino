@@ -339,7 +339,6 @@
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (honesty (Array Int (Maybe Bool)))
      (ltk (Array Int (Maybe Bits_n)))
      (Fresh (Array Int (Maybe Bool)))
@@ -368,8 +367,8 @@
                      (and
                       (=> (and (not (= kmac (as mk-none (Maybe Bits_n))))
                                (= (select honesty kid) (mk-some false)))
-                          (= kmac (mk-some (<<func-prf>> (maybe-get (select ltk kid)) (mk-tuple5 U V
-                                                                                                 (maybe-get ni) (maybe-get nr) false)))))))))))))
+                          (= kmac (mk-some (<<func-prf>> (maybe-get (select ltk kid))
+                                                         (mk-tuple5 U V (maybe-get ni) (maybe-get nr) false)))))))))))))
 
 
 (define-fun time-of-acceptance
@@ -527,27 +526,6 @@
                      (= (select Values val-idx)
                         (mk-some (<<func-mac>> (maybe-get (select Keys idx))
                                                msg1 msg2))))))))
-
-
-(define-fun no-ideal-values-for-dishonest-keys
-    ((H (Array Int (Maybe Bool)))
-     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
-     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
-  Bool
-  (forall ((kid Int)
-           (U Int)
-           (V Int)
-           (ni Bits_n)
-           (nr Bits_n))
-          (=> (= (select H kid) (mk-some false))
-              (and
-               (forall ((msg Bits_n) (tag Int))
-                       (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                             (mk-tuple2 msg tag)))))
-               (is-mk-none (select Keys (mk-tuple5 kid U V ni nr)))
-               (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true))))
-               (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))))
 
 
 (define-fun honest-sessions-to-first-and-second
@@ -1229,14 +1207,14 @@
 
            (no-overwriting-game State0 Fresh0 ctr0)
            (no-overwriting-game State1 Fresh1 ctr1)
+
            (sid-is-wellformed State0 Fresh0 Keys0)
-
-           (kmac-and-tau-are-computed-correctly State0 Prf0 H0 Ltk0 Fresh0 Keys0)
-           (kmac-and-tau-are-computed-correctly State1 Prf1 H1 Ltk1 Fresh1 Keys1)
-
-           (sid-matches State0) ; this property needs mac properties as pre-conditions to hold
+           (sid-matches State0)
            
-           (own-nonce-is-unique State0 Nonces0) ; Chris: takes 1:10 up to here for Send2
+           (kmac-and-tau-are-computed-correctly State0 H0 Ltk0 Fresh0 Keys0)
+           (kmac-and-tau-are-computed-correctly State1 H1 Ltk1 Fresh1 Keys1)
+           
+           (own-nonce-is-unique State0 Nonces0)
 
            ;; Consistency of reverse-mac-table
            (reverse-mac-matches Values0 ReverseMac0 H0)
@@ -1265,8 +1243,6 @@
 
            (stuff-not-initialized-early State0 Fresh0 Keys0)
            (mac-table-wellformed Keys0 Values0)
-
-           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0 Values0)
 
            (sessions-in-first-exist First0 State0)
            (sessions-in-first-exist Second0 State0)
