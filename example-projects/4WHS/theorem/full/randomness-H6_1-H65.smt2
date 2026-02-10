@@ -83,7 +83,7 @@
   (and
    (= scr-1 base-ctr-1)
    (= scr-0 base-ctr-0)
-   (= id-0 (sample-id "Prf" "Eval" "1"))
+   (= id-0 (sample-id "PRF" "Eval" "1"))
    (= id-1 (sample-id "KX" "Test" "1"))))
 
 
