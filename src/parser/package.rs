@@ -1173,13 +1173,6 @@ pub fn handle_code(
                     };
 
                     for ast in inner {
-                        match ast.as_rule() {
-                            Rule::oracle_call_index => {
-                                let index_expr_ast = ast.into_inner().next().unwrap();
-                                dst_inst_index =
-                                    Some(handle_expression(&ctx.parse_ctx(), index_expr_ast, Some(&Type::integer()))?);
-                            }
-                            Rule::fn_call_arglist => {
                                 let args_iter = ast.into_inner();
                                 let (arg_count, _) = args_iter.size_hint();
                                 if arg_count != target_oracle_sig.args.len() {
@@ -1199,9 +1192,6 @@ pub fn handle_code(
                                     .collect();
                                 let arglist = arglist?;
                                 args.extend(arglist.into_iter())
-                            }
-                            _ => unreachable!(),
-                        }
                     }
 
                     let expected_type = match opt_idx.clone() {
@@ -1723,72 +1713,6 @@ pub fn handle_import_oracles_body(
                         // shouldn't fail?
                     )
                     .unwrap();
-            }
-
-            Rule::import_oracles_for => {
-                let mut for_ast = entry.into_inner();
-
-                let ident_ast = for_ast.next().unwrap();
-                let for_start_ast = for_ast.next().unwrap();
-                let start_comp_ast = for_ast.next().unwrap();
-                let ident2_ast = for_ast.next().unwrap();
-                let end_comp_ast = for_ast.next().unwrap();
-                let for_end_ast = for_ast.next().unwrap();
-
-                let ident = ident_ast.as_str().to_string();
-                let ident2 = ident2_ast.as_str().to_string();
-
-                let ident_span = ident_ast.as_span();
-                let ident2_span = ident2_ast.as_span();
-
-                let for_start =
-                    handle_expression(&ctx.parse_ctx(), for_start_ast, Some(&Type::integer()))?;
-                let for_end =
-                    handle_expression(&ctx.parse_ctx(), for_end_ast, Some(&Type::integer()))?;
-
-                // the grammar ensures that try_into doesn't fail
-                let start_comp: ForComp = start_comp_ast.as_str().try_into().unwrap();
-                let end_comp: ForComp = end_comp_ast.as_str().try_into().unwrap();
-
-                if ident != ident2 {
-                    return Err(ForLoopIdentifersDontMatchError {
-                        source_code: ctx.named_source(),
-                        at_fst: (ident_span.start()..ident_span.end()).into(),
-                        at_snd: (ident2_span.start()..ident2_span.end()).into(),
-                        fst: ident,
-                        snd: ident2,
-                    }
-                    .into());
-                }
-
-                let ident_data = PackageImportsLoopVarIdentifier {
-                    pkg_name: pkg_name.to_string(),
-                    name: ident.clone(),
-                    start: Box::new(for_start.clone()),
-                    end: Box::new(for_end.clone()),
-                    start_comp,
-                    end_comp,
-                    pkg_inst_name: None,
-                    game_name: None,
-                    game_inst_name: None,
-                    theorem_name: None,
-                };
-
-                let identifier =
-                    Identifier::PackageIdentifier(PackageIdentifier::ImportsLoopVar(ident_data));
-
-                loopvar_scope.enter();
-
-                loopvar_scope
-                    .declare(&ident, Declaration::Identifier(identifier))
-                    .map_err(|_| IdentifierAlreadyDeclaredError {
-                        source_code: ctx.named_source(),
-                        at: (ident_span.start()..ident_span.end()).into(),
-                        ident_name: ident,
-                    })?;
-
-                handle_import_oracles_body(ctx, for_ast.next().unwrap(), loopvar_scope)?;
-                loopvar_scope.leave();
             }
 
             _ => unreachable!(),

@@ -190,11 +190,7 @@ expr_not   = { "not" ~ expression }
 expr_newtable = { "new" ~ "Table" ~ "(" ~ tipe ~ "," ~ tipe ~ ")" }
 
 /// Invocation of an oracle call.
-oracle_call =  { identifier ~ oracle_call_index? ~ "(" ~ fn_call_arglist? ~ ")" }
-
-/// The index of the oracle call. This is needed needed for n-wise parallel
-/// composition, which is not really supported right now.
-oracle_call_index = { "[" ~ expression ~ "]" }
+oracle_call =  { identifier  ~ "(" ~ fn_call_arglist? ~ ")" }
 
 /// The list of arguments sent to the oracle.
 oracle_call_arglist = { expression ~ ( "," ~ expression)* }
@@ -320,19 +316,10 @@ path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT 
 composition = { kw_composition ~ identifier ~ "{" ~ composition_spec_list ~ "}" }
 
 /// List of specifications in a composition: constants, instances, loops, and compose blocks.
-composition_spec_list = { const_decl* ~ instance_decl* ~ game_for* ~ compose_decl* ~ game_for*}
-
-/// A for loop in a composition, used for parallel composition.
-game_for = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ game_for_spec_list ~ "}" }
-
-/// The body of a for loop in a composition.
-game_for_spec_list = { game_for* ~ ( instance_decl+ | compose_decl_multi_inst )?}
+composition_spec_list = { const_decl* ~ instance_decl* ~ compose_decl*}
 
 /// A constant declaration with a type.
 const_decl = { kw_const ~ identifier ~ ":" ~ tipe ~ ";" }
-
-/// An instance declaration with indices (for parallel composition).
-instance_decl_multi_inst = { kw_instance ~ identifier ~ indices_expr ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
 
 /// List of identifiers used as indices (internal rule).
 index_id_list = _{ identifier ~ ("," ~ identifier)* }
@@ -361,32 +348,17 @@ instance_assign = _{ params_def | types_def }
 /// A compose block wires together oracle calls between instances.
 compose_decl            = { kw_compose ~ "{" ~ compose_assign_body_list? ~ "}" }
 
-/// A compose block for multi-instance compositions (with indices).
-compose_decl_multi_inst = { kw_compose ~ "{" ~ compose_assign_body_list_multi_inst? ~ "}" }
-
 /// List of compose assignment bodies (internal rule).
 compose_assign_body_list            = _{ (compose_assign_body ~  ","? )+ }
 
-/// List of compose assignment bodies for multi-instance (internal rule).
-compose_assign_body_list_multi_inst = _{ (compose_assign_body_multi_inst ~ ","? )+ }
-
 /// Assignment body for a single oracle in the compose block.
 compose_assign_body             = { identifier ~ ":" ~ "{" ~ compose_assign_list? ~ "}" }
-
-/// Assignment body for an oracle with indices.
-compose_assign_body_multi_inst  = { identifier ~ indices_ident? ~ ":" ~ "{" ~ compose_assign_list? ~ "}" }
 
 /// List of oracle wirings in a compose assignment.
 compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
 
 /// A single oracle wiring: maps an imported oracle to an instance's oracle.
-compose_assign      =  { compose_assign_modifier? ~ identifier ~ ":" ~ identifier }
-
-/// Modifier for compose assignments (internal rule).
-compose_assign_modifier            = _{ compose_assign_modifier_with_index }
-
-/// Specifies an index when wiring to a multi-instance oracle.
-compose_assign_modifier_with_index =  { "with" ~ "index" ~ indices_expr}
+compose_assign      =  { identifier ~ ":" ~ identifier }
 
 /// Index specification using identifiers.
 indices_ident =  { "[" ~ index_id_list ~ "]" }
@@ -456,13 +428,10 @@ state = { kw_state ~ "{" ~ decl_list? ~ "}"  }
 import_oracles = {kw_import ~ kw_oracles ~ "{" ~ import_oracles_body ~ "}" }
 
 /// Body of the import oracles block, may contain loops for parallel composition.
-import_oracles_body = { (import_oracles_for | import_oracles_oracle_sig ~ "," )* }
+import_oracles_body = { ( import_oracles_oracle_sig ~ "," )* }
 
-/// An imported oracle signature with optional indices and return type.
-import_oracles_oracle_sig = { identifier ~ indices_expr? ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
-
-/// A for loop in the import oracles block (for parallel composition).
-import_oracles_for = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ import_oracles_body ~ "}" }
+/// An imported oracle signature.
+import_oracles_oracle_sig = { identifier ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
 
 /// An oracle definition: the implementation of an oracle with its signature and code.
 oracle_def = { kw_oracle ~ oracle_sig ~ "{" ~ code ~ "}" }

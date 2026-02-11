@@ -4,17 +4,15 @@ package SmallForPkg {
     }
 
     import oracles {
-        for i: 1 <= i <= n {
-        N[i]() -> Integer,
-        }
+        N() -> Integer,
     }
 
     oracle Sum() -> Integer {
         sum <- 0;
 
         for i: 1 <= i <= n {
-        n_i <- invoke N[i]();
-        sum <- (sum + n_i);
+          n_i <- invoke N();
+          sum <- (sum + n_i);
         }
 
         return sum;

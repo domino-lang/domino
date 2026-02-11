@@ -278,9 +278,6 @@ pub fn handle_comp_spec_list<'a>(
                 )
                 .unwrap();
             }
-            Rule::game_for => {
-                handle_for_loop(&mut ctx, comp_spec)?;
-            }
             Rule::instance_decl => {
                 handle_instance_decl(&mut ctx, comp_spec)?;
             }
@@ -326,37 +323,21 @@ pub fn handle_compose_assign_list_multi_inst(
         let mut line_builder = (None, None, vec![]);
         for piece in assignment.into_inner() {
             let piece_span = piece.as_span();
-            match piece.as_rule() {
-                Rule::identifier if line_builder.0.is_none() => {
-                    line_builder.0 = Some(piece.as_str().to_string())
+            if line_builder.0.is_none() {
+                line_builder.0 = Some(piece.as_str().to_string())
+            } else if line_builder.1.is_none() {
+                if !ctx.has_pkg_instance(piece.as_str()) {
+                    return Err(ParseGameError::UndefinedInstance(
+                        UndefinedPackageInstanceError {
+                            source_code: ctx.named_source(),
+                            at: (piece_span.start()..piece_span.end()).into(),
+                            pkg_inst_name: piece.as_str().to_string(),
+                            in_game: ctx.game_name.to_string(),
+                        },
+                    ));
                 }
-                Rule::identifier if line_builder.1.is_none() => {
-                    if !ctx.has_pkg_instance(piece.as_str()) {
-                        return Err(ParseGameError::UndefinedInstance(
-                            UndefinedPackageInstanceError {
-                                source_code: ctx.named_source(),
-                                at: (piece_span.start()..piece_span.end()).into(),
-                                pkg_inst_name: piece.as_str().to_string(),
-                                in_game: ctx.game_name.to_string(),
-                            },
-                        ));
-                    }
 
-                    line_builder.1 = Some(piece.as_str().to_string())
-                }
-                Rule::compose_assign_modifier_with_index => line_builder.2.append(
-                    &mut piece
-                        .into_inner()
-                        .next()
-                        .unwrap()
-                        .into_inner()
-                        .map(|e| {
-                            handle_expression(&ctx.parse_ctx(), e, Some(&Type::integer()))
-                                .map_err(ParseGameError::ParseExpression)
-                        })
-                        .collect::<Result<Vec<Expression>, ParseGameError>>()?,
-                ),
-                _ => unreachable!(),
+                line_builder.1 = Some(piece.as_str().to_string())
             }
         }
 
@@ -413,40 +394,14 @@ impl crate::error::LocationError for ParseGameError {
 }
 */
 
-pub fn handle_for_loop_body<'a>(
-    ctx: &mut ParseGameContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<(), ParseGameError> {
-    for comp_spec in ast.into_inner() {
-        match comp_spec.as_rule() {
-            Rule::game_for => handle_for_loop(ctx, comp_spec)?,
-
-            Rule::instance_decl => handle_instance_decl_multi_inst(ctx, comp_spec)?,
-
-            Rule::compose_decl_multi_inst => {
-                handle_compose_assign_body_list(ctx, comp_spec)?;
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    Ok(())
-}
-
 pub fn handle_compose_assign_body_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
 ) -> Result<(), ParseGameError> {
-    debug_assert!(matches!(
-        ast.as_rule(),
-        Rule::compose_decl | Rule::compose_decl_multi_inst
-    ));
+    debug_assert!(matches!(ast.as_rule(), Rule::compose_decl));
 
     for body in ast.into_inner() {
-        debug_assert!(matches!(
-            body.as_rule(),
-            Rule::compose_assign_body | Rule::compose_assign_body_multi_inst
-        ));
+        debug_assert!(matches!(body.as_rule(), Rule::compose_assign_body));
 
         let mut inner = body.into_inner();
         let src_inst_name_ast = inner.next().unwrap();
@@ -468,26 +423,17 @@ pub fn handle_compose_assign_body_list(
         debug_assert_eq!(compose_assign_list_ast.as_rule(), Rule::compose_assign_list);
 
         if src_inst_name == "adversary" {
-            for multi_inst_export in
-                handle_export_compose_assign_list_multi_inst(ctx, compose_assign_list_ast)?
-            {
-                match Export::try_from(multi_inst_export) {
-                    Ok(export) => {
-                        if ctx.has_export(&export.1.name) {
-                            return Err(ParseGameError::DuplicateExport(DuplicateExportError {
-                                source_code: ctx.named_source(),
-                                at: (src_inst_name_span.start()..src_inst_name_span.end()).into(),
-                                oracle_name: export.1.name,
-                                game_name: ctx.game_name.to_string(),
-                            }));
-                        }
-
-                        ctx.add_export(&export);
-                    }
-                    Err(NotSingleInstanceExportError(multi_export)) => {
-                        ctx.add_multi_inst_export(multi_export)
-                    }
+            for export in handle_export_compose_assign_list(ctx, compose_assign_list_ast)? {
+                if ctx.has_export(&export.1.name) {
+                    return Err(ParseGameError::DuplicateExport(DuplicateExportError {
+                        source_code: ctx.named_source(),
+                        at: (src_inst_name_span.start()..src_inst_name_span.end()).into(),
+                        oracle_name: export.1.name,
+                        game_name: ctx.game_name.to_string(),
+                    }));
                 }
+
+                ctx.add_export(&export);
             }
         } else {
             let source_pkgidx = ctx
@@ -501,18 +447,13 @@ pub fn handle_compose_assign_body_list(
                 })?
                 .0;
 
-            for multi_instance_edge in handle_edges_compose_assign_list_multi_inst(
+            for edge in handle_edges_compose_assign_list(
                 ctx,
                 compose_assign_list_ast,
                 &source_instance_idx,
                 source_pkgidx,
             )? {
-                match multi_instance_edge.try_into() {
-                    Ok(edge) => ctx.add_edge(edge),
-                    Err(NotSingleInstanceEdgeError(multi_edge)) => {
-                        ctx.add_multi_inst_edge(multi_edge)
-                    }
-                }
+                ctx.add_edge(edge)
             }
         }
     }
@@ -521,10 +462,10 @@ pub fn handle_compose_assign_body_list(
 }
 
 /// parses the oracle wiring assignment list for the exports.
-fn handle_export_compose_assign_list_multi_inst(
+fn handle_export_compose_assign_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
-) -> Result<Vec<MultiInstanceExport>, ParseGameError> {
+) -> Result<Vec<Export>, ParseGameError> {
     // compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
     assert_eq!(ast.as_rule(), Rule::compose_assign_list);
 
@@ -537,42 +478,13 @@ fn handle_export_compose_assign_list_multi_inst(
 
         let mut assignment = assignment.into_inner();
 
-        // extract the base information from the parse tree. This is a bit tricky, because we may
-        // start with an optional modifier.
-        let first = assignment.peek().unwrap();
-        let (modifier_ast, oracle_name_ast, dst_pkg_inst_name_ast) = match first.as_rule() {
-            Rule::identifier => {
-                let oracle_name = assignment.next().unwrap();
-                let dst_inst_name = assignment.next().unwrap();
-                (None, oracle_name, dst_inst_name)
-            }
-            Rule::compose_assign_modifier_with_index => {
-                // compose_assign_modifier_with_index =  { "with" ~ "index" ~ indices_expr}
-                let modifier = assignment.next().unwrap();
-                let oracle_name = assignment.next().unwrap();
-                let dst_inst_name = assignment.next().unwrap();
-                (Some(modifier), oracle_name, dst_inst_name)
-            }
-            _ => unreachable!(),
-        };
-
+        let oracle_name_ast = assignment.next().unwrap();
         let oracle_name = oracle_name_ast.as_str();
         let oracle_name_span = oracle_name_ast.as_span();
+
+        let dst_pkg_inst_name_ast = assignment.next().unwrap();
         let dst_pkg_inst_name = dst_pkg_inst_name_ast.as_str();
         let dst_pkg_inst_name_span = dst_pkg_inst_name_ast.as_span();
-
-        // parse the index modifiers. currently we don't use this.
-        let dst_inst_idx: Option<Vec<Expression>> = modifier_ast
-            .map(|modifier| {
-                modifier
-                    .into_inner()
-                    .next()
-                    .unwrap()
-                    .into_inner()
-                    .map(|idx| handle_expression(&ctx.parse_ctx(), idx, Some(&Type::integer())))
-                    .collect()
-            })
-            .transpose()?;
 
         // look up destination package instance
         let (dst_offset, dst_inst) =
@@ -600,34 +512,22 @@ fn handle_export_compose_assign_list_multi_inst(
 
         assert!(oracle_sig.multi_inst_idx.indices.is_empty());
 
-        // refine the indices (not sure this is correct, but we don't do this now anyway)
-        let oracle_sig = match dst_inst_idx.map(MultiInstanceIndices::new) {
-            Some(multi_inst_idx) => OracleSig {
-                multi_inst_idx,
-                ..oracle_sig
-            },
-            None => oracle_sig,
-        };
-
         // make the signature use the constants from the game, not the package
         let oracle_sig = dst_inst.instantiate_oracle_signature(oracle_sig);
 
-        exports.push(MultiInstanceExport {
-            dest_pkgidx: dst_offset,
-            oracle_sig,
-        });
+        exports.push(Export(dst_offset, oracle_sig));
     }
 
     Ok(exports)
 }
 
 /// parses the oracle wiring assignment list for the package instance with index `source_pkgidx`.
-fn handle_edges_compose_assign_list_multi_inst(
+fn handle_edges_compose_assign_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
     source_instance_idx: &[Identifier],
     source_pkgidx: usize,
-) -> Result<Vec<MultiInstanceEdge>, ParseGameError> {
+) -> Result<Vec<Edge>, ParseGameError> {
     // compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
     assert_eq!(ast.as_rule(), Rule::compose_assign_list);
 
@@ -641,42 +541,13 @@ fn handle_edges_compose_assign_list_multi_inst(
         let assignment_span = assignment.as_span();
         let mut assignment = assignment.into_inner();
 
-        // extract the base information from the parse tree. This is a bit tricky, because we may
-        // start with an optional modifier.
-        let first = assignment.peek().unwrap();
-        let (modifier_ast, oracle_name_ast, dst_pkg_inst_name_ast) = match first.as_rule() {
-            Rule::identifier => {
-                let oracle_name = assignment.next().unwrap();
-                let dst_inst_name = assignment.next().unwrap();
-                (None, oracle_name, dst_inst_name)
-            }
-            Rule::compose_assign_modifier_with_index => {
-                // compose_assign_modifier_with_index =  { "with" ~ "index" ~ indices_expr}
-                let modifier = assignment.next().unwrap();
-                let oracle_name = assignment.next().unwrap();
-                let dst_inst_name = assignment.next().unwrap();
-                (Some(modifier), oracle_name, dst_inst_name)
-            }
-            _ => unreachable!(),
-        };
+        let oracle_name_ast = assignment.next().unwrap();
+        let dst_pkg_inst_name_ast = assignment.next().unwrap();
 
         let oracle_name = oracle_name_ast.as_str();
         let oracle_name_span = oracle_name_ast.as_span();
         let dst_pkg_inst_name = dst_pkg_inst_name_ast.as_str();
         let dst_pkg_inst_name_span = dst_pkg_inst_name_ast.as_span();
-
-        // parse the index modifiers. currently we don't use this.
-        let dst_inst_idx: Option<Vec<Expression>> = modifier_ast
-            .map(|modifier| {
-                modifier
-                    .into_inner()
-                    .next()
-                    .unwrap()
-                    .into_inner()
-                    .map(|idx| handle_expression(&ctx.parse_ctx(), idx, Some(&Type::integer())))
-                    .collect()
-            })
-            .transpose()?;
 
         // look up destination package instance
         let (dst_offset, dst_inst) =
@@ -720,15 +591,6 @@ fn handle_edges_compose_assign_list_multi_inst(
             .sig
             .clone();
 
-        // refine the indices (not sure this is correct, but we don't do this now anyway)
-        let dst_oracle_sig = match dst_inst_idx.map(MultiInstanceIndices::new) {
-            Some(multi_inst_idx) => OracleSig {
-                multi_inst_idx,
-                ..dst_oracle_sig
-            },
-            None => dst_oracle_sig,
-        };
-
         // make the signature use the constants from the game, not the package
         let dst_oracle_sig = dst_inst.instantiate_oracle_signature(dst_oracle_sig);
         let src_oracle_sig = src_pkg_inst.instantiate_oracle_signature(src_oracle_sig.clone());
@@ -747,12 +609,11 @@ fn handle_edges_compose_assign_list_multi_inst(
             ));
         }
 
-        if edges.iter().any(|existing_edge: &MultiInstanceEdge| {
-            // TODO: this will probably fail for real multi-instance, handle that later
+        let found_duplicate_edge = edges
+            .iter()
+            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.sig().name == oracle_name);
 
-            existing_edge.source_pkgidx == source_pkgidx
-                && existing_edge.oracle_sig.name == oracle_name
-        }) {
+        if found_duplicate_edge {
             return Err(DuplicateEdgeDefinitionError {
                 source_code: ctx.named_source(),
                 at: (oracle_name_span.start()..oracle_name_span.end()).into(),
@@ -763,70 +624,10 @@ fn handle_edges_compose_assign_list_multi_inst(
             .into());
         }
 
-        edges.push(MultiInstanceEdge {
-            dest_pkgidx: dst_offset,
-            oracle_sig: dst_oracle_sig,
-            source_pkgidx,
-            source_instance_idx: source_instance_idx.to_vec(),
-        });
+        edges.push(Edge(source_pkgidx, dst_offset, dst_oracle_sig));
     }
 
     Ok(edges)
-}
-
-pub fn handle_for_loop<'a>(
-    ctx: &mut ParseGameContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<(), ParseGameError> {
-    let mut parsed: Vec<Pair<Rule>> = ast.into_inner().collect();
-    let decl_var_name = parsed[0].as_str();
-    let lower_bound =
-        handle_expression(&ctx.parse_ctx(), parsed.remove(1), Some(&Type::integer()))?;
-    let lower_bound_type = parsed[1].as_str();
-    let bound_var_name = parsed[2].as_str();
-    let upper_bound_type = parsed[3].as_str();
-    let upper_bound =
-        handle_expression(&ctx.parse_ctx(), parsed.remove(4), Some(&Type::integer()))?;
-    let body_ast = parsed.remove(4);
-
-    if decl_var_name != bound_var_name {
-        todo!("return proper error here")
-    }
-
-    let start_comp = match lower_bound_type {
-        "<" => ForComp::Lt,
-        "<=" => ForComp::Lte,
-        _ => unreachable!(),
-    };
-    let end_comp = match upper_bound_type {
-        "<" => ForComp::Lt,
-        "<=" => ForComp::Lte,
-        _ => unreachable!(),
-    };
-
-    let loopvar = crate::identifier::game_ident::GameLoopVarIdentifier {
-        game_name: ctx.game_name.to_string(),
-        name: decl_var_name.to_string(),
-        start: Box::new(lower_bound),
-        end: Box::new(upper_bound),
-        start_comp,
-        end_comp,
-        game_inst_name: None,
-        theorem_name: None,
-        inst_info: None,
-    };
-    let loopvar = GameIdentifier::LoopVar(loopvar);
-    let loopvar = Identifier::GameIdentifier(loopvar);
-    let decl = Declaration::Identifier(loopvar);
-
-    ctx.scope.enter();
-    ctx.declare(decl_var_name, decl).unwrap();
-
-    let result = handle_for_loop_body(ctx, body_ast);
-
-    ctx.scope.leave();
-
-    result
 }
 
 use crate::util::scope::{Declaration, Scope};

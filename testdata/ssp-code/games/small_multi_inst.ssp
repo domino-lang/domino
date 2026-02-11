@@ -1,9 +1,0 @@
-composition SmallMultiInstGame {
-    for i: 0 <= i < 200 {
-        instance tiny_instance[i] = TinyPkg {
-            params {
-                n:  i
-            }
-        }
-    }
-}
