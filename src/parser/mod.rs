@@ -10,7 +10,6 @@ pub mod package;
 
 pub mod error;
 pub mod theorem;
-// mod wire_checks;
 
 pub mod ast;
 pub mod reduction;

@@ -321,9 +321,6 @@ composition_spec_list = { const_decl* ~ instance_decl* ~ compose_decl*}
 /// A constant declaration with a type.
 const_decl = { kw_const ~ identifier ~ ":" ~ tipe ~ ";" }
 
-/// List of identifiers used as indices (internal rule).
-index_id_list = _{ identifier ~ ("," ~ identifier)* }
-
 /// List of expressions used as index values (internal rule).
 index_expr_list = _{ expression ~ ("," ~ expression)* }
 
@@ -359,12 +356,6 @@ compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
 
 /// A single oracle wiring: maps an imported oracle to an instance's oracle.
 compose_assign      =  { identifier ~ ":" ~ identifier }
-
-/// Index specification using identifiers.
-indices_ident =  { "[" ~ index_id_list ~ "]" }
-
-/// Index specification using expressions.
-indices_expr  =  { "[" ~ index_expr_list ~ "]" }
 
 // -- package definitions --
 

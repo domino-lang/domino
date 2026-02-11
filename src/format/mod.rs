@@ -302,7 +302,6 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
                 let mut inner = oracle_inv.into_inner();
                 let oracle_name_ast = inner.next().unwrap();
                 let oracle_name = oracle_name_ast.as_str();
-                let multi_instance = String::new();
                 let mut argstring = String::new();
 
                 for ast in inner {
@@ -317,12 +316,10 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
 
                 if !index.is_empty() {
                     ctx.push_line(&format!(
-                        "{ident}[{index}] <- invoke {oracle_name}{multi_instance}({argstring});"
+                        "{ident}[{index}] <- invoke {oracle_name}({argstring});"
                     ));
                 } else {
-                    ctx.push_line(&format!(
-                        "{ident} <- invoke {oracle_name}{multi_instance}({argstring});"
-                    ));
+                    ctx.push_line(&format!("{ident} <- invoke {oracle_name}({argstring});"));
                 }
             }
             Rule::parse => {
@@ -564,27 +561,13 @@ fn format_pkg(ctx: &mut FormatContext, pkg_ast: Pair<Rule>) -> Result<(), projec
 
 fn format_compose_rule(
     ctx: &mut FormatContext,
-    compose_rule: &Pair<Rule>,
+    compose: &Pair<Rule>,
 ) -> Result<(), project::error::Error> {
-    debug_assert!(matches!(compose_rule.as_rule(), Rule::compose_decl));
-    let inner = compose_rule.clone().into_inner();
+    debug_assert!(matches!(compose.as_rule(), Rule::compose_decl));
+    let inner = compose.clone().into_inner();
     for compblock in inner {
         let mut compblock = compblock.into_inner();
         let importer = compblock.next().unwrap().as_str();
-        let indices = if compblock.peek().unwrap().as_rule() == Rule::indices_ident {
-            let indices = compblock.next().unwrap();
-            &format!(
-                "[{}]",
-                indices
-                    .into_inner()
-                    .map(|x| { x.as_str() })
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-        } else {
-            ""
-        };
-
         let imports = compblock
             .next()
             .unwrap()
@@ -596,7 +579,7 @@ fn format_compose_rule(
                 (oracle, package)
             })
             .collect::<Vec<_>>();
-        ctx.push_line(&format!("{importer}{indices}: {{"));
+        ctx.push_line(&format!("{importer}: {{"));
         ctx.add_indent();
         for (oracle, package) in imports {
             ctx.push_line(&format!("{oracle}: {package},"));
@@ -636,20 +619,9 @@ fn format_game_spec(
                 let mut inner = spec.clone().into_inner();
                 let instname = inner.next().unwrap().as_str();
                 let next = inner.next().unwrap();
-                if next.as_rule() == Rule::indices_expr {
-                    let results = next
-                        .into_inner()
-                        .map(|pair| format_expr(pair))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    let gamename = inner.next().unwrap().as_str();
-                    let indices = results.join(", ");
-                    ctx.push_line(&format!("instance {instname}[{indices}] = {gamename} {{"));
-                    ctx.add_indent();
-                } else {
-                    let gamename = next.as_str();
-                    ctx.push_line(&format!("instance {instname} = {gamename} {{"));
-                    ctx.add_indent();
-                }
+                let gamename = next.as_str();
+                ctx.push_line(&format!("instance {instname} = {gamename} {{"));
+                ctx.add_indent();
 
                 let instance_inner: Vec<_> = inner.next().unwrap().into_inner().collect();
                 let params_rules: Vec<_> = instance_inner

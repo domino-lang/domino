@@ -22,10 +22,7 @@ use crate::{
 };
 use itertools::Itertools as _;
 use miette::{Diagnostic, NamedSource};
-use pest::{
-    iterators::{Pair, Pairs},
-    Span,
-};
+use pest::{iterators::Pair, Span};
 use std::collections::HashMap;
 use std::iter::FromIterator as _;
 use thiserror::Error;
@@ -83,11 +80,11 @@ impl<'a> ParseContext<'a> {
 }
 
 impl<'a> ParseGameContext<'a> {
-    pub fn named_source(&self) -> NamedSource<String> {
+    pub(crate) fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
 
-    pub fn parse_ctx(&self) -> ParseContext<'a> {
+    pub(crate) fn parse_ctx(&self) -> ParseContext<'a> {
         ParseContext {
             file_name: self.file_name,
             file_content: self.file_content,
@@ -123,9 +120,6 @@ impl<'a> ParseGameContext<'a> {
             .insert(pkg_inst.name.clone(), (offset, pkg_inst, span));
     }
 
-    fn has_pkg_instance(&self, name: &str) -> bool {
-        self.instances_table.contains_key(name)
-    }
     fn get_pkg_instance(&self, name: &str) -> Option<(usize, &PackageInstance)> {
         self.instances_table
             .get(name)
@@ -208,7 +202,7 @@ pub enum ParseGameError {
     ConnectedOraclesDontMatch(#[from] OracleSigMismatchError),
 }
 
-pub fn handle_composition(
+pub(crate) fn handle_composition(
     file_name: &str,
     file_content: &str,
     ast: Pair<Rule>,
@@ -228,7 +222,7 @@ pub fn handle_composition(
 
 /// Parses the main body of a game (aka composition).
 /// This function takes ownership of the context because it needs to move all the information stored in there into the game.
-pub fn handle_comp_spec_list<'a>(
+pub(crate) fn handle_comp_spec_list<'a>(
     mut ctx: ParseGameContext<'a>,
     ast: Pair<'a, Rule>,
 ) -> Result<Composition, ParseGameError> {
@@ -291,86 +285,7 @@ pub fn handle_comp_spec_list<'a>(
     Ok(ctx.into_game())
 }
 
-pub fn handle_compose_assign_list_multi_inst(
-    ctx: &mut ParseGameContext,
-    ast: Pairs<Rule>,
-) -> Result<Vec<(String, String, Vec<Expression>)>, ParseGameError> {
-    ast.map(|assignment| -> Result<_, ParseGameError> {
-        let mut line_builder = (None, None, vec![]);
-        for piece in assignment.into_inner() {
-            let piece_span = piece.as_span();
-            if line_builder.0.is_none() {
-                line_builder.0 = Some(piece.as_str().to_string())
-            } else if line_builder.1.is_none() {
-                if !ctx.has_pkg_instance(piece.as_str()) {
-                    return Err(ParseGameError::UndefinedInstance(
-                        UndefinedPackageInstanceError {
-                            source_code: ctx.named_source(),
-                            at: (piece_span.start()..piece_span.end()).into(),
-                            pkg_inst_name: piece.as_str().to_string(),
-                            in_game: ctx.game_name.to_string(),
-                        },
-                    ));
-                }
-
-                line_builder.1 = Some(piece.as_str().to_string())
-            }
-        }
-
-        Ok((
-            line_builder.0.unwrap(),
-            line_builder.1.unwrap(),
-            line_builder.2,
-        ))
-        // let mut inner = assignment.into_inner();
-        // let oracle_name = inner.next().unwrap().as_str();
-        // let dst_inst_name = inner.next().unwrap().as_str();
-        //
-        // (oracle_name.to_owned(), dst_inst_name.to_owned())
-    })
-    .collect::<Result<Vec<_>, _>>()
-}
-
-/*
-#[derive(Debug)]
-pub enum ParseGameError {
-    UndeclaredInstance(String, FilePosition),
-    NoSuchOracleInInstance(String, String, FilePosition),
-    ParseExpressionError(super::common::ParseExpressionError),
-}
-
-impl std::fmt::Display for ParseGameError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseGameError::UndeclaredInstance(inst_name, _) => {
-                write!(f, "instance {inst_name:?} not declared")
-            }
-            ParseGameError::NoSuchOracleInInstance(oracle_name, inst_name, _) => {
-                write!(
-                    f,
-                    "instace {inst_name:?} does not have oracle {oracle_name:?}"
-                )
-            }
-            ParseGameError::ParseExpressionError(err) => {
-                write!(f, "error parsing expression: {err}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for ParseGameError {}
-impl crate::error::LocationError for ParseGameError {
-    fn file_pos<'a>(&'a self) -> &'a FilePosition {
-        match self {
-            ParseGameError::ParseExpressionError(err) => err.file_pos(),
-            ParseGameError::UndeclaredInstance(_, file_pos) => file_pos,
-            ParseGameError::NoSuchOracleInInstance(_, _, file_pos) => file_pos,
-        }
-    }
-}
-*/
-
-pub fn handle_compose_assign_body_list(
+pub(crate) fn handle_compose_assign_body_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
 ) -> Result<(), ParseGameError> {
@@ -606,7 +521,7 @@ fn handle_types_def_list(
         .collect()
 }
 
-pub fn handle_instance_assign_list(
+pub(crate) fn handle_instance_assign_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
     pkg_inst_name: &str,
@@ -683,7 +598,7 @@ pub fn handle_instance_assign_list(
     Ok((params, types))
 }
 
-pub fn handle_instance_decl<'a>(
+pub(crate) fn handle_instance_decl<'a>(
     ctx: &mut ParseGameContext<'a>,
     ast: Pair<'a, Rule>,
 ) -> Result<(), ParseGameError> {
@@ -768,23 +683,4 @@ pub fn handle_instance_decl<'a>(
     ctx.add_pkg_instance(pkg_inst, span);
 
     Ok(())
-}
-
-pub fn handle_compose_assign_list(ast: Pairs<Rule>) -> Vec<(String, String)> {
-    ast.map(|assignment| {
-        let mut inner = assignment.into_inner();
-
-        let oracle_name = inner.next().unwrap().as_str();
-        let dst_inst_name = inner.next().unwrap().as_str();
-
-        (oracle_name.to_owned(), dst_inst_name.to_owned())
-    })
-    .collect()
-}
-
-pub fn handle_index_id_list(ast: Pair<Rule>) -> Vec<String> {
-    assert_eq!(ast.as_rule(), Rule::index_id_list);
-    ast.into_inner()
-        .map(|ast| ast.as_str().to_string())
-        .collect()
 }

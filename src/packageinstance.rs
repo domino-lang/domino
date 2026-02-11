@@ -728,7 +728,7 @@ pub(crate) mod instantiate {
                         }
                         // XXX: A bit unclear whether we keep this variant... it conflicts witht he
                         // Oracle variant of Declaration, so we only need one and so far we use the
-                        // other. Also this one doesn't seem to support multi instance
+                        // other.
                         PackageIdentifier::OracleImport(_) => todo!(),
 
                         PackageIdentifier::OracleArg(arg_ident) => {
