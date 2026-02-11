@@ -31,9 +31,6 @@ pub struct PackageInstance {
 
     // this is the package - it has been rewritten, though!
     pub pkg: Package,
-
-    // These are probably deprecated?
-    pub multi_instance_indices: MultiInstanceIndices,
 }
 
 impl PackageInstance {
@@ -121,7 +118,6 @@ impl PackageInstance {
         pkg_inst_name: &str,
         game_name: &str,
         pkg: &Package,
-        multi_instance_indices: MultiInstanceIndices,
         params: Vec<(PackageConstIdentifier, Expression)>,
         types: Vec<(String, Type)>,
     ) -> PackageInstance {
@@ -173,7 +169,6 @@ impl PackageInstance {
             types,
             pkg,
             name: pkg_inst_name.to_string(),
-            multi_instance_indices,
         }
     }
 }

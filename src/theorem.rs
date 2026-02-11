@@ -84,10 +84,6 @@ mod instantiate {
             *expr = inst_ctx.rewrite_expression(expr)
         }
 
-        for index in &mut pkg_inst.multi_instance_indices.indices {
-            *index = inst_ctx.rewrite_expression(index);
-        }
-
         let new_params = pkg_inst
             .params
             .iter()

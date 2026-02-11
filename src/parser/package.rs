@@ -14,9 +14,8 @@ use crate::{
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
-            PackageConstIdentifier, PackageIdentifier, PackageImportsLoopVarIdentifier,
-            PackageLocalIdentifier, PackageOracleArgIdentifier, PackageOracleCodeLoopVarIdentifier,
-            PackageStateIdentifier,
+            PackageConstIdentifier, PackageIdentifier, PackageLocalIdentifier,
+            PackageOracleArgIdentifier, PackageOracleCodeLoopVarIdentifier, PackageStateIdentifier,
         },
         Identifier,
     },
@@ -34,7 +33,6 @@ use pest::iterators::Pair;
 use thiserror::Error;
 
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::hash::Hash;
 
 #[derive(Clone, Debug)]
@@ -163,12 +161,6 @@ pub enum ParsePackageError {
 #[derive(Error, Debug)]
 pub enum ParseOracleSigError {}
 
-impl ParsePackageContext<'_> {
-    fn with_scope(self, scope: Scope) -> Self {
-        Self { scope, ..self }
-    }
-}
-
 pub fn handle_pkg(
     file_name: &str,
     file_content: &str,
@@ -218,10 +210,8 @@ pub fn handle_pkg_spec(
             }
             Rule::import_oracles => {
                 ctx.scope.enter();
-                let mut loopvar_scope = ctx.scope.clone();
-
                 let body_ast = spec.into_inner().next().unwrap();
-                handle_import_oracles_body(&mut ctx, body_ast, &mut loopvar_scope)?;
+                handle_import_oracles_body(&mut ctx, body_ast)?;
             }
             Rule::oracle_def => {
                 handle_oracle_def(&mut ctx, spec)?;
@@ -1148,7 +1138,6 @@ pub fn handle_code(
                     let oracle_name = oracle_name_ast.as_str();
 
                     let mut args = vec![];
-                    let mut dst_inst_index = None;
 
                     let oracle_decl = ctx.scope
                         .lookup(oracle_name)
@@ -1213,7 +1202,7 @@ pub fn handle_code(
                     Statement::InvokeOracle (InvokeOracleStatement{
                         id: target_ident,
                         opt_idx,
-                        opt_dst_inst_idx: dst_inst_index,
+                        opt_dst_inst_idx: None,
                         name: oracle_name.to_owned(),
                         args,
                         target_inst_name: None,
@@ -1433,30 +1422,19 @@ pub fn handle_oracle_sig(
 pub fn handle_oracle_imports_oracle_sig(
     ctx: &mut ParsePackageContext,
     oracle_sig: Pair<Rule>,
-    loopvar_scope: &Scope,
 ) -> Result<OracleSig, ParsePackageError> {
     debug_assert_eq!(oracle_sig.as_rule(), Rule::import_oracles_oracle_sig);
 
     let _span = oracle_sig.as_span();
 
     let mut inner = oracle_sig.into_inner();
-    let name = inner.next().unwrap().as_str();
 
-    let (multi_inst_idx, args) = {
-        let mut multi_inst_idx = vec![];
+    let name = inner.next().unwrap().as_str();
+    let args = {
         let mut arglist = vec![];
 
         while let Some(next) = inner.peek() {
             match next.as_rule() {
-                Rule::indices_expr => {
-                    let loopvar_ctx = ctx.clone().with_scope(loopvar_scope.clone()).parse_ctx();
-                    let indices: Vec<_> = next
-                        .into_inner()
-                        .map(|expr| handle_expression(&loopvar_ctx, expr, Some(&Type::integer())))
-                        .collect::<Result<_, _>>()?;
-                    multi_inst_idx.extend_from_slice(&indices);
-                    inner.next();
-                }
                 Rule::oracle_maybe_arglist => {
                     if !next.as_str().is_empty() {
                         arglist = handle_arglist(ctx, next.into_inner().next().unwrap())?;
@@ -1467,7 +1445,7 @@ pub fn handle_oracle_imports_oracle_sig(
             }
         }
 
-        (MultiInstanceIndices::new(multi_inst_idx), arglist)
+        arglist
     };
 
     let parse_ctx = ctx.parse_ctx();
@@ -1481,7 +1459,7 @@ pub fn handle_oracle_imports_oracle_sig(
         name: name.to_string(),
         ty,
         args,
-        multi_inst_idx,
+        multi_inst_idx: MultiInstanceIndices::empty(),
     })
 }
 
@@ -1676,7 +1654,6 @@ pub enum ParseImportOraclesError {
 pub fn handle_import_oracles_body(
     ctx: &mut ParsePackageContext,
     ast: Pair<Rule>,
-    loopvar_scope: &mut Scope,
 ) -> Result<(), ParsePackageError> {
     let pkg_name = ctx.pkg_name;
     assert_eq!(ast.as_rule(), Rule::import_oracles_body);
@@ -1686,7 +1663,7 @@ pub fn handle_import_oracles_body(
             Rule::import_oracles_oracle_sig => {
                 let span = entry.as_span();
                 let source_span = SourceSpan::from(span.start()..span.end());
-                let sig = handle_oracle_imports_oracle_sig(ctx, entry, loopvar_scope)?;
+                let sig = handle_oracle_imports_oracle_sig(ctx, entry)?;
                 if ctx
                     .imported_oracles
                     .insert(sig.name.clone(), (sig.clone(), source_span))
@@ -1718,51 +1695,6 @@ pub fn handle_import_oracles_body(
             _ => unreachable!(),
         }
     }
-    Ok(())
-}
-
-pub fn handle_import_oracles_oracle_sig(
-    ctx: &mut ParsePackageContext,
-    ast: Pair<Rule>,
-    loopvar_scope: &mut Scope,
-) -> Result<(), ParsePackageError> {
-    assert_eq!(ast.as_rule(), Rule::import_oracles_oracle_sig);
-    let span = ast.as_span();
-    let sig = handle_oracle_imports_oracle_sig(ctx, ast, loopvar_scope)?;
-    let source_span = SourceSpan::from(span.start()..span.end());
-    if ctx
-        .imported_oracles
-        .insert(sig.name.clone(), (sig.clone(), source_span))
-        .is_some()
-    {
-        return Err(OracleAlreadyImportedError {
-            source_code: NamedSource::new(ctx.file_name, ctx.file_content.to_string()),
-            at: source_span,
-            oracle_name: sig.name.clone(),
-        }
-        .into());
-    }
-
-    ctx.scope
-        .declare(
-            &sig.name,
-            Declaration::Oracle(
-                OracleContext::Package {
-                    pkg_name: ctx.pkg_name.to_string(),
-                },
-                sig.clone(),
-            ),
-            // we already checked that the oracle has not yet been imported, so this
-            // shouldn't fail?
-        )
-        .map_err(|e| {
-            ParsePackageError::Scope(ParserScopeError {
-                source_code: ctx.named_source(),
-                at: (span.start()..span.end()).into(),
-                related: vec![e],
-            })
-        })?;
-
     Ok(())
 }
 

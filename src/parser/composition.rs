@@ -9,20 +9,15 @@ use super::{
         OracleSigMismatchError, UndefinedOracleError, UndefinedPackageError,
         UndefinedPackageInstanceError, UnusedEdgeError,
     },
-    package::{handle_expression, ForComp, MultiInstanceIndices, ParsePackageError},
+    package::ParsePackageError,
     ParseContext, Rule,
 };
 use crate::{
     debug_assert_matches,
     expressions::Expression,
-    identifier::{
-        game_ident::{GameConstIdentifier, GameIdentifier},
-        pkg_ident::PackageConstIdentifier,
-        Identifier,
-    },
+    identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
     package::{
-        Composition, Edge, Export, MultiInstanceEdge, MultiInstanceExport,
-        NotSingleInstanceEdgeError, NotSingleInstanceExportError, OracleSig, Package,
+        Composition, Edge, Export, MultiInstanceEdge, MultiInstanceExport, OracleSig, Package,
         PackageInstance,
     },
     types::Type,
@@ -35,7 +30,6 @@ use pest::{
     Span,
 };
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::iter::FromIterator as _;
 use thiserror::Error;
 
@@ -163,13 +157,6 @@ impl<'a> ParseGameContext<'a> {
 
     fn add_export(&mut self, export: &Export) {
         self.exports.push(export.clone());
-    }
-
-    fn add_multi_inst_edge(&mut self, edge: MultiInstanceEdge) {
-        self.multi_inst_edges.push(edge)
-    }
-    fn add_multi_inst_export(&mut self, export: MultiInstanceExport) {
-        self.multi_inst_exports.push(export)
     }
 }
 
@@ -408,17 +395,6 @@ pub fn handle_compose_assign_body_list(
         let src_inst_name_span = src_inst_name_ast.as_span();
         let src_inst_name = src_inst_name_ast.as_str();
 
-        let source_instance_idx = if inner.peek().unwrap().as_rule() == Rule::indices_ident {
-            inner
-                .next()
-                .unwrap()
-                .into_inner()
-                .map(|idx_ident| ctx.scope.lookup_identifier(idx_ident.as_str()).unwrap())
-                .collect()
-        } else {
-            vec![]
-        };
-
         let compose_assign_list_ast = inner.next().unwrap();
         debug_assert_eq!(compose_assign_list_ast.as_rule(), Rule::compose_assign_list);
 
@@ -447,12 +423,9 @@ pub fn handle_compose_assign_body_list(
                 })?
                 .0;
 
-            for edge in handle_edges_compose_assign_list(
-                ctx,
-                compose_assign_list_ast,
-                &source_instance_idx,
-                source_pkgidx,
-            )? {
+            for edge in
+                handle_edges_compose_assign_list(ctx, compose_assign_list_ast, source_pkgidx)?
+            {
                 ctx.add_edge(edge)
             }
         }
@@ -525,7 +498,6 @@ fn handle_export_compose_assign_list(
 fn handle_edges_compose_assign_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
-    source_instance_idx: &[Identifier],
     source_pkgidx: usize,
 ) -> Result<Vec<Edge>, ParseGameError> {
     // compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
@@ -724,104 +696,6 @@ pub fn handle_instance_assign_list(
     Ok((params, types))
 }
 
-pub fn handle_instance_decl_multi_inst<'a>(
-    ctx: &mut ParseGameContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<(), ParseGameError> {
-    let span = ast.as_span();
-    let mut inner = ast.into_inner();
-    let inst_name = inner.next().unwrap().as_str();
-    let game_name = ctx.game_name;
-
-    let indices_ast = inner.next().unwrap();
-    let indices = indices_ast
-        .into_inner()
-        .map(|index_ast| handle_expression(&ctx.parse_ctx(), index_ast, Some(&Type::integer())))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    let pkg_name_ast = inner.next().unwrap();
-    let pkg_name_span = pkg_name_ast.as_span();
-    let pkg_name = pkg_name_ast.as_str();
-    let data = inner.next().unwrap();
-
-    let pkg = ctx.pkgs.get(pkg_name).ok_or(UndefinedPackageError {
-        source_code: ctx.named_source(),
-        at: (pkg_name_span.start()..pkg_name_span.end()).into(),
-        pkg_name: pkg_name.to_string(),
-    })?;
-
-    let (mut param_list, type_list) = handle_instance_assign_list(ctx, data, inst_name, pkg)?;
-
-    param_list.sort();
-
-    /* We don't type parameteres currently.
-        // check that const param lists match
-        let mut typed_params: Vec<_> = param_list
-            .iter()
-            .map(|(pkg_param, comp_param)| (pkg_param.name.clone(), comp_param.get_type()))
-            .collect();
-        typed_params.sort();
-
-        let mut pkg_params: Vec<_> = pkg
-            .params
-            .iter()
-            .cloned()
-            .map(|(name, ty, _)| (name, ty))
-            .collect();
-        pkg_params.sort();
-
-        // check that type param lists match
-        let mut assigned_types: Vec<_> = type_list
-            .iter()
-            .map(|(pkg_type, _)| pkg_type)
-            .cloned()
-            .collect();
-        assigned_types.sort();
-
-        let mut pkg_types: Vec<_> = pkg.types.iter().map(|(ty, _span)| ty.clone()).collect();
-        pkg_types.sort();
-
-        if assigned_types != pkg_types {
-            println!("assigned: {assigned_types:?}");
-            println!("pkg:      {pkg_types:?}");
-            // TODO include the difference in here
-            return Err(error::SpanError::new_with_span(
-                error::Error::TypeParameterMismatch {
-                    game_name: ctx.game_name.to_string(),
-                    pkg_name: pkg_name.to_string(),
-                    pkg_inst_name: inst_name.to_string(),
-                },
-                span,
-            ));
-        }
-    */
-
-    let multi_instance_indices = MultiInstanceIndices::new(indices);
-
-    let inst = PackageInstance::new(
-        inst_name,
-        game_name,
-        pkg,
-        multi_instance_indices,
-        param_list,
-        type_list,
-    );
-
-    ctx.add_pkg_instance(inst, span);
-
-    /*
-        let resolved_inst = match ResolveTypesPackageInstanceTransform.transform_package_instance(&inst)
-        {
-            Ok((inst, _)) => Ok(inst),
-            Err(err) => Err(error::Error::from(err).with_span(span)),
-        }?;
-
-        ctx.add_pkg_instance(resolved_inst);
-    */
-
-    Ok(())
-}
-
 pub fn handle_instance_decl<'a>(
     ctx: &mut ParseGameContext<'a>,
     ast: Pair<'a, Rule>,
@@ -834,29 +708,9 @@ pub fn handle_instance_decl<'a>(
     debug_assert_matches!(pkg_inst_name_ast.as_rule(), Rule::identifier);
     let pkg_inst_name = pkg_inst_name_ast.as_str();
 
-    let index_or_pkgname = inner.next().unwrap();
-    let (multi_instance_indices, pkg_name, pkg_name_span) = match index_or_pkgname.as_rule() {
-        // TODO: this is most likely the wrong rule to check against. Write tests!
-        Rule::index_id_list => {
-            let indices_ast = index_or_pkgname.into_inner();
-            let indices: Vec<_> = indices_ast
-                .map(|index| handle_expression(&ctx.parse_ctx(), index, Some(&Type::integer())))
-                .collect::<Result<_, _>>()?;
-
-            let pkg_name_ast = inner.next().unwrap();
-            (
-                MultiInstanceIndices::new(indices),
-                pkg_name_ast.as_str(),
-                pkg_name_ast.as_span(),
-            )
-        }
-        Rule::identifier => (
-            MultiInstanceIndices::empty(),
-            index_or_pkgname.as_str(),
-            index_or_pkgname.as_span(),
-        ),
-        _ => unreachable!(),
-    };
+    let pkg_name_ast = inner.next().unwrap();
+    let pkg_name = pkg_name_ast.as_str();
+    let pkg_name_span = pkg_name_ast.as_span();
 
     let pkg = ctx
         .pkgs
@@ -923,25 +777,9 @@ pub fn handle_instance_decl<'a>(
         }
     */
 
-    let pkg_inst = PackageInstance::new(
-        pkg_inst_name,
-        ctx.game_name,
-        pkg,
-        multi_instance_indices,
-        param_list,
-        type_list,
-    );
+    let pkg_inst = PackageInstance::new(pkg_inst_name, ctx.game_name, pkg, param_list, type_list);
     ctx.add_pkg_instance(pkg_inst, span);
 
-    /*
-        match ResolveTypesPackageInstanceTransform.transform_package_instance(&pkg_inst) {
-            Ok((pkg_inst, _)) => {
-                ctx.add_pkg_instance(pkg_inst);
-                Ok(())
-            }
-            Err(err) => Err(error::Error::from(err).with_span(span)),
-        }
-    */
     Ok(())
 }
 

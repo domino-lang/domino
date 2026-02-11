@@ -328,7 +328,7 @@ index_id_list = _{ identifier ~ ("," ~ identifier)* }
 index_expr_list = _{ expression ~ ("," ~ expression)* }
 
 /// Creates an instance of a package with parameter and type assignments.
-instance_decl            = { kw_instance ~ identifier ~ (indices_expr)? ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
+instance_decl            = { kw_instance ~ identifier ~ "=" ~ identifier ~ "{" ~ instance_assign_list? ~ "}"}
 
 /// Union of the two hybrid instance declaration forms (internal rule).
 hybrid_instance_decl = _{ hybrid_instance_decl_one | hybrid_instance_decl_two }
