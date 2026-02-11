@@ -1,3 +1,20 @@
+(define-fun no-ideal-values-for-dishonest-keys
+    ((H (Array Int (Maybe Bool)))
+     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
+     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
+     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
+  Bool
+  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
+          (=> (= (select H kid) (mk-some false))
+              (and
+               (forall ((msg Bits_n) (tag Int))
+                       (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
+                                                             (mk-tuple2 msg tag)))))
+               (is-mk-none (select Keys (mk-tuple5 kid U V ni nr)))
+               (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true))))
+               (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))))
+
+
 (define-fun revtesteval-empty
     ((RevTestEval (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Int)))
      (RevTested (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Bool)))
@@ -516,8 +533,7 @@
      (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
   (forall ((idx (Tuple5 Int Int Int Bits_n Bits_n))
-           (msg1 Bits_n)
-           (msg2 Int))
+           (msg1 Bits_n) (msg2 Int))
           (let ((val-idx (mk-tuple2 idx (mk-tuple2 msg1 msg2))))
             (and (=> (is-mk-none (select Keys idx))
                      (is-mk-none (select Values val-idx)))
@@ -923,11 +939,11 @@
                            (sid  (el11-10 (maybe-get state)))
                            (mess (el11-11 (maybe-get state))))
                       (and
-                       (= (and (= tag 4) (= msg zeron))
+                       (=> (and (= tag 4) (= msg zeron))
                           (and u (= acc (mk-some true)) (= mess 2)))
-                       (= (and (= tag 3) (= msg ni))
+                       (=> (and (= tag 3) (= msg ni))
                           (and (not u) (or (= mess 2) (= mess 3))))
-                       (= (and (= tag 2) (= msg nr))
+                       (=> (and (= tag 2) (= msg nr))
                           (and u (or (= mess 1) (= mess 2))))
                        true))))))))))
 
@@ -1208,6 +1224,8 @@
            (no-overwriting-game State0 Fresh0 ctr0)
            (no-overwriting-game State1 Fresh1 ctr1)
 
+           (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0 Values0)
+           
            (sid-is-wellformed State0 Fresh0 Keys0)
            (sid-matches State0)
            
@@ -1464,3 +1482,4 @@
            (= nonces-H710-old nonces-H710 nonces-H711-old nonces-H711)
            (= prf-H710-old prf-H710)
            (= prf-H711-old prf-H711)))))
+
