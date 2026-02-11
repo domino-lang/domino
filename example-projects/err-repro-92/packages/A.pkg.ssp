@@ -1,0 +1,11 @@
+package A {
+   params {
+     i: Integer,
+   }
+   import oracles {
+     Eval(),
+   }
+   oracle Run () {
+
+   }
+}
