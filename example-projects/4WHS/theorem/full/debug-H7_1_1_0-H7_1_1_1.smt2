@@ -107,7 +107,7 @@
             (H0-old (<pkg-state-PRF-<$<!n!>$>-H> prf-H710-old))
             (H1     (<pkg-state-PRF-<$<!n!>$>-H> prf-H711))
             (H1-old (<pkg-state-PRF-<$<!n!>$>-H> prf-H711-old)))
-        
+
         (let ((state (select State0-old ctr)))
           (=> (not (is-mk-none state))
               (let ((sid (el11-10 (maybe-get state)))
@@ -250,6 +250,8 @@
             (Second1 (<pkg-state-KX_noprfkey-<$<!n!>$>-Second> game-H711))
             (ReverseMac0      (<pkg-state-KX_noprfkey-<$<!n!>$>-ReverseMac> game-H710))
             (ReverseMac1      (<pkg-state-KX_noprfkey-<$<!n!>$>-ReverseMac> game-H711))
+            (ReverseMac0-old  (<pkg-state-KX_noprfkey-<$<!n!>$>-ReverseMac> game-H710-old))
+            (ReverseMac1-old  (<pkg-state-KX_noprfkey-<$<!n!>$>-ReverseMac> game-H711-old))
             (RevTested0 (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTested> game-H710))
             (RevTested0-old (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTested> game-H710-old))
             (RevTested1 (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTested> game-H711))
@@ -277,7 +279,8 @@
         (and
          (let ((value (return-value retval0)))
            (=> (not (= (el2-2 value) zeron))
-               (let ((state (select State0 ctr)))
+               (let ((state (select State0 ctr))
+                     (state-old (select State0-old ctr)))
                  (and (not (is-mk-none state))
                       (let ((U    (el11-1  (maybe-get state)))
                             (u    (el11-2  (maybe-get state)))
@@ -290,15 +293,59 @@
                             (kmac (el11-9  (maybe-get state)))
                             (sid  (el11-10 (maybe-get state)))
                             (mess (el11-11 (maybe-get state))))
-                        (and 
+                        (and
                          (= 2 mess)
+                         (not u)
+
+                         (not (is-mk-none state-old))
+                         (= 1 (el11-11 (maybe-get state-old)))
+
+                         ;;(is-mk-none (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                         ;;                                                (mk-tuple2 (maybe-get ni) 3))))
+                         (let ((oldctr (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                          (mk-tuple2 (maybe-get ni) 3)))))
+                           (=> (not (is-mk-none oldctr))
+                               (let ((oldstate (select State0-old (maybe-get oldctr))))
+                                 (and (not (is-mk-none oldstate))
+                                      (= U (el11-1  (maybe-get oldstate)))
+                                      (= u (el11-2  (maybe-get oldstate)))
+                                      (= V (el11-3  (maybe-get oldstate)))
+                                      (= ni (el11-7  (maybe-get oldstate)))
+                                      (= nr (el11-8  (maybe-get oldstate)))
+                                      (= kid (el11-4  (maybe-get oldstate)))
+                                      (= sid  (el11-10  (maybe-get oldstate)))
+                                      (= ctr (maybe-get oldctr))
+                                      (> (el11-11 (maybe-get oldstate)) 1)
+                                      (not (= (el11-11 (maybe-get oldstate)) 1))
+                                      (= (el11-11 (maybe-get oldstate)) 1)
+                                      (= (el11-11 (maybe-get state-old)) 1)
+                                      (= state-old oldstate)
+                                      (= (el11-11  (maybe-get oldstate))
+                                         (el11-11 (maybe-get state-old)))
+                                      ;;false
+                                      ))))
+                         ;; (= (mk-some ctr)
+                         ;;    (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                         ;;                                       (mk-tuple2 (maybe-get ni) 3))))
+                         
                          (not (is-mk-none (select ReverseMac0 (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                                          (mk-tuple2 (maybe-get ni) 3)))))
+                         (not (is-mk-none (select ReverseMac0 (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                         (mk-tuple2 (maybe-get nr) 2)))))
                          (= (mk-some ctr)
                             (select ReverseMac0 (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                            (mk-tuple2 (maybe-get ni) 3))))
+
+                         (let ((otherctr (maybe-get (select ReverseMac0 (mk-tuple2 (mk-tuple5 kid U V
+                                                                                              (maybe-get ni) (maybe-get nr))
+                                                                                   (mk-tuple2 (maybe-get nr) 2))))))
+                           (and (not (is-mk-none (select State0 otherctr)))
+                                (el11-2 (maybe-get (select State0 otherctr)))
+                                (not (= ctr otherctr))
+                                ))
+
                          true))))))
-                  
+
 
          true)))))
 
@@ -387,21 +434,21 @@
 
            (time-of-acceptance State0)
            (time-of-acceptance State1)
-           
+
            (kmac-and-tau-are-computed-correctly State0 H0 Ltk0 Fresh0 Keys0)
            (kmac-and-tau-are-computed-correctly State1 H1 Ltk1 Fresh1 Keys1)
-           
+
            (own-nonce-is-unique State0 Nonces0)
 
            (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
-           
+
            ;; Consistency of reverse-mac-table
            (reverse-mac-matches Values0 ReverseMac0 H0)
            (reverse-mac-state-consistent ReverseMac0 State0)
 
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
-           
+
            (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
            (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
 
@@ -514,21 +561,21 @@
 
            (time-of-acceptance State0)
            (time-of-acceptance State1)
-           
+
            (kmac-and-tau-are-computed-correctly State0 H0 Ltk0 Fresh0 Keys0)
            (kmac-and-tau-are-computed-correctly State1 H1 Ltk1 Fresh1 Keys1)
-           
+
            (own-nonce-is-unique State0 Nonces0)
 
            (honest-sid-have-tau-in-mac State0 Fresh0 Values0)
-           
+
            ;; Consistency of reverse-mac-table
            (reverse-mac-matches Values0 ReverseMac0 H0)
            (reverse-mac-state-consistent ReverseMac0 State0)
 
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
-           
+
            (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
            (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0)
 

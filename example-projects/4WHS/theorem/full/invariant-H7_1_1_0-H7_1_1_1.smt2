@@ -982,14 +982,24 @@
                   (mess (el11-11 (maybe-get state))))
              (and
               (=> (= mess 3)
+                  (and
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                             (mk-tuple2 zeron 4))))))
+                                                             (mk-tuple2 zeron 4)))))
+                  ))
               (=> (and u (> mess 1) (= acc (mk-some true)))
+                  (and 
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                             (mk-tuple2 (maybe-get ni) 3))))))
+                                                             (mk-tuple2 (maybe-get ni) 3)))))
+                  (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                             (mk-tuple2 zeron 4)))))
+                  ))
               (=> (and (not u) (> mess 1))
+                  (and 
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                             (mk-tuple2 (maybe-get nr) 2)))))))))))))
+                                                             (mk-tuple2 (maybe-get nr) 2)))))
+                  (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                             (mk-tuple2 (maybe-get ni) 3)))))
+                  )))))))))
 
 
 
