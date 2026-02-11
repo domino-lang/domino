@@ -259,7 +259,9 @@
   Bool
   (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-game-state> H710-return))
         (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-game-state> H711-return)))
-    (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
+    (let ((nonces-H710 (<game-H7-<$<!n!>$>-pkgstate-Nonces> state-H710))
+          (nonces-H711 (<game-H7-<$<!n!>$>-pkgstate-Nonces>  state-H711))
+          (game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
           (mac-H711 (<game-H7-<$<!n!>$>-pkgstate-MAC>  state-H711))
@@ -271,6 +273,8 @@
             (State1 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H711))
             (Fresh0 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H710))
             (Fresh1 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H711))
+            (Nonces0 (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H710))
+            (Nonces1 (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H711))
             (Keys0 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H710))
             (Keys1 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H711))            
             (kid0 (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H710))
@@ -283,6 +287,8 @@
             (H1 (<pkg-state-PRF-<$<!n!>$>-H> prf-H711)))
         (and (freshness-and-honesty-matches State0 Fresh0 H0)
              (freshness-and-honesty-matches State1 Fresh1 H1)
+
+             (own-nonce-is-unique State0 Nonces0)
 
              (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
              (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
@@ -325,6 +331,41 @@
         (and (sid-is-wellformed State0 Fresh0 Keys0)
              (sid-matches State0)
              (sids-unique Fresh0 State0))))))
+
+(define-fun <relation-wellformedness-H7_1_1_0-H7_1_1_1-Send3>
+    ((H710-old <GameState_H7_<$<!n!>$>>)
+     (H711-old <GameState_H7_<$<!n!>$>>)
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send3>)
+     (ctr Int) (msg (Tuple2 Bits_n Bits_n)))
+  Bool
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send3-game-state> H711-return)))
+    (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
+          (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
+          (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
+          (mac-H711 (<game-H7-<$<!n!>$>-pkgstate-MAC>  state-H711))
+          (prf-H710 (<game-H7-<$<!n!>$>-pkgstate-PRF> state-H710))
+          (prf-H711 (<game-H7-<$<!n!>$>-pkgstate-PRF>  state-H711)))
+      (let ((ctr0 (<pkg-state-KX_noprfkey-<$<!n!>$>-ctr_> game-H710))
+            (ctr1 (<pkg-state-KX_noprfkey-<$<!n!>$>-ctr_> game-H711))
+            (State0 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H710))
+            (State1 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H711))
+            (Fresh0 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H710))
+            (Fresh1 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H711))
+            (Keys0 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H710))
+            (Keys1 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H711))            
+            (kid0 (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H710))
+            (kid1 (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H711))
+            (Ltk0 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H710))
+            (Ltk1 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H711))
+            (Prf0 (<pkg-state-PRF-<$<!n!>$>-PRF> prf-H710))
+            (Prf1 (<pkg-state-PRF-<$<!n!>$>-PRF> prf-H711))
+            (H0 (<pkg-state-PRF-<$<!n!>$>-H> prf-H710))
+            (H1 (<pkg-state-PRF-<$<!n!>$>-H> prf-H711)))
+        (and (kmac-and-tau-are-computed-correctly State0 H0 Ltk0 Fresh0 Keys0)
+             (kmac-and-tau-are-computed-correctly State1 H1 Ltk1 Fresh1 Keys1))))))
+
 
 
 (define-fun <relation-time-H7_1_1_0-H7_1_1_1-Send3>
@@ -443,5 +484,9 @@
             (H1 (<pkg-state-PRF-<$<!n!>$>-H> prf-H711)))
         (and (sessions-in-first-exist First0 State0)
              (sessions-in-first-exist Second0 State0)
+
+             (second-after-first First0 Second0)
+             (first-second-distinct First0 Second0 State0)
+             
              (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
              (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0))))))
