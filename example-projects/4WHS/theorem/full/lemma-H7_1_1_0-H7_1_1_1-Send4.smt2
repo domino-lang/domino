@@ -115,7 +115,7 @@
                      (sid  (el11-10 (maybe-get state)))
                      (mess (el11-11 (maybe-get state))))
                 (=> (and (not (is-mk-none sid)) (= acc (mk-some true)))
-                    (not (is-mk-none (select First0 (maybe-get sid))))))))))))
+                    (not (is-mk-none (select First0-old (maybe-get sid))))))))))))
 
 
 (define-fun <relation-other-session-H7_1_1_0-H7_1_1_1-Send4>
@@ -160,7 +160,6 @@
                               (let ((first (select State0 (maybe-get first))))
                                 (and (not (is-mk-none first))
                                      (not (= u (el11-2 (maybe-get first)))))))))))))))))
-
 
 
 (define-fun <relation-mac-implies-message-H7_1_1_0-H7_1_1_1-Send4>

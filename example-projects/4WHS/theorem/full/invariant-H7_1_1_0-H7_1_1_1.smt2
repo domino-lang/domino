@@ -864,8 +864,8 @@
             (and (= (and (is-mk-none (select ReverseMac handle))
                          (= (select H kid) (mk-some true)))
                     (is-mk-none (select Values handle)))
-                 (=> (not (is-mk-none (select Values handle)))
-                     (= (select H kid) (mk-some true)))
+                 ;(=> (not (is-mk-none (select Values handle)))
+                 ;    (= (select H kid) (mk-some true)))
                  ;;(=> (not (is-mk-none (select ReverseMac handle)))
                  ;;    (= (select H kid) (mk-some true)))
                  true))))
@@ -1030,15 +1030,15 @@
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                              (mk-tuple2 zeron 4)))))
                   ))
-              (=> (and u (> mess 1) (= acc (mk-some true)))
-                  (and 
+              (=> (and u (or (= mess 2) (= mess 3)) (= acc (mk-some true)))
+                  (and
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                              (mk-tuple2 (maybe-get ni) 3)))))
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                              (mk-tuple2 zeron 4)))))
                   ))
-              (=> (and (not u) (> mess 1))
-                  (and 
+              (=> (and (not u) (or (= mess 2) (= mess 3)))
+                  (and
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                              (mk-tuple2 (maybe-get nr) 2)))))
                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
@@ -1214,6 +1214,27 @@
            )))))
 
 
+
+
+;; TODO also claim for four mac
+(define-fun three-mac-implies-first
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (forall
+   ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
+   (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 ni 3)))))
+     (=> (not (is-mk-none ctr))
+         (let ((state (select State (maybe-get ctr))))
+           (=> (not (is-mk-none state)) ;; should already be known
+               (let ((sid (el11-10 (maybe-get state))))
+                 (=> (not (is-mk-none sid))
+                     (not (is-mk-none (select First (maybe-get sid))))))))))))
+
+
 (define-fun invariant
     ((state-H710  <GameState_H7_<$<!n!>$>>)
      (state-H711  <GameState_H7_<$<!n!>$>>))
@@ -1296,6 +1317,7 @@
            ;;(mac-table-values Values0 Fresh0 State0)
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
+           (three-mac-implies-first First0 ReverseMac0 State0)
 
            (sids-unique Fresh0 State0)
 
@@ -1537,4 +1559,3 @@
            (= nonces-H710-old nonces-H710 nonces-H711-old nonces-H711)
            (= prf-H710-old prf-H710)
            (= prf-H711-old prf-H711)))))
-
