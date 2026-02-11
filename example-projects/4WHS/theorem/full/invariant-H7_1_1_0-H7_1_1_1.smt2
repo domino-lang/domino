@@ -241,7 +241,8 @@
 (define-fun sid-matches
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (Fresh (Array Int (Maybe Bool))))
   Bool
     (forall ((ctr1 Int) (ctr2 Int))
             (let ((state1 (select state ctr1))
@@ -264,11 +265,17 @@
                         (kmac2 (el11-9 (maybe-get state2)))
                         (sid1  (el11-10 (maybe-get state1)))
                         (sid2  (el11-10 (maybe-get state2))))
-                    (=> (and (not (is-mk-none sid1)) 
-                             (not (is-mk-none sid2))
-                             (= (mk-tuple5 kid1 U1 V1 ni1 nr1)
-                                (mk-tuple5 kid2 U2 V2 ni2 nr2)))
-                        (= sid1 sid2)))))))
+                    (and
+                     (=> (and (not (is-mk-none sid1))
+                              (not (is-mk-none sid2))
+                              (= (mk-tuple5 kid1 U1 V1 ni1 nr1)
+                                 (mk-tuple5 kid2 U2 V2 ni2 nr2)))
+                         (= sid1 sid2))
+                     (=> (and (= sid1 sid2)
+                              (not (is-mk-none sid1)))
+                         (= (select Fresh ctr1)
+                            (select Fresh ctr2)))))))))
+
 
 
 (define-fun sid-is-wellformed
@@ -325,7 +332,7 @@
      (Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-          (and 
+          (and
            (= (> i kid)
               (is-mk-none (select H i))
               (is-mk-none (select Ltk i)))
@@ -910,7 +917,7 @@
 ;;  - if ReverseMac has some entry then the session indicated
 ;;    in ReverseMac has progressed enough to have generated
 ;;    that message
-(define-fun mac-implies-message
+(define-fun mac-implies-message-disable
     ((ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
      (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -918,7 +925,8 @@
   Bool
   (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
     (forall
-     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
+     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)
+      (msg Bits_n)(tag Int))
      (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                               (mk-tuple2 msg tag))))
        (let ((ctr (select ReverseMac handle)))
@@ -938,12 +946,50 @@
                            (mess (el11-11 (maybe-get state))))
                       (and
                        (=> (and (= tag 4) (= msg zeron))
-                          (and u (= acc (mk-some true)) (= mess 2)))
+                           (and u (= acc (mk-some true)) (= mess 2)))
                        (=> (and (= tag 3) (= msg ni))
-                          (and (not u) (or (= mess 2) (= mess 3))))
+                           (and (not u) (or (= mess 2) (= mess 3))))
                        (=> (and (= tag 2) (= msg nr))
-                          (and u (or (= mess 1) (= mess 2))))
+                           (and u (or (= mess 1) (= mess 2))))
                        true))))))))))
+
+(define-fun mac-implies-message
+    ((ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+  Bool
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall
+     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
+     (let ((handle (mk-tuple5 kid U V ni nr)))
+       (and
+        (let ((ctr (select ReverseMac (mk-tuple2 handle (mk-tuple2 zeron 4)))))
+          (=> (not (is-mk-none ctr))
+              (let ((state (select State (maybe-get ctr))))
+                (and (not (is-mk-none state))
+                     (let ((u    (el11-2  (maybe-get state)))
+                           (acc  (el11-5  (maybe-get state)))
+                           (mess (el11-11 (maybe-get state))))
+                       (and u (= acc (mk-some true)) (= mess 2)))))))
+
+        (let ((ctr (select ReverseMac (mk-tuple2 handle (mk-tuple2 ni 3)))))
+          (=> (not (is-mk-none ctr))
+              (let ((state (select State (maybe-get ctr))))
+                (and (not (is-mk-none state))
+                     (let ((u    (el11-2  (maybe-get state)))
+                           (acc  (el11-5  (maybe-get state)))
+                           (mess (el11-11 (maybe-get state))))
+                       (and (not u) (or (= mess 2) (= mess 3))))))))
+
+        (let ((ctr (select ReverseMac (mk-tuple2 handle (mk-tuple2 nr 2)))))
+          (=> (not (is-mk-none ctr))
+              (let ((state (select State (maybe-get ctr))))
+                (and (not (is-mk-none state))
+                     (let ((u    (el11-2  (maybe-get state)))
+                           (acc  (el11-5  (maybe-get state)))
+                           (mess (el11-11 (maybe-get state))))
+                       (and u (or (= mess 1) (= mess 2)))))))))))))
 
 
 
@@ -1233,13 +1279,13 @@
            (no-overwriting-game State1 Fresh1 ctr1)
 
            (no-ideal-values-for-dishonest-keys H0 Prf0 Keys0 Values0)
-           
+
            (sid-is-wellformed State0 Fresh0 Keys0)
-           (sid-matches State0)
-           
+           (sid-matches State0 Fresh0)
+
            (kmac-and-tau-are-computed-correctly State0 H0 Ltk0 Fresh0 Keys0)
            (kmac-and-tau-are-computed-correctly State1 H1 Ltk1 Fresh1 Keys1)
-           
+
            (own-nonce-is-unique State0 Nonces0)
 
            ;; Consistency of reverse-mac-table
@@ -1255,7 +1301,7 @@
 
            (time-of-acceptance State0)
            (time-of-acceptance State1)
-           
+
            ;;(four-mac-implies-first-or-second Values0 First0 Second0)
            ;;(three-mac-implies-first-or-second Values0 First0 Second0)
 
@@ -1277,6 +1323,7 @@
            (first-second-distinct First0 Second0 State0)
 
            (first-set-by-initiator State0 First0 Fresh0)
+           (first-set-by-initiator State1 First1 Fresh1)
            ;;(second-set-before-initiator-accepts State0 First0 Second0 Fresh0)
 
            (four-mac-implies-three-mac Values0)

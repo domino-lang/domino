@@ -1589,12 +1589,12 @@ theorem Full4WHS {
                     sids:         [no-abort]
                     no-overwriting: [no-abort]
                     wellformedness: [no-abort]
-                    debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]
+                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
                     invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
                     not-in-first-second: [no-abort]
                     empty-second: [no-abort]
                     empty-first:  [no-abort]
-                    other-session: [no-abort]
+                    /*other-session: [no-abort]*/
                 }
             }
             Send4: {
@@ -1606,6 +1606,11 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
+                    empty-second:  [no-abort]
+                    not-in-first-second: [no-abort]
+                    first-exists:  [no-abort]
+                    sids:         [no-abort]
+                    /*other-session: [no-abort]*/
                     equal-aborts:  []
                     same-output:   [no-abort]
                     mac-implies-message: [no-abort]
@@ -1615,15 +1620,10 @@ theorem Full4WHS {
                     reverse-mac:  [no-abort]
                     macs:         [no-abort]
                     time:         [no-abort]
-                    sids:         [no-abort]
                     no-overwriting: [no-abort]
                     wellformedness: [no-abort]
                     debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]
                     invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
-                    empty-second:  [no-abort]
-                    other-session: [no-abort]
-                    not-in-first-second: [no-abort]
-                    first-exists:  [no-abort]
                     /*
                     always-aborts: []
                     */

@@ -122,19 +122,28 @@
                          (not u)
 
                          (not (is-mk-none state-old))
-                         (= 1 (el11-11 (maybe-get state-old)))
-                         (is-mk-none (el11-8 (maybe-get state-old)))
 
-                         ;;(is-mk-none (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                         ;;                                               (mk-tuple2 (maybe-get ni) 3))))
-                         (let ((oldctr (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                                          (mk-tuple2 (maybe-get ni) 3)))))
-                           
-                           (and
-                            ;; (=> (not (is-mk-none oldctr))
-                            ;;     (not (is-mk-none (select State0-old (maybe-get oldctr)))))
-                            (=> (not (is-mk-none oldctr))
-                                (= (mk-some ctr) oldctr))))
+                         (= 1 (el11-11 (maybe-get state-old)))
+                         ;; (is-mk-none (el11-8 (maybe-get state-old)))
+
+                         (is-mk-none (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                        (mk-tuple2 (maybe-get ni) 3))))
+
+                         ;; (let ((oldctr (select ReverseMac0-old (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                         ;;                                                  (mk-tuple2 (maybe-get ni) 3)))))
+
+                         ;;   (and
+                         ;;     (=> (not (is-mk-none oldctr))
+                         ;;         (not (is-mk-none (select State0-old (maybe-get oldctr)))))
+
+                         ;;     (=> (not (is-mk-none oldctr))
+                         ;;         (and
+                         ;;          (= 1 (el11-11 (maybe-get state-old)))
+                         ;;          (= 2 (el11-11 (maybe-get state-old)))
+                         ;;          (= 3 (el11-11 (maybe-get state-old)))))
+
+                         ;;     (=> (not (is-mk-none oldctr))
+                         ;;         (= (mk-some ctr) oldctr))))
                          ;;    (=> (not (is-mk-none oldctr))
                          ;;        (= state-old (select State0-old (maybe-get oldctr))))
                          ;;    (=> (not (is-mk-none oldctr))
@@ -287,7 +296,7 @@
            (no-overwriting-game State1 Fresh1 ctr1)
 
            (sid-is-wellformed State0 Fresh0 Keys0)
-           (sid-matches State0)
+           (sid-matches State0 Fresh0)
            (sids-unique Fresh0 State0)
 
            (time-of-acceptance State0)
@@ -414,7 +423,7 @@
            (no-overwriting-game State1 Fresh1 ctr1)
 
            (sid-is-wellformed State0 Fresh0 Keys0)
-           (sid-matches State0)
+           (sid-matches State0 Fresh0)
            (sids-unique Fresh0 State0)
 
            (time-of-acceptance State0)

@@ -329,7 +329,7 @@
             (H0 (<pkg-state-PRF-<$<!n!>$>-H> prf-H710))
             (H1 (<pkg-state-PRF-<$<!n!>$>-H> prf-H711)))
         (and (sid-is-wellformed State0 Fresh0 Keys0)
-             (sid-matches State0)
+             (sid-matches State0 Fresh0)
              (sids-unique Fresh0 State0))))))
 
 (define-fun <relation-wellformedness-H7_1_1_0-H7_1_1_1-Send3>
