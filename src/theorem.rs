@@ -155,8 +155,6 @@ impl GameInstance {
             consts: resolved_params,
             edges: new_edges,
             exports: new_exports,
-
-            ..game
         };
 
         GameInstance {
