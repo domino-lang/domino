@@ -284,14 +284,14 @@
 
 (define-fun invariant
     ((left-game <GameState_H6_<$<!n!>$>>)
-     (right-game <GameState_H65_<$<!n!>$>>))
+     (right-game <GameState_H6_<$<!n!>$>>))
   Bool
   (let ((left-prf-pkg (<game-H6-<$<!n!>$>-pkgstate-PRF> left-game))
         (left-game-pkg (<game-H6-<$<!n!>$>-pkgstate-KX> left-game))
         (left-Nonces-pkg (<game-H6-<$<!n!>$>-pkgstate-Nonces> left-game))
-        (right-prf-pkg (<game-H65-<$<!n!>$>-pkgstate-PRF> right-game))
-        (right-game-pkg (<game-H65-<$<!n!>$>-pkgstate-KX> right-game))
-        (right-Nonces-pkg (<game-H65-<$<!n!>$>-pkgstate-Nonces> right-game)))
+        (right-prf-pkg (<game-H6-<$<!n!>$>-pkgstate-PRF> right-game))
+        (right-game-pkg (<game-H6-<$<!n!>$>-pkgstate-KX> right-game))
+        (right-Nonces-pkg (<game-H6-<$<!n!>$>-pkgstate-Nonces> right-game)))
     (let ((left-LTK (<pkg-state-PRF-<$<!n!>$>-LTK> left-prf-pkg))
           (left-PRF (<pkg-state-PRF-<$<!n!>$>-PRF> left-prf-pkg))
           (left-State (<pkg-state-KX_noprfkey-<$<!n!>$>-State> left-game-pkg))
@@ -349,3 +349,31 @@
        (k-prf-implies-rev-tested-sid left-PRF left-RevTested)
 
        (honest-kmac left-State left-PRF left-Fresh left-H)))))
+
+
+(define-fun <relation-aux-H6_1_0-H6_1_1-AtLeast>
+    ((H610-old <GameState_H6_<$<!n!>$>>)
+     (H611-old <GameState_H6_<$<!n!>$>>)
+     (H610-return <OracleReturn_H6_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtLeast>)
+     (H611-return <OracleReturn_H6_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtLeast>)
+     (sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
+  Bool
+  (let ((state-H610 (<oracle-return-H6-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-AtLeast-game-state> H610-return))
+        (state-H611 (<oracle-return-H6-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-AtLeast-game-state> H611-return)))
+    (let ((nonces-H610     (<game-H6-<$<!n!>$>-pkgstate-Nonces> state-H610))
+          (nonces-H610-old (<game-H6-<$<!n!>$>-pkgstate-Nonces> H610-old))
+          (nonces-H611     (<game-H6-<$<!n!>$>-pkgstate-Nonces> state-H611))
+          (nonces-H611-old (<game-H6-<$<!n!>$>-pkgstate-Nonces> H611-old))
+          (prf-H610      (<game-H6-<$<!n!>$>-pkgstate-PRF> state-H610))
+          (prf-H610-old  (<game-H6-<$<!n!>$>-pkgstate-PRF> H610-old))
+          (prf-H611      (<game-H6-<$<!n!>$>-pkgstate-PRF>  state-H611))
+          (prf-H611-old  (<game-H6-<$<!n!>$>-pkgstate-PRF> H611-old))
+          (game-H610     (<game-H6-<$<!n!>$>-pkgstate-KX>  state-H610))
+          (game-H610-old (<game-H6-<$<!n!>$>-pkgstate-KX>  H610-old))
+          (game-H611     (<game-H6-<$<!n!>$>-pkgstate-KX>  state-H611))
+          (game-H611-old (<game-H6-<$<!n!>$>-pkgstate-KX>  H611-old)))
+      (and (= game-H610 game-H610-old)
+           (= game-H611 game-H611-old)
+           (= nonces-H610-old nonces-H610 nonces-H611-old nonces-H611)
+           (= prf-H610-old prf-H610)
+           (= prf-H611-old prf-H611)))))

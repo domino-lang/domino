@@ -199,6 +199,19 @@ theorem Full4WHS {
         }
     }
 
+    instance H6_1_1 = H6 {
+        params {
+            btest   : true ,
+            bleast  : b ,
+            bprf    : true,
+            n       : n    ,
+            zeron   : zeron,
+            prf     : prf  ,
+            mac     : mac  ,
+        }
+    }
+
+
     instance H65 = H65 {
         params {
             b       : b ,
@@ -1208,7 +1221,7 @@ theorem Full4WHS {
             }
         }
 
-        equivalence H6_1_0 H65 {
+        equivalence H6_1_0 H6_1_1 {
             Send1: {
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
@@ -1337,7 +1350,8 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
+                    aux:          [no-abort]
+                    invariant:    [no-abort,aux]
                     same-output:  [no-abort]
                 }
             }
