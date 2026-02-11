@@ -16,10 +16,7 @@ use crate::{
     debug_assert_matches,
     expressions::Expression,
     identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
-    package::{
-        Composition, Edge, Export, MultiInstanceEdge, MultiInstanceExport, OracleSig, Package,
-        PackageInstance,
-    },
+    package::{Composition, Edge, Export, OracleSig, Package, PackageInstance},
     types::Type,
     util::scope::Error as ScopeError,
 };
@@ -50,9 +47,6 @@ pub struct ParseGameContext<'a> {
 
     pub edges: Vec<Edge>,
     pub exports: Vec<Export>,
-
-    pub multi_inst_edges: Vec<MultiInstanceEdge>,
-    pub multi_inst_exports: Vec<MultiInstanceExport>,
 }
 
 impl<'a> ParseContext<'a> {
@@ -84,9 +78,6 @@ impl<'a> ParseContext<'a> {
 
             edges: vec![],
             exports: vec![],
-
-            multi_inst_edges: vec![],
-            multi_inst_exports: vec![],
         }
     }
 }
@@ -117,8 +108,6 @@ impl<'a> ParseGameContext<'a> {
             pkgs: self.instances.into_iter().map(|(inst, _)| inst).collect(),
             edges: self.edges,
             exports: self.exports,
-            multi_inst_edges: self.multi_inst_edges,
-            multi_inst_exports: self.multi_inst_exports,
         }
     }
 
@@ -482,8 +471,6 @@ fn handle_export_compose_assign_list(
             })?
             .sig
             .clone();
-
-        assert!(oracle_sig.multi_inst_idx.indices.is_empty());
 
         // make the signature use the constants from the game, not the package
         let oracle_sig = dst_inst.instantiate_oracle_signature(oracle_sig);

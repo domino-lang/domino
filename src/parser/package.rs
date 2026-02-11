@@ -1415,7 +1415,6 @@ pub fn handle_oracle_sig(
         name: name.to_string(),
         ty,
         args,
-        multi_inst_idx: MultiInstanceIndices::new(vec![]),
     })
 }
 
@@ -1459,7 +1458,6 @@ pub fn handle_oracle_imports_oracle_sig(
         name: name.to_string(),
         ty,
         args,
-        multi_inst_idx: MultiInstanceIndices::empty(),
     })
 }
 
@@ -1483,147 +1481,6 @@ impl std::fmt::Display for ForCompError {
 }
 
 impl std::error::Error for ForCompError {}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct MultiInstanceIndices {
-    pub(crate) indices: Vec<Expression>,
-}
-impl MultiInstanceIndices {
-    pub(crate) fn new(indices: Vec<Expression>) -> Self {
-        Self { indices }
-    }
-
-    pub(crate) fn empty() -> Self {
-        Self { indices: vec![] }
-    }
-}
-
-/*
-/// A [`MultiInstanceIndicesGroup`] contains a list of [`MultiInstanceIndices`] that all represent
-/// the same index, but cover different ranges. The purpose is that the group folds the individual
-/// elements into a single one, by merging the ranges specified in the [`ForSpec`] entries.
-pub struct MultiInstanceIndicesGroup(Vec<MultiInstanceIndices>);
-
-impl MultiInstanceIndicesGroup {
-    pub(crate) fn new(v: Vec<MultiInstanceIndices>) -> Self {
-        Self(v)
-    }
-
-    pub(crate) fn smt_check_total(
-        &self,
-        assumptions: Vec<SmtExpr>,
-        consts: &[&str],
-        varname: &str,
-    ) -> Vec<SmtExpr> {
-        let declares: Vec<_> = consts
-            .iter()
-            .map(|const_name| declare_const(*const_name, Sort::Int))
-            .collect();
-
-        let predicate = self.smt_totality_check_function(varname);
-
-        let neg_claim = SmtNot(SmtEq2 {
-            lhs: predicate,
-            rhs: 1usize,
-        })
-        .into();
-
-        let and_terms = assumptions.into_iter().chain(vec![neg_claim]).collect();
-
-        let assert = SmtAssert(SmtAnd(and_terms));
-
-        let mut out_statements = declares;
-        out_statements.push(assert.into());
-
-        out_statements
-        /*
-         *
-         * declare const n Int
-         * ...
-         * declare const x Int
-         *
-         * assert AND(assumptions)  => sum of predicates = 1
-         * -> expect unsat
-         *
-         */
-    }
-
-    fn smt_totality_check_function(&self, varname: &str) -> SmtExpr {
-        let terms = self.0.iter().map(|indices| {
-            SmtIte {
-                cond: indices.smt_range_predicate(varname),
-                then: 1,
-                els: 0,
-            }
-            .into()
-        });
-
-        let add = ["+"].iter().map(|&add| add.into());
-        let zero = [0].iter().map(|&zero| zero.into());
-
-        // add the zero term so the operation doesn't fail if there are no terms
-        SmtExpr::List(add.chain(terms).chain(zero).collect())
-    }
-}
-*/
-
-// impl MultiInstanceIndices {
-//     /// returns smt code that checks whether a variable with name `varname` is in the range.
-//     /// currently only works for one-dimensional indices and panics for higher dimensions.
-//     pub(crate) fn smt_range_predicate(&self, varname: &str) -> SmtExpr {
-//         //assert!(self.indices.len() == 1);
-//         match &self.indices[0] {
-//             Expression::IntegerLiteral(index) => SmtEq2 {
-//                 lhs: *index,
-//                 rhs: varname,
-//             }
-//             .into(),
-//             // I don't think we need to check totality for imports inside the package's import
-//             // block, so we don't need to handle ImportsLoopVar.
-//             // Expression::Identifier(Identifier::PackageIdentifier(
-//             // PackageIdentifier::ImportsLoopVar(loopvar),
-//             // )) => {
-//             // let start_comp: SmtExpr = match loopvar.start_comp {
-//             // ForComp::Lt => SmtLt((*loopvar.start).clone(), varname).into(),
-//             // ForComp::Lte => SmtLte((*loopvar.start).clone(), varname).into(),
-//             // };
-//             //
-//             // let end_comp: SmtExpr = match loopvar.end_comp {
-//             // ForComp::Lt => SmtLt(varname, (*loopvar.end).clone()).into(),
-//             // ForComp::Lte => SmtLte(varname, (*loopvar.end).clone()).into(),
-//             // };
-//             //
-//             // SmtAnd(vec![start_comp, end_comp]).into()
-//             // }
-//             Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
-//                 game_const_ident,
-//             ))) => SmtEq2 {
-//                 lhs: &game_const_ident.name,
-//                 rhs: varname,
-//             }
-//             .into(),
-//             Expression::Identifier(Identifier::GameIdentifier(GameIdentifier::LoopVar(
-//                 game_loop_var,
-//             ))) => {
-//                 let lower_comp: SmtExpr = match game_loop_var.start_comp {
-//                     ForComp::Lt => SmtLt((*game_loop_var.start).clone(), varname).into(),
-//                     ForComp::Lte => SmtLte((*game_loop_var.start).clone(), varname).into(),
-//                 };
-//
-//                 let upper_comp: SmtExpr = match game_loop_var.end_comp {
-//                     ForComp::Lt => SmtLt((*game_loop_var.end).clone(), varname).into(),
-//                     ForComp::Lte => SmtLte((*game_loop_var.end).clone(), varname).into(),
-//                 };
-//
-//                 SmtAnd(vec![lower_comp, upper_comp]).into()
-//             }
-//             other => unreachable!(
-//                 "in smt_range_predicate, found unhandled expression variant {expr:?}",
-//                 expr = other
-//             ),
-//         }
-//     }
-// }
 
 impl std::convert::TryFrom<&str> for ForComp {
     type Error = ForCompError;

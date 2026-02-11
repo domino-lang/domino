@@ -9,7 +9,6 @@ use crate::{
         Identifier,
     },
     package::{OracleDef, OracleSig, Package},
-    parser::package::MultiInstanceIndices,
     types::{CountSpec, Type, TypeKind},
 };
 
@@ -426,7 +425,6 @@ pub(crate) mod instantiate {
             {
                 OracleSig {
                     name: oracle_sig.name,
-                    multi_inst_idx: oracle_sig.multi_inst_idx,
                     args: oracle_sig
                         .args
                         .into_iter()

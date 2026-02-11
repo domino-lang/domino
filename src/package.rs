@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::fmt;
+
 use miette::SourceSpan;
 
-use crate::identifier::Identifier;
-pub use crate::packageinstance::PackageInstance;
-use crate::parser::package::MultiInstanceIndices;
 use crate::statement::CodeBlock;
 use crate::types::Type;
 
-use std::convert::TryFrom;
-use std::fmt;
+pub use crate::packageinstance::PackageInstance;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnSig {
@@ -22,7 +20,6 @@ pub struct FnSig {
 pub struct OracleSig {
     pub name: String,
     pub args: Vec<(String, Type)>,
-    pub multi_inst_idx: MultiInstanceIndices,
     pub ty: Type,
 }
 
@@ -75,16 +72,6 @@ impl Edge {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MultiInstanceEdge {
-    // name, from, to. name: from <= name < to
-    // expressions are normalized to fit the above
-    pub source_pkgidx: usize,
-    pub source_instance_idx: Vec<Identifier>,
-    pub dest_pkgidx: usize,
-    pub oracle_sig: OracleSig,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Export(pub usize, pub OracleSig);
 
@@ -96,14 +83,6 @@ impl Export {
     pub fn sig(&self) -> &OracleSig {
         &self.1
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct MultiInstanceExport {
-    // name, from, to. name: from <= name < to
-    // expressions are normalized to fit the above
-    pub dest_pkgidx: usize,
-    pub oracle_sig: OracleSig,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -119,8 +98,6 @@ pub struct Composition {
     pub exports: Vec<Export>,
     pub name: String,
     pub consts: Vec<(String, Type)>,
-    pub multi_inst_edges: Vec<MultiInstanceEdge>,
-    pub multi_inst_exports: Vec<MultiInstanceExport>,
 }
 
 impl Composition {
@@ -244,37 +221,5 @@ impl fmt::Display for OracleSig {
                 .join(", "),
             self.ty
         )
-    }
-}
-
-pub struct NotSingleInstanceEdgeError(pub MultiInstanceEdge);
-
-impl TryFrom<MultiInstanceEdge> for Edge {
-    type Error = NotSingleInstanceEdgeError;
-
-    fn try_from(value: MultiInstanceEdge) -> Result<Self, Self::Error> {
-        if value.oracle_sig.multi_inst_idx.indices.is_empty() {
-            Ok(Edge(
-                value.source_pkgidx,
-                value.dest_pkgidx,
-                value.oracle_sig,
-            ))
-        } else {
-            Err(NotSingleInstanceEdgeError(value))
-        }
-    }
-}
-
-pub struct NotSingleInstanceExportError(pub MultiInstanceExport);
-
-impl TryFrom<MultiInstanceExport> for Export {
-    type Error = NotSingleInstanceExportError;
-
-    fn try_from(value: MultiInstanceExport) -> Result<Self, Self::Error> {
-        if value.oracle_sig.multi_inst_idx.indices.is_empty() {
-            Ok(Export(value.dest_pkgidx, value.oracle_sig))
-        } else {
-            Err(NotSingleInstanceExportError(value))
-        }
     }
 }

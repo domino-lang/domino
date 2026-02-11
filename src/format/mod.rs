@@ -302,7 +302,7 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
                 let mut inner = oracle_inv.into_inner();
                 let oracle_name_ast = inner.next().unwrap();
                 let oracle_name = oracle_name_ast.as_str();
-                let mut multi_instance = String::new();
+                let multi_instance = String::new();
                 let mut argstring = String::new();
 
                 for ast in inner {
