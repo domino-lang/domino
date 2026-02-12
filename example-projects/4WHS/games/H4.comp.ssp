@@ -1,10 +1,9 @@
-composition H2 {
+composition H4 {
         const n: Integer;
         const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const b: Bool;
-        const bcr: Bool;
     
 	instance Nonces = Nonces {
 		params {
@@ -12,21 +11,15 @@ composition H2 {
 			b: true,
 		}
 	}
-    instance CR = CR {
+    instance Prot = ReductionNonce {
         params {
         n: n,
-        b: bcr,
+        zeron: zeron,
         prf: prf,
         mac: mac,
         }
     }
-    instance Prot = ReductionCR {
-        params {
-        n: n,
-        zeron: zeron,
-        }
-    }
-    instance KX = KX {
+    instance KX = KX_nochecks {
         params {
         b: b,
         n: n,
@@ -60,8 +53,6 @@ composition H2 {
 
 		Prot: {
 			  Sample:	Nonces,
-			  MAC:      CR,
-			  PRF:      CR,
 		}
     }
 }

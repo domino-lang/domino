@@ -1,6 +1,6 @@
 composition PRF {
     const n: Integer;
-    const prf: fn Bits(n), Integer, Integer, Bits(n), Bits(n), Bool ->  Bits(n);
+    const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
     const b: Bool;
     
     instance PRF = PRF {
@@ -15,6 +15,7 @@ composition PRF {
         adversary: {
             NewKey: PRF,
             Eval: PRF,
+            Hon: PRF,
         },
     }
 }

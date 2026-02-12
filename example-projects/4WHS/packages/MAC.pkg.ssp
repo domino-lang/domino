@@ -1,26 +1,60 @@
 package MAC {
+    /*
+     * Handle: (kid,U,V,ni,nr)
+     */
     params {
         n: Integer,
-        prf: fn Bits(n), Bits(n) -> Bits(n),
+        mac: fn Bits(n), Bits(n), Integer -> Bits(n),
         b: Bool,
     }
-    
+
     state {
-        ltk: Maybe(Bits(n)),
-          K: Table(Bits(n), Bits(n)),
+        Keys: Table((Integer, Integer,Integer,Bits(n),Bits(n)),Bits(n)),
+        Values: Table(((Integer, Integer,Integer,Bits(n),Bits(n)),
+                       (Bits(n), Integer)), Bits(n)),
     }
 
-    oracle Eval(h: Bits(n)) -> Bits(n) {
-        if (ltk == None as Bits(n)) {
-            ltk_ <-$ Bits(n);
-	          ltk <- Some(ltk_);        
-        }
-        if (K[h] == None as Bits(n)) {
-            K[h] <- Some(prf(Unwrap(ltk), h));
-        }
+    oracle Init(handle: (Integer, Integer,Integer,Bits(n),Bits(n))) {
+        if (Keys[handle] == None) {
+            key <-$ Bits(n);
+            Keys[handle] <- Some(key);
+		}
     }
 
-        oracle Get(h: Bits(n)) -> Bits(n) {
-        return Unwrap(K[h]);
-    } 
+    oracle Mac(handle: (Integer, Integer,Integer,Bits(n),Bits(n)),
+               value: (Bits(n), Integer))
+           -> Bits(n) {
+        key <- Keys[handle];
+        assert not (key == None);
+
+        (val1, val2) <- parse value;
+        tag <- mac(Unwrap(key), val1, val2);
+
+        Values[(handle, value)] <- Some(tag);
+        return tag;
+    }
+
+    oracle Verify(handle: (Integer, Integer,Integer,Bits(n),Bits(n)),
+                  value: (Bits(n), Integer),
+                  tag: Bits(n))
+           -> Bool {
+        key <- Keys[handle];
+        assert not (key == None);
+
+        if b {
+            entry <- Values[(handle, value)];
+            if (entry == None) {
+                return false;
+            }
+            if (Unwrap(entry) != tag) {
+                return false;
+            }
+            return true;
+		} else {
+            (val1, val2) <- parse value;
+            tag_ <- mac(Unwrap(key), val1, val2);
+
+            return (tag == tag_);
+        }
+    }
 }

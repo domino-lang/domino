@@ -1,32 +1,28 @@
-composition H2 {
+composition Hybrid2 {
         const n: Integer;
         const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const b: Bool;
-        const bcr: Bool;
-    
-	instance Nonces = Nonces {
-		params {
-        	n: n,
-			b: true,
+        const bprf: Bool;
+
+    instance Prf = PRF {
+	    params {
+            b: bprf,
+		    prf: prf,
+		    n: n,
 		}
-	}
-    instance CR = CR {
+    }
+
+    instance Prot = Prot_NoPrf {
         params {
         n: n,
-        b: bcr,
+        zeron: zeron,
         prf: prf,
         mac: mac,
         }
     }
-    instance Prot = ReductionCR {
-        params {
-        n: n,
-        zeron: zeron,
-        }
-    }
-    instance KX = KX {
+    instance KX = KX_NoPrf {
         params {
         b: b,
         n: n,
@@ -36,7 +32,7 @@ composition H2 {
 
     compose {
         adversary: {
-            NewKey:     KX,
+            NewKey:     Prf,
             NewSession: KX,
             Send1:      KX,
             Send2:      KX,
@@ -45,9 +41,6 @@ composition H2 {
             Send5:      KX,
             Reveal:     KX,
             Test:       KX,
-			SameKey:	KX,
- 			AtMost:		KX,
- 			AtLeast:	KX,
        },
 
         KX: {
@@ -56,12 +49,11 @@ composition H2 {
             Run3:      Prot,
             Run4:      Prot,
             Run5:      Prot,
+            Hon:       Prf,
+            Eval:      Prf,
         },
-
-		Prot: {
-			  Sample:	Nonces,
-			  MAC:      CR,
-			  PRF:      CR,
-		}
+        Prot: {
+            Eval: Prf,
+        }
     }
 }

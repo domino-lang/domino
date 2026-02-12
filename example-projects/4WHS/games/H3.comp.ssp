@@ -1,4 +1,4 @@
-composition H2 {
+composition H3 {
         const n: Integer;
         const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
@@ -26,7 +26,7 @@ composition H2 {
         zeron: zeron,
         }
     }
-    instance KX = KX {
+    instance KX = KX_nochecks {
         params {
         b: b,
         n: n,
