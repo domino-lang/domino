@@ -1,0 +1,151 @@
+composition HybridIdeal {
+    const h: Integer; /* hybrid parameter */
+    const n: Integer;
+    const p: Integer;
+    const m: Integer;
+    const d: Integer;
+    const w: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance RealLayersKeys = LayeredKeys {
+        params {
+            n: n,
+        }
+    }
+
+    instance SimulatedLayersKeys = LayeredKeys {
+        params {
+            n: n,
+        }
+    }
+
+    instance KeysTop = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance KeysBot = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance Lev = Lev {
+        params {
+            n: n
+        }
+    }
+
+    instance Sim = Simgate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron
+        }
+    }
+
+    instance LayeredLev = HybridLayeredLev {
+        params {
+            n: n,
+            h: h
+        }
+    }
+
+    instance LayeredEnc0 = HybridLayeredEnc0 {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            encn: encn,
+            encm: encm,
+            h: h
+        }
+    }
+
+    instance LayeredSim = HybridLayeredSim {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+            zeron: zeron,
+            h: h
+        }
+    }
+
+    instance LayeredGate = LayeredGate {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            zeron: zeron
+        }
+    }
+
+    instance LayerMap = HybridLayerMap {
+        params {
+            n: n,
+            d: d,
+            h: h,
+            p: p
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: LayerMap,
+            SETBIT: LayerMap,
+            GBLG: LayerMap,
+            GETKEYSIN: LayerMap,
+        }
+        LayerMap: {
+            SETBIT: KeysTop,
+            GETAOUT: KeysTop,
+            GETKEYSIN: KeysBot,
+            GBLG: Sim,
+            LSETBIT: SimulatedLayersKeys,
+            LGETAOUT: SimulatedLayersKeys,
+            LSIMGBLG: LayeredSim,
+            LGATEGBLG: LayeredGate,
+            LGETKEYSIN: RealLayersKeys,
+        }
+        Sim: {
+            GETAIN: KeysTop,
+            GETINAIN: KeysTop,
+            EVAL: Lev,
+            GETAOUT: KeysBot,
+        }
+        Lev: {
+            GETBIT: KeysTop,
+            SETBIT: KeysBot,
+        }
+        LayeredGate: {
+            LENCN: LayeredEnc0,
+            LENCM: LayeredEnc0,
+            LGETKEYSOUT: RealLayersKeys,
+        }
+        LayeredEnc0: {
+            LGETKEYSIN: RealLayersKeys,
+            GETKEYSIN: KeysBot,
+        }
+        LayeredSim: {
+            LEVAL: LayeredLev,
+            LGETAIN: SimulatedLayersKeys,
+            LGETINAIN: SimulatedLayersKeys,
+            LGETAOUT: SimulatedLayersKeys,
+            GETAOUT: KeysTop,
+        }
+        LayeredLev: {
+            LGETBIT: SimulatedLayersKeys,
+            LSETBIT: SimulatedLayersKeys,
+            SETBIT: KeysTop,
+        }
+    }
+}

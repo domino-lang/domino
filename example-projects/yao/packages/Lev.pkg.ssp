@@ -3,22 +3,29 @@ package Lev {
         n: Integer,
     }
 
-    state {
-    }
-
     import oracles {
         GETBIT(h: Integer) -> Bool,
-        SETBIT(h: Integer, zz:Bool) -> (),
+        SETBIT(h: Integer, zz: Bool),
     }
 
 
+    state {
+        y: Integer
+    }
 
-    oracle EVAL(j: Integer,l: Integer,r: Integer,op: Table((Bool,Bool), Bool)) -> () {
+    oracle EVAL(j: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool)) {
         zl <- invoke GETBIT(l);
         zr <- invoke GETBIT(r);
-        z <- Unwrap(op[(zl,zr)]);
-        _ <- invoke SETBIT(j,z);
-        return ;
+        z <- Unwrap(op[(zl, zr)]);
+        _ <- invoke SETBIT(j, z);
+        /* for lemma aborts when proving GBLG in equiv LayerHybrid = LayerIdeal */
+        /* Essentially in LayerHybrid, Gate evaluates the gate on each possible pair 
+        of inputs and the uses the corresponding output wire key while the simulator 
+        only uses the evaluation of active wire key. */
+        _op <- Unwrap(op[(false, false)]);
+        _op <- Unwrap(op[(false, true)]);
+        _op <- Unwrap(op[(true, false)]);
+        _op <- Unwrap(op[(true, true)]);
+        return;
     }
-
 }

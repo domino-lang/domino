@@ -1,0 +1,80 @@
+package LayeredKeys {
+    params {
+        n: Integer,
+    }
+
+    state {
+        T: Table((Integer, Integer), Table(Bool, Bits(n))),
+        z: Table((Integer, Integer), Bool),
+        flag: Table((Integer, Integer), Bool),
+        r: Bits(n),
+        rr: Bits(n),
+    }
+
+
+    oracle LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)) {
+        assert (flag[(i, j)] == Some(true));
+        Z <- Unwrap(T[(i, j)]);
+        return Z;
+    }
+
+    oracle LGETAIN(i: Integer, j: Integer) -> Bits(n) {
+        assert (flag[(i, j)] == Some(true));
+        Z <- Unwrap(T[(i, j)]);
+        zz <- Unwrap(z[(i, j)]);
+        k <- Unwrap(Z[zz]);
+        return k;
+    }
+
+    oracle LGETINAIN(i: Integer, j: Integer) -> Bits(n) {
+        assert (flag[(i, j)] == Some(true));
+        Z <- Unwrap(T[(i, j)]);
+        zz <- Unwrap(z[(i, j)]);
+        k <- Unwrap(Z[not zz]);
+        return k;
+    }
+
+    oracle LGETAOUT(i: Integer, j: Integer) -> Bits(n) {
+        assert (z[(i, j)] != None as Bool);
+        flag[(i, j)] <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T[(i, j)] == None) {
+            r <-$ Bits(n) sample-name r;
+            Z[true] <- Some(r);
+            rr <-$ Bits(n) sample-name rr;
+            Z[false] <- Some(rr);
+            T[(i, j)] <- Some(Z);
+        }
+        Z <- Unwrap(T[(i, j)]);
+        zz <- Unwrap(z[(i, j)]);
+        k <- Unwrap(Z[zz]);
+        return k;
+    }
+
+    oracle LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)) {
+        assert (flag[(i, j)] != Some(true));
+        flag[(i, j)] <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T[(i, j)] == None) {
+            r <-$ Bits(n) sample-name r;
+            Z[true] <- Some(r);
+            rr <-$ Bits(n) sample-name rr;
+            Z[false] <- Some(rr);
+            T[(i, j)] <- Some(Z);
+        }
+        Z <- Unwrap(T[(i, j)]);
+        return Z;
+    }
+
+    oracle LGETBIT(i: Integer, j: Integer) -> Bool {
+        assert (z[(i, j)] != None as Bool);
+        zz <- Unwrap(z[(i, j)]);
+        return zz;
+    }
+
+    oracle LSETBIT(i: Integer, j: Integer, b: Bool) {
+        assert (z[(i, j)] == None as Bool);
+        z[(i, j)] <- Some(b);
+        return;
+    }
+}

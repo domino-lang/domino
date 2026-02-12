@@ -1,15 +1,23 @@
-package MODGB {
+package LayeredMODGB {
     params {
         w: Integer,
         p: Integer,
     }
 
     import oracles {
-       GBLG(l: Integer, r: Integer, op: Table((Bool,Bool),Bool), j: Integer) -> Table(Bits(p),Bool),
+        GBLG(
+            i: Integer, 
+            l: Integer, 
+            r: Integer, 
+            op: Table((Bool,Bool),Bool), 
+            j: Integer) -> Table(Bits(p),Bool),
     }
 
-    oracle GBL(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
-             -> Table(Integer, Table(Bits(p), Bool)) {
+    oracle GBL(
+            i: Integer, 
+            Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+            -> Table(Integer, Table(Bits(p), Bool)) 
+    {
         T   <- new Table(Integer, Table(Bits(p), Bool));
         tmp <- new Table(Bits(p),Bool);
         for j: 1 <= j <= w {
@@ -18,7 +26,7 @@ package MODGB {
             assert not (op[(true, false)] == None);
             assert not (op[(false, true)] == None);
             assert not (op[(false,false)] == None);
-            tmp <- invoke GBLG(l, r, op, j);
+            tmp <- invoke GBLG(i, l, r, op, j);
             T[j] <- Some(tmp);
         }
         return T;

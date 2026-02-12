@@ -1,0 +1,143 @@
+theorem Yao3Layer {
+    const w: Integer;
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const d: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance LayerReal = LayerReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerIdeal = LayerIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid0 = Hybrid0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid1 = Hybrid1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid2 = Hybrid2 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid3 = Hybrid3 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    assumptions {
+        Layer: LayerReal ~ LayerIdeal
+    }
+
+    gamehops {
+        reduction Hybrid0 Hybrid1 {
+            assumption Layer
+
+            map LayerReal Hybrid0 {
+                keys_top: keys0
+                keys_bottom: keys1
+                enc: enc1
+                gate: gate1
+            }
+
+            map LayerIdeal Hybrid1 {
+                keys_top: keys0
+                keys_bottom: keys1
+                ev: ev1
+                simgate: simgate1
+            }
+        }
+
+        reduction Hybrid1 Hybrid2 {
+            assumption Layer
+
+            map LayerReal Hybrid1 {
+                keys_top: keys1
+                keys_bottom: keys2
+                enc: enc2
+                gate: gate2
+            }
+
+            map LayerIdeal Hybrid2 {
+                keys_top: keys1
+                keys_bottom: keys2
+                ev: ev2
+                simgate: simgate2
+            }
+        }
+
+        reduction Hybrid2 Hybrid3 {
+            assumption Layer
+
+            map LayerReal Hybrid2 {
+                keys_top: keys2
+                keys_bottom: keys3
+                enc: enc3
+                gate: gate3
+            }
+
+            map LayerIdeal Hybrid3 {
+                keys_top: keys2
+                keys_bottom: keys3
+                ev: ev3
+                simgate: simgate3
+            }
+        }
+    }
+    propositions {
+        ThreeLayer: Hybrid0 ~ Hybrid3
+    }
+}

@@ -1,0 +1,135 @@
+theorem LayerSecurity {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Indcpa0 = Indcpa0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Indcpa1 = Indcpa1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerReal = LayerReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerHybrid = LayerHybrid {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerIdeal = LayerIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    assumptions {
+        Indcpa: Indcpa0 ~ Indcpa1
+    }
+
+    gamehops {
+        reduction LayerReal LayerHybrid {
+            assumption Indcpa
+
+            map Indcpa0 LayerReal {
+                keys_top: keys_top
+                enc: enc
+            }
+
+            map Indcpa1 LayerHybrid {
+                keys_top: keys_top
+                enc: enc
+            }
+        }
+
+        equivalence LayerHybrid LayerIdeal {
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-Layer.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-Layer.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-Layer.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-Layer.smt2
+                ]
+
+                lemmas {
+                    aborts: []
+                    same-output: [no-abort]
+                    equal-aborts: [aborts]
+                    invariant: [no-abort]
+                    
+                }
+            }
+        }
+    }
+    propositions {
+        Layer: LayerReal ~ LayerIdeal
+    }
+}

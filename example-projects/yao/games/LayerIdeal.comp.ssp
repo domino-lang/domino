@@ -1,4 +1,4 @@
-composition Indcpa1 {
+composition LayerIdeal {
     const n: Integer;
     const m: Integer;
     const p: Integer;
@@ -12,13 +12,26 @@ composition Indcpa1 {
         }
     }
 
-    instance enc = Enc1 {
+    instance keys_bottom = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance ev = Lev {
+        params {
+            n: n,
+        }
+    }
+
+    instance simgate = Simgate {
         params {
             n: n,
             m: m,
             p: p,
             encn: encn,
             encm: encm,
+            zeron: zeron,
         }
     }
 
@@ -26,12 +39,18 @@ composition Indcpa1 {
         adversary: {
             GETAOUT: keys_top,
             SETBIT: keys_top,
-            ENCN: enc,
-            ENCM: enc,
+            GBLG: simgate,
+            GETKEYSIN: keys_bottom,
         }
-        enc: {
-            GETKEYSIN: keys_top,
+        simgate: {
+            GETAIN: keys_top,
+            GETINAIN: keys_top,
+            EVAL: ev,
+            GETAOUT: keys_bottom,
+        }
+        ev: {
             GETBIT: keys_top,
+            SETBIT: keys_bottom,
         }
     }
 }

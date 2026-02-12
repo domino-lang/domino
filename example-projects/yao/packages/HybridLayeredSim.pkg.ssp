@@ -1,4 +1,4 @@
-package Simgate {
+package HybridLayeredSim {
     params {
         n: Integer,
         m: Integer,
@@ -6,21 +6,24 @@ package Simgate {
         encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
         encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
         zeron: Bits(n),
+        h: Integer, /* hybrid parameter */
     }
 
     import oracles {
-        GETAIN(h: Integer) -> Bits(n),
-        GETINAIN(h: Integer) -> Bits(n),
-        EVAL(j: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool)),
-        GETAOUT(h: Integer) -> Bits(n),
+        GETAOUT(j: Integer) -> Bits(n),
+
+        LGETAIN(i: Integer, j: Integer) -> Bits(n),
+        LGETINAIN(i: Integer, j: Integer) -> Bits(n),
+        LEVAL(i: Integer, j: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool)),
+        LGETAOUT(i: Integer, j: Integer) -> Bits(n),
     }
 
     state {
         x: Integer
     }
 
-
-    oracle GBLG(
+    oracle LSIMGBLG(
+        i: Integer,
         l: Integer,
         r: Integer,
         op: Table((Bool, Bool), Bool),
@@ -30,16 +33,20 @@ package Simgate {
         Sl <- new Table(Bool, Bits(n));
         Sr <- new Table(Bool, Bits(n));
         Sj <- new Table(Bool, Bits(n));
-        _ <- invoke EVAL(j, l, r, op);
-        temp <- invoke GETAIN(l);
+        _ <- invoke LEVAL(i, j, l, r, op);
+        temp <- invoke LGETAIN(i, l);
         Sl[false] <- Some(temp);
-        temp <- invoke GETINAIN(l);
+        temp <- invoke LGETINAIN(i, l);
         Sl[true] <- Some(temp);
-        temp <- invoke GETAIN(r);
+        temp <- invoke LGETAIN(i, r);
         Sr[false] <- Some(temp);
-        temp <- invoke GETINAIN(r);
+        temp <- invoke LGETINAIN(i, r);
         Sr[true] <- Some(temp);
-        temp <- invoke GETAOUT(j);
+        if (i == (h - 1)) {
+            temp <- invoke GETAOUT(j);
+        } else {
+            temp <- invoke LGETAOUT((i + 1), j);
+        }
         Sj[true] <- Some(temp);
         dl <- false;
         dr <- false;
