@@ -1224,15 +1224,26 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (forall
-   ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
-   (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 ni 3)))))
-     (=> (not (is-mk-none ctr))
-         (let ((state (select State (maybe-get ctr))))
-           (=> (not (is-mk-none state)) ;; should already be known
-               (let ((sid (el11-10 (maybe-get state))))
-                 (=> (not (is-mk-none sid))
-                     (not (is-mk-none (select First (maybe-get sid))))))))))))
+  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+    (forall
+     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
+     (and
+      (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 ni 3)))))
+        (=> (not (is-mk-none ctr))
+            (let ((state (select State (maybe-get ctr))))
+              (=> (not (is-mk-none state)) ;; should already be known
+                  (let ((sid (el11-10 (maybe-get state))))
+                    (=> (not (is-mk-none sid))
+                        (not (is-mk-none (select First (maybe-get sid))))))))))
+
+      (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 zeron 4)))))
+        (=> (not (is-mk-none ctr))
+            (let ((state (select State (maybe-get ctr))))
+              (=> (not (is-mk-none state)) ;; should already be known
+                  (let ((sid (el11-10 (maybe-get state))))
+                    (=> (not (is-mk-none sid))
+                        (not (is-mk-none (select First (maybe-get sid))))))))))))))
+
 
 
 (define-fun invariant
