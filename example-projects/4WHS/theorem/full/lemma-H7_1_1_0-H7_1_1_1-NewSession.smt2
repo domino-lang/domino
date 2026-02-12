@@ -117,6 +117,8 @@
             (Nonces1 (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H711))
             (Keys0 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H710))
             (Keys1 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H711))            
+            (Values0 (<pkg-state-MAC-<$<!n!>$>-Values> mac-H710))
+            (Values1 (<pkg-state-MAC-<$<!n!>$>-Values> mac-H711))
             (kid0 (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H710))
             (kid1 (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H711))
             (Ltk0 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H710))
@@ -130,8 +132,8 @@
 
              (own-nonce-is-unique State0 Nonces0)
 
-             (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
-             (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
+             (no-overwriting-prf kid0 Prf0 H0 Keys0 Values0 Ltk0)
+             (no-overwriting-prf kid1 Prf1 H1 Keys1 Values1 Ltk1)
 
              (no-overwriting-game State0 Fresh0 ctr0)
              (no-overwriting-game State1 Fresh1 ctr1))))))

@@ -1683,17 +1683,17 @@ theorem Full4WHS {
                     equal-aborts: []
                     same-output:  [no-abort]
                     lemma-aux:    [no-abort]
+                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
+                    no-overwriting: [no-abort]
                     mac-implies-message: [no-abort]
                     trivial-equalities: [no-abort]
                     wellformedness: [no-abort]
                     first:        [no-abort]
                     macs:         [no-abort]
-                    reverse-mac:  [no-abort]
+                    reverse-mac:  [no-abort,no-overwriting,macs]
                     time:         [no-abort]
                     sids:         [no-abort]
-                    no-overwriting: [no-abort]
                     wellformedness: [no-abort]
-                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
                     invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
                 }
             }

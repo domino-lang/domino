@@ -330,17 +330,19 @@
      (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (H (Array Int (Maybe Bool)))
      (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
+     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (Ltk (Array Int (Maybe Bits_n))))
   Bool
-  (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
+  (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (msg Bits_n) (tag Int))
           (and
            (= (> i kid)
               (is-mk-none (select H i))
               (is-mk-none (select Ltk i)))
            (=> (> i kid)
-               (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
-               (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
-               (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false))))))))
+               (and (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
+                    ;;(is-mk-none (select Values (mk-tuple2 (mk-tuple5 i U V ni nr) (mk-tuple2 msg tag))))
+                    (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
+                    (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))))
 
 (define-fun no-overwriting-game
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -1220,6 +1222,7 @@
 ;; TODO also claim for four mac
 (define-fun three-mac-implies-first
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
      (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
      (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -1234,7 +1237,7 @@
             (let ((state (select State (maybe-get ctr))))
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
-                    (=> (not (is-mk-none sid))
+                    (=> (not (is-mk-none sid)) ;; same
                         (not (is-mk-none (select First (maybe-get sid))))))))))
 
       (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 zeron 4)))))
@@ -1242,8 +1245,9 @@
             (let ((state (select State (maybe-get ctr))))
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
-                    (=> (not (is-mk-none sid))
-                        (not (is-mk-none (select First (maybe-get sid))))))))))))))
+                    (=> (not (is-mk-none sid)) ;; same
+                        (and (not (is-mk-none (select First (maybe-get sid))))
+                             (not (is-mk-none (select Second (maybe-get sid)))))))))))))))
 
 
 
@@ -1305,8 +1309,8 @@
            (= ReverseMac0 ReverseMac1)
            (= Prf0 Prf1)
 
-           (no-overwriting-prf kid0 Prf0 H0 Keys0 Ltk0)
-           (no-overwriting-prf kid1 Prf1 H1 Keys1 Ltk1)
+           (no-overwriting-prf kid0 Prf0 H0 Keys0 Values0 Ltk0)
+           (no-overwriting-prf kid1 Prf1 H1 Keys1 Values1 Ltk1)
 
            (no-overwriting-game State0 Fresh0 ctr0)
            (no-overwriting-game State1 Fresh1 ctr1)
@@ -1329,7 +1333,7 @@
            ;;(mac-table-values Values0 Fresh0 State0)
            (message-implies-mac Values0 Fresh0 State0)
            (mac-implies-message ReverseMac0 State0)
-           (three-mac-implies-first First0 ReverseMac0 State0)
+           (three-mac-implies-first First0 Second0 ReverseMac0 State0)
 
            (sids-unique Fresh0 State0)
 
