@@ -1,0 +1,40 @@
+package HybridLayeredLev {
+    params {
+        n: Integer,
+        h: Integer, /* hybrid parameter */
+    }
+
+    import oracles {
+        LGETBIT(i: Integer, j: Integer) -> Bool,
+        SETBIT(j: Integer, b: Bool),
+        LSETBIT(i: Integer, j: Integer, b: Bool),
+    }
+
+    state {
+        y: Integer
+    }
+
+    oracle LEVAL(
+        i: Integer, 
+        j: Integer, 
+        l: Integer, 
+        r: Integer, 
+        op: Table((Bool, Bool), Bool)) 
+    {
+        zl <- invoke LGETBIT(i, l);
+        zr <- invoke LGETBIT(i, r);
+        z <- Unwrap(op[(zl, zr)]);
+        if (i == (h - 1)) {
+            _ <- invoke SETBIT(j, z);
+        } else {
+            _ <- invoke LSETBIT((i + 1), j, z);
+        }
+        /* what are the following lines for? */
+        _op <- Unwrap(op[(false, false)]);
+        _op <- Unwrap(op[(false, true)]);
+        _op <- Unwrap(op[(true, false)]);
+        _op <- Unwrap(op[(true, true)]);
+        return;
+
+    }
+}

@@ -1,0 +1,49 @@
+package HybridLayeredEnc0 {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        h: Integer, /* hybrid parameter */
+    }
+
+    import oracles {
+        GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
+        LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
+    }
+
+    oracle LENCN(
+        i: Integer, 
+        j: Integer, 
+        b: Bool, 
+        nzero: Bits(n), 
+        none: Bits(n)) -> Bits(m) 
+    {
+        if (i == (h + 1)) {
+            K <- invoke GETKEYSIN(j);
+        } else {
+            K <- invoke LGETKEYSIN(i, j);
+        }
+        r <-$ Bits(n) sample-name r;
+        c <- encn(Unwrap(K[b]), nzero, r);
+        return c;
+    }
+
+    oracle LENCM(
+        i: Integer, 
+        j: Integer, 
+        b: Bool, 
+        mzero: Bits(m), 
+        mone: Bits(m)) -> Bits(p) 
+    {
+        if (i == (h + 1)) {
+            K <- invoke GETKEYSIN(j);
+        } else {
+            K <- invoke LGETKEYSIN(i, j);
+        }
+        r <-$ Bits(n) sample-name r;
+        c <- encm(Unwrap(K[b]), mzero, r);
+        return c;
+    }
+}

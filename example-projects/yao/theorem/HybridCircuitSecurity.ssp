@@ -1,0 +1,330 @@
+theorem HybridCircuitSecurity {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const d: Integer;
+    const w: Integer;
+    const h: Integer;
+    const hplusone: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance LayerReal = LayerReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerIdeal = LayerIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance CoreReal = CoreReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance CoreIdeal = CoreIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance FirstHybrid = HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: 1,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LastHybrid = HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: d,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridReal = HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: h,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridIdeal = HybridIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: h,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance HybridReal1 = HybridReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            w: w,
+            d: d,
+            h: hplusone,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    assumptions {
+        Layer: LayerReal ~ LayerIdeal
+    }
+
+    gamehops {
+        equivalence CoreReal FirstHybrid {
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-CoreReal-FirstHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+
+        equivalence HybridIdeal HybridReal1 {
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    /* debug-rand-mapping: [no-abort, value-of-h] */
+                    /* debug-invariant: [no-abort, value-of-h] */
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    inv-case-i-gt-hplustwo: [no-abort, inv-case-i-gt-hplustwo-assumptions]
+                    inv-case-i-gt-hplustwo-assumptions: [no-abort]
+                    invariant: [no-abort, inv-case-i-lt-hminusone, inv-case-i-is-hminusone, inv-case-i-is-h, inv-case-i-is-hplusone, inv-case-i-is-hplustwo, inv-case-i-gt-hplustwo]
+                    inv-case-i-lt-hminusone-assumptions: [no-abort]
+                    inv-case-i-lt-hminusone: [no-abort, inv-case-i-lt-hminusone-assumptions]
+                    inv-case-i-is-hminusone: [no-abort]
+                    inv-case-i-is-h: [no-abort]
+                    inv-case-i-is-hplusone: [no-abort]
+                    inv-case-i-is-hplustwo: [no-abort]
+                    case-i-is-hminusone-assumptions: []
+                    case-i-lt-hminusone-assumptions: []
+                    case-i-is-h-assumptions: []
+                    case-i-is-hplusone-assumptions: []
+                    case-i-is-hplustwo-assumptions: []
+                    case-i-gt-hplustwo-assumptions: []
+                    same-output:  [no-abort, case-i-is-h, case-i-is-hplusone, case-i-is-hplustwo, case-i-gt-hplustwo, case-i-lt-hminusone, case-i-is-hminusone]
+                    equal-aborts: [case-i-is-h, case-i-is-hplusone, case-i-is-hplustwo, case-i-gt-hplustwo, case-i-lt-hminusone, case-i-is-hminusone]
+                    case-i-gt-hplustwo: [case-i-gt-hplustwo-assumptions]
+                    case-i-is-hplustwo: [case-i-is-hplustwo-assumptions]
+                    case-i-is-h: [case-i-is-h-assumptions]
+                    case-i-is-hplusone: [case-i-is-hplusone-assumptions]
+                    case-i-is-hminusone: [case-i-is-hminusone-assumptions]
+                    case-i-lt-hminusone: [case-i-lt-hminusone-assumptions]
+                    
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-HybridIdeal-HybridReal1.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+
+        equivalence CoreIdeal LastHybrid {
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    
+                }
+            }
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    
+                }
+            }
+
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort, case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
+                    equal-aborts: [case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
+                    case-i-is-dminusone: []
+                    case-i-is-d: []
+                    case-i-lt-dminusone: []
+                    invariant:    [no-abort]
+                }
+            }
+
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-CoreIdeal-LastHybrid.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+
+        reduction HybridReal HybridIdeal {
+            assumption Layer
+
+            map LayerReal HybridReal {
+                keys_top: KeysTop
+                keys_bottom: KeysBot
+                enc: Enc
+                gate: Gate
+            }
+
+            map LayerIdeal HybridIdeal {
+                keys_top: KeysTop
+                keys_bottom: KeysBot
+                ev: Lev
+                simgate: Sim
+            }
+        }
+    } 
+}

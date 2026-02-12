@@ -1,0 +1,58 @@
+package LayeredGate {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        zeron: Bits(n)
+    }
+
+    import oracles {
+        LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
+        LENCN(i: Integer, j: Integer, b: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m),
+        LENCM(i: Integer, j: Integer, b: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
+    }
+
+    oracle LGATEGBLG(
+        i: Integer,
+        l: Integer,
+        r: Integer,
+        op: Table((Bool, Bool), Bool),
+        j: Integer
+    ) -> Table(Bits(p), Bool) {
+        C <- new Table(Bits(p), Bool);
+        Z <- invoke LGETKEYSOUT((i + 1), j);
+        bl <- false;
+        br <- false;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke LENCN(i, l, bl, kzero, zeron);
+        conein <- invoke LENCN(i, l, bl, zeron, zeron);
+        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        C[cout] <- Some(true);
+        bl <- true;
+        br <- false;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke LENCN(i, l, bl, kzero, zeron);
+        conein <- invoke LENCN(i, l, bl, zeron, zeron);
+        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        C[cout] <- Some(true);
+        bl <- false;
+        br <- true;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke LENCN(i, l, bl, kzero, zeron);
+        conein <- invoke LENCN(i, l, bl, zeron, zeron);
+        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        C[cout] <- Some(true);
+        bl <- true;
+        br <- true;
+        bj <- Unwrap(op[(bl, br)]);
+        kzero <- Unwrap(Z[bj]);
+        czeroin <- invoke LENCN(i, l, bl, kzero, zeron);
+        conein <- invoke LENCN(i, l, bl, zeron, zeron);
+        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        C[cout] <- Some(true);
+        return C;
+    }
+}

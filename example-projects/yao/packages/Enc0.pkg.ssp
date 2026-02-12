@@ -8,24 +8,21 @@ package Enc0 {
     }
 
     import oracles {
-        GETKEYSIN(h: Integer) -> Table(Bool,Bits(n)),
+        GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)),
     }
 
-    state {
-    }
 
-    oracle ENCN(j: Integer,d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+    oracle ENCN(j: Integer, b: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
         K <- invoke GETKEYSIN(j);
-        r <-$ Bits(n);
-        c <- encn(Unwrap(K[d]),nzero,r);
+        r <-$ Bits(n) sample-name r;
+        c <- encn(Unwrap(K[b]), nzero, r);
         return c;
     }
 
-    oracle ENCM(j: Integer,d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+    oracle ENCM(j: Integer, b: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
         K <- invoke GETKEYSIN(j);
-        r <-$ Bits(n);
-        c <- encm(Unwrap(K[d]),mzero,r);
+        r <-$ Bits(n) sample-name r;
+        c <- encm(Unwrap(K[b]), mzero, r);
         return c;
     }
-
 }

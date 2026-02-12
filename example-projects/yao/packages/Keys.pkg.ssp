@@ -3,24 +3,21 @@ package Keys {
         n: Integer,
     }
 
-    types {
-        Handle
-    }
-
     state {
-        T: Table(Integer,Table(Bool,Bits(n))),
-        z: Table(Integer,Bool),
-        flag: Table(Integer,Bool),
+        T: Table(Integer, Table(Bool, Bits(n))),
+        z: Table(Integer, Bool),
+        flag: Table(Integer, Bool),
     }
 
-    oracle GETKEYSIN(h: Integer) -> Table(Bool,Bits(n)) {
-        assert (flag[h]==Some(true));
+
+    oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
+        assert (flag[h] == Some(true));
         Z <- Unwrap(T[h]);
         return Z;
     }
 
     oracle GETAIN(h: Integer) -> Bits(n) {
-        assert (flag[h]==Some(true));
+        assert (flag[h] == Some(true));
         Z <- Unwrap(T[h]);
         zz <- Unwrap(z[h]);
         k <- Unwrap(Z[zz]);
@@ -38,31 +35,33 @@ package Keys {
     oracle GETAOUT(h: Integer) -> Bits(n) {
         assert (z[h] != None as Bool);
         flag[h] <- Some(true);
-        Z <- new Table(Bool,Bits(n));
-        if (T[h] == None as Table(Bool,Bits(n)))
-           {r <-$ Bits(n);
-            Z[true] <- Some(r); 
-            rr <-$ Bits(n);
-            Z[false] <-Some(rr);
-            T[h] <- Some(Z);}
+        Z <- new Table(Bool, Bits(n));
+        if (T[h] == None) {
+            r <-$ Bits(n) sample-name r;
+            Z[true] <- Some(r);
+            rr <-$ Bits(n) sample-name rr;
+            Z[false] <- Some(rr);
+            T[h] <- Some(Z);
+        }
         Z <- Unwrap(T[h]);
         zz <- Unwrap(z[h]);
         k <- Unwrap(Z[zz]);
         return k;
     }
 
-    oracle GETKEYSOUT(h: Integer) -> Table(Bool,Bits(n)) {
+    oracle GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)) {
         assert (flag[h] != Some(true));
-        flag[h]<- Some(true);
-        Z <- new Table(Bool,Bits(n));
-        if (T[h] == None as Table(Bool,Bits(n)))
-           {r <-$ Bits(n);
-            Z[true] <- Some(r); 
-            rr <-$ Bits(n);
-            Z[false] <-Some(rr);
-            T[h] <- Some(Z);}
-        Z <- Unwrap(T[h]);
-        return Z;
+        flag[h] <- Some(true);
+        Z <- new Table(Bool, Bits(n));
+        if (T[h] == None) {
+            r <-$ Bits(n) sample-name r;
+            Z[true] <- Some(r);
+            rr <-$ Bits(n) sample-name rr;
+            Z[false] <- Some(rr);
+            T[h] <- Some(Z);
+        }
+        Z1 <- Unwrap(T[h]);
+        return Z1;
     }
 
     oracle GETBIT(h: Integer) -> Bool {
@@ -71,10 +70,9 @@ package Keys {
         return zz;
     }
 
-    oracle SETBIT(h: Integer, zz:Bool) -> () {
+    oracle SETBIT(h: Integer, zz: Bool) {
         assert (z[h] == None as Bool);
         z[h] <- Some(zz);
-        return ;
+        return;
     }
-
 }

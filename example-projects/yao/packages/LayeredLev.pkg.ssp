@@ -1,0 +1,28 @@
+package LayeredLev {
+    params {
+        n: Integer,
+    }
+
+    import oracles {
+        LGETBIT(i: Integer, j: Integer) -> Bool,
+        LSETBIT(i: Integer, j: Integer, b: Bool),
+    }
+
+    oracle LEVAL(
+        i: Integer, 
+        j: Integer, 
+        l: Integer, 
+        r: Integer, 
+        op: Table((Bool, Bool), Bool)) 
+    {
+        zl <- invoke LGETBIT(i, l);
+        zr <- invoke LGETBIT(i, r);
+        z <- Unwrap(op[(zl, zr)]);
+        _ <- invoke LSETBIT((i + 1), j, z);
+        _op <- Unwrap(op[(false, false)]);
+        _op <- Unwrap(op[(false, true)]);
+        _op <- Unwrap(op[(true, false)]);
+        _op <- Unwrap(op[(true, true)]);
+        return;
+    }
+}

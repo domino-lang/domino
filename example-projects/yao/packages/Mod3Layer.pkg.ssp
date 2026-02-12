@@ -1,14 +1,17 @@
-package Mod {
+package Mod3Layer {
     params {
         w: Integer,
-        d: Integer,
         p: Integer,
         n: Integer,
     }
 
     import oracles {
         SETBIT(j: Integer, b: Bool),
-        GBL(i: Integer, Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+        GBL1(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+             -> Table(Integer, Table(Bits(p), Bool)),
+        GBL2(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+             -> Table(Integer, Table(Bits(p), Bool)),
+        GBL3(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
              -> Table(Integer, Table(Bits(p), Bool)),
         GETAOUT(j: Integer) -> Bits(n),
         GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
@@ -30,12 +33,18 @@ package Mod {
             xtilde[j] <- Some(k);
         }
         Ctilde <- new Table(Integer,Table(Integer,Table(Bits(p), Bool)));
-        for i: 1 <= i <= d {
-            assert (C[i] != None);
-            Ci <- Unwrap(C[i]);
-            gCi <- invoke GBL(i, Ci);
-            Ctilde[i] <- Some(gCi);
-        }
+        assert (C[1] != None);
+        Ci <- Unwrap(C[1]);
+        gCi <- invoke GBL1(Ci);
+        Ctilde[1] <- Some(gCi);
+        assert (C[2] != None);
+        Ci <- Unwrap(C[2]);
+        gCi <- invoke GBL2(Ci);
+        Ctilde[2] <- Some(gCi);
+        assert (C[3] != None);
+        Ci <- Unwrap(C[3]);
+        gCi <- invoke GBL3(Ci);
+        Ctilde[3] <- Some(gCi);
         dinf   <- new Table(Integer,Table(Bool,Bits(n)));
         for j: 1 <= j <= w {
             ktable <- invoke GETKEYSIN(j);

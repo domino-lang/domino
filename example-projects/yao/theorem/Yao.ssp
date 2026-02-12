@@ -1,15 +1,14 @@
 theorem Yao {
-    const w: Integer;
     const n: Integer;
     const m: Integer;
     const p: Integer;
     const d: Integer;
+    const w: Integer;
     const zeron: Bits(n);
-    const zerom: Bits(m);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-    instance MODSec0_inst = MODSec0 {
+    instance CoreReal = CoreReal {
         params {
             n: n,
             m: m,
@@ -17,203 +16,77 @@ theorem Yao {
             w: w,
             d: d,
             zeron: zeron,
-            zerom: zerom,
-            encn: encn,
             encm: encm,
+            encn: encn,
         }
     }
-  
-    instance Indcpa0_inst = Indcpa0 {
+
+    instance CoreIdeal = CoreIdeal {
         params {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
+            w: w,
+            d: d,
             zeron: zeron,
             encm: encm,
             encn: encn,
         }
     }
 
-    instance Indcpa1_inst = Indcpa1 {
+    instance YaoReal = YaoReal {
         params {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
+            d: d,
+            w: w,
             zeron: zeron,
             encm: encm,
-            encn: encn,
+            encn: encn
         }
     }
 
-    instance VeryLeft_inst = VeryLeft {
+    instance YaoIdeal = YaoIdeal {
         params {
             n: n,
             m: m,
             p: p,
-            zerom: zerom,
+            d: d,
+            w: w,
             zeron: zeron,
             encm: encm,
-            encn: encn,
-        }
-    }
-    instance Left_inst = Left {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            zerom: zerom,
-            zeron: zeron,
-            encm: encm,
-            encn: encn,
-        }
-    }
-    instance Right_inst = Right {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            zerom: zerom,
-            zeron: zeron,
-            encm: encm,
-            encn: encn,
-        }
-    }
-
-    instance Indcpamod0_inst = Indcpamod0 {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            zerom: zerom,
-            zeron: zeron,
-            encm: encm,
-            encn: encn,
-        }
-    }
-    
-    instance Indcpamon0_inst = Indcpamon0 {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            zerom: zerom,
-            zeron: zeron,
-            encm: encm,
-            encn: encn,
+            encn: encn
         }
     }
 
     assumptions {
-        Indcpa: Indcpa0_inst ~ Indcpa1_inst
+        Core: CoreReal ~ CoreIdeal
     }
 
     gamehops {
-        reduction VeryLeft_inst Left_inst {
-            assumption Indcpa
+        reduction YaoReal YaoIdeal {
+            assumption Core
 
-            map Indcpa0_inst VeryLeft_inst {
-                keys_top: keys_top
-                enc: enc
+            map CoreReal YaoReal {
+                Keys: Keys
+                Enc: Enc
+                Gate: Gate
+                LayerMap: LayerMap
+                Proxy: Proxy
             }
 
-            map Indcpa1_inst Left_inst {
-                keys_top: keys_top
-                enc: enc
-            }
-        }
-
-    equivalence Indcpamod0_inst Indcpamon0_inst {
-            SETBIT: {
-                invariant: [
-                    ./invariant-Indcpa0.smt2
-                ]
-
-                lemmas {
-                    aborts-equal-SETBIT:   []
-                    invariant-SETBIT:      [no-abort-SETBIT]
-                    same-output-SETBIT:    [no-abort-SETBIT]
-                }
-            }
-
-
-
-            GETAOUT: {
-                invariant: [
-                    ./invariant-Indcpa0.smt2
-                ]
-                lemmas {
-                    same-output-GETAOUT:                [no-abort-GETAOUT]
-                    invariant-GETAOUT:                  [no-abort-GETAOUT]
-                    aborts-equal-GETAOUT:               []
-                }
-            }
-
-            ENCN: {
-                invariant: [
-                    ./invariant-Indcpa0.smt2
-                ]
-                lemmas {
-                    same-output-ENCN:                [no-abort-ENCN]
-                    invariant-ENCN     :             [no-abort-ENCN]
-                    aborts-equal-ENCN:               []
-                }
-            }
-
-             
-        }
-
-        equivalence Left_inst Right_inst {
-            GETAOUT: {
-                invariant: [
-                    ./invariant-GBLG.smt2
-                ]
-
-                lemmas {
-                    invariant-GETAOUT:      []
-                    aborts-equal-GETAOUT:   []
-                    same-output-GETAOUT:    [no-abort-GETAOUT]
-                }
-            }
-            SETBIT: {
-                invariant: [
-                    ./invariant-GBLG.smt2
-                ]
-
-                lemmas {
-                    invariant-SETBIT:      []
-                    aborts-equal-SETBIT:   []
-                    same-output-SETBIT:    [no-abort-SETBIT]
-                }
-            }
-            GETKEYSIN: {
-                invariant: [
-                    ./invariant-GBLG.smt2
-                ]
-
-                lemmas {
-                    invariant-GETKEYSIN:      []
-                    aborts-equal-GETKEYSIN:   []
-                    same-output-GETKEYSIN:    [no-abort-GETKEYSIN]
-                }
-            }
-            GBLG: {
-                invariant: [
-                    ./invariant-GBLG.smt2
-                ]
-
-                lemmas {
-                    right-all-aborts: []
-                    right-all-aborts-inverse: []
-                    left-all-aborts: []
-                    left-inverse-all-aborts: []
-                    aborts-equal: [ left-all-aborts , left-inverse-all-aborts , right-all-aborts , right-all-aborts-inverse ]
-                    same-output: [no-abort , left-all-aborts , left-inverse-all-aborts, right-all-aborts, right-all-aborts-inverse]
-                    invariant-GBLG: [no-abort , left-all-aborts , left-inverse-all-aborts, right-all-aborts, right-all-aborts-inverse]
-                }
+            map CoreIdeal YaoIdeal {
+                Keys: Keys
+                Lev: Lev
+                Sim: Sim
+                LayerMap: LayerMap
+                Proxy: Proxy
             }
         }
     }
-
+    
+    propositions {
+        Yao: YaoReal ~ YaoIdeal
+    }
 }

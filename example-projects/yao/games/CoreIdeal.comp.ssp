@@ -1,0 +1,74 @@
+composition CoreIdeal {
+    const n: Integer;
+    const p: Integer;
+    const m: Integer;
+    const d: Integer;
+    const w: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Keys = LayeredKeys {
+        params {
+            n: n,
+        }
+    }
+
+    instance Lev = LayeredLev {
+        params {
+            n: n,
+        }
+    }
+
+    instance Sim = LayeredSim {
+        params {
+            p: p,
+            n: n,
+            m: m,
+            encn: encn,
+            encm: encm,
+            zeron: zeron
+        }
+    }
+
+    instance LayerMap = LayerMap {
+        params {
+            n: n,
+            d: d
+        }
+    }
+
+    instance Proxy = LayeredSimProxy {
+        params {
+            p: p,
+            d: d
+        }
+    }
+
+    compose {
+        adversary: {
+            GETAOUT: LayerMap,
+            SETBIT: LayerMap,
+            GBLG: Proxy,
+            GETKEYSIN: LayerMap,
+        }
+        Proxy: {
+            LSIMGBLG: Sim,
+        }
+        LayerMap: {
+            LSETBIT: Keys,
+            LGETAOUT: Keys,
+            LGETKEYSIN: Keys,
+        }
+        Sim: {
+            LGETAOUT: Keys,
+            LEVAL: Lev,
+            LGETAIN: Keys,
+            LGETINAIN: Keys,
+        }
+        Lev: {
+            LGETBIT: Keys,
+            LSETBIT: Keys,
+        }
+    }
+}

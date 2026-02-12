@@ -1,0 +1,74 @@
+package HybridLayerMap {
+    params {
+        h: Integer, /* hybrid parameter */
+        n: Integer,
+        d: Integer, /* number of layers of the circuit */
+        p: Integer,
+    }
+
+    import oracles {
+        /* non-layered packages */
+        SETBIT(j: Integer, b: Bool),
+        GETAOUT(j: Integer) -> Bits(n),
+        GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
+        GBLG(l: Integer, r: Integer, op: Table((Bool, Bool), Bool), j: Integer) -> Table(Bits(p), Bool),
+        /* layered packages */
+        LSETBIT(i: Integer, j: Integer, b: Bool),
+        LGETAOUT(i: Integer, j: Integer) -> Bits(n),
+        LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
+        LSIMGBLG(i: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool), j: Integer) -> Table(Bits(p), Bool),
+        LGATEGBLG(i: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool), j: Integer) -> Table(Bits(p), Bool),
+    }
+
+    oracle SETBIT(j: Integer, b: Bool) {
+        assert (d > 0); /* for CoreIdeal = LastHybrid */
+        if (h == 1) {
+            _ <- invoke SETBIT(j, b);
+        } else {
+            _ <- invoke LSETBIT(1, j, b);
+        }
+    }
+
+    oracle GETAOUT(j: Integer) -> Bits(n) {
+        assert (d > 0);
+        if (h == 1) {
+            k <- invoke GETAOUT(j);
+        } else {
+            k <- invoke LGETAOUT(1, j);
+        }
+        return k;
+    }
+
+    oracle GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)) {
+        assert (d > 0);
+        if (h == d) {
+            T <- invoke GETKEYSIN(j);
+        } else {
+            T <- invoke LGETKEYSIN((d + 1), j);
+        }
+        return T;
+    }
+
+    oracle GBLG( /* garble gate j in layer i */
+        i: Integer,
+        l: Integer,
+        r: Integer,
+        op: Table((Bool, Bool), Bool),
+        j: Integer) -> Table(Bits(p), Bool)
+    {
+        assert (i > 0);
+        assert (i <= d);
+        if (i < h) {
+            C <- invoke LSIMGBLG(i, l, r, op, j);
+            return C;
+        }
+        if (i > h) {
+            C <- invoke LGATEGBLG(i, l, r, op, j);
+            return C;
+        }
+        assert (i == h);
+        C <- invoke GBLG(l, r, op, j);
+        return C;
+    }
+
+}

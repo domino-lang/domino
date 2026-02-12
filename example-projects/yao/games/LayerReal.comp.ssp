@@ -1,4 +1,4 @@
-composition Indcpa1 {
+composition LayerReal {
     const n: Integer;
     const m: Integer;
     const p: Integer;
@@ -12,7 +12,22 @@ composition Indcpa1 {
         }
     }
 
-    instance enc = Enc1 {
+    instance keys_bottom = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance gate = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+        }
+    }
+
+    instance enc = Enc0 {
         params {
             n: n,
             m: m,
@@ -26,12 +41,16 @@ composition Indcpa1 {
         adversary: {
             GETAOUT: keys_top,
             SETBIT: keys_top,
+            GBLG: gate,
+            GETKEYSIN: keys_bottom,
+        }
+        gate: {
             ENCN: enc,
             ENCM: enc,
+            GETKEYSOUT: keys_bottom,
         }
         enc: {
             GETKEYSIN: keys_top,
-            GETBIT: keys_top,
         }
     }
 }

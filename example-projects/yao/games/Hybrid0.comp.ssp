@@ -1,0 +1,193 @@
+composition Hybrid0 {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const w: Integer;
+    const zeron: Bits(n);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance keys0 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys1 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys2 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance keys3 = Keys {
+        params {
+            n: n,
+        }
+    }
+
+    instance gate1 = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+        }
+    }
+
+    instance enc1 = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance gate2 = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+        }
+    }
+
+    instance enc2 = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance gate3 = Gate {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zeron: zeron,
+        }
+    }
+
+    instance enc3 = Enc0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance modgb1 = MODGB {
+        params {
+            p: p,
+            w: w,
+        }
+    }
+
+    instance modgb2 = MODGB {
+        params {
+            p: p,
+            w: w,
+        }
+    }
+
+    instance modgb3 = MODGB {
+        params {
+            p: p,
+            w: w,
+        }
+    }
+
+    instance GBL1 = GBL1 {
+        params {
+            p: p
+        }
+    }
+
+    instance GBL2 = GBL2 {
+        params {
+            p: p
+        }
+    }
+
+    instance GBL3 = GBL3 {
+        params {
+            p: p
+        }
+    }
+
+    instance Mod = Mod3Layer {
+        params {
+            w: w,
+            p: p,
+            n: n,
+        }
+    }
+
+    compose {
+        adversary: {
+            GARBLE: Mod,
+        }
+        Mod: {
+            GETAOUT: keys0,
+            SETBIT: keys0,
+            GBL1: GBL1,
+            GBL2: GBL2,
+            GBL3: GBL3,
+            GETKEYSIN: keys3,
+        }
+        GBL1: {
+            GBL: modgb1,
+        }
+        modgb1: {
+            GBLG: gate1,
+        }
+        gate1: {
+            ENCN: enc1,
+            ENCM: enc1,
+            GETKEYSOUT: keys1,
+        }
+        enc1: {
+            GETKEYSIN: keys0,
+        }
+        GBL2: {
+            GBL: modgb2,
+        }
+        modgb2: {
+            GBLG: gate2,
+        }
+        gate2: {
+            ENCN: enc2,
+            ENCM: enc2,
+            GETKEYSOUT: keys2,
+        }
+        enc2: {
+            GETKEYSIN: keys1,
+        }
+        GBL3: {
+            GBL: modgb3,
+        }
+        modgb3: {
+            GBLG: gate3,
+        }
+        gate3: {
+            ENCN: enc3,
+            ENCM: enc3,
+            GETKEYSOUT: keys3,
+        }
+        enc3: {
+            GETKEYSIN: keys2,
+        }
+    }
+}
