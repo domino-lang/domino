@@ -1,32 +1,32 @@
 
 
-(define-fun <relation-mac-implies-message-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-mac-implies-message-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return))
-        (retval0 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-return-value-or-abort> H710-return))
-        (retval1 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-return-value-or-abort> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return))
+        (retval0 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H710-return))
+        (retval1 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710)))
       (let ((State0 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H710))
             (ReverseMac0 (<pkg-state-KX_noprfkey-<$<!n!>$>-ReverseMac> game-H710)))
         (mac-implies-message ReverseMac0 State0)))))
 
-(define-fun <relation-trivial-equalities-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-trivial-equalities-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return))
-        (retval0 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-return-value-or-abort> H710-return))
-        (retval1 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-return-value-or-abort> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return))
+        (retval0 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H710-return))
+        (retval1 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-return-value-or-abort> H711-return)))
     (let ((nonces-H710 (<game-H7-<$<!n!>$>-pkgstate-Nonces> state-H710))
           (nonces-H711 (<game-H7-<$<!n!>$>-pkgstate-Nonces>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
@@ -90,15 +90,15 @@
            (= Prf0 Prf1))))))
 
 
-(define-fun <relation-no-overwriting-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-no-overwriting-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((nonces-H710 (<game-H7-<$<!n!>$>-pkgstate-Nonces> state-H710))
           (nonces-H711 (<game-H7-<$<!n!>$>-pkgstate-Nonces>  state-H711))
           (game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
@@ -137,15 +137,15 @@
              (no-overwriting-game State1 Fresh1 ctr1))))))
 
 
-(define-fun <relation-sids-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-sids-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
@@ -173,15 +173,15 @@
              (sids-unique Fresh0 State0)
              )))))
 
-(define-fun <relation-wellformedness-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-wellformedness-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
@@ -209,15 +209,15 @@
 
 
 
-(define-fun <relation-time-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-time-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
@@ -247,15 +247,15 @@
 
 
 
-(define-fun <relation-macs-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-macs-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
@@ -286,15 +286,15 @@
              (responder-accepts-with-mac-three-only Values0 Fresh0 State0)
              (honest-sid-have-tau-in-mac State0 Fresh0 Values0))))))
 
-(define-fun <relation-first-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-first-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))
@@ -333,15 +333,15 @@
              (sessions-in-first-second-sufficiently-advanced First0 Fresh0 State0)
              (sessions-in-first-second-sufficiently-advanced Second0 Fresh0 State0))))))
 
-(define-fun <relation-reverse-mac-H7_1_1_0-H7_1_1_1-Send2>
+(define-fun <relation-reverse-mac-H7_1_1_0-H7_1_1_1-NewSession>
     ((H710-old <GameState_H7_<$<!n!>$>>)
      (H711-old <GameState_H7_<$<!n!>$>>)
-     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_Send2>)
-     (ctr Int) (msg Bits_n))
+     (H710-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (H711-return <OracleReturn_H7_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_NewSession>)
+     (U Int) (u Bool) (V Int) (kid Int))
   Bool
-  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H710-return))
-        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-Send2-game-state> H711-return)))
+  (let ((state-H710 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H710-return))
+        (state-H711 (<oracle-return-H7-<$<!n!>$>-KX_noprfkey-<$<!n!>$>-NewSession-game-state> H711-return)))
     (let ((game-H710 (<game-H7-<$<!n!>$>-pkgstate-KX> state-H710))
           (game-H711 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H711))
           (mac-H710 (<game-H7-<$<!n!>$>-pkgstate-MAC> state-H710))

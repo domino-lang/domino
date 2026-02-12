@@ -1653,7 +1653,18 @@ theorem Full4WHS {
                     /*lemma-debug:  [no-abort]*/
                     same-output:  [no-abort]
                     equal-aborts: []
-                    invariant:    [no-abort]
+                    mac-implies-message: [no-abort]
+                    trivial-equalities: [no-abort]
+                    wellformedness: [no-abort]
+                    first:        [no-abort]
+                    macs:         [no-abort]
+                    reverse-mac:  [no-abort]
+                    time:         [no-abort]
+                    sids:         [no-abort]
+                    no-overwriting: [no-abort]
+                    wellformedness: [no-abort]
+                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
+                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
                     first-exists: [no-abort]
                     second-exists: [no-abort]
                     in-first-or-second: [no-abort]
@@ -1664,6 +1675,7 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-NewKey.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
@@ -1671,12 +1683,24 @@ theorem Full4WHS {
                     equal-aborts: []
                     same-output:  [no-abort]
                     lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    mac-implies-message: [no-abort]
+                    trivial-equalities: [no-abort]
+                    wellformedness: [no-abort]
+                    first:        [no-abort]
+                    macs:         [no-abort]
+                    reverse-mac:  [no-abort]
+                    time:         [no-abort]
+                    sids:         [no-abort]
+                    no-overwriting: [no-abort]
+                    wellformedness: [no-abort]
+                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
+                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
                 }
             }
             NewSession: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
+                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-NewSession.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
@@ -1684,7 +1708,18 @@ theorem Full4WHS {
                     lemma-aux:    [no-abort]
                     equal-aborts: []
                     same-output:  [no-abort]
-                    invariant:    [no-abort,lemma-aux]
+                    mac-implies-message: [no-abort]
+                    trivial-equalities: [no-abort]
+                    wellformedness: [no-abort]
+                    first:        [no-abort]
+                    macs:         [no-abort]
+                    reverse-mac:  [no-abort]
+                    time:         [no-abort]
+                    sids:         [no-abort]
+                    no-overwriting: [no-abort]
+                    wellformedness: [no-abort]
+                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
+                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]                    
                 }
             }
             Test: {
