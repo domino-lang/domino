@@ -456,9 +456,11 @@ sample = { identifier ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
 /// Assign an expression to a variable.
 assign = { identifier ~ "<-" ~ expression ~ ";" }
 
-invocation = _{ invocation_return | invocation_noreturn }
-invocation_return = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
-invocation_noreturn = { kw_invoke ~ oracle_call ~ ";" }
+/// Oracle Invocation
+invocation = _{ invocation_table | invocation_return | invocation_noreturn }
+  invocation_table = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
+  invocation_return = { identifier ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
+  invocation_noreturn = { kw_invoke ~ oracle_call ~ ";" }
 
 parse = { parse_tuple ~ "<-" ~  kw_parse ~ expression ~ ";" }
 
