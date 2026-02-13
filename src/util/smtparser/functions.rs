@@ -47,9 +47,7 @@ impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
     }
 
     fn handle_list(&mut self, content: Vec<Option<SmtExpr>>) -> Option<SmtExpr> {
-        Some(SmtExpr::List(
-            content.into_iter().filter_map(|x| x).collect(),
-        ))
+        Some(SmtExpr::List(content.into_iter().flatten().collect()))
     }
 
     fn handle_sexp(&mut self, mut _parsed: Option<SmtExpr>) {}
@@ -78,7 +76,7 @@ impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
 
         self.functions.push(ExtractedFunction {
             smtfunname: smtfunname.to_string(),
-            smtargs: smtargs,
+            smtargs,
             smttype: smttype.to_string(),
         });
         None

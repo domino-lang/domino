@@ -27,9 +27,9 @@ impl<'a> Linter<'a> {
     }
 
     pub(super) fn lint_file(&mut self, filename: &str, content: &str) -> Result<()> {
-        let parsed_sampleids = crate::util::smtparser::extract_sampleid(&content);
+        let parsed_sampleids = crate::util::smtparser::extract_sampleid(content);
         self.functions
-            .append(&mut crate::util::smtparser::extract_functions(&content));
+            .append(&mut crate::util::smtparser::extract_functions(content));
 
         for sampleinfo in &parsed_sampleids {
             if !self.left_sample_pos.iter().any(|samplepos| {
@@ -84,15 +84,13 @@ impl<'a> Linter<'a> {
         {
             if fun.smtargs.len() != 6 {
                 log::warn!("\"{randomness_fun_name}\" function takes exactly two arguments");
-            } else {
-                if !fun
-                    .smtargs
-                    .iter()
-                    .zip(&["Int", "Int", "SampleId", "SampleId", "Int", "Int"])
-                    .all(|((_argname, argtype), expectedtype)| argtype == expectedtype)
-                {
-                    log::warn!("\"{randomness_fun_name}\" function has wrong argument sorts, should be (Int Int SampleId SampleId Int Int)");
-                }
+            } else if !fun
+                .smtargs
+                .iter()
+                .zip(&["Int", "Int", "SampleId", "SampleId", "Int", "Int"])
+                .all(|((_argname, argtype), expectedtype)| argtype == expectedtype)
+            {
+                log::warn!("\"{randomness_fun_name}\" function has wrong argument sorts, should be (Int Int SampleId SampleId Int Int)");
             }
         } else {
             log::warn!(
