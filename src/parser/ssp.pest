@@ -456,10 +456,10 @@ sample = { identifier ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
 /// Assign an expression to a variable.
 assign = { identifier ~ "<-" ~ expression ~ ";" }
 
-/// Invoke an oracle and store the result.
-invocation = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
+invocation = _{ invocation_return | invocation_noreturn }
+invocation_return = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
+invocation_noreturn = { kw_invoke ~ oracle_call ~ ";" }
 
-/// Parse a tuple into multiple variables.
 parse = { parse_tuple ~ "<-" ~  kw_parse ~ expression ~ ";" }
 
   /// The left-hand side of a parse statement: a tuple of identifiers.

@@ -104,7 +104,7 @@ pub fn tableinitialize(
                 newcode.push(stmt);
             }
             Statement::InvokeOracle(InvokeOracleStatement {
-                id: Identifier::Generated(ref id, _),
+                id: Some(Identifier::Generated(ref id, _)),
                 opt_idx: Some(ref idxexpr),
                 ty: ref opt_ret_ty,
                 ref file_pos,
