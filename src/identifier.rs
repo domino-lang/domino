@@ -421,6 +421,16 @@ pub mod pkg_ident {
         pub theorem_name: Option<String>,
     }
 
+    impl PackageLocalIdentifier {
+        pub(crate) fn ident_ref(&self) -> &str {
+            &self.name
+        }
+
+        pub(crate) fn ident(&self) -> String {
+            self.ident_ref().to_string()
+        }
+    }
+
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]
     pub struct PackageOracleArgIdentifier {
         pub pkg_name: String,
@@ -431,6 +441,16 @@ pub mod pkg_ident {
         pub game_name: Option<String>,
         pub game_inst_name: Option<String>,
         pub theorem_name: Option<String>,
+    }
+
+    impl PackageOracleArgIdentifier {
+        pub(crate) fn ident_ref(&self) -> &str {
+            &self.name
+        }
+
+        pub(crate) fn ident(&self) -> String {
+            self.ident_ref().to_string()
+        }
     }
 
     #[derive(Debug, Clone, Hash, PartialOrd, Eq, Ord, PartialEq)]

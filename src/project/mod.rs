@@ -13,9 +13,16 @@ use walkdir;
 
 use error::{Error, Result};
 
+use crate::package::PackageInstance;
 use crate::parser::ast::Identifier;
 use crate::parser::package::handle_pkg;
 use crate::parser::SspParser;
+use crate::theorem::GameInstance;
+use crate::writers::python::contexts::oracle_context::OracleContext;
+use crate::writers::python::contexts::pkg_inst_context::PackageInstanceContext;
+use crate::writers::python::dataclass::pkg_consts::PackageConstParamsPattern;
+use crate::writers::python::function::oracle::OracleFunction;
+use crate::writers::python::function::FunctionDefinitionWriter;
 use crate::{
     gamehops::{equivalence, GameHop},
     package::{Composition, Package},
@@ -103,6 +110,7 @@ impl Files {
 #[derive(Debug)]
 pub struct Project<'a> {
     root_dir: PathBuf,
+    packages: HashMap<String, Package>,
     games: HashMap<String, Composition>,
     theorems: HashMap<String, Theorem<'a>>,
 }
@@ -112,6 +120,7 @@ impl<'a> Project<'a> {
     pub(crate) fn empty() -> Self {
         Self {
             root_dir: PathBuf::new(),
+            packages: HashMap::new(),
             games: HashMap::new(),
             theorems: HashMap::new(),
         }
@@ -151,6 +160,7 @@ impl<'a> Project<'a> {
         let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
 
         let project = Project {
+            packages,
             root_dir,
             games,
             theorems,
@@ -293,6 +303,68 @@ impl<'a> Project<'a> {
             }
 
             ui.finish_theorem(&theorem.name);
+        }
+
+        Ok(())
+    }
+
+    pub fn python(&self) -> Result<()> {
+        use crate::writers::python::dataclass::{
+            game_state::GameStatePattern, pkg_state::PackageStatePattern, DataclassWriter,
+        };
+
+        let mut path = self.root_dir.clone();
+        path.push("_build/python/");
+        std::fs::create_dir_all(&path)?;
+
+        println!("from dataclasses import dataclass");
+
+        for (theorem_name, proof) in &self.theorems {
+            for game_inst in &proof.instances {
+                let (new_game, _) =
+                    crate::transforms::resolveoracles::Transformation(&game_inst.game)
+                        .transform()
+                        .expect("unexpected error applying the resolveoracles transformation");
+
+                let new_game_inst = GameInstance {
+                    game: new_game,
+                    ..game_inst.clone()
+                };
+
+                println!(
+                    "{}",
+                    DataclassWriter::new(GameStatePattern::new(&new_game_inst))
+                );
+
+                for pkg_inst in &new_game_inst.game.pkgs {
+                    let pkg = &pkg_inst.pkg;
+                    println!("{}", DataclassWriter::new(PackageStatePattern::new(pkg)));
+                    println!(
+                        "{}",
+                        DataclassWriter::new(PackageConstParamsPattern::new(pkg))
+                    );
+
+                    let context = PackageInstanceContext {
+                        theorem_name: theorem_name.as_str(),
+                        game_inst_name: game_inst.name(),
+                        game_name: game_inst.game_name(),
+                        pkg_inst_name: pkg_inst.name(),
+                        pkg_name: pkg_inst.pkg_name(),
+                    };
+
+                    for odef in &pkg.oracles {
+                        let context = OracleContext {
+                            pkg_inst_context: context,
+                            oracle_name: &odef.sig.name,
+                        };
+
+                        println!(
+                            "{}",
+                            FunctionDefinitionWriter::new(OracleFunction::new(&context, odef))
+                        )
+                    }
+                }
+            }
         }
 
         Ok(())

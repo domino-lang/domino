@@ -170,6 +170,14 @@ fn latex(l: &Latex) -> Result<(), project::error::Error> {
     project.latex(l.prover)
 }
 
+fn python() -> Result<(), project::error::Error> {
+    let project_root = project::find_project_root()?;
+    let files = project::Files::load(&project_root)?;
+    let project = project::Project::load(&files)?;
+
+    project.python()
+}
+
 fn format(f: &Format) -> Result<(), project::error::Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
@@ -199,6 +207,7 @@ fn main() -> miette::Result<()> {
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
         Commands::WireCheck(args) => wire_check(&args.game_name, args.dst_idx),
         Commands::Format(f) => format(f),
+        Commands::Python => python(),
     };
 
     result.map_err(miette::Report::new)
