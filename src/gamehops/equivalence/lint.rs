@@ -2,7 +2,6 @@ use super::error::Result;
 use super::EquivalenceContext;
 use crate::transforms::samplify::Position as SamplePosition;
 use crate::util::smtparser::ExtractedFunction;
-use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 
 pub(super) struct Linter<'a> {
