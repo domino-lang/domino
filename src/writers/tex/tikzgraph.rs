@@ -6,7 +6,7 @@ use crate::{
     parser::reduction::ReductionMapping,
     util::{
         prover_process::{Communicator, ProverBackend, ProverResponse},
-        smtmodel::{SmtModel, SmtModelEntry},
+        smtmodel::SmtModel,
     },
 };
 
@@ -111,12 +111,13 @@ fn smt_composition_graph(
 
         for i in 0..composition.pkgs.len() {
             let pkgname = &composition.pkgs[i].name;
-            let SmtModelEntry::IntEntry { value: top, .. } =
-                model.get_value(&format!("{pkgname}-top")).unwrap();
-            let SmtModelEntry::IntEntry { value: bottom, .. } =
-                model.get_value(&format!("{pkgname}-bottom")).unwrap();
-            let SmtModelEntry::IntEntry { value: column, .. } =
-                model.get_value(&format!("{pkgname}-column")).unwrap();
+            let top = model.get_value_as_int(&format!("{pkgname}-top")).unwrap();
+            let bottom = model
+                .get_value_as_int(&format!("{pkgname}-bottom"))
+                .unwrap();
+            let column = model
+                .get_value_as_int(&format!("{pkgname}-column"))
+                .unwrap();
 
             write!(
                 result,
@@ -146,13 +147,11 @@ fn smt_composition_graph(
                 let pkga = &composition.pkgs[from].name;
                 let pkgb = &composition.pkgs[to].name;
 
-                let SmtModelEntry::IntEntry { value: height, .. } = model
-                    .get_value(&format!("edge-{pkga}-{pkgb}-height"))
+                let height = model
+                    .get_value_as_int(&format!("edge-{pkga}-{pkgb}-height"))
                     .unwrap();
-                let SmtModelEntry::IntEntry { value: acolumn, .. } =
-                    model.get_value(&format!("{pkga}-column")).unwrap();
-                let SmtModelEntry::IntEntry { value: bcolumn, .. } =
-                    model.get_value(&format!("{pkgb}-column")).unwrap();
+                let acolumn = model.get_value_as_int(&format!("{pkga}-column")).unwrap();
+                let bcolumn = model.get_value_as_int(&format!("{pkgb}-column")).unwrap();
 
                 let height = f64::from(height) / 2.0;
                 let oracles = oracles
@@ -191,12 +190,11 @@ fn smt_composition_graph(
 
             let pkgb = &composition.pkgs[to].name;
 
-            let SmtModelEntry::IntEntry { value: height, .. } =
-                model.get_value(&format!("edge---{pkgb}-height")).unwrap();
-            let SmtModelEntry::IntEntry { value: acolumn, .. } =
-                model.get_value("--column").unwrap();
-            let SmtModelEntry::IntEntry { value: bcolumn, .. } =
-                model.get_value(&format!("{pkgb}-column")).unwrap();
+            let height = model
+                .get_value_as_int(&format!("edge---{pkgb}-height"))
+                .unwrap();
+            let acolumn = model.get_value_as_int("--column").unwrap();
+            let bcolumn = model.get_value_as_int(&format!("{pkgb}-column")).unwrap();
 
             let height = f64::from(height) / 2.0;
             let oracles = oracles
@@ -384,11 +382,11 @@ pub(crate) fn solve_composition_graph(
     if comm.check_sat().unwrap() != ProverResponse::Sat {
         return None;
     } else {
-        model = comm.get_model().unwrap();
-        let model = SmtModel::from_string(&model);
-        let SmtModelEntry::IntEntry { value, .. } = model.get_value("width").unwrap();
+        model = Some(comm.get_model().unwrap().1);
+        let value = model.clone()?.get_value_as_int("width").unwrap();
         max_width = value + 1;
-        let SmtModelEntry::IntEntry { value, .. } = model.get_value("height").unwrap();
+
+        let value = model.clone()?.get_value_as_int("height").unwrap();
         max_height = value + 1;
     }
 
@@ -403,9 +401,10 @@ pub(crate) fn solve_composition_graph(
         if comm.check_sat().unwrap() == ProverResponse::Sat {
             log::debug!("Success: width = {width}");
             max_width = width;
-            model = comm.get_model().unwrap();
-            let model = SmtModel::from_string(&model);
-            let SmtModelEntry::IntEntry { value, .. } = model.get_value("height").unwrap();
+
+            model = Some(comm.get_model().unwrap().1);
+            let value = model.clone()?.get_value_as_int("height").unwrap();
+
             max_height = value + 1;
         } else {
             log::debug!("Failure: width = {width}");
@@ -448,12 +447,5 @@ pub(crate) fn solve_composition_graph(
     writeln!(comm, "(assert (< height {max_height}))").unwrap();
     writeln!(comm, "(assert (< width {max_width}))").unwrap();
 
-    if comm.check_sat().unwrap() == ProverResponse::Sat {
-        model = comm.get_model().unwrap();
-        let model = SmtModel::from_string(&model);
-        log::debug!("{}\n{:#?}", composition.name, model);
-        Some(model)
-    } else {
-        unreachable!("Started from a feasible solution so this should never be reached");
-    }
+    model
 }
