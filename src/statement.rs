@@ -61,7 +61,6 @@ impl Statement {
 pub struct InvokeOracleStatement {
     pub(crate) id: Identifier,
     pub(crate) opt_idx: Option<Expression>,
-    pub(crate) opt_dst_inst_idx: Option<Expression>,
     pub(crate) name: String,
     pub(crate) args: Vec<Expression>,
     pub(crate) target_inst_name: Option<String>,

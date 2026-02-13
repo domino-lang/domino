@@ -183,7 +183,6 @@ impl Unwrapifier {
                 Statement::InvokeOracle(InvokeOracleStatement {
                     id,
                     opt_idx,
-                    opt_dst_inst_idx,
                     name,
                     args,
                     target_inst_name,
@@ -206,7 +205,6 @@ impl Unwrapifier {
                     newcode.push(Statement::InvokeOracle(InvokeOracleStatement {
                         id,
                         opt_idx,
-                        opt_dst_inst_idx,
                         name,
                         args,
                         target_inst_name,

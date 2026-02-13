@@ -541,7 +541,6 @@ pub(crate) mod instantiate {
                 Statement::InvokeOracle(InvokeOracleStatement {
                     id,
                     opt_idx,
-                    opt_dst_inst_idx,
                     name,
                     args,
                     target_inst_name,
@@ -554,9 +553,6 @@ pub(crate) mod instantiate {
 
                     id: self.rewrite_identifier(id),
                     opt_idx: opt_idx.as_ref().map(|expr| self.rewrite_expression(expr)),
-                    opt_dst_inst_idx: opt_dst_inst_idx
-                        .as_ref()
-                        .map(|expr| self.rewrite_expression(expr)),
                     args: args
                         .iter()
                         .map(|expr| self.rewrite_expression(expr))

@@ -1202,7 +1202,6 @@ pub fn handle_code(
                     Statement::InvokeOracle (InvokeOracleStatement{
                         id: target_ident,
                         opt_idx,
-                        opt_dst_inst_idx: None,
                         name: oracle_name.to_owned(),
                         args,
                         target_inst_name: None,
