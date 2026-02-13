@@ -56,7 +56,7 @@ impl<'a> BlockWriter<'a> {
                 self.type_to_tex(from),
                 self.type_to_tex(to)
             ),
-            _ => format!("\\O{{{ty:?}}}"),
+            _ => format!("\\O{{{:?}}}", ty.kind()),
         }
     }
 
