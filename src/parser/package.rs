@@ -1116,15 +1116,17 @@ pub fn handle_code(
 
                 Rule::invocation_table | Rule::invocation_return | Rule::invocation_noreturn => {
                     let (mut inner, target_ident_name_ast, opt_idx) =
-                        if matches!(stmt.as_rule(), Rule::invocation_table) {
-                            let mut inner = stmt.into_inner();
-                            let target_ident_name_ast = inner.next().unwrap();
-                            assert!(target_ident_name_ast.as_str() != "_", "Special value _ disallowed for tables");
+                        match stmt.as_rule() {
+                            Rule::invocation_table => {
+                                let mut inner = stmt.into_inner();
+                                let target_ident_name_ast = inner.next().unwrap();
+                                assert!(target_ident_name_ast.as_str() != "_", "Special value _ disallowed for tables");
 
                             let mut opt_index = inner.next().unwrap().into_inner();
                             let opt_index = handle_expression(&ctx.parse_ctx(), opt_index.next().unwrap(), None)?;
-                            (inner, Some(target_ident_name_ast), Some(opt_index))
-                        } else if matches!(stmt.as_rule(), Rule::invocation_return) {
+                                (inner, Some(target_ident_name_ast), Some(opt_index))
+                            }
+                        Rule::invocation_return => {
                             let mut inner = stmt.into_inner();
                             let target_ident_name_ast = inner.next().unwrap();
                             if target_ident_name_ast.as_str() == "_" {
@@ -1132,9 +1134,12 @@ pub fn handle_code(
                             } else {
                                 (inner, Some(target_ident_name_ast), None)
                             }
-                        } else {
+                        }
+                            Rule::invocation_noreturn => {
                             debug_assert_matches!(stmt.as_rule(), Rule::invocation_noreturn);
                             (stmt.into_inner(), None, None)
+                        }
+                            _ => {unreachable!()}
                         };
 
                     let oracle_inv = inner.next().unwrap();
@@ -1173,25 +1178,25 @@ pub fn handle_code(
                     };
 
                     for ast in inner {
-                                let args_iter = ast.into_inner();
-                                let (arg_count, _) = args_iter.size_hint();
-                                if arg_count != target_oracle_sig.args.len() {
-                                    println!("oracle signature in error: {oracle_sig:?}");
-                                    return Err(WrongArgumentCountInInvocationError{
-                                        source_code: ctx.named_source(),
-                                        span: (invoc_span.start()..invoc_span.end()).into(),
-                                        oracle_name: oracle_name.to_string(),
-                                        expected_num: target_oracle_sig.args.len(),
-                                        got_num: arg_count,
-                                    }.into());
-                                }
+                        let args_iter = ast.into_inner();
+                        let (arg_count, _) = args_iter.size_hint();
+                        if arg_count != target_oracle_sig.args.len() {
+                            println!("oracle signature in error: {oracle_sig:?}");
+                            return Err(WrongArgumentCountInInvocationError{
+                                source_code: ctx.named_source(),
+                                span: (invoc_span.start()..invoc_span.end()).into(),
+                                oracle_name: oracle_name.to_string(),
+                                expected_num: target_oracle_sig.args.len(),
+                                got_num: arg_count,
+                            }.into());
+                        }
 
-                                let arglist: Result<Vec<_>, _> = args_iter
-                                    .zip(target_oracle_sig.args.iter())
-                                    .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
-                                    .collect();
-                                let arglist = arglist?;
-                                args.extend(arglist.into_iter())
+                        let arglist: Result<Vec<_>, _> = args_iter
+                            .zip(target_oracle_sig.args.iter())
+                            .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
+                            .collect();
+                        let arglist = arglist?;
+                        args.extend(arglist.into_iter())
                     }
 
                     let expected_type = match opt_idx.clone() {
