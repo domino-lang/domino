@@ -108,13 +108,14 @@ fn verify_oracle<UI: TheoremUI>(
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
-                    let modelfile = prover.get_model().map(|model| {
+                    let modelfile = prover.get_model().map(|(modelstring, _model)| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
-                        modelfile.write_all(model.as_bytes()).unwrap();
+                        modelfile.write_all(modelstring.as_bytes()).unwrap();
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
+                    prover.close();
                     return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
                         oracle_name: export.name().to_string(),
