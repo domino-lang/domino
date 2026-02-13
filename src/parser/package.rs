@@ -1122,8 +1122,8 @@ pub fn handle_code(
                                 let target_ident_name_ast = inner.next().unwrap();
                                 assert!(target_ident_name_ast.as_str() != "_", "Special value _ disallowed for tables");
 
-                            let mut opt_index = inner.next().unwrap().into_inner();
-                            let opt_index = handle_expression(&ctx.parse_ctx(), opt_index.next().unwrap(), None)?;
+                                let mut opt_index = inner.next().unwrap().into_inner();
+                                let opt_index = handle_expression(&ctx.parse_ctx(), opt_index.next().unwrap(), None)?;
                                 (inner, Some(target_ident_name_ast), Some(opt_index))
                             }
                         Rule::invocation_return => {
