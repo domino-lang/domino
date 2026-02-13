@@ -9,7 +9,6 @@ use crate::{
         Identifier,
     },
     package::{OracleDef, OracleSig, Package},
-    parser::package::MultiInstanceIndices,
     types::{CountSpec, Type, TypeKind},
 };
 
@@ -31,9 +30,6 @@ pub struct PackageInstance {
 
     // this is the package - it has been rewritten, though!
     pub pkg: Package,
-
-    // These are probably deprecated?
-    pub multi_instance_indices: MultiInstanceIndices,
 }
 
 impl PackageInstance {
@@ -121,7 +117,6 @@ impl PackageInstance {
         pkg_inst_name: &str,
         game_name: &str,
         pkg: &Package,
-        multi_instance_indices: MultiInstanceIndices,
         params: Vec<(PackageConstIdentifier, Expression)>,
         types: Vec<(String, Type)>,
     ) -> PackageInstance {
@@ -173,7 +168,6 @@ impl PackageInstance {
             types,
             pkg,
             name: pkg_inst_name.to_string(),
-            multi_instance_indices,
         }
     }
 }
@@ -431,7 +425,6 @@ pub(crate) mod instantiate {
             {
                 OracleSig {
                     name: oracle_sig.name,
-                    multi_inst_idx: oracle_sig.multi_inst_idx,
                     args: oracle_sig
                         .args
                         .into_iter()
@@ -548,7 +541,6 @@ pub(crate) mod instantiate {
                 Statement::InvokeOracle(InvokeOracleStatement {
                     id,
                     opt_idx,
-                    opt_dst_inst_idx,
                     name,
                     args,
                     target_inst_name,
@@ -561,9 +553,6 @@ pub(crate) mod instantiate {
 
                     id: self.rewrite_identifier(id),
                     opt_idx: opt_idx.as_ref().map(|expr| self.rewrite_expression(expr)),
-                    opt_dst_inst_idx: opt_dst_inst_idx
-                        .as_ref()
-                        .map(|expr| self.rewrite_expression(expr)),
                     args: args
                         .iter()
                         .map(|expr| self.rewrite_expression(expr))
@@ -735,7 +724,7 @@ pub(crate) mod instantiate {
                         }
                         // XXX: A bit unclear whether we keep this variant... it conflicts witht he
                         // Oracle variant of Declaration, so we only need one and so far we use the
-                        // other. Also this one doesn't seem to support multi instance
+                        // other.
                         PackageIdentifier::OracleImport(_) => todo!(),
 
                         PackageIdentifier::OracleArg(arg_ident) => {

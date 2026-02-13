@@ -119,16 +119,6 @@ fn small_for_package() {
 }
 
 #[test]
-fn small_multi_inst_game() {
-    let (name, pkg) = parse_file("tiny.ssp");
-    let pkg_map = HashMap::from_iter(vec![(name, pkg.clone())]);
-    let game = games::parse_file("small_multi_inst.ssp", &pkg_map);
-    println!("{game:#?}");
-
-    assert_eq!(game.pkgs[0].multi_instance_indices.indices.len(), 1);
-}
-
-#[test]
 fn untyped_none_type_inference_works() {
     let (_name, _pkg) = parse_file("none_inference_return.ssp");
 }
