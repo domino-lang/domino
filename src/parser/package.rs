@@ -11,6 +11,7 @@ use super::{
     ParseContext, Rule,
 };
 use crate::{
+    debug_assert_matches,
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
@@ -1113,20 +1114,35 @@ pub fn handle_code(
                     Statement::Assign(ident, Some(index), expr, full_span)
                 }
 
-                Rule::invocation => {
-                    let mut inner = stmt.into_inner();
-                    let target_ident_name_ast = inner.next().unwrap();
-                    let maybe_index = inner.next().unwrap();
+                Rule::invocation_table | Rule::invocation_return | Rule::invocation_noreturn => {
+                    let (mut inner, target_ident_name_ast, opt_idx) =
+                        match stmt.as_rule() {
+                            Rule::invocation_table => {
+                                let mut inner = stmt.into_inner();
+                                let target_ident_name_ast = inner.next().unwrap();
+                                assert!(target_ident_name_ast.as_str() != "_", "Special value _ disallowed for tables");
 
-                    // TODO: this should be used in type checking somehow
-                    let (opt_idx, oracle_inv) = if maybe_index.as_rule() == Rule::table_index {
-                        let mut inner_index = maybe_index.into_inner();
-                        let index =
-                            handle_expression(&ctx.parse_ctx(), inner_index.next().unwrap(), None)?;
-                        (Some(index), inner.next().unwrap())
-                    } else {
-                        (None, maybe_index)
-                    };
+                                let mut opt_index = inner.next().unwrap().into_inner();
+                                let opt_index = handle_expression(&ctx.parse_ctx(), opt_index.next().unwrap(), None)?;
+                                (inner, Some(target_ident_name_ast), Some(opt_index))
+                            }
+                        Rule::invocation_return => {
+                            let mut inner = stmt.into_inner();
+                            let target_ident_name_ast = inner.next().unwrap();
+                            if target_ident_name_ast.as_str() == "_" {
+                                (inner, None, None)
+                            } else {
+                                (inner, Some(target_ident_name_ast), None)
+                            }
+                        }
+                            Rule::invocation_noreturn => {
+                            debug_assert_matches!(stmt.as_rule(), Rule::invocation_noreturn);
+                            (stmt.into_inner(), None, None)
+                        }
+                            _ => {unreachable!()}
+                        };
+
+                    let oracle_inv = inner.next().unwrap();
 
                     assert!(matches!(oracle_inv.as_rule(), Rule::oracle_call));
 
@@ -1162,25 +1178,25 @@ pub fn handle_code(
                     };
 
                     for ast in inner {
-                                let args_iter = ast.into_inner();
-                                let (arg_count, _) = args_iter.size_hint();
-                                if arg_count != target_oracle_sig.args.len() {
-                                    println!("oracle signature in error: {oracle_sig:?}");
-                                    return Err(WrongArgumentCountInInvocationError{
-                                        source_code: ctx.named_source(),
-                                        span: (invoc_span.start()..invoc_span.end()).into(),
-                                        oracle_name: oracle_name.to_string(),
-                                        expected_num: target_oracle_sig.args.len(),
-                                        got_num: arg_count,
-                                    }.into());
-                                }
+                        let args_iter = ast.into_inner();
+                        let (arg_count, _) = args_iter.size_hint();
+                        if arg_count != target_oracle_sig.args.len() {
+                            println!("oracle signature in error: {oracle_sig:?}");
+                            return Err(WrongArgumentCountInInvocationError{
+                                source_code: ctx.named_source(),
+                                span: (invoc_span.start()..invoc_span.end()).into(),
+                                oracle_name: oracle_name.to_string(),
+                                expected_num: target_oracle_sig.args.len(),
+                                got_num: arg_count,
+                            }.into());
+                        }
 
-                                let arglist: Result<Vec<_>, _> = args_iter
-                                    .zip(target_oracle_sig.args.iter())
-                                    .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
-                                    .collect();
-                                let arglist = arglist?;
-                                args.extend(arglist.into_iter())
+                        let arglist: Result<Vec<_>, _> = args_iter
+                            .zip(target_oracle_sig.args.iter())
+                            .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
+                            .collect();
+                        let arglist = arglist?;
+                        args.extend(arglist.into_iter())
                     }
 
                     let expected_type = match opt_idx.clone() {
@@ -1191,13 +1207,13 @@ pub fn handle_code(
                         ),
                     };
 
-                    let target_ident = handle_identifier_in_code_lhs(
+                    let target_ident = target_ident_name_ast.map(|target_ident_name_ast| handle_identifier_in_code_lhs(
                         ctx,
                         target_ident_name_ast,
                         oracle_name,
                         expected_type.clone(),
                     )
-                    ?;
+                    ).transpose()?;
 
                     Statement::InvokeOracle (InvokeOracleStatement{
                         id: target_ident,

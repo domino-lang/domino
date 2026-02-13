@@ -734,7 +734,7 @@ impl<'a> CompositionSmtWriter<'a> {
         &self,
         this_oracle_ctx: &OCTX,
         body: SmtExpr,
-        assignee_ident: &Identifier,
+        assignee_ident: &Option<Identifier>,
         opt_idx: &Option<Expression>,
         called_oracle_name: &str,
         args: &[Expression],
@@ -793,7 +793,7 @@ impl<'a> CompositionSmtWriter<'a> {
                     bindings: {
                         let mut bindings = let_bindings.clone();
 
-                        if assignee_ident.ident() != "_" {
+                        if let Some(assignee_ident) = assignee_ident {
                             bindings.push((
                                 assignee_ident.ident(),
                                 return_value_pattern
@@ -817,7 +817,7 @@ impl<'a> CompositionSmtWriter<'a> {
         if opt_idx.is_some() {
             (
                 "store",
-                assignee_ident.clone(),
+                assignee_ident.clone().unwrap(),
                 opt_idx.clone().unwrap(),
                 smt_expr,
             )

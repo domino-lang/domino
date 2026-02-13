@@ -59,7 +59,7 @@ impl Statement {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InvokeOracleStatement {
-    pub(crate) id: Identifier,
+    pub(crate) id: Option<Identifier>,
     pub(crate) opt_idx: Option<Expression>,
     pub(crate) name: String,
     pub(crate) args: Vec<Expression>,

@@ -340,7 +340,24 @@ impl<'a> BlockWriter<'a> {
                 unreachable!("Expected sample name")
             }
             Statement::InvokeOracle(InvokeOracleStatement {
-                id: ident,
+                id: None,
+                opt_idx: None,
+                name,
+                args,
+                target_inst_name: Some(target_inst_name),
+                ty: _,
+                ..
+            }) => {
+                format!(
+                         "{}\\mathsf{{\\tiny{{invoke}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
+                         genindentation(indentation),
+                         name.replace("_", "\\_"),
+                         args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
+                         target_inst_name.replace('_',"\\_")
+                )
+            }
+            Statement::InvokeOracle(InvokeOracleStatement {
+                id: Some(ident),
                 opt_idx: None,
                 name,
                 args,
@@ -357,7 +374,7 @@ impl<'a> BlockWriter<'a> {
                 )
             }
             Statement::InvokeOracle(InvokeOracleStatement {
-                id: ident,
+                id: Some(ident),
                 opt_idx: Some(idxexpr),
                 name,
                 args,
@@ -380,6 +397,13 @@ impl<'a> BlockWriter<'a> {
                 ..
             }) => {
                 unreachable!("Expect oracle-lowlevelified input")
+            }
+            Statement::InvokeOracle(InvokeOracleStatement {
+                id: None,
+                opt_idx: Some(_),
+                ..
+            }) => {
+                unreachable!("table index but no table name?")
             }
         }
     }

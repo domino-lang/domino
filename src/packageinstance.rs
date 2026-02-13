@@ -551,7 +551,7 @@ pub(crate) mod instantiate {
                     target_inst_name,
                     file_pos,
 
-                    id: self.rewrite_identifier(id),
+                    id: id.map(|id| self.rewrite_identifier(id)),
                     opt_idx: opt_idx.as_ref().map(|expr| self.rewrite_expression(expr)),
                     args: args
                         .iter()
