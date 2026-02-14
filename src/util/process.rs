@@ -161,8 +161,8 @@ impl std::fmt::Write for Communicator {
             let thread_result = self.join();
             let rest = self.read_until_end().unwrap();
 
-            eprintln!("result from prover communication thread:\n  {thread_result:?}");
-            eprintln!("rest of data from prover:\n  {rest}");
+            log::warn!("result from prover communication thread:\n  {thread_result:?}");
+            log::warn!("rest of data from prover:\n  {rest}");
             std::io::stderr().flush().expect("error flushing stderr");
 
             Err(std::fmt::Error)
