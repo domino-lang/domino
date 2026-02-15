@@ -1,0 +1,29 @@
+package DPRF {
+    params {
+        n: Integer,
+        f: fn Bits(n), Integer, Integer, Bits(n), Bits(n), Bool -> Bits(n),
+    }
+
+    import oracles {
+        GetLtk(ltkid: Integer) -> Bits(n),
+        HonLtk(ltkid: Integer) -> Bool,
+        SetKMac(kid: (Integer, Integer, Integer,Bits(n), Bits(n)), k: Bits(n), hon: Bool),
+        SetK(kid: (Integer, Integer, Integer,Bits(n), Bits(n)), k: Bits(n), hon: Bool),
+    }
+
+    state {}
+
+    oracle Eval(ltkid: Integer, u: Integer, v: Integer, ni: Bits(n), nr: Bits(n), compute_kmac: Bool) {
+        ltk <- invoke GetLtk(ltkid);
+        hon <- invoke HonLtk(ltkid);
+
+        k <- f(ltk, u, v, ni, nr, compute_kmac);
+
+        if compute_kmac {
+          _ <- invoke SetKMac((ltkid, u, v, ni, nr), k, hon);
+        } else {
+          _ <- invoke SetK(   (ltkid, u, v, ni, nr), k,    hon);
+        }
+    }
+
+}

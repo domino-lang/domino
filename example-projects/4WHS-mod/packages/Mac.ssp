@@ -1,0 +1,39 @@
+package Mac {
+  params {
+    ideal: Bool,
+    n:     Integer,
+    mac:   fn Bits(n), Bits(*), Integer -> Bits(n)
+  }
+
+  state {
+    tags: Table(( (Integer, Integer, Integer, Bits(n), Bits(n)),
+                  Bits(*)),
+                Bits(n)),
+  }
+
+  import oracles {
+    GetKMac(kid: (Integer, Integer, Integer,Bits(n), Bits(n))) -> Bits(n),
+    HonKMac(kid: (Integer, Integer, Integer,Bits(n), Bits(n))) -> Bool,
+  }
+
+  oracle Mac(kid: (Integer, Integer, Integer, Bits(n), Bits(n)), msg: Bits(*), kind: Integer) -> Bits(n) {
+    kmac <- invoke GetKMac(kid);
+
+    tag <- mac(kmac, msg, kind);
+    tags[(kid, msg)] <- Some(tag);
+
+    return tag;
+  }
+
+  oracle Verify(kid: (Integer, Integer, Integer,Bits(n), Bits(n)), msg: Bits(*), kind: Integer, tag: Bits(n)) -> Bool {
+    kmac <- invoke GetKMac(kid);
+    hon  <- invoke HonKMac(kid);
+
+    if (ideal and hon) {
+      return (tags[(kid, msg)]     == Some(tag));
+    } else {
+      return (mac(kmac, msg, kind) == tag);
+    }
+  }
+}
+

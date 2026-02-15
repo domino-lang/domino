@@ -1,0 +1,35 @@
+package Indcpamon0 {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+    }
+
+    state {
+        k: Maybe(Bits(n)),
+    }
+
+
+    oracle SMP() {
+        assert (k == None as Bits(n));
+        k_ <-$ Bits(n);
+        k <- Some(k_);
+        return;
+    }
+
+    oracle ENCN(nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+        assert (k != None as Bits(n));
+        r <-$ Bits(n);
+        c <- encn(Unwrap(k), nzero, r);
+        return c;
+    }
+
+    oracle ENCM(mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+        assert (k != None as Bits(n));
+        r <-$ Bits(n);
+        c <- encm(Unwrap(k), mzero, r);
+        return c;
+    }
+}

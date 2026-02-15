@@ -1,0 +1,271 @@
+theorem Yao {
+    const w: Integer;
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const d: Integer;
+    const zeron: Bits(n);
+    const zerom: Bits(m);
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+  
+    instance Indcpa0 = Indcpa0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Indcpa1 = Indcpa1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance LayerReal = LayerReal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+    instance LayerHybrid = LayerHybrid {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+    instance LayerIdeal = LayerIdeal {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+
+    instance Sec0 = Hybrid0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Sec1 = Hybrid3 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid0 = Hybrid0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid1 = Hybrid1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid2 = Hybrid2 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    instance Hybrid3 = Hybrid3 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            zerom: zerom,
+            zeron: zeron,
+            encm: encm,
+            encn: encn,
+        }
+    }
+
+    assumptions {
+        Indcpa: Indcpa0 ~ Indcpa1
+        Layer: LayerReal ~ LayerIdeal
+    }
+
+    gamehops {
+
+        reduction Hybrid0 Hybrid1 {
+            assumption Layer
+
+            map LayerReal Hybrid0 {
+                keys_top: keys0
+                keys_bottom: keys1
+                enc: enc1
+                gate: gate1
+            }
+
+            map LayerIdeal Hybrid1 {
+                keys_top: keys0
+                keys_bottom: keys1
+                ev: ev1
+                simgate: simgate1            
+            }
+        }
+
+        reduction Hybrid1 Hybrid2 {
+            assumption Layer
+
+            map LayerReal Hybrid1 {
+                keys_top: keys1
+                keys_bottom: keys2
+                enc: enc2
+                gate: gate2
+            }
+
+            map LayerIdeal Hybrid2 {
+                keys_top: keys1
+                keys_bottom: keys2
+                ev: ev2
+                simgate: simgate2            
+            }
+        }
+
+        reduction Hybrid2 Hybrid3 {
+            assumption Layer
+
+            map LayerReal Hybrid2 {
+                keys_top: keys2
+                keys_bottom: keys3
+                enc: enc3
+                gate: gate3
+            }
+
+            map LayerIdeal Hybrid3 {
+                keys_top: keys2
+                keys_bottom: keys3
+                ev: ev3
+                simgate: simgate3            
+            }
+        }
+
+        reduction LayerReal LayerHybrid {
+            assumption Indcpa
+
+            map Indcpa0 LayerReal {
+                keys_top: keys_top
+                enc: enc
+            }
+
+            map Indcpa1 LayerHybrid {
+                keys_top: keys_top
+                enc: enc
+            }
+        }
+
+        equivalence LayerHybrid LayerIdeal {
+            GETAOUT: {
+                invariant: [
+                    ./theorem/invariant-GBLG.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            SETBIT: {
+                invariant: [
+                    ./theorem/invariant-GBLG.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GETKEYSIN: {
+                invariant: [
+                    ./theorem/invariant-GBLG.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GBLG: {
+                invariant: [
+                    ./theorem/invariant-GBLG.smt2
+                ]
+
+                lemmas {
+                    aborts: []
+                    equal-aborts: [aborts]
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+    }
+    propositions {
+        Layer: LayerReal ~ LayerIdeal
+        Hybrid: Sec0 ~ Sec1
+    }
+}

@@ -1,0 +1,41 @@
+package Enc1 {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+    }
+
+    import oracles {
+        GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)),
+        GETBIT(h: Integer) -> Bool,
+    }
+
+
+    oracle ENCN(j: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+        K <- invoke GETKEYSIN(j);
+        z <- invoke GETBIT(j);
+        r <-$ Bits(n);
+        /* c <-$ Bits(m); */
+        if (d == z) {
+            c <- encn(Unwrap(K[d]), nzero, r);
+        } else {
+            c <- encn(Unwrap(K[d]), none, r);
+        }
+        return c;
+    }
+
+    oracle ENCM(j: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+        K <- invoke GETKEYSIN(j);
+        z <- invoke GETBIT(j);
+        r <-$ Bits(n);
+        /* c <-$ Bits(p); */
+        if (d == z) {
+            c <- encm(Unwrap(K[d]), mzero, r);
+        } else {
+            c <- encm(Unwrap(K[d]), mone, r);
+        }
+        return c;
+    }
+}
