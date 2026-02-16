@@ -10,22 +10,54 @@ use crate::types::Type;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CodeBlock(pub Vec<Statement>);
 
+/// A pattern on the left-hand side of an assignment
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Pattern {
+    /// Simple identifier: `x`
+    Ident(Identifier),
+    /// Table access: `T[index]`
+    Table {
+        ident: Identifier,
+        index: Expression,
+    },
+    /// Tuple destructuring: `(a, b, c)`
+    Tuple(Vec<Identifier>),
+}
+
+/// The right-hand side of an assignment
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AssignmentRhs {
+    /// Regular expression: `x <- expr`
+    Expression(Expression),
+    /// Sample from distribution: `x <- $Type`
+    Sample {
+        ty: Type,
+        sample_name: Option<String>,
+        sample_id: Option<usize>,
+    },
+    /// Oracle invocation: `x <- invoke Oracle(args)`
+    Invoke {
+        oracle_name: String,
+        args: Vec<Expression>,
+        target_inst_name: Option<String>,
+        return_type: Option<Type>,
+    },
+}
+
+/// An assignment statement: pattern <- rhs
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Assignment {
+    pub(crate) pattern: Pattern,
+    pub(crate) rhs: AssignmentRhs,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
     Abort(SourceSpan),
     Return(Option<Expression>, SourceSpan),
-    Assign(Identifier, Option<Expression>, Expression, SourceSpan),
-    Parse(Vec<Identifier>, Expression, SourceSpan),
+    /// Unified assignment: pattern <- rhs
+    Assignment(Assignment, SourceSpan),
     IfThenElse(IfThenElse),
-    Sample(
-        Identifier,
-        Option<Expression>,
-        Option<usize>,
-        Type,
-        Option<String>,
-        SourceSpan,
-    ),
-    InvokeOracle(InvokeOracleStatement),
     For(Identifier, Expression, Expression, CodeBlock, SourceSpan),
 }
 
@@ -44,28 +76,42 @@ impl Statement {
         *match self {
             Statement::Abort(file_pos)
             | Statement::Return(_, file_pos)
-            | Statement::Assign(_, _, _, file_pos)
-            | Statement::Parse(_, _, file_pos)
+            | Statement::Assignment(_, file_pos)
             | Statement::IfThenElse(IfThenElse {
                 full_span: file_pos,
                 ..
             })
-            | Statement::Sample(_, _, _, _, _, file_pos)
-            | Statement::InvokeOracle(InvokeOracleStatement { file_pos, .. })
             | Statement::For(_, _, _, _, file_pos) => file_pos,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InvokeOracleStatement {
-    pub(crate) id: Identifier,
-    pub(crate) opt_idx: Option<Expression>,
-    pub(crate) name: String,
-    pub(crate) args: Vec<Expression>,
-    pub(crate) target_inst_name: Option<String>,
-    pub(crate) ty: Option<Type>,
-    pub(crate) file_pos: SourceSpan,
+impl Pattern {
+    /// Get the primary identifier from the pattern
+    pub fn primary_ident(&self) -> &Identifier {
+        match self {
+            Pattern::Ident(id) => id,
+            Pattern::Table { ident, .. } => ident,
+            Pattern::Tuple(ids) => &ids[0],
+        }
+    }
+
+    /// Get all identifiers from the pattern
+    pub fn all_idents(&self) -> Vec<&Identifier> {
+        match self {
+            Pattern::Ident(id) => vec![id],
+            Pattern::Table { ident, .. } => vec![ident],
+            Pattern::Tuple(ids) => ids.iter().collect(),
+        }
+    }
+
+    /// Get the table index if this is a table pattern
+    pub fn table_index(&self) -> Option<&Expression> {
+        match self {
+            Pattern::Table { index, .. } => Some(index),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]

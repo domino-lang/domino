@@ -5,7 +5,7 @@ use std::convert::Infallible;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
-use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
 use crate::types::{Type, TypeKind};
 
 pub type Error = Infallible;
@@ -54,77 +54,50 @@ pub fn tableinitialize(
                     ..ite
                 }));
             }
-            Statement::Assign(
-                Identifier::Generated(ref id, ref ty),
-                Some(ref idxexpr),
-                ref expr,
-                ref file_pos,
+            Statement::Assignment(
+                Assignment {
+                    pattern: Pattern::Table { ref ident, ref index },
+                    ref rhs,
+                },
+                file_pos,
             ) => {
-                let indextype = idxexpr.get_type();
-                let TypeKind::Maybe(valuetype) = expr.get_type().into_kind() else {
-                    unreachable!("all expressions are expected to be typed at this point, and the value needs to be a maybe type! ({:?})", file_pos);
-                };
-                let tabletype = Type::table(indextype.clone(), valuetype.as_ref().clone());
+                // Check if the identifier is Generated
+                if let Identifier::Generated(ref id, ref ty) = ident {
+                    let indextype = index.get_type();
 
-                debug_assert_eq!(*ty, tabletype);
+                    // Determine the value type based on RHS
+                    let valuetype = match rhs {
+                        AssignmentRhs::Expression(ref expr) => {
+                            // For expressions, the type should be Maybe(T), extract T
+                            let TypeKind::Maybe(valuetype) = expr.get_type().into_kind() else {
+                                unreachable!("all expressions are expected to be typed at this point, and the value needs to be a maybe type! ({:?})", file_pos);
+                            };
+                            valuetype.as_ref().clone()
+                        }
+                        AssignmentRhs::Sample { ref ty, .. } => ty.clone(),
+                        AssignmentRhs::Invoke { ref return_type, .. } => {
+                            match return_type {
+                                Some(t) => t.clone(),
+                                None => Type::empty(),
+                            }
+                        }
+                    };
 
-                if !new_initialized.contains(id) {
-                    new_initialized.push(id.clone());
-                    newcode.push(Statement::Assign(
-                        Identifier::Generated(id.clone(), tabletype.clone()),
-                        None,
-                        Expression::from_kind(ExpressionKind::EmptyTable(tabletype)),
-                        *file_pos,
-                    ))
-                }
-                newcode.push(stmt);
-            }
-            Statement::Sample(
-                Identifier::Generated(ref id, ref id_ty),
-                Some(ref idxexpr),
-                _,
-                ref ty,
-                _,
-                ref file_pos,
-            ) => {
-                let indextype = idxexpr.get_type();
-                let tabletype = Type::table(indextype.clone(), ty.clone());
+                    let tabletype = Type::table(indextype.clone(), valuetype.clone());
+                    debug_assert_eq!(*ty, tabletype);
 
-                debug_assert_eq!(*id_ty, tabletype);
-
-                if !new_initialized.contains(id) {
-                    new_initialized.push(id.clone());
-                    newcode.push(Statement::Assign(
-                        Identifier::Generated(id.clone(), tabletype.clone()),
-                        None,
-                        Expression::from_kind(ExpressionKind::EmptyTable(tabletype)),
-                        *file_pos,
-                    ))
-                }
-                newcode.push(stmt);
-            }
-            Statement::InvokeOracle(InvokeOracleStatement {
-                id: Identifier::Generated(ref id, _),
-                opt_idx: Some(ref idxexpr),
-                ty: ref opt_ret_ty,
-                ref file_pos,
-                ..
-            }) => {
-                let indextype = idxexpr.get_type();
-                let valuetype = match opt_ret_ty {
-                    Some(t) => t.to_owned(),
-                    _ => Type::empty(),
-                };
-                let tabletype = Type::table(indextype.clone(), valuetype.clone());
-
-                if !new_initialized.contains(id) {
-                    new_initialized.push(id.clone());
-                    newcode.push(Statement::Assign(
-                        Identifier::Generated(id.clone(), tabletype.clone()),
-                        None,
-                        Expression::from_kind(ExpressionKind::EmptyTable(tabletype)),
-                        *file_pos,
-                    ))
+                    if !new_initialized.contains(id) {
+                        new_initialized.push(id.clone());
+                        newcode.push(Statement::Assignment(
+                            Assignment {
+                                pattern: Pattern::Ident(Identifier::Generated(id.clone(), tabletype.clone())),
+                                rhs: AssignmentRhs::Expression(Expression::from_kind(
+                                    ExpressionKind::EmptyTable(tabletype)
+                                )),
+                            },
+                            file_pos,
+                        ));
+                    }
                 }
                 newcode.push(stmt);
             }

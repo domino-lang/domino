@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::package::{Composition, Edge, OracleDef, Package, PackageInstance};
-use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Statement};
 
 use std::collections::HashMap;
 
 pub struct Transformation<'a>(pub &'a Composition);
 
 #[derive(Debug)]
-pub(crate) struct ResolutionError(pub(crate) Vec<InvokeOracleStatement>);
+pub(crate) struct ResolutionError(pub(crate) Vec<(String, usize)>); // (oracle_name, position)
 
 type Result<T> = std::result::Result<T, ResolutionError>;
 
@@ -16,36 +16,60 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
     fn transform_helper(
         table: &HashMap<String, String>,
         block: CodeBlock,
-        err_stmts: &mut Vec<InvokeOracleStatement>,
+        err_stmts: &mut Vec<(String, usize)>,
     ) -> CodeBlock {
+        let mut pos = 0;
         let out = block
             .0
             .into_iter()
-            .filter_map(|stmt| match stmt {
-                Statement::InvokeOracle(invoke_oracle_stmt) => {
-                    if let Some(pkgname) = table.get(&invoke_oracle_stmt.name) {
-                        Some(Statement::InvokeOracle(InvokeOracleStatement {
-                            target_inst_name: Some(pkgname.clone()),
-                            ..invoke_oracle_stmt
-                        }))
-                    } else {
-                        err_stmts.push(invoke_oracle_stmt);
-                        None
+            .filter_map(|stmt| {
+                let current_pos = pos;
+                pos += 1;
+                match stmt {
+                    Statement::Assignment(
+                        Assignment {
+                            pattern,
+                            rhs: AssignmentRhs::Invoke {
+                                oracle_name,
+                                args,
+                                target_inst_name: _,
+                                return_type,
+                            },
+                        },
+                        span,
+                    ) => {
+                        if let Some(pkgname) = table.get(&oracle_name) {
+                            Some(Statement::Assignment(
+                                Assignment {
+                                    pattern,
+                                    rhs: AssignmentRhs::Invoke {
+                                        oracle_name,
+                                        args,
+                                        target_inst_name: Some(pkgname.clone()),
+                                        return_type,
+                                    },
+                                },
+                                span,
+                            ))
+                        } else {
+                            err_stmts.push((oracle_name, current_pos));
+                            None
+                        }
                     }
+                    Statement::IfThenElse(ite) => Some(Statement::IfThenElse(IfThenElse {
+                        then_block: transform_helper(table, ite.then_block.clone(), err_stmts),
+                        else_block: transform_helper(table, ite.else_block.clone(), err_stmts),
+                        ..ite.clone()
+                    })),
+                    Statement::For(var, lower, upper, code, span) => Some(Statement::For(
+                        var,
+                        lower,
+                        upper,
+                        transform_helper(table, code.clone(), err_stmts),
+                        span,
+                    )),
+                    _ => Some(stmt),
                 }
-                Statement::IfThenElse(ite) => Some(Statement::IfThenElse(IfThenElse {
-                    then_block: transform_helper(table, ite.then_block.clone(), err_stmts),
-                    else_block: transform_helper(table, ite.else_block.clone(), err_stmts),
-                    ..ite.clone()
-                })),
-                Statement::For(var, lower, upper, code, span) => Some(Statement::For(
-                    var,
-                    lower,
-                    upper,
-                    transform_helper(table, code.clone(), err_stmts),
-                    span,
-                )),
-                _ => Some(stmt),
             })
             .collect();
 

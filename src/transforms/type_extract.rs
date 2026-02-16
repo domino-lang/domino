@@ -6,7 +6,7 @@ use std::convert::Infallible;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::Identifier;
 use crate::package::{Composition, Edge, Export};
-use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
 use crate::types::{CountSpec, Type, TypeKind};
 
 pub struct Transformation<'a>(pub &'a Composition);
@@ -113,15 +113,26 @@ fn extract_types_from_codeblock(set: &mut HashSet<Type>, cb: CodeBlock) {
                 record_type(set, expr.get_type());
             }
             Statement::Return(None, _) => {}
-            Statement::Assign(_, Some(expr_idx), expr_val, _) => {
-                record_type(set, expr_idx.get_type());
-                record_type(set, expr_val.get_type());
-            }
-            Statement::Assign(_, _, expr_val, _) => {
-                record_type(set, expr_val.get_type());
-            }
-            Statement::Parse(_, expr, _) => {
-                record_type(set, expr.get_type());
+            Statement::Assignment(Assignment { pattern, rhs }, _) => {
+                if let Pattern::Table { index, .. } = &pattern {
+                    record_type(set, index.get_type());
+                }
+                match rhs {
+                    AssignmentRhs::Expression(expr) => {
+                        record_type(set, expr.get_type());
+                    }
+                    AssignmentRhs::Sample { ty, .. } => {
+                        record_type(set, ty.clone());
+                    }
+                    AssignmentRhs::Invoke { args, return_type, .. } => {
+                        for arg in &args {
+                            record_type(set, arg.get_type());
+                        }
+                        if let Some(ty) = return_type {
+                            record_type(set, ty.clone());
+                        }
+                    }
+                }
             }
             Statement::IfThenElse(ite) => {
                 record_type(set, ite.cond.get_type());
@@ -132,28 +143,6 @@ fn extract_types_from_codeblock(set: &mut HashSet<Type>, cb: CodeBlock) {
                 record_type(set, lower_bound.get_type());
                 record_type(set, upper_bound.get_type());
                 extract_types_from_codeblock(set, body)
-            }
-            Statement::Sample(_, Some(expr_idx), _, ty, _, _) => {
-                record_type(set, expr_idx.get_type());
-                record_type(set, ty);
-            }
-            Statement::Sample(_, _, _, ty, _, _) => {
-                record_type(set, ty);
-            }
-            Statement::InvokeOracle(InvokeOracleStatement {
-                opt_idx, args, ty, ..
-            }) => {
-                if let Some(expr) = opt_idx {
-                    record_type(set, expr.get_type());
-                }
-
-                if let Some(ty) = ty {
-                    record_type(set, ty);
-                }
-
-                for arg in args {
-                    record_type(set, arg.get_type());
-                }
             }
         }
     }

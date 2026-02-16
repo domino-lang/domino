@@ -507,6 +507,7 @@ pub(crate) mod instantiate {
         // }
 
         pub(crate) fn rewrite_statement(&self, stmt: Statement) -> Statement {
+            use crate::statement::{Assignment, AssignmentRhs, Pattern};
             let type_rewrite_rules = self.base_rewrite_rules();
             match stmt {
                 Statement::Abort(_) => stmt.clone(),
@@ -514,51 +515,57 @@ pub(crate) mod instantiate {
                     Statement::Return(expr.as_ref().map(|expr| self.rewrite_expression(expr)), pos)
                 }
 
-                Statement::Assign(ident, index, value, pos) => Statement::Assign(
-                    self.rewrite_identifier(ident),
-                    index.as_ref().map(|expr| self.rewrite_expression(expr)),
-                    self.rewrite_expression(&value),
-                    pos,
-                ),
-                Statement::Parse(idents, expr, pos) => Statement::Parse(
-                    idents
-                        .into_iter()
-                        .map(|ident| self.rewrite_identifier(ident))
-                        .collect(),
-                    self.rewrite_expression(&expr),
-                    pos,
-                ),
-                Statement::Sample(ident, index, sample_id, ty, sample_name, pos) => {
-                    Statement::Sample(
-                        self.rewrite_identifier(ident),
-                        index.as_ref().map(|expr| self.rewrite_expression(expr)),
-                        sample_id,
-                        self.rewrite_type(ty),
-                        sample_name,
-                        pos,
+                Statement::Assignment(Assignment { pattern, rhs }, span) => {
+                    let rewritten_pattern = match pattern {
+                        Pattern::Ident(ident) => Pattern::Ident(self.rewrite_identifier(ident)),
+                        Pattern::Table { ident, index } => Pattern::Table {
+                            ident: self.rewrite_identifier(ident),
+                            index: self.rewrite_expression(&index),
+                        },
+                        Pattern::Tuple(idents) => Pattern::Tuple(
+                            idents
+                                .into_iter()
+                                .map(|ident| self.rewrite_identifier(ident))
+                                .collect(),
+                        ),
+                    };
+
+                    let rewritten_rhs = match rhs {
+                        AssignmentRhs::Expression(expr) => {
+                            AssignmentRhs::Expression(self.rewrite_expression(&expr))
+                        }
+                        AssignmentRhs::Sample {
+                            ty,
+                            sample_name,
+                            sample_id,
+                        } => AssignmentRhs::Sample {
+                            ty: self.rewrite_type(ty),
+                            sample_name,
+                            sample_id,
+                        },
+                        AssignmentRhs::Invoke {
+                            oracle_name,
+                            args,
+                            target_inst_name,
+                            return_type,
+                        } => AssignmentRhs::Invoke {
+                            oracle_name,
+                            args: args.iter().map(|expr| self.rewrite_expression(expr)).collect(),
+                            target_inst_name,
+                            return_type: return_type
+                                .as_ref()
+                                .map(|ty| ty.rewrite_type(&type_rewrite_rules)),
+                        },
+                    };
+
+                    Statement::Assignment(
+                        Assignment {
+                            pattern: rewritten_pattern,
+                            rhs: rewritten_rhs,
+                        },
+                        span,
                     )
                 }
-                Statement::InvokeOracle(InvokeOracleStatement {
-                    id,
-                    opt_idx,
-                    name,
-                    args,
-                    target_inst_name,
-                    ty,
-                    file_pos,
-                }) => Statement::InvokeOracle(InvokeOracleStatement {
-                    name,
-                    target_inst_name,
-                    file_pos,
-
-                    id: self.rewrite_identifier(id),
-                    opt_idx: opt_idx.as_ref().map(|expr| self.rewrite_expression(expr)),
-                    args: args
-                        .iter()
-                        .map(|expr| self.rewrite_expression(expr))
-                        .collect(),
-                    ty: ty.as_ref().map(|ty| ty.rewrite_type(&type_rewrite_rules)),
-                }),
 
                 Statement::IfThenElse(ite) => Statement::IfThenElse(IfThenElse {
                     cond: self.rewrite_expression(&ite.cond),

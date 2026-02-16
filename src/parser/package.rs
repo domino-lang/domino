@@ -23,7 +23,7 @@ use crate::{
     parser::error::{
         ForLoopIdentifersDontMatchError, NoSuchOracleError, OracleAlreadyImportedError,
     },
-    statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracleStatement, Statement},
+    statement::{CodeBlock, FilePosition, IfThenElse, Pattern, Statement},
     types::{Type, TypeKind},
     util::scope::{Declaration, OracleContext, Scope},
 };
@@ -961,7 +961,9 @@ fn handle_pattern(
     pattern_ast: Pair<Rule>,
     oracle_name: &str,
     value_type: Type,
-) -> Result<(Identifier, Option<Expression>, Option<Vec<Identifier>>), ParsePackageError> {
+) -> Result<Pattern, ParsePackageError> {
+    use crate::statement::Pattern;
+
     let parse_ctx = ctx.parse_ctx();
 
     match pattern_ast.as_rule() {
@@ -972,7 +974,7 @@ fn handle_pattern(
                 oracle_name,
                 value_type,
             )?;
-            Ok((ident, None, None))
+            Ok(Pattern::Ident(ident))
         }
         Rule::pattern_table => {
             let mut inner = pattern_ast.into_inner();
@@ -997,7 +999,10 @@ fn handle_pattern(
                 table_type,
             )?;
 
-            Ok((ident, Some(index_expr), None))
+            Ok(Pattern::Table {
+                ident,
+                index: index_expr,
+            })
         }
         Rule::pattern_tuple => {
             let TypeKind::Tuple(tys) = value_type.clone().into_kind() else {
@@ -1018,9 +1023,7 @@ fn handle_pattern(
                 })
                 .collect::<Result<_, _>>()?;
 
-            // Return the first identifier as the primary one (not really used for tuples)
-            let first_ident = idents.first().unwrap().clone();
-            Ok((first_ident, None, Some(idents)))
+            Ok(Pattern::Tuple(idents))
         }
         _ => unreachable!("unexpected pattern rule: {:?}", pattern_ast.as_rule()),
     }
@@ -1179,6 +1182,8 @@ pub fn handle_code(
                 }
                 Rule::abort => Statement::Abort(full_span),
                 Rule::assign => {
+                    use crate::statement::{Assignment, AssignmentRhs, Pattern};
+
                     let mut inner = stmt.into_inner();
                     let pattern_ast = inner.next().unwrap();
                     let oracle_expr_ast = inner.next().unwrap();
@@ -1205,74 +1210,43 @@ pub fn handle_code(
                     };
 
                     // Handle the pattern with the value type
-                    let (ident, opt_index, opt_tuple_idents) = handle_pattern(
+                    let pattern = handle_pattern(
                         ctx,
                         pattern_ast,
                         oracle_name,
                         value_type.clone(),
                     )?;
 
-                    // Generate the appropriate Statement variant based on combination
-                    match (oracle_expr_result, opt_index, opt_tuple_idents) {
-                        // Pattern: ident, Oracle: expression -> Statement::Assign
-                        (OracleExprResult::Expression(expr), None, None) => {
-                            Statement::Assign(ident, None, expr, full_span)
-                        }
-                        // Pattern: table, Oracle: expression -> Statement::Assign with index
-                        (OracleExprResult::Expression(expr), Some(index), None) => {
-                            // For table assignment, we need to handle the Maybe wrapper
-                            // The expression type should be Maybe(value_type)
-                            Statement::Assign(ident, Some(index), expr, full_span)
-                        }
-                        // Pattern: tuple, Oracle: expression -> Statement::Parse
-                        (OracleExprResult::Expression(expr), None, Some(idents)) => {
-                            Statement::Parse(idents, expr, full_span)
-                        }
-                        // Pattern: ident, Oracle: sample -> Statement::Sample
-                        (OracleExprResult::Sample(ty, sample_name), None, None) => {
-                            Statement::Sample(ident, None, None, ty, sample_name, full_span)
-                        }
-                        // Pattern: table, Oracle: sample -> Statement::Sample with index
-                        (OracleExprResult::Sample(ty, sample_name), Some(index), None) => {
-                            Statement::Sample(ident, Some(index), None, ty, sample_name, full_span)
-                        }
-                        // Pattern: ident, Oracle: invoke -> Statement::InvokeOracle
-                        (OracleExprResult::Invoke(invoked_oracle_name, args, ty), None, None) => {
-                            Statement::InvokeOracle(InvokeOracleStatement {
-                                id: ident,
-                                opt_idx: None,
-                                name: invoked_oracle_name,
-                                args,
-                                target_inst_name: None,
-                                ty: Some(ty),
-                                file_pos: full_span,
-                            })
-                        }
-                        // Pattern: table, Oracle: invoke -> Statement::InvokeOracle with index
-                        (OracleExprResult::Invoke(invoked_oracle_name, args, ty), Some(index), None) => {
-                            Statement::InvokeOracle(InvokeOracleStatement {
-                                id: ident,
-                                opt_idx: Some(index),
-                                name: invoked_oracle_name,
-                                args,
-                                target_inst_name: None,
-                                ty: Some(ty),
-                                file_pos: full_span,
-                            })
-                        }
-                        // Pattern: tuple, Oracle: sample -> Error
-                        (OracleExprResult::Sample(..), _, Some(_)) => {
+                    // Validate pattern + RHS combinations
+                    match (&pattern, &oracle_expr_result) {
+                        (Pattern::Tuple(_), OracleExprResult::Sample(..)) => {
                             panic!("Cannot sample into tuple pattern - this should be prevented by grammar")
                         }
-                        // Pattern: tuple, Oracle: invoke -> Error
-                        (OracleExprResult::Invoke(..), _, Some(_)) => {
+                        (Pattern::Tuple(_), OracleExprResult::Invoke(..)) => {
                             panic!("Cannot invoke oracle into tuple pattern - this should be prevented by grammar")
                         }
-                        // Exhaustive match for remaining impossible combinations
-                        (OracleExprResult::Expression(_), Some(_), Some(_)) => {
-                            panic!("Expression with both index and tuple - impossible combination")
-                        }
+                        _ => {} // All other combinations are valid
                     }
+
+                    // Create the RHS
+                    let rhs = match oracle_expr_result {
+                        OracleExprResult::Expression(expr) => AssignmentRhs::Expression(expr),
+                        OracleExprResult::Sample(ty, sample_name) => AssignmentRhs::Sample {
+                            ty,
+                            sample_name,
+                            sample_id: None,
+                        },
+                        OracleExprResult::Invoke(oracle_name, args, return_type) => {
+                            AssignmentRhs::Invoke {
+                                oracle_name,
+                                args,
+                                target_inst_name: None,
+                                return_type: Some(return_type),
+                            }
+                        }
+                    };
+
+                    Statement::Assignment(Assignment { pattern, rhs }, full_span)
                 }
                 Rule::for_ => {
                     let mut parsed: Vec<Pair<Rule>> = stmt.into_inner().collect();
