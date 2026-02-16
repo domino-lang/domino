@@ -56,7 +56,11 @@ pub fn tableinitialize(
             }
             Statement::Assignment(
                 Assignment {
-                    pattern: Pattern::Table { ref ident, ref index },
+                    pattern:
+                        Pattern::Table {
+                            ref ident,
+                            ref index,
+                        },
                     ref rhs,
                 },
                 file_pos,
@@ -75,12 +79,12 @@ pub fn tableinitialize(
                             valuetype.as_ref().clone()
                         }
                         AssignmentRhs::Sample { ref ty, .. } => ty.clone(),
-                        AssignmentRhs::Invoke { ref return_type, .. } => {
-                            match return_type {
-                                Some(t) => t.clone(),
-                                None => Type::empty(),
-                            }
-                        }
+                        AssignmentRhs::Invoke {
+                            ref return_type, ..
+                        } => match return_type {
+                            Some(t) => t.clone(),
+                            None => Type::empty(),
+                        },
                     };
 
                     let tabletype = Type::table(indextype.clone(), valuetype.clone());
@@ -90,9 +94,12 @@ pub fn tableinitialize(
                         new_initialized.push(id.clone());
                         newcode.push(Statement::Assignment(
                             Assignment {
-                                pattern: Pattern::Ident(Identifier::Generated(id.clone(), tabletype.clone())),
+                                pattern: Pattern::Ident(Identifier::Generated(
+                                    id.clone(),
+                                    tabletype.clone(),
+                                )),
                                 rhs: AssignmentRhs::Expression(Expression::from_kind(
-                                    ExpressionKind::EmptyTable(tabletype)
+                                    ExpressionKind::EmptyTable(tabletype),
                                 )),
                             },
                             file_pos,

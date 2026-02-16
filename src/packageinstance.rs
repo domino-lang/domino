@@ -550,7 +550,10 @@ pub(crate) mod instantiate {
                             return_type,
                         } => AssignmentRhs::Invoke {
                             oracle_name,
-                            args: args.iter().map(|expr| self.rewrite_expression(expr)).collect(),
+                            args: args
+                                .iter()
+                                .map(|expr| self.rewrite_expression(expr))
+                                .collect(),
                             target_inst_name,
                             return_type: return_type
                                 .as_ref()

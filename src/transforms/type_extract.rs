@@ -124,7 +124,9 @@ fn extract_types_from_codeblock(set: &mut HashSet<Type>, cb: CodeBlock) {
                     AssignmentRhs::Sample { ty, .. } => {
                         record_type(set, ty.clone());
                     }
-                    AssignmentRhs::Invoke { args, return_type, .. } => {
+                    AssignmentRhs::Invoke {
+                        args, return_type, ..
+                    } => {
                         for arg in &args {
                             record_type(set, arg.get_type());
                         }

@@ -253,13 +253,20 @@ impl<W: Write> FmtWriter<W> {
                         self.write_type(ty)?;
                         if self.annotate {
                             if let Some(sample_id) = sample_id {
-                                self.write_string(&format!("; /* with sample_id {sample_id} */\n"))?;
+                                self.write_string(&format!(
+                                    "; /* with sample_id {sample_id} */\n"
+                                ))?;
                             } else {
                                 self.write_string("; /* sample_id not assigned */\n")?;
                             }
                         }
                     }
-                    AssignmentRhs::Invoke { oracle_name, args, target_inst_name, return_type: opt_ty } => {
+                    AssignmentRhs::Invoke {
+                        oracle_name,
+                        args,
+                        target_inst_name,
+                        return_type: opt_ty,
+                    } => {
                         self.write_string(" <- invoke ")?;
                         self.write_call(oracle_name, args)?;
                         if self.annotate {

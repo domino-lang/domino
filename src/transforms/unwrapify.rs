@@ -108,7 +108,10 @@ impl Unwrapifier {
                         Pattern::Table { ident, index } => {
                             let (new_index, unwraps) = self.replace_unwrap(&index);
                             newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                            Pattern::Table { ident, index: new_index }
+                            Pattern::Table {
+                                ident,
+                                index: new_index,
+                            }
                         }
                         other => other,
                     };
@@ -120,7 +123,12 @@ impl Unwrapifier {
                             newcode.extend(create_unwrap_stmts(unwraps, file_pos));
                             AssignmentRhs::Expression(newexpr)
                         }
-                        AssignmentRhs::Invoke { oracle_name, args, target_inst_name, return_type } => {
+                        AssignmentRhs::Invoke {
+                            oracle_name,
+                            args,
+                            target_inst_name,
+                            return_type,
+                        } => {
                             let new_args = args
                                 .iter()
                                 .map(|expr| {
@@ -129,13 +137,21 @@ impl Unwrapifier {
                                     newexpr
                                 })
                                 .collect();
-                            AssignmentRhs::Invoke { oracle_name, args: new_args, target_inst_name, return_type }
+                            AssignmentRhs::Invoke {
+                                oracle_name,
+                                args: new_args,
+                                target_inst_name,
+                                return_type,
+                            }
                         }
                         other => other,
                     };
 
                     newcode.push(Statement::Assignment(
-                        Assignment { pattern: new_pattern, rhs: new_rhs },
+                        Assignment {
+                            pattern: new_pattern,
+                            rhs: new_rhs,
+                        },
                         file_pos,
                     ));
                 }
@@ -174,7 +190,10 @@ fn create_unwrap_stmts(unwraps: Vec<(Expression, String)>, file_pos: SourceSpan)
         .map(|(expr, varname)| {
             Statement::Assignment(
                 Assignment {
-                    pattern: Pattern::Ident(Identifier::Generated(varname.clone(), expr.get_type())),
+                    pattern: Pattern::Ident(Identifier::Generated(
+                        varname.clone(),
+                        expr.get_type(),
+                    )),
                     rhs: AssignmentRhs::Expression(expr.clone()),
                 },
                 file_pos,

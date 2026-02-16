@@ -247,70 +247,116 @@ impl<'a> BlockWriter<'a> {
                     self.expression_to_tex(expr)
                 )
             }
-            Statement::Assignment(Assignment { pattern, rhs }, _) => {
-                match (pattern, rhs) {
-                    (Pattern::Ident(ident), AssignmentRhs::Expression(expr)) => {
-                        format!(
-                            "{} {} \\gets {}\\\\",
-                            genindentation(indentation),
-                            self.ident_to_tex(ident),
-                            self.expression_to_tex(expr)
+            Statement::Assignment(Assignment { pattern, rhs }, _) => match (pattern, rhs) {
+                (Pattern::Ident(ident), AssignmentRhs::Expression(expr)) => {
+                    format!(
+                        "{} {} \\gets {}\\\\",
+                        genindentation(indentation),
+                        self.ident_to_tex(ident),
+                        self.expression_to_tex(expr)
+                    )
+                }
+                (
+                    Pattern::Table {
+                        ident,
+                        index: idxexpr,
+                    },
+                    AssignmentRhs::Expression(expr),
+                ) => {
+                    format!(
+                        "{} {}[{}] \\gets {}\\\\",
+                        genindentation(indentation),
+                        self.ident_to_tex(ident),
+                        self.expression_to_tex(idxexpr),
+                        self.expression_to_tex(expr)
+                    )
+                }
+                (Pattern::Tuple(ids), AssignmentRhs::Expression(expr)) => {
+                    format!(
+                        "{}\\pcparse {} \\pcas \\left({}\\right)\\\\",
+                        genindentation(indentation),
+                        self.expression_to_tex(expr),
+                        self.list_to_matrix(
+                            &ids.iter()
+                                .map(|ident| self.ident_to_tex(ident))
+                                .collect::<Vec<_>>()
                         )
-                    }
-                    (Pattern::Table { ident, index: idxexpr }, AssignmentRhs::Expression(expr)) => {
-                        format!(
-                            "{} {}[{}] \\gets {}\\\\",
-                            genindentation(indentation),
-                            self.ident_to_tex(ident),
-                            self.expression_to_tex(idxexpr),
-                            self.expression_to_tex(expr)
-                        )
-                    }
-                    (Pattern::Tuple(ids), AssignmentRhs::Expression(expr)) => {
-                        format!(
-                            "{}\\pcparse {} \\pcas \\left({}\\right)\\\\",
-                            genindentation(indentation),
-                            self.expression_to_tex(expr),
-                            self.list_to_matrix(
-                                &ids.iter()
-                                    .map(|ident| self.ident_to_tex(ident))
-                                    .collect::<Vec<_>>()
-                            )
-                        )
-                    }
-                    (Pattern::Ident(ident), AssignmentRhs::Sample { ty, sample_name: Some(sample_name), .. }) => {
-                        format!(
-                            "{}{} \\stackrel{{{}}}{{\\sample}} {}\\\\",
-                            genindentation(indentation),
-                            self.ident_to_tex(ident),
-                            sample_name.replace('_', "\\_"),
-                            self.type_to_tex(ty)
-                        )
-                    }
-                    (Pattern::Table { ident, index: idxexpr }, AssignmentRhs::Sample { ty, sample_name: Some(sample_name), .. }) => {
-                        format!(
-                            "{}{}[{}] \\stackrel{{{}}}{{\\samples}} {}\\\\",
-                            genindentation(indentation),
-                            self.ident_to_tex(ident),
-                            self.expression_to_tex(idxexpr),
-                            sample_name.replace('_', "\\_"),
-                            self.type_to_tex(ty)
-                        )
-                    }
-                    (_, AssignmentRhs::Sample { sample_name: None, .. }) => {
-                        unreachable!("Expected sample name")
-                    }
-                    (Pattern::Ident(ident), AssignmentRhs::Invoke { oracle_name: name, args, target_inst_name: Some(target_inst_name), .. }) => {
-                        format!(
+                    )
+                }
+                (
+                    Pattern::Ident(ident),
+                    AssignmentRhs::Sample {
+                        ty,
+                        sample_name: Some(sample_name),
+                        ..
+                    },
+                ) => {
+                    format!(
+                        "{}{} \\stackrel{{{}}}{{\\sample}} {}\\\\",
+                        genindentation(indentation),
+                        self.ident_to_tex(ident),
+                        sample_name.replace('_', "\\_"),
+                        self.type_to_tex(ty)
+                    )
+                }
+                (
+                    Pattern::Table {
+                        ident,
+                        index: idxexpr,
+                    },
+                    AssignmentRhs::Sample {
+                        ty,
+                        sample_name: Some(sample_name),
+                        ..
+                    },
+                ) => {
+                    format!(
+                        "{}{}[{}] \\stackrel{{{}}}{{\\samples}} {}\\\\",
+                        genindentation(indentation),
+                        self.ident_to_tex(ident),
+                        self.expression_to_tex(idxexpr),
+                        sample_name.replace('_', "\\_"),
+                        self.type_to_tex(ty)
+                    )
+                }
+                (
+                    _,
+                    AssignmentRhs::Sample {
+                        sample_name: None, ..
+                    },
+                ) => {
+                    unreachable!("Expected sample name")
+                }
+                (
+                    Pattern::Ident(ident),
+                    AssignmentRhs::Invoke {
+                        oracle_name: name,
+                        args,
+                        target_inst_name: Some(target_inst_name),
+                        ..
+                    },
+                ) => {
+                    format!(
                             "{}{} \\stackrel{{\\mathsf{{\\tiny{{invoke}}}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
                             genindentation(indentation),
                             self.ident_to_tex(ident), name.replace("_", "\\_"),
                             args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
                             target_inst_name.replace('_', "\\_")
                         )
-                    }
-                    (Pattern::Table { ident, index: idxexpr }, AssignmentRhs::Invoke { oracle_name: name, args, target_inst_name: Some(target_inst_name), .. }) => {
-                        format!(
+                }
+                (
+                    Pattern::Table {
+                        ident,
+                        index: idxexpr,
+                    },
+                    AssignmentRhs::Invoke {
+                        oracle_name: name,
+                        args,
+                        target_inst_name: Some(target_inst_name),
+                        ..
+                    },
+                ) => {
+                    format!(
                             "{}{}[{}] \\stackrel{{\\mathsf{{\\tiny invoke}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
                             genindentation(indentation),
                             self.ident_to_tex(ident),
@@ -319,13 +365,18 @@ impl<'a> BlockWriter<'a> {
                             args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
                             target_inst_name.replace('_', "\\_")
                         )
-                    }
-                    (_, AssignmentRhs::Invoke { target_inst_name: None, .. }) => {
-                        unreachable!("Expect oracle-lowlevelified input")
-                    }
-                    _ => unreachable!("unexpected pattern/rhs combination"),
                 }
-            }
+                (
+                    _,
+                    AssignmentRhs::Invoke {
+                        target_inst_name: None,
+                        ..
+                    },
+                ) => {
+                    unreachable!("Expect oracle-lowlevelified input")
+                }
+                _ => unreachable!("unexpected pattern/rhs combination"),
+            },
             Statement::IfThenElse(ite) => {
                 if ite_is_assert(ite) {
                     // Special Case for asserts

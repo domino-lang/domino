@@ -29,12 +29,13 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
                     Statement::Assignment(
                         Assignment {
                             pattern,
-                            rhs: AssignmentRhs::Invoke {
-                                oracle_name,
-                                args,
-                                target_inst_name: _,
-                                return_type,
-                            },
+                            rhs:
+                                AssignmentRhs::Invoke {
+                                    oracle_name,
+                                    args,
+                                    target_inst_name: _,
+                                    return_type,
+                                },
                         },
                         span,
                     ) => {

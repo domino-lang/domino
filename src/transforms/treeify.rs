@@ -329,16 +329,32 @@ mod treeify_fn_test {
         let before = CodeBlock(vec![
             Statement::IfThenElse(IfThenElse {
                 cond: y.clone().into(),
-                then_block: CodeBlock(vec![assign_expr(x.clone(), Expression::integer(1), file_pos_firstifassign)]),
-                else_block: CodeBlock(vec![assign_expr(x.clone(), Expression::integer(2), file_pos_firstselseassign)]),
+                then_block: CodeBlock(vec![assign_expr(
+                    x.clone(),
+                    Expression::integer(1),
+                    file_pos_firstifassign,
+                )]),
+                else_block: CodeBlock(vec![assign_expr(
+                    x.clone(),
+                    Expression::integer(2),
+                    file_pos_firstselseassign,
+                )]),
                 then_span: file_pos_firstifassign,
                 else_span: file_pos_firstselseassign,
                 full_span: file_pos_firstif,
             }),
             Statement::IfThenElse(IfThenElse {
                 cond: z.clone().into(),
-                then_block: CodeBlock(vec![assign_expr(x.clone(), Expression::integer(3), file_pos_secondifassign)]),
-                else_block: CodeBlock(vec![assign_expr(x.clone(), Expression::integer(4), file_pos_secondselseassign)]),
+                then_block: CodeBlock(vec![assign_expr(
+                    x.clone(),
+                    Expression::integer(3),
+                    file_pos_secondifassign,
+                )]),
+                else_block: CodeBlock(vec![assign_expr(
+                    x.clone(),
+                    Expression::integer(4),
+                    file_pos_secondselseassign,
+                )]),
                 then_span: file_pos_secondifassign,
                 else_span: file_pos_secondselseassign,
                 full_span: file_pos_secondif,
@@ -357,7 +373,11 @@ mod treeify_fn_test {
                         Statement::Return(Some(x.clone().into()), file_pos_return),
                     ]),
                     else_block: CodeBlock(vec![
-                        assign_expr(x.clone(), Expression::integer(4), file_pos_secondselseassign),
+                        assign_expr(
+                            x.clone(),
+                            Expression::integer(4),
+                            file_pos_secondselseassign,
+                        ),
                         Statement::Return(Some(x.clone().into()), file_pos_return),
                     ]),
                     then_span: file_pos_secondifassign,
@@ -374,7 +394,11 @@ mod treeify_fn_test {
                         Statement::Return(Some(x.clone().into()), file_pos_return),
                     ]),
                     else_block: CodeBlock(vec![
-                        assign_expr(x.clone(), Expression::integer(4), file_pos_secondselseassign),
+                        assign_expr(
+                            x.clone(),
+                            Expression::integer(4),
+                            file_pos_secondselseassign,
+                        ),
                         Statement::Return(Some(x.clone().into()), file_pos_return),
                     ]),
                     then_span: file_pos_secondifassign,

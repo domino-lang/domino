@@ -262,7 +262,12 @@ impl<W: Write> Writer<W> {
                             self.write_string("; /* sample_id not assigned */\n")?;
                         }
                     }
-                    AssignmentRhs::Invoke { oracle_name, args, target_inst_name, return_type: opt_ty } => {
+                    AssignmentRhs::Invoke {
+                        oracle_name,
+                        args,
+                        target_inst_name,
+                        return_type: opt_ty,
+                    } => {
                         self.write_string(" <- invoke ")?;
                         self.write_call(oracle_name, args.as_slice())?;
                         if let Some(target_inst_name) = target_inst_name {

@@ -968,12 +968,7 @@ fn handle_pattern(
 
     match pattern_ast.as_rule() {
         Rule::pattern_ident => {
-            let ident = handle_identifier_in_code_lhs(
-                ctx,
-                pattern_ast,
-                oracle_name,
-                value_type,
-            )?;
+            let ident = handle_identifier_in_code_lhs(ctx, pattern_ast, oracle_name, value_type)?;
             Ok(Pattern::Ident(ident))
         }
         Rule::pattern_table => {
@@ -992,12 +987,7 @@ fn handle_pattern(
 
             let table_type = Type::table(index_expr.get_type(), table_value_type);
 
-            let ident = handle_identifier_in_code_lhs(
-                ctx,
-                name_ast,
-                oracle_name,
-                table_type,
-            )?;
+            let ident = handle_identifier_in_code_lhs(ctx, name_ast, oracle_name, table_type)?;
 
             Ok(Pattern::Table {
                 ident,
@@ -1012,7 +1002,8 @@ fn handle_pattern(
                     expected: Type::unknown(), // We expect a tuple but don't know the exact type yet
                     got: value_type,
                     source_code: ctx.named_source(),
-                }.into());
+                }
+                .into());
             };
 
             let idents: Vec<Identifier> = pattern_ast
@@ -1063,7 +1054,8 @@ fn handle_oracle_expr(
             let oracle_name = oracle_name_ast.as_str();
 
             // Look up the oracle
-            let oracle_decl = ctx.scope
+            let oracle_decl = ctx
+                .scope
                 .lookup(oracle_name)
                 .ok_or_else(|| NoSuchOracleError {
                     source_code: ctx.named_source(),
@@ -1076,7 +1068,8 @@ fn handle_oracle_expr(
                     source_code: ctx.named_source(),
                     at: (oracle_name_span.start()..oracle_name_span.end()).into(),
                     oracle_name: oracle_name.to_string(),
-                }.into());
+                }
+                .into());
             };
 
             // Parse arguments
@@ -1091,7 +1084,8 @@ fn handle_oracle_expr(
                         oracle_name: oracle_name.to_string(),
                         expected_num: target_oracle_sig.args.len(),
                         got_num: arg_count,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 let arglist: Result<Vec<_>, _> = args_iter

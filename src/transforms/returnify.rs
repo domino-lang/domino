@@ -142,7 +142,11 @@ mod test {
         Statement::Assignment(
             Assignment {
                 pattern: Pattern::Ident(id),
-                rhs: AssignmentRhs::Sample { ty, sample_name: None, sample_id: None },
+                rhs: AssignmentRhs::Sample {
+                    ty,
+                    sample_name: None,
+                    sample_id: None,
+                },
             },
             pos,
         )

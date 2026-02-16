@@ -128,20 +128,28 @@ impl<'a> CompositionSmtWriter<'a> {
                             };
                             match rhs {
                                 // TODO actually use the type that we sample to know how far to advance the randomness tape
-                                AssignmentRhs::Sample { sample_id, ty, sample_name } => self
-                                    .smt_build_sample(
-                                        oracle_ctx,
-                                        result,
-                                        ident,
-                                        &opt_idx,
-                                        sample_id,
-                                        ty,
-                                        sample_name,
-                                    ),
-                                AssignmentRhs::Invoke { target_inst_name: None, .. } => {
+                                AssignmentRhs::Sample {
+                                    sample_id,
+                                    ty,
+                                    sample_name,
+                                } => self.smt_build_sample(
+                                    oracle_ctx,
+                                    result,
+                                    ident,
+                                    &opt_idx,
+                                    sample_id,
+                                    ty,
+                                    sample_name,
+                                ),
+                                AssignmentRhs::Invoke {
+                                    target_inst_name: None,
+                                    ..
+                                } => {
                                     panic!("found an unresolved oracle invocation: {stmt:#?}");
                                 }
-                                AssignmentRhs::Invoke { return_type: None, .. } => {
+                                AssignmentRhs::Invoke {
+                                    return_type: None, ..
+                                } => {
                                     panic!("found an oracle invocation with unknown return type: {stmt:#?}");
                                 }
                                 AssignmentRhs::Invoke {
@@ -149,7 +157,15 @@ impl<'a> CompositionSmtWriter<'a> {
                                     args,
                                     target_inst_name: Some(target),
                                     return_type: Some(_),
-                                } => self.smt_build_invoke(oracle_ctx, result, ident, &opt_idx, oracle_name, args, target),
+                                } => self.smt_build_invoke(
+                                    oracle_ctx,
+                                    result,
+                                    ident,
+                                    &opt_idx,
+                                    oracle_name,
+                                    args,
+                                    target,
+                                ),
                                 AssignmentRhs::Expression(expr) => {
                                     self.smt_build_assign(oracle_ctx, result, ident, &opt_idx, expr)
                                 }

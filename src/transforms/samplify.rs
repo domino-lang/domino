@@ -147,7 +147,12 @@ pub fn samplify(
             Statement::Assignment(
                 Assignment {
                     pattern,
-                    rhs: AssignmentRhs::Sample { ref ty, sample_name, sample_id: None },
+                    rhs:
+                        AssignmentRhs::Sample {
+                            ref ty,
+                            sample_name,
+                            sample_id: None,
+                        },
                 },
                 file_pos,
             ) => {
@@ -245,18 +250,40 @@ mod test {
         }))
     }
 
-    fn sample_stmt(id: Identifier, ty: Type, sample_name: Option<String>, sample_id: Option<usize>, pos: SourceSpan) -> Statement {
+    fn sample_stmt(
+        id: Identifier,
+        ty: Type,
+        sample_name: Option<String>,
+        sample_id: Option<usize>,
+        pos: SourceSpan,
+    ) -> Statement {
         Statement::Assignment(
             Assignment {
                 pattern: Pattern::Ident(id),
-                rhs: AssignmentRhs::Sample { ty, sample_name, sample_id },
+                rhs: AssignmentRhs::Sample {
+                    ty,
+                    sample_name,
+                    sample_id,
+                },
             },
             pos,
         )
     }
 
     fn extract_sample_rhs(stmt: &Statement) -> Option<(&Option<usize>, &Option<String>)> {
-        if let Statement::Assignment(Assignment { rhs: AssignmentRhs::Sample { sample_id, sample_name, .. }, .. }, _) = stmt {
+        if let Statement::Assignment(
+            Assignment {
+                rhs:
+                    AssignmentRhs::Sample {
+                        sample_id,
+                        sample_name,
+                        ..
+                    },
+                ..
+            },
+            _,
+        ) = stmt
+        {
             Some((sample_id, sample_name))
         } else {
             None
@@ -296,6 +323,5 @@ mod test {
         let (sample_id, sample_name) = extract_sample_rhs(&new_code.0[1]).unwrap();
         assert_eq!(sample_id, &Some(1usize));
         assert_eq!(sample_name, &Some("2".to_string()));
-
     }
 }
