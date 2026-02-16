@@ -44,6 +44,7 @@ kw_assert = _{ "assert" }
 kw_abort = _{ "abort" }
 kw_invoke = _{ "invoke" }
 kw_for = _{ "for" }
+kw_sample = _{ "$" }
 kw_sample_name = _{ "sample-name" }
 
 kw_true  = _{ "true" }
@@ -444,32 +445,35 @@ oracle_sig = { identifier ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
 /// A block of code: a sequence of statements.
 code = { (stmt )* }
 
+/// Expressions in oracles can have side-effects
+oracle_expr = _{ oracle_expr_sample | oracle_expr_invoke | expression }
+
+/// The invoke expression calls an oracle
+oracle_expr_invoke = { kw_invoke ~ oracle_call }
+
+/// The sample expression samples a random value of the given type
+oracle_expr_sample = { kw_sample ~ tipe ~ (kw_sample_name ~ identifier)? }
+
+/// A pattern is something that is assigned to
+pattern = _{ pattern_tuple | pattern_table | pattern_ident }
+
+/// When we assign to a variable
+pattern_ident = { identifier }
+
+/// When we assign to a table entry
+pattern_table = { identifier ~ "[" ~ expression ~ "]" }
+
+/// When we deconstruct a tuple
+pattern_tuple = { "(" ~ pattern ~ ("," ~ pattern )+ ~ ")" }
+
 /// A statement (internal rule).
-stmt = _{ table_sample | table_assign | sample | parse | invocation | assign | return_stmt | assert | abort | ite | for_ }
+stmt = _{ assign | return_stmt | assert | abort | ite | for_ }
 
 /// An if-then-else statement.
 ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
 
-/// Sample a random value from a type and assign it to a variable.
-sample = { identifier ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
-
 /// Assign an expression to a variable.
-assign = { identifier ~ "<-" ~ expression ~ ";" }
-
-/// Invoke an oracle and store the result.
-invocation = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
-
-/// Parse a tuple into multiple variables.
-parse = { parse_tuple ~ "<-" ~  kw_parse ~ expression ~ ";" }
-
-  /// The left-hand side of a parse statement: a tuple of identifiers.
-  parse_tuple = { "(" ~ identifier ~ ("," ~ identifier )+ ~ ")" }
-
-/// Sample a random value and assign it to a table entry.
-table_sample = { identifier ~ "[" ~ expression ~ "]" ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
-
-/// Assign a value to a table entry.
-table_assign = { identifier ~ "[" ~ expression ~ "]" ~ "<-" ~ expression ~ ";" }
+assign = { pattern ~ "<-" ~ oracle_expr ~ ";" }
 
 /// Return from an oracle, optionally with a value.
 return_stmt = { kw_return ~ expression? ~ ";" }
@@ -485,7 +489,3 @@ for_ = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_co
 
 /// Comparison operator in for loops (< or <=).
 for_comp = { ( "<=" | "<" ) }
-
-/// The index expression for table access.
-table_index = { expression }
-
