@@ -473,7 +473,7 @@ stmt = _{ assign | return_stmt | assert | abort | ite | for_ }
 ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
 
 /// Assign an expression to a variable.
-assign = { pattern ~ "<-" ~ oracle_expr ~ ";" }
+assign = { pattern ~ "<-" ~ kw_parse? ~ oracle_expr ~ ";" }
 
 /// Return from an oracle, optionally with a value.
 return_stmt = { kw_return ~ expression? ~ ";" }

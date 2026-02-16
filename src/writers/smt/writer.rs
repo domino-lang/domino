@@ -113,49 +113,47 @@ impl<'a> CompositionSmtWriter<'a> {
                                  game:{game_inst_name}(game_name) pkg:{pkg_inst_name}({pkg_name}) oracle:{oracle_name}", game_inst_name = game_inst_name, pkg_inst_name = pkg_inst_name, pkg_name = pkg_name, oracle_name = oracle_name)
                 }
                 Statement::Assignment(Assignment { pattern, rhs }, _) => {
-                    let opt_idx: Option<Expression> = match pattern {
-                        Pattern::Table { index, .. } => Some(index.clone()),
-                        _ => None,
-                    };
-                    let ident: &Identifier = match pattern {
-                        Pattern::Ident(id) => id,
-                        Pattern::Table { ident, .. } => ident,
-                        Pattern::Tuple(_) => {
-                            // tuple pattern only valid with Expression rhs (parse)
-                            if let AssignmentRhs::Expression(expr) = rhs {
-                                if let Pattern::Tuple(idents) = pattern {
-                                    return self.smt_build_parse(oracle_ctx, result, idents, expr);
-                                }
-                            }
+                    match (pattern, rhs) {
+                        (Pattern::Tuple(idents), AssignmentRhs::Expression(expr)) => {
+                            self.smt_build_parse(oracle_ctx, result, idents, expr)
+                        }
+                        (Pattern::Tuple(_), _) => {
                             unreachable!("tuple pattern with non-expression rhs")
                         }
-                    };
-                    match rhs {
-                        // TODO actually use the type that we sample to know how far to advance the randomness tape
-                        AssignmentRhs::Sample { sample_id, ty, sample_name } => self
-                            .smt_build_sample(
-                                oracle_ctx,
-                                result,
-                                ident,
-                                &opt_idx,
-                                sample_id,
-                                ty,
-                                sample_name,
-                            ),
-                        AssignmentRhs::Invoke { target_inst_name: None, .. } => {
-                            panic!("found an unresolved oracle invocation: {stmt:#?}");
-                        }
-                        AssignmentRhs::Invoke { return_type: None, .. } => {
-                            panic!("found an oracle invocation with unknown return type: {stmt:#?}");
-                        }
-                        AssignmentRhs::Invoke {
-                            oracle_name,
-                            args,
-                            target_inst_name: Some(target),
-                            return_type: Some(_),
-                        } => self.smt_build_invoke(oracle_ctx, result, ident, &opt_idx, oracle_name, args, target),
-                        AssignmentRhs::Expression(expr) => {
-                            self.smt_build_assign(oracle_ctx, result, ident, &opt_idx, expr)
+                        (pat, rhs) => {
+                            let (ident, opt_idx) = match pat {
+                                Pattern::Ident(id) => (id, None),
+                                Pattern::Table { ident, index } => (ident, Some(index.clone())),
+                                Pattern::Tuple(_) => unreachable!(),
+                            };
+                            match rhs {
+                                // TODO actually use the type that we sample to know how far to advance the randomness tape
+                                AssignmentRhs::Sample { sample_id, ty, sample_name } => self
+                                    .smt_build_sample(
+                                        oracle_ctx,
+                                        result,
+                                        ident,
+                                        &opt_idx,
+                                        sample_id,
+                                        ty,
+                                        sample_name,
+                                    ),
+                                AssignmentRhs::Invoke { target_inst_name: None, .. } => {
+                                    panic!("found an unresolved oracle invocation: {stmt:#?}");
+                                }
+                                AssignmentRhs::Invoke { return_type: None, .. } => {
+                                    panic!("found an oracle invocation with unknown return type: {stmt:#?}");
+                                }
+                                AssignmentRhs::Invoke {
+                                    oracle_name,
+                                    args,
+                                    target_inst_name: Some(target),
+                                    return_type: Some(_),
+                                } => self.smt_build_invoke(oracle_ctx, result, ident, &opt_idx, oracle_name, args, target),
+                                AssignmentRhs::Expression(expr) => {
+                                    self.smt_build_assign(oracle_ctx, result, ident, &opt_idx, expr)
+                                }
+                            }
                         }
                     }
                 }
