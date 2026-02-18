@@ -95,34 +95,6 @@ impl Statement {
     }
 }
 
-impl Pattern {
-    /// Get the primary identifier from the pattern
-    pub fn primary_ident(&self) -> &Identifier {
-        match self {
-            Pattern::Ident(id) => id,
-            Pattern::Table { ident, .. } => ident,
-            Pattern::Tuple(ids) => &ids[0],
-        }
-    }
-
-    /// Get all identifiers from the pattern
-    pub fn all_idents(&self) -> Vec<&Identifier> {
-        match self {
-            Pattern::Ident(id) => vec![id],
-            Pattern::Table { ident, .. } => vec![ident],
-            Pattern::Tuple(ids) => ids.iter().collect(),
-        }
-    }
-
-    /// Get the table index if this is a table pattern
-    pub fn table_index(&self) -> Option<&Expression> {
-        match self {
-            Pattern::Table { index, .. } => Some(index),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]
 pub struct FilePosition {
     file_name: String,
