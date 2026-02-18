@@ -155,6 +155,27 @@ impl Unwrapifier {
                         file_pos,
                     ));
                 }
+                Statement::InvokeOracle {
+                    oracle_name,
+                    args,
+                    target_inst_name,
+                    file_pos,
+                } => {
+                    let new_args = args
+                        .iter()
+                        .map(|expr| {
+                            let (newexpr, unwraps) = self.replace_unwrap(expr);
+                            newcode.extend(create_unwrap_stmts(unwraps, file_pos));
+                            newexpr
+                        })
+                        .collect();
+                    newcode.push(Statement::InvokeOracle {
+                        oracle_name,
+                        args: new_args,
+                        target_inst_name,
+                        file_pos,
+                    });
+                }
                 Statement::IfThenElse(ite) => {
                     let (newcond, unwraps) = self.replace_unwrap(&ite.cond);
                     newcode.extend(create_unwrap_stmts(unwraps, ite.full_span));

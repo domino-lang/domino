@@ -112,6 +112,29 @@ impl<'a> CompositionSmtWriter<'a> {
                                  this should have been eliminated by now and can't be handled here. \
                                  game:{game_inst_name}(game_name) pkg:{pkg_inst_name}({pkg_name}) oracle:{oracle_name}", game_inst_name = game_inst_name, pkg_inst_name = pkg_inst_name, pkg_name = pkg_name, oracle_name = oracle_name)
                 }
+                Statement::InvokeOracle {
+                    target_inst_name: None,
+                    ..
+                } => {
+                    panic!("found an unresolved standalone oracle invocation: {stmt:#?}");
+                }
+                Statement::InvokeOracle {
+                    oracle_name,
+                    args,
+                    target_inst_name: Some(target),
+                    ..
+                } => {
+                    let discard_ident = Identifier::Generated("_".to_string(), Type::empty());
+                    self.smt_build_invoke(
+                        oracle_ctx,
+                        result,
+                        &discard_ident,
+                        &None,
+                        oracle_name,
+                        args,
+                        target,
+                    )
+                }
                 Statement::Assignment(Assignment { pattern, rhs }, _) => {
                     match (pattern, rhs) {
                         (Pattern::Tuple(idents), AssignmentRhs::Expression(expr)) => {

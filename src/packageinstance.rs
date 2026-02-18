@@ -570,6 +570,21 @@ pub(crate) mod instantiate {
                     )
                 }
 
+                Statement::InvokeOracle {
+                    oracle_name,
+                    args,
+                    target_inst_name,
+                    file_pos,
+                } => Statement::InvokeOracle {
+                    oracle_name,
+                    args: args
+                        .iter()
+                        .map(|expr| self.rewrite_expression(expr))
+                        .collect(),
+                    target_inst_name,
+                    file_pos,
+                },
+
                 Statement::IfThenElse(ite) => Statement::IfThenElse(IfThenElse {
                     cond: self.rewrite_expression(&ite.cond),
                     then_block: self.rewrite_oracle_code(ite.then_block),

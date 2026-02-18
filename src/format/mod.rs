@@ -307,6 +307,23 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
             Rule::abort => {
                 ctx.push_line("abort;");
             }
+            Rule::invoke_stmt => {
+                let mut inner = stmt.into_inner();
+                let oracle_call = inner.next().unwrap();
+                let mut call_inner = oracle_call.into_inner();
+                let oracle_name = call_inner.next().unwrap().as_str();
+
+                let mut argstring = String::new();
+                for ast in call_inner {
+                    let arglist: Vec<_> = ast
+                        .into_inner()
+                        .map(format_expr)
+                        .collect::<Result<_, _>>()?;
+                    argstring.push_str(&arglist.join(", "));
+                }
+
+                ctx.push_line(&format!("invoke {oracle_name}({argstring});"));
+            }
             Rule::assign => {
                 let mut inner = stmt.into_inner();
                 let pattern_ast = inner.next().unwrap();

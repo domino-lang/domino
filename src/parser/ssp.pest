@@ -467,7 +467,10 @@ pattern_table = { identifier ~ "[" ~ expression ~ "]" }
 pattern_tuple = { "(" ~ pattern ~ ("," ~ pattern )+ ~ ")" }
 
 /// A statement (internal rule).
-stmt = _{ assign | return_stmt | assert | abort | ite | for_ }
+stmt = _{ assign | invoke_stmt | return_stmt | assert | abort | ite | for_ }
+
+/// A standalone oracle invocation (return value discarded).
+invoke_stmt = { kw_invoke ~ oracle_call ~ ";" }
 
 /// An if-then-else statement.
 ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }

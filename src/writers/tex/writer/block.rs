@@ -377,6 +377,34 @@ impl<'a> BlockWriter<'a> {
                 }
                 _ => unreachable!("unexpected pattern/rhs combination"),
             },
+            Statement::InvokeOracle {
+                oracle_name: name,
+                args,
+                target_inst_name,
+                ..
+            } => {
+                let args_tex = args
+                    .iter()
+                    .map(|expr| self.expression_to_tex(expr))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if let Some(target_inst_name) = target_inst_name {
+                    format!(
+                        "{}\\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
+                        genindentation(indentation),
+                        name.replace("_", "\\_"),
+                        args_tex,
+                        target_inst_name.replace('_', "\\_")
+                    )
+                } else {
+                    format!(
+                        "{}\\O{{{}}}({}) \\\\",
+                        genindentation(indentation),
+                        name.replace("_", "\\_"),
+                        args_tex,
+                    )
+                }
+            }
             Statement::IfThenElse(ite) => {
                 if ite_is_assert(ite) {
                     // Special Case for asserts

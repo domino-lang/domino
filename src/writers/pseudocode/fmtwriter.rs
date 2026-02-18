@@ -320,6 +320,26 @@ impl<W: Write> FmtWriter<W> {
 
                 self.write_string("\n")?;
             }
+            Statement::InvokeOracle {
+                oracle_name,
+                args,
+                target_inst_name,
+                ..
+            } => {
+                self.write_string("invoke ")?;
+                self.write_call(oracle_name, args)?;
+                if self.annotate {
+                    if let Some(target_inst_name) = target_inst_name {
+                        self.write_string(&format!(
+                            "; /* with target instance name {target_inst_name} */\n"
+                        ))?;
+                    } else {
+                        self.write_string("; /* target instance name not assigned */\n")?;
+                    }
+                } else {
+                    self.write_string(";\n")?;
+                }
+            }
             Statement::For(_, _, _, _, _) => todo!(),
             Statement::Abort(_) => {
                 self.write_string("abort;\n")?;

@@ -136,6 +136,11 @@ fn extract_types_from_codeblock(set: &mut HashSet<Type>, cb: CodeBlock) {
                     }
                 }
             }
+            Statement::InvokeOracle { args, .. } => {
+                for arg in &args {
+                    record_type(set, arg.get_type());
+                }
+            }
             Statement::IfThenElse(ite) => {
                 record_type(set, ite.cond.get_type());
                 extract_types_from_codeblock(set, ite.then_block);

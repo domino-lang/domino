@@ -57,6 +57,24 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
                             None
                         }
                     }
+                    Statement::InvokeOracle {
+                        oracle_name,
+                        args,
+                        target_inst_name: _,
+                        file_pos,
+                    } => {
+                        if let Some(pkgname) = table.get(&oracle_name) {
+                            Some(Statement::InvokeOracle {
+                                oracle_name,
+                                args,
+                                target_inst_name: Some(pkgname.clone()),
+                                file_pos,
+                            })
+                        } else {
+                            err_stmts.push((oracle_name, current_pos));
+                            None
+                        }
+                    }
                     Statement::IfThenElse(ite) => Some(Statement::IfThenElse(IfThenElse {
                         then_block: transform_helper(table, ite.then_block.clone(), err_stmts),
                         else_block: transform_helper(table, ite.else_block.clone(), err_stmts),

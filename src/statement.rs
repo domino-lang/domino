@@ -11,6 +11,7 @@ use crate::types::Type;
 pub struct CodeBlock(pub Vec<Statement>);
 
 /// A pattern on the left-hand side of an assignment
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Pattern {
     /// Simple identifier: `x`
@@ -25,6 +26,7 @@ pub enum Pattern {
 }
 
 /// The right-hand side of an assignment
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AssignmentRhs {
     /// Regular expression: `x <- expr`
@@ -57,6 +59,13 @@ pub enum Statement {
     Return(Option<Expression>, SourceSpan),
     /// Unified assignment: pattern <- rhs
     Assignment(Assignment, SourceSpan),
+    /// Standalone oracle invocation (discards return value): invoke Oracle(args)
+    InvokeOracle {
+        oracle_name: String,
+        args: Vec<Expression>,
+        target_inst_name: Option<String>,
+        file_pos: SourceSpan,
+    },
     IfThenElse(IfThenElse),
     For(Identifier, Expression, Expression, CodeBlock, SourceSpan),
 }
@@ -73,15 +82,13 @@ pub struct IfThenElse {
 
 impl Statement {
     pub fn file_pos(&self) -> SourceSpan {
-        *match self {
+        match self {
             Statement::Abort(file_pos)
             | Statement::Return(_, file_pos)
             | Statement::Assignment(_, file_pos)
-            | Statement::IfThenElse(IfThenElse {
-                full_span: file_pos,
-                ..
-            })
-            | Statement::For(_, _, _, _, file_pos) => file_pos,
+            | Statement::For(_, _, _, _, file_pos) => *file_pos,
+            Statement::InvokeOracle { file_pos, .. } => *file_pos,
+            Statement::IfThenElse(IfThenElse { full_span, .. }) => *full_span,
         }
     }
 }

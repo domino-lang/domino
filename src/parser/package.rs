@@ -950,6 +950,7 @@ pub enum ParseIdentifierError {
 
 // Helper structures and functions for unified assign statement handling
 
+#[allow(clippy::large_enum_variant)]
 enum OracleExprResult {
     Expression(Expression),
     Sample(Type, Option<String>), // Type to sample, optional sample name
@@ -1033,13 +1034,11 @@ fn handle_oracle_expr(
             let ty = handle_type(&parse_ctx, inner.next().unwrap())?;
 
             // Check for optional sample_name
-            let sample_name = if let Some(kw_or_ident) = inner.next() {
+            let sample_name = inner
+                .next()
                 // If we have another token, it should be the identifier after kw_sample_name
                 // But kw_sample_name is silent (_), so we get the identifier directly
-                Some(kw_or_ident.as_str().to_string())
-            } else {
-                None
-            };
+                .map(|kw_or_ident| kw_or_ident.as_str().to_string());
 
             Ok(OracleExprResult::Sample(ty, sample_name))
         }
@@ -1175,6 +1174,63 @@ pub fn handle_code(
                     Statement::IfThenElse(IfThenElse { cond: expr, then_block: CodeBlock(vec![]), else_block: CodeBlock(vec![Statement::Abort(full_span)]), then_span: full_span, else_span: full_span, full_span })
                 }
                 Rule::abort => Statement::Abort(full_span),
+                Rule::invoke_stmt => {
+                    let mut inner = stmt.into_inner();
+                    let oracle_call = inner.next().unwrap();
+                    let oracle_call_span = oracle_call.as_span();
+
+                    let mut call_inner = oracle_call.into_inner();
+                    let oracle_name_ast = call_inner.next().unwrap();
+                    let oracle_name_span = oracle_name_ast.as_span();
+                    let oracle_name = oracle_name_ast.as_str();
+
+                    let oracle_decl = ctx
+                        .scope
+                        .lookup(oracle_name)
+                        .ok_or_else(|| NoSuchOracleError {
+                            source_code: ctx.named_source(),
+                            at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                            oracle_name: oracle_name.to_string(),
+                        })?;
+
+                    let Declaration::Oracle(_target_oracle_ctx, target_oracle_sig) = oracle_decl else {
+                        return Err(NoSuchOracleError {
+                            source_code: ctx.named_source(),
+                            at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                            oracle_name: oracle_name.to_string(),
+                        }
+                        .into());
+                    };
+
+                    let mut args = vec![];
+                    for ast in call_inner {
+                        let args_iter = ast.into_inner();
+                        let (arg_count, _) = args_iter.size_hint();
+                        if arg_count != target_oracle_sig.args.len() {
+                            return Err(WrongArgumentCountInInvocationError {
+                                source_code: ctx.named_source(),
+                                span: (oracle_call_span.start()..oracle_call_span.end()).into(),
+                                oracle_name: oracle_name.to_string(),
+                                expected_num: target_oracle_sig.args.len(),
+                                got_num: arg_count,
+                            }
+                            .into());
+                        }
+
+                        let arglist: Result<Vec<_>, _> = args_iter
+                            .zip(target_oracle_sig.args.iter())
+                            .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
+                            .collect();
+                        args.extend(arglist?.into_iter());
+                    }
+
+                    Statement::InvokeOracle {
+                        oracle_name: oracle_name.to_string(),
+                        args,
+                        target_inst_name: None,
+                        file_pos: full_span,
+                    }
+                }
                 Rule::assign => {
                     use crate::statement::{Assignment, AssignmentRhs, Pattern};
 
