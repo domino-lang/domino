@@ -1321,11 +1321,8 @@ pub fn handle_code(
                     )?;
 
                     // Validate pattern + RHS combinations
-                    match (&pattern, &oracle_expr_result) {
-                        (Pattern::Tuple(_), OracleExprResult::Sample(..)) => {
-                            panic!("Cannot sample into tuple pattern - this should be prevented by grammar")
-                        }
-                        _ => {} // All other combinations are valid
+                    if let (Pattern::Tuple(_), OracleExprResult::Sample(..)) = (&pattern, &oracle_expr_result) {
+                        panic!("Cannot sample into tuple pattern - this should be prevented by grammar")
                     }
 
                     // Create the RHS
