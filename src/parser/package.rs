@@ -973,9 +973,37 @@ fn handle_pattern(
             Ok(Pattern::Ident(ident))
         }
         Rule::pattern_table => {
+            let pattern_span = pattern_ast.as_span();
             let mut inner = pattern_ast.into_inner();
             let name_ast = inner.next().unwrap();
-            let index_expr = handle_expression(&parse_ctx, inner.next().unwrap(), None)?;
+
+            let index_ast = inner.next().unwrap();
+
+            let index_expr = match ctx.scope.lookup_identifier(name_ast.as_str()) {
+                Some(ident) => match ident.get_type().kind() {
+                    TypeKind::Table(key_ty, _) => {
+                        handle_expression(&parse_ctx, index_ast, Some(key_ty.as_ref()))?
+                    }
+                    _ => {
+                        return Err(ParsePackageError::TypeMismatch(TypeMismatchError {
+                            source_code: ctx.named_source(),
+                            at: (pattern_span.start()..pattern_span.end()).into(),
+                            expected: Type::table(Type::unknown(), value_type),
+                            got: ident.get_type(),
+                        }));
+                    }
+                },
+
+                None => {
+                    return Err(ParsePackageError::UndefinedIdentifier(
+                        UndefinedIdentifierError {
+                            source_code: ctx.named_source(),
+                            at: (name_ast.as_span().start()..name_ast.as_span().end()).into(),
+                            ident_name: name_ast.as_str().to_string(),
+                        },
+                    ))
+                }
+            };
 
             // For table patterns, we need to handle the Maybe wrapper correctly
             // The value_type coming in might be Maybe(T) or T depending on the RHS
@@ -1239,14 +1267,39 @@ pub fn handle_code(
                     let oracle_expr_ast = inner.next().unwrap();
 
                     // First, try to infer expected type from the pattern if it's an existing identifier
-                    let expected_type = if let Rule::pattern_ident = pattern_ast.as_rule() {
-                        let name = pattern_ast.as_str();
-                        match ctx.scope.lookup(name) {
-                            Some(Declaration::Identifier(ident)) => Some(ident.get_type()),
-                            _ => None,
+                    let expected_type = match pattern_ast.as_rule() {
+                        Rule::pattern_ident => {
+                            let name = pattern_ast.as_str();
+                            match ctx.scope.lookup(name) {
+                                Some(Declaration::Identifier(ident)) => Some(ident.get_type()),
+                                _ => None,
+                            }
                         }
-                    } else {
-                        None
+                        Rule::pattern_table => {
+                            let mut inner = pattern_ast.clone().into_inner();
+                            let name = inner.next().unwrap();
+
+                            match ctx.scope.lookup_identifier(name.as_str()) {
+                                Some(ident) => match ident.get_type().kind() {
+                                    TypeKind::Table(_key_ty, value_ty) => {
+                                        Some(Type::maybe(*value_ty.clone()))
+                                    }
+                                    _ => None,
+                                },
+                                _ => {
+                                    return Err(ParsePackageError::UndefinedIdentifier(
+                                        UndefinedIdentifierError {
+                                            source_code: ctx.named_source(),
+                                            at: (name.as_span().start()..name.as_span().end()).into(),
+                                            ident_name: name.as_str().to_string(),
+                                        },
+                                    ))
+                                },
+                            }
+                        }
+                        Rule::pattern_tuple => None,
+                        _ => unreachable!()
+
                     };
 
                     // Handle the right-hand side oracle expression
