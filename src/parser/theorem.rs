@@ -63,7 +63,7 @@ pub(crate) struct ParseTheoremContext<'src> {
     pub file_content: &'src str,
     pub scope: Scope,
 
-    pub types: Vec<String>,
+    pub types: Vec<&'src str>,
 
     pub theorem_name: &'src str,
 
