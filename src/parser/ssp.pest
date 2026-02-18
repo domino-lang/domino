@@ -446,13 +446,13 @@ oracle_sig = { identifier ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
 code = { (stmt )* }
 
 /// Expressions in oracles can have side-effects
-oracle_expr = _{ oracle_expr_sample | oracle_expr_invoke | expression }
+assign_rhs = _{ assign_rhs_sample | assign_rhs_invoke | expression }
 
 /// The invoke expression calls an oracle
-oracle_expr_invoke = { kw_invoke ~ oracle_call }
+assign_rhs_invoke = { kw_invoke ~ oracle_call }
 
 /// The sample expression samples a random value of the given type
-oracle_expr_sample = { kw_sample ~ tipe ~ (kw_sample_name ~ identifier)? }
+assign_rhs_sample = { kw_sample ~ tipe ~ (kw_sample_name ~ identifier)? }
 
 /// A pattern is something that is assigned to
 pattern = _{ pattern_tuple | pattern_table | pattern_ident }
@@ -476,7 +476,7 @@ invoke_stmt = { kw_invoke ~ oracle_call ~ ";" }
 ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
 
 /// Assign an expression to a variable.
-assign = { pattern ~ "<-" ~ kw_parse? ~ oracle_expr ~ ";" }
+assign = { pattern ~ "<-" ~ kw_parse? ~ assign_rhs ~ ";" }
 
 /// Return from an oracle, optionally with a value.
 return_stmt = { kw_return ~ expression? ~ ";" }

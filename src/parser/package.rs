@@ -1049,16 +1049,16 @@ fn handle_pattern(
     }
 }
 
-fn handle_oracle_expr(
+fn handle_assign_rhs(
     ctx: &ParsePackageContext,
-    oracle_expr_ast: Pair<Rule>,
+    assign_rhs_ast: Pair<Rule>,
     expected_type: Option<&Type>,
 ) -> Result<OracleExprResult, ParsePackageError> {
     let parse_ctx = ctx.parse_ctx();
 
-    match oracle_expr_ast.as_rule() {
-        Rule::oracle_expr_sample => {
-            let mut inner = oracle_expr_ast.into_inner();
+    match assign_rhs_ast.as_rule() {
+        Rule::assign_rhs_sample => {
+            let mut inner = assign_rhs_ast.into_inner();
             let ty = handle_type(&parse_ctx, inner.next().unwrap())?;
 
             // Check for optional sample_name
@@ -1070,8 +1070,8 @@ fn handle_oracle_expr(
 
             Ok(OracleExprResult::Sample(ty, sample_name))
         }
-        Rule::oracle_expr_invoke => {
-            let mut inner = oracle_expr_ast.into_inner();
+        Rule::assign_rhs_invoke => {
+            let mut inner = assign_rhs_ast.into_inner();
             let oracle_call = inner.next().unwrap();
             let oracle_call_span = oracle_call.as_span();
 
@@ -1130,7 +1130,7 @@ fn handle_oracle_expr(
         }
         _ => {
             // It's a regular expression
-            let expr = handle_expression(&parse_ctx, oracle_expr_ast, expected_type)?;
+            let expr = handle_expression(&parse_ctx, assign_rhs_ast, expected_type)?;
             Ok(OracleExprResult::Expression(expr))
         }
     }
@@ -1264,7 +1264,7 @@ pub fn handle_code(
 
                     let mut inner = stmt.into_inner();
                     let pattern_ast = inner.next().unwrap();
-                    let oracle_expr_ast = inner.next().unwrap();
+                    let assign_rhs_ast = inner.next().unwrap();
 
                     // First, try to infer expected type from the pattern if it's an existing identifier
                     let expected_type = match pattern_ast.as_rule() {
@@ -1303,10 +1303,10 @@ pub fn handle_code(
                     };
 
                     // Handle the right-hand side oracle expression
-                    let oracle_expr_result = handle_oracle_expr(ctx, oracle_expr_ast, expected_type.as_ref())?;
+                    let assign_rhs_result = handle_assign_rhs(ctx, assign_rhs_ast, expected_type.as_ref())?;
 
                     // Determine the value type based on oracle expression result
-                    let value_type = match &oracle_expr_result {
+                    let value_type = match &assign_rhs_result {
                         OracleExprResult::Expression(expr) => expr.get_type(),
                         OracleExprResult::Sample(ty, _) => ty.clone(),
                         OracleExprResult::Invoke(_, _, ty) => ty.clone(),
@@ -1321,12 +1321,12 @@ pub fn handle_code(
                     )?;
 
                     // Validate pattern + RHS combinations
-                    if let (Pattern::Tuple(_), OracleExprResult::Sample(..)) = (&pattern, &oracle_expr_result) {
+                    if let (Pattern::Tuple(_), OracleExprResult::Sample(..)) = (&pattern, &assign_rhs_result) {
                         panic!("Cannot sample into tuple pattern - this should be prevented by grammar")
                     }
 
                     // Create the RHS
-                    let rhs = match oracle_expr_result {
+                    let rhs = match assign_rhs_result {
                         OracleExprResult::Expression(expr) => AssignmentRhs::Expression(expr),
                         OracleExprResult::Sample(ty, sample_name) => AssignmentRhs::Sample {
                             ty,

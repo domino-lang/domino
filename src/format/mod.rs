@@ -109,10 +109,10 @@ fn format_pattern(pattern: Pair<Rule>) -> Result<String, project::error::Error> 
     })
 }
 
-fn format_oracle_expr(oracle_expr: Pair<Rule>) -> Result<String, project::error::Error> {
-    Ok(match oracle_expr.as_rule() {
-        Rule::oracle_expr_sample => {
-            let mut inner = oracle_expr.into_inner();
+fn format_assign_rhs(assign_rhs: Pair<Rule>) -> Result<String, project::error::Error> {
+    Ok(match assign_rhs.as_rule() {
+        Rule::assign_rhs_sample => {
+            let mut inner = assign_rhs.into_inner();
             let ty = inner.next().unwrap().as_str();
 
             // Check for optional sample_name
@@ -125,8 +125,8 @@ fn format_oracle_expr(oracle_expr: Pair<Rule>) -> Result<String, project::error:
             // Format with $ to match the nicer-looking <-$ syntax
             format!("${ty}{sample_name_part}")
         }
-        Rule::oracle_expr_invoke => {
-            let mut inner = oracle_expr.into_inner();
+        Rule::assign_rhs_invoke => {
+            let mut inner = assign_rhs.into_inner();
             let oracle_call = inner.next().unwrap();
             let mut call_inner = oracle_call.into_inner();
             let oracle_name = call_inner.next().unwrap().as_str();
@@ -144,7 +144,7 @@ fn format_oracle_expr(oracle_expr: Pair<Rule>) -> Result<String, project::error:
         }
         _ => {
             // It's a regular expression
-            format_expr(oracle_expr)?
+            format_expr(assign_rhs)?
         }
     })
 }
@@ -327,13 +327,13 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
             Rule::assign => {
                 let mut inner = stmt.into_inner();
                 let pattern_ast = inner.next().unwrap();
-                let oracle_expr_ast = inner.next().unwrap();
+                let assign_rhs_ast = inner.next().unwrap();
 
                 // Format the pattern (left-hand side)
                 let lhs = format_pattern(pattern_ast)?;
 
                 // Format the oracle expression (right-hand side)
-                let rhs = format_oracle_expr(oracle_expr_ast)?;
+                let rhs = format_assign_rhs(assign_rhs_ast)?;
 
                 ctx.push_line(&format!("{lhs} <- {rhs};"));
             }
