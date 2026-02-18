@@ -2,9 +2,10 @@
 
 use std::{collections::HashSet, convert::Infallible};
 
-use crate::{theorem::GameInstance, transforms::deconstructinvoke, types::Type};
+use crate::{theorem::GameInstance, types::Type};
 
 use super::{
+    deconstructinvoke,
     resolveoracles::{self, ResolutionError},
     returnify, samplify, tableinitialize, treeify, type_extract, unwrapify, GameTransform,
     Transformation,
