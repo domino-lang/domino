@@ -75,7 +75,7 @@ num = { ASCII_DIGIT+ }
 // -- literals --
 
 /// A union of all the different literals.
-literal = _{ literal_boolean | literal_emptyset | literal_integer }
+literal = _{ literal_boolean | literal_emptyset | literal_integer | literal_bits }
 
 /// A boolean literal: true or false
 literal_boolean = { kw_true | kw_false }
@@ -85,6 +85,10 @@ literal_integer = { num }
 
 /// An empty set. We can't usually infer the type, so make that explicit.
 literal_emptyset = { kw_emptyset ~ "as" ~ tipe }
+
+literal_bits = _{ literal_bits_zero | literal_bits_one }
+  literal_bits_zero = ${ "0_" ~ countspec }
+  literal_bits_one =  ${ "1_" ~ countspec }
 
 // -- types --
 

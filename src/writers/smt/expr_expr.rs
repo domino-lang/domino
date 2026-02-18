@@ -37,6 +37,15 @@ impl From<Expression> for SmtExpr {
             ExpressionKind::StringLiteral(litname) => SmtExpr::Atom(format!("\"{litname}\"")),
             ExpressionKind::BooleanLiteral(litname) => SmtExpr::Atom(litname),
             ExpressionKind::IntegerLiteral(litname) => SmtExpr::Atom(format!("{litname}")),
+            ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {
+                let TypeKind::Bits(cspec) = ty.kind() else {
+                    unreachable!()
+                };
+                SmtExpr::Atom(format!("<{cont}_{cspec}>"))
+            }
+            ExpressionKind::BitsLiteral(cont, ty) => {
+                panic!("found a bits literal {cont} with non Bits type {ty}. Should not have been created.")
+            }
             ExpressionKind::Equals(exprs) => {
                 let mut acc = vec![SmtExpr::Atom("=".to_string())];
                 for expr in exprs {
