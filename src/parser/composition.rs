@@ -99,12 +99,19 @@ impl<'src> ParseGameContext<'src> {
         let mut consts = Vec::from_iter(self.consts);
         consts.sort();
 
+        let type_params = self
+            .types
+            .into_iter()
+            .map(|(name, _span)| name.to_string())
+            .collect();
+
         Composition {
             name: self.game_name.to_string(),
             consts,
             pkgs: self.instances.into_iter().map(|(inst, _)| inst).collect(),
             edges: self.edges,
             exports: self.exports,
+            type_params,
         }
     }
 
