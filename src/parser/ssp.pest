@@ -322,7 +322,7 @@ path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT 
 composition = { kw_composition ~ identifier ~ "{" ~ composition_spec_list ~ "}" }
 
 /// List of specifications in a composition: constants, instances, loops, and compose blocks.
-composition_spec_list = { const_decl* ~ instance_decl* ~ compose_decl*}
+composition_spec_list = { types* ~ const_decl* ~  instance_decl* ~ compose_decl*}
 
 /// A constant declaration with a type.
 const_decl = { kw_const ~ identifier ~ ":" ~ tipe ~ ";" }

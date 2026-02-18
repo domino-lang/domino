@@ -45,7 +45,7 @@ pub struct ParsePackageContext<'src> {
     pub oracles: Vec<OracleDef>,
     pub state: Vec<(String, Type, SourceSpan)>,
     pub params: Vec<(String, Type, SourceSpan)>,
-    pub types: Vec<&'src str>,
+    pub types: Vec<(&'src str, pest::Span<'src>)>,
     pub imported_oracles: HashMap<String, (OracleSig, SourceSpan)>,
 }
 
@@ -190,7 +190,7 @@ pub fn handle_pkg_spec<'src>(
         match spec.as_rule() {
             Rule::types => {
                 for types_list in spec.into_inner() {
-                    ctx.types.append(&mut handle_types_list(types_list))
+                    ctx.types.extend(&mut handle_types_list(types_list))
                 }
             }
             Rule::params => {
@@ -220,7 +220,11 @@ pub fn handle_pkg_spec<'src>(
         }
     }
 
-    let types = ctx.types.into_iter().map(String::from).collect();
+    let types = ctx
+        .types
+        .into_iter()
+        .map(|(name, _span)| name.to_string())
+        .collect();
 
     Ok(Package {
         name: ctx.pkg_name.to_string(),
@@ -1689,6 +1693,10 @@ pub fn handle_import_oracles_body(
     Ok(())
 }
 
-pub fn handle_types_list<'src>(types: Pair<'src, Rule>) -> Vec<&'src str> {
-    types.into_inner().map(|entry| entry.as_str()).collect()
+pub fn handle_types_list<'src>(
+    types: Pair<'src, Rule>,
+) -> impl Iterator<Item = (&'src str, pest::Span<'src>)> {
+    types
+        .into_inner()
+        .map(|entry| (entry.as_str(), entry.as_span()))
 }
