@@ -10,7 +10,9 @@ use crate::{
         Identifier,
     },
     parser::package::ForComp,
-    statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement},
+    statement::{
+        Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
+    },
     types::{CountSpec, Type, TypeKind},
 };
 
@@ -377,12 +379,12 @@ impl<'a> BlockWriter<'a> {
                 }
                 _ => unreachable!("unexpected pattern/rhs combination"),
             },
-            Statement::InvokeOracle {
+            Statement::InvokeOracle(InvokeOracle {
                 oracle_name: name,
                 args,
                 target_inst_name,
                 ..
-            } => {
+            }) => {
                 let args_tex = args
                     .iter()
                     .map(|expr| self.expression_to_tex(expr))

@@ -23,7 +23,7 @@ use crate::{
     parser::error::{
         ForLoopIdentifersDontMatchError, NoSuchOracleError, OracleAlreadyImportedError,
     },
-    statement::{CodeBlock, FilePosition, IfThenElse, Pattern, Statement},
+    statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracle, Pattern, Statement},
     types::{Type, TypeKind},
     util::scope::{Declaration, OracleContext, Scope},
 };
@@ -1224,12 +1224,12 @@ pub fn handle_code(
                         args.extend(arglist?.into_iter());
                     }
 
-                    Statement::InvokeOracle {
+                    Statement::InvokeOracle (InvokeOracle{
                         oracle_name: oracle_name.to_string(),
                         args,
                         target_inst_name: None,
                         file_pos: full_span,
-                    }
+                    })
                 }
                 Rule::assign => {
                     use crate::statement::{Assignment, AssignmentRhs, Pattern};

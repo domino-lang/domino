@@ -7,7 +7,7 @@ use miette::SourceSpan;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement};
 
 pub type Error = Infallible;
 
@@ -155,12 +155,12 @@ impl Unwrapifier {
                         file_pos,
                     ));
                 }
-                Statement::InvokeOracle {
+                Statement::InvokeOracle(InvokeOracle {
                     oracle_name,
                     args,
                     target_inst_name,
                     file_pos,
-                } => {
+                }) => {
                     let new_args = args
                         .iter()
                         .map(|expr| {
@@ -169,12 +169,12 @@ impl Unwrapifier {
                             newexpr
                         })
                         .collect();
-                    newcode.push(Statement::InvokeOracle {
+                    newcode.push(Statement::InvokeOracle(InvokeOracle {
                         oracle_name,
                         args: new_args,
                         target_inst_name,
                         file_pos,
-                    });
+                    }));
                 }
                 Statement::IfThenElse(ite) => {
                     let (newcond, unwraps) = self.replace_unwrap(&ite.cond);

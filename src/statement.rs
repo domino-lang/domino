@@ -53,19 +53,21 @@ pub struct Assignment {
     pub(crate) rhs: AssignmentRhs,
 }
 
+/// Standalone oracle invocation (discards return value): invoke Oracle(args)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InvokeOracle {
+    pub oracle_name: String,
+    pub args: Vec<Expression>,
+    pub target_inst_name: Option<String>,
+    pub file_pos: SourceSpan,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
     Abort(SourceSpan),
     Return(Option<Expression>, SourceSpan),
-    /// Unified assignment: pattern <- rhs
     Assignment(Assignment, SourceSpan),
-    /// Standalone oracle invocation (discards return value): invoke Oracle(args)
-    InvokeOracle {
-        oracle_name: String,
-        args: Vec<Expression>,
-        target_inst_name: Option<String>,
-        file_pos: SourceSpan,
-    },
+    InvokeOracle(InvokeOracle),
     IfThenElse(IfThenElse),
     For(Identifier, Expression, Expression, CodeBlock, SourceSpan),
 }
@@ -87,7 +89,7 @@ impl Statement {
             | Statement::Return(_, file_pos)
             | Statement::Assignment(_, file_pos)
             | Statement::For(_, _, _, _, file_pos) => *file_pos,
-            Statement::InvokeOracle { file_pos, .. } => *file_pos,
+            Statement::InvokeOracle(InvokeOracle { file_pos, .. }) => *file_pos,
             Statement::IfThenElse(IfThenElse { full_span, .. }) => *full_span,
         }
     }

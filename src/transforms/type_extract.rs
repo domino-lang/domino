@@ -6,7 +6,7 @@ use std::convert::Infallible;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::Identifier;
 use crate::package::{Composition, Edge, Export};
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement};
 use crate::types::{CountSpec, Type, TypeKind};
 
 pub struct Transformation<'a>(pub &'a Composition);
@@ -136,7 +136,7 @@ fn extract_types_from_codeblock(set: &mut HashSet<Type>, cb: CodeBlock) {
                     }
                 }
             }
-            Statement::InvokeOracle { args, .. } => {
+            Statement::InvokeOracle(InvokeOracle { args, .. }) => {
                 for arg in &args {
                     record_type(set, arg.get_type());
                 }

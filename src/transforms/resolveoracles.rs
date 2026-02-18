@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::package::{Composition, Edge, OracleDef, Package, PackageInstance};
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Statement};
 
 use std::collections::HashMap;
 
@@ -57,19 +57,19 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
                             None
                         }
                     }
-                    Statement::InvokeOracle {
+                    Statement::InvokeOracle(InvokeOracle {
                         oracle_name,
                         args,
                         target_inst_name: _,
                         file_pos,
-                    } => {
+                    }) => {
                         if let Some(pkgname) = table.get(&oracle_name) {
-                            Some(Statement::InvokeOracle {
+                            Some(Statement::InvokeOracle(InvokeOracle {
                                 oracle_name,
                                 args,
                                 target_inst_name: Some(pkgname.clone()),
                                 file_pos,
-                            })
+                            }))
                         } else {
                             err_stmts.push((oracle_name, current_pos));
                             None

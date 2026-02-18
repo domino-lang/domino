@@ -5,7 +5,7 @@ use std::io::Write;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, OracleSig, Package};
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement};
 use crate::types::{CountSpec, Type, TypeKind};
 
 type Result = std::io::Result<()>;
@@ -319,12 +319,12 @@ impl<W: Write> Writer<W> {
 
                 self.write_string("\n")?;
             }
-            Statement::InvokeOracle {
+            Statement::InvokeOracle(InvokeOracle {
                 oracle_name,
                 args,
                 target_inst_name,
                 ..
-            } => {
+            }) => {
                 self.write_string("invoke ")?;
                 self.write_call(oracle_name, args.as_slice())?;
                 if let Some(target_inst_name) = target_inst_name {

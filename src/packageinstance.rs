@@ -181,7 +181,7 @@ pub(crate) mod instantiate {
                 PackageLocalIdentifier, PackageOracleArgIdentifier, PackageStateIdentifier,
             },
         },
-        statement::*,
+        statement::{InvokeOracle, *},
         types::TypeKind,
     };
 
@@ -570,12 +570,12 @@ pub(crate) mod instantiate {
                     )
                 }
 
-                Statement::InvokeOracle {
+                Statement::InvokeOracle(InvokeOracle {
                     oracle_name,
                     args,
                     target_inst_name,
                     file_pos,
-                } => Statement::InvokeOracle {
+                }) => Statement::InvokeOracle(InvokeOracle {
                     oracle_name,
                     args: args
                         .iter()
@@ -583,7 +583,7 @@ pub(crate) mod instantiate {
                         .collect(),
                     target_inst_name,
                     file_pos,
-                },
+                }),
 
                 Statement::IfThenElse(ite) => Statement::IfThenElse(IfThenElse {
                     cond: self.rewrite_expression(&ite.cond),
