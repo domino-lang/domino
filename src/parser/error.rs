@@ -79,6 +79,19 @@ pub struct UndefinedIdentifierError {
     pub ident_name: String,
 }
 
+#[derive(Error, Diagnostic, Debug)]
+#[error("illegal literal '{literal_str}'")]
+#[diagnostic(code(domino::code::illegal_literal))]
+pub struct IllegalLiteralError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this literal is not allowed")]
+    pub at: SourceSpan,
+
+    pub literal_str: String,
+}
+
 #[derive(Debug, Diagnostic, Error)]
 #[error("identifier '{ident_name}' has already been declared")]
 #[diagnostic(code(domino::code::identifier_already_declared))]

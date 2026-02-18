@@ -436,6 +436,7 @@ pub enum ExpressionKind {
     StringLiteral(String),
     IntegerLiteral(i64),
     BooleanLiteral(String),
+    BitsLiteral(String, Type),
     Identifier(Identifier),
     EmptyTable(Type),
     TableAccess(Identifier, Box<Expression>),
@@ -495,6 +496,7 @@ impl ExpressionKind {
             ExpressionKind::StringLiteral(_) => Type::string(),
             ExpressionKind::BooleanLiteral(_) => Type::boolean(),
             ExpressionKind::IntegerLiteral(_) => Type::integer(),
+            ExpressionKind::BitsLiteral(_, ty) => ty.clone(),
             ExpressionKind::Identifier(ident) => ident.get_type(),
             ExpressionKind::EmptyTable(t) => t.clone(),
             ExpressionKind::TableAccess(ident, _) => match ident.get_type().into_kind() {
@@ -568,6 +570,7 @@ impl ExpressionKind {
             | ExpressionKind::EmptyTable(_)
             | ExpressionKind::None(_)
             | ExpressionKind::BooleanLiteral(_) => true,
+            ExpressionKind::BitsLiteral(_, _) => true,
 
             ExpressionKind::TableAccess(_, _)
             | ExpressionKind::FnCall(_, _)

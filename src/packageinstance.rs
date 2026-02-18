@@ -622,6 +622,9 @@ pub(crate) mod instantiate {
                     }
                     ExpressionKind::None(ty) => ExpressionKind::None(self.rewrite_type(ty)),
                     ExpressionKind::Sample(ty) => ExpressionKind::Sample(self.rewrite_type(ty)),
+                    ExpressionKind::BitsLiteral(content, ty) => {
+                        ExpressionKind::BitsLiteral(content, self.rewrite_type(ty))
+                    }
 
                     expr => expr,
                 };
