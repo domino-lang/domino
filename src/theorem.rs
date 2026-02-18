@@ -168,6 +168,9 @@ impl GameInstance {
             consts: resolved_params,
             edges: new_edges,
             exports: new_exports,
+
+            // XXX: This probably needs rewriting
+            type_params: game.type_params,
         };
 
         GameInstance {
