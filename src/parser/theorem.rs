@@ -4,12 +4,12 @@ use itertools::Itertools;
 use std::collections::HashMap;
 
 use crate::{
+    debug_assert_matches,
     expressions::Expression,
-    gamehops::conjecture::Conjecture,
-    gamehops::equivalence::Equivalence,
-    gamehops::hybrid::Hybrid,
-    gamehops::reduction::Assumption,
-    gamehops::GameHop,
+    gamehops::{
+        conjecture::Conjecture, equivalence::Equivalence, hybrid::Hybrid, reduction::Assumption,
+        GameHop,
+    },
     identifier::{
         game_ident::GameConstIdentifier,
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier::Const},
@@ -17,6 +17,7 @@ use crate::{
     },
     package::{Composition, Package},
     parser::{
+        common::handle_type,
         error::{
             AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
@@ -357,6 +358,11 @@ fn handle_instance_decl<'a>(
     // println!("printing constant assignment in the parser:");
     // println!("  {consts_as_ident:#?}");
 
+    let types = types
+        .into_iter()
+        .map(|(name, ty)| (name.to_string(), ty))
+        .collect();
+
     let game_inst = GameInstance::new(
         game_inst_name,
         ctx.theorem_name.to_string(),
@@ -373,7 +379,7 @@ fn patch_game_instance(
     game: Composition,
     theorem_name: &str,
     game_inst_name: &str,
-    types: Vec<(String, Type)>,
+    types: Vec<(&str, Type)>,
     consts: &[(GameConstIdentifier, Expression)],
     loop_var_name: &str,
     bit_var_name: Option<&str>,
@@ -418,6 +424,12 @@ fn patch_game_instance(
     if let Some(bitvar) = bitvar {
         consts_as_ident.push((bitvar.0.clone(), Expression::boolean(ideal)))
     }
+
+    let types = types
+        .into_iter()
+        .map(|(name, ty)| (name.to_string(), ty))
+        .collect();
+
     GameInstance::new(
         format!("{game_inst_name}${bitval}${nextval}"),
         theorem_name.to_string(),
@@ -642,23 +654,55 @@ fn handle_hybrid_instance_decl_two<'a>(
     Ok(())
 }
 
-fn handle_instance_assign_list(
+fn handle_types_def_list<'src>(
+    ctx: &ParseTheoremContext,
+    ast: Pair<'src, Rule>,
+) -> Result<Vec<(&'src str, Type)>, ParseTheoremError> {
+    debug_assert_matches!(ast.as_rule(), Rule::types_def_list);
+
+    ast.into_inner()
+        .map(|ast| handle_types_def_spec(ctx, ast))
+        .collect::<Result<Vec<_>, _>>()
+}
+
+fn handle_types_def_spec<'src>(
+    ctx: &ParseTheoremContext,
+    ast: Pair<'src, Rule>,
+) -> Result<(&'src str, Type), ParseTheoremError> {
+    debug_assert_matches!(ast.as_rule(), Rule::types_def_spec);
+
+    let mut children = ast.into_inner();
+
+    let name = children.next().unwrap();
+    let ty = children.next().unwrap();
+    let ty = handle_type(&ctx.parse_ctx(), ty)?;
+
+    Ok((name.as_str(), ty))
+}
+
+fn handle_instance_assign_list<'src>(
     ctx: &ParseTheoremContext,
     game_inst_name: &str,
     game: &Composition,
-    ast: Pair<Rule>,
-) -> Result<(Vec<(String, Type)>, Vec<(GameConstIdentifier, Expression)>), ParseTheoremError> {
+    ast: Pair<'src, Rule>,
+) -> Result<
+    (
+        Vec<(&'src str, Type)>,
+        Vec<(GameConstIdentifier, Expression)>,
+    ),
+    ParseTheoremError,
+> {
     let span = ast.as_span();
     let ast = ast.into_inner();
 
-    let types = vec![];
+    let mut types = vec![];
     let mut consts = vec![];
 
     for ast in ast {
         match ast.as_rule() {
             Rule::types_def => {
-                //let ast = ast.into_inner().next().unwrap();
-                //types.extend(common::handle_types_def_list(ast, inst_name, file_name)?);
+                let types_def_list = ast.into_inner().next().unwrap();
+                types.append(&mut handle_types_def_list(ctx, types_def_list)?);
             }
             Rule::params_def => {
                 if let Some(ast) = ast.into_inner().next() {
