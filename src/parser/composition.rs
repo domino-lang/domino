@@ -103,6 +103,12 @@ impl<'src> ParseGameContext<'src> {
         let mut consts = Vec::from_iter(self.consts);
         consts.sort();
 
+        let type_params = self
+            .types
+            .into_iter()
+            .map(|(name, _span)| name.to_string())
+            .collect();
+
         Composition {
             name: self.game_name.to_string(),
             consts,
@@ -110,6 +116,7 @@ impl<'src> ParseGameContext<'src> {
             edges: self.edges,
             exports: self.exports,
             invariants: self.invariants,
+            type_params,
         }
     }
 
