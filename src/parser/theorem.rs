@@ -56,25 +56,25 @@ use super::{
 };
 
 #[derive(Debug)]
-pub(crate) struct ParseTheoremContext<'a> {
-    pub file_name: &'a str,
-    pub file_content: &'a str,
+pub(crate) struct ParseTheoremContext<'src> {
+    pub file_name: &'src str,
+    pub file_content: &'src str,
     pub scope: Scope,
 
     pub types: Vec<String>,
 
-    pub theorem_name: &'a str,
+    pub theorem_name: &'src str,
 
     pub consts: HashMap<String, Type>,
     pub instances: Vec<GameInstance>,
     pub instances_table: HashMap<String, (usize, GameInstance)>,
     pub assumptions: Vec<Assumption>,
-    pub propositions: Vec<Proof<'a>>,
-    pub game_hops: Vec<GameHop<'a>>,
+    pub propositions: Vec<Proof<'src>>,
+    pub game_hops: Vec<GameHop<'src>>,
 }
 
-impl<'a> ParseContext<'a> {
-    fn theorem_context(self, theorem_name: &'a str) -> ParseTheoremContext<'a> {
+impl<'src> ParseContext<'src> {
+    fn theorem_context(self, theorem_name: &'src str) -> ParseTheoremContext<'src> {
         let Self {
             file_name,
             file_content,
@@ -101,12 +101,12 @@ impl<'a> ParseContext<'a> {
     }
 }
 
-impl<'a> ParseTheoremContext<'a> {
+impl<'src> ParseTheoremContext<'src> {
     pub fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
 
-    pub fn parse_ctx(&self) -> ParseContext<'a> {
+    pub fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
             file_name: self.file_name,
             file_content: self.file_content,
@@ -242,13 +242,13 @@ pub enum ParseTheoremError {
     ScopeError(#[from] ParserScopeError),
 }
 
-pub fn handle_theorem<'a>(
-    file_name: &'a str,
-    file_content: &'a str,
-    ast: Pair<'a, Rule>,
+pub fn handle_theorem<'src>(
+    file_name: &'src str,
+    file_content: &'src str,
+    ast: Pair<'src, Rule>,
     pkgs: HashMap<String, Package>,
     games: HashMap<String, Composition>,
-) -> Result<Theorem<'a>, ParseTheoremError> {
+) -> Result<Theorem<'src>, ParseTheoremError> {
     let mut iter = ast.into_inner();
     let theorem_name = iter.next().unwrap().as_str();
     let theorem_ast = iter.next().unwrap();
@@ -329,9 +329,9 @@ pub fn handle_theorem<'a>(
     })
 }
 
-fn handle_instance_decl<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
+fn handle_instance_decl<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
     let mut ast = ast.into_inner();
@@ -439,9 +439,9 @@ fn patch_game_instance(
     )
 }
 
-fn handle_hybrid_instance_decl_one<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
+fn handle_hybrid_instance_decl_one<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
     ctx.scope.enter();
@@ -549,9 +549,9 @@ fn handle_hybrid_instance_decl_one<'a>(
     Ok(())
 }
 
-fn handle_hybrid_instance_decl_two<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
+fn handle_hybrid_instance_decl_two<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
     ctx.scope.enter();
@@ -836,9 +836,9 @@ fn handle_propositions(
     Ok(())
 }
 
-fn handle_game_hops<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pairs<'a, Rule>,
+fn handle_game_hops<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pairs<'src, Rule>,
 ) -> Result<(), ParseTheoremError> {
     for hop_ast in ast {
         let game_hop = match hop_ast.as_rule() {
@@ -854,10 +854,10 @@ fn handle_game_hops<'a>(
     Ok(())
 }
 
-pub(crate) fn handle_hybrid<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+pub(crate) fn handle_hybrid<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let hybrid_name_ast = ast.next().unwrap();
@@ -931,10 +931,10 @@ pub(crate) fn handle_hybrid<'a>(
     )))
 }
 
-pub(crate) fn handle_conjecture<'a>(
-    _ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+pub(crate) fn handle_conjecture<'src>(
+    _ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let [left_game, right_game]: [GameInstanceName; 2] = handle_identifiers(&mut ast);
@@ -942,10 +942,10 @@ pub(crate) fn handle_conjecture<'a>(
     Ok(GameHop::Conjecture(Conjecture::new(left_game, right_game)))
 }
 
-fn handle_equivalence<'a>(
+fn handle_equivalence<'src>(
     ctx: &mut ParseTheoremContext,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
     let (left_name, right_name) = handle_string_pair(&mut ast);
 
@@ -1020,9 +1020,13 @@ fn handle_lemma_line(ast: Pair<Rule>) -> (String, Vec<String>) {
     (name, deps)
 }
 
-fn handle_string_triplet<'a>(
-    ast: &mut Pairs<'a, Rule>,
-) -> ((String, Span<'a>), (String, Span<'a>), (String, Span<'a>)) {
+fn handle_string_triplet<'src>(
+    ast: &mut Pairs<'src, Rule>,
+) -> (
+    (String, Span<'src>),
+    (String, Span<'src>),
+    (String, Span<'src>),
+) {
     let mut strs: Vec<_> = ast
         .take(3)
         .map(|str| (str.as_str().to_string(), str.as_span()))
@@ -1031,8 +1035,8 @@ fn handle_string_triplet<'a>(
     (strs.remove(0), strs.remove(0), strs.remove(0))
 }
 
-pub(crate) fn handle_identifiers<'a, T: crate::parser::ast::Identifier<'a>, const N: usize>(
-    ast: &mut Pairs<'a, Rule>,
+pub(crate) fn handle_identifiers<'src, T: crate::parser::ast::Identifier<'src>, const N: usize>(
+    ast: &mut Pairs<'src, Rule>,
 ) -> [T; N] {
     ast.take(N)
         .map(T::from)
@@ -1041,16 +1045,16 @@ pub(crate) fn handle_identifiers<'a, T: crate::parser::ast::Identifier<'a>, cons
         .unwrap()
 }
 
-fn handle_string_pair<'a>(ast: &mut Pairs<'a, Rule>) -> (Pair<'a, Rule>, Pair<'a, Rule>) {
+fn handle_string_pair<'src>(ast: &mut Pairs<'src, Rule>) -> (Pair<'src, Rule>, Pair<'src, Rule>) {
     let [left, right] = ast.take(2).collect::<Vec<_>>().try_into().unwrap();
 
     (left, right)
 }
 
-fn next_pairs<'a>(ast: &'a mut Pairs<Rule>) -> Pairs<'a, Rule> {
+fn next_pairs<'src>(ast: &'src mut Pairs<Rule>) -> Pairs<'src, Rule> {
     ast.next().unwrap().into_inner()
 }
 
-fn next_str<'a>(ast: &'a mut Pairs<Rule>) -> &'a str {
+fn next_str<'src>(ast: &'src mut Pairs<Rule>) -> &'src str {
     ast.next().unwrap().as_str()
 }

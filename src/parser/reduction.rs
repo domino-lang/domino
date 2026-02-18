@@ -41,10 +41,10 @@ use super::{
     Rule,
 };
 
-pub(crate) fn handle_reduction<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+pub(crate) fn handle_reduction<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let left_name_ast = ast.next().unwrap();
@@ -204,14 +204,14 @@ fn compare_reduction(
     Ok(())
 }
 
-pub(super) fn handle_reduction_body<'a>(
+pub(super) fn handle_reduction_body<'src>(
     ctx: &mut ParseTheoremContext,
     left_name: &str,
     right_name: &str,
     header_span: Range<usize>,
-    body: Pair<'a, Rule>,
+    body: Pair<'src, Rule>,
     is_hybrid: bool,
-) -> Result<Reduction<'a>, ParseTheoremError> {
+) -> Result<Reduction<'src>, ParseTheoremError> {
     debug_assert_eq!(body.as_rule(), Rule::reduction_spec);
 
     let reduction_span = body.as_span();
@@ -441,12 +441,12 @@ pub(super) fn handle_reduction_body<'a>(
     Ok(reduction)
 }
 
-fn handle_mapspec_assumption<'a>(
+fn handle_mapspec_assumption<'src>(
     ctx: &ParseTheoremContext,
-    ast: Pair<'a, Rule>,
+    ast: Pair<'src, Rule>,
     assumption: &Assumption,
     is_hybrid: bool,
-) -> Result<(ReductionMapping<'a>, String), ParseTheoremError> {
+) -> Result<(ReductionMapping<'src>, String), ParseTheoremError> {
     let mapping_span = ast.as_span();
     let mut ast = ast.into_inner();
 
@@ -1073,40 +1073,40 @@ enum PackageInstanceDiff {
 // ----
 
 #[derive(Clone, Debug)]
-pub(crate) struct ReductionMapping<'a> {
-    assumption: GameInstanceName<'a>,
-    construction: GameInstanceName<'a>,
+pub(crate) struct ReductionMapping<'src> {
+    assumption: GameInstanceName<'src>,
+    construction: GameInstanceName<'src>,
 
-    entries: Vec<ReductionMappingEntry<'a>>,
+    entries: Vec<ReductionMappingEntry<'src>>,
 }
 
-impl<'a> ReductionMapping<'a> {
-    pub(crate) fn assumption_game_instance_name(&self) -> &GameInstanceName<'a> {
+impl<'src> ReductionMapping<'src> {
+    pub(crate) fn assumption_game_instance_name(&self) -> &GameInstanceName<'src> {
         &self.assumption
     }
 
-    pub(crate) fn construction_game_instance_name(&self) -> &GameInstanceName<'a> {
+    pub(crate) fn construction_game_instance_name(&self) -> &GameInstanceName<'src> {
         &self.construction
     }
 
-    pub(crate) fn entries(&self) -> &[ReductionMappingEntry<'a>] {
+    pub(crate) fn entries(&self) -> &[ReductionMappingEntry<'src>] {
         &self.entries
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ReductionMappingEntry<'a> {
-    assumption: PackageInstanceName<'a>,
-    construction: PackageInstanceName<'a>,
+pub(crate) struct ReductionMappingEntry<'src> {
+    assumption: PackageInstanceName<'src>,
+    construction: PackageInstanceName<'src>,
 }
 
-impl<'a> ReductionMappingEntry<'a> {
+impl<'src> ReductionMappingEntry<'src> {
     #[allow(dead_code)]
-    pub(crate) fn assumption(&self) -> &PackageInstanceName<'a> {
+    pub(crate) fn assumption(&self) -> &PackageInstanceName<'src> {
         &self.assumption
     }
 
-    pub(crate) fn construction(&self) -> &PackageInstanceName<'a> {
+    pub(crate) fn construction(&self) -> &PackageInstanceName<'src> {
         &self.construction
     }
 }
