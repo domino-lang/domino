@@ -37,7 +37,7 @@ pub struct ParseGameContext<'src> {
     pub scope: Scope,
 
     pub consts: HashMap<String, Type>,
-    pub types: Vec<&'src str>,
+    pub types: Vec<(&'src str, Span<'src>)>,
 
     pub instances: Vec<(PackageInstance, Span<'src>)>,
     pub instances_table: HashMap<String, (usize, PackageInstance, Span<'src>)>,
@@ -220,6 +220,14 @@ pub(crate) fn handle_composition(
     handle_comp_spec_list(ctx, spec)
 }
 
+fn handle_types<'src>(
+    ast: Pair<'src, Rule>,
+) -> impl Iterator<Item = (&'src str, pest::Span<'src>)> {
+    debug_assert_matches!(ast.as_rule(), Rule::types);
+
+    ast.into_inner().map(|ast| (ast.as_str(), ast.as_span()))
+}
+
 /// Parses the main body of a game (aka composition).
 /// This function takes ownership of the context because it needs to move all the information stored in there into the game.
 pub(crate) fn handle_comp_spec_list<'src>(
@@ -228,6 +236,9 @@ pub(crate) fn handle_comp_spec_list<'src>(
 ) -> Result<Composition, ParseGameError> {
     for comp_spec in ast.into_inner() {
         match comp_spec.as_rule() {
+            Rule::types => {
+                ctx.types.extend(handle_types(comp_spec));
+            }
             Rule::const_decl => {
                 let (name, ty) = handle_const_decl(&ctx.parse_ctx(), comp_spec)?;
                 ctx.add_const(name.clone(), ty.clone());
