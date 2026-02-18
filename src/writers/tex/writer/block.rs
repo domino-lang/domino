@@ -10,7 +10,9 @@ use crate::{
         Identifier,
     },
     parser::package::ForComp,
-    statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement},
+    statement::{
+        Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
+    },
     types::{CountSpec, Type, TypeKind},
 };
 
@@ -232,6 +234,73 @@ impl<'a> BlockWriter<'a> {
         }
     }
 
+    fn pattern_to_tex(&self, pat: &Pattern) -> String {
+        match pat {
+            Pattern::Ident(identifier) => self.ident_to_tex(identifier),
+            Pattern::Table { ident, index } => format!(
+                r"{ident}\left[{index}\right]",
+                ident = self.ident_to_tex(ident),
+                index = self.expression_to_tex(index)
+            ),
+            Pattern::Tuple(identifiers) => format!(
+                r"\left({identifiers}\right)",
+                identifiers = identifiers
+                    .iter()
+                    .map(|ident| self.ident_to_tex(ident))
+                    .join(", "),
+            ),
+        }
+    }
+
+    fn assign_rhs_to_tex(&self, assign_rhs: &AssignmentRhs) -> String {
+        match assign_rhs {
+            AssignmentRhs::Expression(expression) => {
+                format!(r"\gets {}", self.expression_to_tex(expression))
+            }
+            AssignmentRhs::Sample {
+                ty,
+                sample_name: Some(sample_name),
+                ..
+            } => {
+                format!(
+                    r"\stackrel{{{sample_name}}}{{\sample}} {ty}",
+                    sample_name = sample_name.replace('_', "\\_"),
+                    ty = self.type_to_tex(ty)
+                )
+            }
+
+            AssignmentRhs::Invoke {
+                oracle_name,
+                args,
+                target_inst_name: Some(target_inst_name),
+                ..
+            } => {
+                format!(
+                    r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}({args}) \pccomment{{Pkg: {target_inst_name}}}",
+                    name = oracle_name.replace("_", "\\_"),
+                    args = args
+                        .iter()
+                        .map(|expr| self.expression_to_tex(expr))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    target_inst_name = target_inst_name.replace('_', r"\_")
+                )
+            }
+
+            AssignmentRhs::Invoke {
+                target_inst_name: None,
+                ..
+            }
+            | AssignmentRhs::Sample {
+                sample_name: None, ..
+            } => {
+                unreachable!(
+                    "BUG: target instance name should have been resolved for {assign_rhs:?}"
+                )
+            }
+        }
+    }
+
     fn write_statement(&self, statement: &Statement, indentation: u8) -> String {
         match &statement {
             Statement::Abort(_) => {
@@ -247,35 +316,45 @@ impl<'a> BlockWriter<'a> {
                     self.expression_to_tex(expr)
                 )
             }
-            Statement::Assign(ident, None, expr, _) => {
+
+            Statement::Assignment(Assignment { pattern, rhs }, _) => {
                 format!(
-                    "{} {} \\gets {}\\\\",
+                    "{} {pat} {rhs}\\\\",
                     genindentation(indentation),
-                    self.ident_to_tex(ident),
-                    self.expression_to_tex(expr)
+                    pat = self.pattern_to_tex(pattern),
+                    rhs = self.assign_rhs_to_tex(rhs)
                 )
             }
-            Statement::Assign(ident, Some(idxexpr), expr, _) => {
-                format!(
-                    "{} {}[{}] \\gets {}\\\\",
-                    genindentation(indentation),
-                    self.ident_to_tex(ident),
-                    self.expression_to_tex(idxexpr),
-                    self.expression_to_tex(expr)
-                )
-            }
-            Statement::Parse(ids, expr, _) => {
-                format!(
-                    "{}\\pcparse {} \\pcas \\left({}\\right)\\\\",
-                    genindentation(indentation),
-                    self.expression_to_tex(expr),
-                    self.list_to_matrix(
-                        &ids.iter()
-                            .map(|ident| self.ident_to_tex(ident))
-                            .collect::<Vec<_>>()
+
+            Statement::InvokeOracle(InvokeOracle {
+                oracle_name: name,
+                args,
+                target_inst_name,
+                ..
+            }) => {
+                let args_tex = args
+                    .iter()
+                    .map(|expr| self.expression_to_tex(expr))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                if let Some(target_inst_name) = target_inst_name {
+                    format!(
+                        "{}\\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
+                        genindentation(indentation),
+                        name.replace("_", "\\_"),
+                        args_tex,
+                        target_inst_name.replace('_', "\\_")
                     )
-                )
+                } else {
+                    format!(
+                        "{}\\O{{{}}}({}) \\\\",
+                        genindentation(indentation),
+                        name.replace("_", "\\_"),
+                        args_tex,
+                    )
+                }
             }
+
             Statement::IfThenElse(ite) => {
                 if ite_is_assert(ite) {
                     // Special Case for asserts
@@ -293,6 +372,7 @@ impl<'a> BlockWriter<'a> {
                     )
                 }
             }
+
             Statement::For(var, from, to, _, _) => {
                 println!("{var:?}");
                 if let Identifier::PackageIdentifier(PackageIdentifier::CodeLoopVar(
@@ -316,70 +396,6 @@ impl<'a> BlockWriter<'a> {
                 } else {
                     unreachable!();
                 }
-            }
-            Statement::Sample(ident, None, _, ty, Some(sample_name), _) => {
-                format!(
-                    "{}{} \\stackrel{{{}}}{{\\sample}} {}\\\\",
-                    genindentation(indentation),
-                    self.ident_to_tex(ident),
-                    sample_name.replace('_', "\\_"),
-                    self.type_to_tex(ty)
-                )
-            }
-            Statement::Sample(ident, Some(idxexpr), _, ty, Some(sample_name), _) => {
-                format!(
-                    "{}{}[{}] \\stackrel{{{}}}{{\\samples}} {}\\\\",
-                    genindentation(indentation),
-                    self.ident_to_tex(ident),
-                    self.expression_to_tex(idxexpr),
-                    sample_name.replace('_', "\\_"),
-                    self.type_to_tex(ty)
-                )
-            }
-            Statement::Sample(_, _, _, _, None, _) => {
-                unreachable!("Expected sample name")
-            }
-            Statement::InvokeOracle(InvokeOracleStatement {
-                id: ident,
-                opt_idx: None,
-                name,
-                args,
-                target_inst_name: Some(target_inst_name),
-                ty: _,
-                ..
-            }) => {
-                format!(
-                         "{}{} \\stackrel{{\\mathsf{{\\tiny{{invoke}}}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
-                         genindentation(indentation),
-                         self.ident_to_tex(ident), name.replace("_", "\\_"),
-                         args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
-                         target_inst_name.replace('_',"\\_")
-                )
-            }
-            Statement::InvokeOracle(InvokeOracleStatement {
-                id: ident,
-                opt_idx: Some(idxexpr),
-                name,
-                args,
-                target_inst_name: Some(target_inst_name),
-                ty: _,
-                ..
-            }) => {
-                format!(
-                    "{}{}[{}] \\stackrel{{\\mathsf{{\\tiny invoke}}}}{{\\gets}} \\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
-                         genindentation(indentation),
-                         self.ident_to_tex(ident),
-                         self.expression_to_tex(idxexpr),
-                         name.replace("_", "\\_"),
-                         args.iter().map(|expr| self.expression_to_tex(expr)).collect::<Vec<_>>().join(", "),
-                         target_inst_name.replace('_',"\\_")
-                )
-            }
-            Statement::InvokeOracle(InvokeOracleStatement {
-                target_inst_name: None,
-                ..
-            }) => {
-                unreachable!("Expect oracle-lowlevelified input")
             }
         }
     }

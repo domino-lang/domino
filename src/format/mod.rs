@@ -89,6 +89,66 @@ fn format_type(ty_ast: Pair<Rule>) -> Result<String, project::error::Error> {
     })
 }
 
+fn format_pattern(pattern: Pair<Rule>) -> Result<String, project::error::Error> {
+    Ok(match pattern.as_rule() {
+        Rule::pattern_ident => pattern.as_str().to_string(),
+        Rule::pattern_table => {
+            let mut inner = pattern.into_inner();
+            let ident = inner.next().unwrap().as_str();
+            let index = format_expr(inner.next().unwrap())?;
+            format!("{ident}[{index}]")
+        }
+        Rule::pattern_tuple => {
+            let idents: Vec<_> = pattern
+                .into_inner()
+                .map(|p| format_pattern(p))
+                .collect::<Result<_, _>>()?;
+            format!("({})", idents.join(", "))
+        }
+        _ => unreachable!("unexpected pattern rule: {:?}", pattern.as_rule()),
+    })
+}
+
+fn format_assign_rhs(assign_rhs: Pair<Rule>) -> Result<String, project::error::Error> {
+    Ok(match assign_rhs.as_rule() {
+        Rule::assign_rhs_sample => {
+            let mut inner = assign_rhs.into_inner();
+            let ty = inner.next().unwrap().as_str();
+
+            // Check for optional sample_name
+            let sample_name_part = if let Some(name) = inner.next() {
+                format!(" sample-name {}", name.as_str())
+            } else {
+                String::new()
+            };
+
+            // Format with $ to match the nicer-looking <-$ syntax
+            format!("${ty}{sample_name_part}")
+        }
+        Rule::assign_rhs_invoke => {
+            let mut inner = assign_rhs.into_inner();
+            let oracle_call = inner.next().unwrap();
+            let mut call_inner = oracle_call.into_inner();
+            let oracle_name = call_inner.next().unwrap().as_str();
+
+            let mut argstring = String::new();
+            for ast in call_inner {
+                let arglist: Vec<_> = ast
+                    .into_inner()
+                    .map(|expr| format_expr(expr))
+                    .collect::<Result<_, _>>()?;
+                argstring.push_str(&arglist.join(", "));
+            }
+
+            format!("invoke {oracle_name}({argstring})")
+        }
+        _ => {
+            // It's a regular expression
+            format_expr(assign_rhs)?
+        }
+    })
+}
+
 fn format_expr(expr_ast: Pair<Rule>) -> Result<String, project::error::Error> {
     Ok(match expr_ast.as_rule() {
         Rule::expr_add => {
@@ -247,92 +307,35 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
             Rule::abort => {
                 ctx.push_line("abort;");
             }
-            Rule::sample => {
+            Rule::invoke_stmt => {
                 let mut inner = stmt.into_inner();
-                let name_ast = inner.next().unwrap();
-                let ty = inner.next().unwrap().as_str();
-                let ident = name_ast.as_str();
+                let oracle_call = inner.next().unwrap();
+                let mut call_inner = oracle_call.into_inner();
+                let oracle_name = call_inner.next().unwrap().as_str();
 
-                ctx.push_line(&format!("{ident} <-$ {ty};"));
-            }
-
-            Rule::assign => {
-                let mut inner = stmt.into_inner();
-                let name_ast = inner.next().unwrap();
-                let name = name_ast.as_str();
-                let expr = format_expr(inner.next().unwrap())?;
-
-                ctx.push_line(&format!("{name} <- {expr};"));
-            }
-
-            Rule::table_sample => {
-                let mut inner = stmt.into_inner();
-                let name_ast = inner.next().unwrap();
-                let ident = name_ast.as_str();
-                let index = format_expr(inner.next().unwrap())?;
-                let ty = inner.next().unwrap().as_str();
-
-                ctx.push_line(&format!("{ident}[{index}] <-$ {ty};"));
-            }
-
-            Rule::table_assign => {
-                let mut inner = stmt.into_inner();
-                let name_ast = inner.next().unwrap();
-                let name = name_ast.as_str();
-                let index = format_expr(inner.next().unwrap())?;
-                let expr = format_expr(inner.next().unwrap())?;
-
-                ctx.push_line(&format!("{name}[{index}] <- {expr};"));
-            }
-
-            Rule::invocation => {
-                let mut inner = stmt.into_inner();
-                let target_ident_name_ast = inner.next().unwrap();
-                let ident = target_ident_name_ast.as_str();
-                let maybe_index = inner.next().unwrap();
-                let (index, oracle_inv) = if maybe_index.as_rule() == Rule::table_index {
-                    let mut inner_index = maybe_index.into_inner();
-                    (
-                        format!("[{}]", format_expr(inner_index.next().unwrap())?),
-                        inner.next().unwrap(),
-                    )
-                } else {
-                    ("".to_owned(), maybe_index)
-                };
-                let mut inner = oracle_inv.into_inner();
-                let oracle_name_ast = inner.next().unwrap();
-                let oracle_name = oracle_name_ast.as_str();
                 let mut argstring = String::new();
-
-                for ast in inner {
-                    debug_assert!(matches!(ast.as_rule(), Rule::fn_call_arglist));
-
+                for ast in call_inner {
                     let arglist: Vec<_> = ast
                         .into_inner()
-                        .map(|expr| format_expr(expr))
-                        .collect::<Result<Vec<_>, _>>()?;
+                        .map(format_expr)
+                        .collect::<Result<_, _>>()?;
                     argstring.push_str(&arglist.join(", "));
                 }
 
-                if !index.is_empty() {
-                    ctx.push_line(&format!(
-                        "{ident}[{index}] <- invoke {oracle_name}({argstring});"
-                    ));
-                } else {
-                    ctx.push_line(&format!("{ident} <- invoke {oracle_name}({argstring});"));
-                }
+                ctx.push_line(&format!("invoke {oracle_name}({argstring});"));
             }
-            Rule::parse => {
+            Rule::assign => {
                 let mut inner = stmt.into_inner();
-                let list = inner.next().unwrap();
-                let expr = format_expr(inner.next().unwrap())?;
-                let idents = list
-                    .into_inner()
-                    .map(|ident_name| ident_name.as_str().to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                let pattern_ast = inner.next().unwrap();
+                let assign_rhs_ast = inner.next().unwrap();
 
-                ctx.push_line(&format!("({idents}) <- parse {expr};"));
+                // Format the pattern (left-hand side)
+                let lhs = format_pattern(pattern_ast)?;
+
+                // Format the oracle expression (right-hand side)
+                let rhs = format_assign_rhs(assign_rhs_ast)?;
+
+                ctx.push_line(&format!("{lhs} <- {rhs};"));
             }
             Rule::for_ => {
                 let mut parsed: Vec<Pair<Rule>> = stmt.into_inner().collect();

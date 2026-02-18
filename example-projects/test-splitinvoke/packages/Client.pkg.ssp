@@ -1,0 +1,11 @@
+package Client {
+    import oracles {
+        GetPair() -> (Bool, Bool),
+    }
+
+
+    oracle Query() -> Bool {
+        (x, y) <- invoke GetPair();
+        return x;
+    }
+}

@@ -2,7 +2,7 @@
 
 use crate::expressions::Expression;
 use crate::package::Composition;
-use crate::statement::{CodeBlock, IfThenElse, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
 use crate::types::Type;
 use std::collections::HashSet;
 use std::convert::Infallible;
@@ -144,27 +144,50 @@ pub fn samplify(
                 file_pos,
             )),
 
-            Statement::Sample(id, expr, None, ty, sample_name, file_pos) => {
-                let sample_name = sample_name.unwrap_or(format!("{oracle_ctr}"));
+            Statement::Assignment(
+                Assignment {
+                    pattern,
+                    rhs:
+                        AssignmentRhs::Sample {
+                            ref ty,
+                            sample_name,
+                            sample_id: None,
+                        },
+                },
+                file_pos,
+            ) => {
+                let dst_index = match &pattern {
+                    Pattern::Table { index, .. } => Some(index.clone()),
+                    _ => None,
+                };
+                let id = match &pattern {
+                    Pattern::Ident(id) => id.clone(),
+                    Pattern::Table { ident, .. } => ident.clone(),
+                    Pattern::Tuple(_) => unreachable!("sample cannot have tuple pattern"),
+                };
+                let sample_name = sample_name.clone().unwrap_or(format!("{oracle_ctr}"));
                 let pos = Position {
                     game_name: game_name.to_string(),
                     inst_name: inst_name.to_string(),
                     pkg_name: pkg_name.to_string(),
                     oracle_name: oracle_name.to_string(),
                     dst_name: id.ident(),
-                    dst_index: expr.clone(),
+                    dst_index,
                     sample_id: *ctr,
                     ty: ty.clone(),
                     sample_name: sample_name.clone(),
                 };
                 sampletypes.insert(ty.clone());
                 positions.push(pos);
-                newcode.push(Statement::Sample(
-                    id.clone(),
-                    expr,
-                    Some(*ctr),
-                    ty.clone(),
-                    Some(sample_name),
+                newcode.push(Statement::Assignment(
+                    Assignment {
+                        pattern,
+                        rhs: AssignmentRhs::Sample {
+                            ty: ty.clone(),
+                            sample_name: Some(sample_name),
+                            sample_id: Some(*ctr),
+                        },
+                    },
                     file_pos,
                 ));
                 *ctr += 1;
@@ -188,7 +211,7 @@ mod test {
             pkg_ident::{PackageIdentifier, PackageLocalIdentifier},
             Identifier,
         },
-        statement::{CodeBlock, Statement},
+        statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement},
         types::Type,
     };
 
@@ -227,29 +250,59 @@ mod test {
         }))
     }
 
+    fn sample_stmt(
+        id: Identifier,
+        ty: Type,
+        sample_name: Option<String>,
+        sample_id: Option<usize>,
+        pos: SourceSpan,
+    ) -> Statement {
+        Statement::Assignment(
+            Assignment {
+                pattern: Pattern::Ident(id),
+                rhs: AssignmentRhs::Sample {
+                    ty,
+                    sample_name,
+                    sample_id,
+                },
+            },
+            pos,
+        )
+    }
+
+    fn extract_sample_rhs(stmt: &Statement) -> Option<(&Option<usize>, &Option<String>)> {
+        if let Statement::Assignment(
+            Assignment {
+                rhs:
+                    AssignmentRhs::Sample {
+                        sample_id,
+                        sample_name,
+                        ..
+                    },
+                ..
+            },
+            _,
+        ) = stmt
+        {
+            Some((sample_id, sample_name))
+        } else {
+            None
+        }
+    }
+
     #[test]
     fn name_and_id_set() {
         let pos: SourceSpan = (0..0).into();
         let d = local_ident("d", Type::integer());
 
         let code = block! {
-            Statement::Sample(d.clone(),     // identifier
-                              None,          // tableindex
-                              None,          // sample-id
-                              Type::integer(), // type
-                              None,          // sample-name
-                              pos)           // source-position
-
+            sample_stmt(d.clone(), Type::integer(), None, None, pos)
         };
         let new_code = test_run_samplify(&code);
 
-        assert!(matches!(new_code.0[0], Statement::Sample(_, _, _, _, _, _)));
-        if let Statement::Sample(_, _, sample_id, _, sample_name, _) = &new_code.0[0] {
-            assert_eq!(sample_id, &Some(0usize));
-            assert_eq!(sample_name, &Some("1".to_string()));
-        } else {
-            unreachable!()
-        };
+        let (sample_id, sample_name) = extract_sample_rhs(&new_code.0[0]).unwrap();
+        assert_eq!(sample_id, &Some(0usize));
+        assert_eq!(sample_name, &Some("1".to_string()));
     }
 
     #[test]
@@ -258,34 +311,17 @@ mod test {
         let d = local_ident("d", Type::integer());
 
         let code = block! {
-            Statement::Sample(d.clone(),             // identifier
-                              None,                  // tableindex
-                              None,                  // sample-id
-                              Type::integer(),         // type
-                              Some("a".to_string()), // sample-name
-                              pos),                  // source-position
-            Statement::Sample(d.clone(),     // identifier
-                              None,          // tableindex
-                              None,          // sample-id
-                              Type::integer(), // type
-                              None,          // sample-name
-                              pos)           // source-position
+            sample_stmt(d.clone(), Type::integer(), Some("a".to_string()), None, pos),
+            sample_stmt(d.clone(), Type::integer(), None, None, pos)
         };
         let new_code = test_run_samplify(&code);
 
-        assert!(matches!(new_code.0[0], Statement::Sample(_, _, _, _, _, _)));
-        assert!(matches!(new_code.0[1], Statement::Sample(_, _, _, _, _, _)));
-        if let Statement::Sample(_, _, sample_id, _, sample_name, _) = &new_code.0[0] {
-            assert_eq!(sample_id, &Some(0usize));
-            assert_eq!(sample_name, &Some("a".to_string()));
-        } else {
-            unreachable!()
-        };
-        if let Statement::Sample(_, _, sample_id, _, sample_name, _) = &new_code.0[1] {
-            assert_eq!(sample_id, &Some(1usize));
-            assert_eq!(sample_name, &Some("2".to_string()));
-        } else {
-            unreachable!()
-        };
+        let (sample_id, sample_name) = extract_sample_rhs(&new_code.0[0]).unwrap();
+        assert_eq!(sample_id, &Some(0usize));
+        assert_eq!(sample_name, &Some("a".to_string()));
+
+        let (sample_id, sample_name) = extract_sample_rhs(&new_code.0[1]).unwrap();
+        assert_eq!(sample_id, &Some(1usize));
+        assert_eq!(sample_name, &Some("2".to_string()));
     }
 }

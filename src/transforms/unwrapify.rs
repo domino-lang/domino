@@ -7,7 +7,9 @@ use miette::SourceSpan;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
-use crate::statement::{CodeBlock, IfThenElse, InvokeOracleStatement, Statement};
+use crate::statement::{
+    Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
+};
 
 pub type Error = Infallible;
 
@@ -90,9 +92,7 @@ impl Unwrapifier {
         let mut newcode = Vec::new();
         for stmt in cb.0.clone() {
             match stmt {
-                Statement::Abort(_)
-                | Statement::Sample(_, None, _, _, _, _)
-                | Statement::Return(None, _) => {
+                Statement::Abort(_) | Statement::Return(None, _) => {
                     newcode.push(stmt);
                 }
                 Statement::Return(Some(ref expr), file_pos) => {
@@ -104,29 +104,79 @@ impl Unwrapifier {
                         newcode.push(Statement::Return(Some(newexpr), file_pos));
                     }
                 }
-                Statement::Assign(ref id, ref opt_idx, ref expr, file_pos) => {
-                    // TODO: special case for direct unwraps
-                    let mut same_opt_idx = false;
+                Statement::Assignment(Assignment { pattern, rhs }, file_pos) => {
+                    // Handle unwraps in pattern index (for table patterns)
+                    let new_pattern = match pattern {
+                        Pattern::Table { ident, index } => {
+                            let (new_index, unwraps) = self.replace_unwrap(&index);
+                            newcode.extend(create_unwrap_stmts(unwraps, file_pos));
+                            Pattern::Table {
+                                ident,
+                                index: new_index,
+                            }
+                        }
+                        other => other,
+                    };
 
-                    let opt_idx = opt_idx.clone().map(|idx| {
-                        let (newexpr, unwraps) = self.replace_unwrap(&idx);
-                        same_opt_idx = unwraps.is_empty();
-                        newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                        newexpr
-                    });
+                    // Handle unwraps in rhs expressions
+                    let new_rhs = match rhs {
+                        AssignmentRhs::Expression(expr) => {
+                            let (newexpr, unwraps) = self.replace_unwrap(&expr);
+                            newcode.extend(create_unwrap_stmts(unwraps, file_pos));
+                            AssignmentRhs::Expression(newexpr)
+                        }
+                        AssignmentRhs::Invoke {
+                            oracle_name,
+                            args,
+                            target_inst_name,
+                            return_type,
+                        } => {
+                            let new_args = args
+                                .iter()
+                                .map(|expr| {
+                                    let (newexpr, unwraps) = self.replace_unwrap(expr);
+                                    newcode.extend(create_unwrap_stmts(unwraps, file_pos));
+                                    newexpr
+                                })
+                                .collect();
+                            AssignmentRhs::Invoke {
+                                oracle_name,
+                                args: new_args,
+                                target_inst_name,
+                                return_type,
+                            }
+                        }
+                        other => other,
+                    };
 
-                    let (newexpr, unwraps) = self.replace_unwrap(expr);
-                    if same_opt_idx && unwraps.is_empty() {
-                        newcode.push(stmt);
-                    } else {
-                        newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                        newcode.push(Statement::Assign(
-                            id.clone(),
-                            opt_idx.clone(),
-                            newexpr,
-                            file_pos,
-                        ));
-                    }
+                    newcode.push(Statement::Assignment(
+                        Assignment {
+                            pattern: new_pattern,
+                            rhs: new_rhs,
+                        },
+                        file_pos,
+                    ));
+                }
+                Statement::InvokeOracle(InvokeOracle {
+                    oracle_name,
+                    args,
+                    target_inst_name,
+                    file_pos,
+                }) => {
+                    let new_args = args
+                        .iter()
+                        .map(|expr| {
+                            let (newexpr, unwraps) = self.replace_unwrap(expr);
+                            newcode.extend(create_unwrap_stmts(unwraps, file_pos));
+                            newexpr
+                        })
+                        .collect();
+                    newcode.push(Statement::InvokeOracle(InvokeOracle {
+                        oracle_name,
+                        args: new_args,
+                        target_inst_name,
+                        file_pos,
+                    }));
                 }
                 Statement::IfThenElse(ite) => {
                     let (newcond, unwraps) = self.replace_unwrap(&ite.cond);
@@ -151,67 +201,6 @@ impl Unwrapifier {
                         file_pos,
                     ))
                 }
-                Statement::Sample(
-                    ref id,
-                    Some(ref expr),
-                    ref sample_id,
-                    ref ty,
-                    ref sample_name,
-                    file_pos,
-                ) => {
-                    let (newexpr, unwraps) = self.replace_unwrap(expr);
-                    if unwraps.is_empty() {
-                        newcode.push(stmt);
-                    } else {
-                        newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                        newcode.push(Statement::Sample(
-                            id.clone(),
-                            Some(newexpr),
-                            *sample_id,
-                            ty.clone(),
-                            sample_name.clone(),
-                            file_pos,
-                        ));
-                    }
-                }
-                Statement::Parse(idents, expr, file_pos) => {
-                    let (newexpr, unwraps) = self.replace_unwrap(&expr);
-
-                    newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                    newcode.push(Statement::Parse(idents, newexpr, file_pos));
-                }
-                Statement::InvokeOracle(InvokeOracleStatement {
-                    id,
-                    opt_idx,
-                    name,
-                    args,
-                    target_inst_name,
-                    ty,
-                    file_pos,
-                }) => {
-                    let opt_idx = opt_idx.map(|expr| {
-                        let (newexpr, unwraps) = self.replace_unwrap(&expr);
-                        newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                        newexpr
-                    });
-                    let args = args
-                        .iter()
-                        .map(|expr| {
-                            let (newexpr, unwraps) = self.replace_unwrap(expr);
-                            newcode.extend(create_unwrap_stmts(unwraps, file_pos));
-                            newexpr
-                        })
-                        .collect();
-                    newcode.push(Statement::InvokeOracle(InvokeOracleStatement {
-                        id,
-                        opt_idx,
-                        name,
-                        args,
-                        target_inst_name,
-                        ty,
-                        file_pos,
-                    }));
-                }
             }
         }
         Ok(CodeBlock(newcode))
@@ -222,10 +211,14 @@ fn create_unwrap_stmts(unwraps: Vec<(Expression, String)>, file_pos: SourceSpan)
     unwraps
         .iter()
         .map(|(expr, varname)| {
-            Statement::Assign(
-                Identifier::Generated(varname.clone(), expr.get_type()),
-                None,
-                expr.clone(),
+            Statement::Assignment(
+                Assignment {
+                    pattern: Pattern::Ident(Identifier::Generated(
+                        varname.clone(),
+                        expr.get_type(),
+                    )),
+                    rhs: AssignmentRhs::Expression(expr.clone()),
+                },
                 file_pos,
             )
         })
@@ -250,7 +243,7 @@ mod test {
     use crate::expressions::{Expression, ExpressionKind};
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
-    use crate::statement::{CodeBlock, Statement};
+    use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
     use crate::types::Type;
 
     fn local_ident(name: &str, ty: Type) -> Identifier {
@@ -274,6 +267,16 @@ mod test {
         Expression::from_kind(ExpressionKind::Unwrap(Box::new(expr.clone().into())))
     }
 
+    fn assign(id: Identifier, expr: Expression, pos: SourceSpan) -> Statement {
+        Statement::Assignment(
+            Assignment {
+                pattern: Pattern::Ident(id),
+                rhs: AssignmentRhs::Expression(expr),
+            },
+            pos,
+        )
+    }
+
     #[test]
     fn unwrap_assign() {
         let pos: SourceSpan = (0..0).into();
@@ -282,11 +285,11 @@ mod test {
         let u1 = gend_ident("unwrap-1", Type::integer());
 
         let code = block! {
-            Statement::Assign(d.clone(), None, unwrap(&e), pos)
+            assign(d.clone(), unwrap(&e), pos)
         };
         let newcode = block! {
-            Statement::Assign(u1.clone(), None, unwrap(&e),pos),
-            Statement::Assign(d.clone(), None, u1.into(), pos)
+            assign(u1.clone(), unwrap(&e), pos),
+            assign(d.clone(), u1.into(), pos)
         };
         assert_eq!(newcode, Unwrapifier::default().unwrapify(&code).unwrap());
     }
@@ -305,14 +308,14 @@ mod test {
         let u2 = gend_ident("unwrap-2", Type::integer());
 
         let code = block! {
-            Statement::Assign(d.clone(), None, unwrap(&e), pos0),
-            Statement::Assign(f.clone(), None, unwrap(&g), pos1)
+            assign(d.clone(), unwrap(&e), pos0),
+            assign(f.clone(), unwrap(&g), pos1)
         };
         let newcode = block! {
-            Statement::Assign(u1.clone(), None, unwrap(&e), pos0),
-            Statement::Assign(d, None, u1.into(), pos0),
-            Statement::Assign(u2.clone(), None, unwrap(&g), pos1),
-            Statement::Assign(f, None, u2.into(), pos1)
+            assign(u1.clone(), unwrap(&e), pos0),
+            assign(d, u1.into(), pos0),
+            assign(u2.clone(), unwrap(&g), pos1),
+            assign(f, u2.into(), pos1)
         };
 
         assert_eq!(newcode, Unwrapifier::default().unwrapify(&code).unwrap());
@@ -328,12 +331,12 @@ mod test {
         let u2 = gend_ident("unwrap-2", Type::integer());
 
         let code = block! {
-            Statement::Assign(d.clone(), None, unwrap(&unwrap(&e)), pos)
+            assign(d.clone(), unwrap(&unwrap(&e)), pos)
         };
         let newcode = block! {
-                    Statement::Assign(u1.clone(), None, unwrap(&e), pos ),
-                    Statement::Assign(u2.clone(), None, unwrap(&u1), pos ),
-                    Statement::Assign(d, None, u2.into(), pos)
+            assign(u1.clone(), unwrap(&e), pos),
+            assign(u2.clone(), unwrap(&u1), pos),
+            assign(d, u2.into(), pos)
         };
 
         assert_eq!(newcode, Unwrapifier::default().unwrapify(&code).unwrap());

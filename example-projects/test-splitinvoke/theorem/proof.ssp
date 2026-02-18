@@ -1,0 +1,26 @@
+theorem SplitInvokeProof {
+    const b: Bool;
+
+    instance game_split = GameSplit {
+        params {
+            b: b,
+        }
+    }
+
+    instance game_tmp = GameTmp {
+        params {
+            b: b,
+        }
+    }
+
+    gamehops {
+        equivalence game_split game_tmp {
+            Query: {
+                invariant: ./theorem/invariant.smt2
+                lemmas {
+                    same-output: []
+                }
+            }
+        }
+    }
+}

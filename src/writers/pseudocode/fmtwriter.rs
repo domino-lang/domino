@@ -5,7 +5,7 @@ use std::fmt::Write;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::{OracleDef, OracleSig, Package};
-use crate::statement::{CodeBlock, InvokeOracleStatement, Statement};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement};
 use crate::types::{CountSpec, Type, TypeKind};
 
 type Result = std::fmt::Result;
@@ -222,18 +222,70 @@ impl<W: Write> FmtWriter<W> {
         self.write_string(&"\t".repeat(self.indent_lvl))?;
 
         match stmt {
-            Statement::Assign(id, idx, expr, _) => {
-                self.write_identifier(id)?;
-
-                if let Some(idx) = idx {
-                    self.write_string("[")?;
-                    self.write_expression(idx)?;
-                    self.write_string("]")?;
+            Statement::Assignment(Assignment { pattern, rhs }, _) => {
+                match pattern {
+                    Pattern::Ident(id) => self.write_identifier(id)?,
+                    Pattern::Table { ident, index } => {
+                        self.write_identifier(ident)?;
+                        self.write_string("[")?;
+                        self.write_expression(index)?;
+                        self.write_string("]")?;
+                    }
+                    Pattern::Tuple(ids) => {
+                        self.write_string("(")?;
+                        let mut maybe_comma = "";
+                        for id in ids {
+                            self.write_string(maybe_comma)?;
+                            self.write_identifier(id)?;
+                            maybe_comma = ", ";
+                        }
+                        self.write_string(")")?;
+                    }
                 }
-
-                self.write_string(" <- ")?;
-                self.write_expression(expr)?;
-                self.write_string(";\n")?;
+                match rhs {
+                    AssignmentRhs::Expression(expr) => {
+                        self.write_string(" <- ")?;
+                        self.write_expression(expr)?;
+                        self.write_string(";\n")?;
+                    }
+                    AssignmentRhs::Sample { ty, sample_id, .. } => {
+                        self.write_string(" <-$ ")?;
+                        self.write_type(ty)?;
+                        if self.annotate {
+                            if let Some(sample_id) = sample_id {
+                                self.write_string(&format!(
+                                    "; /* with sample_id {sample_id} */\n"
+                                ))?;
+                            } else {
+                                self.write_string("; /* sample_id not assigned */\n")?;
+                            }
+                        }
+                    }
+                    AssignmentRhs::Invoke {
+                        oracle_name,
+                        args,
+                        target_inst_name,
+                        return_type: opt_ty,
+                    } => {
+                        self.write_string(" <- invoke ")?;
+                        self.write_call(oracle_name, args)?;
+                        if self.annotate {
+                            if let Some(target_inst_name) = target_inst_name {
+                                self.write_string(&format!(
+                                    "; /* with target instance name {target_inst_name} */"
+                                ))?;
+                            } else {
+                                self.write_string("; /* target instance name not assigned */")?;
+                            }
+                            if let Some(ty) = opt_ty {
+                                self.write_string(&format!(" /* return type {ty:?} */"))?;
+                            } else {
+                                self.write_string(" /* return type unknown */")?;
+                            }
+                        }
+                        self.write_string("\n")?;
+                    }
+                }
             }
             Statement::Return(expr, _) => {
                 if let Some(expr) = expr {
@@ -243,60 +295,6 @@ impl<W: Write> FmtWriter<W> {
                 } else {
                     self.write_string("return;\n")?;
                 }
-            }
-            Statement::Sample(id, idx, sample_id, t, _, _) => {
-                self.write_identifier(id)?;
-
-                if let Some(idx) = idx {
-                    self.write_string("[")?;
-                    self.write_expression(idx)?;
-                    self.write_string("]")?;
-                }
-
-                self.write_string(" <-$ ")?;
-                self.write_type(t)?;
-                if self.annotate {
-                    if let Some(sample_id) = sample_id {
-                        self.write_string(&format!("; /* with sample_id {sample_id} */\n"))?;
-                    } else {
-                        self.write_string("; /* sample_id not assigned */\n")?;
-                    }
-                }
-            }
-            Statement::InvokeOracle(InvokeOracleStatement {
-                id,
-                opt_idx,
-                name,
-                args,
-                target_inst_name,
-                ty: opt_ty,
-                ..
-            }) => {
-                self.write_identifier(id)?;
-
-                if let Some(idx) = opt_idx {
-                    self.write_string("[")?;
-                    self.write_expression(idx)?;
-                    self.write_string("]")?;
-                }
-
-                self.write_string(" <- invoke ")?;
-                self.write_call(name, args)?;
-                if self.annotate {
-                    if let Some(target_inst_name) = target_inst_name {
-                        self.write_string(&format!(
-                            "; /* with target instance name {target_inst_name} */"
-                        ))?;
-                    } else {
-                        self.write_string("; /* target instance name not assigned */")?;
-                    }
-                    if let Some(ty) = opt_ty {
-                        self.write_string(&format!(" /* return type {ty:?} */"))?;
-                    } else {
-                        self.write_string(" /* return type unknown */")?;
-                    }
-                }
-                self.write_string("\n")?;
             }
             Statement::IfThenElse(ite) => {
                 // check if this an assert
@@ -322,23 +320,29 @@ impl<W: Write> FmtWriter<W> {
 
                 self.write_string("\n")?;
             }
+            Statement::InvokeOracle(InvokeOracle {
+                oracle_name,
+                args,
+                target_inst_name,
+                ..
+            }) => {
+                self.write_string("invoke ")?;
+                self.write_call(oracle_name, args)?;
+                if self.annotate {
+                    if let Some(target_inst_name) = target_inst_name {
+                        self.write_string(&format!(
+                            "; /* with target instance name {target_inst_name} */\n"
+                        ))?;
+                    } else {
+                        self.write_string("; /* target instance name not assigned */\n")?;
+                    }
+                } else {
+                    self.write_string(";\n")?;
+                }
+            }
             Statement::For(_, _, _, _, _) => todo!(),
             Statement::Abort(_) => {
                 self.write_string("abort;\n")?;
-            }
-            Statement::Parse(ids, expr, _) => {
-                self.write_string("(")?;
-                let mut maybe_comma = "";
-                for id in ids {
-                    self.write_string(maybe_comma)?;
-                    self.write_identifier(id)?;
-                    maybe_comma = ", ";
-                }
-                self.write_string(")")?;
-
-                self.write_string(" <- parse ")?;
-                self.write_expression(expr)?;
-                self.write_string(";\n")?;
             }
         }
 

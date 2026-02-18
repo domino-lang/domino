@@ -5,6 +5,7 @@ use std::{collections::HashSet, convert::Infallible};
 use crate::{theorem::GameInstance, types::Type};
 
 use super::{
+    deconstructinvoke,
     resolveoracles::{self, ResolutionError},
     returnify, samplify, tableinitialize, treeify, type_extract, unwrapify, GameTransform,
     Transformation,
@@ -49,6 +50,9 @@ fn transform_game_inst(
      * counter for the x sampling after returnify (instead of
      * different ones depending on which branch was taken)
      */
+    let (comp, _) = deconstructinvoke::Transformation(&comp)
+        .transform()
+        .expect("splitinvoke failed unexpectedly");
     let (comp, samplinginfo) = samplify::Transformation(&comp)
         .transform()
         .expect("samplify transformation failed unexpectedly");

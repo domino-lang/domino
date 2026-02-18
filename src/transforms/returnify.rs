@@ -135,8 +135,22 @@ mod test {
     use crate::expressions::Expression;
     use crate::identifier::pkg_ident::{PackageIdentifier, PackageLocalIdentifier};
     use crate::identifier::Identifier;
-    use crate::statement::{CodeBlock, IfThenElse, Statement};
+    use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
     use crate::types::Type;
+
+    fn sample_stmt(id: Identifier, ty: Type, pos: SourceSpan) -> Statement {
+        Statement::Assignment(
+            Assignment {
+                pattern: Pattern::Ident(id),
+                rhs: AssignmentRhs::Sample {
+                    ty,
+                    sample_name: None,
+                    sample_id: None,
+                },
+            },
+            pos,
+        )
+    }
 
     fn pkg_local_test_ident(name: &str, ty: Type) -> Identifier {
         Identifier::PackageIdentifier(PackageIdentifier::Local(PackageLocalIdentifier {
@@ -156,7 +170,7 @@ mod test {
         let d = pkg_local_test_ident("d", Type::integer());
         let file_pos: SourceSpan = (0..1).into();
         let code = block! {
-            Statement::Sample(d, None, None, Type::integer(), None, file_pos),
+            sample_stmt(d, Type::integer(), file_pos),
             Statement::Return(None, file_pos)
         };
         assert_eq!(
@@ -170,7 +184,7 @@ mod test {
         let file_pos: SourceSpan = (0..1).into();
         let d = pkg_local_test_ident("d", Type::integer());
         let code = block! {
-            Statement::Sample(d, None, None, Type::integer(), None, file_pos),
+            sample_stmt(d, Type::integer(), file_pos),
             Statement::Return(Some(Expression::integer(5)), file_pos)
         };
         assert_eq!(
@@ -184,7 +198,7 @@ mod test {
         let file_pos: SourceSpan = (0..1).into();
         let d = pkg_local_test_ident("d", Type::integer());
         let code = block! {
-            Statement::Sample(d, None, None, Type::integer(), None, file_pos),
+            sample_stmt(d, Type::integer(), file_pos),
             Statement::Abort(file_pos)
         };
         assert_eq!(
@@ -198,10 +212,10 @@ mod test {
         let file_pos: SourceSpan = (0..1).into();
         let d = pkg_local_test_ident("d", Type::integer());
         let before = block! {
-            Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
+            sample_stmt(d.clone(), Type::integer(), file_pos)
         };
         let after = block! {
-            Statement::Sample(d, None, None,  Type::integer(), None, file_pos),
+            sample_stmt(d, Type::integer(), file_pos),
             Statement::Return(None, file_pos)
         };
         assert_eq!(
@@ -228,11 +242,11 @@ mod test {
                                             (a.clone().into())]),
                 then_block:
                 block!{
-                    Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
+                    sample_stmt(d.clone(), Type::integer(), file_pos)
                 },
 
                 else_block: block!{
-                    Statement::Sample(e.clone(), None, None, Type::integer(), None, file_pos),
+                    sample_stmt(e.clone(), Type::integer(), file_pos),
                     Statement::Return(None, file_pos)
                 },
 
@@ -249,13 +263,13 @@ mod test {
 
                 then_block:
                 block!{
-                    Statement::Sample(d, None, None, Type::integer(), None, file_pos),
+                    sample_stmt(d, Type::integer(), file_pos),
                     Statement::Return(None, file_pos)
                 },
 
                 else_block:
                 block!{
-                    Statement::Sample(e, None, None, Type::integer(), None, file_pos),
+                    sample_stmt(e, Type::integer(), file_pos),
                     Statement::Return(None, file_pos)
                 },
 
@@ -285,10 +299,10 @@ mod test {
                 cond: Expression::equals(vec![(a.clone().into()),
                                                   (a.clone().into())]),
                 then_block: block!{
-                    Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos)
+                    sample_stmt(d.clone(), Type::integer(), file_pos)
                 },
                 else_block: block!{
-                    Statement::Sample(e.clone(), None, None, Type::integer(), None, file_pos)
+                    sample_stmt(e.clone(), Type::integer(), file_pos)
                 },
                 then_span: file_pos,
                 else_span: file_pos,
@@ -300,12 +314,12 @@ mod test {
                 cond: Expression::equals(vec![(a.clone().into()),
                                                   (a.clone().into())]),
                 then_block: block!{
-                    Statement::Sample(d.clone(), None, None, Type::integer(), None, file_pos),
+                    sample_stmt(d.clone(), Type::integer(), file_pos),
                     Statement::Return(None, file_pos)
                 },
 
                 else_block: block!{
-                    Statement::Sample(e.clone(), None, None, Type::integer(), None, file_pos),
+                    sample_stmt(e.clone(), Type::integer(), file_pos),
                     Statement::Return(None, file_pos)
                 },
 
