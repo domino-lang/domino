@@ -45,7 +45,7 @@ pub struct ParsePackageContext<'src> {
     pub oracles: Vec<OracleDef>,
     pub state: Vec<(String, Type, SourceSpan)>,
     pub params: Vec<(String, Type, SourceSpan)>,
-    pub types: Vec<String>,
+    pub types: Vec<&'src str>,
     pub imported_oracles: HashMap<String, (OracleSig, SourceSpan)>,
 }
 
@@ -220,10 +220,12 @@ pub fn handle_pkg_spec<'src>(
         }
     }
 
+    let types = ctx.types.into_iter().map(String::from).collect();
+
     Ok(Package {
         name: ctx.pkg_name.to_string(),
         oracles: ctx.oracles,
-        types: ctx.types,
+        types: types,
         params: ctx.params,
         imports: ctx
             .imported_oracles
@@ -1687,9 +1689,6 @@ pub fn handle_import_oracles_body(
     Ok(())
 }
 
-pub fn handle_types_list(types: Pair<Rule>) -> Vec<String> {
-    types
-        .into_inner()
-        .map(|entry| entry.as_str().to_string())
-        .collect()
+pub fn handle_types_list<'src>(types: Pair<'src, Rule>) -> Vec<&'src str> {
+    types.into_inner().map(|entry| entry.as_str()).collect()
 }

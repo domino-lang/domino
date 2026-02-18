@@ -32,7 +32,7 @@ pub struct ParseContext<'src> {
     pub file_content: &'src str,
 
     pub scope: Scope,
-    pub types: Vec<String>,
+    pub types: Vec<&'src str>,
 }
 
 impl<'src> ParseContext<'src> {
