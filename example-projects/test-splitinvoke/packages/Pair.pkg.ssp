@@ -1,0 +1,9 @@
+package Pair {
+    params {
+        b: Bool,
+    }
+
+    oracle GetPair() -> (Bool, Bool) {
+        return (false, b);
+    }
+}

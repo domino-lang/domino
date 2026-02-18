@@ -6,3 +6,6 @@ kem-dem-cca-security
 
 # the helloworld example
 hello-world
+
+# the test for deconstructing assignments with oracle invocations: (a, b) <- invoke Foo()
+test-splitinvoke

@@ -8,6 +8,7 @@ use crate::{package::Composition, theorem::Theorem};
 pub mod resolveoracles;
 pub mod returnify;
 pub mod samplify;
+pub mod splitinvoke;
 pub mod tableinitialize;
 pub mod treeify;
 pub mod type_extract;

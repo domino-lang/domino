@@ -845,7 +845,7 @@ impl<'a> CompositionSmtWriter<'a> {
 
                         if assignee_ident.ident() != "_" {
                             bindings.push((
-                                assignee_ident.ident(),
+                                assignee_ident.smt_identifier_string(),
                                 return_value_pattern
                                     .access(
                                         &return_value_spec,

@@ -1325,9 +1325,6 @@ pub fn handle_code(
                         (Pattern::Tuple(_), OracleExprResult::Sample(..)) => {
                             panic!("Cannot sample into tuple pattern - this should be prevented by grammar")
                         }
-                        (Pattern::Tuple(_), OracleExprResult::Invoke(..)) => {
-                            panic!("Cannot invoke oracle into tuple pattern - this should be prevented by grammar")
-                        }
                         _ => {} // All other combinations are valid
                     }
 
