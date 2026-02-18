@@ -37,7 +37,7 @@ pub struct ParseGameContext<'src> {
     pub scope: Scope,
 
     pub consts: HashMap<String, Type>,
-    pub types: Vec<String>,
+    pub types: Vec<&'src str>,
 
     pub instances: Vec<(PackageInstance, Span<'src>)>,
     pub instances_table: HashMap<String, (usize, PackageInstance, Span<'src>)>,
