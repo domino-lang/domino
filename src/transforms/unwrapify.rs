@@ -7,7 +7,9 @@ use miette::SourceSpan;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
 use crate::package::Composition;
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement};
+use crate::statement::{
+    Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
+};
 
 pub type Error = Infallible;
 

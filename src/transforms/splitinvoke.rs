@@ -17,9 +17,7 @@ use std::convert::Infallible;
 
 use crate::identifier::Identifier;
 use crate::package::Composition;
-use crate::statement::{
-    Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement,
-};
+use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
 
 pub type Error = Infallible;
 
@@ -37,8 +35,7 @@ impl super::Transformation for Transformation<'_> {
             .map(|inst| {
                 let mut newinst = inst.clone();
                 for (i, oracle) in newinst.pkg.oracles.clone().iter().enumerate() {
-                    newinst.pkg.oracles[i].code =
-                        Splitter::default().split(&oracle.code);
+                    newinst.pkg.oracles[i].code = Splitter::default().split(&oracle.code);
                 }
                 newinst
             })
@@ -87,8 +84,7 @@ impl Splitter {
                     let tmp_name = format!("invoke-result-{}", self.ctr);
                     self.ctr += 1;
 
-                    let tmp_ident =
-                        Identifier::Generated(tmp_name, return_type.clone());
+                    let tmp_ident = Identifier::Generated(tmp_name, return_type.clone());
 
                     // First statement: tmp <- invoke Oracle(args)
                     newcode.push(Statement::Assignment(
