@@ -168,6 +168,9 @@ impl GameInstance {
             edges: new_edges,
             exports: new_exports,
             invariants: game.invariants.clone(),
+
+            // XXX: This probably needs rewriting
+            type_params: game.type_params,
         };
 
         GameInstance {
