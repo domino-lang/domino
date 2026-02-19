@@ -127,11 +127,17 @@ pub(crate) fn handle_type(ctx: &ParseContext, ty: Pair<Rule>) -> Result<Type, Ha
         Rule::type_userdefined => {
             let type_name = ty.as_str();
             if ctx
-                .types
+                .abstract_types
                 .iter()
                 .any(|(declared_type, _)| *declared_type == type_name)
             {
                 TypeKind::UserDefined(ty.as_str().to_string())
+            } else if ctx
+                .types
+                .iter()
+                .any(|(declared_type, _)| *declared_type == type_name)
+            {
+                TypeKind::TypeParam(ty.as_str().to_string())
             } else {
                 let span = ty.as_span();
                 return Err(NoSuchTypeError {
