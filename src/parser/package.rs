@@ -82,6 +82,7 @@ impl<'src> ParsePackageContext<'src> {
             file_content: self.file_content,
             scope: self.scope.clone(),
             types: self.types.clone(),
+            abstract_types: vec![],
         }
     }
 }
@@ -93,6 +94,7 @@ impl<'src> From<ParsePackageContext<'src>> for ParseContext<'src> {
             file_content: value.file_content,
             scope: value.scope,
             types: value.types,
+            abstract_types: vec![],
         }
     }
 }
