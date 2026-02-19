@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::package::{Composition, OracleDef, Package, PackageInstance};
+use crate::package::{Composition, Edge, OracleDef, Package, PackageInstance};
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Statement};
 
 use std::collections::HashMap;
@@ -12,9 +12,9 @@ pub(crate) struct ResolutionError(pub(crate) Vec<(String, usize)>); // (oracle_n
 
 type Result<T> = std::result::Result<T, ResolutionError>;
 
-fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> Result<CodeBlock> {
+fn transform_helper_outer(table: &HashMap<String, &Edge>, block: CodeBlock) -> Result<CodeBlock> {
     fn transform_helper(
-        table: &HashMap<String, String>,
+        table: &HashMap<String, &Edge>,
         block: CodeBlock,
         err_stmts: &mut Vec<(String, usize)>,
     ) -> CodeBlock {
@@ -33,20 +33,20 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
                                 AssignmentRhs::Invoke {
                                     oracle_name,
                                     args,
-                                    target_inst_name: _,
+                                    edge: _,
                                     return_type,
                                 },
                         },
                         span,
                     ) => {
-                        if let Some(pkgname) = table.get(&oracle_name) {
+                        if let Some(edge) = table.get(&oracle_name) {
                             Some(Statement::Assignment(
                                 Assignment {
                                     pattern,
                                     rhs: AssignmentRhs::Invoke {
                                         oracle_name,
                                         args,
-                                        target_inst_name: Some(pkgname.clone()),
+                                        edge: Some((*edge).clone()),
                                         return_type,
                                     },
                                 },
@@ -60,14 +60,14 @@ fn transform_helper_outer(table: &HashMap<String, String>, block: CodeBlock) -> 
                     Statement::InvokeOracle(InvokeOracle {
                         oracle_name,
                         args,
-                        target_inst_name: _,
+                        edge: _,
                         file_pos,
                     }) => {
-                        if let Some(pkgname) = table.get(&oracle_name) {
+                        if let Some(edge) = table.get(&oracle_name) {
                             Some(Statement::InvokeOracle(InvokeOracle {
                                 oracle_name,
                                 args,
-                                target_inst_name: Some(pkgname.clone()),
+                                edge: Some((*edge).clone()),
                                 file_pos,
                             }))
                         } else {
@@ -114,12 +114,11 @@ impl super::Transformation for Transformation<'_> {
         let mut pkgs = vec![];
 
         for (pos, inst) in self.0.pkgs.iter().enumerate() {
-            let mut table = HashMap::<String, String>::new();
+            let mut table = HashMap::<String, &Edge>::new();
             let relevant = self.0.edges.iter().filter(|edge| edge.from() == pos);
 
             for edge in relevant {
-                let pkgname = self.0.pkgs[edge.to()].name.clone();
-                table.insert(edge.sig().name.clone(), pkgname);
+                table.insert(edge.sig().name.clone(), edge);
             }
 
             let mut odefs = vec![];

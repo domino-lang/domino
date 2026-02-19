@@ -5,6 +5,7 @@ use pest::Span;
 
 use crate::expressions::Expression;
 use crate::identifier::Identifier;
+use crate::package::Edge;
 use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -41,7 +42,7 @@ pub enum AssignmentRhs {
     Invoke {
         oracle_name: String,
         args: Vec<Expression>,
-        target_inst_name: Option<String>,
+        edge: Option<Edge>,
         return_type: Option<Type>,
     },
 }
@@ -58,7 +59,7 @@ pub struct Assignment {
 pub struct InvokeOracle {
     pub oracle_name: String,
     pub args: Vec<Expression>,
-    pub target_inst_name: Option<String>,
+    pub edge: Option<Edge>,
     pub file_pos: SourceSpan,
 }
 

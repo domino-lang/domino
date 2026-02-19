@@ -23,16 +23,16 @@ use block::BlockWriter;
 
 pub fn tex_write_oracle(
     lossy: bool,
+    comp: &Composition,
     oracle: &OracleDef,
     pkgname: &str,
-    compname: &str,
     target: &Path,
 ) -> std::io::Result<String> {
     let fname = target.join(format!(
         "Oracle_{}_{}_in_{}{}.tex",
         pkgname,
         oracle.sig.name,
-        compname,
+        comp.name,
         if lossy { "_lossy" } else { "" }
     ));
     let mut file = File::create(fname.clone())?;
@@ -50,7 +50,7 @@ pub fn tex_write_oracle(
             .join(", ")
     )?;
 
-    let mut writer = BlockWriter::new(&mut file, lossy);
+    let mut writer = BlockWriter::new(&mut file, lossy, comp);
     let codeblock = &oracle.code;
     writer.write_codeblock(codeblock, 0)?;
 
@@ -79,8 +79,7 @@ pub fn tex_write_package(
     )?;
 
     for oracle in &package.pkg.oracles {
-        let oraclefname =
-            tex_write_oracle(lossy, oracle, &package.name, &composition.name, target)?;
+        let oraclefname = tex_write_oracle(lossy, composition, oracle, &package.name, target)?;
         let oraclefname = Path::new(&oraclefname)
             .strip_prefix(fname.clone().parent().unwrap())
             .unwrap()

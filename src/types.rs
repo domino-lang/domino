@@ -210,14 +210,52 @@ impl Type {
 
 impl std::fmt::Display for Type {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut ty_str_bytes = Vec::with_capacity(256);
-
-        crate::writers::pseudocode::writer::Writer::new(&mut ty_str_bytes)
-            .write_type(self)
-            .map_err(|_| std::fmt::Error)?;
-
-        let ty_str = String::from_utf8(ty_str_bytes).map_err(|_| std::fmt::Error)?;
-        write!(f, "{ty_str}")
+        match self.kind() {
+            TypeKind::String => f.write_str("String"),
+            TypeKind::Integer => f.write_str("Integer"),
+            TypeKind::Boolean => f.write_str("Boolean"),
+            TypeKind::Empty => f.write_str("()"),
+            TypeKind::Bits(n) => {
+                f.write_str("Bits(")?;
+                f.write_str(&format!("{n}"))?;
+                f.write_str(")")
+            }
+            TypeKind::Maybe(t) => {
+                f.write_str("Maybe(")?;
+                t.fmt(f)?;
+                f.write_str(")")
+            }
+            TypeKind::Tuple(types) => {
+                f.write_str("(")?;
+                let mut maybe_comma = "";
+                for ty in types {
+                    f.write_str(maybe_comma)?;
+                    ty.fmt(f)?;
+                    maybe_comma = ", ";
+                }
+                f.write_str(")")
+            }
+            TypeKind::Table(t_key, t_value) => {
+                f.write_str("Table(")?;
+                t_key.fmt(f)?;
+                f.write_str(", ")?;
+                t_value.fmt(f)?;
+                f.write_str(")")
+            }
+            TypeKind::Unknown => f.write_str("Unknown"),
+            TypeKind::Fn(args, ret) => {
+                f.write_str("fn ")?;
+                let mut maybe_comma = "";
+                for ty in args {
+                    f.write_str(maybe_comma)?;
+                    ty.fmt(f)?;
+                    maybe_comma = ", ";
+                }
+                f.write_str(" -> ")?;
+                ret.fmt(f)
+            }
+            _ => todo!("`{self:?}'"),
+        }
     }
 }
 

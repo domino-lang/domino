@@ -1276,7 +1276,7 @@ pub fn handle_code(
                     Statement::InvokeOracle (InvokeOracle{
                         oracle_name: oracle_name.to_string(),
                         args,
-                        target_inst_name: None,
+                        edge: None,
                         file_pos: full_span,
                     })
                 }
@@ -1358,7 +1358,7 @@ pub fn handle_code(
                             AssignmentRhs::Invoke {
                                 oracle_name,
                                 args,
-                                target_inst_name: None,
+                                edge: None,
                                 return_type: Some(return_type),
                             }
                         }

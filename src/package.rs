@@ -55,7 +55,7 @@ pub struct Package {
     pub file_contents: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Edge {
     from: usize,
     to: usize,
