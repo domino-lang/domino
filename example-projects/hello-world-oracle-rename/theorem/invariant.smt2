@@ -24,6 +24,21 @@
     (= id-0  (sample-id "rand" "UsefulOracle" "samplepoint"))
     (= id-1  (sample-id "rand" "UsefulOracle" "samplepoint"))))
 
+(define-fun randomness-mapping-AnotherUsefulOracle
+  ( (base-ctr-0 Int) ; This is the counter in the beginning of the oracle call on the left.
+    (base-ctr-1 Int) ; This is the counter in the beginning of the oracle call on the left.
+    (id-0  SampleId)      ; This is the sample-id, see LaTeX export for which id corresponds to which sampling.
+    (id-1  SampleId)      ; This is the sample-id, see LaTeX export for which id corresponds to which sampling.
+    (scr-0 Int)      ; This is the counter which gets incremented each time a sampling is done with the same sample id.
+    (scr-1 Int))     ; This is the counter which gets incremented each time a sampling is done with the same sample id.
+  Bool
+  (and
+    (= scr-1 base-ctr-1) ; This means that the actual sampling has the same counter as the state counter initially.
+    (= scr-0 base-ctr-0) ; This means that the actual sampling has the same counter as the state counter initially.
+    (= id-0  (sample-id "rand" "UsefulOracle" "samplepoint"))
+    (= id-1  (sample-id "rand" "UsefulOracle" "samplepoint"))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;
 ; Invariant --- note that the invariant needs to be global for **all** oracles. 
@@ -44,3 +59,12 @@
     ; ctr are equal
     (= ctr-0 ctr-1)))
 
+(define-fun <relation-trivial-medium_composition-small_composition-AnotherUsefulOracle> 
+  ( (state-0  <GameState_MediumComposition_<$<!n!>$>>)
+    (state-1  <GameState_SmallComposition_<$<!n!>$>>)
+    (output-0 <OracleReturn_MediumComposition_<$<!n!>$>_Rand_<$<!n!>$>_UsefulOracle>)
+    (output-1 <OracleReturn_SmallComposition_<$<!n!>$>_Rand_<$<!n!>$>_UsefulOracle>)  
+  )
+Bool
+true
+)
