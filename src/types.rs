@@ -84,9 +84,9 @@ impl Type {
         }
     }
 
-    pub(crate) fn user_defined(name: String) -> Self {
+    pub(crate) fn type_param(name: String) -> Self {
         Self {
-            kind: TypeKind::UserDefined(name),
+            kind: TypeKind::TypeParam(name),
         }
     }
 
@@ -121,6 +121,7 @@ pub enum TypeKind {
     Maybe(Box<Type>),
     Fn(Vec<Type>, Box<Type>), // arg types, return type
     UserDefined(String),
+    TypeParam(String),
 }
 
 impl TypeKind {
@@ -174,7 +175,8 @@ impl Type {
                     t.rewrite_type(rules),
                 ),
                 TypeKind::Unknown => unreachable!(),
-                TypeKind::UserDefined(_) => unreachable!(),
+                TypeKind::TypeParam(_) => unreachable!("TypeParam should always match a rewrite rule"),
+                TypeKind::UserDefined(_) => self.clone(),
             }
         }
     }
@@ -243,6 +245,8 @@ impl std::fmt::Display for Type {
                 f.write_str(")")
             }
             TypeKind::Unknown => f.write_str("Unknown"),
+            TypeKind::UserDefined(n) => f.write_str(n.as_str()),
+            TypeKind::TypeParam(n) => f.write_str(n.as_str()),
             TypeKind::Fn(args, ret) => {
                 f.write_str("fn ")?;
                 let mut maybe_comma = "";

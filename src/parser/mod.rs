@@ -33,6 +33,7 @@ pub struct ParseContext<'src> {
 
     pub scope: Scope,
     pub types: Vec<(&'src str, pest::Span<'src>)>,
+    pub abstract_types: Vec<(&'src str, pest::Span<'src>)>,
 }
 
 impl<'src> ParseContext<'src> {
@@ -40,12 +41,14 @@ impl<'src> ParseContext<'src> {
         let mut scope = Scope::new();
         scope.enter();
         let types = vec![];
+        let abstract_types = vec![];
 
         Self {
             file_name,
             file_content,
             scope,
             types,
+            abstract_types,
         }
     }
 
