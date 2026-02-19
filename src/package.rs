@@ -56,19 +56,27 @@ pub struct Package {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Edge(pub usize, pub usize, pub OracleSig);
+pub struct Edge {
+    from: usize,
+    to: usize,
+    sig: OracleSig,
+}
 
 impl Edge {
+    pub fn new(from: usize, to: usize, sig: OracleSig) -> Self {
+        Self { from, to, sig }
+    }
+
     pub fn from(&self) -> usize {
-        self.0
+        self.from
     }
 
     pub fn to(&self) -> usize {
-        self.1
+        self.to
     }
 
     pub fn sig(&self) -> &OracleSig {
-        &self.2
+        &self.sig
     }
 }
 
@@ -135,8 +143,8 @@ impl Composition {
                     // package instances that have already been added
                     self.edges
                         .iter()
-                        .filter(|Edge(from, _, _)| pkg_inst_offs == *from)
-                        .all(|Edge(_, to, _)| added_pkgs[*to])
+                        .filter(|edge| pkg_inst_offs == edge.from())
+                        .all(|edge| added_pkgs[edge.to()])
                 })
                 .collect();
 

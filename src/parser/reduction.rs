@@ -18,7 +18,7 @@ use crate::{
         theorem_ident::TheoremIdentifier,
         Identifier,
     },
-    package::{Edge, PackageInstance},
+    package::PackageInstance,
     packageinstance::instantiate::InstantiationContext,
     parser::error::{
         AssumptionMappingLeftGameInstanceIsNotFromAssumption,
@@ -712,15 +712,15 @@ fn handle_mapspec_assumption<'a>(
 
     // cross-cut wires: check that all wires from the reduction subgraph into
     // the assumption subgraph point to oracles which the assumption game exports
-    for Edge(constr_src, constr_dst, constr_sig) in &construction_game_inst.game().edges {
+    for edge in &construction_game_inst.game().edges {
         let dst_pkginst_mapping = pkg_offset_mapping
             .iter()
-            .find(|(constr, _)| *constr == *constr_dst);
+            .find(|(constr, _)| *constr == edge.to());
 
         // constr_src is not in the mapping => it's in the reduction part
         let src_is_in_reduction_part = pkg_offset_mapping
             .iter()
-            .all(|(constr, _)| *constr != *constr_src);
+            .all(|(constr, _)| *constr != edge.from());
 
         // ignore edges that start in mapped packages, because we are only interested in cross-cut
         // edges
@@ -729,13 +729,13 @@ fn handle_mapspec_assumption<'a>(
         }
 
         if let Some((_, assump_dst)) = dst_pkginst_mapping {
-            let constr_dst_pkg_inst = &construction_game_inst.game().pkgs[*constr_dst];
+            let constr_dst_pkg_inst = &construction_game_inst.game().pkgs[edge.to()];
             let assump_dst_pkg_inst = &assumption_game_inst.game().pkgs[*assump_dst];
 
             // this lookup is by comparing the oracle name, not the whole signature
             let assump_dst_export =
                 assumption_game_inst.game().exports.iter().find(|export| {
-                    export.to() == *assump_dst && export.sig().name == constr_sig.name
+                    export.to() == *assump_dst && export.sig().name == edge.sig().name
                 });
 
             // These show the problem: one is a GameConstIdentifier and the other is a
@@ -745,7 +745,7 @@ fn handle_mapspec_assumption<'a>(
             //  indentifers
             let constr_sig_owned = {
                 let this = &construction_game_inst;
-                let sig = constr_sig.clone();
+                let sig = edge.sig().clone();
                 let inst_ctx = InstantiationContext::new_game_instantiation_context(
                     this.name(),
                     ctx.theorem_name,
@@ -773,7 +773,7 @@ fn handle_mapspec_assumption<'a>(
                 let assumption_pkg_inst_name =
                     assumption_game_inst.game().pkgs[*assump_dst].name.clone();
                 let construction_pkg_inst_name =
-                    construction_game_inst.game().pkgs[*constr_dst].name.clone();
+                    construction_game_inst.game().pkgs[edge.to()].name.clone();
                 let oracle_name = constr_sig.name.clone();
 
                 return Err(AssumptionExportsNotSufficientError {
@@ -895,13 +895,13 @@ fn handle_mapspec_assumption<'a>(
             .game()
             .edges
             .iter()
-            .filter(|edge| edge.0 == *assump_src_pkg_inst_offs);
+            .filter(|edge| edge.from() == *assump_src_pkg_inst_offs);
 
         // edge exists in assumption => edge exists in construction
         for assumption_edge in assumption_game_edges {
             let (construction_game_to, _) = pkg_offset_mapping
                 .iter()
-                .find(|(_, assumpt)| *assumpt == assumption_edge.1)
+                .find(|(_, assumpt)| *assumpt == assumption_edge.to())
                 .unwrap();
 
             let edge_exists_in_construction =
@@ -910,8 +910,8 @@ fn handle_mapspec_assumption<'a>(
                     .edges
                     .iter()
                     .any(|construction_game_edge| {
-                        construction_game_edge.0 == *constr_src_pkg_inst_offs
-                            && construction_game_edge.1 == *construction_game_to
+                        construction_game_edge.from() == *constr_src_pkg_inst_offs
+                            && construction_game_edge.to() == *construction_game_to
                     });
 
             if !edge_exists_in_construction {
@@ -924,11 +924,11 @@ fn handle_mapspec_assumption<'a>(
 
                 println!(
                     "assumption src pkg inst name: {}",
-                    assumption_game_inst.game().pkgs[assumption_edge.0].name()
+                    assumption_game_inst.game().pkgs[assumption_edge.from()].name()
                 );
                 println!(
                     "assumption dst pkg inst name: {}",
-                    assumption_game_inst.game().pkgs[assumption_edge.1].name()
+                    assumption_game_inst.game().pkgs[assumption_edge.to()].name()
                 );
 
                 println!(

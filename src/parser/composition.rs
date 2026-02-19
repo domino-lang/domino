@@ -16,7 +16,7 @@ use crate::{
     debug_assert_matches,
     expressions::Expression,
     identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
-    package::{Composition, Edge, Export, OracleSig, Package, PackageInstance},
+    package::{Composition, Edge, Export, Package, PackageInstance},
     types::Type,
     util::scope::Error as ScopeError,
 };
@@ -262,12 +262,10 @@ pub(crate) fn handle_comp_spec_list<'a>(
     // This is just the single-instance case. The general case needs help from the smt solver
     for (offset, (inst, inst_span)) in ctx.instances.iter().enumerate() {
         for (import, _) in &inst.pkg.imports {
-            let edge_exists = ctx.edges.iter().any(|edge| {
-                matches!(edge, Edge(edge_src_offset, _, OracleSig {
-                    name: edge_oracle_name,
-                    ..
-                }) if *edge_src_offset == offset && *edge_oracle_name == import.name)
-            });
+            let edge_exists = ctx
+                .edges
+                .iter()
+                .any(|edge| edge.from() == offset && edge.sig().name == import.name);
 
             if !edge_exists {
                 return Err(MissingEdgeForImportedOracleError {
@@ -498,7 +496,7 @@ fn handle_edges_compose_assign_list(
             .into());
         }
 
-        edges.push(Edge(source_pkgidx, dst_offset, dst_oracle_sig));
+        edges.push(Edge::new(source_pkgidx, dst_offset, dst_oracle_sig));
     }
 
     Ok(edges)

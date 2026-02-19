@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    package::{Composition, Edge, Export},
+    package::{Composition, Export},
     parser::ast::Identifier,
     parser::reduction::ReductionMapping,
     util::{
@@ -56,7 +56,7 @@ fn fallback_composition_graph(
             if !composition
                 .edges
                 .iter()
-                .any(|Edge(from, to, _oracle)| i == *from && !printed.contains(to))
+                .any(|edge| i == edge.from() && !printed.contains(&edge.to()))
             {
                 write!(
                     result,
@@ -75,9 +75,9 @@ fn fallback_composition_graph(
                 newly.push(i);
                 tikzy -= 2;
 
-                for Edge(from, to, oracle) in &composition.edges {
-                    if i == *from {
-                        writeln!(result, "\\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", from, from, oracle.name, to).unwrap();
+                for edge in &composition.edges {
+                    if i == edge.from() {
+                        writeln!(result, "\\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", edge.from(), edge.from(), edge.sig().name, edge.to()).unwrap();
                     }
                 }
             }
@@ -131,9 +131,9 @@ fn smt_composition_graph(
                 let oracles: Vec<_> = composition
                     .edges
                     .iter()
-                    .filter_map(|Edge(f, t, oracle)| {
-                        if from == *f && to == *t {
-                            Some(oracle.name.clone())
+                    .filter_map(|edge| {
+                        if from == edge.from() && to == edge.to() {
+                            Some(edge.sig().name.clone())
                         } else {
                             None
                         }
@@ -281,13 +281,13 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
         writeln!(result, "(assert (< 0 {pkg}-bottom (- {pkg}-top 1) height))")?;
     }
 
-    for Edge(from, to, _oracle) in &composition.edges {
-        if edges.contains(&(*from, *to)) {
+    for edge in &composition.edges {
+        if edges.contains(&(edge.from(), edge.to())) {
             continue;
         };
-        edges.insert((*from, *to));
-        let pkga = &composition.pkgs[*from].name;
-        let pkgb = &composition.pkgs[*to].name;
+        edges.insert((edge.from(), edge.to()));
+        let pkga = &composition.pkgs[edge.from()].name;
+        let pkgb = &composition.pkgs[edge.to()].name;
 
         writeln!(result, "(declare-const edge-{pkga}-{pkgb}-height Int)")?;
         writeln!(
@@ -338,9 +338,9 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
     }
 
     for i in 0..composition.pkgs.len() {
-        for Edge(from, to, _oracle) in &composition.edges {
-            let pkga = &composition.pkgs[*from].name;
-            let pkgb = &composition.pkgs[*to].name;
+        for edge in &composition.edges {
+            let pkga = &composition.pkgs[edge.from()].name;
+            let pkgb = &composition.pkgs[edge.to()].name;
             let pkgc = &composition.pkgs[i].name;
 
             writeln!(
