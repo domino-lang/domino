@@ -282,16 +282,31 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 ..
             } => {
                 let target_inst = &self.comp.pkgs[edge.to()];
-                format!(
-                    r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}({args}) \pccomment{{Pkg: {target_inst_name}}}",
-                    name = oracle_name.replace("_", "\\_"),
-                    args = args
-                        .iter()
-                        .map(|expr| self.expression_to_tex(expr))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    target_inst_name = target_inst.name.replace('_', r"\_")
-                )
+                if edge.alias().is_some() {
+                    let target_oracle = &edge.sig();
+                    format!(
+                        r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}({args}) \pccomment{{Pkg: {target_inst_name}, Oracle: {target_oracle_name}}}",
+                        name = oracle_name.replace("_", "\\_"),
+                        args = args
+                            .iter()
+                            .map(|expr| self.expression_to_tex(expr))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        target_inst_name = target_inst.name.replace('_', r"\_"),
+                        target_oracle_name = target_oracle.name.replace('_', "\\_")
+                    )
+                } else {
+                    format!(
+                        r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}({args}) \pccomment{{Pkg: {target_inst_name}}}",
+                        name = oracle_name.replace("_", "\\_"),
+                        args = args
+                            .iter()
+                            .map(|expr| self.expression_to_tex(expr))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        target_inst_name = target_inst.name.replace('_', r"\_"),
+                    )
+                }
             }
 
             AssignmentRhs::Invoke { edge: None, .. }
@@ -343,13 +358,25 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                     .join(", ");
                 if let Some(edge) = edge {
                     let target_inst = &self.comp.pkgs[edge.to()];
-                    format!(
-                        "{}\\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
-                        genindentation(indentation),
-                        name.replace("_", "\\_"),
-                        args_tex,
-                        target_inst.name.replace('_', "\\_")
-                    )
+                    if edge.alias().is_some() {
+                        let target_oracle = &edge.sig();
+                        format!(
+                            "{}\\O{{{}}}({}) \\pccomment{{Pkg: {}, Oracle: {}}} \\\\",
+                            genindentation(indentation),
+                            name.replace("_", "\\_"),
+                            args_tex,
+                            target_inst.name.replace('_', "\\_"),
+                            target_oracle.name.replace('_', "\\_")
+                        )
+                    } else {
+                        format!(
+                            "{}\\O{{{}}}({}) \\pccomment{{Pkg: {}}} \\\\",
+                            genindentation(indentation),
+                            name.replace("_", "\\_"),
+                            args_tex,
+                            target_inst.name.replace('_', "\\_")
+                        )
+                    }
                 } else {
                     format!(
                         "{}\\O{{{}}}({}) \\\\",

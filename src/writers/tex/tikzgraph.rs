@@ -77,7 +77,7 @@ fn fallback_composition_graph(
 
                 for edge in &composition.edges {
                     if i == edge.from() {
-                        writeln!(result, "\\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", edge.from(), edge.from(), edge.sig().name, edge.to()).unwrap();
+                        writeln!(result, "\\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", edge.from(), edge.from(), edge.name(), edge.to()).unwrap();
                     }
                 }
             }
@@ -133,7 +133,7 @@ fn smt_composition_graph(
                     .iter()
                     .filter_map(|edge| {
                         if from == edge.from() && to == edge.to() {
-                            Some(edge.sig().name.clone())
+                            Some(edge.name())
                         } else {
                             None
                         }
@@ -179,7 +179,7 @@ fn smt_composition_graph(
                 .iter()
                 .filter_map(|export| {
                     if to == export.to() {
-                        Some(export.sig().name.clone())
+                        Some(export.name())
                     } else {
                         None
                     }

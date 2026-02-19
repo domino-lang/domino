@@ -228,9 +228,16 @@ impl<'comp, W: Write> FmtWriter<'comp, W> {
                         if self.annotate {
                             if let Some(edge) = edge {
                                 let target_inst_name = &self.comp.pkgs[edge.to()].name;
-                                self.write_string(&format!(
-                                    "; /* with target instance name {target_inst_name} */"
-                                ))?;
+                                if edge.alias().is_some() {
+                                    let target_oracle_name = &edge.sig().name;
+                                    self.write_string(&format!(
+                                        "; /* with target instance name {target_inst_name} and target oracle name {target_oracle_name} */"
+                                    ))?;
+                                } else {
+                                    self.write_string(&format!(
+                                        "; /* with target instance name {target_inst_name} */"
+                                    ))?;
+                                }
                             } else {
                                 self.write_string("; /* target instance name not assigned */")?;
                             }
