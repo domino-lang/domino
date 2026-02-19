@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    package::{Composition, Export},
+    package::Composition,
     parser::ast::Identifier,
     parser::reduction::ReductionMapping,
     util::{
@@ -92,8 +92,8 @@ fn fallback_composition_graph(
         "\\node[package] (nodea) at ({tikzx}, {tikzy}) {{$A$}};"
     )
     .unwrap();
-    for Export(to, oracle) in &composition.exports {
-        writeln!(result, "\\draw[-latex,rounded corners] (nodea) -- ($(nodea.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", oracle.name, to).unwrap();
+    for export in &composition.exports {
+        writeln!(result, "\\draw[-latex,rounded corners] (nodea) -- ($(nodea.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", export.sig().name, export.to()).unwrap();
     }
     writeln!(result, "\\end{{tikzpicture}}").unwrap();
     result
@@ -177,9 +177,9 @@ fn smt_composition_graph(
             let oracles: Vec<_> = composition
                 .exports
                 .iter()
-                .filter_map(|Export(t, oracle)| {
-                    if to == *t {
-                        Some(oracle.name.clone())
+                .filter_map(|export| {
+                    if to == export.to() {
+                        Some(export.sig().name.clone())
                     } else {
                         None
                     }
@@ -301,13 +301,13 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
         writeln!(result, "(assert (< {pkga}-column {pkgb}-column))")?;
     }
 
-    for Export(to, _oracle) in &composition.exports {
-        if edges.contains(&(usize::MAX, *to)) {
+    for export in &composition.exports {
+        if edges.contains(&(usize::MAX, export.to())) {
             continue;
         };
-        edges.insert((usize::MAX, *to));
+        edges.insert((usize::MAX, export.to()));
         let pkga = "-";
-        let pkgb = &composition.pkgs[*to].name;
+        let pkgb = &composition.pkgs[export.to()].name;
 
         writeln!(result, "(declare-const edge-{pkga}-{pkgb}-height Int)")?;
         writeln!(
@@ -350,9 +350,9 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
                   (< (- {pkgc}-bottom 1) edge-{pkga}-{pkgb}-height (+ {pkgc}-top 1)))))"
             )?;
         }
-        for Export(to, _oracle) in &composition.exports {
+        for export in &composition.exports {
             let pkga = "-";
-            let pkgb = &composition.pkgs[*to].name;
+            let pkgb = &composition.pkgs[export.to()].name;
             let pkgc = &composition.pkgs[i].name;
 
             writeln!(

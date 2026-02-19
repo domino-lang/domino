@@ -3,7 +3,7 @@
 use crate::{
     expressions::Expression,
     identifier::game_ident::GameConstIdentifier,
-    package::{Composition, Export},
+    package::Composition,
     theorem::GameInstance,
     transforms::samplify::{Position as SamplePosition, SampleInfo},
     types::Type,
@@ -249,14 +249,14 @@ impl<'a> GameInstanceContext<'a> {
         &self,
         oracle_name: &str,
     ) -> Option<OracleContext<'a>> {
-        let Export(inst_offs, _) = *self
+        let export = self
             .game_inst
             .game()
             .exports
             .iter()
-            .find(|Export(_, osig)| osig.name == oracle_name)?;
+            .find(|export| export.sig().name == oracle_name)?;
 
-        let inst_ctx = PackageInstanceContext::new(*self, inst_offs);
+        let inst_ctx = PackageInstanceContext::new(*self, export.to());
 
         inst_ctx.oracle_ctx_by_name(oracle_name)
     }

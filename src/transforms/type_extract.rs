@@ -5,7 +5,7 @@ use std::convert::Infallible;
 
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::Identifier;
-use crate::package::{Composition, Export};
+use crate::package::Composition;
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement};
 use crate::types::{CountSpec, Type, TypeKind};
 
@@ -48,11 +48,13 @@ impl super::Transformation for Transformation<'_> {
         }));
 
         // extract oracle arg an return types from exports
-        set.extend(self.0.exports.iter().flat_map(|Export(_, sig)| {
-            sig.args
+        set.extend(self.0.exports.iter().flat_map(|export| {
+            export
+                .sig()
+                .args
                 .iter()
                 .map(|(_, ty)| ty)
-                .chain(Some(&sig.ty))
+                .chain(Some(&export.sig().ty))
                 .inspect(assert_is_populated)
                 .cloned()
         }));

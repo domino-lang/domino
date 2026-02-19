@@ -25,7 +25,7 @@ use crate::writers::smt::patterns::{
 use crate::writers::smt::sorts::Sort;
 use crate::{
     hacks,
-    package::{Export, OracleSig},
+    package::OracleSig,
     theorem::{Claim, ClaimType, GameInstance, Theorem},
     transforms::{
         samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
@@ -606,9 +606,9 @@ impl<'a> EquivalenceContext<'a> {
         // let right_partial_datatypes = into_partial_dtypes(self.split_info_right());
 
         // write declarations of arguments for the exports in left
-        for Export(_, sig) in &left.game().exports {
-            if let Some(orcl_ctx) = gctx_left.exported_oracle_ctx_by_name(&sig.name) {
-                for (arg_name, arg_type) in &sig.args {
+        for export in &left.game().exports {
+            if let Some(orcl_ctx) = gctx_left.exported_oracle_ctx_by_name(&export.sig().name) {
+                for (arg_name, arg_type) in &export.sig().args {
                     out.push(declare::declare_const(
                         orcl_ctx.smt_arg_name(arg_name),
                         arg_type.clone().into(),
@@ -1083,9 +1083,9 @@ impl<'a> EquivalenceContext<'a> {
             .game()
             .exports
             .iter()
-            .find(|Export(_, sig)| sig.name == oracle_name)
-            .and_then(|Export(inst_idx, _)| {
-                gctx_left.game().pkgs[*inst_idx]
+            .find(|export| export.sig().name == oracle_name)
+            .and_then(|export| {
+                gctx_left.game().pkgs[export.to()]
                     .pkg
                     .oracles
                     .iter()
@@ -1366,13 +1366,13 @@ impl<'a> EquivalenceContext<'a> {
             .game()
             .exports
             .iter()
-            .map(|Export(_, oracle_sig)| oracle_sig.clone())
+            .map(|export| export.sig().clone())
             .collect();
         let right_exports: HashSet<_> = right_game_inst
             .game()
             .exports
             .iter()
-            .map(|Export(_, oracle_sig)| oracle_sig.clone())
+            .map(|export| export.sig().clone())
             .collect();
 
         let only_left: Vec<_> = left_exports
@@ -1409,7 +1409,7 @@ impl<'a> EquivalenceContext<'a> {
             .game()
             .exports
             .iter()
-            .map(|Export(_, oracle_sig)| oracle_sig)
+            .map(|export| export.sig())
             .collect()
     }
 
@@ -1849,8 +1849,9 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 
     // write declarations of right return constants and constrain them
     let mut out = vec![];
-    for Export(inst_idx, sig) in &game_inst.game().exports {
-        let pkg_inst = &game_inst.game().pkgs[*inst_idx];
+    for export in &game_inst.game().exports {
+        let pkg_inst = &game_inst.game().pkgs[export.to()];
+        let sig = export.sig();
 
         let pkg_inst_name = &pkg_inst.name;
         let pkg_params = &pkg_inst.params;

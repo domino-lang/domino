@@ -81,15 +81,21 @@ impl Edge {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Export(pub usize, pub OracleSig);
+pub struct Export {
+    to: usize,
+    sig: OracleSig,
+}
 
 impl Export {
+    pub fn new(to: usize, sig: OracleSig) -> Self {
+        Self { to, sig }
+    }
     pub fn to(&self) -> usize {
-        self.0
+        self.to
     }
 
     pub fn sig(&self) -> &OracleSig {
-        &self.1
+        &self.sig
     }
 }
 
@@ -116,7 +122,7 @@ impl Composition {
     pub fn get_oracle_sigs(&self) -> Vec<OracleSig> {
         self.exports
             .iter()
-            .map(|Export(_, sig)| sig.clone())
+            .map(|export| export.sig().clone())
             .collect()
     }
 

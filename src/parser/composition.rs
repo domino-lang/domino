@@ -302,11 +302,11 @@ pub(crate) fn handle_compose_assign_body_list(
 
         if src_inst_name == "adversary" {
             for export in handle_export_compose_assign_list(ctx, compose_assign_list_ast)? {
-                if ctx.has_export(&export.1.name) {
+                if ctx.has_export(&export.sig().name) {
                     return Err(ParseGameError::DuplicateExport(DuplicateExportError {
                         source_code: ctx.named_source(),
                         at: (src_inst_name_span.start()..src_inst_name_span.end()).into(),
-                        oracle_name: export.1.name,
+                        oracle_name: export.sig().name.clone(),
                         game_name: ctx.game_name.to_string(),
                     }));
                 }
@@ -388,7 +388,7 @@ fn handle_export_compose_assign_list(
         // make the signature use the constants from the game, not the package
         let oracle_sig = dst_inst.instantiate_oracle_signature(oracle_sig);
 
-        exports.push(Export(dst_offset, oracle_sig));
+        exports.push(Export::new(dst_offset, oracle_sig));
     }
 
     Ok(exports)

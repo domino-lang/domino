@@ -152,7 +152,12 @@ impl GameInstance {
         let new_exports = game
             .exports
             .into_iter()
-            .map(|Export(to, sig)| Export(to, inst_ctx.rewrite_oracle_sig(sig)))
+            .map(|export| {
+                Export::new(
+                    export.to(),
+                    inst_ctx.rewrite_oracle_sig(export.sig().clone()),
+                )
+            })
             .collect();
 
         let game = Composition {
