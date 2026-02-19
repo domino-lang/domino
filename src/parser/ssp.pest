@@ -244,7 +244,7 @@ theorem = { kw_theorem ~ identifier ~ "{" ~ theorem_spec_list ~ "}" }
 
 /// The list of specifications inside a theorem, which can include constants,
 /// instances, assumptions, game hops, and propositions.
-theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assumptions | game_hops | propositions)* }
+theorem_spec_list = { ( types | const_decl | instance_decl | hybrid_instance_decl | assumptions | game_hops | propositions)* }
 
   /// Block containing the assumptions needed for this theorem.
   assumptions = { kw_assumptions ~ "{" ~ ( assumption_entry )* ~ "}" }

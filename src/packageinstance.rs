@@ -108,7 +108,16 @@ impl PackageInstance {
             })
             .collect_vec();
 
-        ty.rewrite_type(&int_params)
+        // Also include type parameter rewrites
+        let type_param_rules: Vec<_> = self
+            .types
+            .iter()
+            .map(|(name, ty)| (Type::type_param(name.to_string()), ty.clone()))
+            .collect();
+
+        let all_rules: Vec<_> = int_params.into_iter().chain(type_param_rules).collect();
+
+        ty.rewrite_type(&all_rules)
     }
 }
 
@@ -342,7 +351,7 @@ pub(crate) mod instantiate {
             let mut type_rewrite_rules = self
                 .type_assignments
                 .iter()
-                .map(|(name, ty)| (Type::user_defined(name.to_string()), ty.clone()))
+                .map(|(name, ty)| (Type::type_param(name.to_string()), ty.clone()))
                 .collect_vec();
 
             match self.src {

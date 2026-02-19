@@ -301,6 +301,66 @@ fn theorem_const_rename() {
     );
 }
 
+#[test]
+fn theorem_with_type_params_passthrough() {
+    // Package declares a type parameter `Key`
+    let pkg_code = r#"package KeyPkg {
+        types { Key }
+        state {
+            k: Key,
+        }
+        oracle Get() -> Key {
+            return k;
+        }
+    }"#;
+
+    // Game declares type param `Key` and passes it to the package
+    let game_code = r#"composition KeyGame {
+        types { Key }
+        instance key = KeyPkg {
+            types { Key: Key }
+        }
+        compose {
+            adversary: {
+                Get: key,
+            }
+        }
+    }"#;
+
+    // Theorem declares abstract type `Key` and instantiates game with passthrough
+    let theorem_code_passthrough = r#"theorem TPassthrough {
+        types { Key }
+        instance g = KeyGame {
+            types { Key: Key }
+        }
+        gamehops {}
+    }"#;
+
+    // Theorem declares abstract type `Key` and instantiates game with concrete type
+    let theorem_code_concrete = r#"theorem TConcrete {
+        types { Key }
+        instance g = KeyGame {
+            types { Key: Bits(256) }
+        }
+        gamehops {}
+    }"#;
+
+    let (pkg_name, pkg) = packages::parse(pkg_code, "KeyPkg.pkg.ssp");
+    let pkgs = HashMap::from_iter(vec![(pkg_name, pkg)]);
+
+    let game = games::parse(game_code, "KeyGame.comp.ssp", &pkgs);
+    let games = HashMap::from_iter(vec![(game.name.clone(), game)]);
+
+    // Both theorems should parse without error
+    let theorem_passthrough = theorems::parse(theorem_code_passthrough, "TPassthrough.ssp", &pkgs, &games);
+    assert_eq!(theorem_passthrough.types, vec!["Key".to_string()]);
+    assert_eq!(theorem_passthrough.instances.len(), 1);
+
+    let theorem_concrete = theorems::parse(theorem_code_concrete, "TConcrete.ssp", &pkgs, &games);
+    assert_eq!(theorem_concrete.types, vec!["Key".to_string()]);
+    assert_eq!(theorem_concrete.instances.len(), 1);
+}
+
 /// This is a helper for transcripts. It can be cloned, and what is written in one clone can be
 /// read in all others. It is concurrency-safe. This can be passed into the Communicator, a simple
 /// `&mut Vec<u8>` can't. a `Vec<u8>` can, but then we lose access to it. This solves that problem.

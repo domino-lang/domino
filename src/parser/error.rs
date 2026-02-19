@@ -371,6 +371,23 @@ pub struct MissingGameParameterDefinitionError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("game {game_name} declares type parameters that are not assigned in game instance {game_inst_name}: {missing_params}")]
+#[diagnostic(code(domino::code::game::missing_type_param_definition))]
+pub struct MissingGameTypeParamDefinitionError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this instance assignment block")]
+    pub at: SourceSpan,
+
+    pub game_name: String,
+    pub game_inst_name: String,
+
+    pub missing_params_vec: Vec<String>,
+    pub missing_params: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("theorem does not follow from the game hops")]
 #[diagnostic(code(ssbee::code::unproven_theorem))]
 pub struct UnprovenTheoremError {

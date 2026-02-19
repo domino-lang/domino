@@ -255,6 +255,7 @@ impl Claim {
 #[derive(Clone, Debug)]
 pub struct Theorem<'a> {
     pub name: String,
+    pub types: Vec<String>,
     pub consts: Vec<(String, Type)>,
     pub instances: Vec<GameInstance>,
     pub assumptions: Vec<Assumption>,

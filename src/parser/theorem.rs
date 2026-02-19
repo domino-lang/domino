@@ -47,7 +47,8 @@ use super::{
         AssumptionMappingParameterMismatchError,
         AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameParameterDefinitionError,
         InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
-        NoSuchGameParameterError, ParserScopeError, ReductionInconsistentAssumptionBoundaryError,
+        MissingGameTypeParamDefinitionError, NoSuchGameParameterError, ParserScopeError,
+        ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -79,7 +80,8 @@ impl<'src> ParseContext<'src> {
             file_name,
             file_content,
             scope,
-            types,
+            types: _,
+            abstract_types: _,
         } = self;
 
         ParseTheoremContext {
@@ -90,7 +92,7 @@ impl<'src> ParseContext<'src> {
             scope,
 
             consts: HashMap::new(),
-            types,
+            types: vec![],
 
             instances: vec![],
             instances_table: HashMap::new(),
@@ -111,7 +113,8 @@ impl<'src> ParseTheoremContext<'src> {
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
-            types: self.types.clone(),
+            types: vec![],
+            abstract_types: self.types.clone(),
         }
     }
 }
@@ -182,6 +185,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     MissingGameParameterDefinition(#[from] MissingGameParameterDefinitionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    MissingGameTypeParamDefinition(#[from] MissingGameTypeParamDefinitionError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -259,6 +266,12 @@ pub fn handle_theorem<'src>(
 
     for ast in theorem_ast.into_inner() {
         match ast.as_rule() {
+            Rule::types => {
+                for types_list in ast.into_inner() {
+                    ctx.types
+                        .extend(types_list.into_inner().map(|entry| (entry.as_str(), entry.as_span())));
+                }
+            }
             Rule::const_decl => {
                 let span = ast.as_span();
                 let (const_name, ty) = common::handle_const_decl(&ctx.parse_ctx(), ast)?;
@@ -303,6 +316,7 @@ pub fn handle_theorem<'src>(
 
     let ParseTheoremContext {
         theorem_name,
+        types: theorem_types,
         consts,
         instances,
         assumptions,
@@ -318,8 +332,14 @@ pub fn handle_theorem<'src>(
     let mut consts: Vec<_> = consts.into_iter().collect();
     consts.sort();
 
+    let types: Vec<String> = theorem_types
+        .into_iter()
+        .map(|(name, _)| name.to_string())
+        .collect();
+
     Ok(Theorem {
         name: theorem_name.to_string(),
+        types,
         consts,
         instances,
         assumptions,
@@ -751,6 +771,26 @@ fn handle_instance_assign_list<'src>(
             game_name: game.name.clone(),
             game_inst_name: game_inst_name.to_string(),
             missing_params_vec,
+            missing_params,
+        }
+        .into());
+    }
+
+    let missing_type_params_vec: Vec<_> = game
+        .type_params
+        .iter()
+        .filter(|name| types.iter().all(|(assigned_name, _)| *assigned_name != name.as_str()))
+        .cloned()
+        .collect();
+
+    if !missing_type_params_vec.is_empty() {
+        let missing_params = missing_type_params_vec.iter().join(", ");
+        return Err(MissingGameTypeParamDefinitionError {
+            source_code: ctx.named_source(),
+            at: (span.start()..span.end()).into(),
+            game_name: game.name.clone(),
+            game_inst_name: game_inst_name.to_string(),
+            missing_params_vec: missing_type_params_vec,
             missing_params,
         }
         .into());
