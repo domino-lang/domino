@@ -57,6 +57,7 @@ impl<'src> ParseContext<'src> {
             file_content,
             scope,
             types,
+            abstract_types: _,
         } = self;
 
         ParseGameContext {
@@ -90,6 +91,7 @@ impl<'src> ParseGameContext<'src> {
             file_content: self.file_content,
             scope: self.scope.clone(),
             types: self.types.clone(),
+            abstract_types: vec![],
         }
     }
 }
@@ -232,7 +234,12 @@ fn handle_types<'src>(
 ) -> impl Iterator<Item = (&'src str, pest::Span<'src>)> {
     debug_assert_matches!(ast.as_rule(), Rule::types);
 
-    ast.into_inner().map(|ast| (ast.as_str(), ast.as_span()))
+    // ast.into_inner() yields [types_list]. We then iterate into types_list
+    // to get individual type_userdefined entries (avoiding trailing-whitespace
+    // artifacts from types_list.as_str()).
+    ast.into_inner()
+        .flat_map(|types_list| types_list.into_inner())
+        .map(|entry| (entry.as_str(), entry.as_span()))
 }
 
 /// Parses the main body of a game (aka composition).
