@@ -180,13 +180,13 @@ fn compare_reduction(
         let left_edge = game_left
             .edges
             .iter()
-            .find(|edge| edge.from() == inst_offs_left && edge.sig().name == sig.name)
+            .find(|edge| edge.from() == inst_offs_left && edge.name() == sig.name)
             .unwrap();
 
         let right_edge = game_right
             .edges
             .iter()
-            .find(|edge| edge.from() == inst_offs_right && edge.sig().name == sig.name)
+            .find(|edge| edge.from() == inst_offs_right && edge.name() == sig.name)
             .unwrap();
 
         compare_reduction(
@@ -321,13 +321,13 @@ pub(super) fn handle_reduction_body<'a>(
         .game()
         .exports
         .iter()
-        .map(|exp| &exp.sig().name)
+        .map(|exp| exp.name())
         .all_unique());
     debug_assert!(right_game_inst
         .game()
         .exports
         .iter()
-        .map(|exp| &exp.sig().name)
+        .map(|exp| exp.name())
         .all_unique());
 
     let left_exports = &left_game_inst.game().exports;
@@ -337,7 +337,7 @@ pub(super) fn handle_reduction_body<'a>(
             .game()
             .exports
             .iter()
-            .find(|right_export| left_export.sig().name == right_export.sig().name)
+            .find(|right_export| left_export.name() == right_export.name())
             .unwrap();
 
         compare_reduction(

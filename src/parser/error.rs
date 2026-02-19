@@ -205,7 +205,7 @@ pub struct UndefinedPackageError {
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("undefined oracle '{oracle_name}'")]
-#[diagnostic(code(domino::code::undefined_package))]
+#[diagnostic(code(domino::code::undefined_oracle))]
 pub struct UndefinedOracleError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,

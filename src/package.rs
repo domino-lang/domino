@@ -60,11 +60,17 @@ pub struct Edge {
     from: usize,
     to: usize,
     sig: OracleSig,
+    alias: Option<String>,
 }
 
 impl Edge {
-    pub fn new(from: usize, to: usize, sig: OracleSig) -> Self {
-        Self { from, to, sig }
+    pub fn new(from: usize, to: usize, sig: OracleSig, alias: Option<String>) -> Self {
+        Self {
+            from,
+            to,
+            sig,
+            alias,
+        }
     }
 
     pub fn from(&self) -> usize {
@@ -78,17 +84,26 @@ impl Edge {
     pub fn sig(&self) -> &OracleSig {
         &self.sig
     }
+
+    pub fn alias(&self) -> Option<&String> {
+        self.alias.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        self.alias().unwrap_or(&self.sig().name)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Export {
     to: usize,
     sig: OracleSig,
+    alias: Option<String>,
 }
 
 impl Export {
-    pub fn new(to: usize, sig: OracleSig) -> Self {
-        Self { to, sig }
+    pub fn new(to: usize, sig: OracleSig, alias: Option<String>) -> Self {
+        Self { to, sig, alias }
     }
     pub fn to(&self) -> usize {
         self.to
@@ -96,6 +111,14 @@ impl Export {
 
     pub fn sig(&self) -> &OracleSig {
         &self.sig
+    }
+
+    pub fn alias(&self) -> Option<&String> {
+        self.alias.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        self.alias().unwrap_or(&self.sig().name)
     }
 }
 

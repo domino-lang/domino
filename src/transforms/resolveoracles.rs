@@ -118,7 +118,12 @@ impl super::Transformation for Transformation<'_> {
             let relevant = self.0.edges.iter().filter(|edge| edge.from() == pos);
 
             for edge in relevant {
-                table.insert(edge.sig().name.clone(), edge);
+                let name = if let Some(alias) = edge.alias() {
+                    alias.clone()
+                } else {
+                    edge.sig().name.clone()
+                };
+                table.insert(name, edge);
             }
 
             let mut odefs = vec![];

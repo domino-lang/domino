@@ -135,7 +135,7 @@ impl<'a> ParseGameContext<'a> {
         self.edges.push(edge)
     }
     fn has_export(&mut self, name: &str) -> bool {
-        self.exports.iter().any(|exp| exp.sig().name == name)
+        self.exports.iter().any(|exp| exp.name() == name)
     }
 
     fn add_export(&mut self, export: &Export) {
@@ -265,7 +265,7 @@ pub(crate) fn handle_comp_spec_list<'a>(
             let edge_exists = ctx
                 .edges
                 .iter()
-                .any(|edge| edge.from() == offset && edge.sig().name == import.name);
+                .any(|edge| edge.from() == offset && edge.name() == import.name);
 
             if !edge_exists {
                 return Err(MissingEdgeForImportedOracleError {
@@ -302,11 +302,11 @@ pub(crate) fn handle_compose_assign_body_list(
 
         if src_inst_name == "adversary" {
             for export in handle_export_compose_assign_list(ctx, compose_assign_list_ast)? {
-                if ctx.has_export(&export.sig().name) {
+                if ctx.has_export(export.name()) {
                     return Err(ParseGameError::DuplicateExport(DuplicateExportError {
                         source_code: ctx.named_source(),
                         at: (src_inst_name_span.start()..src_inst_name_span.end()).into(),
-                        oracle_name: export.sig().name.clone(),
+                        oracle_name: export.name().to_string(),
                         game_name: ctx.game_name.to_string(),
                     }));
                 }
@@ -351,7 +351,17 @@ fn handle_export_compose_assign_list(
         // compose_assign = { compose_assign_modifier? ~ identifier ~ ":" ~ identifier }
         assert_eq!(assignment.as_rule(), Rule::compose_assign);
 
+        let assignment = assignment.into_inner().next().unwrap();
+        let aliased = assignment.as_rule() == Rule::compose_assign_alias;
         let mut assignment = assignment.into_inner();
+
+        let alias = if aliased {
+            let alias_name_ast = assignment.next().unwrap();
+            let alias_name = alias_name_ast.as_str();
+            Some(alias_name.to_string())
+        } else {
+            None
+        };
 
         let oracle_name_ast = assignment.next().unwrap();
         let oracle_name = oracle_name_ast.as_str();
@@ -388,7 +398,7 @@ fn handle_export_compose_assign_list(
         // make the signature use the constants from the game, not the package
         let oracle_sig = dst_inst.instantiate_oracle_signature(oracle_sig);
 
-        exports.push(Export::new(dst_offset, oracle_sig));
+        exports.push(Export::new(dst_offset, oracle_sig, alias));
     }
 
     Ok(exports)
@@ -411,13 +421,24 @@ fn handle_edges_compose_assign_list(
         assert_eq!(assignment.as_rule(), Rule::compose_assign);
 
         let assignment_span = assignment.as_span();
+        let assignment = assignment.into_inner().next().unwrap();
+        let aliased = assignment.as_rule() == Rule::compose_assign_alias;
         let mut assignment = assignment.into_inner();
 
-        let oracle_name_ast = assignment.next().unwrap();
-        let dst_pkg_inst_name_ast = assignment.next().unwrap();
+        let (alias, alias_span) = if aliased {
+            let alias_name_ast = assignment.next().unwrap();
+            let alias_name = alias_name_ast.as_str();
+            let alias_name_span = alias_name_ast.as_span();
+            (Some(alias_name.to_string()), Some(alias_name_span))
+        } else {
+            (None, None)
+        };
 
+        let oracle_name_ast = assignment.next().unwrap();
         let oracle_name = oracle_name_ast.as_str();
         let oracle_name_span = oracle_name_ast.as_span();
+
+        let dst_pkg_inst_name_ast = assignment.next().unwrap();
         let dst_pkg_inst_name = dst_pkg_inst_name_ast.as_str();
         let dst_pkg_inst_name_span = dst_pkg_inst_name_ast.as_span();
 
@@ -433,15 +454,25 @@ fn handle_edges_compose_assign_list(
 
         // fail if imported edge is not assigned
         let (src_pkg_inst, _) = &ctx.instances[source_pkgidx];
+        let import_name = if let Some(ref alias) = alias {
+            alias
+        } else {
+            oracle_name
+        };
+        let import_span = if let Some(alias_span) = alias_span {
+            alias_span
+        } else {
+            oracle_name_span
+        };
         let (src_oracle_sig, _span) = src_pkg_inst
             .pkg
             .imports
             .iter()
-            .find(|(osig, _)| oracle_name == osig.name)
+            .find(|(osig, _)| import_name == osig.name)
             .ok_or_else(|| {
                 ParseGameError::UnusedEdge(UnusedEdgeError {
                     source_code: ctx.named_source(),
-                    at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                    at: (import_span.start()..import_span.end()).into(),
                     pkg_inst_name: src_pkg_inst.name.clone(),
                     pkg_name: src_pkg_inst.pkg.name.clone(),
                     oracle_name: oracle_name.to_string(),
@@ -496,7 +527,7 @@ fn handle_edges_compose_assign_list(
             .into());
         }
 
-        edges.push(Edge::new(source_pkgidx, dst_offset, dst_oracle_sig));
+        edges.push(Edge::new(source_pkgidx, dst_offset, dst_oracle_sig, alias));
     }
 
     Ok(edges)

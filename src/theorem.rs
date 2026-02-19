@@ -145,6 +145,7 @@ impl GameInstance {
                     edge.from(),
                     edge.to(),
                     inst_ctx.rewrite_oracle_sig(edge.sig().clone()),
+                    edge.alias().cloned(),
                 )
             })
             .collect();
@@ -156,6 +157,7 @@ impl GameInstance {
                 Export::new(
                     export.to(),
                     inst_ctx.rewrite_oracle_sig(export.sig().clone()),
+                    export.alias().cloned(),
                 )
             })
             .collect();
