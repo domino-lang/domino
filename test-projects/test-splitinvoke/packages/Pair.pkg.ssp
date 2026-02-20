@@ -1,9 +1,14 @@
 package Pair {
+    types {
+        Elem,
+    }
+
     params {
         b: Bool,
     }
 
-    oracle GetPair() -> (Bool, Bool) {
+
+    oracle GetPair() -> (Elem, Elem) {
         return (false, b);
     }
 }
