@@ -1,10 +1,14 @@
 package Client {
+    types {
+        Elem,
+    }
+
     import oracles {
-        GetPair() -> (Bool, Bool),
+        GetPair() -> (Elem, Elem),
     }
 
 
-    oracle Query() -> Bool {
+    oracle Query() -> Elem {
         (x, y) <- invoke GetPair();
         return x;
     }
