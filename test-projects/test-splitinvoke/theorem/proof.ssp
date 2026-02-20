@@ -2,12 +2,14 @@ theorem SplitInvokeProof {
     const b: Bool;
 
     instance game_split = GameSplit {
+        types { Elem: Bool }
         params {
             b: b,
         }
     }
 
     instance game_tmp = GameTmp {
+        types { Elem: Bool }
         params {
             b: b,
         }

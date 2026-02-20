@@ -1,20 +1,33 @@
 composition GameTmp {
+    types {
+        Elem,
+    }
+
     const b: Bool;
 
     instance pair = Pair {
         params {
             b: b,
         }
+
+        types {
+            Elem: Elem,
+        }
+
     }
 
-    instance client_tmp = ClientTmp {}
+    instance client_tmp = ClientTmp {
+        types {
+            Elem: Elem,
+        }
 
+    }
     compose {
         adversary: {
             Query: client_tmp,
-        },
+        }
         client_tmp: {
             GetPair: pair,
-        },
+        }
     }
 }
