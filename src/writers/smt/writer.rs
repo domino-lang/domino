@@ -117,21 +117,12 @@ impl<'a> CompositionSmtWriter<'a> {
                     panic!("found an unresolved standalone oracle invocation: {stmt:#?}");
                 }
                 Statement::InvokeOracle(InvokeOracle {
-                    oracle_name,
                     args,
                     edge: Some(edge),
                     ..
                 }) => {
                     let discard_ident = Identifier::Generated("_".to_string(), Type::empty());
-                    self.smt_build_invoke(
-                        oracle_ctx,
-                        result,
-                        &discard_ident,
-                        &None,
-                        oracle_name,
-                        args,
-                        edge,
-                    )
+                    self.smt_build_invoke(oracle_ctx, result, &discard_ident, &None, args, edge)
                 }
                 Statement::Assignment(Assignment { pattern, rhs }, _) => {
                     match (pattern, rhs) {
@@ -171,18 +162,12 @@ impl<'a> CompositionSmtWriter<'a> {
                                     panic!("found an oracle invocation with unknown return type: {stmt:#?}");
                                 }
                                 AssignmentRhs::Invoke {
-                                    oracle_name,
                                     args,
                                     edge: Some(edge),
                                     return_type: Some(_),
+                                    ..
                                 } => self.smt_build_invoke(
-                                    oracle_ctx,
-                                    result,
-                                    ident,
-                                    &opt_idx,
-                                    oracle_name,
-                                    args,
-                                    edge,
+                                    oracle_ctx, result, ident, &opt_idx, args, edge,
                                 ),
                                 AssignmentRhs::Expression(expr) => {
                                     self.smt_build_assign(oracle_ctx, result, ident, &opt_idx, expr)
@@ -780,7 +765,6 @@ impl<'a> CompositionSmtWriter<'a> {
         body: SmtExpr,
         assignee_ident: &Identifier,
         opt_idx: &Option<Expression>,
-        called_oracle_name: &str,
         args: &[Expression],
         edge: &Edge,
     ) -> SmtExpr {
@@ -793,7 +777,7 @@ impl<'a> CompositionSmtWriter<'a> {
         let target = &self.game_inst.game.pkgs[edge.to()];
 
         let called_oracle_context = self
-            .this_normal_oracle_ctx(&target.name, called_oracle_name)
+            .this_normal_oracle_ctx(&target.name, &edge.sig().name)
             .unwrap();
 
         let var_gamestate = &GameStatePattern;

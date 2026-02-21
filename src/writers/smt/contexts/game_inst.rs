@@ -254,11 +254,11 @@ impl<'a> GameInstanceContext<'a> {
             .game()
             .exports
             .iter()
-            .find(|export| export.sig().name == oracle_name)?;
+            .find(|export| export.name() == oracle_name)?;
 
         let inst_ctx = PackageInstanceContext::new(*self, export.to());
 
-        inst_ctx.oracle_ctx_by_name(oracle_name)
+        inst_ctx.oracle_ctx_by_name(&export.sig().name)
     }
 
     // pub(crate) fn exported_split_oracle_ctx_by_name(

@@ -102,10 +102,9 @@ impl<'a> OracleContext<'a> {
         }
     }
 
-    pub(crate) fn return_value_const_pattern(&self) -> ReturnValueConst<'a> {
+    pub(crate) fn return_value_const_pattern(&self, oracle_name: &'a str) -> ReturnValueConst<'a> {
         let game_inst_name = self.game_inst_ctx().game_inst_name();
         let pkg_inst_name = self.pkg_inst_ctx().pkg_inst_name();
-        let oracle_name = self.oracle_name();
         let ty = self.return_type();
 
         ReturnValueConst {
