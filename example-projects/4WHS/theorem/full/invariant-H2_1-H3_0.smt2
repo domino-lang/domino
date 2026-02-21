@@ -277,64 +277,34 @@
 ;; INVARIANT STARTS HERE                        ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-fun invariant
+(define-state-relation invariant
 	((state-H2 <GameState_H2_<$<!n!>$>>)
 	 (state-H3 <GameState_H3_<$<!n!>$>>))
-  Bool
-  (let ((gamestate-H2 (<game-H2-<$<!n!>$>-pkgstate-KX>     state-H2))
-		(gamestate-H3 (<game-H3-<$<!n!>$>-pkgstate-KX> state-H3))
-		(crstate-H2 (<game-H2-<$<!n!>$>-pkgstate-CR>     state-H2))
-		(crstate-H3 (<game-H3-<$<!n!>$>-pkgstate-CR> state-H3))
-		(noncestate-H2 (<game-H2-<$<!n!>$>-pkgstate-Nonces> state-H2))
-		(noncestate-H3 (<game-H3-<$<!n!>$>-pkgstate-Nonces> state-H3)))
-	(let ((h2-prf (<pkg-state-CR-<$<!n!>$>-PRFinverse> crstate-H2))
-		  (h3-prf (<pkg-state-CR-<$<!n!>$>-PRFinverse> crstate-H3))
-		  (h2-mac (<pkg-state-CR-<$<!n!>$>-MACinverse> crstate-H2))
-		  (h3-mac (<pkg-state-CR-<$<!n!>$>-MACinverse> crstate-H3))
-		  (h2-nonces (<pkg-state-Nonces-<$<!n!>$>-Nonces> noncestate-H2))
-		  (h3-nonces (<pkg-state-Nonces-<$<!n!>$>-Nonces> noncestate-H3))
-		  (H2-state (<pkg-state-KX-<$<!n!>$>-State> gamestate-H2))
-		  (H3-state (<pkg-state-KX_nochecks-<$<!n!>$>-State> gamestate-H3))
-		  (H2-fresh (<pkg-state-KX-<$<!n!>$>-Fresh> gamestate-H2))
-		  (H3-fresh (<pkg-state-KX_nochecks-<$<!n!>$>-Fresh> gamestate-H3))
-		  (H2-ctr_ (<pkg-state-KX-<$<!n!>$>-ctr_> gamestate-H2))
-		  (H3-ctr_ (<pkg-state-KX_nochecks-<$<!n!>$>-ctr_> gamestate-H3)))
+  
+  (and (= state-H2.KX.LTK       state-H3.KX.LTK)
+       (= state-H2.KX.H         state-H3.KX.H)
+       (= state-H2.KX.Fresh     state-H3.KX.Fresh)
+       (= state-H2.KX.First     state-H3.KX.First)
+       (= state-H2.KX.Second    state-H3.KX.Second)
+       (= state-H2.KX.State     state-H3.KX.State)
+       (= state-H2.KX.RevTested state-H3.KX.RevTested)
+       (= state-H2.KX.ctr_      state-H3.KX.ctr_)
+       (= state-H2.KX.kid_      state-H3.KX.kid_)
 
+       (= state-H2.Nonces state-H3.Nonces)
+       (= state-H2.CR     state-H3.CR)
 
-	  (and
-	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	   ;; Package states are, in general, equal
-	   (= (<pkg-state-KX-<$<!n!>$>-LTK>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-LTK> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-H>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-H> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-ctr_>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-ctr_> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-kid_>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-kid_> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-RevTested>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-RevTested> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-Fresh>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-Fresh> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-First>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-First> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-Second>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-Second> gamestate-H3))
-	   (= (<pkg-state-KX-<$<!n!>$>-State>          gamestate-H2)
-		  (<pkg-state-KX_nochecks-<$<!n!>$>-State> gamestate-H3))
-	   (= (<game-H2-<$<!n!>$>-pkgstate-Nonces> state-H2)
-		  (<game-H3-<$<!n!>$>-pkgstate-Nonces> state-H3))
-	   (= (<game-H2-<$<!n!>$>-pkgstate-CR> state-H2)
-		  (<game-H3-<$<!n!>$>-pkgstate-CR> state-H3))
 	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	   ;; Local Statement on MAC & PRF collision-freeness
-	   (forall ((k1 Bits_n) (k2 Bits_n)) (helper-collision-resistance-pairwise   h2-prf h2-mac k1 k2))
-	   (forall ((k Bits_n))                (helper-collision-resistance-singleside h2-prf h2-mac k))
+	   (forall ((k1 Bits_n) (k2 Bits_n))
+               (helper-collision-resistance-pairwise   state-H2.CR.PRFinverse state-H2.CR.MACinverse k1 k2))
+	   (forall ((k Bits_n))
+               (helper-collision-resistance-singleside state-H2.CR.PRFinverse state-H2.CR.MACinverse k))
 
 	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	   ;; Local statement on single entries in the game state
 	   (forall ((ctr Int))
-			   (let ((state (select H2-state ctr)))
+			   (let ((state (select state-H2.KX.State ctr)))
 				 (=> (not (= state
 							 (as mk-none (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
 														 (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -354,23 +324,26 @@
 					   (and
 						;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 						;; For any side
-						(helper-gamestate-singleside h2-prf h2-mac h2-nonces U u V ltk acc k ni nr kmac sid mess)
+						(helper-gamestate-singleside state-H2.CR.PRFinverse state-H2.CR.MACinverse state-H2.Nonces.Nonces
+                                                     U u V ltk acc k ni nr kmac sid mess)
 					;new	(nonces-unique-after-message-2 H2-fresh H2-state)
 					;new	(no-overwriting-game H2-fresh H2-state H2-ctr_)
 					;new    (nonces-unique-after-message-2 H3-fresh H3-state)
 					;new	(no-overwriting-game H3-fresh H3-state H3-ctr_)
 						;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 						;; Responder
-						(helper-gamestate-responder h2-prf h2-mac h2-nonces U u V ltk acc k ni nr kmac sid mess)
+						(helper-gamestate-responder state-H2.CR.PRFinverse state-H2.CR.MACinverse state-H2.Nonces.Nonces
+                                                    U u V ltk acc k ni nr kmac sid mess)
 						;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 						;; Initiator
-						(helper-gamestate-initiator h2-prf h2-mac h2-nonces U u V ltk acc k ni nr kmac sid mess)
+						(helper-gamestate-initiator state-H2.CR.PRFinverse state-H2.CR.MACinverse state-H2.Nonces.Nonces
+                                                    U u V ltk acc k ni nr kmac sid mess)
 						)))))
 	   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	   ;; Pairwise properties of game states
 	   (forall ((ctr1 Int) (ctr2 Int))
-			   (let ((state1 (select H2-state ctr1))
-					 (state2 (select H2-state ctr2)))
+			   (let ((state1 (select state-H2.KX.State ctr1))
+					 (state2 (select state-H2.KX.State ctr2)))
 				 (=> (and (not (= state1
 								  (as mk-none (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
 															  (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -381,30 +354,30 @@
 															  (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
 															  (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))
 															  Int))))))
-					 (let ((U1    (el11-1  (maybe-get (select H2-state ctr1))))
-						   (U2    (el11-1  (maybe-get (select H2-state ctr2))))
-						   (u1    (el11-2  (maybe-get (select H2-state ctr1))))
-						   (u2    (el11-2  (maybe-get (select H2-state ctr2))))
-						   (V1    (el11-3  (maybe-get (select H2-state ctr1))))
-						   (V2    (el11-3  (maybe-get (select H2-state ctr2))))
-						   (ltk1  (el11-4  (maybe-get (select H2-state ctr1))))
-						   (ltk2  (el11-4  (maybe-get (select H2-state ctr2))))
-						   (acc1  (el11-5  (maybe-get (select H2-state ctr1))))
-						   (acc2  (el11-5  (maybe-get (select H2-state ctr2))))
-						   (key1  (el11-6  (maybe-get (select H2-state ctr1))))
-						   (key2  (el11-6  (maybe-get (select H2-state ctr2))))
-						   (ni1   (el11-7  (maybe-get (select H2-state ctr1))))
-						   (ni2   (el11-7  (maybe-get (select H2-state ctr2))))
-						   (nr1   (el11-8  (maybe-get (select H2-state ctr1))))
-						   (nr2   (el11-8  (maybe-get (select H2-state ctr2))))
-						   (kmac1 (el11-9  (maybe-get (select H2-state ctr1))))
-						   (kmac2 (el11-9  (maybe-get (select H2-state ctr2))))
-						   (sid1  (el11-10 (maybe-get (select H2-state ctr1))))
-						   (sid2  (el11-10 (maybe-get (select H2-state ctr2))))
-						   (mess1 (el11-11 (maybe-get (select H2-state ctr1))))
-						   (mess2 (el11-11 (maybe-get (select H2-state ctr2))))
+					 (let ((U1    (el11-1  (maybe-get state1)))
+						   (U2    (el11-1  (maybe-get state2)))
+						   (u1    (el11-2  (maybe-get state1)))
+						   (u2    (el11-2  (maybe-get state2)))
+						   (V1    (el11-3  (maybe-get state1)))
+						   (V2    (el11-3  (maybe-get state2)))
+						   (ltk1  (el11-4  (maybe-get state1)))
+						   (ltk2  (el11-4  (maybe-get state2)))
+						   (acc1  (el11-5  (maybe-get state1)))
+						   (acc2  (el11-5  (maybe-get state2)))
+						   (key1  (el11-6  (maybe-get state1)))
+						   (key2  (el11-6  (maybe-get state2)))
+						   (ni1   (el11-7  (maybe-get state1)))
+						   (ni2   (el11-7  (maybe-get state2)))
+						   (nr1   (el11-8  (maybe-get state1)))
+						   (nr2   (el11-8  (maybe-get state2)))
+						   (kmac1 (el11-9  (maybe-get state1)))
+						   (kmac2 (el11-9  (maybe-get state2)))
+						   (sid1  (el11-10 (maybe-get state1)))
+						   (sid2  (el11-10 (maybe-get state2)))
+						   (mess1 (el11-11 (maybe-get state1)))
+						   (mess2 (el11-11 (maybe-get state2)))
 						   )
-					   (helper-gamestate-pairwise h2-prf h2-mac h2-nonces
+					   (helper-gamestate-pairwise state-H2.CR.PRFinverse state-H2.CR.MACinverse state-H2.Nonces.Nonces
 												  ctr1 U1 u1 V1 ltk1 acc1 key1 ni1 nr1 kmac1 sid1 mess1
 												  ctr2 U2 u2 V2 ltk2 acc2 key2 ni2 nr2 kmac2 sid2 mess2)
-					   ))))))))
+					   ))))))
