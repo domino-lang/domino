@@ -35,28 +35,25 @@
                                                       ni nr kmac sid mess)))))))))))
 
 
-(define-fun no-overwriting ((prf <PackageState_PRF_<$<!n!>$>>))
-  Bool
-  (let ((kid (<pkg-state-PRF-<$<!n!>$>-kid_> prf))
-        (LTK (<pkg-state-PRF-<$<!n!>$>-LTK> prf))
-        (H (<pkg-state-PRF-<$<!n!>$>-H> prf)))
-    (forall ((i Int))
-            (=> (> i kid)
-                (and (is-mk-none (select LTK i))
-                     (is-mk-none (select H i)))))))
+(define-state-relation relation-no-overwriting
+    ((left  <GameState_H5_<$<!n!>$>>)
+     (right  <GameState_H6_<$<!n!>$>>))
+  (forall ((i Int))
+          (=> (> i right.PRF.kid_)
+              (and (is-mk-none (select right.PRF.LTK i))
+                   (is-mk-none (select right.PRF.H i))))))
 
 
-(define-fun ltk-and-h-set-equally ((prf <PackageState_PRF_<$<!n!>$>>))
-  Bool
-  (let ((LTK (<pkg-state-PRF-<$<!n!>$>-LTK> prf))
-        (H (<pkg-state-PRF-<$<!n!>$>-H> prf)))
-    (forall ((i Int))
-            (= (is-mk-none (select LTK i))
-               (is-mk-none (select H i))))))
+(define-state-relation relation-ltk-and-h-set-equally
+    ((left  <GameState_H5_<$<!n!>$>>)
+     (right  <GameState_H6_<$<!n!>$>>))
+  (forall ((i Int))
+          (= (is-mk-none (select right.PRF.LTK i))
+             (is-mk-none (select right.PRF.H i)))))
 
 ;; ni and nr are not none when accepted!
 
-(define-fun nonces-are-not-none 
+(define-fun nonces-are-not-none
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
@@ -91,8 +88,8 @@
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
             (let ((state (select state ctr)))
               (=> (not (= state none))
@@ -123,42 +120,25 @@
                                              (not (= nr (as mk-none (Maybe Bits_n)))))))))))))))
 
 
-(define-fun invariant
-  ((state-H5  <GameState_H5_<$<!n!>$>>)
-   (state-H6  <GameState_H6_<$<!n!>$>>))
-  Bool
-  (let ((nonces-H5 (<game-H5-<$<!n!>$>-pkgstate-Nonces>          state-H5))
-        (nonces-H6 (<game-H6-<$<!n!>$>-pkgstate-Nonces> state-H6))
-        (game-H5 (<game-H5-<$<!n!>$>-pkgstate-KX>             state-H5))
-        (game-H6 (<game-H6-<$<!n!>$>-pkgstate-KX> state-H6))
-        (prf-H6 (<game-H6-<$<!n!>$>-pkgstate-PRF> state-H6)))
-    (and (= (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H5)
-            (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-LTK> game-H5)
-            (<pkg-state-PRF-<$<!n!>$>-LTK>              prf-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-ctr_>    game-H5)
-            (<pkg-state-KX_noprfkey-<$<!n!>$>-ctr_> game-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-H> game-H5)
-            (<pkg-state-PRF-<$<!n!>$>-H>              prf-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-kid_> game-H5)
-            (<pkg-state-PRF-<$<!n!>$>-kid_>              prf-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-RevTested>    game-H5)
-            (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTested> game-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-Fresh>    game-H5)
-            (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-First>    game-H5)
-            (<pkg-state-KX_noprfkey-<$<!n!>$>-First> game-H6))
-         (= (<pkg-state-KX_nokey-<$<!n!>$>-Second>    game-H5)
-            (<pkg-state-KX_noprfkey-<$<!n!>$>-Second> game-H6))
+(define-state-relation relation-trivial-equalities
+    ((left  <GameState_H5_<$<!n!>$>>)
+     (right  <GameState_H6_<$<!n!>$>>))
+  (and (= left.Nonces.Nonces right.Nonces.Nonces)
+       (= left.KX.Fresh     right.KX.Fresh)
+       (= left.KX.First     right.KX.First)
+       (= left.KX.Second    right.KX.Second)
+       (= left.KX.RevTested right.KX.RevTested)
+       (= left.KX.ctr_      right.KX.ctr_)
+       (= left.KX.LTK       right.PRF.LTK)
+       (= left.KX.H         right.PRF.H)
+       (= left.KX.kid_      right.PRF.kid_)))
 
-         (no-overwriting prf-H6)
-         (ltk-and-h-set-equally prf-H6)
 
-         (let ((state-H5 (<pkg-state-KX_nokey-<$<!n!>$>-State>    game-H5))
-               (state-H6 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H6))
-               (ltk-H6 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H6))
-               (hon-H6 (<pkg-state-PRF-<$<!n!>$>-H> prf-H6)))
-           (and
-            (stuff-not-initialized-early state-H6)
-            ;;(nonces-are-not-none state-H6 hon-H6)
-            (state-equality state-H5 state-H6 ltk-H6 hon-H6))))))
+(define-state-relation invariant
+    ((left <GameState_H5_<$<!n!>$>>)
+     (right <GameState_H6_<$<!n!>$>>))
+  (and (relation-trivial-equalities left right)
+       (relation-no-overwriting left right)
+       (relation-ltk-and-h-set-equally left right)
+       (stuff-not-initialized-early right.KX.State)
+       (state-equality left.KX.State right.KX.State right.PRF.LTK right.PRF.H)))

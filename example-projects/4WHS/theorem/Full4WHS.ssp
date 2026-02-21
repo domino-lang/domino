@@ -1446,8 +1446,9 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
                     same-output:  [no-abort]
+                    relation-no-overwriting-prf: [no-abort]
+                    invariant:    [no-abort,relation-no-overwriting-prf]
                 }
             }
             NewSession: {
@@ -1540,40 +1541,47 @@ theorem Full4WHS {
             Send1: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    same-output:  [no-abort]
-                    /*debug:        [no-abort]*/
-                    invariant:    [no-abort]
-                    equal-aborts: []
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
              Send2: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send2.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    /*debug:        [no-abort]*/
-                    mac-implies-message: [no-abort]
-                    trivial-equalities: [no-abort]
-                    wellformedness: [no-abort]
-                    first:        [no-abort]
-                    macs:         [no-abort]
-                    reverse-mac:  [no-abort]
-                    time:         [no-abort]
-                    sids:         [no-abort]
-                    no-overwriting: [no-abort]
-                    wellformedness: [no-abort]
-                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
-                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
              Send3: {
@@ -1581,31 +1589,26 @@ theorem Full4WHS {
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send3.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    /*
-                    always-aborts: []
-                    */
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    work:         [no-abort]
-                    mac-implies-message: [no-abort]
-                    trivial-equalities: [no-abort]
-                    wellformedness: [no-abort]
-                    first:        [no-abort]
-                    macs:         [no-abort]
-                    reverse-mac:  [no-abort]
-                    time:         [no-abort]
-                    sids:         [no-abort]
-                    no-overwriting: [no-abort]
-                    wellformedness: [no-abort]
-                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
-                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
-                    not-in-first-second: [no-abort]
-                    empty-second: [no-abort]
-                    empty-first:  [no-abort]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                    not-in-first-second:          [no-abort]
+                    empty-second:                 [no-abort]
+                    empty-first:                  [no-abort]
                     /*other-session: [no-abort]*/
                 }
             }
@@ -1614,31 +1617,27 @@ theorem Full4WHS {
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send4.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    empty-second:  [no-abort]
-                    not-in-first-second: [no-abort]
-                    first-exists:  [no-abort]
-                    sids:         [no-abort]
+                    empty-second:                 [no-abort]
+                    not-in-first-second:          [no-abort]
+                    first-exists:                 [no-abort]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                     /*other-session: [no-abort]*/
-                    equal-aborts:  []
-                    same-output:   [no-abort]
-                    mac-implies-message: [no-abort]
-                    trivial-equalities: [no-abort]
-                    wellformedness: [no-abort]
-                    first:        [no-abort]
-                    reverse-mac:  [no-abort]
-                    macs:         [no-abort]
-                    time:         [no-abort]
-                    no-overwriting: [no-abort]
-                    wellformedness: [no-abort]
-                    debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]
-                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
-                    /*
-                    always-aborts: []
-                    */
                 }
             }
             Send5: {
@@ -1646,109 +1645,121 @@ theorem Full4WHS {
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send5.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    /*lemma-debug:  [no-abort]*/
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                    mac-implies-message: [no-abort]
-                    trivial-equalities: [no-abort]
-                    wellformedness: [no-abort]
-                    first:        [no-abort]
-                    macs:         [no-abort]
-                    reverse-mac:  [no-abort]
-                    time:         [no-abort]
-                    sids:         [no-abort]
-                    no-overwriting: [no-abort]
-                    wellformedness: [no-abort]
-                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
-                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
-                    first-exists: [no-abort]
-                    second-exists: [no-abort]
-                    in-first-or-second: [no-abort]
-                    in-first:     [no-abort]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                    first-exists:                 [no-abort]
+                    second-exists:                [no-abort]
+                    in-first-or-second:           [no-abort]
+                    in-first:                     [no-abort]
                 }
             }
             NewKey: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-NewKey.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
-                    no-overwriting: [no-abort]
-                    mac-implies-message: [no-abort]
-                    trivial-equalities: [no-abort]
-                    wellformedness: [no-abort]
-                    first:        [no-abort]
-                    macs:         [no-abort]
-                    reverse-mac:  [no-abort,no-overwriting,macs]
-                    time:         [no-abort]
-                    sids:         [no-abort]
-                    wellformedness: [no-abort]
-                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                    lemma-aux:                    [no-abort]
                 }
             }
             NewSession: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-NewSession.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    lemma-aux:    [no-abort]
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    mac-implies-message: [no-abort]
-                    trivial-equalities: [no-abort]
-                    wellformedness: [no-abort]
-                    first:        [no-abort]
-                    macs:         [no-abort]
-                    reverse-mac:  [no-abort]
-                    time:         [no-abort]
-                    sids:         [no-abort]
-                    no-overwriting: [no-abort]
-                    wellformedness: [no-abort]
-                    /*debug:        [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness]*/
-                    invariant:    [no-abort,mac-implies-message,trivial-equalities,no-overwriting,sids,time,macs,first,wellformedness,reverse-mac]                    
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    lemma-aux:                    [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
                 }
             }
             Test: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    /*always-aborts: []*/
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             Reveal: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
-                    /*lemma-key-not-yet-computed: []*/
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    /*always-aborts: []*/
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             SameKey: {
@@ -1758,26 +1769,45 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    invariant:    [no-abort]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    lemma-aux:                    [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
                 }
             }
             AtLeast: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    /*./theorem/full/debug-H7_1_1_0-H7_1_1_1.smt2*/
                 ]
 
                 lemmas {
-                    /*lemma-debug:  [no-abort]*/
-                    /*lemma-false:  []*/
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    lemma-aux:                    [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
                 }
             }
             AtMost: {
@@ -1787,10 +1817,21 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    same-output:  [no-abort]
-                    lemma-aux:    [no-abort]
-                    invariant:    [no-abort, lemma-aux]
+                    equal-aborts:                 []
+                    same-output:                  [no-abort]
+                    lemma-aux:                    [no-abort]
+                    relation-mac-implies-message: [no-abort]
+                    relation-trivial-equalities:  [no-abort]
+                    relation-no-overwriting:      [no-abort]
+                    relation-wellformedness:      [no-abort]
+                    relation-first:               [no-abort]
+                    relation-macs:                [no-abort]
+                    relation-reverse-mac:         [no-abort]
+                    relation-time:                [no-abort]
+                    relation-sids:                [no-abort]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
                 }
             }
         }
