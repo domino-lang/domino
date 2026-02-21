@@ -8,7 +8,7 @@ extern crate pest;
 #[grammar = "util/smtparser/smt.pest"]
 struct PestSmtParser;
 
-pub(super) trait SmtParser<T> {
+pub(crate) trait SmtParser<T> {
     fn handle_sexp(&mut self, parsed: T);
 
     fn handle_atom(&mut self, content: &str) -> T;
