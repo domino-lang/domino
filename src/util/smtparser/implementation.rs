@@ -23,6 +23,10 @@ pub(super) trait SmtParser<T> {
         self.handle_atom(content)
     }
 
+    fn handle_string(&mut self, content: &str) -> T {
+        self.handle_atom(&format!("\"{content}\""))
+    }
+
     fn handle_definefun(&mut self, funname: &str, args: Vec<T>, ty: &str, body: T) -> T {
         let funname = self.handle_atom(funname);
         let args = self.handle_list(args);
@@ -33,10 +37,12 @@ pub(super) trait SmtParser<T> {
     }
 
     fn handle_sampleid(&mut self, pkgname: &str, oraclename: &str, samplename: &str) -> T {
-        let list = ["sample_id", pkgname, oraclename, samplename]
-            .into_iter()
-            .map(|x| self.handle_atom(x))
-            .collect::<Vec<T>>();
+        let pkgname = self.handle_string(pkgname);
+        let oraclename = self.handle_string(oraclename);
+        let samplename = self.handle_string(samplename);
+        let sampleid = self.handle_atom("sample-id");
+
+        let list = vec![sampleid, pkgname, oraclename, samplename];
         self.handle_list(list)
     }
 
@@ -71,6 +77,7 @@ pub(super) trait SmtParser<T> {
             Rule::atom => self.handle_atom(inner.as_str()),
             Rule::integer => self.handle_integer(inner.as_str()),
             Rule::boolean => self.handle_boolean(inner.as_str()),
+            Rule::string => self.handle_string(inner.as_str()),
             Rule::list => {
                 let list = inner
                     .into_inner()
