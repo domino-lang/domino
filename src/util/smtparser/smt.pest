@@ -5,6 +5,8 @@ COMMENT = _{ ";"+ ~ (!"\n" ~ ANY)* }
 defun = { "(" ~ "define-fun" ~ atom ~ list ~ ty ~ sexp ~ ")" }
 sampleid = { "(" ~ "sample-id" ~ stringlit ~ stringlit ~ stringlit ~ ")" }
 
+define_state_relation = { "(" ~ "define-state-relation" ~ atom ~ list ~ sexp ~ ")" }
+
 // Fallback Entries
 atom = @{ ( ASCII_ALPHA | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" | "." | "*" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" | "." | "*" )* }
 stringlit = _{ "\"" ~ string ~ "\"" }
@@ -16,7 +18,7 @@ ty = { "Int" | "Bool" | sexp }
 list = { "(" ~ sexp*~ ")" }
 
 // Big Or, Fallback Entries last!
-sexp = { sampleid | defun | list | integer | boolean | stringlit | atom }
+sexp = { sampleid | defun | define_state_relation | list | integer | boolean | stringlit | atom }
 sexps = { SOI ~ sexp+ ~ EOI }
 
 

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::fmt::Write;
 use std::iter::FromIterator;
 
 use crate::expressions::{Expression, ExpressionKind};
@@ -113,6 +112,7 @@ impl Equivalence {
 
 pub mod error;
 mod lint;
+mod smtrewrite;
 mod verify_fn;
 
 use error::{Error, Result};
@@ -794,7 +794,11 @@ impl<'a> EquivalenceContext<'a> {
             })?;
             log::info!("read file {file_name}");
             linter.lint_file(file_name, &file_contents)?;
-            write!(comm, "{file_contents}").unwrap();
+            let rewriten_content = smtrewrite::rewrite(self, &file_contents);
+            for smtexpr in rewriten_content {
+                comm.write_smt(smtexpr)?;
+            }
+
             log::info!("wrote contents of file {file_name}");
 
             if comm.check_sat()? != ProverResponse::Sat {
