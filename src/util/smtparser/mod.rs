@@ -1,13 +1,13 @@
 // use crate::debug_assert_matches;
 
-mod implementation;
+pub(crate) mod implementation;
 
 mod functions;
 mod model;
 mod sampleid;
 
 pub use functions::extract as extract_functions;
-use implementation::SmtParser;
+pub(crate) use implementation::SmtParser;
 pub use model::parse as parse_model;
 pub use sampleid::extract as extract_sampleid;
 
