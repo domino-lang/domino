@@ -35,6 +35,14 @@ pub(crate) trait SmtParser<T> {
         self.handle_list(vec![defun, funname, args, body])
     }
 
+    fn handle_define_lemma(&mut self, funname: &str, args: Vec<T>, body: T) -> T {
+        let funname = self.handle_atom(funname);
+        let args = self.handle_list(args);
+        let defun = self.handle_atom("define-lemma");
+
+        self.handle_list(vec![defun, funname, args, body])
+    }
+
     fn handle_definefun(&mut self, funname: &str, args: Vec<T>, ty: &str, body: T) -> T {
         let funname = self.handle_atom(funname);
         let args = self.handle_list(args);
@@ -126,6 +134,19 @@ pub(crate) trait SmtParser<T> {
                 let body = self.rule_sexp(&inner.next().unwrap());
 
                 self.handle_define_state_relation(funname, args, body)
+            }
+            Rule::define_lemma => {
+                let mut inner = inner.into_inner();
+                let funname = inner.next().unwrap().as_str();
+                let args = inner.next().unwrap();
+                debug_assert_matches!(args.as_rule(), Rule::list);
+                let args: Vec<_> = args
+                    .into_inner()
+                    .map(|sexp| self.rule_sexp(&sexp))
+                    .collect();
+                let body = self.rule_sexp(&inner.next().unwrap());
+
+                self.handle_define_lemma(funname, args, body)
             }
             _ => {
                 todo!("{inner}")
