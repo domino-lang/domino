@@ -1,4 +1,5 @@
 use super::EquivalenceContext;
+use crate::package::Export;
 use crate::packageinstance::PackageInstance;
 use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
@@ -20,6 +21,37 @@ impl<'a> SmtRewrite<'a> {
             content: Vec::new(),
         }
     }
+}
+
+fn gen_returnbinding(
+    game: &GameInstance,
+    return_value: &str,
+    export: &Export,
+) -> Vec<(String, SmtExpr)> {
+    let pkginst = &game.game().pkgs[export.to()];
+    let pattern = patterns::ReturnPattern {
+        game_name: &game.game().name,
+        game_params: &game.consts,
+        pkg_name: &pkginst.pkg.name,
+        pkg_params: &pkginst.params,
+        oracle_name: &export.sig().name,
+    };
+    let spec = pattern.datastructure_spec(&export.sig().ty);
+    let (_, selectors) = &spec.0[0];
+
+    selectors
+        .iter()
+        .map(|sel| match sel {
+            patterns::ReturnSelector::GameState => (
+                format!("{return_value}.state"),
+                (pattern.selector_name(sel), return_value).into(),
+            ),
+            patterns::ReturnSelector::ReturnValueOrAbort { .. } => (
+                format!("{return_value}.value"),
+                (pattern.selector_name(sel), return_value).into(),
+            ),
+        })
+        .collect()
 }
 
 fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr)> {
@@ -145,6 +177,109 @@ impl SmtParser<SmtExpr> for SmtRewrite<'_> {
             body: bindvars,
         };
         self.handle_definefun(funname, args, "Bool", bindpackages.into())
+    }
+
+    fn handle_define_lemma(&mut self, funname: &str, args: Vec<SmtExpr>, body: SmtExpr) -> SmtExpr {
+        let left_game_inst = self
+            .context
+            .theorem
+            .find_game_instance(&self.context.equivalence.left_name)
+            .unwrap();
+        let right_game_inst = self
+            .context
+            .theorem
+            .find_game_instance(&self.context.equivalence.right_name)
+            .unwrap();
+
+        let oracle_name = &funname[(funname.rfind("-").unwrap() + 1)..funname.len() - 1];
+        let oracle_export = left_game_inst
+            .game()
+            .exports
+            .iter()
+            .find(|export| export.sig().name == oracle_name)
+            .unwrap();
+
+        let [SmtExpr::List(left_old), SmtExpr::List(right_old), SmtExpr::List(left_return), SmtExpr::List(right_return), ..] =
+            &args[..]
+        else {
+            unreachable!()
+        };
+        let [left_old_name, _left_old_type] = &left_old[..] else {
+            unreachable!()
+        };
+        let [right_old_name, _right_old_type] = &right_old[..] else {
+            unreachable!()
+        };
+        let [left_return_name, _left_return_type] = &left_return[..] else {
+            unreachable!()
+        };
+        let [right_return_name, _right_return_type] = &right_return[..] else {
+            unreachable!()
+        };
+
+        let mut retbindings = Vec::new();
+        retbindings.extend(gen_returnbinding(
+            left_game_inst,
+            &format!("{left_return_name}"),
+            oracle_export,
+        ));
+        retbindings.extend(gen_returnbinding(
+            right_game_inst,
+            &format!("{right_return_name}"),
+            oracle_export,
+        ));
+
+        let mut pkgbindings = Vec::new();
+        pkgbindings.extend(gen_pkgbinding(left_game_inst, &format!("{left_old_name}")));
+        pkgbindings.extend(gen_pkgbinding(
+            left_game_inst,
+            &format!("{left_return_name}.state"),
+        ));
+        pkgbindings.extend(gen_pkgbinding(
+            right_game_inst,
+            &format!("{right_old_name}"),
+        ));
+        pkgbindings.extend(gen_pkgbinding(
+            right_game_inst,
+            &format!("{right_return_name}.state"),
+        ));
+
+        let mut varbindings = Vec::new();
+        varbindings.extend(
+            left_game_inst
+                .game
+                .pkgs
+                .iter()
+                .flat_map(|pkg| gen_varbinding(pkg, &format!("{left_old_name}.{}", pkg.name))),
+        );
+        varbindings.extend(left_game_inst.game.pkgs.iter().flat_map(|pkg| {
+            gen_varbinding(pkg, &format!("{left_return_name}.state.{}", pkg.name))
+        }));
+        varbindings.extend(
+            right_game_inst
+                .game
+                .pkgs
+                .iter()
+                .flat_map(|pkg| gen_varbinding(pkg, &format!("{right_old_name}.{}", pkg.name))),
+        );
+        varbindings.extend(right_game_inst.game.pkgs.iter().flat_map(|pkg| {
+            gen_varbinding(pkg, &format!("{right_return_name}.state.{}", pkg.name))
+        }));
+
+        let bindvars = SmtLet {
+            bindings: varbindings,
+            body,
+        };
+
+        let bindpackages = SmtLet {
+            bindings: pkgbindings,
+            body: bindvars,
+        };
+        let bindreturn = SmtLet {
+            bindings: retbindings,
+            body: bindpackages,
+        };
+        self.handle_definefun(funname, args, "Bool", bindreturn.into())
     }
 }
 
