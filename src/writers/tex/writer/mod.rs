@@ -274,7 +274,11 @@ pub fn tex_write_theorem(
     writeln!(file, "\\section{{Advantages}}")?;
 
     for assumption in &theorem.assumptions {
-        writeln!(file, "\\begin{{definition}}[{}]", assumption.name)?;
+        writeln!(
+            file,
+            "\\begin{{definition}}[{}]",
+            assumption.name.replace('_', "\\_")
+        )?;
         writeln!(file, "\\label{{{}}}", assumption.latex_label("advantage"))?;
         let left = &assumption.left_name;
         let left_esc = left.replace('_', "\\_");
@@ -448,7 +452,7 @@ pub fn tex_write_theorem(
                 .construction_game_instance_name()
                 .as_str()
                 .replace('_', "\\_"),
-            reduction.assumption_name(),
+            reduction.assumption_name().replace('_', "\\_"),
             reduction
                 .left()
                 .assumption_game_instance_name()
