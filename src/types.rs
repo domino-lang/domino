@@ -85,9 +85,9 @@ impl Type {
         }
     }
 
-    pub(crate) fn type_param(name: String) -> Self {
+    pub(crate) fn user_defined(ty: UserDefinedType) -> Self {
         Self {
-            kind: TypeKind::TypeParam(name),
+            kind: TypeKind::UserDefined(ty),
         }
     }
 
@@ -101,6 +101,23 @@ impl Type {
 
     pub fn kind_mut(&mut self) -> &mut TypeKind {
         &mut self.kind
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub enum UserDefinedType {
+    Package(String),
+    Game(String),
+    Theorem(String),
+}
+
+impl core::fmt::Display for UserDefinedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserDefinedType::Package(name)
+            | UserDefinedType::Game(name)
+            | UserDefinedType::Theorem(name) => write!(f, "{name}"),
+        }
     }
 }
 
@@ -121,8 +138,7 @@ pub enum TypeKind {
     Table(Box<Type>, Box<Type>),
     Maybe(Box<Type>),
     Fn(Vec<Type>, Box<Type>), // arg types, return type
-    UserDefined(String),
-    TypeParam(String),
+    UserDefined(UserDefinedType),
 }
 
 impl TypeKind {
@@ -164,8 +180,7 @@ impl Type {
             | TypeKind::MultGroupEl(_)
             | TypeKind::Boolean
             | TypeKind::UserDefined(_)
-            | TypeKind::Bits(_)
-            | TypeKind::TypeParam(_) => self.kind.clone(),
+            | TypeKind::Bits(_) => self.kind.clone(),
             TypeKind::List(ty) => TypeKind::List(Box::new(ty.borrow_map(f))),
             TypeKind::Set(ty) => TypeKind::Set(Box::new(ty.borrow_map(f))),
             TypeKind::Maybe(ty) => TypeKind::Maybe(Box::new(ty.borrow_map(f))),
@@ -217,7 +232,6 @@ impl Type {
                     t.rewrite_type(rules),
                 ),
                 TypeKind::Unknown => unreachable!(),
-                TypeKind::TypeParam(_) => unreachable!("TypeParam should always match a rewrite rule"),
                 TypeKind::UserDefined(_) => self.clone(),
             }
         }
@@ -280,8 +294,7 @@ impl Type {
             | TypeKind::List(_)
             | TypeKind::Set(_)
             | TypeKind::Fn(_, _)
-            | TypeKind::UserDefined(_)
-            | TypeKind::TypeParam(_) => {
+            | TypeKind::UserDefined(_) => {
                 panic!("cannot build a default value for type {self}")
             }
         }
@@ -323,8 +336,7 @@ impl std::fmt::Display for Type {
                 f.write_str(")")
             }
             TypeKind::Unknown => f.write_str("Unknown"),
-            TypeKind::UserDefined(n) => f.write_str(n.as_str()),
-            TypeKind::TypeParam(n) => f.write_str(n.as_str()),
+            TypeKind::UserDefined(n) => f.write_str(&n.to_string()),
             TypeKind::Fn(args, ret) => {
                 f.write_str("fn ")?;
                 let mut maybe_comma = "";

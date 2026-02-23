@@ -10,7 +10,7 @@ use crate::{
         game_ident::GameConstIdentifier, theorem_ident::TheoremConstIdentifier, Identifier,
     },
     package::{Composition, Edge, Export, Package},
-    packageinstance::instantiate::InstantiationContext,
+    packageinstance::{game_inst_type_mapping_vec, instantiate::InstantiationContext},
     proof::Proof,
     types::{CountSpec, Type, TypeKind},
 };
@@ -175,11 +175,12 @@ impl GameInstance {
         types: Vec<(String, Type)>,
         params: Vec<(GameConstIdentifier, Expression)>,
     ) -> GameInstance {
+        let rewrite_types = game_inst_type_mapping_vec(&types);
         let inst_ctx: InstantiationContext = InstantiationContext::new_game_instantiation_context(
             &game_inst_name,
             &theorem_name,
             &params,
-            &types,
+            &rewrite_types,
         );
 
         let new_pkg_instances = game
