@@ -21,8 +21,12 @@ use crate::{
         error::{
             AdmittedClaimWarning, AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
-            AssumptionMappingLeftGameInstanceIsNotFromAssumption, InductionStepUnprovableError,
-            ReductionContainsDifferentPackagesError, UnprovenTheoremError,
+            AssumptionMappingLeftGameInstanceIsNotFromAssumption,
+            AssumptionMappingLeftGameInstanceIsNotFromAssumption,
+            AssumptionMappingTypeParameterMismatchError, InductionStepUnprovableError,
+            ReductionContainsDifferentPackagesError, ReductionContainsDifferentPackagesError,
+            ReductionPackageInstanceTypeParameterMismatchError, UnprovenTheoremError,
+            UnprovenTheoremError,
         },
         Rule,
     },
@@ -238,6 +242,10 @@ pub enum ParseTheoremError {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
+    AssumptionMappingTypeParameterMismatch(#[from] AssumptionMappingTypeParameterMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
     AssumptionMappingParameterMismatch(#[from] AssumptionMappingParameterMismatchError),
 
     #[diagnostic(transparent)]
@@ -263,7 +271,11 @@ pub enum ParseTheoremError {
     ReductionPackageInstanceParameterMismatch(
         #[from] ReductionPackageInstanceParameterMismatchError,
     ),
-
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionPackageInstanceTypeParameterMismatch(
+        #[from] ReductionPackageInstanceTypeParameterMismatchError,
+    ),
     #[diagnostic(transparent)]
     #[error(transparent)]
     AssumptionExportsNotSufficient(#[from] AssumptionExportsNotSufficientError),
