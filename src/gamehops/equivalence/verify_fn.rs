@@ -23,7 +23,7 @@ use crate::{
 use super::EquivalenceContext;
 
 fn verify_oracle<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: Arc<Mutex<&mut UI>>,
     eqctx: &EquivalenceContext,
     backend: &impl SmtSolverBackend,
@@ -147,7 +147,7 @@ fn verify_oracle<UI: TheoremUI>(
 }
 
 pub fn verify<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
@@ -213,7 +213,7 @@ pub fn verify<UI: TheoremUI>(
 }
 
 pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project,
+    project: &(impl Project + Sync),
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
