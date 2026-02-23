@@ -5,6 +5,7 @@ use crate::{package::Composition, theorem::Theorem};
 // commented out because we currently don't handle parametric types :(
 //pub mod resolvetypes;
 
+pub mod deconstructinvoke;
 pub mod resolveoracles;
 pub mod returnify;
 pub mod samplify;

@@ -5,27 +5,71 @@ use pest::Span;
 
 use crate::expressions::Expression;
 use crate::identifier::Identifier;
+use crate::package::Edge;
 use crate::types::Type;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CodeBlock(pub Vec<Statement>);
 
+/// A pattern on the left-hand side of an assignment
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Pattern {
+    /// Simple identifier: `x`
+    Ident(Identifier),
+    /// Table access: `T[index]`
+    Table {
+        ident: Identifier,
+        index: Expression,
+    },
+    /// Tuple destructuring: `(a, b, c)`
+    Tuple(Vec<Identifier>),
+}
+
+/// The right-hand side of an assignment
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AssignmentRhs {
+    /// Regular expression: `x <- expr`
+    Expression(Expression),
+    /// Sample from distribution: `x <- $Type`
+    Sample {
+        ty: Type,
+        sample_name: Option<String>,
+        sample_id: Option<usize>,
+    },
+    /// Oracle invocation: `x <- invoke Oracle(args)`
+    Invoke {
+        oracle_name: String,
+        args: Vec<Expression>,
+        edge: Option<Edge>,
+        return_type: Option<Type>,
+    },
+}
+
+/// An assignment statement: pattern <- rhs
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Assignment {
+    pub(crate) pattern: Pattern,
+    pub(crate) rhs: AssignmentRhs,
+}
+
+/// Standalone oracle invocation (discards return value): invoke Oracle(args)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct InvokeOracle {
+    pub oracle_name: String,
+    pub args: Vec<Expression>,
+    pub edge: Option<Edge>,
+    pub file_pos: SourceSpan,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
     Abort(SourceSpan),
     Return(Option<Expression>, SourceSpan),
-    Assign(Identifier, Option<Expression>, Expression, SourceSpan),
-    Parse(Vec<Identifier>, Expression, SourceSpan),
+    Assignment(Assignment, SourceSpan),
+    InvokeOracle(InvokeOracle),
     IfThenElse(IfThenElse),
-    Sample(
-        Identifier,
-        Option<Expression>,
-        Option<usize>,
-        Type,
-        Option<String>,
-        SourceSpan,
-    ),
-    InvokeOracle(InvokeOracleStatement),
     For(Identifier, Expression, Expression, CodeBlock, SourceSpan),
 }
 
@@ -41,31 +85,15 @@ pub struct IfThenElse {
 
 impl Statement {
     pub fn file_pos(&self) -> SourceSpan {
-        *match self {
+        match self {
             Statement::Abort(file_pos)
             | Statement::Return(_, file_pos)
-            | Statement::Assign(_, _, _, file_pos)
-            | Statement::Parse(_, _, file_pos)
-            | Statement::IfThenElse(IfThenElse {
-                full_span: file_pos,
-                ..
-            })
-            | Statement::Sample(_, _, _, _, _, file_pos)
-            | Statement::InvokeOracle(InvokeOracleStatement { file_pos, .. })
-            | Statement::For(_, _, _, _, file_pos) => file_pos,
+            | Statement::Assignment(_, file_pos)
+            | Statement::For(_, _, _, _, file_pos) => *file_pos,
+            Statement::InvokeOracle(InvokeOracle { file_pos, .. }) => *file_pos,
+            Statement::IfThenElse(IfThenElse { full_span, .. }) => *full_span,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct InvokeOracleStatement {
-    pub(crate) id: Identifier,
-    pub(crate) opt_idx: Option<Expression>,
-    pub(crate) name: String,
-    pub(crate) args: Vec<Expression>,
-    pub(crate) target_inst_name: Option<String>,
-    pub(crate) ty: Option<Type>,
-    pub(crate) file_pos: SourceSpan,
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq, Hash, Debug)]

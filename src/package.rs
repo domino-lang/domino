@@ -55,33 +55,70 @@ pub struct Package {
     pub file_contents: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Edge(pub usize, pub usize, pub OracleSig);
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Edge {
+    from: usize,
+    to: usize,
+    sig: OracleSig,
+    alias: Option<String>,
+}
 
 impl Edge {
+    pub fn new(from: usize, to: usize, sig: OracleSig, alias: Option<String>) -> Self {
+        Self {
+            from,
+            to,
+            sig,
+            alias,
+        }
+    }
+
     pub fn from(&self) -> usize {
-        self.0
+        self.from
     }
 
     pub fn to(&self) -> usize {
-        self.1
+        self.to
     }
 
     pub fn sig(&self) -> &OracleSig {
-        &self.2
+        &self.sig
+    }
+
+    pub fn alias(&self) -> Option<&String> {
+        self.alias.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        self.alias().unwrap_or(&self.sig().name)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Export(pub usize, pub OracleSig);
+pub struct Export {
+    to: usize,
+    sig: OracleSig,
+    alias: Option<String>,
+}
 
 impl Export {
+    pub fn new(to: usize, sig: OracleSig, alias: Option<String>) -> Self {
+        Self { to, sig, alias }
+    }
     pub fn to(&self) -> usize {
-        self.0
+        self.to
     }
 
     pub fn sig(&self) -> &OracleSig {
-        &self.1
+        &self.sig
+    }
+
+    pub fn alias(&self) -> Option<&String> {
+        self.alias.as_ref()
+    }
+
+    pub fn name(&self) -> &str {
+        self.alias().unwrap_or(&self.sig().name)
     }
 }
 
@@ -108,7 +145,7 @@ impl Composition {
     pub fn get_oracle_sigs(&self) -> Vec<OracleSig> {
         self.exports
             .iter()
-            .map(|Export(_, sig)| sig.clone())
+            .map(|export| export.sig().clone())
             .collect()
     }
 
@@ -135,8 +172,8 @@ impl Composition {
                     // package instances that have already been added
                     self.edges
                         .iter()
-                        .filter(|Edge(from, _, _)| pkg_inst_offs == *from)
-                        .all(|Edge(_, to, _)| added_pkgs[*to])
+                        .filter(|edge| pkg_inst_offs == edge.from())
+                        .all(|edge| added_pkgs[edge.to()])
                 })
                 .collect();
 

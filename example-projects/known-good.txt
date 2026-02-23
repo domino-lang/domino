@@ -4,5 +4,9 @@ simple-KEM-example
 # the KEM-DEM security proof
 kem-dem-cca-security
 
-# the helloworld example
+# the helloworld projects
 hello-world
+hello-world-oracle-rename
+
+# the test for deconstructing assignments with oracle invocations: (a, b) <- invoke Foo()
+test-splitinvoke

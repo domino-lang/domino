@@ -1,0 +1,11 @@
+package ClientTmp {
+    import oracles {
+        GetPair() -> (Bool, Bool),
+    }
+
+    oracle Query() -> Bool {
+        tmp <- invoke GetPair();
+        (x, y) <- tmp;
+        return (x and y);
+    }
+}

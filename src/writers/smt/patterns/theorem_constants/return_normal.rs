@@ -17,18 +17,19 @@ pub struct ReturnConst<'a> {
     pub pkg_name: &'a str,
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
 
-    pub oracle_name: &'a str,
+    pub oracle_name: &'a str,        // Name as exported by the package
+    pub oracle_import_name: &'a str, // Name as seen by the adversary
 }
 
 impl ConstantPattern for ReturnConst<'_> {
     fn name(&self) -> String {
         let Self {
             game_inst_name,
-            oracle_name,
+            oracle_import_name,
             ..
         } = self;
 
-        format!("<return-{game_inst_name}-{oracle_name}>")
+        format!("<return-{game_inst_name}-{oracle_import_name}>")
     }
 
     fn sort(&self) -> Sort {

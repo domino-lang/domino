@@ -4,8 +4,8 @@ use super::{
     common::*,
     error::{
         ArgumentCountMismatchError, ExpectedExpressionIdentifierError,
-        IdentifierAlreadyDeclaredError, MissingReturnError, ParserScopeError, TypeMismatchError,
-        UndefinedIdentifierError, UntypedNoneTypeInferenceError,
+        IdentifierAlreadyDeclaredError, IllegalLiteralError, MissingReturnError, ParserScopeError,
+        TypeMismatchError, UndefinedIdentifierError, UntypedNoneTypeInferenceError,
         WrongArgumentCountInInvocationError,
     },
     ParseContext, Rule,
@@ -23,8 +23,8 @@ use crate::{
     parser::error::{
         ForLoopIdentifersDontMatchError, NoSuchOracleError, OracleAlreadyImportedError,
     },
-    statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracleStatement, Statement},
-    types::{Type, TypeKind},
+    statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracle, Pattern, Statement},
+    types::{CountSpec, Type, TypeKind},
     util::scope::{Declaration, OracleContext, Scope},
 };
 
@@ -315,6 +315,10 @@ pub enum ParseExpressionError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ArgumentCountMismatch(#[from] ArgumentCountMismatchError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    IllegalLiteral(#[from] IllegalLiteralError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -721,6 +725,23 @@ pub fn handle_expression(
             ExpressionKind::Identifier(ident)
         }
 
+        Rule::literal_bits_zero | Rule::literal_bits_one => {
+            let span = ast.as_span();
+            let literal_str = ast.clone().as_str();
+
+            let content = &ast.as_str()[0..1];
+            let inner = ast.into_inner().next().unwrap();
+            let cspec = handle_countspec(ctx, inner)?;
+            if cspec == CountSpec::Any {
+                return Err(ParseExpressionError::IllegalLiteral(IllegalLiteralError {
+                    at: (span.start()..span.end()).into(),
+                    literal_str: literal_str.to_string(),
+                    source_code: NamedSource::new(ctx.file_name, ctx.file_content.to_string()),
+                }));
+            }
+            ExpressionKind::BitsLiteral(content.to_string(), Type::bits(cspec))
+        }
+
         Rule::literal_boolean => {
             let litval = ast.as_str().to_string();
             ExpressionKind::BooleanLiteral(litval)
@@ -948,13 +969,200 @@ pub enum ParseIdentifierError {
     ExpectedExpressionIdentifier(#[from] ExpectedExpressionIdentifierError),
 }
 
+// Helper structures and functions for unified assign statement handling
+
+#[allow(clippy::large_enum_variant)]
+enum OracleExprResult {
+    Expression(Expression),
+    Sample(Type, Option<String>), // Type to sample, optional sample name
+    Invoke(String, Vec<Expression>, Type), // Oracle name, args, return type
+}
+
+fn handle_pattern(
+    ctx: &mut ParsePackageContext,
+    pattern_ast: Pair<Rule>,
+    oracle_name: &str,
+    value_type: Type,
+) -> Result<Pattern, ParsePackageError> {
+    use crate::statement::Pattern;
+
+    let parse_ctx = ctx.parse_ctx();
+
+    match pattern_ast.as_rule() {
+        Rule::pattern_ident => {
+            let ident = handle_identifier_in_code_lhs(ctx, pattern_ast, oracle_name, value_type)?;
+            Ok(Pattern::Ident(ident))
+        }
+        Rule::pattern_table => {
+            let pattern_span = pattern_ast.as_span();
+            let mut inner = pattern_ast.into_inner();
+            let name_ast = inner.next().unwrap();
+
+            let index_ast = inner.next().unwrap();
+
+            let index_expr = match ctx.scope.lookup_identifier(name_ast.as_str()) {
+                Some(ident) => match ident.get_type().kind() {
+                    TypeKind::Table(key_ty, _) => {
+                        handle_expression(&parse_ctx, index_ast, Some(key_ty.as_ref()))?
+                    }
+                    _ => {
+                        return Err(ParsePackageError::TypeMismatch(TypeMismatchError {
+                            source_code: ctx.named_source(),
+                            at: (pattern_span.start()..pattern_span.end()).into(),
+                            expected: Type::table(Type::unknown(), value_type),
+                            got: ident.get_type(),
+                        }));
+                    }
+                },
+
+                None => {
+                    return Err(ParsePackageError::UndefinedIdentifier(
+                        UndefinedIdentifierError {
+                            source_code: ctx.named_source(),
+                            at: (name_ast.as_span().start()..name_ast.as_span().end()).into(),
+                            ident_name: name_ast.as_str().to_string(),
+                        },
+                    ))
+                }
+            };
+
+            // For table patterns, we need to handle the Maybe wrapper correctly
+            // The value_type coming in might be Maybe(T) or T depending on the RHS
+            // If it's Maybe(T), the table type is Table(key_type, T)
+            // If it's not Maybe, then we have a type error (caught later)
+            let table_value_type = match value_type.clone().into_kind() {
+                TypeKind::Maybe(inner_type) => *inner_type,
+                _ => value_type.clone(), // For samples, the type is not wrapped in Maybe
+            };
+
+            let table_type = Type::table(index_expr.get_type(), table_value_type);
+
+            let ident = handle_identifier_in_code_lhs(ctx, name_ast, oracle_name, table_type)?;
+
+            Ok(Pattern::Table {
+                ident,
+                index: index_expr,
+            })
+        }
+        Rule::pattern_tuple => {
+            let TypeKind::Tuple(tys) = value_type.clone().into_kind() else {
+                let span = pattern_ast.as_span();
+                return Err(TypeMismatchError {
+                    at: (span.start()..span.end()).into(),
+                    expected: Type::unknown(), // We expect a tuple but don't know the exact type yet
+                    got: value_type,
+                    source_code: ctx.named_source(),
+                }
+                .into());
+            };
+
+            let idents: Vec<Identifier> = pattern_ast
+                .into_inner()
+                .enumerate()
+                .map(|(i, pattern_ident)| {
+                    handle_identifier_in_code_lhs(ctx, pattern_ident, oracle_name, tys[i].clone())
+                })
+                .collect::<Result<_, _>>()?;
+
+            Ok(Pattern::Tuple(idents))
+        }
+        _ => unreachable!("unexpected pattern rule: {:?}", pattern_ast.as_rule()),
+    }
+}
+
+fn handle_assign_rhs(
+    ctx: &ParsePackageContext,
+    assign_rhs_ast: Pair<Rule>,
+    expected_type: Option<&Type>,
+) -> Result<OracleExprResult, ParsePackageError> {
+    let parse_ctx = ctx.parse_ctx();
+
+    match assign_rhs_ast.as_rule() {
+        Rule::assign_rhs_sample => {
+            let mut inner = assign_rhs_ast.into_inner();
+            let ty = handle_type(&parse_ctx, inner.next().unwrap())?;
+
+            // Check for optional sample_name
+            let sample_name = inner
+                .next()
+                // If we have another token, it should be the identifier after kw_sample_name
+                // But kw_sample_name is silent (_), so we get the identifier directly
+                .map(|kw_or_ident| kw_or_ident.as_str().to_string());
+
+            Ok(OracleExprResult::Sample(ty, sample_name))
+        }
+        Rule::assign_rhs_invoke => {
+            let mut inner = assign_rhs_ast.into_inner();
+            let oracle_call = inner.next().unwrap();
+            let oracle_call_span = oracle_call.as_span();
+
+            let mut call_inner = oracle_call.into_inner();
+            let oracle_name_ast = call_inner.next().unwrap();
+            let oracle_name_span = oracle_name_ast.as_span();
+            let oracle_name = oracle_name_ast.as_str();
+
+            // Look up the oracle
+            let oracle_decl = ctx
+                .scope
+                .lookup(oracle_name)
+                .ok_or_else(|| NoSuchOracleError {
+                    source_code: ctx.named_source(),
+                    at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                    oracle_name: oracle_name.to_string(),
+                })?;
+
+            let Declaration::Oracle(_target_oracle_ctx, target_oracle_sig) = oracle_decl else {
+                return Err(NoSuchOracleError {
+                    source_code: ctx.named_source(),
+                    at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                    oracle_name: oracle_name.to_string(),
+                }
+                .into());
+            };
+
+            // Parse arguments
+            let mut args = vec![];
+            for ast in call_inner {
+                let args_iter = ast.into_inner();
+                let (arg_count, _) = args_iter.size_hint();
+                if arg_count != target_oracle_sig.args.len() {
+                    return Err(WrongArgumentCountInInvocationError {
+                        source_code: ctx.named_source(),
+                        span: (oracle_call_span.start()..oracle_call_span.end()).into(),
+                        oracle_name: oracle_name.to_string(),
+                        expected_num: target_oracle_sig.args.len(),
+                        got_num: arg_count,
+                    }
+                    .into());
+                }
+
+                let arglist: Result<Vec<_>, _> = args_iter
+                    .zip(target_oracle_sig.args.iter())
+                    .map(|(expr, (_, ty))| handle_expression(&parse_ctx, expr, Some(ty)))
+                    .collect();
+                args.extend(arglist?.into_iter());
+            }
+
+            Ok(OracleExprResult::Invoke(
+                oracle_name.to_string(),
+                args,
+                target_oracle_sig.ty.clone(),
+            ))
+        }
+        _ => {
+            // It's a regular expression
+            let expr = handle_expression(&parse_ctx, assign_rhs_ast, expected_type)?;
+            Ok(OracleExprResult::Expression(expr))
+        }
+    }
+}
+
 pub fn handle_code(
     ctx: &mut ParsePackageContext,
     code: Pair<Rule>,
     oracle_sig: &OracleSig,
 ) -> Result<CodeBlock, ParsePackageError> {
     let oracle_name = &oracle_sig.name;
-    let parse_ctx = ctx.parse_ctx();
     code.into_inner()
         .map(|stmt| {
             let span = stmt.as_span();
@@ -1015,223 +1223,148 @@ pub fn handle_code(
                     Statement::IfThenElse(IfThenElse { cond: expr, then_block: CodeBlock(vec![]), else_block: CodeBlock(vec![Statement::Abort(full_span)]), then_span: full_span, else_span: full_span, full_span })
                 }
                 Rule::abort => Statement::Abort(full_span),
-                Rule::sample => {
+                Rule::invoke_stmt => {
                     let mut inner = stmt.into_inner();
-                    let name_ast = inner.next().unwrap();
-                    let ty = handle_type(&parse_ctx, inner.next().unwrap() )?;
-                    let ident = handle_identifier_in_code_lhs(
-                        ctx,
-                        name_ast,
-                        oracle_name,
-                        ty.clone(),
-                    )?;
-                    let sample_name = inner.next().map(|ast| ast.as_str().to_string());
-                    Statement::Sample(ident, None, None, ty, sample_name, full_span)
-                }
+                    let oracle_call = inner.next().unwrap();
+                    let oracle_call_span = oracle_call.as_span();
 
-                Rule::assign => {
-                    let mut inner = stmt.into_inner();
-                    let name_ast = inner.next().unwrap();
-                    let name = name_ast.as_str();
-
-                    let expected_type = match ctx.scope.lookup(name) {
-                        Some(Declaration::Identifier(ident)) => Some(ident.get_type()),
-                        _ => None,
-                    };
-
-                    let expr = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), expected_type.as_ref()) ?;
-
-                    let expected_type = expr.get_type();
-                    let ident = handle_identifier_in_code_lhs(
-                        ctx,
-                        name_ast,
-                        oracle_name,
-                        expected_type,
-                    )?;
-
-                    Statement::Assign(ident, None, expr, full_span)
-                }
-
-                Rule::table_sample => {
-                    let mut inner = stmt.into_inner();
-                    let name_ast = inner.next().unwrap();
-                    let index = handle_expression(&parse_ctx, inner.next().unwrap(), None)?;
-                    let ty = handle_type(&parse_ctx, inner.next().unwrap())?;
-                    let ident = handle_identifier_in_code_lhs(
-                        ctx,
-                        name_ast,
-                        oracle_name,
-                        Type::table(index.get_type(),  ty.clone()),
-                    )
-                        ?;
-                    let sample_name = inner.next().map(|ast| ast.as_str().to_string());
-                    Statement::Sample(ident, Some(index), None, ty, sample_name, full_span)
-                }
-
-                Rule::table_assign => {
-                    let mut inner = stmt.into_inner();
-
-                    let name_ast = inner.next().unwrap();
-                    let Some(Declaration::Identifier(ident)) = ctx.scope.lookup(name_ast.as_str()) else {
-                        let span = name_ast.as_span();
-                        return Err(UndefinedIdentifierError{
-                            source_code: ctx.named_source(),
-                            at: (span.start()..span.end()).into(),
-                            ident_name: name_ast.as_str().to_string(),
-                        }.into());
-                    };
-
-                    let ty_ident = ident.get_type();
-                    let TypeKind::Table(ty_key, ty_value_without_maybe) = &ty_ident.kind() else {
-                        let span = name_ast.as_span();
-                        return Err(TypeMismatchError{
-                            at: (span.start()..span.end()).into(),
-                            expected: Type::table(Type::unknown(), Type::unknown()),
-                            got: ty_ident,
-                            source_code: ctx.named_source(),
-                        }.into())
-                    };
-
-                    let ty_value_with_maybe = Type::maybe(*ty_value_without_maybe.clone());
-
-                    let index = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(ty_key))?;
-                    let expr = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&ty_value_with_maybe))?;
-
-                    let expected_type = match expr.get_type().into_kind() {
-                        TypeKind::Maybe(t) => Type::table(index.get_type(), *t),
-                        _ => panic!("assigning non-maybe value to table {expr:?} in {oracle_name}, {pkg_name}", expr = expr, oracle_name=oracle_name, pkg_name=ctx.pkg_name),
-                    };
-
-                    let ident = handle_identifier_in_code_lhs(
-                        ctx,
-                        name_ast,
-                        oracle_name,
-                        expected_type,
-                    )
-                        ?;
-
-                    Statement::Assign(ident, Some(index), expr, full_span)
-                }
-
-                Rule::invocation => {
-                    let mut inner = stmt.into_inner();
-                    let target_ident_name_ast = inner.next().unwrap();
-                    let maybe_index = inner.next().unwrap();
-
-                    // TODO: this should be used in type checking somehow
-                    let (opt_idx, oracle_inv) = if maybe_index.as_rule() == Rule::table_index {
-                        let mut inner_index = maybe_index.into_inner();
-                        let index =
-                            handle_expression(&ctx.parse_ctx(), inner_index.next().unwrap(), None)?;
-                        (Some(index), inner.next().unwrap())
-                    } else {
-                        (None, maybe_index)
-                    };
-
-                    assert!(matches!(oracle_inv.as_rule(), Rule::oracle_call));
-
-                    let invoc_span = oracle_inv.as_span();
-
-                    let mut inner = oracle_inv.into_inner();
-                    let oracle_name_ast = inner.next().unwrap();
+                    let mut call_inner = oracle_call.into_inner();
+                    let oracle_name_ast = call_inner.next().unwrap();
                     let oracle_name_span = oracle_name_ast.as_span();
                     let oracle_name = oracle_name_ast.as_str();
 
-                    let mut args = vec![];
-
-                    let oracle_decl = ctx.scope
+                    let oracle_decl = ctx
+                        .scope
                         .lookup(oracle_name)
-                        .ok_or(
-                            NoSuchOracleError{
-                                source_code: ctx.named_source(),
-                                at: (oracle_name_span.start()..oracle_name_span.end()).into(),
-                                oracle_name: oracle_name.to_string(),
-                            }
-                            )?;
+                        .ok_or_else(|| NoSuchOracleError {
+                            source_code: ctx.named_source(),
+                            at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                            oracle_name: oracle_name.to_string(),
+                        })?;
 
                     let Declaration::Oracle(_target_oracle_ctx, target_oracle_sig) = oracle_decl else {
-                            // XXX: we could also give notice that there exists an identifier of
-                            // that name; but saying "there is no oracle of that name" isn't wrong
-                            // either
-                            // actually -- why do we put oracles in the scope again??
-                        return Err( NoSuchOracleError{
-                                source_code: ctx.named_source(),
-                                at: (oracle_name_span.start()..oracle_name_span.end()).into(),
-                                oracle_name: oracle_name.to_string(),
-                            }.into());
+                        return Err(NoSuchOracleError {
+                            source_code: ctx.named_source(),
+                            at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                            oracle_name: oracle_name.to_string(),
+                        }
+                        .into());
                     };
 
-                    for ast in inner {
-                                let args_iter = ast.into_inner();
-                                let (arg_count, _) = args_iter.size_hint();
-                                if arg_count != target_oracle_sig.args.len() {
-                                    println!("oracle signature in error: {oracle_sig:?}");
-                                    return Err(WrongArgumentCountInInvocationError{
-                                        source_code: ctx.named_source(),
-                                        span: (invoc_span.start()..invoc_span.end()).into(),
-                                        oracle_name: oracle_name.to_string(),
-                                        expected_num: target_oracle_sig.args.len(),
-                                        got_num: arg_count,
-                                    }.into());
-                                }
+                    let mut args = vec![];
+                    for ast in call_inner {
+                        let args_iter = ast.into_inner();
+                        let (arg_count, _) = args_iter.size_hint();
+                        if arg_count != target_oracle_sig.args.len() {
+                            return Err(WrongArgumentCountInInvocationError {
+                                source_code: ctx.named_source(),
+                                span: (oracle_call_span.start()..oracle_call_span.end()).into(),
+                                oracle_name: oracle_name.to_string(),
+                                expected_num: target_oracle_sig.args.len(),
+                                got_num: arg_count,
+                            }
+                            .into());
+                        }
 
-                                let arglist: Result<Vec<_>, _> = args_iter
-                                    .zip(target_oracle_sig.args.iter())
-                                    .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
-                                    .collect();
-                                let arglist = arglist?;
-                                args.extend(arglist.into_iter())
+                        let arglist: Result<Vec<_>, _> = args_iter
+                            .zip(target_oracle_sig.args.iter())
+                            .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
+                            .collect();
+                        args.extend(arglist?.into_iter());
                     }
 
-                    let expected_type = match opt_idx.clone() {
-                        None => target_oracle_sig.ty.clone(),
-                        Some(idx) => Type::table(
-                            idx.get_type(),
-                            target_oracle_sig.ty.clone()
-                        ),
-                    };
-
-                    let target_ident = handle_identifier_in_code_lhs(
-                        ctx,
-                        target_ident_name_ast,
-                        oracle_name,
-                        expected_type.clone(),
-                    )
-                    ?;
-
-                    Statement::InvokeOracle (InvokeOracleStatement{
-                        id: target_ident,
-                        opt_idx,
-                        name: oracle_name.to_owned(),
+                    Statement::InvokeOracle (InvokeOracle{
+                        oracle_name: oracle_name.to_string(),
                         args,
-                        target_inst_name: None,
-                        ty: Some(expected_type),
+                        edge: None,
                         file_pos: full_span,
                     })
                 }
-                Rule::parse => {
+                Rule::assign => {
+                    use crate::statement::{Assignment, AssignmentRhs, Pattern};
+
                     let mut inner = stmt.into_inner();
-                    let list = inner.next().unwrap();
-                    let expr = inner.next().unwrap();
+                    let pattern_ast = inner.next().unwrap();
+                    let assign_rhs_ast = inner.next().unwrap();
 
-                    let expr = handle_expression(&ctx.parse_ctx(),expr, None)?;
-                    let ty = expr.get_type();
+                    // First, try to infer expected type from the pattern if it's an existing identifier
+                    let expected_type = match pattern_ast.as_rule() {
+                        Rule::pattern_ident => {
+                            let name = pattern_ast.as_str();
+                            match ctx.scope.lookup(name) {
+                                Some(Declaration::Identifier(ident)) => Some(ident.get_type()),
+                                _ => None,
+                            }
+                        }
+                        Rule::pattern_table => {
+                            let mut inner = pattern_ast.clone().into_inner();
+                            let name = inner.next().unwrap();
 
-                    let tys = match ty.into_kind() {
-                        TypeKind::Tuple(tys) => tys,
-                        other => panic!("expected tuple type in parse, but got {other:?} in {file_name}, {pkg_name}, {oracle_name}, {expr:?}", other=other, file_name=ctx.file_name, pkg_name=ctx.pkg_name, oracle_name=oracle_name, expr=expr)
+                            match ctx.scope.lookup_identifier(name.as_str()) {
+                                Some(ident) => match ident.get_type().kind() {
+                                    TypeKind::Table(_key_ty, value_ty) => {
+                                        Some(Type::maybe(*value_ty.clone()))
+                                    }
+                                    _ => None,
+                                },
+                                _ => {
+                                    return Err(ParsePackageError::UndefinedIdentifier(
+                                        UndefinedIdentifierError {
+                                            source_code: ctx.named_source(),
+                                            at: (name.as_span().start()..name.as_span().end()).into(),
+                                            ident_name: name.as_str().to_string(),
+                                        },
+                                    ))
+                                },
+                            }
+                        }
+                        Rule::pattern_tuple => None,
+                        _ => unreachable!()
+
                     };
 
-                    let idents = list
-                        .into_inner()
-                        .enumerate()
-                        .map(|(i, ident_name)| {
-                            handle_identifier_in_code_lhs(ctx, ident_name,  oracle_name, tys[i].clone())
-                        })
-                        .collect::<Result<_,_>>()?;
+                    // Handle the right-hand side oracle expression
+                    let assign_rhs_result = handle_assign_rhs(ctx, assign_rhs_ast, expected_type.as_ref())?;
 
+                    // Determine the value type based on oracle expression result
+                    let value_type = match &assign_rhs_result {
+                        OracleExprResult::Expression(expr) => expr.get_type(),
+                        OracleExprResult::Sample(ty, _) => ty.clone(),
+                        OracleExprResult::Invoke(_, _, ty) => ty.clone(),
+                    };
 
-                    Statement::Parse(idents, expr, full_span)
+                    // Handle the pattern with the value type
+                    let pattern = handle_pattern(
+                        ctx,
+                        pattern_ast,
+                        oracle_name,
+                        value_type.clone(),
+                    )?;
+
+                    // Validate pattern + RHS combinations
+                    if let (Pattern::Tuple(_), OracleExprResult::Sample(..)) = (&pattern, &assign_rhs_result) {
+                        panic!("Cannot sample into tuple pattern - this should be prevented by grammar")
+                    }
+
+                    // Create the RHS
+                    let rhs = match assign_rhs_result {
+                        OracleExprResult::Expression(expr) => AssignmentRhs::Expression(expr),
+                        OracleExprResult::Sample(ty, sample_name) => AssignmentRhs::Sample {
+                            ty,
+                            sample_name,
+                            sample_id: None,
+                        },
+                        OracleExprResult::Invoke(oracle_name, args, return_type) => {
+                            AssignmentRhs::Invoke {
+                                oracle_name,
+                                args,
+                                edge: None,
+                                return_type: Some(return_type),
+                            }
+                        }
+                    };
+
+                    Statement::Assignment(Assignment { pattern, rhs }, full_span)
                 }
                 Rule::for_ => {
                     let mut parsed: Vec<Pair<Rule>> = stmt.into_inner().collect();

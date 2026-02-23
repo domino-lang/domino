@@ -140,13 +140,26 @@ impl GameInstance {
         let new_edges = game
             .edges
             .into_iter()
-            .map(|Edge(from, to, sig)| Edge(from, to, inst_ctx.rewrite_oracle_sig(sig)))
+            .map(|edge| {
+                Edge::new(
+                    edge.from(),
+                    edge.to(),
+                    inst_ctx.rewrite_oracle_sig(edge.sig().clone()),
+                    edge.alias().cloned(),
+                )
+            })
             .collect();
 
         let new_exports = game
             .exports
             .into_iter()
-            .map(|Export(to, sig)| Export(to, inst_ctx.rewrite_oracle_sig(sig)))
+            .map(|export| {
+                Export::new(
+                    export.to(),
+                    inst_ctx.rewrite_oracle_sig(export.sig().clone()),
+                    export.alias().cloned(),
+                )
+            })
             .collect();
 
         let game = Composition {

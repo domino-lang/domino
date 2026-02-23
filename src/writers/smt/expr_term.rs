@@ -60,6 +60,15 @@ impl From<Expression> for Term {
                     "found a boolean literal '{bit}', the parse should have caught that"
                 ),
             },
+            ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {
+                let TypeKind::Bits(cspec) = ty.kind() else {
+                    unreachable!()
+                };
+                format!("<{cont}_{cspec}>").into()
+            }
+            ExpressionKind::BitsLiteral(cont, ty) => {
+                panic!("found a bits literal {cont} with non Bits type {ty}. Should not have been created.")
+            }
 
             ExpressionKind::GreaterThen(lhs, rhs) => theories::ints::gt(*lhs, *rhs),
             ExpressionKind::LessThen(lhs, rhs) => theories::ints::lt(*lhs, *rhs),

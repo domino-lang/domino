@@ -38,12 +38,14 @@ kw_composition = _{ "composition" }
 kw_const = _{ "const" }
 kw_instance = _{ "instance" }
 kw_compose = _{ "compose" }
+kw_of = _{ "of" }
 
 kw_return = _{ "return" }
 kw_assert = _{ "assert" }
 kw_abort = _{ "abort" }
 kw_invoke = _{ "invoke" }
 kw_for = _{ "for" }
+kw_sample = _{ "$" }
 kw_sample_name = _{ "sample-name" }
 
 kw_true  = _{ "true" }
@@ -74,7 +76,7 @@ num = { ASCII_DIGIT+ }
 // -- literals --
 
 /// A union of all the different literals.
-literal = _{ literal_boolean | literal_emptyset | literal_integer }
+literal = _{ literal_boolean | literal_emptyset | literal_integer | literal_bits }
 
 /// A boolean literal: true or false
 literal_boolean = { kw_true | kw_false }
@@ -84,6 +86,10 @@ literal_integer = { num }
 
 /// An empty set. We can't usually infer the type, so make that explicit.
 literal_emptyset = { kw_emptyset ~ "as" ~ tipe }
+
+literal_bits = _{ literal_bits_zero | literal_bits_one }
+  literal_bits_zero = ${ "0_" ~ countspec }
+  literal_bits_one =  ${ "1_" ~ countspec }
 
 // -- types --
 
@@ -355,7 +361,9 @@ compose_assign_body             = { identifier ~ ":" ~ "{" ~ compose_assign_list
 compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
 
 /// A single oracle wiring: maps an imported oracle to an instance's oracle.
-compose_assign      =  { identifier ~ ":" ~ identifier }
+compose_assign        = { compose_assign_alias | compose_assign_simple }
+compose_assign_simple = { identifier ~ ":" ~ identifier }
+compose_assign_alias  = { identifier ~ ":" ~ identifier ~ kw_of ~ identifier }
 
 // -- package definitions --
 
@@ -444,32 +452,38 @@ oracle_sig = { identifier ~ "(" ~ oracle_maybe_arglist ~ ")" ~ ("->" ~ tipe)? }
 /// A block of code: a sequence of statements.
 code = { (stmt )* }
 
+/// Expressions in oracles can have side-effects
+assign_rhs = _{ assign_rhs_sample | assign_rhs_invoke | expression }
+
+/// The invoke expression calls an oracle
+assign_rhs_invoke = { kw_invoke ~ oracle_call }
+
+/// The sample expression samples a random value of the given type
+assign_rhs_sample = { kw_sample ~ tipe ~ (kw_sample_name ~ identifier)? }
+
+/// A pattern is something that is assigned to
+pattern = _{ pattern_tuple | pattern_table | pattern_ident }
+
+/// When we assign to a variable
+pattern_ident = { identifier }
+
+/// When we assign to a table entry
+pattern_table = { identifier ~ "[" ~ expression ~ "]" }
+
+/// When we deconstruct a tuple
+pattern_tuple = { "(" ~ pattern ~ ("," ~ pattern )+ ~ ")" }
+
 /// A statement (internal rule).
-stmt = _{ table_sample | table_assign | sample | parse | invocation | assign | return_stmt | assert | abort | ite | for_ }
+stmt = _{ assign | invoke_stmt | return_stmt | assert | abort | ite | for_ }
+
+/// A standalone oracle invocation (return value discarded).
+invoke_stmt = { kw_invoke ~ oracle_call ~ ";" }
 
 /// An if-then-else statement.
 ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
 
-/// Sample a random value from a type and assign it to a variable.
-sample = { identifier ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
-
 /// Assign an expression to a variable.
-assign = { identifier ~ "<-" ~ expression ~ ";" }
-
-/// Invoke an oracle and store the result.
-invocation = { identifier ~ ( "[" ~ table_index ~ "]" )? ~ "<-" ~ kw_invoke ~ oracle_call ~ ";" }
-
-/// Parse a tuple into multiple variables.
-parse = { parse_tuple ~ "<-" ~  kw_parse ~ expression ~ ";" }
-
-  /// The left-hand side of a parse statement: a tuple of identifiers.
-  parse_tuple = { "(" ~ identifier ~ ("," ~ identifier )+ ~ ")" }
-
-/// Sample a random value and assign it to a table entry.
-table_sample = { identifier ~ "[" ~ expression ~ "]" ~ "<-$" ~ tipe ~ (kw_sample_name ~ identifier)? ~ ";" }
-
-/// Assign a value to a table entry.
-table_assign = { identifier ~ "[" ~ expression ~ "]" ~ "<-" ~ expression ~ ";" }
+assign = { pattern ~ "<-" ~ kw_parse? ~ assign_rhs ~ ";" }
 
 /// Return from an oracle, optionally with a value.
 return_stmt = { kw_return ~ expression? ~ ";" }
@@ -485,7 +499,3 @@ for_ = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_co
 
 /// Comparison operator in for loops (< or <=).
 for_comp = { ( "<=" | "<" ) }
-
-/// The index expression for table access.
-table_index = { expression }
-
