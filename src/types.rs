@@ -220,6 +220,14 @@ impl Type {
                     && lty.types_match(rty.as_ref())
             }
 
+            (TypeKind::UserDefined(UserDefinedType::Package(_)), _) => {
+                panic!("must be resolved at this point")
+            }
+
+            (_, TypeKind::UserDefined(UserDefinedType::Package(_))) => {
+                panic!("must be resolved at this point")
+            }
+
             (lother, rother) => lother == rother,
         }
     }
