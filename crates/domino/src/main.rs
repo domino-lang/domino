@@ -185,11 +185,13 @@ fn format(f: &Format) -> Result<(), project::error::Error> {
 }
 
 fn wire_check(game_name: &str, dst_idx: usize) -> Result<(), project::error::Error> {
+    /*
     let project_root = project::find_project_root()?;
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
     project.print_wire_check_smt(game_name, dst_idx);
+    */
     Ok(())
 }
 
