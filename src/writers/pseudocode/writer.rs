@@ -4,20 +4,25 @@ use std::io::Write;
 
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::Identifier;
-use crate::package::{OracleDef, OracleSig, Package};
+use crate::package::{Composition, OracleDef, OracleSig, Package};
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement};
 use crate::types::{CountSpec, Type, TypeKind};
 
 type Result = std::io::Result<()>;
 
-pub struct Writer<W: Write> {
+pub struct Writer<'comp, W: Write> {
     w: W,
     indent_lvl: usize,
+    comp: &'comp Composition,
 }
 
-impl<W: Write> Writer<W> {
-    pub fn new(w: W) -> Self {
-        Writer { w, indent_lvl: 0 }
+impl<'comp, W: Write> Writer<'comp, W> {
+    pub fn new(w: W, comp: &'comp Composition) -> Self {
+        Writer {
+            w,
+            indent_lvl: 0,
+            comp,
+        }
     }
 
     pub fn write_identifier(&mut self, id: &Identifier) -> Result {
@@ -43,52 +48,7 @@ impl<W: Write> Writer<W> {
     }
 
     pub fn write_type(&mut self, t: &Type) -> Result {
-        match t.kind() {
-            TypeKind::String => self.write_string("String"),
-            TypeKind::Integer => self.write_string("Integer"),
-            TypeKind::Boolean => self.write_string("Boolean"),
-            TypeKind::Empty => self.write_string("()"),
-            TypeKind::Bits(n) => {
-                self.write_string("Bits(")?;
-                self.write_string(&format!("{n}"))?;
-                self.write_string(")")
-            }
-            TypeKind::Maybe(t) => {
-                self.write_string("Maybe(")?;
-                self.write_type(t)?;
-                self.write_string(")")
-            }
-            TypeKind::Tuple(types) => {
-                self.write_string("(")?;
-                let mut maybe_comma = "";
-                for ty in types {
-                    self.write_string(maybe_comma)?;
-                    self.write_type(ty)?;
-                    maybe_comma = ", ";
-                }
-                self.write_string(")")
-            }
-            TypeKind::Table(t_key, t_value) => {
-                self.write_string("Table(")?;
-                self.write_type(t_key)?;
-                self.write_string(", ")?;
-                self.write_type(t_value)?;
-                self.write_string(")")
-            }
-            TypeKind::Unknown => self.write_string("Unknown"),
-            TypeKind::Fn(args, ret) => {
-                self.write_string("fn ")?;
-                let mut maybe_comma = "";
-                for ty in args {
-                    self.write_string(maybe_comma)?;
-                    self.write_type(ty)?;
-                    maybe_comma = ", ";
-                }
-                self.write_string(" -> ")?;
-                self.write_type(ret)
-            }
-            _ => todo!("`{t:?}'"),
-        }
+        write!(self.w, "{t}")
     }
 
     pub fn write_string(&mut self, string: &str) -> Result {
@@ -265,15 +225,23 @@ impl<W: Write> Writer<W> {
                     AssignmentRhs::Invoke {
                         oracle_name,
                         args,
-                        target_inst_name,
+                        edge,
                         return_type: opt_ty,
                     } => {
                         self.write_string(" <- invoke ")?;
                         self.write_call(oracle_name, args.as_slice())?;
-                        if let Some(target_inst_name) = target_inst_name {
-                            self.write_string(&format!(
-                                "; /* with target instance name {target_inst_name} */"
-                            ))?;
+                        if let Some(edge) = edge {
+                            let target_inst_name = &self.comp.pkgs[edge.to()].name;
+                            if edge.alias().is_some() {
+                                let target_oracle_name = &edge.sig().name;
+                                self.write_string(&format!(
+                                    "; /* with target instance name {target_inst_name} and target oracle name {target_oracle_name} */"
+                                ))?;
+                            } else {
+                                self.write_string(&format!(
+                                    "; /* with target instance name {target_inst_name} */"
+                                ))?;
+                            }
                         } else {
                             self.write_string("; /* target instance name not assigned */")?;
                         }
@@ -322,12 +290,13 @@ impl<W: Write> Writer<W> {
             Statement::InvokeOracle(InvokeOracle {
                 oracle_name,
                 args,
-                target_inst_name,
+                edge,
                 ..
             }) => {
                 self.write_string("invoke ")?;
                 self.write_call(oracle_name, args.as_slice())?;
-                if let Some(target_inst_name) = target_inst_name {
+                if let Some(edge) = edge {
+                    let target_inst_name = &self.comp.pkgs[edge.to()].name;
                     self.write_string(&format!(
                         "; /* with target instance name {target_inst_name} */\n"
                     ))?;

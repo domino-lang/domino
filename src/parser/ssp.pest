@@ -38,6 +38,7 @@ kw_composition = _{ "composition" }
 kw_const = _{ "const" }
 kw_instance = _{ "instance" }
 kw_compose = _{ "compose" }
+kw_of = _{ "of" }
 
 kw_return = _{ "return" }
 kw_assert = _{ "assert" }
@@ -360,7 +361,9 @@ compose_assign_body             = { identifier ~ ":" ~ "{" ~ compose_assign_list
 compose_assign_list = { compose_assign ~ ( "," ~ compose_assign )* ~ ","? }
 
 /// A single oracle wiring: maps an imported oracle to an instance's oracle.
-compose_assign      =  { identifier ~ ":" ~ identifier }
+compose_assign        = { compose_assign_alias | compose_assign_simple }
+compose_assign_simple = { identifier ~ ":" ~ identifier }
+compose_assign_alias  = { identifier ~ ":" ~ identifier ~ kw_of ~ identifier }
 
 // -- package definitions --
 

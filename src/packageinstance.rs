@@ -546,7 +546,7 @@ pub(crate) mod instantiate {
                         AssignmentRhs::Invoke {
                             oracle_name,
                             args,
-                            target_inst_name,
+                            edge,
                             return_type,
                         } => AssignmentRhs::Invoke {
                             oracle_name,
@@ -554,7 +554,7 @@ pub(crate) mod instantiate {
                                 .iter()
                                 .map(|expr| self.rewrite_expression(expr))
                                 .collect(),
-                            target_inst_name,
+                            edge,
                             return_type: return_type
                                 .as_ref()
                                 .map(|ty| ty.rewrite_type(&type_rewrite_rules)),
@@ -573,7 +573,7 @@ pub(crate) mod instantiate {
                 Statement::InvokeOracle(InvokeOracle {
                     oracle_name,
                     args,
-                    target_inst_name,
+                    edge,
                     file_pos,
                 }) => Statement::InvokeOracle(InvokeOracle {
                     oracle_name,
@@ -581,7 +581,7 @@ pub(crate) mod instantiate {
                         .iter()
                         .map(|expr| self.rewrite_expression(expr))
                         .collect(),
-                    target_inst_name,
+                    edge,
                     file_pos,
                 }),
 

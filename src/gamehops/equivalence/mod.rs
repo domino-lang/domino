@@ -606,9 +606,9 @@ impl<'a> EquivalenceContext<'a> {
         // let right_partial_datatypes = into_partial_dtypes(self.split_info_right());
 
         // write declarations of arguments for the exports in left
-        for Export(_, sig) in &left.game().exports {
-            if let Some(orcl_ctx) = gctx_left.exported_oracle_ctx_by_name(&sig.name) {
-                for (arg_name, arg_type) in &sig.args {
+        for export in &left.game().exports {
+            if let Some(orcl_ctx) = gctx_left.exported_oracle_ctx_by_name(&export.sig().name) {
+                for (arg_name, arg_type) in &export.sig().args {
                     out.push(declare::declare_const(
                         orcl_ctx.smt_arg_name(arg_name),
                         arg_type.clone().into(),
@@ -718,8 +718,8 @@ impl<'a> EquivalenceContext<'a> {
         let right_octx = right_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
         let right_pctx = right_octx.pkg_inst_ctx();
 
-        let left_return_value = left_octx.return_value_const_pattern();
-        let right_return_value = right_octx.return_value_const_pattern();
+        let left_return_value = left_octx.return_value_const_pattern(oracle_name);
+        let right_return_value = right_octx.return_value_const_pattern(oracle_name);
 
         let left_is_abort = ReturnIsAbortConst {
             game_inst_name: left_gctx.game_inst().name(),
@@ -1083,13 +1083,13 @@ impl<'a> EquivalenceContext<'a> {
             .game()
             .exports
             .iter()
-            .find(|Export(_, sig)| sig.name == oracle_name)
-            .and_then(|Export(inst_idx, _)| {
-                gctx_left.game().pkgs[*inst_idx]
+            .find(|export| export.name() == oracle_name)
+            .and_then(|export| {
+                gctx_left.game().pkgs[export.to()]
                     .pkg
                     .oracles
                     .iter()
-                    .find(|odef| odef.sig.name == oracle_name)
+                    .find(|odef| odef.sig.name == export.sig().name)
                     .map(|odef| &odef.sig)
             })
     }
@@ -1142,6 +1142,7 @@ impl<'a> EquivalenceContext<'a> {
             pkg_name: pkg_name_left,
             pkg_params: pkg_params_left,
             oracle_name,
+            oracle_import_name: oracle_name,
         };
 
         let right_return = patterns::ReturnConst {
@@ -1151,6 +1152,7 @@ impl<'a> EquivalenceContext<'a> {
             pkg_name: pkg_name_right,
             pkg_params: pkg_params_right,
             oracle_name,
+            oracle_import_name: oracle_name,
         };
 
         let state_left = octx_left.oracle_arg_game_state_pattern();
@@ -1366,13 +1368,13 @@ impl<'a> EquivalenceContext<'a> {
             .game()
             .exports
             .iter()
-            .map(|Export(_, oracle_sig)| oracle_sig.clone())
+            .map(|export| export.sig().clone())
             .collect();
         let right_exports: HashSet<_> = right_game_inst
             .game()
             .exports
             .iter()
-            .map(|Export(_, oracle_sig)| oracle_sig.clone())
+            .map(|export| export.sig().clone())
             .collect();
 
         let only_left: Vec<_> = left_exports
@@ -1397,7 +1399,7 @@ impl<'a> EquivalenceContext<'a> {
         (only_left, only_right)
     }
 
-    fn oracle_sequence(&self) -> Vec<&'a OracleSig> {
+    fn oracle_sequence(&self) -> Vec<&'a Export> {
         let game_inst = self
             .theorem
             .find_game_instance(self.equivalence().left_name())
@@ -1405,12 +1407,7 @@ impl<'a> EquivalenceContext<'a> {
 
         log::debug!("oracle sequence: {:?}", game_inst.game().exports);
 
-        game_inst
-            .game()
-            .exports
-            .iter()
-            .map(|Export(_, oracle_sig)| oracle_sig)
-            .collect()
+        game_inst.game().exports.iter().collect()
     }
 
     // fn split_oracle_sequence(&self) -> Vec<&'a SplitOracleSig> {
@@ -1849,17 +1846,19 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 
     // write declarations of right return constants and constrain them
     let mut out = vec![];
-    for Export(inst_idx, sig) in &game_inst.game().exports {
-        let pkg_inst = &game_inst.game().pkgs[*inst_idx];
+    for export in &game_inst.game().exports {
+        let pkg_inst = &game_inst.game().pkgs[export.to()];
+        let sig = export.sig();
 
         let pkg_inst_name = &pkg_inst.name;
         let pkg_params = &pkg_inst.params;
         let pkg_name = &pkg_inst.pkg.name;
         let oracle_name = &sig.name;
+        let oracle_import_name = export.name();
         let return_type = &sig.ty;
 
         let octx = gctx
-            .exported_oracle_ctx_by_name(&sig.name)
+            .exported_oracle_ctx_by_name(export.name())
             .unwrap_or_else(|| {
                 panic!(
                     "error looking up exported oracle with name {oracle_name} in game {game_name}"
@@ -1873,19 +1872,20 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
             pkg_name,
             pkg_params,
             oracle_name,
+            oracle_import_name,
         };
 
         let return_value_const = patterns::ReturnValueConst {
             game_inst_name,
             pkg_inst_name,
-            oracle_name,
+            oracle_name: oracle_import_name,
             ty: &sig.ty,
         };
 
         let is_abort_const_pattern = ReturnIsAbortConst {
             game_inst_name,
             pkg_inst_name,
-            oracle_name,
+            oracle_name: oracle_import_name,
             ty: &sig.ty,
         };
 
@@ -1893,7 +1893,8 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
         let consts = octx.oracle_arg_game_consts_pattern();
 
         let old_state_const = state.old_global_const_name(game_inst_name);
-        let new_state_const = state.new_global_const_name(game_inst_name, oracle_name.to_string());
+        let new_state_const =
+            state.new_global_const_name(game_inst_name, oracle_import_name.to_string());
         let consts_const = consts.unit_global_const_name(game_inst_name);
 
         let args = sig
@@ -1950,7 +1951,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
         out.push((return_value_const.declare(), constrain_return_value.into()));
         out.push((is_abort_const_pattern.declare(), constrain_is_abort.into()));
         out.push((
-            state.declare_new(game_inst_name, oracle_name.to_string()),
+            state.declare_new(game_inst_name, oracle_import_name.to_string()),
             constrain_new_state.into(),
         ));
     }

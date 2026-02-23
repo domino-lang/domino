@@ -12,7 +12,7 @@ use crate::{
         error::{Error, Result},
         Equivalence,
     },
-    package::OracleSig,
+    package::Export,
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
@@ -28,14 +28,14 @@ fn verify_oracle<UI: TheoremUI>(
     eqctx: &EquivalenceContext,
     backend: ProverBackend,
     transcript: bool,
-    req_oracles: &[&OracleSig],
+    req_oracles: &[&Export],
 ) -> Result<()> {
     let eq = eqctx.equivalence();
     let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
     let mut prover = if transcript {
         let oracle = if req_oracles.len() == 1 {
-            Some(req_oracles[0].name.as_str())
+            Some(req_oracles[0].name())
         } else {
             None
         };
@@ -81,32 +81,30 @@ fn verify_oracle<UI: TheoremUI>(
     );
     eqctx.emit_constant_declarations(&mut prover)?;
 
-    for oracle_sig in req_oracles {
-        let claims = eqctx
-            .equivalence
-            .proof_tree_by_oracle_name(&oracle_sig.name);
+    for export in req_oracles {
+        let claims = eqctx.equivalence.proof_tree_by_oracle_name(export.name());
         ui.lock().unwrap().start_oracle(
             &eqctx.theorem().name,
             &proofstep_name,
-            &oracle_sig.name,
+            export.name(),
             claims.len().try_into().unwrap(),
         );
 
-        log::info!("verify: oracle:{oracle_sig:?}");
+        log::info!("verify: oracle:{export:?}");
         writeln!(prover, "(push 1)").unwrap();
-        eqctx.emit_return_value_helpers(&mut prover, &oracle_sig.name)?;
-        eqctx.emit_invariant(&mut prover, &oracle_sig.name)?;
+        eqctx.emit_return_value_helpers(&mut prover, export.name())?;
+        eqctx.emit_invariant(&mut prover, export.name())?;
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
                 &eqctx.theorem().name,
                 &proofstep_name,
-                &oracle_sig.name,
+                export.name(),
                 claim.name(),
             );
 
             writeln!(prover, "(push 1)").unwrap();
-            eqctx.emit_claim_assert(&mut prover, &oracle_sig.name, &claim)?;
+            eqctx.emit_claim_assert(&mut prover, export.name(), &claim)?;
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
@@ -119,7 +117,7 @@ fn verify_oracle<UI: TheoremUI>(
                     });
                     return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
-                        oracle_name: oracle_sig.name.clone(),
+                        oracle_name: export.name().to_string(),
                         response,
                         modelfile,
                     });
@@ -129,7 +127,7 @@ fn verify_oracle<UI: TheoremUI>(
             ui.lock().unwrap().finish_lemma(
                 &eqctx.theorem().name,
                 &proofstep_name,
-                &oracle_sig.name,
+                export.name(),
                 claim.name(),
             );
         }
@@ -137,7 +135,7 @@ fn verify_oracle<UI: TheoremUI>(
         writeln!(prover, "(pop 1)").unwrap();
         ui.lock()
             .unwrap()
-            .finish_oracle(&eqctx.theorem().name, &proofstep_name, &oracle_sig.name);
+            .finish_oracle(&eqctx.theorem().name, &proofstep_name, export.name());
     }
     Ok(())
 }
@@ -186,9 +184,9 @@ pub fn verify<UI: TheoremUI>(
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
         .into_iter()
-        .filter(|sig| {
+        .filter(|export| {
             if let Some(name) = req_oracle {
-                sig.name == *name
+                export.name() == *name
             } else {
                 true
             }
@@ -253,9 +251,9 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
         .into_iter()
-        .filter(|sig| {
+        .filter(|export| {
             if let Some(name) = req_oracle {
-                sig.name == *name
+                export.name() == *name
             } else {
                 true
             }
@@ -277,19 +275,13 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         .install(|| -> Result<()> {
             let failed_oracles: Vec<_> = oracle_sequence
                 .par_iter()
-                .map(|oracle_sig| -> (&str, Result<()>) {
-                    let result = verify_oracle(
-                        project,
-                        ui.clone(),
-                        &eqctx,
-                        backend,
-                        transcript,
-                        &[*oracle_sig],
-                    );
+                .map(|export| -> (&str, Result<()>) {
+                    let result =
+                        verify_oracle(project, ui.clone(), &eqctx, backend, transcript, &[*export]);
                     if let Err(ref e) = result {
                         ui.lock().unwrap().println(&format!("{e}")).unwrap();
                     }
-                    (&oracle_sig.name, result)
+                    (export.name(), result)
                 })
                 .filter_map(|(name, res)| {
                     if let Err(err) = res {

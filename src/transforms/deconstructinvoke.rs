@@ -75,7 +75,7 @@ impl Splitter {
                             AssignmentRhs::Invoke {
                                 oracle_name,
                                 args,
-                                target_inst_name,
+                                edge,
                                 return_type: Some(return_type),
                             },
                     },
@@ -93,7 +93,7 @@ impl Splitter {
                             rhs: AssignmentRhs::Invoke {
                                 oracle_name: oracle_name.clone(),
                                 args: args.clone(),
-                                target_inst_name: target_inst_name.clone(),
+                                edge: edge.clone(),
                                 return_type: Some(return_type.clone()),
                             },
                         },
@@ -162,7 +162,7 @@ mod test {
                 rhs: AssignmentRhs::Invoke {
                     oracle_name: oracle_name.to_string(),
                     args: vec![],
-                    target_inst_name: None,
+                    edge: None,
                     return_type: Some(return_type),
                 },
             },

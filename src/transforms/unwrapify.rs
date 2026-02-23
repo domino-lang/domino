@@ -128,7 +128,7 @@ impl Unwrapifier {
                         AssignmentRhs::Invoke {
                             oracle_name,
                             args,
-                            target_inst_name,
+                            edge,
                             return_type,
                         } => {
                             let new_args = args
@@ -142,7 +142,7 @@ impl Unwrapifier {
                             AssignmentRhs::Invoke {
                                 oracle_name,
                                 args: new_args,
-                                target_inst_name,
+                                edge,
                                 return_type,
                             }
                         }
@@ -160,7 +160,7 @@ impl Unwrapifier {
                 Statement::InvokeOracle(InvokeOracle {
                     oracle_name,
                     args,
-                    target_inst_name,
+                    edge,
                     file_pos,
                 }) => {
                     let new_args = args
@@ -174,7 +174,7 @@ impl Unwrapifier {
                     newcode.push(Statement::InvokeOracle(InvokeOracle {
                         oracle_name,
                         args: new_args,
-                        target_inst_name,
+                        edge,
                         file_pos,
                     }));
                 }

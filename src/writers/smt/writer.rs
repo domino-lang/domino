@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use crate::expressions::Expression;
 use crate::expressions::ExpressionKind;
 use crate::identifier::Identifier;
-use crate::package::{OracleDef, PackageInstance};
+use crate::package::{Edge, OracleDef, PackageInstance};
 use crate::statement::InvokeOracle;
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
 use crate::theorem::GameInstance;
@@ -113,28 +113,16 @@ impl<'a> CompositionSmtWriter<'a> {
                                  this should have been eliminated by now and can't be handled here. \
                                  game:{game_inst_name}(game_name) pkg:{pkg_inst_name}({pkg_name}) oracle:{oracle_name}", game_inst_name = game_inst_name, pkg_inst_name = pkg_inst_name, pkg_name = pkg_name, oracle_name = oracle_name)
                 }
-                Statement::InvokeOracle(InvokeOracle {
-                    target_inst_name: None,
-                    ..
-                }) => {
+                Statement::InvokeOracle(InvokeOracle { edge: None, .. }) => {
                     panic!("found an unresolved standalone oracle invocation: {stmt:#?}");
                 }
                 Statement::InvokeOracle(InvokeOracle {
-                    oracle_name,
                     args,
-                    target_inst_name: Some(target),
+                    edge: Some(edge),
                     ..
                 }) => {
                     let discard_ident = Identifier::Generated("_".to_string(), Type::empty());
-                    self.smt_build_invoke(
-                        oracle_ctx,
-                        result,
-                        &discard_ident,
-                        &None,
-                        oracle_name,
-                        args,
-                        target,
-                    )
+                    self.smt_build_invoke(oracle_ctx, result, &discard_ident, &None, args, edge)
                 }
                 Statement::Assignment(Assignment { pattern, rhs }, _) => {
                     match (pattern, rhs) {
@@ -165,10 +153,7 @@ impl<'a> CompositionSmtWriter<'a> {
                                     ty,
                                     sample_name,
                                 ),
-                                AssignmentRhs::Invoke {
-                                    target_inst_name: None,
-                                    ..
-                                } => {
+                                AssignmentRhs::Invoke { edge: None, .. } => {
                                     panic!("found an unresolved oracle invocation: {stmt:#?}");
                                 }
                                 AssignmentRhs::Invoke {
@@ -177,18 +162,12 @@ impl<'a> CompositionSmtWriter<'a> {
                                     panic!("found an oracle invocation with unknown return type: {stmt:#?}");
                                 }
                                 AssignmentRhs::Invoke {
-                                    oracle_name,
                                     args,
-                                    target_inst_name: Some(target),
+                                    edge: Some(edge),
                                     return_type: Some(_),
+                                    ..
                                 } => self.smt_build_invoke(
-                                    oracle_ctx,
-                                    result,
-                                    ident,
-                                    &opt_idx,
-                                    oracle_name,
-                                    args,
-                                    target,
+                                    oracle_ctx, result, ident, &opt_idx, args, edge,
                                 ),
                                 AssignmentRhs::Expression(expr) => {
                                     self.smt_build_assign(oracle_ctx, result, ident, &opt_idx, expr)
@@ -786,9 +765,8 @@ impl<'a> CompositionSmtWriter<'a> {
         body: SmtExpr,
         assignee_ident: &Identifier,
         opt_idx: &Option<Expression>,
-        called_oracle_name: &str,
         args: &[Expression],
-        target_pkg_inst_name: &str,
+        edge: &Edge,
     ) -> SmtExpr {
         let pkg_inst_ctx = this_oracle_ctx.pkg_inst_ctx();
         let game_inst_ctx = pkg_inst_ctx.game_inst_ctx();
@@ -796,8 +774,10 @@ impl<'a> CompositionSmtWriter<'a> {
         let pkg_inst = pkg_inst_ctx.pkg_inst();
         let game_name = game_inst_ctx.game_name();
 
+        let target = &self.game_inst.game.pkgs[edge.to()];
+
         let called_oracle_context = self
-            .this_normal_oracle_ctx(target_pkg_inst_name, called_oracle_name)
+            .this_normal_oracle_ctx(&target.name, &edge.sig().name)
             .unwrap();
 
         let var_gamestate = &GameStatePattern;
