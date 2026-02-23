@@ -8,14 +8,8 @@ pub(crate) enum Commands {
     /// Export to LaTeX
     Latex(Latex),
 
-    /// Give information about the provided code
-    Explain(Explain),
-
     /// Prove the whole project.
     Prove(Prove),
-
-    /// Print Wire Check SMTLIB code
-    WireCheck(WireCheck),
 
     /// Reformat file or directory
     Format(Format),
@@ -41,14 +35,6 @@ pub(crate) struct Latex {
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
-pub(crate) struct Explain {
-    pub(crate) game_name: String,
-    #[clap(short, long)]
-    pub(crate) output: Option<String>,
-}
-
-#[derive(clap::Args, Debug)]
-#[clap(author, version, about, long_about = None)]
 pub(crate) struct Prove {
     #[clap(short, long, default_value = "cvc5")]
     pub(crate) smtsolver: SolverVariant,
@@ -62,13 +48,4 @@ pub(crate) struct Prove {
     pub(crate) oracle: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
-}
-
-#[derive(clap::Args, Debug)]
-#[clap(author, version, about, long_about = None)]
-pub(crate) struct WireCheck {
-    #[clap(short, long)]
-    pub(crate) game_name: String,
-    #[clap(short, long)]
-    pub(crate) dst_idx: usize,
 }
