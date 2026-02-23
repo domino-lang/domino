@@ -1,0 +1,47 @@
+composition BigComposition {
+    types {
+        Domain
+          }
+
+ /*Constants need to come after types,
+  because a constant might be of a type
+  that is specified before. */
+
+    const n: Integer;
+
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+                types {
+            Domain: Domain,
+        }
+
+    }
+
+    instance fwd = Fwd {
+        types {
+            Domain: Domain,
+        }
+    }
+
+    instance fwd2 = Fwd {
+        types {
+            Domain: Domain,
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: fwd2,
+            UselessOracle: fwd2,
+        },
+        fwd: {
+            UsefulOracle: rand,
+        },
+        fwd2: {
+            UsefulOracle: fwd,
+        },
+    }
+}
