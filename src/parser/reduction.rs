@@ -795,7 +795,7 @@ fn handle_mapspec_assumption<'src>(
                 assumption_game_inst_name,
                 ctx.theorem_name,
                 &assumption_game_inst.consts,
-                &assumption_game_inst_types,
+                assumption_game_inst_types,
             );
 
             let construction_game_inst_types =
@@ -804,7 +804,7 @@ fn handle_mapspec_assumption<'src>(
                 construction_game_inst_name,
                 ctx.theorem_name,
                 &construction_game_inst.consts,
-                &construction_game_inst_types,
+                construction_game_inst_types,
             );
 
             let assump_sig = assump_dst_export.sig();
