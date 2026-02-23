@@ -7,6 +7,10 @@ use itertools::Itertools as _;
 use pest::iterators::Pair;
 
 use crate::packageinstance::game_inst_type_mapping_vec;
+use crate::parser::error::{
+    AssumptionMappingTypeParameterMismatchError, ReductionPackageInstanceTypeParameterMismatchError,
+};
+use crate::types::Type;
 use crate::{
     expressions::{Expression, ExpressionKind},
     gamehops::{
@@ -96,7 +100,6 @@ fn compare_reduction(
 
         // only one of them in the assumption, this is an error
         (Some(mapping_entry), None) => {
-            println!("asd");
             let mapping_entry_span = mapping_entry.construction().as_span();
             Err(ReductionInconsistentAssumptionBoundaryError {
                 source_code: ctx.named_source(),
@@ -109,7 +112,6 @@ fn compare_reduction(
             })
         }
         (None, Some(mapping_entry)) => {
-            println!("fgh");
             let mapping_entry_span = mapping_entry.construction().as_span();
             Err(ReductionInconsistentAssumptionBoundaryError {
                 source_code: ctx.named_source(),
@@ -169,6 +171,17 @@ fn compare_reduction(
                 right_pkg_inst_name: right_pkg_inst.name().to_string(),
 
                 param_names: param_diff.iter().map(|(name, _, _)| &name.name).join(", "),
+            }
+            .into());
+        }
+        PackageInstanceDiff::DifferentTypeParams(param_diff) => {
+            return Err(ReductionPackageInstanceTypeParameterMismatchError {
+                source_code: ctx.named_source(),
+                at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                right_pkg_inst_name: right_pkg_inst.name().to_string(),
+
+                type_param_names: param_diff.iter().map(|(name, _, _)| name).join(", "),
             }
             .into());
         }
@@ -433,6 +446,17 @@ pub(super) fn handle_reduction_body<'src>(
                 }
                 .into());
             }
+            PackageInstanceDiff::DifferentTypeParams(param_diff) => {
+                return Err(ReductionPackageInstanceTypeParameterMismatchError {
+                    source_code: ctx.named_source(),
+                    at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                    left_pkg_inst_name: left.name.clone(),
+                    right_pkg_inst_name: right.name.clone(),
+
+                    type_param_names: param_diff.iter().map(|(name, _, _)| name).join(", "),
+                }
+                .into());
+            }
             PackageInstanceDiff::Same => {}
         }
     }
@@ -685,6 +709,30 @@ fn handle_mapspec_assumption<'src>(
                 }
                 .into());
             }
+            PackageInstanceDiff::DifferentTypeParams(different_params) => {
+                let span_assumption = assumption_game_pkg_inst_name_ast.as_span();
+                let at_assumption = (span_assumption.start()..span_assumption.end()).into();
+
+                let span_construction = construction_game_pkg_inst_name_ast.as_span();
+                let at_construction = (span_construction.start()..span_construction.end()).into();
+
+                let assumption_pkg_inst_name = assumption_game_pkg_inst_name.to_string();
+                let construction_pkg_inst_name = construction_game_pkg_inst_name.to_string();
+
+                let type_param_names = different_params.iter().map(|(name, _, _)| name).join(", ");
+
+                return Err(AssumptionMappingTypeParameterMismatchError {
+                    source_code: ctx.named_source(),
+                    at_assumption,
+                    at_construction,
+
+                    assumption_pkg_inst_name,
+                    construction_pkg_inst_name,
+
+                    type_param_names,
+                }
+                .into());
+            }
             PackageInstanceDiff::Same => {}
         }
 
@@ -833,6 +881,7 @@ fn handle_mapspec_assumption<'src>(
             ) {
                 PackageInstanceDiff::DifferentPackage(_, _) => todo!(),
                 PackageInstanceDiff::DifferentParams(_vec) => todo!(),
+                PackageInstanceDiff::DifferentTypeParams(_vec) => todo!(),
                 PackageInstanceDiff::Same => {}
             }
         }
@@ -1066,8 +1115,23 @@ fn package_instances_diff(
         }
     }
 
+    let mut different_types = vec![];
+
+    for (pkg_ty, left_game_ty) in &left_pkg_inst.types {
+        let Some((_, right_game_ty)) = right_pkg_inst.types.iter().find(|(name, _)| name == pkg_ty)
+        else {
+            todo!("left has type that right hasn't");
+        };
+
+        if left_game_ty != right_game_ty {
+            different_types.push((pkg_ty.clone(), left_game_ty.clone(), right_game_ty.clone()));
+        }
+    }
+
     if !different_params.is_empty() {
         PackageInstanceDiff::DifferentParams(different_params)
+    } else if !different_types.is_empty() {
+        PackageInstanceDiff::DifferentTypeParams(different_types)
     } else {
         PackageInstanceDiff::Same
     }
@@ -1076,6 +1140,7 @@ fn package_instances_diff(
 enum PackageInstanceDiff {
     DifferentPackage(String, String),
     DifferentParams(Vec<(PackageConstIdentifier, Expression, Expression)>),
+    DifferentTypeParams(Vec<(String, Type, Type)>),
     Same,
 }
 
