@@ -10,7 +10,7 @@ use super::{
         UndefinedPackageInstanceError, UnusedEdgeError,
     },
     package::ParsePackageError,
-    ParseContext, Rule,
+    FileType, ParseContext, Rule,
 };
 use crate::{
     debug_assert_matches,
@@ -57,7 +57,7 @@ impl<'src> ParseContext<'src> {
             file_content,
             scope,
             types,
-            abstract_types: _,
+            ..
         } = self;
 
         ParseGameContext {
@@ -87,11 +87,11 @@ impl<'src> ParseGameContext<'src> {
 
     pub(crate) fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Game,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
             types: self.types.clone(),
-            abstract_types: vec![],
         }
     }
 }
@@ -223,7 +223,8 @@ pub(crate) fn handle_composition(
     let mut scope = Scope::new();
     scope.enter();
 
-    let ctx = ParseContext::new(file_name, file_content).game_context(game_name, pkg_map);
+    let ctx =
+        ParseContext::new(file_name, file_content, FileType::Game).game_context(game_name, pkg_map);
 
     let spec = inner.next().unwrap();
     handle_comp_spec_list(ctx, spec)

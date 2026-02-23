@@ -81,7 +81,7 @@ impl<'src> ParseContext<'src> {
             file_content,
             scope,
             types: _,
-            abstract_types: _,
+            ..
         } = self;
 
         ParseTheoremContext {
@@ -110,11 +110,11 @@ impl<'src> ParseTheoremContext<'src> {
 
     pub fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Theorem,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
             types: vec![],
-            abstract_types: self.types.clone(),
         }
     }
 }
@@ -260,7 +260,7 @@ pub fn handle_theorem<'src>(
     let theorem_name = iter.next().unwrap().as_str();
     let theorem_ast = iter.next().unwrap();
 
-    let ctx = ParseContext::new(file_name, file_content);
+    let ctx = ParseContext::new(file_name, file_content, super::FileType::Theorem);
     let mut ctx = ctx.theorem_context(theorem_name);
     ctx.scope.enter();
 
@@ -268,8 +268,11 @@ pub fn handle_theorem<'src>(
         match ast.as_rule() {
             Rule::types => {
                 for types_list in ast.into_inner() {
-                    ctx.types
-                        .extend(types_list.into_inner().map(|entry| (entry.as_str(), entry.as_span())));
+                    ctx.types.extend(
+                        types_list
+                            .into_inner()
+                            .map(|entry| (entry.as_str(), entry.as_span())),
+                    );
                 }
             }
             Rule::const_decl => {
@@ -779,7 +782,11 @@ fn handle_instance_assign_list<'src>(
     let missing_type_params_vec: Vec<_> = game
         .type_params
         .iter()
-        .filter(|name| types.iter().all(|(assigned_name, _)| *assigned_name != name.as_str()))
+        .filter(|name| {
+            types
+                .iter()
+                .all(|(assigned_name, _)| *assigned_name != name.as_str())
+        })
         .cloned()
         .collect();
 

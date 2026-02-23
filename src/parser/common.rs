@@ -6,7 +6,7 @@ use crate::identifier::pkg_ident::{PackageConstIdentifier, PackageIdentifier};
 use crate::identifier::Identifier;
 use crate::package::{Composition, Package};
 use crate::parser::composition::ParseGameError;
-use crate::types::{CountSpec, TypeKind};
+use crate::types::{CountSpec, TypeKind, UserDefinedType};
 use crate::{debug_assert_matches, expressions::Expression, types::Type};
 
 use super::composition::ParseGameContext;
@@ -127,17 +127,17 @@ pub(crate) fn handle_type(ctx: &ParseContext, ty: Pair<Rule>) -> Result<Type, Ha
         Rule::type_userdefined => {
             let type_name = ty.as_str();
             if ctx
-                .abstract_types
-                .iter()
-                .any(|(declared_type, _)| *declared_type == type_name)
-            {
-                TypeKind::UserDefined(ty.as_str().to_string())
-            } else if ctx
                 .types
                 .iter()
                 .any(|(declared_type, _)| *declared_type == type_name)
             {
-                TypeKind::TypeParam(ty.as_str().to_string())
+                let name = ty.as_str().to_string();
+                let ud_kind = match ctx.file_type {
+                    super::FileType::Package => UserDefinedType::Package(name),
+                    super::FileType::Game => UserDefinedType::Game(name),
+                    super::FileType::Theorem => UserDefinedType::Theorem(name),
+                };
+                TypeKind::UserDefined(ud_kind)
             } else {
                 let span = ty.as_span();
                 return Err(NoSuchTypeError {
