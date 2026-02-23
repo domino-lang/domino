@@ -81,8 +81,7 @@ impl<'src> ParseContext<'src> {
             file_name,
             file_content,
             scope,
-            types: _,
-            abstract_types: _,
+            ..
         } = self;
 
         ParseTheoremContext {
@@ -111,11 +110,11 @@ impl<'src> ParseTheoremContext<'src> {
 
     pub fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Theorem,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
             types: vec![],
-            abstract_types: self.types.clone(),
         }
     }
 }
@@ -294,7 +293,7 @@ pub fn handle_theorem<'src>(
     let theorem_name = iter.next().unwrap().as_str();
     let theorem_ast = iter.next().unwrap();
 
-    let ctx = ParseContext::new(file_name, file_content);
+    let ctx = ParseContext::new(file_name, file_content, super::FileType::Theorem);
     let mut ctx = ctx.theorem_context(theorem_name);
     ctx.scope.enter();
 
