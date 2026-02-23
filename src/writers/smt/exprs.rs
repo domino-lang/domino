@@ -320,7 +320,6 @@ impl From<Type> for SmtExpr {
                 }
                 els
             }),
-            TypeKind::TypeParam(_) => unreachable!("TypeParam should be fully instantiated before reaching the SMT backend"),
             kind => {
                 panic!("not implemented: {kind:?}")
             }
@@ -348,7 +347,6 @@ impl From<&Type> for SmtExpr {
                 els
             }),
             TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
-            TypeKind::TypeParam(_) => unreachable!("TypeParam should be fully instantiated before reaching the SMT backend"),
             _ => {
                 panic!("not implemented: {t:?}")
             }
