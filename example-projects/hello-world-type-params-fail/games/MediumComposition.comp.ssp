@@ -1,0 +1,34 @@
+composition MediumComposition {
+    types {
+        Domain
+          }
+
+    const n: Integer;
+
+
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+                types {
+            Domain: Domain,
+        }
+
+    }
+
+    instance fwd = Fwd {
+        types {
+            Domain: Domain,
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: fwd,
+        },
+        fwd: {
+            UsefulOracle: rand,
+        },
+    }
+}

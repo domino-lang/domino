@@ -1,0 +1,62 @@
+theorem Proof {
+    const n: Integer;
+    const m: Integer;
+
+    instance small_composition = SmallComposition {
+        params {
+            n: n,
+        }
+  types {
+            Domain: Bits(m), /* Careful, different type here */
+        }
+    }
+
+    instance medium_composition = MediumComposition {
+        params {
+            n: n,
+        }
+          types {
+            Domain: Bits(n),
+        }
+
+    }
+
+    instance medium_composition_more_oracles = MediumCompositionMoreOracles {
+        params {
+            n: n,
+        }
+  types {
+            Domain: Bits(n),
+        }
+    }
+
+    instance big_composition = BigComposition {
+        params {
+            n: n,
+        }
+          types {
+            Domain: Bits(n),
+        }
+
+    }
+
+    assumptions {
+        Assumption: medium_composition ~ small_composition
+    }
+
+    gamehops {
+        reduction big_composition medium_composition_more_oracles  
+        {
+            assumption Assumption
+
+            map small_composition medium_composition_more_oracles {
+                rand    : rand
+            }
+
+            map medium_composition big_composition {
+                rand    : rand
+                fwd     : fwd
+            }
+        }
+    }
+}
