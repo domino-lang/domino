@@ -1,0 +1,44 @@
+composition BigComposition {
+    types {
+        Domain,
+        Tomain
+          }
+
+    const n: Integer;
+
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+                types {
+            Domain: Tomain, /* Careful, different type here. */
+        }
+
+    }
+
+    instance fwd = Fwd {
+        types {
+            Domain: Tomain, /* Careful, different type here. */
+        }
+    }
+
+    instance fwd2 = Fwd {
+        types {
+            Domain: Tomain, /* Careful, different type here. */
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: fwd2,
+            UselessOracle: fwd2,
+        },
+        fwd: {
+            UsefulOracle: rand,
+        },
+        fwd2: {
+            UsefulOracle: fwd,
+        },
+    }
+}

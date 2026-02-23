@@ -1,0 +1,28 @@
+package Rand {
+    params {
+        n: Integer,
+    }
+
+    types {
+        Domain,
+    }
+
+    state {
+          ctr: Integer,
+          value: Domain,
+    }
+
+    oracle UsefulOracle() -> (Integer, Domain)  {
+        ctr  <- (ctr + 1);
+        rand <-$ Domain sample-name samplepoint;
+        value <- rand;
+        return (ctr, rand);
+    }
+
+    oracle UselessOracle(x: Integer, y: Domain) -> Integer  {
+        assert (x == 1);
+        rand <-$ Bits(n);
+        return 1;
+    }
+}
+
