@@ -7,18 +7,14 @@
  *  we also facilitate individual theorem steps here, and provide an interface for doing the whole theorem.
  *
  */
-use std::path::Path;
-use std::{collections::HashMap, path::PathBuf};
-use walkdir;
+use std::path::PathBuf;
 
-use error::{Error, Result};
+use error::Result;
 
 use crate::parser::ast::Identifier;
-use crate::parser::package::handle_pkg;
-use crate::parser::SspParser;
 use crate::{
     gamehops::{equivalence, GameHop},
-    package::{Composition, Package},
+    package::Composition,
     theorem::Theorem,
     transforms::Transformation,
     util::prover_process::ProverBackend,
@@ -26,122 +22,29 @@ use crate::{
 
 use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
 
-pub const PROJECT_FILE: &str = "ssp.toml";
-
-pub const PACKAGES_DIR: &str = "packages";
-pub const GAMES_DIR: &str = "games";
-pub const THEOREM_DIR: &str = "theorem";
-pub const ASSUMPTIONS_DIR: &str = "assumptions";
-
-pub const PACKAGE_EXT: &str = ".pkg.ssp";
-pub const GAME_EXT: &str = ".comp.ssp"; // TODO maybe change this to .game.ssp later, and also rename the Composition type
-
+mod consts;
 mod load;
+
+pub mod directory;
+pub use directory::{DirectoryFiles, DirectoryProject};
 
 pub mod error;
 
-pub struct Files {
-    theorems: Vec<(String, String)>,
-    games: Vec<(String, String)>,
-    packages: Vec<(String, String)>,
-}
+pub trait Project: Sync {
+    fn get_root_dir(&self) -> PathBuf;
 
-impl Files {
-    pub fn load(root: &Path) -> Result<Self> {
-        fn load_files(path: impl AsRef<Path>) -> Result<Vec<(String, String)>> {
-            walkdir::WalkDir::new(path.as_ref())
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .map(|dir_entry| {
-                    let file_name = dir_entry.file_name();
-                    let Some(file_name) = file_name.to_str() else {
-                        return Ok(None);
-                    };
+    fn theorems(&self) -> impl Iterator<Item = &String>;
+    fn games(&self) -> impl Iterator<Item = &String>;
 
-                    if file_name.ends_with(".ssp") {
-                        let file_content = std::fs::read_to_string(dir_entry.path())?;
-                        Ok(Some((file_name.to_string(), file_content)))
-                    } else {
-                        Ok(None)
-                    }
-                })
-                .filter_map(Result::transpose)
-                .collect()
-        }
+    fn get_theorem(&self, name: &str) -> Option<&Theorem<'_>>;
+    fn get_game(&self, name: &str) -> Option<&Composition>;
 
-        Ok(Self {
-            theorems: load_files(root.join(THEOREM_DIR))?,
-            games: load_files(root.join(GAMES_DIR))?,
-            packages: load_files(root.join(PACKAGES_DIR))?,
-        })
-    }
-
-    pub(crate) fn packages(&self) -> impl Iterator<Item = Result<Package>> + '_ {
-        let mut filenames: HashMap<String, &String> = HashMap::new();
-
-        self.packages.iter().map(move |(file_name, file_content)| {
-            let mut ast =
-                SspParser::parse_package(file_content).map_err(|e| (file_name.as_str(), e))?;
-
-            let (pkg_name, pkg) = handle_pkg(file_name, file_content, ast.next().unwrap())
-                .map_err(Error::ParsePackage)?;
-
-            if let Some(other_filename) = filenames.insert(pkg_name.clone(), file_name) {
-                return Err(Error::RedefinedPackage(
-                    pkg_name,
-                    file_name.to_string(),
-                    other_filename.to_string(),
-                ));
-            }
-
-            Ok(pkg)
-        })
-    }
-}
-
-#[derive(Debug)]
-pub struct Project<'a> {
-    root_dir: PathBuf,
-    games: HashMap<String, Composition>,
-    theorems: HashMap<String, Theorem<'a>>,
-}
-
-impl<'a> Project<'a> {
-    #[cfg(test)]
-    pub(crate) fn empty() -> Self {
-        Self {
-            root_dir: PathBuf::new(),
-            games: HashMap::new(),
-            theorems: HashMap::new(),
-        }
-    }
-
-    pub fn load(files: &'a Files) -> Result<Project<'a>> {
-        let root_dir = find_project_root()?;
-
-        let packages: HashMap<_, _> = files
-            .packages()
-            .map(|pkg| pkg.map(|pkg| (pkg.name.clone(), pkg)))
-            .collect::<Result<_>>()?;
-
-        let games = load::games(&files.games, &packages)?;
-        let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
-
-        let project = Project {
-            root_dir,
-            games,
-            theorems,
-        };
-
-        Ok(project)
-    }
-
-    pub fn proofsteps(&self) -> Result<()> {
-        let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
+    fn proofsteps(&self) -> Result<()> {
+        let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
         for theorem_key in theorem_keys.into_iter() {
-            let theorem = &self.theorems[theorem_key];
+            let theorem = self.get_theorem(theorem_key).unwrap();
             let max_width_left = theorem
                 .game_hops
                 .iter()
@@ -186,7 +89,7 @@ impl<'a> Project<'a> {
 
     // we might want to return a theorem trace here instead
     // we could then extract the theorem viewer output and other useful info trom the trace
-    pub fn prove(
+    fn prove(
         &self,
         backend: ProverBackend,
         transcript: bool,
@@ -194,14 +97,17 @@ impl<'a> Project<'a> {
         req_theorem: &Option<String>,
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
-    ) -> Result<()> {
-        let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
+    ) -> Result<()>
+    where
+        Self: Sized,
+    {
+        let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
         let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
 
         for theorem_key in theorem_keys.into_iter() {
-            let theorem = &self.theorems[theorem_key];
+            let theorem = self.get_theorem(theorem_key).unwrap();
             ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
 
             if let Some(ref req_theorem) = req_theorem {
@@ -275,12 +181,13 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
-    pub fn latex(&self, backend: Option<ProverBackend>) -> Result<()> {
-        let mut path = self.root_dir.clone();
+    fn latex(&self, backend: Option<ProverBackend>) -> Result<()> {
+        let mut path = self.get_root_dir();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
 
-        for (name, game) in &self.games {
+        for name in self.games() {
+            let game = self.get_game(name).unwrap();
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
@@ -298,7 +205,8 @@ impl<'a> Project<'a> {
             }
         }
 
-        for (name, theorem) in &self.theorems {
+        for name in self.theorems() {
+            let theorem = self.get_theorem(name).unwrap();
             for lossy in [true, false] {
                 crate::writers::tex::tex_write_theorem(
                     &backend,
@@ -313,21 +221,13 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
-    pub fn get_game<'b>(&'b self, name: &str) -> Option<&'b Composition> {
-        self.games.get(name)
-    }
-
-    pub fn get_root_dir(&self) -> PathBuf {
-        self.root_dir.clone()
-    }
-
-    pub(crate) fn get_joined_smt_file(
+    fn get_joined_smt_file(
         &self,
         left_game_name: &str,
         right_game_name: &str,
         oracle_name: Option<&str>,
     ) -> Result<std::fs::File> {
-        let mut path = self.root_dir.clone();
+        let mut path = self.get_root_dir();
 
         path.push("_build/code_eq/joined/");
         std::fs::create_dir_all(&path)?;
@@ -347,38 +247,4 @@ impl<'a> Project<'a> {
 
         Ok(f)
     }
-
-}
-
-pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjectRootError> {
-    let mut dir = std::env::current_dir().map_err(FindProjectRootError::CurrentDir)?;
-
-    loop {
-        let lst = dir.read_dir().map_err(FindProjectRootError::ReadDir)?;
-        for entry in lst {
-            let entry = entry.map_err(FindProjectRootError::ReadDir)?;
-            let file_name = match entry.file_name().into_string() {
-                Err(_) => continue,
-                Ok(name) => name,
-            };
-            if file_name == PROJECT_FILE {
-                return Ok(dir);
-            }
-        }
-
-        match dir.parent() {
-            None => return Err(FindProjectRootError::NotInProject),
-            Some(parent) => dir = parent.into(),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum FindProjectRootError {
-    #[error("Error determining current directory:")]
-    CurrentDir(std::io::Error),
-    #[error("Error reading directory:")]
-    ReadDir(std::io::Error),
-    #[error("Not in project: no ssp.toml file in this or any parent directory")]
-    NotInProject,
 }
