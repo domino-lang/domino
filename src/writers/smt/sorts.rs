@@ -58,7 +58,6 @@ impl From<&Type> for SmtlibSort {
             },
 
             TypeKind::UserDefined(_) => todo!(),
-            TypeKind::TypeParam(_) => unreachable!("TypeParam should be fully instantiated before reaching the SMT backend"),
             TypeKind::Set(_) => todo!(),
             TypeKind::List(_) => todo!(),
             TypeKind::Fn(_, _) => todo!(),
@@ -117,7 +116,6 @@ impl From<Type> for Sort {
             TypeKind::Set(_) => todo!(),
             TypeKind::Fn(_, _) => todo!(),
             TypeKind::UserDefined(_) => todo!(),
-            TypeKind::TypeParam(_) => unreachable!("TypeParam should be fully instantiated before reaching the SMT backend"),
         }
     }
 }

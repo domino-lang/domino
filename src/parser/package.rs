@@ -8,7 +8,7 @@ use super::{
         TypeMismatchError, UndefinedIdentifierError, UntypedNoneTypeInferenceError,
         WrongArgumentCountInInvocationError,
     },
-    ParseContext, Rule,
+    FileType, ParseContext, Rule,
 };
 use crate::{
     expressions::{Expression, ExpressionKind},
@@ -76,11 +76,11 @@ impl<'src> ParsePackageContext<'src> {
 
     pub(crate) fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Package,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
             types: self.types.clone(),
-            abstract_types: vec![],
         }
     }
 }
@@ -88,11 +88,11 @@ impl<'src> ParsePackageContext<'src> {
 impl<'src> From<ParsePackageContext<'src>> for ParseContext<'src> {
     fn from(value: ParsePackageContext<'src>) -> Self {
         Self {
+            file_type: crate::parser::FileType::Package,
             file_name: value.file_name,
             file_content: value.file_content,
             scope: value.scope,
             types: value.types,
-            abstract_types: vec![],
         }
     }
 }
@@ -172,7 +172,8 @@ pub fn handle_pkg(
     let pkg_name = inner.next().unwrap().as_str();
     let spec = inner.next().unwrap();
 
-    let ctx = ParseContext::new(file_name, file_content).pkg_parse_context(pkg_name);
+    let ctx =
+        ParseContext::new(file_name, file_content, FileType::Package).pkg_parse_context(pkg_name);
 
     let pkg = handle_pkg_spec(ctx, spec)?;
     Ok((pkg_name.to_owned(), pkg))
