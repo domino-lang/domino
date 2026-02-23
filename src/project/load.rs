@@ -3,11 +3,38 @@
 use std::collections::HashMap;
 
 use super::*;
-use error::Result;
+use error::{Error, Result};
 
 use crate::package::{Composition, Package};
-use crate::parser::{composition::handle_composition, theorem::handle_theorem, SspParser};
+use crate::parser::{
+    composition::handle_composition, package::handle_pkg, theorem::handle_theorem, SspParser,
+};
 use crate::theorem::Theorem;
+
+pub(crate) fn packages(files: &[(String, String)]) -> Result<HashMap<String, Package>> {
+    let mut packages = HashMap::new();
+
+    let mut filenames: HashMap<String, &String> = HashMap::new();
+
+    for (file_name, file_content) in files {
+        let mut ast =
+            SspParser::parse_package(file_content).map_err(|e| (file_name.as_str(), e))?;
+
+        let (pkg_name, pkg) = handle_pkg(file_name, file_content, ast.next().unwrap())
+            .map_err(Error::ParsePackage)?;
+
+        if let Some(other_filename) = filenames.insert(pkg_name.clone(), file_name) {
+            return Err(Error::RedefinedPackage(
+                pkg_name,
+                file_name.to_string(),
+                other_filename.to_string(),
+            ));
+        }
+
+        packages.insert(pkg_name, pkg);
+    }
+    Ok(packages)
+}
 
 pub(crate) fn games(
     files: &[(String, String)],
