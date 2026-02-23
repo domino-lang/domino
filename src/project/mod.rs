@@ -37,7 +37,6 @@ pub const PACKAGE_EXT: &str = ".pkg.ssp";
 pub const GAME_EXT: &str = ".comp.ssp"; // TODO maybe change this to .game.ssp later, and also rename the Composition type
 
 mod load;
-mod resolve;
 
 pub mod error;
 
@@ -125,29 +124,7 @@ impl<'a> Project<'a> {
             .map(|pkg| pkg.map(|pkg| (pkg.name.clone(), pkg)))
             .collect::<Result<_>>()?;
 
-        /* we already typecheck during parsing, and the typecheck transform uses a bunch of deprecated
-           stuff, so we just comment it out.
-
-        let mut pkg_names: Vec<_> = packages.keys().collect();
-        pkg_names.sort();
-
-        for pkg_name in pkg_names.into_iter() {
-            let pkg = &packages[pkg_name];
-            let mut scope = TypeCheckScope::new();
-            typecheck_pkg(pkg, &mut scope)?;
-        }
-         */
-
         let games = load::games(&files.games, &packages)?;
-        // let mut game_names: Vec<_> = games.keys().collect();
-        // game_names.sort();
-        //
-        // for game_name in game_names.into_iter() {
-        //     let game = &games[game_name];
-        //     let mut scope = Scope::new();
-        //     typecheck_comp(game, &mut scope)?;
-        // }
-
         let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
 
         let project = Project {
@@ -336,120 +313,15 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
-    /*
-
-    pub fn explain_game(&self, game_name: &str) -> Result<String> {
-        let game = self.get_game(game_name).ok_or(Error::UndefinedGame(
-            game_name.to_string(),
-            format!("in explain"),
-        ))?;
-
-        let mut buf = String::new();
-        let mut w = crate::writers::pseudocode::fmtwriter::FmtWriter::new(&mut buf, true);
-        let (game, _, _) = crate::transforms::transform_explain(&game)?;
-
-        println!("Explaining game {game_name}:");
-        for inst in game.pkgs {
-            let pkg = inst.pkg;
-            w.write_package(&pkg).unwrap();
-        }
-
-        Ok(buf)
-        //tex_write_composition(&comp, Path::new(&args.output));
-    }
-
-    */
     pub fn get_game<'b>(&'b self, name: &str) -> Option<&'b Composition> {
         self.games.get(name)
     }
-
-    /*
-    pub fn get_assumption<'a>(&'a self, name: &str) -> Option<&'a Assumption> {
-        self.assumptions.get(name)
-    }
-    */
 
     pub fn get_root_dir(&self) -> PathBuf {
         self.root_dir.clone()
     }
 
-    pub fn get_game_smt_file(&self, game_name: &str) -> Result<std::fs::File> {
-        let mut path = self.root_dir.clone();
-
-        path.push("_build/code_eq/games/");
-        std::fs::create_dir_all(&path)?;
-
-        path.push(format!("{game_name}.smt2"));
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-
-        Ok(f)
-    }
-
-    pub fn get_base_decl_smt_file(
-        &self,
-        left_game_name: &str,
-        right_game_name: &str,
-    ) -> Result<std::fs::File> {
-        let mut path = self.root_dir.clone();
-
-        path.push("_build/code_eq/base_decls/");
-        std::fs::create_dir_all(&path)?;
-
-        path.push(format!("{left_game_name}_{right_game_name}.smt2"));
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-
-        Ok(f)
-    }
-
-    pub fn get_const_decl_smt_file(
-        &self,
-        left_game_name: &str,
-        right_game_name: &str,
-    ) -> Result<std::fs::File> {
-        let mut path = self.root_dir.clone();
-
-        path.push("_build/code_eq/const_decls/");
-        std::fs::create_dir_all(&path)?;
-
-        path.push(format!("{left_game_name}_{right_game_name}.smt2"));
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-
-        Ok(f)
-    }
-
-    pub fn get_epilogue_smt_file(
-        &self,
-        left_game_name: &str,
-        right_game_name: &str,
-    ) -> Result<std::fs::File> {
-        let mut path = self.root_dir.clone();
-
-        path.push("_build/code_eq/epilogue/");
-        std::fs::create_dir_all(&path)?;
-
-        path.push(format!("{left_game_name}_{right_game_name}.smt2"));
-        let f = std::fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(path)?;
-
-        Ok(f)
-    }
-
-    pub fn get_joined_smt_file(
+    pub(crate) fn get_joined_smt_file(
         &self,
         left_game_name: &str,
         right_game_name: &str,
@@ -476,12 +348,6 @@ impl<'a> Project<'a> {
         Ok(f)
     }
 
-    pub fn print_wire_check_smt(&self, game_name: &str, _dst_idx: usize) {
-        let _game = self.get_game(game_name).unwrap();
-        // for command in wire_theorems::build_smt(&game, dst_idx) {
-        //     println!("{}", command);
-        // }
-    }
 }
 
 pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjectRootError> {
