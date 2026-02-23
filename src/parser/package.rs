@@ -232,7 +232,7 @@ pub fn handle_pkg_spec<'src>(
     Ok(Package {
         name: ctx.pkg_name.to_string(),
         oracles: ctx.oracles,
-        types: types,
+        types,
         params: ctx.params,
         imports: ctx
             .imported_oracles
