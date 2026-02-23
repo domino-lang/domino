@@ -6,7 +6,7 @@ defun = { "(" ~ "define-fun" ~ atom ~ list ~ ty ~ sexp ~ ")" }
 sampleid = { "(" ~ "sample-id" ~ stringlit ~ stringlit ~ stringlit ~ ")" }
 
 // Fallback Entries
-atom = @{ ( ASCII_ALPHA | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" | "." | "*" )* }
+atom = @{ ( ASCII_ALPHA | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" | "." | "*" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "=" | "<" | ">" | "$" | "!" | "+" | "@" | "." | "*" )* }
 stringlit = _{ "\"" ~ string ~ "\"" }
 string = { (!"\"" ~ ANY)* }
 

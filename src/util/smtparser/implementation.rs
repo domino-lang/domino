@@ -112,26 +112,3 @@ pub(crate) trait SmtParser<T> {
         }
     }
 }
-
-// pub struct SmtExprParser {
-//     pub sexps: Vec<SmtExpr>,
-// }
-
-// impl SmtExprParser {
-//     pub fn new() -> Self {
-//         SmtExprParser { sexps: Vec::new() }
-//     }
-// }
-
-// impl SmtParser<SmtExpr> for SmtExprParser {
-//     fn handle_sexp(&mut self, parsed: SmtExpr) {
-//         self.sexps.push(parsed);
-//     }
-//     fn handle_atom(&mut self, content: &str) -> SmtExpr {
-//         SmtExpr::Atom(content.to_string())
-//     }
-
-//     fn handle_list(&mut self, content: Vec<SmtExpr>) -> SmtExpr {
-//         SmtExpr::List(content)
-//     }
-// }
