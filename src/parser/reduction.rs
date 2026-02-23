@@ -1123,8 +1123,13 @@ fn package_instances_diff(
             todo!("left has type that right hasn't");
         };
 
-        if left_game_ty != right_game_ty {
-            different_types.push((pkg_ty.clone(), left_game_ty.clone(), right_game_ty.clone()));
+        let left_rules = game_inst_type_mapping_vec(&left_game_inst.types);
+        let right_rules = game_inst_type_mapping_vec(&right_game_inst.types);
+        let left_thm_ty = left_game_ty.rewrite_type(&left_rules);
+        let right_thm_ty = right_game_ty.rewrite_type(&right_rules);
+
+        if left_thm_ty != right_thm_ty {
+            different_types.push((pkg_ty.clone(), left_thm_ty, right_thm_ty));
         }
     }
 
