@@ -6,7 +6,7 @@ theorem Proof {
         params {
             n: n,
         }
-  types {
+        types {
             Domain: Bits(m), /* Careful, different type here */
         }
     }
@@ -15,7 +15,7 @@ theorem Proof {
         params {
             n: n,
         }
-          types {
+        types {
             Domain: Bits(n),
         }
 
@@ -25,7 +25,7 @@ theorem Proof {
         params {
             n: n,
         }
-  types {
+        types {
             Domain: Bits(n),
         }
     }
@@ -34,7 +34,7 @@ theorem Proof {
         params {
             n: n,
         }
-          types {
+        types {
             Domain: Bits(n),
         }
 

@@ -493,8 +493,8 @@ pub struct AssumptionMappingContainsDifferentPackagesError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
-#[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different parameter assignments for {param_names}")]
-#[diagnostic(code(domino::code::theorem::reduction::mapping::package_mismatch))]
+#[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different const parameter assignments for {param_names}")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::package_const_param_mismatch))]
 pub struct AssumptionMappingParameterMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -508,6 +508,24 @@ pub struct AssumptionMappingParameterMismatchError {
     pub construction_pkg_inst_name: String,
 
     pub param_names: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different type parameter assignments for {type_param_names}")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::package_type_param_mismatch))]
+pub struct AssumptionMappingTypeParameterMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this package instance")]
+    pub at_assumption: SourceSpan,
+    #[label("and that package instance")]
+    pub at_construction: SourceSpan,
+
+    pub assumption_pkg_inst_name: String,
+    pub construction_pkg_inst_name: String,
+
+    pub type_param_names: String,
 }
 
 #[derive(Debug, Diagnostic, Error)]
@@ -528,7 +546,9 @@ pub struct ReductionContainsDifferentPackagesError {
 
 #[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {left_pkg_inst_name} and {right_pkg_inst_name} in a reduction have different parameter assignments for {param_names}")]
-#[diagnostic(code(domino::code::theorem::reduction::mapping::reduction_package_mismatch))]
+#[diagnostic(code(
+    domino::code::theorem::reduction::mapping::reduction_package_const_param_mismatch
+))]
 pub struct ReductionPackageInstanceParameterMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
@@ -540,6 +560,24 @@ pub struct ReductionPackageInstanceParameterMismatchError {
     pub right_pkg_inst_name: String,
 
     pub param_names: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("The package instances {left_pkg_inst_name} and {right_pkg_inst_name} in a reduction have different type parameter assignments for {type_param_names}")]
+#[diagnostic(code(
+    domino::code::theorem::reduction::mapping::reduction_package_type_param_mismatch
+))]
+pub struct ReductionPackageInstanceTypeParameterMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("in this reduction")]
+    pub at_reduction: SourceSpan,
+
+    pub left_pkg_inst_name: String,
+    pub right_pkg_inst_name: String,
+
+    pub type_param_names: String,
 }
 
 #[derive(Debug, Diagnostic, Error)]
