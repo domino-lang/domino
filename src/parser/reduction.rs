@@ -6,6 +6,7 @@ use std::ops::Range;
 use itertools::Itertools as _;
 use pest::iterators::Pair;
 
+use crate::packageinstance::game_inst_type_mapping_vec;
 use crate::{
     expressions::{Expression, ExpressionKind},
     gamehops::{
@@ -746,11 +747,12 @@ fn handle_mapspec_assumption<'src>(
             let constr_sig_owned = {
                 let this = &construction_game_inst;
                 let sig = edge.sig().clone();
+                let types = &game_inst_type_mapping_vec(&this.types);
                 let inst_ctx = InstantiationContext::new_game_instantiation_context(
                     this.name(),
                     ctx.theorem_name,
                     &this.consts,
-                    &this.types,
+                    types,
                 );
                 inst_ctx.rewrite_oracle_sig(sig)
             };
@@ -787,17 +789,22 @@ fn handle_mapspec_assumption<'src>(
                 .into());
             };
 
+            let assumption_game_inst_types =
+                &game_inst_type_mapping_vec(&assumption_game_inst.types);
             let assump_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 assumption_game_inst_name,
                 ctx.theorem_name,
                 &assumption_game_inst.consts,
-                &assumption_game_inst.types,
+                &assumption_game_inst_types,
             );
+
+            let construction_game_inst_types =
+                &game_inst_type_mapping_vec(&construction_game_inst.types);
             let constr_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 construction_game_inst_name,
                 ctx.theorem_name,
                 &construction_game_inst.consts,
-                &construction_game_inst.types,
+                &construction_game_inst_types,
             );
 
             let assump_sig = assump_dst_export.sig();
@@ -858,23 +865,25 @@ fn handle_mapspec_assumption<'src>(
                     .any(|assumption_game_edge| {
                         let constr_sig_fixed = {
                             let this = &construction_game_inst;
+                            let types = game_inst_type_mapping_vec(&this.types);
                             let sig = construction_edge.sig().clone();
                             let inst_ctx = InstantiationContext::new_game_instantiation_context(
                                 this.name(),
                                 ctx.theorem_name,
                                 &this.consts,
-                                &this.types,
+                                &types,
                             );
                             inst_ctx.rewrite_oracle_sig(sig)
                         };
                         let assump_sig_fixed = {
                             let this = &assumption_game_inst;
+                            let types = game_inst_type_mapping_vec(&this.types);
                             let sig = assumption_game_edge.sig().clone();
                             let inst_ctx = InstantiationContext::new_game_instantiation_context(
                                 this.name(),
                                 ctx.theorem_name,
                                 &this.consts,
-                                &this.types,
+                                &types,
                             );
                             inst_ctx.rewrite_oracle_sig(sig)
                         };

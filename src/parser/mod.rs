@@ -27,28 +27,34 @@ use crate::util::scope::Scope;
 pub struct SspParser;
 
 #[derive(Debug, Clone)]
+pub enum FileType {
+    Package,
+    Game,
+    Theorem,
+}
+
+#[derive(Debug, Clone)]
 pub struct ParseContext<'src> {
     pub file_name: &'src str,
     pub file_content: &'src str,
 
+    pub file_type: FileType,
     pub scope: Scope,
     pub types: Vec<(&'src str, pest::Span<'src>)>,
-    pub abstract_types: Vec<(&'src str, pest::Span<'src>)>,
 }
 
 impl<'src> ParseContext<'src> {
-    pub fn new(file_name: &'src str, file_content: &'src str) -> Self {
+    pub fn new(file_name: &'src str, file_content: &'src str, file_type: FileType) -> Self {
         let mut scope = Scope::new();
         scope.enter();
         let types = vec![];
-        let abstract_types = vec![];
 
         Self {
+            file_type,
             file_name,
             file_content,
             scope,
             types,
-            abstract_types,
         }
     }
 
