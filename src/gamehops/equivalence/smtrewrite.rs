@@ -9,6 +9,9 @@ use crate::writers::smt::exprs::SmtLet;
 use crate::writers::smt::patterns;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 
+use super::error::{Error, Result};
+use itertools::Itertools;
+
 struct SmtRewrite<'a> {
     context: &'a EquivalenceContext<'a>,
     content: Vec<SmtExpr>,
@@ -104,17 +107,18 @@ fn gen_varbinding(package: &PackageInstance, package_state: &str) -> Vec<(String
         .collect()
 }
 
-impl SmtParser<SmtExpr> for SmtRewrite<'_> {
-    fn handle_atom(&mut self, content: &str) -> SmtExpr {
-        SmtExpr::Atom(content.to_string())
+impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
+    fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
+        Ok(SmtExpr::Atom(content.to_string()))
     }
 
-    fn handle_list(&mut self, content: Vec<SmtExpr>) -> SmtExpr {
-        SmtExpr::List(content)
+    fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
+        Ok(SmtExpr::List(content))
     }
 
-    fn handle_sexp(&mut self, parsed: SmtExpr) {
+    fn handle_sexp(&mut self, parsed: SmtExpr) -> Result<()> {
         self.content.push(parsed);
+        Ok(())
     }
 
     fn handle_define_state_relation(
@@ -122,7 +126,7 @@ impl SmtParser<SmtExpr> for SmtRewrite<'_> {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
-    ) -> SmtExpr {
+    ) -> Result<SmtExpr> {
         let left_game_inst = self
             .context
             .theorem
@@ -135,13 +139,29 @@ impl SmtParser<SmtExpr> for SmtRewrite<'_> {
             .unwrap();
 
         let [SmtExpr::List(left_arg), SmtExpr::List(right_arg)] = &args[..] else {
-            unreachable!()
+            return Err(Error::IncorrectNumberOfArguments {
+                argument: format!(
+                    "({})",
+                    args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+                expected: "2".to_string(),
+            });
         };
         let [left_arg_name, _left_arg_type] = &left_arg[..] else {
-            unreachable!()
+            return Err(Error::IncorrectArgument {
+                argument: format!(
+                    "({})",
+                    left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+            });
         };
         let [right_arg_name, _right_arg_type] = &right_arg[..] else {
-            unreachable!()
+            return Err(Error::IncorrectArgument {
+                argument: format!(
+                    "({})",
+                    left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+            });
         };
 
         let mut pkgbindings = Vec::new();
@@ -179,7 +199,12 @@ impl SmtParser<SmtExpr> for SmtRewrite<'_> {
         self.handle_definefun(funname, args, "Bool", bindpackages.into())
     }
 
-    fn handle_define_lemma(&mut self, funname: &str, args: Vec<SmtExpr>, body: SmtExpr) -> SmtExpr {
+    fn handle_define_lemma(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtExpr> {
         let left_game_inst = self
             .context
             .theorem
@@ -191,30 +216,72 @@ impl SmtParser<SmtExpr> for SmtRewrite<'_> {
             .find_game_instance(&self.context.equivalence.right_name)
             .unwrap();
 
-        let oracle_name = &funname[(funname.rfind("-").unwrap() + 1)..funname.len() - 1];
-        let oracle_export = left_game_inst
+        let Some(oracle_name) = funname
+            .rfind("-")
+            .map(|i| &funname[i + 1..funname.len() - 1])
+        else {
+            return Err(Error::IllegalLemmaName {
+                lemma_name: funname.to_string(),
+            });
+        };
+
+        let Some(oracle_export) = left_game_inst
             .game()
             .exports
             .iter()
             .find(|export| export.sig().name == oracle_name)
-            .unwrap();
+        else {
+            return Err(Error::UnknownLemmaName {
+                lemma_name: funname.to_string(),
+                oracle_name: oracle_name.to_string(),
+            });
+        };
 
         let [SmtExpr::List(left_old), SmtExpr::List(right_old), SmtExpr::List(left_return), SmtExpr::List(right_return), ..] =
             &args[..]
         else {
-            unreachable!()
+            return Err(Error::IncorrectNumberOfArguments {
+                argument: format!(
+                    "({})",
+                    args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+                expected: "at least 4".to_string(),
+            });
         };
         let [left_old_name, _left_old_type] = &left_old[..] else {
-            unreachable!()
+            return Err(Error::IncorrectArgument {
+                argument: format!(
+                    "({})",
+                    left_old.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+            });
         };
         let [right_old_name, _right_old_type] = &right_old[..] else {
-            unreachable!()
+            return Err(Error::IncorrectArgument {
+                argument: format!(
+                    "({})",
+                    right_old.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+            });
         };
         let [left_return_name, _left_return_type] = &left_return[..] else {
-            unreachable!()
+            return Err(Error::IncorrectArgument {
+                argument: format!(
+                    "({})",
+                    left_return.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+            });
         };
         let [right_return_name, _right_return_type] = &right_return[..] else {
-            unreachable!()
+            return Err(Error::IncorrectArgument {
+                argument: format!(
+                    "({})",
+                    right_return
+                        .iter()
+                        .map(|sexpr| format!("{sexpr}"))
+                        .join(" ")
+                ),
+            });
         };
 
         let mut retbindings = Vec::new();
@@ -283,8 +350,8 @@ impl SmtParser<SmtExpr> for SmtRewrite<'_> {
     }
 }
 
-pub fn rewrite(context: &EquivalenceContext, content: &str) -> Vec<SmtExpr> {
+pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtExpr>> {
     let mut rewriter: SmtRewrite = SmtRewrite::new(context);
-    rewriter.parse_sexps(content).unwrap();
-    rewriter.content
+    rewriter.parse_sexps(content)?;
+    Ok(rewriter.content)
 }

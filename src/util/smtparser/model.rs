@@ -1,4 +1,4 @@
-use super::SmtParser;
+use super::{Result, SmtParser};
 use crate::util::smtmodel::{SmtModel, SmtModelEntry};
 use crate::writers::smt::exprs::SmtExpr;
 
@@ -11,14 +11,18 @@ enum ModelExtractorState {
 }
 
 impl SmtParser<ModelExtractorState> for SmtModel {
-    fn handle_sexp(&mut self, _parsed: ModelExtractorState) {}
-
-    fn handle_atom(&mut self, content: &str) -> ModelExtractorState {
-        ModelExtractorState::SmtExpr(SmtExpr::Atom(content.to_string()))
+    fn handle_sexp(&mut self, _parsed: ModelExtractorState) -> Result<()> {
+        Ok(())
     }
 
-    fn handle_list(&mut self, content: Vec<ModelExtractorState>) -> ModelExtractorState {
-        ModelExtractorState::SmtExpr(SmtExpr::List(
+    fn handle_atom(&mut self, content: &str) -> Result<ModelExtractorState> {
+        Ok(ModelExtractorState::SmtExpr(SmtExpr::Atom(
+            content.to_string(),
+        )))
+    }
+
+    fn handle_list(&mut self, content: Vec<ModelExtractorState>) -> Result<ModelExtractorState> {
+        Ok(ModelExtractorState::SmtExpr(SmtExpr::List(
             content
                 .into_iter()
                 .filter_map(|entry| match entry {
@@ -28,15 +32,15 @@ impl SmtParser<ModelExtractorState> for SmtModel {
                     _ => None,
                 })
                 .collect(),
-        ))
+        )))
     }
 
-    fn handle_integer(&mut self, content: &str) -> ModelExtractorState {
-        ModelExtractorState::Integer(content.parse().unwrap())
+    fn handle_integer(&mut self, content: &str) -> Result<ModelExtractorState> {
+        Ok(ModelExtractorState::Integer(content.parse().unwrap()))
     }
 
-    fn handle_boolean(&mut self, content: &str) -> ModelExtractorState {
-        ModelExtractorState::Boolean(content == "true")
+    fn handle_boolean(&mut self, content: &str) -> Result<ModelExtractorState> {
+        Ok(ModelExtractorState::Boolean(content == "true"))
     }
 
     fn handle_definefun(
@@ -45,7 +49,7 @@ impl SmtParser<ModelExtractorState> for SmtModel {
         _args: Vec<ModelExtractorState>,
         ty: &str,
         body: ModelExtractorState,
-    ) -> ModelExtractorState {
+    ) -> Result<ModelExtractorState> {
         match body {
             ModelExtractorState::Integer(int) => {
                 debug_assert_eq!(ty, "Int");
@@ -73,13 +77,11 @@ impl SmtParser<ModelExtractorState> for SmtModel {
             }
         }
 
-        ModelExtractorState::Empty
+        Ok(ModelExtractorState::Empty)
     }
 }
 
-pub fn parse(
-    content: &str,
-) -> Result<(SmtModel, usize), pest::error::Error<super::implementation::Rule>> {
+pub fn parse(content: &str) -> Result<(SmtModel, usize)> {
     let mut model = SmtModel { values: Vec::new() };
     let length = model.parse_sexp(content)?;
 

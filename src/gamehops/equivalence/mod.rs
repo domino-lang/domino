@@ -794,7 +794,7 @@ impl<'a> EquivalenceContext<'a> {
             })?;
             log::info!("read file {file_name}");
             linter.lint_file(file_name, &file_contents)?;
-            let rewriten_content = smtrewrite::rewrite(self, &file_contents);
+            let rewriten_content = smtrewrite::rewrite(self, &file_contents)?;
             for smtexpr in rewriten_content {
                 comm.write_smt(smtexpr)?;
             }
