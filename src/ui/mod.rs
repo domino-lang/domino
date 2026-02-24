@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub(crate) mod indicatif;
+pub mod indicatif;
 #[cfg(test)]
 pub(crate) mod mock;
+
+#[cfg(feature = "web")]
+pub mod webui;
 
 pub trait TheoremUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
@@ -44,4 +47,8 @@ pub trait TheoremUI {
         oracle_name: &str,
         lemma_name: &str,
     );
+}
+
+pub trait BaseUI {
+    fn into_theorem_ui(self, num_theorems: u64) -> impl TheoremUI + std::marker::Send;
 }

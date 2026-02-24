@@ -5,7 +5,7 @@ use miette::Diagnostic;
 use std::io::Error as IOError;
 use thiserror::Error;
 
-use super::FindProjectRootError;
+use super::directory::FindProjectRootError;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum Error {
@@ -25,17 +25,19 @@ pub enum Error {
     RedefinedTheorem(String, String, String),
     #[error("error parsing utf-8")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
+    #[cfg(not(feature = "web"))]
     #[error("error in interaction with child process")]
     ChildProcessInteractionError(#[from] expectrl::Error),
     #[error("error interactiv with prover process")]
     ProcessError(#[from] crate::util::process::Error),
     #[error("error interactiv with prover process")]
-    ProverProcessError(#[from] crate::util::prover_process::Error),
-    //#[error("got a formatting error")]
-    //FmtError(#[from] std::fmt::Error),
+    ProverProcessError(#[from] crate::util::prover::Error),
+    #[error("got a formatting error")]
+    FmtError(#[from] std::fmt::Error),
     #[error("error finding project root")]
     FindProjectRoot(#[from] FindProjectRootError),
-
+    #[error("Error processing zipfile")]
+    ZipFileError(#[from] zip::result::ZipError),
     // confirmed needed errors are below:
     #[error("syntax error: {0} at {1:?} / {2:?}")]
     PestParseError(
@@ -71,5 +73,15 @@ impl<'a, R: pest::RuleType> From<(&'a str, pest::error::Error<R>)> for Error {
             e.location,
             e.line_col,
         )
+    }
+}
+
+#[cfg(feature = "web")]
+use wasm_bindgen::JsValue;
+
+#[cfg(feature = "web")]
+impl Into<JsValue> for Error {
+    fn into(self) -> JsValue {
+        format!("{self:?}").into()
     }
 }

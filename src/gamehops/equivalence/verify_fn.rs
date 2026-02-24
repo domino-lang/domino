@@ -3,6 +3,7 @@
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::ui::TheoremUI;
@@ -15,16 +16,16 @@ use crate::{
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
-    util::prover_process::{Communicator, ProverBackend, ProverResponse},
+    util::prover::{Communicator, ProverBackend, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
 use super::EquivalenceContext;
 
 fn verify_oracle<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: Arc<Mutex<&mut UI>>,
-    eqctx: &EquivalenceContext,
+    eqctx: &EquivalenceContext<'_>,
     backend: ProverBackend,
     transcript: bool,
     req_oracles: &[&OracleSig],
@@ -39,7 +40,7 @@ fn verify_oracle<UI: TheoremUI>(
             None
         };
 
-        let transcript_file: std::fs::File = project
+        let transcript_file = project
             .get_joined_smt_file(eq.left_name(), eq.right_name(), oracle)
             .unwrap();
 
@@ -47,7 +48,7 @@ fn verify_oracle<UI: TheoremUI>(
     } else {
         Communicator::new(backend)?
     };
-    std::thread::sleep(std::time::Duration::from_millis(20));
+    //std::thread::sleep(std::time::Duration::from_millis(20));
 
     log::debug!(
         "emitting base declarations for {}-{}",
@@ -94,7 +95,7 @@ fn verify_oracle<UI: TheoremUI>(
         log::info!("verify: oracle:{oracle_sig:?}");
         write!(prover, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut prover, &oracle_sig.name)?;
-        eqctx.emit_invariant(&mut prover, &oracle_sig.name)?;
+        eqctx.emit_invariant(project, &mut prover, &oracle_sig.name)?;
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
@@ -109,6 +110,7 @@ fn verify_oracle<UI: TheoremUI>(
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
+                    #[cfg(not(feature = "web"))]
                     let modelfile = prover.get_model().map(|model| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
@@ -116,6 +118,8 @@ fn verify_oracle<UI: TheoremUI>(
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
+                    #[cfg(feature = "web")]
+                    let modelfile = Ok(PathBuf::new());
                     return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle_sig.name.clone(),
@@ -142,10 +146,10 @@ fn verify_oracle<UI: TheoremUI>(
 }
 
 pub fn verify<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
-    orig_theorem: &Theorem,
+    orig_theorem: &Theorem<'_>,
     backend: ProverBackend,
     transcript: bool,
     req_oracle: &Option<String>,
@@ -187,10 +191,10 @@ pub fn verify<UI: TheoremUI>(
 }
 
 pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project,
+    project: &(impl Project + Sync),
     ui: &mut UI,
     eq: &Equivalence,
-    orig_theorem: &Theorem,
+    orig_theorem: &Theorem<'_>,
     backend: ProverBackend,
     transcript: bool,
     parallel: usize,

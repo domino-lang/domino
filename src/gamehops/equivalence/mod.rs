@@ -9,6 +9,7 @@ use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
 use crate::identifier::Identifier;
+use crate::project::Project;
 use crate::types::CountSpec;
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::declare::declare_const;
@@ -31,7 +32,7 @@ use crate::{
         samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
     },
     types::Type,
-    util::prover_process::{Communicator, ProverResponse},
+    util::prover::{Communicator, ProverResponse},
     writers::smt::{
         contexts::{self, GenericOracleContext},
         declare,
@@ -782,10 +783,15 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_invariant(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+    fn emit_invariant(
+        &self,
+        project: &impl Project,
+        comm: &mut Communicator,
+        oracle_name: &str,
+    ) -> Result<()> {
         for file_name in &self.equivalence.invariants_by_oracle_name(oracle_name) {
             log::info!("reading file {file_name}");
-            let file_contents = std::fs::read_to_string(file_name).map_err(|err| {
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
                 let file_name = file_name.clone();
                 error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
             })?;
