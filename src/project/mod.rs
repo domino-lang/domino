@@ -188,6 +188,7 @@ pub trait Project: Sync {
         Ok(())
     }
 
+    #[cfg(feature = "latex-export")]
     fn latex(&self, backend: &Option<impl ProverFactory>) -> Result<()> {
         let mut path = self.get_root_dir();
         path.push("_build/latex/");

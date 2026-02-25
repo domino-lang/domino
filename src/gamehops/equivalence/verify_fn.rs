@@ -106,10 +106,14 @@ fn verify_oracle<UI: TheoremUI>(
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
+                    #[cfg(target_family = "wasm")]
+                    let modelfile = Ok(std::path::PathBuf::new());
+                    #[cfg(not(target_family = "wasm"))]
                     let modelfile = prover.get_model().map(|(modelstring, _model)| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
                         modelfile.write_all(modelstring.as_bytes()).unwrap();
+
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
