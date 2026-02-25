@@ -23,8 +23,10 @@ pub enum Error {
     RedefinedTheorem(String, String, String),
     #[error("error parsing utf-8")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
+    #[cfg(feature = "process-solver")]
     #[error("error in interaction with child process")]
     ChildProcessInteractionError(#[from] expectrl::Error),
+    #[cfg(feature = "process-solver")]
     #[error("error interactiv with prover process")]
     ProcessError(#[from] crate::util::process::Error),
     #[error("error interactiv with prover process")]
