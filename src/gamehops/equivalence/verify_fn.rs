@@ -27,6 +27,10 @@ fn verify_oracles(
     transcript: bool,
     req_oracles: Vec<(&str, impl ProveOracleUI)>,
 ) -> Result<()> {
+    log::debug!(
+        "verifying oracles: {:?}",
+        req_oracles.iter().map(|(name, _)| name).collect::<Vec<_>>()
+    );
     let eq = eqctx.equivalence();
 
     let mut solver = {
@@ -46,6 +50,8 @@ fn verify_oracles(
             backend.new_smtsolver()?
         }
     };
+
+    #[cfg(not(target_arch = "wasm32"))]
     std::thread::sleep(std::time::Duration::from_millis(20));
 
     log::debug!(
@@ -101,10 +107,14 @@ fn verify_oracles(
             match solver.check_sat()? {
                 SmtSolverResponse::Unsat => {}
                 response => {
+                    #[cfg(target_family = "wasm")]
+                    let modelfile = Ok(std::path::PathBuf::new());
+                    #[cfg(not(target_family = "wasm"))]
                     let modelfile = solver.get_model().map(|(modelstring, _model)| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
                         modelfile.write_all(modelstring.as_bytes()).unwrap();
+
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
@@ -178,7 +188,7 @@ pub fn verify(
                     None
                 }
             } else {
-                None
+                Some((export.name(), ui.start_oracle(export.name().to_string())))
             }
         })
         .collect();

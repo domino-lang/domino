@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/smtlib", "crates/domino"]
+members = [".", "crates/smtlib", "crates/domino", "crates/domino-web"]
 
 [workspace.package]
 version = "0.1.0"
@@ -26,8 +26,10 @@ debug = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["process-solver"]
+default = ["process-solver", "latex-export", "source-format", "miette/fancy", "dep:tempfile"]
 process-solver = ["dep:clap", "dep:expectrl", "dep:subprocess"]
+latex-export = []
+source-format = []
 zipfile = ["dep:zip"]
 
 [dependencies]
@@ -39,14 +41,14 @@ indicatif-log-bridge = "0.2"
 itertools = "0.10"
 log = "0.4.22 "
 maud = "0.27"
-miette = { version = "7.6.0", features = ["fancy"] }
+miette = { version = "7.6.0" }
 pest = { version = "2.7", features = ["miette-error"] }
 pest_derive = "2.7"
 rayon = "1.10"
 serde = "1.0.137"
 serde_derive = "1.0.137"
 sspverif-smtlib = { workspace = true }
-tempfile = "3"
+tempfile = {version = "3", optional = true }
 thiserror = "1.0.61"
 walkdir = "2"
 
