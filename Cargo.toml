@@ -25,10 +25,10 @@ debug = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-
 [features]
 default = ["process-solver"]
 process-solver = ["dep:clap", "dep:expectrl", "dep:subprocess"]
+zipfile = ["dep:zip"]
 
 [dependencies]
 env_logger = "0.11"
@@ -48,6 +48,7 @@ sspverif-smtlib = { workspace = true }
 tempfile = "3"
 thiserror = "1.0.61"
 walkdir = "2"
+zip = { version = "8", features = ["deflate"], default-features = false, optional = true }
 
 # Feature: process solver
 subprocess = { version="0.2", optional = true }
