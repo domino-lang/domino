@@ -60,6 +60,30 @@ impl ZipFiles {
             packages,
         })
     }
+    pub fn packages(&self) -> impl Iterator<Item = &String> {
+        self.packages.iter().map(|(k, _)| k)
+    }
+    pub fn package(&self, name: &str) -> Option<&String> {
+        self.packages
+            .iter()
+            .find_map(|(k, v)| if k == name { Some(v) } else { None })
+    }
+    pub fn games(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.games.iter().map(|(k, _)| k)
+    }
+    pub fn game(&self, name: &str) -> Option<&String> {
+        self.games
+            .iter()
+            .find_map(|(k, v)| if k == name { Some(v) } else { None })
+    }
+    pub fn theorems(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.theorems.iter().map(|(k, _)| k)
+    }
+    pub fn theorem(&self, name: &str) -> Option<&String> {
+        self.theorems
+            .iter()
+            .find_map(|(k, v)| if k == name { Some(v) } else { None })
+    }
 }
 
 impl<'a> ZipProject<'a> {
@@ -78,10 +102,10 @@ impl<'a> ZipProject<'a> {
 }
 
 impl Project for ZipProject<'_> {
-    fn games(&self) -> impl Iterator<Item = &String> {
+    fn games(&self) -> impl ExactSizeIterator<Item = &String> {
         self.games.keys()
     }
-    fn theorems(&self) -> impl Iterator<Item = &String> {
+    fn theorems(&self) -> impl ExactSizeIterator<Item = &String> {
         self.theorems.keys()
     }
     fn get_game(&self, name: &str) -> Option<&Composition> {

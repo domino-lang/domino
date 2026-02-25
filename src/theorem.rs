@@ -189,7 +189,7 @@ impl GameInstance {
         &self.name
     }
 
-    pub(crate) fn game_name(&self) -> &str {
+    pub fn game_name(&self) -> &str {
         &self.game.name
     }
 

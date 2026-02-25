@@ -251,7 +251,7 @@ pub trait Project: Sync {
                 )?;
             }
         }
-        
+
         for name in self.theorems().ui_iter(&ui, "Exporting Theorems") {
             let theorem = self.get_theorem(name).unwrap();
             for lossy in [true, false] {
