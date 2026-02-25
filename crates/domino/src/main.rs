@@ -139,8 +139,9 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
 
     assert!(p.proofstep.is_none() || p.proof.is_some());
 
+    let prover = sspverif::util::prover::process::ProcessProverFactory::new(p.prover, p.transcript);
     project.prove(
-        p.prover,
+        &prover,
         p.transcript,
         p.parallel,
         &p.proof,
@@ -167,7 +168,10 @@ fn latex(l: &Latex) -> Result<(), project::error::Error> {
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
-    project.latex(l.prover)
+    let prover = l
+        .prover
+        .map(|backend| sspverif::util::prover::process::ProcessProverFactory::new(backend, false));
+    project.latex(&prover)
 }
 
 fn format(f: &Format) -> Result<(), project::error::Error> {

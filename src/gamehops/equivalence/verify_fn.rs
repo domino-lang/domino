@@ -16,7 +16,7 @@ use crate::{
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
-    util::prover_process::{Communicator, ProverBackend, ProverResponse},
+    util::prover::{Prover, ProverFactory, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
@@ -26,14 +26,14 @@ fn verify_oracle<UI: TheoremUI>(
     project: &Project,
     ui: Arc<Mutex<&mut UI>>,
     eqctx: &EquivalenceContext,
-    backend: ProverBackend,
-    transcript: bool,
+    backend: &impl ProverFactory,
+    _transcript: bool,
     req_oracles: &[&Export],
 ) -> Result<()> {
     let eq = eqctx.equivalence();
     let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-    let mut prover = if transcript {
+    let mut prover = {
         let oracle = if req_oracles.len() == 1 {
             Some(req_oracles[0].name())
         } else {
@@ -44,9 +44,7 @@ fn verify_oracle<UI: TheoremUI>(
             .get_joined_smt_file(eq.left_name(), eq.right_name(), oracle)
             .unwrap();
 
-        Communicator::new_with_transcript(backend, transcript_file)?
-    } else {
-        Communicator::new(backend)?
+        backend.new_prover_with_transcript(transcript_file)?
     };
     std::thread::sleep(std::time::Duration::from_millis(20));
 
@@ -146,7 +144,7 @@ pub fn verify<UI: TheoremUI>(
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
-    backend: ProverBackend,
+    backend: &impl ProverFactory,
     transcript: bool,
     req_oracle: &Option<String>,
 ) -> Result<()> {
@@ -212,7 +210,7 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
-    backend: ProverBackend,
+    backend: &(impl ProverFactory + Sync),
     transcript: bool,
     parallel: usize,
     req_oracle: &Option<String>,

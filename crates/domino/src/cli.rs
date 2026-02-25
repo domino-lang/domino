@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::{Parser, Subcommand};
-use sspverif::util::prover_process::ProverBackend;
+use sspverif::util::prover::process::ProverBackend;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
