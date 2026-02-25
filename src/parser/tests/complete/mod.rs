@@ -187,7 +187,7 @@ fn equivalence_gamehome_generates_code() {
 
     let backend = ProcessProverFactory::new(ProverBackend::Cvc5, false);
     let transcript = SharedVecWriter::default();
-    let project = crate::project::Project::empty();
+    let project = crate::project::DirectoryProject::empty();
     equivalence::verify(
         &project,
         &mut MockTestTheoremUI::new(),
