@@ -4,8 +4,8 @@ use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 
-mod graph;
-mod render;
+pub mod graph;
+pub mod render;
 mod util;
 
 use crate::{
