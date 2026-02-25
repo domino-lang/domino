@@ -25,10 +25,13 @@ debug = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
+[features]
+default = ["process-solver"]
+process-solver = ["dep:clap", "dep:expectrl", "dep:subprocess"]
+
 [dependencies]
-clap = { version = "4.0", features = ["derive"] }
 env_logger = "0.11"
-expectrl = "0.8.0"
 indicatif = "0.18"
 indicatif-log-bridge = "0.2"
 # Nice to have for further writer experiments:
@@ -42,10 +45,14 @@ rayon = "1.10"
 serde = "1.0.137"
 serde_derive = "1.0.137"
 sspverif-smtlib = { workspace = true }
-subprocess = "0.2"
 tempfile = "3"
 thiserror = "1.0.61"
 walkdir = "2"
+
+# Feature: process solver
+subprocess = { version="0.2", optional = true }
+expectrl = { version="0.8.0", optional = true }
+clap = { version = "4.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
 mockall = "0.13"
