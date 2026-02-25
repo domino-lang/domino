@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="/pure-min.css"></link>
+    <link rel="stylesheet" href="/index.css"></link>
+  </head>
+  <body>
+    <div class="document">
+      <h1>Domino Web</h1>
+
+      <p>Please supply a zip of your project! If you don't have any by hand, you can use <a href="hello-world.zip">hello-world</a> or <a href="4WHS-simple.zip">4WHS-simple</a> to play!</p>
+      <input type="file" id="file_upload"></input>
+      <input type="button" value="CVC5 Test" id="button_cvctest"></input>
+      <input type="button" value="Domino Test" id="button_dominotest"></input>
+      <input type="button" value="Proof Steps" id="button_proof_steps"></input>
+      <input type="button" value="Prove" id="button_prove"></input>
+
+      <h3>Domino Output</h3>
+      <div id="domino_output"></div>
+      <template id="domino_output_template">
+        <h5 class="domino_output_heading">TODO</h5>
+        <pre class="domino_output_pre"></pre>
+      </template>
+      <template id="template_ui_theorem">
+        <div style="background-color: #ddd; width: 95%; margin: 0 auto;">
+          <h4></h4>
+        </div>
+      </template>
+      <template id="template_ui_proofstep">
+        <div style="background-color: #ccc; width: 95%; margin: 0 auto;">
+          <h5></h5>
+        </div>
+      </template>
+      <template id="template_ui_oracle">
+        <div style="background-color: #bbb; width: 95%; margin: 0 auto;">
+          <h6></h6>
+          <div class="ui-lemmata"></div>
+        </div>
+      </template>
+      <template id="proof_ui_template">
+        <div style="background-color: #eee; width: 100%">
+        </div>
+      </template>
+      <script src="/index.js"></script>
+    </div>
+  </body>
+</html>
