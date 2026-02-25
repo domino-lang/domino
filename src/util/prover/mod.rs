@@ -4,6 +4,8 @@ use crate::writers::smt::exprs::SmtExpr;
 use std::fmt;
 
 pub mod error;
+
+#[cfg(feature = "process-solver")]
 pub mod process;
 
 pub use error::{Error, Result};
