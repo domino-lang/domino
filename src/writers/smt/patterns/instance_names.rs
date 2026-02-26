@@ -41,7 +41,7 @@ where
     encode_smt_exprs(
         params_iter
             .into_iter()
-            .map(|expr: &Expression| -> SmtExpr { expr.clone().into() }),
+            .map(|expr: &Expression| -> SmtExpr { expr.into() }),
     )
 }
 

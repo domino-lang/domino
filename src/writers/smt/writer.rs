@@ -86,7 +86,7 @@ impl<'a> CompositionSmtWriter<'a> {
         for stmt in stmts {
             result = match stmt {
                 Statement::IfThenElse(ite) => SmtIte {
-                    cond: ite.cond.clone(),
+                    cond: &ite.cond,
                     then: self.smt_codeblock_nonsplit(oracle_ctx, ite.then_block.clone()),
                     els: self.smt_codeblock_nonsplit(oracle_ctx, ite.else_block.clone()),
                 }
@@ -272,7 +272,7 @@ impl<'a> CompositionSmtWriter<'a> {
     ) -> SmtExpr {
         match stmt {
             Statement::IfThenElse(ite) => SmtIte {
-                cond: ite.cond.clone(),
+                cond: &ite.cond,
                 then: self.smt_codeblock_nonsplit(oracle_ctx, ite.then_block.clone()),
                 els: self.smt_codeblock_nonsplit(oracle_ctx, ite.else_block.clone()),
             }
@@ -646,7 +646,7 @@ impl<'a> CompositionSmtWriter<'a> {
         expr: &Expression,
     ) -> SmtExpr {
         let new_game_state = oracle_ctx.smt_write_back_state(self.sample_info);
-        oracle_ctx.smt_construct_return(new_game_state, expr.clone())
+        oracle_ctx.smt_construct_return(new_game_state, expr)
     }
 
     fn smt_build_abort<OCTX: GenericOracleContext<'a>>(&self, oracle_ctx: &OCTX) -> SmtExpr {
@@ -711,7 +711,7 @@ impl<'a> CompositionSmtWriter<'a> {
         let rand_val: SmtExpr = (rand_fn_name, sample_pos, ctr.clone()).into();
 
         let new_val = if let Some(idx) = opt_idx {
-            ("store", ident.clone(), idx.clone(), rand_val.clone()).into()
+            ("store", ident, idx, rand_val.clone()).into()
         } else {
             rand_val
         };
@@ -753,7 +753,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .map(|(i, ident)| {
                 (
                     ident.ident(),
-                    (format!("el{}-{}", types.len(), i + 1), expr.clone()).into(),
+                    (format!("el{}-{}", types.len(), i + 1), expr).into(),
                 )
             })
             .collect();
@@ -814,7 +814,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .smt_call_oracle_fn(
                 var_gamestate,
                 var_gameconsts.local_arg_name(),
-                args.iter().map(|expr| expr.clone().into()),
+                args.iter().map(|expr| expr.into()),
             )
             .unwrap();
 
@@ -851,14 +851,8 @@ impl<'a> CompositionSmtWriter<'a> {
             },
         };
 
-        if opt_idx.is_some() {
-            (
-                "store",
-                assignee_ident.clone(),
-                opt_idx.unwrap().clone(),
-                smt_expr,
-            )
-                .into()
+        if let Some(opt_idx) = opt_idx {
+            ("store", assignee_ident, opt_idx, smt_expr).into()
         } else {
             smt_expr.into()
         }
@@ -878,16 +872,16 @@ impl<'a> CompositionSmtWriter<'a> {
 
         // first build the unwrap expression, if we have to
         let outexpr = if let ExpressionKind::Unwrap(inner) = expr.kind() {
-            ("maybe-get", *inner.clone()).into()
+            ("maybe-get", &**inner).into()
         } else {
-            expr.clone().into()
+            expr.into()
         };
 
         // then build the table store smt expression, in case we have to
         let outexpr = if let Some(idx) = opt_idx {
             let oldvalue: SmtExpr = ident.smt_identifier_string().into();
 
-            ("store", oldvalue, idx.clone(), outexpr).into()
+            ("store", oldvalue, idx, outexpr).into()
         } else {
             outexpr
         };
@@ -903,7 +897,7 @@ impl<'a> CompositionSmtWriter<'a> {
         if let ExpressionKind::Unwrap(inner) = expr.kind() {
             SmtIte {
                 cond: SmtEq2 {
-                    lhs: *inner.clone(),
+                    lhs: &**inner,
                     rhs: SmtAs {
                         term: "mk-none",
                         sort: Type::maybe(t).into(),
@@ -1284,7 +1278,7 @@ mod tests {
     #[test]
     fn test_smtlet() -> TestResult {
         let l = SmtLet {
-            bindings: vec![("x".into(), Expression::integer(42).into())],
+            bindings: vec![("x".into(), (&Expression::integer(42)).into())],
             body: SmtExpr::Atom(String::from("x")),
         };
 
