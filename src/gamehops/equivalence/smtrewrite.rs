@@ -225,7 +225,19 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             });
         };
 
-        let Some(oracle_export) = left_game_inst
+        let Some(left_oracle_export) = left_game_inst
+            .game()
+            .exports
+            .iter()
+            .find(|export| export.sig().name == oracle_name)
+        else {
+            return Err(Error::UnknownLemmaName {
+                lemma_name: funname.to_string(),
+                oracle_name: oracle_name.to_string(),
+            });
+        };
+
+        let Some(right_oracle_export) = right_game_inst
             .game()
             .exports
             .iter()
@@ -288,12 +300,12 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         retbindings.extend(gen_returnbinding(
             left_game_inst,
             &format!("{left_return_name}"),
-            oracle_export,
+            left_oracle_export,
         ));
         retbindings.extend(gen_returnbinding(
             right_game_inst,
             &format!("{right_return_name}"),
-            oracle_export,
+            right_oracle_export,
         ));
 
         let mut pkgbindings = Vec::new();
