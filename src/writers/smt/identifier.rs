@@ -16,6 +16,18 @@ impl Identifier {
     }
 }
 
+impl From<&Identifier> for SmtExpr {
+    fn from(value: &Identifier) -> Self {
+        value.smt_identifier_string().into()
+    }
+}
+
+impl From<&Identifier> for Term {
+    fn from(value: &Identifier) -> Self {
+        value.smt_identifier_string().into()
+    }
+}
+
 impl From<Identifier> for SmtExpr {
     fn from(value: Identifier) -> Self {
         value.smt_identifier_string().into()
