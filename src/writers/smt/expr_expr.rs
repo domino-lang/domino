@@ -6,17 +6,17 @@ use crate::expressions::ExpressionKind;
 use crate::types::Type;
 use crate::types::TypeKind;
 
-impl From<Expression> for SmtExpr {
-    fn from(expr: Expression) -> SmtExpr {
-        match expr.into_kind() {
-            ExpressionKind::EmptyTable(t) => match t.into_kind() {
+impl From<&Expression> for SmtExpr {
+    fn from(expr: &Expression) -> SmtExpr {
+        match &expr.kind() {
+            ExpressionKind::EmptyTable(t) => match t.kind() {
                 TypeKind::Table(idxty, valty) => (
                     (
                         "as",
                         "const",
-                        ("Array", *idxty, Type::maybe(*valty.clone())),
+                        ("Array", *idxty.clone(), Type::maybe(*valty.clone())),
                     ),
-                    ("as", "mk-none", Type::maybe(*valty)),
+                    ("as", "mk-none", Type::maybe(*valty.clone())),
                 )
                     .into(),
                 other => panic!("Empty table of type {other:?}"),
@@ -26,16 +26,17 @@ impl From<Expression> for SmtExpr {
                 //panic!("unwrap expressions need to be on the right hand side of an assign!");
                 // TODO find a better way to present that error to the user.
             }
-            ExpressionKind::Some(inner) => {
-                SmtExpr::List(vec![SmtExpr::Atom("mk-some".into()), SmtExpr::from(*inner)])
-            }
+            ExpressionKind::Some(inner) => SmtExpr::List(vec![
+                SmtExpr::Atom("mk-some".into()),
+                SmtExpr::from(&**inner),
+            ]),
             ExpressionKind::None(inner) => SmtExpr::List(vec![
                 SmtExpr::Atom("as".into()),
                 SmtExpr::Atom("mk-none".into()),
-                Type::maybe(inner).into(),
+                Type::maybe(inner.clone()).into(),
             ]),
             ExpressionKind::StringLiteral(litname) => SmtExpr::Atom(format!("\"{litname}\"")),
-            ExpressionKind::BooleanLiteral(litname) => SmtExpr::Atom(litname),
+            ExpressionKind::BooleanLiteral(litname) => SmtExpr::Atom(litname.to_string()),
             ExpressionKind::IntegerLiteral(litname) => SmtExpr::Atom(format!("{litname}")),
             ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {
                 let TypeKind::Bits(cspec) = ty.kind() else {
@@ -49,53 +50,53 @@ impl From<Expression> for SmtExpr {
             ExpressionKind::Equals(exprs) => {
                 let mut acc = vec![SmtExpr::Atom("=".to_string())];
                 for expr in exprs {
-                    acc.push(expr.clone().into());
+                    acc.push(expr.into());
                 }
 
                 SmtExpr::List(acc)
             }
             ExpressionKind::Add(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom("+".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::Sub(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom("-".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::Mul(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom("*".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::Div(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom("/".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::LessThen(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom("<".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::GreaterThen(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom(">".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::LessThenEq(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom("<=".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::GreaterThenEq(lhs, rhs) => SmtExpr::List(vec![
                 SmtExpr::Atom(">=".to_string()),
-                SmtExpr::from(*lhs),
-                SmtExpr::from(*rhs),
+                SmtExpr::from(&**lhs),
+                SmtExpr::from(&**rhs),
             ]),
             ExpressionKind::Not(expr) => {
-                SmtExpr::List(vec![SmtExpr::Atom("not".to_string()), (*expr).into()])
+                SmtExpr::List(vec![SmtExpr::Atom("not".to_string()), (&**expr).into()])
             }
             ExpressionKind::And(vals) => SmtExpr::List({
                 let mut list = vec![SmtExpr::Atom("and".to_owned())];
@@ -149,8 +150,8 @@ impl From<Expression> for SmtExpr {
             ExpressionKind::Bot => SmtExpr::Atom("bot".to_string()),
             ExpressionKind::TableAccess(table, index) => SmtExpr::List(vec![
                 SmtExpr::Atom("select".into()),
-                table.clone().into(),
-                (*index).into(),
+                table.into(),
+                (&**index).into(),
             ]),
             ExpressionKind::Tuple(exprs) => {
                 let mut l = vec![SmtExpr::Atom(format!("mk-tuple{}", exprs.len()))];
@@ -189,7 +190,7 @@ impl From<Expression> for SmtExpr {
                 SmtExpr::List(
                     Some(func_name.into())
                         .into_iter()
-                        .chain(exprs.into_iter().map(|expr| expr.into()))
+                        .chain(exprs.iter().map(|expr| expr.into()))
                         .collect(),
                 )
             }
@@ -205,8 +206,7 @@ impl From<Expression> for SmtExpr {
                 let mut lst = nil;
 
                 for el in inner.iter().rev() {
-                    lst =
-                        SmtExpr::List(vec![SmtExpr::Atom("insert".into()), el.clone().into(), lst])
+                    lst = SmtExpr::List(vec![SmtExpr::Atom("insert".into()), el.into(), lst])
                 }
 
                 lst
@@ -229,7 +229,7 @@ impl From<Expression> for SmtExpr {
                     set = SmtExpr::List(vec![
                         SmtExpr::Atom("store".into()),
                         set,
-                        el.clone().into(),
+                        el.into(),
                         SmtExpr::Atom("true".to_string()),
                     ])
                 }

@@ -125,7 +125,7 @@ pub fn define_pkg_const_mapping_fun<'a>(
                         .params
                         .iter()
                         .find(|(name, _)| name.ident_ref() == sel.name)
-                        .map(|(_, expr)| expr.clone().into())
+                        .map(|(_, expr)| expr.into())
                 })
                 .unwrap(),
         )),
@@ -164,7 +164,7 @@ pub fn define_game_const_mapping_fun<'a>(
                         .consts
                         .iter()
                         .find(|(ident, _)| ident.name == sel.name)
-                        .map(|(_, expr)| expr.clone().into())
+                        .map(|(_, expr)| expr.into())
                 })
                 .unwrap(),
         )),
