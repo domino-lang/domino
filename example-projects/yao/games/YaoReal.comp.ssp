@@ -42,7 +42,8 @@ composition YaoReal {
 
     instance Proxy = LayeredGateProxy {
         params {
-            p: p
+            p: p,
+            d: d,
         }
     }
 

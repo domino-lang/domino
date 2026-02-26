@@ -164,8 +164,15 @@ theorem HybridCircuitSecurity {
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    same-output:  [no-abort]
+                    case-i-is-one: [no-abort]
+                    case-i-is-two: [no-abort]
+                    case-i-gt-two: [no-abort]
+                    same-output:  [no-abort, case-i-is-one, case-i-is-two, case-i-gt-two]
+                    abort-case-i-is-one: []
+                    abort-case-i-is-two-assumptions: []
+                    abort-case-i-is-two: [abort-case-i-is-two-assumptions]
+                    abort-case-i-gt-two: []
+                    equal-aborts: [abort-case-i-is-one, abort-case-i-is-two, abort-case-i-gt-two]
                     invariant:    [no-abort]
                 }
             }
@@ -201,8 +208,6 @@ theorem HybridCircuitSecurity {
                 ]
 
                 lemmas {
-                    /* debug-rand-mapping: [no-abort, value-of-h] */
-                    /* debug-invariant: [no-abort, value-of-h] */
                     same-output:  [no-abort]
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -217,7 +222,13 @@ theorem HybridCircuitSecurity {
                 lemmas {
                     inv-case-i-gt-hplustwo: [no-abort, inv-case-i-gt-hplustwo-assumptions]
                     inv-case-i-gt-hplustwo-assumptions: [no-abort]
-                    invariant: [no-abort, inv-case-i-lt-hminusone, inv-case-i-is-hminusone, inv-case-i-is-h, inv-case-i-is-hplusone, inv-case-i-is-hplustwo, inv-case-i-gt-hplustwo]
+                    invariant: [no-abort, 
+                        inv-case-i-lt-hminusone, 
+                        inv-case-i-is-hminusone, 
+                        inv-case-i-is-h, 
+                        inv-case-i-is-hplusone, 
+                        inv-case-i-is-hplustwo, 
+                        inv-case-i-gt-hplustwo]
                     inv-case-i-lt-hminusone-assumptions: [no-abort]
                     inv-case-i-lt-hminusone: [no-abort, inv-case-i-lt-hminusone-assumptions]
                     inv-case-i-is-hminusone: [no-abort]
@@ -230,8 +241,20 @@ theorem HybridCircuitSecurity {
                     case-i-is-hplusone-assumptions: []
                     case-i-is-hplustwo-assumptions: []
                     case-i-gt-hplustwo-assumptions: []
-                    same-output:  [no-abort, case-i-is-h, case-i-is-hplusone, case-i-is-hplustwo, case-i-gt-hplustwo, case-i-lt-hminusone, case-i-is-hminusone]
-                    equal-aborts: [case-i-is-h, case-i-is-hplusone, case-i-is-hplustwo, case-i-gt-hplustwo, case-i-lt-hminusone, case-i-is-hminusone]
+                    same-output:  [no-abort, 
+                        case-i-is-h, 
+                        case-i-is-hplusone, 
+                        case-i-is-hplustwo, 
+                        case-i-gt-hplustwo, 
+                        case-i-lt-hminusone, 
+                        case-i-is-hminusone]
+                    equal-aborts: [
+                        case-i-is-h, 
+                        case-i-is-hplusone, 
+                        case-i-is-hplustwo, 
+                        case-i-gt-hplustwo, 
+                        case-i-lt-hminusone, 
+                        case-i-is-hminusone]
                     case-i-gt-hplustwo: [case-i-gt-hplustwo-assumptions]
                     case-i-is-hplustwo: [case-i-is-hplustwo-assumptions]
                     case-i-is-h: [case-i-is-h-assumptions]
