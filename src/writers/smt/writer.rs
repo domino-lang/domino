@@ -122,7 +122,7 @@ impl<'a> CompositionSmtWriter<'a> {
                     ..
                 }) => {
                     let discard_ident = Identifier::Generated("_".to_string(), Type::empty());
-                    self.smt_build_invoke(oracle_ctx, result, &discard_ident, &None, args, edge)
+                    self.smt_build_invoke(oracle_ctx, result, &discard_ident, None, args, edge)
                 }
                 Statement::Assignment(Assignment { pattern, rhs }, _) => {
                     match (pattern, rhs) {
@@ -148,10 +148,10 @@ impl<'a> CompositionSmtWriter<'a> {
                                     oracle_ctx,
                                     result,
                                     ident,
-                                    &opt_idx,
-                                    sample_id,
+                                    opt_idx.as_ref(),
+                                    *sample_id,
                                     ty,
-                                    sample_name,
+                                    sample_name.as_ref(),
                                 ),
                                 AssignmentRhs::Invoke { edge: None, .. } => {
                                     panic!("found an unresolved oracle invocation: {stmt:#?}");
@@ -167,11 +167,20 @@ impl<'a> CompositionSmtWriter<'a> {
                                     return_type: Some(_),
                                     ..
                                 } => self.smt_build_invoke(
-                                    oracle_ctx, result, ident, &opt_idx, args, edge,
+                                    oracle_ctx,
+                                    result,
+                                    ident,
+                                    opt_idx.as_ref(),
+                                    args,
+                                    edge,
                                 ),
-                                AssignmentRhs::Expression(expr) => {
-                                    self.smt_build_assign(oracle_ctx, result, ident, &opt_idx, expr)
-                                }
+                                AssignmentRhs::Expression(expr) => self.smt_build_assign(
+                                    oracle_ctx,
+                                    result,
+                                    ident,
+                                    opt_idx.as_ref(),
+                                    expr,
+                                ),
                             }
                         }
                     }
@@ -673,16 +682,14 @@ impl<'a> CompositionSmtWriter<'a> {
         oracle_ctx: &OCTX,
         result: SmtExpr,
         ident: &Identifier,
-        opt_idx: &Option<Expression>,
-        sample_id: &Option<usize>,
+        opt_idx: Option<&Expression>,
+        sample_id: Option<usize>,
         ty: &Type,
-        sample_name: &Option<String>,
+        sample_name: Option<&String>,
     ) -> SmtExpr {
         let sample_id = sample_id.expect("found a None sample_id");
         let sample_pos = &self.sample_info.positions[sample_id];
-        debug_assert!(sample_name
-            .as_ref()
-            .is_some_and(|name| *name == sample_pos.sample_name));
+        debug_assert!(sample_name.is_some_and(|name| *name == sample_pos.sample_name));
 
         let game_inst_ctx = self.context();
 
@@ -764,7 +771,7 @@ impl<'a> CompositionSmtWriter<'a> {
         this_oracle_ctx: &OCTX,
         body: SmtExpr,
         assignee_ident: &Identifier,
-        opt_idx: &Option<Expression>,
+        opt_idx: Option<&Expression>,
         args: &[Expression],
         edge: &Edge,
     ) -> SmtExpr {
@@ -848,7 +855,7 @@ impl<'a> CompositionSmtWriter<'a> {
             (
                 "store",
                 assignee_ident.clone(),
-                opt_idx.clone().unwrap(),
+                opt_idx.unwrap().clone(),
                 smt_expr,
             )
                 .into()
@@ -862,7 +869,7 @@ impl<'a> CompositionSmtWriter<'a> {
         oracle_ctx: &OCTX,
         result: SmtExpr,
         ident: &Identifier,
-        opt_idx: &Option<Expression>,
+        opt_idx: Option<&Expression>,
         expr: &Expression,
     ) -> SmtExpr {
         let t = expr.get_type();
