@@ -9,23 +9,17 @@ function fail() {
 
 DOMINO=$(realpath $DOMINO)
 
-echo "# Checking Reproducers still prove..."
-for project_path in example-projects/repro-*; do
+echo "# Checking Test Projects"
+for project_path in test-projects/*; do
     project=$(basename $project_path)
     (
-        echo "## Checking $project proves..."
+        echo "## Checking $project ..."
         cd $project_path
-        $DOMINO prove || fail "expected success, but failed: $project_path"
-    )
-done
-
-echo "# Checking Error Reproducers still fail..."
-for project_path in example-projects/err-repro-*; do
-    project=$(basename $project_path)
-    (
-        echo "## Checking $project fails..."
-        cd $project_path
-        $DOMINO prove && fail "expected error, but succeeded: $project_path"
+        if [[ "$project" == "err-"* ]]; then
+            $DOMINO prove && fail "expected error, but succeeded: $project_path"
+        else
+            $DOMINO prove || fail "expected success, but failed: $project_path"
+        fi
     )
 done
 
