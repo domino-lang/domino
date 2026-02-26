@@ -16,24 +16,24 @@ use crate::{
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
-    util::prover_process::{Communicator, ProverBackend, ProverResponse},
+    util::prover::{Prover, ProverFactory, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
 use super::EquivalenceContext;
 
 fn verify_oracle<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: Arc<Mutex<&mut UI>>,
     eqctx: &EquivalenceContext,
-    backend: ProverBackend,
-    transcript: bool,
+    backend: &impl ProverFactory,
+    _transcript: bool,
     req_oracles: &[&Export],
 ) -> Result<()> {
     let eq = eqctx.equivalence();
     let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-    let mut prover = if transcript {
+    let mut prover = {
         let oracle = if req_oracles.len() == 1 {
             Some(req_oracles[0].name())
         } else {
@@ -44,9 +44,7 @@ fn verify_oracle<UI: TheoremUI>(
             .get_joined_smt_file(eq.left_name(), eq.right_name(), oracle)
             .unwrap();
 
-        Communicator::new_with_transcript(backend, transcript_file)?
-    } else {
-        Communicator::new(backend)?
+        backend.new_prover_with_transcript(transcript_file)?
     };
     std::thread::sleep(std::time::Duration::from_millis(20));
 
@@ -93,7 +91,7 @@ fn verify_oracle<UI: TheoremUI>(
         log::info!("verify: oracle:{export:?}");
         writeln!(prover, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut prover, export.name())?;
-        eqctx.emit_invariant(&mut prover, export.name())?;
+        eqctx.emit_invariant(project, &mut prover, export.name())?;
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
@@ -108,10 +106,14 @@ fn verify_oracle<UI: TheoremUI>(
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
+                    #[cfg(target_family = "wasm")]
+                    let modelfile = Ok(std::path::PathBuf::new());
+                    #[cfg(not(target_family = "wasm"))]
                     let modelfile = prover.get_model().map(|(modelstring, _model)| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
                         modelfile.write_all(modelstring.as_bytes()).unwrap();
+
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
@@ -142,11 +144,11 @@ fn verify_oracle<UI: TheoremUI>(
 }
 
 pub fn verify<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
-    backend: ProverBackend,
+    backend: &impl ProverFactory,
     transcript: bool,
     req_oracle: &Option<String>,
 ) -> Result<()> {
@@ -208,11 +210,11 @@ pub fn verify<UI: TheoremUI>(
 }
 
 pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project,
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
-    backend: ProverBackend,
+    backend: &(impl ProverFactory + Sync),
     transcript: bool,
     parallel: usize,
     req_oracle: &Option<String>,
