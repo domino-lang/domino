@@ -116,164 +116,50 @@
     false
 )
 
-(define-fun equal-z
+(define-state-relation invariant
     (
         (state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
     )
-    Bool
-    (let 
+    (forall 
         (
-            (z-left 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-z> 
-                    (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-            (z-real-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-z> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-            (z-sim-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-z> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-            (z-top-right
-                (<pkg-state-Keys-<$<!n!>$>-z> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysTop> state-right)))
-            (z-bot-right
-                (<pkg-state-Keys-<$<!n!>$>-z> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
+            (i Int)
+            (j Int)
         )
-        (forall 
-            (
-                (i Int)
-                (j Int)
+        (and
+            (=>
+                (= i 1)
+                (and 
+                    (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.KeysTop.flag j))
+                    (= (select state-left.Keys.z (mk-tuple2 i j)) (select state-right.KeysTop.z j))
+                    (= (select state-left.Keys.T (mk-tuple2 i j)) (select state-right.KeysTop.T j))
+                )
             )
-            (and
-                (=>
-                    (= i 1)
-                    (= (select z-left (mk-tuple2 i j)) (select z-top-right j))
+            (=>
+                (= i 2)
+                (and 
+                    (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.KeysBot.flag j))
+                    (= (select state-left.Keys.z (mk-tuple2 i j)) (select state-right.KeysBot.z j))
+                    (= (select state-left.Keys.T (mk-tuple2 i j)) (select state-right.KeysBot.T j))
                 )
-                (=>
-                    (= i 2)
-                    (= (select z-left (mk-tuple2 i j)) (select z-bot-right j))
-                )
-                (=>
-                    (> i 2)
-                    (= (select z-left (mk-tuple2 i j)) (select z-real-right (mk-tuple2 i j)))
+            )
+            (=>
+                (> i 2)
+                (and 
+                    (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.RealLayersKeys.flag (mk-tuple2 i j)))
+                    (= (select state-left.Keys.z (mk-tuple2 i j)) (select state-right.RealLayersKeys.z (mk-tuple2 i j)))
+                    (= (select state-left.Keys.T (mk-tuple2 i j)) (select state-right.RealLayersKeys.T (mk-tuple2 i j)))
                 )
             )
         )
     )
 )
 
-(define-fun equal-T
-    (
-        (state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-    )
-    Bool
-    (let 
-        (
-            (T-left 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                    (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-            (T-real-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-            (T-sim-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-            (T-top-right
-                (<pkg-state-Keys-<$<!n!>$>-T> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysTop> state-right)))
-            (T-bot-right
-                (<pkg-state-Keys-<$<!n!>$>-T> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
-        )
-        (forall 
-            (
-                (i Int)
-                (j Int)
-            )
-            (and
-                (=>
-                    (= i 1)
-                    (= (select T-left (mk-tuple2 i j)) (select T-top-right j))
-                )
-                (=>
-                    (= i 2)
-                    (= (select T-left (mk-tuple2 i j)) (select T-bot-right j))
-                )
-                (=>
-                    (> i 2)
-                    (= (select T-left (mk-tuple2 i j)) (select T-real-right (mk-tuple2 i j)))
-                )
-            )
-        )
-    )
-)
-
-(define-fun equal-flag
-    (
-        (state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-    )
-    Bool
-    (let 
-        (
-            (flag-left 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
-                    (<game-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-            (flag-real-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-RealLayersKeys> state-right)))
-            (flag-sim-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-            (flag-top-right
-                (<pkg-state-Keys-<$<!n!>$>-flag> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysTop> state-right)))
-            (flag-bot-right
-                (<pkg-state-Keys-<$<!n!>$>-flag> 
-                    (<game-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-pkgstate-KeysBot> state-right)))
-        )
-        (forall 
-            (
-                (i Int)
-                (j Int)
-            )
-            (and
-                (=>
-                    (= i 1)
-                    (= (select flag-left (mk-tuple2 i j)) (select flag-top-right j))
-                )
-                (=>
-                    (= i 2)
-                    (= (select flag-left (mk-tuple2 i j)) (select flag-bot-right j))
-                )
-                (=>
-                    (> i 2)
-                    (= (select flag-left (mk-tuple2 i j)) (select flag-real-right (mk-tuple2 i j)))
-                )
-            )
-        )
-    )
-)
-
-(define-fun <relation-depth-is-positive-CoreReal-FirstHybrid-GETKEYSIN>
+(define-lemma <relation-case-i-is-one-CoreReal-FirstHybrid-GBLG>
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayerMap_<$<!d!><!n!>$>_GETKEYSIN>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GETKEYSIN>)
-        (j Int)
-    )
-    Bool
-    (> (<theorem-consts-HybridCircuitSecurity-d> <<theorem-consts>>) 0)
-)
-
-(define-fun <relation-i-is-positive-CoreReal-FirstHybrid-GBLG>
-    (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -281,15 +167,17 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    Bool
-    (> i 0)
+    (=>
+        (= i 1)
+        (= return-left.value return-right.value)
+    )
 )
 
-(define-fun <relation-equal-Z-CoreReal-FirstHybrid-GBLG>
+(define-lemma <relation-case-i-is-two-CoreReal-FirstHybrid-GBLG>
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -297,21 +185,17 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    Bool
-    (let 
-        (
-            (state-left (<oracle-return-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredGateProxy-<$<!p!>$>-GBLG-game-state> return-left))
-            (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
-        )
-        true
+    (=>
+        (= i 2)
+        (= return-left.value return-right.value)
     )
 )
 
-(define-fun <relation-equal-Z1-CoreReal-FirstHybrid-GBLG>
+(define-lemma <relation-case-i-gt-two-CoreReal-FirstHybrid-GBLG>
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -319,25 +203,95 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    Bool
-    (let 
-        (
-            (state-left (<oracle-return-CoreReal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredGateProxy-<$<!p!>$>-GBLG-game-state> return-left))
-            (state-right (<oracle-return-HybridReal-<$<!n!><!m!><!p!><!w!><!d!><!1!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-game-state> return-right))
-        )
-        true
+    (=>
+        (> i 2)
+        (= return-left.value return-right.value)
     )
 )
 
-(define-fun invariant
+(define-lemma <relation-abort-case-i-is-one-CoreReal-FirstHybrid-GBLG>
     (
-        (state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
     )
-    Bool
-    (and
-        (equal-z state-left state-right)
-        (equal-T state-left state-right)
-        (equal-flag state-left state-right)
+    (=>
+        (= i 1)
+        (= ((_ is mk-abort) return-left.value)
+           ((_ is mk-abort) return-right.value))
+    )
+)
+
+(define-lemma <relation-abort-case-i-is-two-CoreReal-FirstHybrid-GBLG>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    (=>
+        (= i 2)
+          (= ((_ is mk-abort) return-left.value)
+              ((_ is mk-abort) return-right.value))
+    )
+)
+
+(define-lemma <relation-abort-case-i-is-two-assumptions-CoreReal-FirstHybrid-GBLG>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    (=>
+        (= i 2)
+        (and
+            (= (select old-state-left.Keys.flag (mk-tuple2 2 l)) (select old-state-right.KeysBot.flag l))
+            (= (select old-state-left.Keys.z (mk-tuple2 2 l)) (select old-state-right.KeysBot.z l))
+            (= (select old-state-left.Keys.T (mk-tuple2 2 l)) (select old-state-right.KeysBot.T l))
+
+            (= (select old-state-left.Keys.flag (mk-tuple2 2 r)) (select old-state-right.KeysBot.flag r))
+            (= (select old-state-left.Keys.z (mk-tuple2 2 r)) (select old-state-right.KeysBot.z r))
+            (= (select old-state-left.Keys.T (mk-tuple2 2 r)) (select old-state-right.KeysBot.T r))
+
+            (= (select old-state-left.Keys.flag (mk-tuple2 3 j)) (select old-state-right.RealLayersKeys.flag (mk-tuple2 3 j)))
+            (= (select old-state-left.Keys.z (mk-tuple2 3 j)) (select old-state-right.RealLayersKeys.z (mk-tuple2 3 j)))
+            (= (select old-state-left.Keys.T (mk-tuple2 3 j)) (select old-state-right.RealLayersKeys.T (mk-tuple2 3 j)))
+        )
+    )
+)
+
+(define-lemma <relation-abort-case-i-gt-two-CoreReal-FirstHybrid-GBLG>
+    (
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (i Int)
+        (l Int)
+        (r Int)
+        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
+        (j Int)
+    )
+    (=>
+        (> i 2)
+          (= ((_ is mk-abort) return-left.value)
+              ((_ is mk-abort) return-right.value))
     )
 )

@@ -241,152 +241,100 @@
     false
 )
 
-(define-fun equal-z
+(define-state-relation equal-z
     (
         (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
     )
-    Bool
-    (let 
+    (forall 
         (
-            (z-left 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-z> 
-                    (<game-CoreIdeal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-            (z-sim-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-z> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-            (z-top-right
-                (<pkg-state-Keys-<$<!n!>$>-z> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-KeysTop> state-right)))
-            (z-bot-right
-                (<pkg-state-Keys-<$<!n!>$>-z> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-KeysBot> state-right)))
+            (i Int)
+            (j Int)
         )
-        (forall 
-            (
-                (i Int)
-                (j Int)
+        (and
+            (=>
+                (< i d)
+                (= (select state-left.Keys.z (mk-tuple2 i j)) (select state-right.SimulatedLayersKeys.z (mk-tuple2 i j)))
             )
-            (and
-                (=>
-                    (< i d)
-                    (= (select z-left (mk-tuple2 i j)) (select z-sim-right (mk-tuple2 i j)))
-                )
-                (=>
-                    (= i d)
-                    (= (select z-left (mk-tuple2 i j)) (select z-top-right j))
-                )
-                (=>
-                    (= i (+ d 1))
-                    (= (select z-left (mk-tuple2 i j)) (select z-bot-right j))
-                )
+            (=>
+                (= i d)
+                (= (select state-left.Keys.z (mk-tuple2 i j)) (select state-right.KeysTop.z j))
+            )
+            (=>
+                (= i (+ d 1))
+                (= (select state-left.Keys.z (mk-tuple2 i j)) (select state-right.KeysBot.z j))
             )
         )
     )
 )
 
-(define-fun equal-T
+(define-state-relation equal-T
     (
         (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
     )
-    Bool
-    (let 
+    (forall 
         (
-            (T-left 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                    (<game-CoreIdeal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-            (T-sim-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-T> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-            (T-top-right
-                (<pkg-state-Keys-<$<!n!>$>-T> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-KeysTop> state-right)))
-            (T-bot-right
-                (<pkg-state-Keys-<$<!n!>$>-T> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-KeysBot> state-right)))
+            (i Int)
+            (j Int)
         )
-        (forall 
-            (
-                (i Int)
-                (j Int)
+        (and
+            (=>
+                (< i d)
+                (= (select state-left.Keys.T (mk-tuple2 i j)) (select state-right.SimulatedLayersKeys.T (mk-tuple2 i j)))
             )
-            (and
-                (=>
-                    (< i d)
-                    (= (select T-left (mk-tuple2 i j)) (select T-sim-right (mk-tuple2 i j)))
-                )
-                (=>
-                    (= i d)
-                    (= (select T-left (mk-tuple2 i j)) (select T-top-right j))
-                )
-                (=>
-                    (= i (+ d 1))
-                    (= (select T-left (mk-tuple2 i j)) (select T-bot-right j))
-                )
+            (=>
+                (= i d)
+                (= (select state-left.Keys.T (mk-tuple2 i j)) (select state-right.KeysTop.T j))
+            )
+            (=>
+                (= i (+ d 1))
+                (= (select state-left.Keys.T (mk-tuple2 i j)) (select state-right.KeysBot.T j))
             )
         )
     )
 )
 
-(define-fun equal-flag
+(define-state-relation equal-flag
     (
         (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
     )
-    Bool
-    (let 
+    (forall 
         (
-            (flag-left 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
-                    (<game-CoreIdeal-<$<!n!><!m!><!p!><!w!><!d!>$>-pkgstate-Keys> state-left)))
-            (flag-sim-right 
-                (<pkg-state-LayeredKeys-<$<!n!>$>-flag> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-SimulatedLayersKeys> state-right)))
-            (flag-top-right
-                (<pkg-state-Keys-<$<!n!>$>-flag> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-KeysTop> state-right)))
-            (flag-bot-right
-                (<pkg-state-Keys-<$<!n!>$>-flag> 
-                    (<game-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-pkgstate-KeysBot> state-right)))
+            (i Int)
+            (j Int)
         )
-        (forall 
-            (
-                (i Int)
-                (j Int)
+        (and
+            (=>
+                (< i d)
+                (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i j)))
             )
-            (and
-                (=>
-                    (< i d)
-                    (= (select flag-left (mk-tuple2 i j)) (select flag-sim-right (mk-tuple2 i j)))
-                )
-                (=>
-                    (= i d)
-                    (= (select flag-left (mk-tuple2 i j)) (select flag-top-right j))
-                )
-                (=>
-                    (= i (+ d 1))
-                    (= (select flag-left (mk-tuple2 i j)) (select flag-bot-right j))
-                )
+            (=>
+                (= i d)
+                (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.KeysTop.flag j))
+            )
+            (=>
+                (= i (+ d 1))
+                (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.KeysBot.flag j))
             )
         )
     )
 )
 
-(define-fun invariant
+(define-state-relation invariant
     (
         (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
     )
-    Bool
-    (and
+    (and 
         (equal-z state-left state-right)
         (equal-T state-left state-right)
         (equal-flag state-left state-right)
     )
 )
 
-(define-fun <relation-case-i-lt-dminusone-CoreIdeal-LastHybrid-GBLG>
+(define-lemma <relation-case-i-lt-dminusone-CoreIdeal-LastHybrid-GBLG>
     (
         (old-state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (old-state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
@@ -398,17 +346,13 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    Bool
     (=>
         (< i (- d 1))
-        (=
-            (<oracle-return-CoreIdeal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredSimProxy-<$<!d!><!p!>$>-GBLG-return-value-or-abort> return-left)
-            (<oracle-return-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-return-value-or-abort>  return-right)
-        )
+        (= return-left.value return-right.value)
     )
 )
 
-(define-fun <relation-case-i-is-dminusone-CoreIdeal-LastHybrid-GBLG>
+(define-lemma <relation-case-i-is-dminusone-CoreIdeal-LastHybrid-GBLG>
     (
         (old-state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (old-state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
@@ -420,17 +364,13 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    Bool
     (=>
         (= i (- d 1))
-        (=
-            (<oracle-return-CoreIdeal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredSimProxy-<$<!d!><!p!>$>-GBLG-return-value-or-abort> return-left)
-            (<oracle-return-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-return-value-or-abort>  return-right)
-        )
+        (= return-left.value return-right.value)
     )
 )
 
-(define-fun <relation-case-i-is-d-CoreIdeal-LastHybrid-GBLG>
+(define-lemma <relation-case-i-is-d-CoreIdeal-LastHybrid-GBLG>
     (
         (old-state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
         (old-state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
@@ -442,13 +382,9 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    Bool
     (=>
         (= i d)
-        (=
-            (<oracle-return-CoreIdeal-<$<!n!><!m!><!p!><!w!><!d!>$>-LayeredSimProxy-<$<!d!><!p!>$>-GBLG-return-value-or-abort> return-left)
-            (<oracle-return-HybridIdeal-<$<!n!><!m!><!p!><!w!><!d!><!d!>$>-HybridLayerMap-<$<!d!><!h!><!n!><!p!>$>-GBLG-return-value-or-abort>  return-right)
-        )
+        (= return-left.value return-right.value)
     )
 )
 

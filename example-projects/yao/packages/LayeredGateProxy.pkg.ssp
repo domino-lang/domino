@@ -1,6 +1,7 @@
 package LayeredGateProxy {
     params {
         p: Integer,
+        d: Integer,
     }
 
     import oracles {
@@ -21,6 +22,7 @@ package LayeredGateProxy {
         j: Integer
     ) -> Table(Bits(p), Bool) {
         assert (i > 0);
+        assert (i <= d);
         C <- invoke LGATEGBLG(i, l, r, op, j);
         return C;
     }
