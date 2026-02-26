@@ -1,20 +1,18 @@
 
-(define-fun no-overwriting-prf ((prf <PackageState_PRF_<$<!n!>$>>))
-  Bool
-  (let ((kid (<pkg-state-PRF-<$<!n!>$>-kid_> prf))
-        (LTK (<pkg-state-PRF-<$<!n!>$>-LTK> prf))
-        (H (<pkg-state-PRF-<$<!n!>$>-H> prf)))
-    (forall ((i Int))
-            (and
-             (=> (= (select H i) (as mk-none (Maybe Bool)))
-                 (= (select LTK i) (as mk-none (Maybe Bits_n))))
-             (=> (= (select LTK i) (as mk-none (Maybe Bits_n)))
-                 (= (select H i) (as mk-none (Maybe Bool))))
-             (=> (> i kid)
-                 (and (= (select H i)
-                         (as mk-none (Maybe Bool)))
-                      (= (select LTK i)
-                         (as mk-none (Maybe Bits_n)))))))))
+(define-state-relation relation-no-overwriting-prf
+    ((left  <GameState_H6_<$<!n!>$>>)
+     (right  <GameState_H7_<$<!n!>$>>))
+  (forall ((i Int))
+          (and
+           (=> (= (select left.PRF.H i) (as mk-none (Maybe Bool)))
+               (= (select left.PRF.LTK i) (as mk-none (Maybe Bits_n))))
+           (=> (= (select left.PRF.LTK i) (as mk-none (Maybe Bits_n)))
+               (= (select left.PRF.H i) (as mk-none (Maybe Bool))))
+           (=> (> i left.PRF.kid_)
+               (and (= (select left.PRF.H i)
+                       (as mk-none (Maybe Bool)))
+                    (= (select left.PRF.LTK i)
+                       (as mk-none (Maybe Bits_n))))))))
 
 
 (define-fun key-not-computed-unless-test-or-reveal
@@ -92,10 +90,10 @@
                                         (= acc (as mk-none (Maybe Bool))))
                                    (and (ite (= mess 1) (= acc (as mk-none (Maybe Bool))) (not (= acc (as mk-none (Maybe Bool)))))
                                         (=> (> mess 0)
-                                               (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
-                                                    (not (= kmac (as mk-none (Maybe Bits_n))))
-                                                    (not (= ni (as mk-none (Maybe Bits_n))))
-                                                    (not (= nr (as mk-none (Maybe Bits_n))))))))
+                                            (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
+                                                 (not (= kmac (as mk-none (Maybe Bits_n))))
+                                                 (not (= ni (as mk-none (Maybe Bits_n))))
+                                                 (not (= nr (as mk-none (Maybe Bits_n))))))))
                               (ite (= mess 0)
                                    (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))))
                                         (= ni nr kmac (as mk-none (Maybe Bits_n)))
@@ -113,8 +111,8 @@
 
 (define-fun other-stuff-not-initialized-early
     ((State1 (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh1 (Array Int (Maybe Bool)))
      (Keys1 (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
@@ -193,7 +191,7 @@
                           (kmac (el11-9  (maybe-get state0)))
                           (sid  (el11-10 (maybe-get state0)))
                           (mess (el11-11 (maybe-get state0))))
-                     (ite (= (select Fresh1 ctr) (mk-some true)) 
+                     (ite (= (select Fresh1 ctr) (mk-some true))
                           (= (select State1 ctr)
                              (mk-some (mk-tuple11 U u V ltk acc k ni nr (as mk-none (Maybe Bits_n)) sid mess)))
                           (= (select State1 ctr) state0)))))))))
@@ -211,22 +209,22 @@
            (= (select Prf0 (mk-tuple2 kid (mk-tuple5 U V ni nr false)))
               (select Keys1 (mk-tuple5 kid U V ni nr))))))
 
-  
-     
+
+
 (define-fun all-sessions-have-valid-keys
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (ltk (Array Int (Maybe Bits_n))))
   Bool
-    (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                           (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                           (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-      (forall ((ctr Int))
-              (let ((state (select state ctr)))
-                (=> (not (= state none))
-                    (let  ((kid  (el11-4  (maybe-get state))))
-                      (not (= (select ltk kid) (as mk-none (Maybe Bits_n))))))))))
+    (forall ((ctr Int))
+            (let ((state (select state ctr)))
+              (=> (not (= state none))
+                  (let  ((kid  (el11-4  (maybe-get state))))
+                    (not (= (select ltk kid) (as mk-none (Maybe Bits_n))))))))))
 
 
 
@@ -235,24 +233,24 @@
      (keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-          (and 
-          (=> (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false)))
-                 (as mk-none (Maybe Bits_n)))
-              (= (select keys (mk-tuple5 kid U V ni nr))
-                 (as mk-none (Maybe Bits_n))))
-          (=> (= (select keys (mk-tuple5 kid U V ni nr))
-                 (as mk-none (Maybe Bits_n)))
-              (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false)))
-                 (as mk-none (Maybe Bits_n)))))))
+          (and
+           (=> (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false)))
+                  (as mk-none (Maybe Bits_n)))
+               (= (select keys (mk-tuple5 kid U V ni nr))
+                  (as mk-none (Maybe Bits_n))))
+           (=> (= (select keys (mk-tuple5 kid U V ni nr))
+                  (as mk-none (Maybe Bits_n)))
+               (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false)))
+                  (as mk-none (Maybe Bits_n)))))))
 
 
 (define-fun kmac-consistent-in-state-and-mac
     ((State0 (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (State1 (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
      (Fresh1 (Array Int (Maybe Bool)))
      (Keys1 (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
   Bool
@@ -275,7 +273,7 @@
                            (= kmac (select Keys1 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))))
                            (= kmac (el11-9 (maybe-get (select State1 ctr))))
                            )))))))
-  
+
 (define-fun freshness-is-known
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -314,7 +312,7 @@
      (hon (Array Int (Maybe Bool)))
      (prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n))))
   Bool
-  (and 
+  (and
    (forall ((kid Int))
            (and
             (=> (= (select ltk kid) (as mk-none (Maybe Bits_n)))
@@ -326,7 +324,7 @@
                        (as mk-none (Maybe Bits_n))))
                (not (= (select ltk kid)
                        (as mk-none (Maybe Bits_n))))))))
-  
+
 
 (define-fun mac-values-stored
     ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
@@ -410,70 +408,40 @@
                              (maybe-get sid))))))))))
 
 
-(define-fun invariant
-    ((state-H61  <GameState_H6_<$<!n!>$>>)
-     (state-H70  <GameState_H7_<$<!n!>$>>))
-  Bool
-  (let ((nonces-H61 (<game-H6-<$<!n!>$>-pkgstate-Nonces> state-H61))
-        (nonces-H70 (<game-H7-<$<!n!>$>-pkgstate-Nonces>  state-H70))
-        (game-H61 (<game-H6-<$<!n!>$>-pkgstate-KX> state-H61))
-        (game-H70 (<game-H7-<$<!n!>$>-pkgstate-KX>  state-H70))
-        (prf-H61 (<game-H6-<$<!n!>$>-pkgstate-PRF> state-H61))
-        (prf-H70 (<game-H7-<$<!n!>$>-pkgstate-PRF>  state-H70))
-        (mac-H70 (<game-H7-<$<!n!>$>-pkgstate-MAC>  state-H70)))
-    (let ((ctr0 (<pkg-state-KX_noprfkey-<$<!n!>$>-ctr_> game-H61))
-          (ctr1 (<pkg-state-KX_noprfkey-<$<!n!>$>-ctr_> game-H70))
-          (State0 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H61))
-          (State1 (<pkg-state-KX_noprfkey-<$<!n!>$>-State> game-H70))
-          (RevTested0 (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTested> game-H61))
-          (RevTested1 (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTested> game-H70))
-          (RevTestEval0 (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTestEval> game-H61))
-          (RevTestEval1 (<pkg-state-KX_noprfkey-<$<!n!>$>-RevTestEval> game-H70))
-          (Fresh0 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H61))
-          (Fresh1 (<pkg-state-KX_noprfkey-<$<!n!>$>-Fresh> game-H70))
-          (First0 (<pkg-state-KX_noprfkey-<$<!n!>$>-First> game-H61))
-          (First1 (<pkg-state-KX_noprfkey-<$<!n!>$>-First> game-H70))
-          (Second0 (<pkg-state-KX_noprfkey-<$<!n!>$>-Second> game-H61))
-          (Second1 (<pkg-state-KX_noprfkey-<$<!n!>$>-Second> game-H70))
-          (Nonces0 (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H61))
-          (Nonces1 (<pkg-state-Nonces-<$<!n!>$>-Nonces> nonces-H70))
-          (Ltk0 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H61))
-          (Ltk1 (<pkg-state-PRF-<$<!n!>$>-LTK> prf-H70))
-          (Prf0 (<pkg-state-PRF-<$<!n!>$>-PRF> prf-H61))
-          (Prf1 (<pkg-state-PRF-<$<!n!>$>-PRF> prf-H70))
-          (H0 (<pkg-state-PRF-<$<!n!>$>-H> prf-H61))
-          (H1 (<pkg-state-PRF-<$<!n!>$>-H> prf-H70))
-          (Keys1 (<pkg-state-MAC-<$<!n!>$>-Keys> mac-H70))
-          (Values1 (<pkg-state-MAC-<$<!n!>$>-Values> mac-H70))
-          )
-      (and (= Nonces0 Nonces1)
-           (= Ltk0 Ltk1)
-           (= H0 H1)
-           (= (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H61)
-              (<pkg-state-PRF-<$<!n!>$>-kid_> prf-H70))
-           (= ctr0 ctr1)
-           (= RevTested0 RevTested1)
-           (= RevTestEval0 RevTestEval1)
-           (= Fresh0 Fresh1)
-           (= First0 First1)
-           (= Second0 Second1)
+(define-state-relation relation-trivial-equalities
+    ((left  <GameState_H6_<$<!n!>$>>)
+     (right  <GameState_H7_<$<!n!>$>>))
+  (and (= left.Nonces.Nonces  right.Nonces.Nonces)
+       (= left.PRF.LTK        right.PRF.LTK)
+       (= left.PRF.H          right.PRF.H)
+       (= left.PRF.kid_       right.PRF.kid_)
+       (= left.KX.ctr_        right.KX.ctr_)
+       (= left.KX.Fresh       right.KX.Fresh)
+       (= left.KX.First       right.KX.First)
+       (= left.KX.Second      right.KX.Second)
+       (= left.KX.RevTested   right.KX.RevTested)
+       (= left.KX.RevTestEval right.KX.RevTestEval)))
 
-           (state-equality State0 State1 Fresh1)
-           (prf-equality Prf0 Prf1 Keys1)
+(define-state-relation invariant
+    ((left  <GameState_H6_<$<!n!>$>>)
+     (right  <GameState_H7_<$<!n!>$>>))
+  (and (relation-no-overwriting-prf left right)
+       (relation-trivial-equalities left right)
 
-           (no-overwriting-prf prf-H61)
-           
-           (freshness-and-honesty-matches State0 Fresh0 H0)
-           (freshness-and-honesty-matches State1 Fresh1 H1)
-           (freshness-is-known State0 Fresh0)
-           (freshness-is-known State1 Fresh1)
-           (stuff-not-initialized-early State0)
-           (other-stuff-not-initialized-early State1 Fresh1 Keys1)
-           (kmac-sampled-consistently Prf0 Keys1)
-           (kmac-consistent-in-state-and-mac State0 State1 Fresh1 Keys1)
-           (prf-package-set-consistently Ltk0 H0 Prf0)
-           (prf-package-set-consistently Ltk1 H1 Prf1)
-           (all-sessions-have-valid-keys State0 Ltk0)
-           (revtesteval-populated RevTestEval0 H0 Prf0)
-           (revtesteval-populated RevTestEval1 H1 Prf1)
-           (sid-is-wellformed State0 Prf0)))))
+       (state-equality left.KX.State right.KX.State right.KX.Fresh)
+       (prf-equality left.PRF.PRF right.PRF.PRF right.MAC.Keys)
+
+       (freshness-and-honesty-matches left.KX.State left.KX.Fresh left.PRF.H)
+       (freshness-and-honesty-matches right.KX.State right.KX.Fresh right.PRF.H)
+       (freshness-is-known left.KX.State left.KX.Fresh)
+       (freshness-is-known right.KX.State right.KX.Fresh)
+       (stuff-not-initialized-early left.KX.State)
+       (other-stuff-not-initialized-early right.KX.State right.KX.Fresh right.MAC.Keys)
+       (kmac-sampled-consistently left.PRF.PRF right.MAC.Keys)
+       (kmac-consistent-in-state-and-mac left.KX.State right.KX.State right.KX.Fresh right.MAC.Keys)
+       (prf-package-set-consistently left.PRF.LTK left.PRF.H left.PRF.PRF)
+       (prf-package-set-consistently right.PRF.LTK right.PRF.H right.PRF.PRF)
+       (all-sessions-have-valid-keys left.KX.State left.PRF.LTK)
+       (revtesteval-populated left.KX.RevTestEval left.PRF.H left.PRF.PRF)
+       (revtesteval-populated right.KX.RevTestEval right.PRF.H right.PRF.PRF)
+       (sid-is-wellformed left.KX.State left.PRF.PRF)))

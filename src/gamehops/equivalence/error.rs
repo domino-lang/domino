@@ -40,6 +40,21 @@ pub enum Error {
         right_game_inst_name: String,
         failed_oracles: Vec<(String, Error)>,
     },
+    IllegalLemmaName {
+        lemma_name: String,
+    },
+    UnknownLemmaName {
+        lemma_name: String,
+        oracle_name: String,
+    },
+    IncorrectArgument {
+        argument: String,
+    },
+    IncorrectNumberOfArguments {
+        argument: String,
+        expected: String,
+    },
+    ParserError(crate::util::smtparser::Error),
 }
 
 impl std::error::Error for Error {
@@ -110,6 +125,12 @@ impl std::fmt::Display for Error {
                                              Also, encountered the following error when trying to get the model: {model_err}"),
                 }
             },
+            Error::IllegalLemmaName {lemma_name} => write!(f, "found lemma named \"{lemma_name}\". Expected name ending in {{oralce_name}}>"),
+            Error::UnknownLemmaName {lemma_name, oracle_name} => write!(f, "found lemma named \"{lemma_name}\" for oracle \"{oracle_name}\" but couldn't find matching oracle"),
+            Error::IncorrectArgument {argument} => write!(f, "Expected 2-tuple (name type) for argument but got {argument}"),
+            Error::IncorrectNumberOfArguments {argument, expected} => write!(f, "expected {expected} arguments but found {argument}"),
+            Error::ParserError(err) => write!(f, "error communicating with prover: {err}"),
+
         }
     }
 }
@@ -119,6 +140,12 @@ pub type Result<T> = std::result::Result<T, Error>;
 impl From<crate::util::prover_process::Error> for Error {
     fn from(err: crate::util::prover_process::Error) -> Self {
         new_prover_process_error(err)
+    }
+}
+
+impl From<crate::util::smtparser::Error> for Error {
+    fn from(err: crate::util::smtparser::Error) -> Self {
+        Error::ParserError(err)
     }
 }
 

@@ -1,8 +1,5 @@
-(define-fun invariant
+(define-state-relation invariant
     ((state-H3  <GameState_H3_<$<!n!>$>>)
      (state-H4  <GameState_H4_<$<!n!>$>>))
-  Bool
-  (and (= (<game-H3-<$<!n!>$>-pkgstate-KX> state-H3)
-          (<game-H4-<$<!n!>$>-pkgstate-KX> state-H4))
-       (= (<pkg-state-Nonces-<$<!n!>$>-Nonces> (<game-H3-<$<!n!>$>-pkgstate-Nonces> state-H3))
-	      (<pkg-state-Nonces-<$<!n!>$>-Nonces> (<game-H4-<$<!n!>$>-pkgstate-Nonces> state-H4)))))
+  (and (= state-H3.KX state-H4.KX)
+       (= state-H3.Nonces.Nonces state-H4.Nonces.Nonces)))

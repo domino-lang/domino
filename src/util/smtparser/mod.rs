@@ -13,5 +13,8 @@ pub use sampleid::extract as extract_sampleid;
 
 pub use functions::ExtractedFunction;
 
+pub type Error = implementation::Error<implementation::Rule>;
+pub type Result<T> = std::result::Result<T, Error>;
+
 #[cfg(test)]
 mod test;
