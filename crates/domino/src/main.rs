@@ -10,8 +10,8 @@ use shadow_rs::shadow;
 use thiserror::Error;
 shadow!(build);
 
-use sspverif::project;
-use sspverif::project::Project;
+use sspverif::project::{self, Project};
+use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProveUI, UI};
 
 mod cli;
 use crate::cli::*;
@@ -49,7 +49,7 @@ fn proofsteps() -> Result<(), Error> {
     Ok(())
 }
 
-fn prove(p: &Prove) -> Result<(), Error> {
+fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
@@ -58,6 +58,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
         let smtsolver =
             sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
         project.prove(
+            ui,
             &smtsolver,
             p.transcript,
             p.parallel,
@@ -72,7 +73,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
     Ok(())
 }
 
-fn latex(l: &Latex) -> Result<(), Error> {
+fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
@@ -80,7 +81,7 @@ fn latex(l: &Latex) -> Result<(), Error> {
     let smtsolver = l
         .smtsolver
         .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
-    project.latex(&smtsolver)?;
+    project.latex(ui, &smtsolver)?;
     Ok(())
 }
 
@@ -105,11 +106,12 @@ fn main() -> miette::Result<()> {
     .unwrap();
 
     let cli = Cli::parse();
+    let ui = IndicatifUI::new();
 
     let result = match &cli.command {
-        Commands::Prove(p) => prove(p),
+        Commands::Prove(p) => prove(ui.prove_ui(), p),
         Commands::Proofsteps => proofsteps(),
-        Commands::Latex(l) => latex(l),
+        Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Format(f) => format(f),
     };
 

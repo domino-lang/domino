@@ -21,7 +21,7 @@ use crate::{
     writers::smt::contexts::EquivalenceContext,
 };
 
-use crate::ui::{indicatif::IndicatifUI, ProveGamehopUI, ProveTheoremUI, ProveUI, UI};
+use crate::ui::{LatexUI, LatexUIGameIterator, ProveGamehopUI, ProveTheoremUI, ProveUI};
 
 mod consts;
 mod load;
@@ -39,9 +39,9 @@ pub mod error;
 pub trait Project {
     fn get_root_dir(&self) -> PathBuf;
 
-    fn theorems(&self) -> impl Iterator<Item = &str>;
-    fn packages(&self) -> impl Iterator<Item = &str>;
-    fn games(&self) -> impl Iterator<Item = &str>;
+    fn theorems(&self) -> impl ExactSizeIterator<Item = &str>;
+    fn packages(&self) -> impl ExactSizeIterator<Item = &str>;
+    fn games(&self) -> impl ExactSizeIterator<Item = &str>;
 
     fn get_theorem(&self, name: &str) -> Option<&Theorem<'_>>;
     fn get_game(&self, name: &str) -> Option<&Composition>;
@@ -101,6 +101,7 @@ pub trait Project {
     // we could then extract the theorem viewer output and other useful info trom the trace
     fn prove(
         &self,
+        ui: impl ProveUI,
         backend: &(impl SmtSolverBackend + Sync),
         transcript: bool,
         parallel: usize,
@@ -115,12 +116,9 @@ pub trait Project {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
-        let parent_ui = IndicatifUI::new();
-        let prove_ui = parent_ui.prove_ui();
-
         for (theorem_key, mut ui) in theorem_keys
             .into_iter()
-            .map(|theorem_name| (theorem_name, prove_ui.start_theorem(theorem_name)))
+            .map(|theorem_name| (theorem_name, ui.start_theorem(theorem_name)))
             .collect::<Vec<_>>()
         {
             ui.start();
@@ -197,16 +195,16 @@ pub trait Project {
             ui.finish();
         }
 
-        prove_ui.finish();
+        ui.finish();
         Ok(())
     }
 
-    fn latex(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
+    fn latex(&self, ui: impl LatexUI, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
         let mut path = self.get_root_dir();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
 
-        for name in self.games() {
+        for name in self.games().ui_iter(&ui, "Exporting Games") {
             let game = self.get_game(name).unwrap();
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
@@ -214,9 +212,14 @@ pub trait Project {
             let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
                 .transform()
                 .unwrap();
+            crate::writers::tex::writer::tex_write_composition_graph_file(
+                backend,
+                &transformed,
+                name,
+                path.as_path(),
+            )?;
             for lossy in [true, false] {
                 crate::writers::tex::writer::tex_write_composition(
-                    backend,
                     lossy,
                     &transformed,
                     name,
@@ -225,7 +228,7 @@ pub trait Project {
             }
         }
 
-        for name in self.theorems() {
+        for name in self.theorems().ui_iter(&ui, "Exporting Theorems") {
             let theorem = self.get_theorem(name).unwrap();
             for lossy in [true, false] {
                 crate::writers::tex::tex_write_theorem(
