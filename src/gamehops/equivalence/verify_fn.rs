@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use wildcard::Wildcard;
 
-use std::io::Write as _;
-use std::sync::{Arc, Mutex};
-
-use crate::theorem::RandomnessMappingInjectivityCheck;
+use std::io::Write;
 
 use crate::{
     gamehops::equivalence::{
@@ -15,7 +12,8 @@ use crate::{
     },
     package::Export,
     project::Project,
-    ui::TheoremUI,
+    theorem::RandomnessMappingInjectivityCheck,
+    ui::{ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI},
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
@@ -137,14 +135,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         }
     }
 
-    pub(crate) fn verify<UI: TheoremUI + Send>(&mut self, ui: &mut UI) -> Result<()> {
+    pub(crate) fn verify(&mut self, ui: impl ProveGamehopUI) -> Result<()> {
         self.eqctx.verify_exports_match()?;
 
-        let ui = Arc::new(Mutex::new(ui));
         self.verify_equivalence(ui)
     }
 
-    fn verify_equivalence<UI: TheoremUI + Send>(&self, ui: Arc<Mutex<&mut UI>>) -> Result<()> {
+    fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut smt = Vec::new();
 
@@ -184,33 +181,37 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let equivalence_smt = SmtBuf::from(smt.as_slice());
 
-        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         let oracle_sequence = self.oracle_sequence();
 
-        ui.lock().unwrap().proofstep_set_claim_groups_count(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            (oracle_sequence.len() + 1) // 1 is for invariant start
-                .try_into()
-                .unwrap(),
-        );
-
         let claims = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.parallel + 1) // one process is reserved for the "main" method
+            .num_threads(self.parallel)
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
                 let verify_invariant_start = rayon::iter::once(())
-                    .map(|_| self.verify_invariant_start(ui.clone(), &equivalence_smt))
+                    .map(|_| {
+                        self.verify_invariant_start(
+                            ui.start_invariant_start(ClaimGroup::InvariantStart.ui_name()),
+                            &equivalence_smt,
+                        )
+                    })
                     .flatten();
 
                 if self.invariant_start {
                     return verify_invariant_start.collect();
                 }
 
+                let oracle_sequence: Vec<_> = oracle_sequence
+                    .iter()
+                    .map(|oracle| {
+                        let ui = ui.start_oracle(oracle);
+                        (oracle, ui)
+                    })
+                    .collect();
+
                 let verify_oracle_claims = oracle_sequence
-                    .par_iter()
-                    .map(|oracle| self.verify_oracle(ui.clone(), &equivalence_smt, oracle))
+                    .into_par_iter()
+                    .map(|(oracle, ui)| self.verify_oracle(ui, &equivalence_smt, oracle))
                     .flatten();
 
                 if self.req_oracle.is_some() || self.injective_randmap {
@@ -228,12 +229,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 failed_claims,
             });
         }
+        ui.finish();
         Ok(())
     }
 
-    fn verify_invariant_start<UI: TheoremUI + Send>(
+    fn verify_invariant_start(
         &self,
-        ui: Arc<Mutex<&mut UI>>,
+        ui: impl ProveInvariantStartUI,
         equivalence_smt: &SmtBuf,
     ) -> Vec<Result<()>> {
         let claim_group = ClaimGroup::InvariantStart;
@@ -254,24 +256,33 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 .generate_game_or_package_invariant_start_asserts(),
         );
 
-        let num_claims = checks.len();
-        self.verify_as_ui_claim_group(ui.clone(), &claim_group, num_claims, || {
-            checks
-                .par_iter()
+        ui.run(|ui| {
+            let checks: Vec<_> = checks
+                .iter()
                 .filter(|(claim_name, _)| self.is_claim_requested(claim_name))
                 .map(|(claim_name, assert)| {
+                    let ui = ui.start_claim(claim_name);
+
+                    (claim_name, assert, ui)
+                })
+                .collect();
+
+            checks
+                .into_par_iter()
+                .map(|(name, assert, ui)| {
                     let claim_smt = [assert.clone()];
                     let mut smt = base_smt.to_owned();
                     smt.push(&claim_smt);
-                    self.verify_with_solver_as_ui_claim(ui.clone(), smt, &claim_group, claim_name)
+
+                    ui.run(|| self.verify_with_solver(smt, &claim_group, name))
                 })
                 .collect()
         })
     }
 
-    fn verify_oracle<UI: TheoremUI + Send>(
+    fn verify_oracle(
         &self,
-        ui: Arc<Mutex<&mut UI>>,
+        ui: impl ProveOracleUI,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
     ) -> Vec<Result<()>> {
@@ -283,51 +294,15 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             oracle_name: oracle.name().to_string(),
         };
 
-        let num_claims = if self.injective_randmap {
-            RandomnessMappingInjectivityCheck::ALL.len()
-        } else {
-            claims.len() + RandomnessMappingInjectivityCheck::ALL.len()
-        };
-
-        self.verify_as_ui_claim_group(ui.clone(), &claim_group, num_claims, || {
-            self.do_verify_oracle(ui.clone(), equivalence_smt, oracle, &claims, &claim_group)
-        })
+        ui.run(|ui| self.do_verify_oracle(ui, equivalence_smt, oracle, &claims, &claim_group))
     }
 
-    fn verify_as_ui_claim_group<UI: TheoremUI>(
+    fn do_verify_oracle(
         &self,
-        ui: Arc<Mutex<&mut UI>>,
-        claim_group: &ClaimGroup,
-        num_claims: usize,
-        verify: impl FnOnce() -> Vec<Result<()>>,
-    ) -> Vec<Result<()>> {
-        let eq = self.eqctx.equivalence();
-        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
-
-        ui.lock().unwrap().start_claim_group(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            &claim_group.ui_name(),
-            num_claims.try_into().unwrap(),
-        );
-
-        let result = verify();
-
-        ui.lock().unwrap().finish_claim_group(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            &claim_group.ui_name(),
-        );
-
-        result
-    }
-
-    fn do_verify_oracle<UI: TheoremUI + Send>(
-        &self,
-        ui: Arc<Mutex<&mut UI>>,
+        ui: &impl ProveOracleUI,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
-        claims: &Vec<ResolvedClaim>,
+        claims: &[ResolvedClaim],
         claim_group: &ClaimGroup,
     ) -> Vec<Result<()>> {
         log::info!("verify: oracle:{oracle:?}");
@@ -335,117 +310,50 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut oracle_smt = equivalence_smt.to_owned();
         oracle_smt.push(auto_randomness.as_slice());
 
-        let verify_randomness_mapping_injectivity = rayon::iter::once(())
-            .map(|_| {
-                self.verify_randomness_mapping_injectivity(
-                    ui.clone(),
-                    &oracle_smt,
-                    oracle.name(),
-                    claim_group,
-                )
-            })
-            .flatten();
-
-        if self.injective_randmap {
-            return verify_randomness_mapping_injectivity.collect();
-        }
-
         let return_value_helpers = self.eqctx.emit_return_value_helpers(oracle.name());
-        let mut oracle_claim_smt = oracle_smt.to_owned();
-        oracle_claim_smt.push(return_value_helpers.as_slice());
+        oracle_smt.push(return_value_helpers.as_slice());
+
         let randomness_mapping_condition =
             self.eqctx.emit_randomness_mapping_condition(oracle.name());
-        oracle_claim_smt.push(randomness_mapping_condition.as_slice());
+        oracle_smt.push(randomness_mapping_condition.as_slice());
 
-        let verify_oracle_claims = claims
-            .par_iter()
-            .filter(|claim| self.is_claim_requested(&claim.name))
-            .map(|claim| -> Result<()> {
-                self.verify_oracle_claim(
-                    ui.clone(),
-                    &oracle_claim_smt,
-                    oracle.name(),
-                    claim,
-                    claim_group,
-                )
-            });
-
-        verify_randomness_mapping_injectivity
-            .chain(verify_oracle_claims)
-            .collect()
-    }
-
-    fn verify_randomness_mapping_injectivity<UI: TheoremUI + Send>(
-        &self,
-        ui: Arc<Mutex<&mut UI>>,
-        oracle_smt: &SmtBuf,
-        oracle_name: &str,
-        claim_group: &ClaimGroup,
-    ) -> Vec<Result<()>> {
-        log::info!("verify: randomness mapping injectivity of oracle {oracle_name}");
-
-        RandomnessMappingInjectivityCheck::ALL
+        let mut tasks: Vec<_> = RandomnessMappingInjectivityCheck::ALL
             .as_slice()
-            .par_iter()
+            .iter()
             .filter(|check| self.is_claim_requested(check.name()))
             .map(|check| {
                 let claim_name = check.name();
+                let claim_smt = check.emit_randomness_mapping_injectivity_check(oracle.name());
+                let ui = ui.start_injectivity(claim_name);
 
-                let claim_smt = check.emit_randomness_mapping_injectivity_check(oracle_name);
-                let mut smt = oracle_smt.to_owned();
-                smt.push(claim_smt.as_slice());
-
-                self.verify_with_solver_as_ui_claim(ui.clone(), smt, claim_group, claim_name)
+                (claim_name, claim_smt, ui)
             })
-            .collect()
-    }
+            .collect();
 
-    fn verify_oracle_claim<UI: TheoremUI>(
-        &self,
-        ui: Arc<Mutex<&mut UI>>,
-        oracle_smt: &SmtBuf,
-        oracle_name: &str,
-        claim: &ResolvedClaim,
-        claim_group: &ClaimGroup,
-    ) -> Result<()> {
-        if claim.is_admitted() {
-            return Ok(());
+        if !self.injective_randmap {
+            tasks.extend(
+                claims
+                    .iter()
+                    .filter(|claim| !claim.is_admitted() && self.is_claim_requested(&claim.name))
+                    .map(|claim| {
+                        let claim_smt =
+                            vec![self.eqctx.emit_oracle_claim_assert(claim, oracle.name())];
+                        let ui = ui.start_claim(claim);
+
+                        (claim.name(), claim_smt, ui)
+                    }),
+            );
         }
 
-        let claim_smt = [self.eqctx.emit_oracle_claim_assert(claim, oracle_name)];
-        let mut smt = oracle_smt.to_owned();
-        smt.push(claim_smt.as_slice());
+        tasks
+            .into_par_iter()
+            .map(|(name, assert, ui)| {
+                let mut smt = oracle_smt.to_owned();
+                smt.push(&assert);
 
-        self.verify_with_solver_as_ui_claim(ui, smt, claim_group, claim.name())
-    }
-
-    fn verify_with_solver_as_ui_claim<UI: TheoremUI>(
-        &self,
-        ui: Arc<Mutex<&mut UI>>,
-        smt: SmtBuf,
-        claim_group: &ClaimGroup,
-        claim_name: &str,
-    ) -> Result<()> {
-        let eq = self.eqctx.equivalence();
-        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
-
-        ui.lock().unwrap().start_claim(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            &claim_group.ui_name(),
-            claim_name,
-        );
-
-        let result = self.verify_with_solver(smt, claim_group, claim_name);
-
-        ui.lock().unwrap().finish_claim(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            &claim_group.ui_name(),
-            claim_name,
-        );
-
-        result
+                ui.run(|| self.verify_with_solver(smt, claim_group, name))
+            })
+            .collect()
     }
 
     fn verify_with_solver(
