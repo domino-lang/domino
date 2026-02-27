@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use indicatif::{MultiProgress, ProgressBar};
+use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
 use super::{
-    ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI, ProveUI, UI,
+    LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI,
+    ProveUI, UI,
 };
 
 use crate::{
@@ -43,6 +44,7 @@ impl Default for IndicatifUI {
 
 impl UI for IndicatifUI {
     type ProveUI = IndicatifProveUI;
+    type LatexUI = IndicatifLatexUI;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.multi_progress.println(line)
@@ -57,6 +59,12 @@ impl UI for IndicatifUI {
         IndicatifProveUI {
             main_ui: self.clone(),
             progress,
+        }
+    }
+
+    fn latex_ui(&self) -> Self::LatexUI {
+        IndicatifLatexUI {
+            main_ui: self.clone(),
         }
     }
 }
@@ -389,6 +397,27 @@ impl ProveClaimUI for IndicatifProveClaimUI {
     }
 }
 
+pub struct IndicatifLatexUI {
+    main_ui: IndicatifUI,
+}
+
+impl LatexUI for IndicatifLatexUI {
+    fn game_iterator<Item>(
+        &self,
+        iter: impl ExactSizeIterator<Item = Item>,
+        caption: String,
+    ) -> impl Iterator<Item = Item> {
+        let progress = self
+            .main_ui
+            .multi_progress
+            .add(ProgressBar::new(iter.len().try_into().unwrap()));
+        progress.set_style(indicatif_style::latex_bar());
+        progress.set_message(caption);
+
+        iter.progress_with(progress)
+    }
+}
+
 mod indicatif_style {
     use indicatif::ProgressStyle;
 
@@ -411,6 +440,14 @@ mod indicatif_style {
     pub(super) fn oracle_bar() -> ProgressStyle {
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:80.magenta/white} {pos:>3}/{len:3} {msg}",
+        )
+        .unwrap()
+        .progress_chars("#>-")
+    }
+
+    pub(super) fn latex_bar() -> ProgressStyle {
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:80.cyan/blue} {pos:>3}/{len:3} {msg}",
         )
         .unwrap()
         .progress_chars("#>-")
