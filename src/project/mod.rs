@@ -24,7 +24,7 @@ use crate::{
     util::prover_process::ProverBackend,
 };
 
-use crate::ui::{indicatif::IndicatifUI, ProveProofstepUI, ProveTheoremUI, ProveUI, UI};
+use crate::ui::{LatexUI, LatexUIGameIterator, ProveProofstepUI, ProveTheoremUI, ProveUI};
 
 pub const PROJECT_FILE: &str = "ssp.toml";
 
@@ -211,6 +211,7 @@ impl<'a> Project<'a> {
     // we could then extract the theorem viewer output and other useful info trom the trace
     pub fn prove(
         &self,
+        ui: impl ProveUI,
         backend: ProverBackend,
         transcript: bool,
         parallel: usize,
@@ -221,12 +222,9 @@ impl<'a> Project<'a> {
         let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
         theorem_keys.sort();
 
-        let parent_ui = IndicatifUI::new();
-        let prove_ui = parent_ui.prove_ui();
-
         for (theorem_key, mut ui) in theorem_keys
             .into_iter()
-            .map(|theorem_name| (theorem_name, prove_ui.start_theorem(theorem_name)))
+            .map(|theorem_name| (theorem_name, ui.start_theorem(theorem_name)))
             .collect::<Vec<_>>()
         {
             ui.start();
@@ -304,25 +302,30 @@ impl<'a> Project<'a> {
             ui.finish();
         }
 
-        prove_ui.finish();
+        ui.finish();
         Ok(())
     }
 
-    pub fn latex(&self, backend: Option<ProverBackend>) -> Result<()> {
+    pub fn latex(&self, ui: impl LatexUI, backend: Option<ProverBackend>) -> Result<()> {
         let mut path = self.root_dir.clone();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
 
-        for (name, game) in &self.games {
+        for (name, game) in self.games.iter().ui_iter(&ui, "Exporting Games") {
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
             let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
                 .transform()
                 .unwrap();
+            crate::writers::tex::writer::tex_write_composition_graph_file(
+                &backend,
+                &transformed,
+                name,
+                path.as_path(),
+            )?;
             for lossy in [true, false] {
                 crate::writers::tex::writer::tex_write_composition(
-                    &backend,
                     lossy,
                     &transformed,
                     name,
@@ -331,7 +334,7 @@ impl<'a> Project<'a> {
             }
         }
 
-        for (name, theorem) in &self.theorems {
+        for (name, theorem) in self.theorems.iter().ui_iter(&ui, "Exporting Theorems") {
             for lossy in [true, false] {
                 crate::writers::tex::tex_write_theorem(
                     &backend,

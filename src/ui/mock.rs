@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::ui::{ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI, UI};
+use crate::ui::{
+    LatexUI, ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI, UI,
+};
 
 #[derive(Clone)]
 pub struct TestUI {}
@@ -17,6 +19,10 @@ impl UI for TestUI {
     }
 
     fn prove_ui(&self) -> impl ProveUI {
+        self.clone()
+    }
+
+    fn latex_ui(&self) -> impl LatexUI {
         self.clone()
     }
 }
@@ -82,4 +88,14 @@ impl ProveLemmaUI for TestUI {
 
     fn start(&mut self) {}
     fn finish(&self) {}
+}
+
+impl LatexUI for TestUI {
+    fn game_iterator<Item>(
+        &self,
+        iter: impl ExactSizeIterator<Item = Item>,
+        _caption: String,
+    ) -> impl Iterator<Item = Item> {
+        iter
+    }
 }
