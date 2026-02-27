@@ -7,8 +7,8 @@ use crate::{
     },
     package::Export,
     ui::{
-        ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI,
-        ProveUI, UI,
+        LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
+        ProveTheoremUI, ProveUI, UI,
     },
 };
 
@@ -23,12 +23,17 @@ impl TestUI {
 
 impl UI for TestUI {
     type ProveUI = TestUI;
+    type LatexUI = TestUI;
 
     fn println(&self, _line: &str) -> std::io::Result<()> {
         Ok(())
     }
 
     fn prove_ui(&self) -> Self::ProveUI {
+        self.clone()
+    }
+
+    fn latex_ui(&self) -> Self::LatexUI {
         self.clone()
     }
 }
@@ -125,5 +130,15 @@ impl ProveClaimUI for TestUI {
 
     fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()> {
         fun()
+    }
+}
+
+impl LatexUI for TestUI {
+    fn game_iterator<Item>(
+        &self,
+        iter: impl ExactSizeIterator<Item = Item>,
+        _caption: String,
+    ) -> impl Iterator<Item = Item> {
+        iter
     }
 }

@@ -8,16 +8,19 @@ use crate::{
     package::Export,
 };
 
-pub(crate) mod indicatif;
+pub mod indicatif;
+
 #[cfg(test)]
 pub(crate) mod mock;
 
 pub trait UI {
     type ProveUI: ProveUI;
+    type LatexUI: LatexUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn prove_ui(&self) -> Self::ProveUI;
+    fn latex_ui(&self) -> Self::LatexUI;
 }
 
 pub trait ProveUI {
@@ -82,4 +85,22 @@ pub trait ProveClaimUI: Send + Sync {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()>;
+}
+
+pub trait LatexUI {
+    fn game_iterator<Item>(
+        &self,
+        iter: impl ExactSizeIterator<Item = Item>,
+        caption: String,
+    ) -> impl Iterator<Item = Item>;
+}
+
+pub trait LatexUIGameIterator<'ui, Item> {
+    fn ui_iter(self, ui: &'ui impl LatexUI, caption: &str) -> impl Iterator<Item = Item>;
+}
+
+impl<'ui, S, T: ExactSizeIterator<Item = S>> LatexUIGameIterator<'ui, S> for T {
+    fn ui_iter(self, ui: &'ui impl LatexUI, caption: &str) -> impl Iterator<Item = S> {
+        ui.game_iterator(self, caption.to_string())
+    }
 }
