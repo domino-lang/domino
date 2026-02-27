@@ -1,47 +1,59 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::{gamehops::GameHop, package::Export, theorem::Claim};
+
 pub(crate) mod indicatif;
 #[cfg(test)]
 pub(crate) mod mock;
 
-pub trait TheoremUI {
+pub trait UI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
-    fn start_theorem(&mut self, theorem_name: &str, num_proofsteps: u64);
+    fn prove_ui(&self) -> impl ProveUI;
+}
 
-    fn finish_theorem(&mut self, theorem_name: &str);
+pub trait ProveUI {
+    fn println(&self, line: &str) -> std::io::Result<()>;
 
-    fn start_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn start(&self);
+    fn finish(&self);
 
-    fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn start_theorem(&self, theorem_name: &str) -> impl ProveTheoremUI;
+}
 
-    fn proofstep_set_oracles(&mut self, theorem_name: &str, proofstep_name: &str, num_oracles: u64);
+pub trait ProveTheoremUI {
+    fn println(&self, line: &str) -> std::io::Result<()>;
 
-    fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn start(&mut self);
+    fn finish(&self);
 
-    fn start_oracle(
-        &mut self,
-        theorem_name: &str,
-        proofstep_name: &str,
-        oracle_name: &str,
-        num_lemmata: u64,
-    );
+    fn start_gamehop(&self, gamehop: &GameHop) -> impl ProveGamehopUI;
+}
 
-    fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
+pub trait ProveGamehopUI: Sync {
+    fn println(&self, line: &str) -> std::io::Result<()>;
 
-    fn start_lemma(
-        &mut self,
-        theorem_name: &str,
-        proofstep_name: &str,
-        oracle_name: &str,
-        lemma_name: &str,
-    );
+    fn is_reduction(&self);
 
-    fn finish_lemma(
-        &mut self,
-        theorem_name: &str,
-        proofstep_name: &str,
-        oracle_name: &str,
-        lemma_name: &str,
-    );
+    fn start(&mut self);
+    fn finish(&self);
+
+    fn start_oracle(&self, oracle: &Export) -> impl ProveOracleUI;
+}
+
+pub trait ProveOracleUI: Send + Sync {
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn start(&mut self);
+    fn finish(&self);
+
+    fn start_claim(&self, claim: &Claim) -> impl ProveClaimUI;
+}
+
+pub trait ProveClaimUI: Send {
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn start(&mut self);
+    fn success(&self);
+    fn failure(&self);
 }

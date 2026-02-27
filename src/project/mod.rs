@@ -21,7 +21,7 @@ use crate::{
     writers::smt::contexts::EquivalenceContext,
 };
 
-use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
+use crate::ui::{indicatif::IndicatifUI, ProveGamehopUI, ProveTheoremUI, ProveUI, UI};
 
 mod consts;
 mod load;
@@ -115,35 +115,45 @@ pub trait Project {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
-        let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
+        let parent_ui = IndicatifUI::new();
+        let prove_ui = parent_ui.prove_ui();
 
-        for theorem_key in theorem_keys.into_iter() {
+        for (theorem_key, mut ui) in theorem_keys
+            .into_iter()
+            .map(|theorem_name| (theorem_name, prove_ui.start_theorem(theorem_name)))
+            .collect::<Vec<_>>()
+        {
+            ui.start();
             let theorem = self.get_theorem(theorem_key).unwrap();
-            ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
 
             if let Some(ref req_theorem) = req_theorem {
                 if theorem_key != req_theorem {
-                    ui.finish_theorem(&theorem.name);
+                    ui.finish();
                     continue;
                 }
             }
 
-            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
-                ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
-
+            for (i, game_hop, mut ui) in theorem
+                .game_hops
+                .iter()
+                .enumerate()
+                .map(|(idx, game_hop)| (idx, game_hop, ui.start_gamehop(game_hop)))
+                .collect::<Vec<_>>()
+            {
+                ui.start();
                 if let Some(ref req_proofstep) = req_proofstep {
                     if i != *req_proofstep {
-                        ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
+                        ui.finish();
                         continue;
                     }
                 }
 
                 match game_hop {
                     GameHop::Reduction(_) => {
-                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.is_reduction();
                     }
                     GameHop::Conjecture(_) => {
-                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.is_reduction();
                     }
                     GameHop::Equivalence(eq) => {
                         let (theorem, auxs) =
@@ -161,7 +171,7 @@ pub trait Project {
                             req_claim.as_deref(),
                             parallel,
                         );
-                        driver.verify(&mut ui)?;
+                        driver.verify(ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
                         let (theorem, auxs) =
@@ -179,15 +189,15 @@ pub trait Project {
                             req_claim.as_deref(),
                             parallel,
                         );
-                        driver.verify(&mut ui)?;
+                        driver.verify(ui)?;
                     }
                 }
-                ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
             }
 
-            ui.finish_theorem(&theorem.name);
+            ui.finish();
         }
 
+        prove_ui.finish();
         Ok(())
     }
 
