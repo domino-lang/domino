@@ -81,10 +81,10 @@ impl<'a> DirectoryProject<'a> {
 }
 
 impl Project for DirectoryProject<'_> {
-    fn games(&self) -> impl Iterator<Item = &String> {
+    fn games(&self) -> impl ExactSizeIterator<Item = &String> {
         self.games.keys()
     }
-    fn theorems(&self) -> impl Iterator<Item = &String> {
+    fn theorems(&self) -> impl ExactSizeIterator<Item = &String> {
         self.theorems.keys()
     }
     fn get_game(&self, name: &str) -> Option<&Composition> {

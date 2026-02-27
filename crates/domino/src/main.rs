@@ -124,6 +124,7 @@ shadow!(build);
 
 use sspverif::project;
 use sspverif::project::Project;
+use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProveUI, UI};
 
 mod cli;
 use crate::cli::*;
@@ -163,7 +164,7 @@ fn proofsteps(p: &Proofsteps) -> Result<(), project::error::Error> {
 }
 
 #[cfg(not(feature = "zipfile"))]
-fn prove(p: &Prove) -> Result<(), project::error::Error> {
+fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), project::error::Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
@@ -172,6 +173,7 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
 
     let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
     project.prove(
+        ui,
         &smtsolver,
         p.transcript,
         p.parallel,
@@ -182,7 +184,7 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
 }
 
 #[cfg(feature = "zipfile")]
-fn prove(p: &Prove) -> Result<(), project::error::Error> {
+fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), project::error::Error> {
     if let Some(zipfile) = &p.zipfile {
         let zipfile = std::fs::File::open(zipfile)?;
         let files = project::ZipFiles::load(zipfile)?;
@@ -191,6 +193,7 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
         assert!(p.proofstep.is_none() || p.proof.is_some());
 
         project.prove(
+            ui,
             p.prover,
             p.transcript,
             p.parallel,
@@ -229,7 +232,7 @@ fn explain(_game_name: &str, _dst: &Option<String>) -> Result<(), project::error
     // Ok(())
 }
 
-fn latex(l: &Latex) -> Result<(), project::error::Error> {
+fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), project::error::Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
@@ -237,7 +240,7 @@ fn latex(l: &Latex) -> Result<(), project::error::Error> {
     let smtsolver = l
         .smtsolver
         .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
-    project.latex(&smtsolver)
+    project.latex(ui, &smtsolver)
 }
 
 fn format(f: &Format) -> Result<(), project::error::Error> {
@@ -263,11 +266,12 @@ fn wire_check(_game_name: &str, _dst_idx: usize) -> Result<(), project::error::E
 
 fn main() -> miette::Result<()> {
     let cli = Cli::parse();
+    let ui = IndicatifUI::new();
 
     let result = match &cli.command {
-        Commands::Prove(p) => prove(p),
+        Commands::Prove(p) => prove(ui.prove_ui(), p),
         Commands::Proofsteps(p) => proofsteps(p),
-        Commands::Latex(l) => latex(l),
+        Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
         Commands::WireCheck(args) => wire_check(&args.game_name, args.dst_idx),
         Commands::Format(f) => format(f),
