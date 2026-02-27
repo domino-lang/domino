@@ -128,7 +128,7 @@ fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
     Ok(())
 }
 
-fn tex_write_composition_graph_file(
+pub fn tex_write_composition_graph_file(
     backend: &Option<ProverBackend>,
     composition: &Composition,
     name: &str,
@@ -143,7 +143,6 @@ fn tex_write_composition_graph_file(
 }
 
 pub fn tex_write_composition(
-    backend: &Option<ProverBackend>,
     lossy: bool,
     composition: &Composition,
     name: &str,
@@ -162,7 +161,7 @@ pub fn tex_write_composition(
     writeln!(file, "\\begin{{document}}")?;
     writeln!(file, "\\maketitle")?;
 
-    let graphfname = tex_write_composition_graph_file(backend, composition, name, target)?;
+    let graphfname = target.join(format!("CompositionGraph_{name}.tex"));
     let graphfname = Path::new(&graphfname)
         .strip_prefix(fname.clone().parent().unwrap())
         .unwrap()
