@@ -10,7 +10,7 @@ use super::{
         UndefinedPackageInstanceError, UnusedEdgeError,
     },
     package::ParsePackageError,
-    ParseContext, Rule,
+    FileType, ParseContext, Rule,
 };
 use crate::{
     debug_assert_matches,
@@ -28,35 +28,36 @@ use std::iter::FromIterator as _;
 use thiserror::Error;
 
 #[derive(Debug)]
-pub struct ParseGameContext<'a> {
-    pub file_name: &'a str,
-    pub file_content: &'a str,
-    pub game_name: &'a str,
-    pub pkgs: &'a HashMap<String, Package>,
+pub struct ParseGameContext<'src> {
+    pub file_name: &'src str,
+    pub file_content: &'src str,
+    pub game_name: &'src str,
+    pub pkgs: &'src HashMap<String, Package>,
 
     pub scope: Scope,
 
     pub consts: HashMap<String, Type>,
-    pub types: Vec<String>,
+    pub types: Vec<(&'src str, Span<'src>)>,
 
-    pub instances: Vec<(PackageInstance, Span<'a>)>,
-    pub instances_table: HashMap<String, (usize, PackageInstance, Span<'a>)>,
+    pub instances: Vec<(PackageInstance, Span<'src>)>,
+    pub instances_table: HashMap<String, (usize, PackageInstance, Span<'src>)>,
 
     pub edges: Vec<Edge>,
     pub exports: Vec<Export>,
 }
 
-impl<'a> ParseContext<'a> {
+impl<'src> ParseContext<'src> {
     fn game_context(
         self,
-        game_name: &'a str,
-        pkgs: &'a HashMap<String, Package>,
-    ) -> ParseGameContext<'a> {
+        game_name: &'src str,
+        pkgs: &'src HashMap<String, Package>,
+    ) -> ParseGameContext<'src> {
         let Self {
             file_name,
             file_content,
             scope,
             types,
+            ..
         } = self;
 
         ParseGameContext {
@@ -79,13 +80,14 @@ impl<'a> ParseContext<'a> {
     }
 }
 
-impl<'a> ParseGameContext<'a> {
+impl<'src> ParseGameContext<'src> {
     pub(crate) fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
 
-    pub(crate) fn parse_ctx(&self) -> ParseContext<'a> {
+    pub(crate) fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Game,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
@@ -94,10 +96,16 @@ impl<'a> ParseGameContext<'a> {
     }
 }
 
-impl<'a> ParseGameContext<'a> {
+impl<'src> ParseGameContext<'src> {
     fn into_game(self) -> Composition {
         let mut consts = Vec::from_iter(self.consts);
         consts.sort();
+
+        let type_params = self
+            .types
+            .into_iter()
+            .map(|(name, _span)| name.to_string())
+            .collect();
 
         Composition {
             name: self.game_name.to_string(),
@@ -105,6 +113,7 @@ impl<'a> ParseGameContext<'a> {
             pkgs: self.instances.into_iter().map(|(inst, _)| inst).collect(),
             edges: self.edges,
             exports: self.exports,
+            type_params,
         }
     }
 
@@ -113,7 +122,7 @@ impl<'a> ParseGameContext<'a> {
     }
     // TODO: check dupes here?
 
-    fn add_pkg_instance(&mut self, pkg_inst: PackageInstance, span: Span<'a>) {
+    fn add_pkg_instance(&mut self, pkg_inst: PackageInstance, span: Span<'src>) {
         let offset = self.instances.len();
         self.instances.push((pkg_inst.clone(), span));
         self.instances_table
@@ -214,20 +223,37 @@ pub(crate) fn handle_composition(
     let mut scope = Scope::new();
     scope.enter();
 
-    let ctx = ParseContext::new(file_name, file_content).game_context(game_name, pkg_map);
+    let ctx =
+        ParseContext::new(file_name, file_content, FileType::Game).game_context(game_name, pkg_map);
 
     let spec = inner.next().unwrap();
     handle_comp_spec_list(ctx, spec)
 }
 
+fn handle_types<'src>(
+    ast: Pair<'src, Rule>,
+) -> impl Iterator<Item = (&'src str, pest::Span<'src>)> {
+    debug_assert_matches!(ast.as_rule(), Rule::types);
+
+    // ast.into_inner() yields [types_list]. We then iterate into types_list
+    // to get individual type_userdefined entries (avoiding trailing-whitespace
+    // artifacts from types_list.as_str()).
+    ast.into_inner()
+        .flat_map(|types_list| types_list.into_inner())
+        .map(|entry| (entry.as_str(), entry.as_span()))
+}
+
 /// Parses the main body of a game (aka composition).
 /// This function takes ownership of the context because it needs to move all the information stored in there into the game.
-pub(crate) fn handle_comp_spec_list<'a>(
-    mut ctx: ParseGameContext<'a>,
-    ast: Pair<'a, Rule>,
+pub(crate) fn handle_comp_spec_list<'src>(
+    mut ctx: ParseGameContext<'src>,
+    ast: Pair<'src, Rule>,
 ) -> Result<Composition, ParseGameError> {
     for comp_spec in ast.into_inner() {
         match comp_spec.as_rule() {
+            Rule::types => {
+                ctx.types.extend(handle_types(comp_spec));
+            }
             Rule::const_decl => {
                 let (name, ty) = handle_const_decl(&ctx.parse_ctx(), comp_spec)?;
                 ctx.add_const(name.clone(), ty.clone());
@@ -514,7 +540,7 @@ fn handle_edges_compose_assign_list(
 
         let found_duplicate_edge = edges
             .iter()
-            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.sig().name == oracle_name);
+            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.name() == oracle_name);
 
         if found_duplicate_edge {
             return Err(DuplicateEdgeDefinitionError {
@@ -571,8 +597,13 @@ pub(crate) fn handle_instance_assign_list(
         match elem.as_rule() {
             Rule::params_def => {
                 if let Some(params_def_list) = elem.into_inner().next() {
-                    let defs =
-                        handle_game_params_def_list(ctx, pkg, pkg_inst_name, params_def_list)?;
+                    let defs = handle_game_params_def_list(
+                        ctx,
+                        pkg,
+                        pkg_inst_name,
+                        &types,
+                        params_def_list,
+                    )?;
                     params.extend(defs.into_iter().map(|(name, value)| {
                         (
                             PackageConstIdentifier {
@@ -627,9 +658,9 @@ pub(crate) fn handle_instance_assign_list(
     Ok((params, types))
 }
 
-pub(crate) fn handle_instance_decl<'a>(
-    ctx: &mut ParseGameContext<'a>,
-    ast: Pair<'a, Rule>,
+pub(crate) fn handle_instance_decl<'src>(
+    ctx: &mut ParseGameContext<'src>,
+    ast: Pair<'src, Rule>,
 ) -> Result<(), ParseGameError> {
     debug_assert_matches!(ast.as_rule(), Rule::instance_decl);
     let span = ast.as_span();

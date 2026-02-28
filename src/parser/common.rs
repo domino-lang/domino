@@ -6,7 +6,7 @@ use crate::identifier::pkg_ident::{PackageConstIdentifier, PackageIdentifier};
 use crate::identifier::Identifier;
 use crate::package::{Composition, Package};
 use crate::parser::composition::ParseGameError;
-use crate::types::{CountSpec, TypeKind};
+use crate::types::{CountSpec, TypeKind, UserDefinedType};
 use crate::{debug_assert_matches, expressions::Expression, types::Type};
 
 use super::composition::ParseGameContext;
@@ -129,9 +129,15 @@ pub(crate) fn handle_type(ctx: &ParseContext, ty: Pair<Rule>) -> Result<Type, Ha
             if ctx
                 .types
                 .iter()
-                .any(|declared_type| declared_type == type_name)
+                .any(|(declared_type, _)| *declared_type == type_name)
             {
-                TypeKind::UserDefined(ty.as_str().to_string())
+                let name = ty.as_str().to_string();
+                let ud_kind = match ctx.file_type {
+                    super::FileType::Package => UserDefinedType::Package(name),
+                    super::FileType::Game => UserDefinedType::Game(name),
+                    super::FileType::Theorem => UserDefinedType::Theorem(name),
+                };
+                TypeKind::UserDefined(ud_kind)
             } else {
                 let span = ty.as_span();
                 return Err(NoSuchTypeError {
@@ -154,11 +160,21 @@ pub(crate) fn handle_game_params_def_list(
     ctx: &ParseGameContext,
     pkg: &Package,
     pkg_inst_name: &str,
+    types: &[(String, Type)],
     ast: Pair<Rule>,
 ) -> std::result::Result<Vec<(String, Expression)>, super::composition::ParseGameError> {
     debug_assert_matches!(ast.as_rule(), Rule::params_def_list);
     let mut defined_params = HashMap::<String, SourceSpan>::new();
     let block_span = ast.as_span();
+    let types: Vec<_> = types
+        .iter()
+        .map(|(name, ty)| {
+            (
+                Type::user_defined(crate::types::UserDefinedType::Package(name.to_string())),
+                ty.clone(),
+            )
+        })
+        .collect();
 
     // We need to process ints first, so we can rewrite the Bits(<some int>) that contain the name
     // of the const parameter on one side, and the name of the value that is assigned on the other.
@@ -202,6 +218,7 @@ pub(crate) fn handle_game_params_def_list(
             res.and_then(|(pair_span, name_ast, value_ast, expected_type)| {
                 // parse the assigned value, and set the expected type to what the clone
                 // prescribes.
+                let expected_type = expected_type.rewrite_type(&types);
                 let value = super::package::handle_expression(
                     &ctx.parse_ctx(),
                     value_ast.clone(),
@@ -279,6 +296,8 @@ pub(crate) fn handle_game_params_def_list(
                 pkg_inst_name: pkg_inst_name.to_string(),
             })?;
         }
+
+            let expected_type = expected_type.rewrite_type(&types);
 
         // parse the assigned value, and set the expected type to what the clone
         // prescribes.

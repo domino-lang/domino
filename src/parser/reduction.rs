@@ -6,6 +6,11 @@ use std::ops::Range;
 use itertools::Itertools as _;
 use pest::iterators::Pair;
 
+use crate::packageinstance::game_inst_type_mapping_vec;
+use crate::parser::error::{
+    AssumptionMappingTypeParameterMismatchError, ReductionPackageInstanceTypeParameterMismatchError,
+};
+use crate::types::Type;
 use crate::{
     expressions::{Expression, ExpressionKind},
     gamehops::{
@@ -41,10 +46,10 @@ use super::{
     Rule,
 };
 
-pub(crate) fn handle_reduction<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+pub(crate) fn handle_reduction<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let left_name_ast = ast.next().unwrap();
@@ -95,7 +100,6 @@ fn compare_reduction(
 
         // only one of them in the assumption, this is an error
         (Some(mapping_entry), None) => {
-            println!("asd");
             let mapping_entry_span = mapping_entry.construction().as_span();
             Err(ReductionInconsistentAssumptionBoundaryError {
                 source_code: ctx.named_source(),
@@ -108,7 +112,6 @@ fn compare_reduction(
             })
         }
         (None, Some(mapping_entry)) => {
-            println!("fgh");
             let mapping_entry_span = mapping_entry.construction().as_span();
             Err(ReductionInconsistentAssumptionBoundaryError {
                 source_code: ctx.named_source(),
@@ -171,6 +174,17 @@ fn compare_reduction(
             }
             .into());
         }
+        PackageInstanceDiff::DifferentTypeParams(param_diff) => {
+            return Err(ReductionPackageInstanceTypeParameterMismatchError {
+                source_code: ctx.named_source(),
+                at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                right_pkg_inst_name: right_pkg_inst.name().to_string(),
+
+                type_param_names: param_diff.iter().map(|(name, _, _)| name).join(", "),
+            }
+            .into());
+        }
         PackageInstanceDiff::Same => {}
     }
 
@@ -204,14 +218,14 @@ fn compare_reduction(
     Ok(())
 }
 
-pub(super) fn handle_reduction_body<'a>(
+pub(super) fn handle_reduction_body<'src>(
     ctx: &mut ParseTheoremContext,
     left_name: &str,
     right_name: &str,
     header_span: Range<usize>,
-    body: Pair<'a, Rule>,
+    body: Pair<'src, Rule>,
     is_hybrid: bool,
-) -> Result<Reduction<'a>, ParseTheoremError> {
+) -> Result<Reduction<'src>, ParseTheoremError> {
     debug_assert_eq!(body.as_rule(), Rule::reduction_spec);
 
     let reduction_span = body.as_span();
@@ -432,6 +446,17 @@ pub(super) fn handle_reduction_body<'a>(
                 }
                 .into());
             }
+            PackageInstanceDiff::DifferentTypeParams(param_diff) => {
+                return Err(ReductionPackageInstanceTypeParameterMismatchError {
+                    source_code: ctx.named_source(),
+                    at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                    left_pkg_inst_name: left.name.clone(),
+                    right_pkg_inst_name: right.name.clone(),
+
+                    type_param_names: param_diff.iter().map(|(name, _, _)| name).join(", "),
+                }
+                .into());
+            }
             PackageInstanceDiff::Same => {}
         }
     }
@@ -441,12 +466,12 @@ pub(super) fn handle_reduction_body<'a>(
     Ok(reduction)
 }
 
-fn handle_mapspec_assumption<'a>(
+fn handle_mapspec_assumption<'src>(
     ctx: &ParseTheoremContext,
-    ast: Pair<'a, Rule>,
+    ast: Pair<'src, Rule>,
     assumption: &Assumption,
     is_hybrid: bool,
-) -> Result<(ReductionMapping<'a>, String), ParseTheoremError> {
+) -> Result<(ReductionMapping<'src>, String), ParseTheoremError> {
     let mapping_span = ast.as_span();
     let mut ast = ast.into_inner();
 
@@ -684,6 +709,30 @@ fn handle_mapspec_assumption<'a>(
                 }
                 .into());
             }
+            PackageInstanceDiff::DifferentTypeParams(different_params) => {
+                let span_assumption = assumption_game_pkg_inst_name_ast.as_span();
+                let at_assumption = (span_assumption.start()..span_assumption.end()).into();
+
+                let span_construction = construction_game_pkg_inst_name_ast.as_span();
+                let at_construction = (span_construction.start()..span_construction.end()).into();
+
+                let assumption_pkg_inst_name = assumption_game_pkg_inst_name.to_string();
+                let construction_pkg_inst_name = construction_game_pkg_inst_name.to_string();
+
+                let type_param_names = different_params.iter().map(|(name, _, _)| name).join(", ");
+
+                return Err(AssumptionMappingTypeParameterMismatchError {
+                    source_code: ctx.named_source(),
+                    at_assumption,
+                    at_construction,
+
+                    assumption_pkg_inst_name,
+                    construction_pkg_inst_name,
+
+                    type_param_names,
+                }
+                .into());
+            }
             PackageInstanceDiff::Same => {}
         }
 
@@ -746,11 +795,12 @@ fn handle_mapspec_assumption<'a>(
             let constr_sig_owned = {
                 let this = &construction_game_inst;
                 let sig = edge.sig().clone();
+                let types = &game_inst_type_mapping_vec(&this.types);
                 let inst_ctx = InstantiationContext::new_game_instantiation_context(
                     this.name(),
                     ctx.theorem_name,
                     &this.consts,
-                    &this.types,
+                    types,
                 );
                 inst_ctx.rewrite_oracle_sig(sig)
             };
@@ -787,17 +837,22 @@ fn handle_mapspec_assumption<'a>(
                 .into());
             };
 
+            let assumption_game_inst_types =
+                &game_inst_type_mapping_vec(&assumption_game_inst.types);
             let assump_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 assumption_game_inst_name,
                 ctx.theorem_name,
                 &assumption_game_inst.consts,
-                &assumption_game_inst.types,
+                assumption_game_inst_types,
             );
+
+            let construction_game_inst_types =
+                &game_inst_type_mapping_vec(&construction_game_inst.types);
             let constr_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 construction_game_inst_name,
                 ctx.theorem_name,
                 &construction_game_inst.consts,
-                &construction_game_inst.types,
+                construction_game_inst_types,
             );
 
             let assump_sig = assump_dst_export.sig();
@@ -826,6 +881,7 @@ fn handle_mapspec_assumption<'a>(
             ) {
                 PackageInstanceDiff::DifferentPackage(_, _) => todo!(),
                 PackageInstanceDiff::DifferentParams(_vec) => todo!(),
+                PackageInstanceDiff::DifferentTypeParams(_vec) => todo!(),
                 PackageInstanceDiff::Same => {}
             }
         }
@@ -858,23 +914,25 @@ fn handle_mapspec_assumption<'a>(
                     .any(|assumption_game_edge| {
                         let constr_sig_fixed = {
                             let this = &construction_game_inst;
+                            let types = game_inst_type_mapping_vec(&this.types);
                             let sig = construction_edge.sig().clone();
                             let inst_ctx = InstantiationContext::new_game_instantiation_context(
                                 this.name(),
                                 ctx.theorem_name,
                                 &this.consts,
-                                &this.types,
+                                &types,
                             );
                             inst_ctx.rewrite_oracle_sig(sig)
                         };
                         let assump_sig_fixed = {
                             let this = &assumption_game_inst;
+                            let types = game_inst_type_mapping_vec(&this.types);
                             let sig = assumption_game_edge.sig().clone();
                             let inst_ctx = InstantiationContext::new_game_instantiation_context(
                                 this.name(),
                                 ctx.theorem_name,
                                 &this.consts,
-                                &this.types,
+                                &types,
                             );
                             inst_ctx.rewrite_oracle_sig(sig)
                         };
@@ -1057,8 +1115,28 @@ fn package_instances_diff(
         }
     }
 
+    let mut different_types = vec![];
+
+    for (pkg_ty, left_game_ty) in &left_pkg_inst.types {
+        let Some((_, right_game_ty)) = right_pkg_inst.types.iter().find(|(name, _)| name == pkg_ty)
+        else {
+            todo!("left has type that right hasn't");
+        };
+
+        let left_rules = game_inst_type_mapping_vec(&left_game_inst.types);
+        let right_rules = game_inst_type_mapping_vec(&right_game_inst.types);
+        let left_thm_ty = left_game_ty.rewrite_type(&left_rules);
+        let right_thm_ty = right_game_ty.rewrite_type(&right_rules);
+
+        if left_thm_ty != right_thm_ty {
+            different_types.push((pkg_ty.clone(), left_thm_ty, right_thm_ty));
+        }
+    }
+
     if !different_params.is_empty() {
         PackageInstanceDiff::DifferentParams(different_params)
+    } else if !different_types.is_empty() {
+        PackageInstanceDiff::DifferentTypeParams(different_types)
     } else {
         PackageInstanceDiff::Same
     }
@@ -1067,46 +1145,47 @@ fn package_instances_diff(
 enum PackageInstanceDiff {
     DifferentPackage(String, String),
     DifferentParams(Vec<(PackageConstIdentifier, Expression, Expression)>),
+    DifferentTypeParams(Vec<(String, Type, Type)>),
     Same,
 }
 
 // ----
 
 #[derive(Clone, Debug)]
-pub(crate) struct ReductionMapping<'a> {
-    assumption: GameInstanceName<'a>,
-    construction: GameInstanceName<'a>,
+pub(crate) struct ReductionMapping<'src> {
+    assumption: GameInstanceName<'src>,
+    construction: GameInstanceName<'src>,
 
-    entries: Vec<ReductionMappingEntry<'a>>,
+    entries: Vec<ReductionMappingEntry<'src>>,
 }
 
-impl<'a> ReductionMapping<'a> {
-    pub(crate) fn assumption_game_instance_name(&self) -> &GameInstanceName<'a> {
+impl<'src> ReductionMapping<'src> {
+    pub(crate) fn assumption_game_instance_name(&self) -> &GameInstanceName<'src> {
         &self.assumption
     }
 
-    pub(crate) fn construction_game_instance_name(&self) -> &GameInstanceName<'a> {
+    pub(crate) fn construction_game_instance_name(&self) -> &GameInstanceName<'src> {
         &self.construction
     }
 
-    pub(crate) fn entries(&self) -> &[ReductionMappingEntry<'a>] {
+    pub(crate) fn entries(&self) -> &[ReductionMappingEntry<'src>] {
         &self.entries
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ReductionMappingEntry<'a> {
-    assumption: PackageInstanceName<'a>,
-    construction: PackageInstanceName<'a>,
+pub(crate) struct ReductionMappingEntry<'src> {
+    assumption: PackageInstanceName<'src>,
+    construction: PackageInstanceName<'src>,
 }
 
-impl<'a> ReductionMappingEntry<'a> {
+impl<'src> ReductionMappingEntry<'src> {
     #[allow(dead_code)]
-    pub(crate) fn assumption(&self) -> &PackageInstanceName<'a> {
+    pub(crate) fn assumption(&self) -> &PackageInstanceName<'src> {
         &self.assumption
     }
 
-    pub(crate) fn construction(&self) -> &PackageInstanceName<'a> {
+    pub(crate) fn construction(&self) -> &PackageInstanceName<'src> {
         &self.construction
     }
 }

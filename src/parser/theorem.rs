@@ -4,12 +4,12 @@ use itertools::Itertools;
 use std::collections::HashMap;
 
 use crate::{
+    debug_assert_matches,
     expressions::Expression,
-    gamehops::conjecture::Conjecture,
-    gamehops::equivalence::Equivalence,
-    gamehops::hybrid::Hybrid,
-    gamehops::reduction::Assumption,
-    gamehops::GameHop,
+    gamehops::{
+        conjecture::Conjecture, equivalence::Equivalence, hybrid::Hybrid, reduction::Assumption,
+        GameHop,
+    },
     identifier::{
         game_ident::GameConstIdentifier,
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier::Const},
@@ -17,11 +17,13 @@ use crate::{
     },
     package::{Composition, Package},
     parser::{
+        common::handle_type,
         error::{
             AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
             AssumptionMappingLeftGameInstanceIsNotFromAssumption,
-            ReductionContainsDifferentPackagesError, UnprovenTheoremError,
+            AssumptionMappingTypeParameterMismatchError, ReductionContainsDifferentPackagesError,
+            ReductionPackageInstanceTypeParameterMismatchError, UnprovenTheoremError,
         },
         Rule,
     },
@@ -46,7 +48,8 @@ use super::{
         AssumptionMappingParameterMismatchError,
         AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameParameterDefinitionError,
         InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
-        NoSuchGameParameterError, ParserScopeError, ReductionInconsistentAssumptionBoundaryError,
+        MissingGameTypeParamDefinitionError, NoSuchGameParameterError, ParserScopeError,
+        ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -55,30 +58,31 @@ use super::{
 };
 
 #[derive(Debug)]
-pub(crate) struct ParseTheoremContext<'a> {
-    pub file_name: &'a str,
-    pub file_content: &'a str,
+pub(crate) struct ParseTheoremContext<'src> {
+    pub file_name: &'src str,
+    pub file_content: &'src str,
     pub scope: Scope,
 
-    pub types: Vec<String>,
+    pub types: Vec<(&'src str, pest::Span<'src>)>,
 
-    pub theorem_name: &'a str,
+    pub theorem_name: &'src str,
 
     pub consts: HashMap<String, Type>,
     pub instances: Vec<GameInstance>,
     pub instances_table: HashMap<String, (usize, GameInstance)>,
     pub assumptions: Vec<Assumption>,
-    pub propositions: Vec<Proof<'a>>,
-    pub game_hops: Vec<GameHop<'a>>,
+    pub propositions: Vec<Proof<'src>>,
+    pub game_hops: Vec<GameHop<'src>>,
 }
 
-impl<'a> ParseContext<'a> {
-    fn theorem_context(self, theorem_name: &'a str) -> ParseTheoremContext<'a> {
+impl<'src> ParseContext<'src> {
+    fn theorem_context(self, theorem_name: &'src str) -> ParseTheoremContext<'src> {
         let Self {
             file_name,
             file_content,
             scope,
-            types,
+            types: _,
+            ..
         } = self;
 
         ParseTheoremContext {
@@ -89,7 +93,7 @@ impl<'a> ParseContext<'a> {
             scope,
 
             consts: HashMap::new(),
-            types,
+            types: vec![],
 
             instances: vec![],
             instances_table: HashMap::new(),
@@ -100,17 +104,18 @@ impl<'a> ParseContext<'a> {
     }
 }
 
-impl<'a> ParseTheoremContext<'a> {
+impl<'src> ParseTheoremContext<'src> {
     pub fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
 
-    pub fn parse_ctx(&self) -> ParseContext<'a> {
+    pub fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Theorem,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
-            types: self.types.clone(),
+            types: vec![],
         }
     }
 }
@@ -184,6 +189,10 @@ pub enum ParseTheoremError {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
+    MissingGameTypeParamDefinition(#[from] MissingGameTypeParamDefinitionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
     NoSuchGameParameter(#[from] NoSuchGameParameterError),
 
     #[diagnostic(transparent)]
@@ -199,6 +208,10 @@ pub enum ParseTheoremError {
     AssumptionMappingContainsDifferentPackages(
         #[from] AssumptionMappingContainsDifferentPackagesError,
     ),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingTypeParameterMismatch(#[from] AssumptionMappingTypeParameterMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -227,7 +240,11 @@ pub enum ParseTheoremError {
     ReductionPackageInstanceParameterMismatch(
         #[from] ReductionPackageInstanceParameterMismatchError,
     ),
-
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionPackageInstanceTypeParameterMismatch(
+        #[from] ReductionPackageInstanceTypeParameterMismatchError,
+    ),
     #[diagnostic(transparent)]
     #[error(transparent)]
     AssumptionExportsNotSufficient(#[from] AssumptionExportsNotSufficientError),
@@ -241,23 +258,32 @@ pub enum ParseTheoremError {
     ScopeError(#[from] ParserScopeError),
 }
 
-pub fn handle_theorem<'a>(
-    file_name: &'a str,
-    file_content: &'a str,
-    ast: Pair<'a, Rule>,
+pub fn handle_theorem<'src>(
+    file_name: &'src str,
+    file_content: &'src str,
+    ast: Pair<'src, Rule>,
     pkgs: HashMap<String, Package>,
     games: HashMap<String, Composition>,
-) -> Result<Theorem<'a>, ParseTheoremError> {
+) -> Result<Theorem<'src>, ParseTheoremError> {
     let mut iter = ast.into_inner();
     let theorem_name = iter.next().unwrap().as_str();
     let theorem_ast = iter.next().unwrap();
 
-    let ctx = ParseContext::new(file_name, file_content);
+    let ctx = ParseContext::new(file_name, file_content, super::FileType::Theorem);
     let mut ctx = ctx.theorem_context(theorem_name);
     ctx.scope.enter();
 
     for ast in theorem_ast.into_inner() {
         match ast.as_rule() {
+            Rule::types => {
+                for types_list in ast.into_inner() {
+                    ctx.types.extend(
+                        types_list
+                            .into_inner()
+                            .map(|entry| (entry.as_str(), entry.as_span())),
+                    );
+                }
+            }
             Rule::const_decl => {
                 let span = ast.as_span();
                 let (const_name, ty) = common::handle_const_decl(&ctx.parse_ctx(), ast)?;
@@ -302,6 +328,7 @@ pub fn handle_theorem<'a>(
 
     let ParseTheoremContext {
         theorem_name,
+        types: theorem_types,
         consts,
         instances,
         assumptions,
@@ -317,8 +344,14 @@ pub fn handle_theorem<'a>(
     let mut consts: Vec<_> = consts.into_iter().collect();
     consts.sort();
 
+    let types: Vec<String> = theorem_types
+        .into_iter()
+        .map(|(name, _)| name.to_string())
+        .collect();
+
     Ok(Theorem {
         name: theorem_name.to_string(),
+        types,
         consts,
         instances,
         assumptions,
@@ -328,9 +361,9 @@ pub fn handle_theorem<'a>(
     })
 }
 
-fn handle_instance_decl<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
+fn handle_instance_decl<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
     let mut ast = ast.into_inner();
@@ -357,6 +390,11 @@ fn handle_instance_decl<'a>(
     // println!("printing constant assignment in the parser:");
     // println!("  {consts_as_ident:#?}");
 
+    let types = types
+        .into_iter()
+        .map(|(name, ty)| (name.to_string(), ty))
+        .collect();
+
     let game_inst = GameInstance::new(
         game_inst_name,
         ctx.theorem_name.to_string(),
@@ -373,7 +411,7 @@ fn patch_game_instance(
     game: Composition,
     theorem_name: &str,
     game_inst_name: &str,
-    types: Vec<(String, Type)>,
+    types: Vec<(&str, Type)>,
     consts: &[(GameConstIdentifier, Expression)],
     loop_var_name: &str,
     bit_var_name: Option<&str>,
@@ -418,6 +456,12 @@ fn patch_game_instance(
     if let Some(bitvar) = bitvar {
         consts_as_ident.push((bitvar.0.clone(), Expression::boolean(ideal)))
     }
+
+    let types = types
+        .into_iter()
+        .map(|(name, ty)| (name.to_string(), ty))
+        .collect();
+
     GameInstance::new(
         format!("{game_inst_name}${bitval}${nextval}"),
         theorem_name.to_string(),
@@ -427,9 +471,9 @@ fn patch_game_instance(
     )
 }
 
-fn handle_hybrid_instance_decl_one<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
+fn handle_hybrid_instance_decl_one<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
     ctx.scope.enter();
@@ -537,9 +581,9 @@ fn handle_hybrid_instance_decl_one<'a>(
     Ok(())
 }
 
-fn handle_hybrid_instance_decl_two<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
+fn handle_hybrid_instance_decl_two<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
     games: &HashMap<String, Composition>,
 ) -> Result<(), ParseTheoremError> {
     ctx.scope.enter();
@@ -642,23 +686,55 @@ fn handle_hybrid_instance_decl_two<'a>(
     Ok(())
 }
 
-fn handle_instance_assign_list(
+fn handle_types_def_list<'src>(
+    ctx: &ParseTheoremContext,
+    ast: Pair<'src, Rule>,
+) -> Result<Vec<(&'src str, Type)>, ParseTheoremError> {
+    debug_assert_matches!(ast.as_rule(), Rule::types_def_list);
+
+    ast.into_inner()
+        .map(|ast| handle_types_def_spec(ctx, ast))
+        .collect::<Result<Vec<_>, _>>()
+}
+
+fn handle_types_def_spec<'src>(
+    ctx: &ParseTheoremContext,
+    ast: Pair<'src, Rule>,
+) -> Result<(&'src str, Type), ParseTheoremError> {
+    debug_assert_matches!(ast.as_rule(), Rule::types_def_spec);
+
+    let mut children = ast.into_inner();
+
+    let name = children.next().unwrap();
+    let ty = children.next().unwrap();
+    let ty = handle_type(&ctx.parse_ctx(), ty)?;
+
+    Ok((name.as_str(), ty))
+}
+
+fn handle_instance_assign_list<'src>(
     ctx: &ParseTheoremContext,
     game_inst_name: &str,
     game: &Composition,
-    ast: Pair<Rule>,
-) -> Result<(Vec<(String, Type)>, Vec<(GameConstIdentifier, Expression)>), ParseTheoremError> {
+    ast: Pair<'src, Rule>,
+) -> Result<
+    (
+        Vec<(&'src str, Type)>,
+        Vec<(GameConstIdentifier, Expression)>,
+    ),
+    ParseTheoremError,
+> {
     let span = ast.as_span();
     let ast = ast.into_inner();
 
-    let types = vec![];
+    let mut types = vec![];
     let mut consts = vec![];
 
     for ast in ast {
         match ast.as_rule() {
             Rule::types_def => {
-                //let ast = ast.into_inner().next().unwrap();
-                //types.extend(common::handle_types_def_list(ast, inst_name, file_name)?);
+                let types_def_list = ast.into_inner().next().unwrap();
+                types.append(&mut handle_types_def_list(ctx, types_def_list)?);
             }
             Rule::params_def => {
                 if let Some(ast) = ast.into_inner().next() {
@@ -707,6 +783,30 @@ fn handle_instance_assign_list(
             game_name: game.name.clone(),
             game_inst_name: game_inst_name.to_string(),
             missing_params_vec,
+            missing_params,
+        }
+        .into());
+    }
+
+    let missing_type_params_vec: Vec<_> = game
+        .type_params
+        .iter()
+        .filter(|name| {
+            types
+                .iter()
+                .all(|(assigned_name, _)| *assigned_name != name.as_str())
+        })
+        .cloned()
+        .collect();
+
+    if !missing_type_params_vec.is_empty() {
+        let missing_params = missing_type_params_vec.iter().join(", ");
+        return Err(MissingGameTypeParamDefinitionError {
+            source_code: ctx.named_source(),
+            at: (span.start()..span.end()).into(),
+            game_name: game.name.clone(),
+            game_inst_name: game_inst_name.to_string(),
+            missing_params_vec: missing_type_params_vec,
             missing_params,
         }
         .into());
@@ -792,9 +892,9 @@ fn handle_propositions(
     Ok(())
 }
 
-fn handle_game_hops<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pairs<'a, Rule>,
+fn handle_game_hops<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pairs<'src, Rule>,
 ) -> Result<(), ParseTheoremError> {
     for hop_ast in ast {
         let game_hop = match hop_ast.as_rule() {
@@ -810,10 +910,10 @@ fn handle_game_hops<'a>(
     Ok(())
 }
 
-pub(crate) fn handle_hybrid<'a>(
-    ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+pub(crate) fn handle_hybrid<'src>(
+    ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let hybrid_name_ast = ast.next().unwrap();
@@ -887,10 +987,10 @@ pub(crate) fn handle_hybrid<'a>(
     )))
 }
 
-pub(crate) fn handle_conjecture<'a>(
-    _ctx: &mut ParseTheoremContext<'a>,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+pub(crate) fn handle_conjecture<'src>(
+    _ctx: &mut ParseTheoremContext<'src>,
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
 
     let [left_game, right_game]: [GameInstanceName; 2] = handle_identifiers(&mut ast);
@@ -898,10 +998,10 @@ pub(crate) fn handle_conjecture<'a>(
     Ok(GameHop::Conjecture(Conjecture::new(left_game, right_game)))
 }
 
-fn handle_equivalence<'a>(
+fn handle_equivalence<'src>(
     ctx: &mut ParseTheoremContext,
-    ast: Pair<'a, Rule>,
-) -> Result<GameHop<'a>, ParseTheoremError> {
+    ast: Pair<'src, Rule>,
+) -> Result<GameHop<'src>, ParseTheoremError> {
     let mut ast = ast.into_inner();
     let (left_name, right_name) = handle_string_pair(&mut ast);
 
@@ -976,9 +1076,13 @@ fn handle_lemma_line(ast: Pair<Rule>) -> (String, Vec<String>) {
     (name, deps)
 }
 
-fn handle_string_triplet<'a>(
-    ast: &mut Pairs<'a, Rule>,
-) -> ((String, Span<'a>), (String, Span<'a>), (String, Span<'a>)) {
+fn handle_string_triplet<'src>(
+    ast: &mut Pairs<'src, Rule>,
+) -> (
+    (String, Span<'src>),
+    (String, Span<'src>),
+    (String, Span<'src>),
+) {
     let mut strs: Vec<_> = ast
         .take(3)
         .map(|str| (str.as_str().to_string(), str.as_span()))
@@ -987,8 +1091,8 @@ fn handle_string_triplet<'a>(
     (strs.remove(0), strs.remove(0), strs.remove(0))
 }
 
-pub(crate) fn handle_identifiers<'a, T: crate::parser::ast::Identifier<'a>, const N: usize>(
-    ast: &mut Pairs<'a, Rule>,
+pub(crate) fn handle_identifiers<'src, T: crate::parser::ast::Identifier<'src>, const N: usize>(
+    ast: &mut Pairs<'src, Rule>,
 ) -> [T; N] {
     ast.take(N)
         .map(T::from)
@@ -997,16 +1101,16 @@ pub(crate) fn handle_identifiers<'a, T: crate::parser::ast::Identifier<'a>, cons
         .unwrap()
 }
 
-fn handle_string_pair<'a>(ast: &mut Pairs<'a, Rule>) -> (Pair<'a, Rule>, Pair<'a, Rule>) {
+fn handle_string_pair<'src>(ast: &mut Pairs<'src, Rule>) -> (Pair<'src, Rule>, Pair<'src, Rule>) {
     let [left, right] = ast.take(2).collect::<Vec<_>>().try_into().unwrap();
 
     (left, right)
 }
 
-fn next_pairs<'a>(ast: &'a mut Pairs<Rule>) -> Pairs<'a, Rule> {
+fn next_pairs<'src>(ast: &'src mut Pairs<Rule>) -> Pairs<'src, Rule> {
     ast.next().unwrap().into_inner()
 }
 
-fn next_str<'a>(ast: &'a mut Pairs<Rule>) -> &'a str {
+fn next_str<'src>(ast: &'src mut Pairs<Rule>) -> &'src str {
     ast.next().unwrap().as_str()
 }
