@@ -778,6 +778,9 @@ pub fn handle_expression(
                 .map(|expr| handle_expression(ctx, expr, None))
                 .collect::<Result<_, _>>()?,
         ),
+        Rule::expr_empty => {
+            ExpressionKind::Bot
+        },
         Rule::expr_tuple => {
             if let Some(expected_type) = expected_type {
                 let TypeKind::Tuple(types) = expected_type.kind() else {
