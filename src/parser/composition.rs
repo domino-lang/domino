@@ -540,7 +540,7 @@ fn handle_edges_compose_assign_list(
 
         let found_duplicate_edge = edges
             .iter()
-            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.sig().name == oracle_name);
+            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.name() == oracle_name);
 
         if found_duplicate_edge {
             return Err(DuplicateEdgeDefinitionError {
