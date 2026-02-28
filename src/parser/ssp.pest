@@ -143,7 +143,7 @@ type_userdefined = @{ ( ASCII_ALPHA | "_" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" 
 // -- expressions --
 
 /// A union of all the different expressions.
-expression = _{ expr_list | expr_set | expr_none | expr_untyped_none | expr_some | expr_unwrap | expr_add | expr_sub | expr_mul | expr_div | expr_smaller | expr_greater | expr_smaller_eq | expr_greater_eq | expr_or | expr_and | expr_xor | expr_not | expr_tuple | expr_equals | expr_not_equals | expr_newtable | fn_call | table_access | literal | identifier }
+expression = _{ expr_list | expr_set | expr_none | expr_untyped_none | expr_some | expr_unwrap | expr_add | expr_sub | expr_mul | expr_div | expr_smaller | expr_greater | expr_smaller_eq | expr_greater_eq | expr_or | expr_and | expr_xor | expr_not | expr_tuple | expr_empty | expr_equals | expr_not_equals | expr_newtable | fn_call | table_access | literal | identifier }
 
 /// Compares two expressions. Evaluates to a boolean
 expr_equals   = { "("  ~ expression ~ ("==" ~ expression)+ ~ ")" }
@@ -227,6 +227,8 @@ table_access = { identifier ~ "[" ~ expression ~             "]" }
 
 /// Constructs a tuple.
 expr_tuple   = {        "(" ~ expression ~ ("," ~ expression)* ~ ")" }
+
+expr_empty = {"()"}
 
 /// A list of values.
 /// Currently not really implemented, so type inference doesn't have to work well.
