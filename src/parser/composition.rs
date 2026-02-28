@@ -597,8 +597,13 @@ pub(crate) fn handle_instance_assign_list(
         match elem.as_rule() {
             Rule::params_def => {
                 if let Some(params_def_list) = elem.into_inner().next() {
-                    let defs =
-                        handle_game_params_def_list(ctx, pkg, pkg_inst_name, params_def_list)?;
+                    let defs = handle_game_params_def_list(
+                        ctx,
+                        pkg,
+                        pkg_inst_name,
+                        &types,
+                        params_def_list,
+                    )?;
                     params.extend(defs.into_iter().map(|(name, value)| {
                         (
                             PackageConstIdentifier {
