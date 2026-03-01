@@ -5,8 +5,6 @@ use miette::Diagnostic;
 use std::io::Error as IOError;
 use thiserror::Error;
 
-use super::FindProjectRootError;
-
 #[derive(Debug, Error, Diagnostic)]
 pub enum Error {
     #[error("error showing equivalence")]
@@ -23,16 +21,22 @@ pub enum Error {
     RedefinedTheorem(String, String, String),
     #[error("error parsing utf-8")]
     FromUtf8Error(#[from] std::string::FromUtf8Error),
+    #[cfg(feature = "process-solver")]
     #[error("error in interaction with child process")]
     ChildProcessInteractionError(#[from] expectrl::Error),
+    #[cfg(feature = "process-solver")]
     #[error("error interactiv with prover process")]
     ProcessError(#[from] crate::util::process::Error),
     #[error("error interactiv with prover process")]
-    ProverProcessError(#[from] crate::util::prover_process::Error),
+    ProverProcessError(#[from] crate::util::prover::error::Error),
     //#[error("got a formatting error")]
     //FmtError(#[from] std::fmt::Error),
     #[error("error finding project root")]
     FindProjectRoot(#[from] FindProjectRootError),
+
+    #[cfg(feature = "zipfile")]
+    #[error("Error processing zipfile")]
+    ZipFileError(#[from] zip::result::ZipError),
 
     // confirmed needed errors are below:
     #[error("syntax error: {0} at {1:?} / {2:?}")]
@@ -51,6 +55,16 @@ pub enum Error {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ParseTheorem(#[from] parser::theorem::ParseTheoremError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FindProjectRootError {
+    #[error("Error determining current directory:")]
+    CurrentDir(std::io::Error),
+    #[error("Error reading directory:")]
+    ReadDir(std::io::Error),
+    #[error("Not in project: no ssp.toml file in this or any parent directory")]
+    NotInProject,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

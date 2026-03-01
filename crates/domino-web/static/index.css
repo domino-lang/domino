@@ -1,0 +1,14 @@
+* {
+    text-rendering: optimizeLegibility;
+    font-variant-ligatures: common-ligatures;
+    font-kerning: normal;
+    line-height: 1.3;
+}
+.document {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    width: 90%;
+    max-width: 50em;
+}

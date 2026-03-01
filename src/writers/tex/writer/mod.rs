@@ -10,7 +10,7 @@ use crate::gamehops::GameHop;
 use crate::package::{Composition, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
 use crate::theorem::Theorem;
-use crate::util::prover_process::ProverBackend;
+use crate::util::prover::ProverFactory;
 
 use crate::writers::tex::{
     label::LatexLabel,
@@ -129,7 +129,7 @@ fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
 }
 
 fn tex_write_composition_graph_file(
-    backend: &Option<ProverBackend>,
+    backend: &Option<impl ProverFactory>,
     composition: &Composition,
     name: &str,
     target: &Path,
@@ -137,13 +137,17 @@ fn tex_write_composition_graph_file(
     let fname = target.join(format!("CompositionGraph_{name}.tex"));
     let mut file = File::create(fname.clone())?;
 
-    write!(file, "{}", composition.tikz_graph(&backend.unwrap()))?;
+    write!(
+        file,
+        "{}",
+        composition.tikz_graph(backend.as_ref().unwrap())
+    )?;
 
     Ok(fname.to_str().unwrap().to_string())
 }
 
 pub fn tex_write_composition(
-    backend: &Option<ProverBackend>,
+    backend: &Option<impl ProverFactory>,
     lossy: bool,
     composition: &Composition,
     name: &str,
@@ -191,7 +195,7 @@ pub fn tex_write_composition(
 }
 
 pub fn tex_write_theorem(
-    backend: &Option<ProverBackend>,
+    backend: &Option<impl ProverFactory>,
     lossy: bool,
     theorem: &Theorem,
     name: &str,
@@ -426,7 +430,7 @@ pub fn tex_write_theorem(
                 composition: left_game.game(),
                 mapping: reduction.left()
             }
-            .tikz_graph(&backend.unwrap())
+            .tikz_graph(backend.as_ref().unwrap())
         )?;
         write!(
             file,
@@ -435,7 +439,7 @@ pub fn tex_write_theorem(
                 composition: right_game.game(),
                 mapping: reduction.right()
             }
-            .tikz_graph(&backend.unwrap())
+            .tikz_graph(backend.as_ref().unwrap())
         )?;
         writeln!(
             file,
@@ -506,7 +510,7 @@ pub fn tex_write_theorem(
                             composition: left_game_instance.game(),
                             mapping: red.left()
                         }
-                        .tikz_graph(&backend.unwrap())
+                        .tikz_graph(backend.as_ref().unwrap())
                     )?;
 
                     writeln!(file, "\\end{{center}}")?;
@@ -539,7 +543,7 @@ pub fn tex_write_theorem(
                             composition: right_game_instance.game(),
                             mapping: red.right()
                         }
-                        .tikz_graph(&backend.unwrap())
+                        .tikz_graph(backend.as_ref().unwrap())
                     )?;
                     writeln!(file, "\\end{{center}}")?;
                 }

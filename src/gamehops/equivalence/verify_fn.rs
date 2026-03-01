@@ -1,41 +1,37 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use itertools::Itertools;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::fmt::Write;
 use std::io::Write as _;
-use std::sync::{Arc, Mutex};
 
-use crate::ui::TheoremUI;
+use crate::ui::{ProveLemmaUI, ProveOracleUI, ProveProofstepUI};
 use crate::{
     gamehops::equivalence::{
         error::{Error, Result},
         Equivalence,
     },
-    package::Export,
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
-    util::prover_process::{Communicator, ProverBackend, ProverResponse},
+    util::prover::{Prover, ProverFactory, ProverResponse},
     writers::smt::exprs::SmtExpr,
 };
 
 use super::EquivalenceContext;
 
-fn verify_oracle<UI: TheoremUI>(
-    project: &Project,
-    ui: Arc<Mutex<&mut UI>>,
+fn verify_oracles(
+    project: &impl Project,
     eqctx: &EquivalenceContext,
-    backend: ProverBackend,
-    transcript: bool,
-    req_oracles: &[&Export],
+    backend: &impl ProverFactory,
+    _transcript: bool,
+    req_oracles: Vec<(&str, impl ProveOracleUI)>,
 ) -> Result<()> {
     let eq = eqctx.equivalence();
-    let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-    let mut prover = if transcript {
+    let mut prover = {
         let oracle = if req_oracles.len() == 1 {
-            Some(req_oracles[0].name())
+            Some(req_oracles[0].0)
         } else {
             None
         };
@@ -44,9 +40,7 @@ fn verify_oracle<UI: TheoremUI>(
             .get_joined_smt_file(eq.left_name(), eq.right_name(), oracle)
             .unwrap();
 
-        Communicator::new_with_transcript(backend, transcript_file)?
-    } else {
-        Communicator::new(backend)?
+        backend.new_prover_with_transcript(transcript_file)?
     };
     std::thread::sleep(std::time::Duration::from_millis(20));
 
@@ -69,7 +63,7 @@ fn verify_oracle<UI: TheoremUI>(
     log::debug!(
         "emitting game definitions for {}-{}",
         eq.left_name,
-        eq.right_name
+        eq.right_name,
     );
     prover.write_smt(SmtExpr::Comment("\n".to_string()))?;
     prover.write_smt(SmtExpr::Comment("game definitions:\n".to_string()))?;
@@ -81,72 +75,62 @@ fn verify_oracle<UI: TheoremUI>(
     );
     eqctx.emit_constant_declarations(&mut prover)?;
 
-    for export in req_oracles {
-        let claims = eqctx.equivalence.proof_tree_by_oracle_name(export.name());
-        ui.lock().unwrap().start_oracle(
-            &eqctx.theorem().name,
-            &proofstep_name,
-            export.name(),
-            claims.len().try_into().unwrap(),
-        );
+    for (export, ref mut ui) in req_oracles {
+        ui.start();
+        let claims = eqctx.equivalence.proof_tree_by_oracle_name(export);
 
         log::info!("verify: oracle:{export:?}");
         writeln!(prover, "(push 1)").unwrap();
-        eqctx.emit_return_value_helpers(&mut prover, export.name())?;
-        eqctx.emit_invariant(&mut prover, export.name())?;
+        eqctx.emit_return_value_helpers(&mut prover, export)?;
+        eqctx.emit_invariant(project, &mut prover, export)?;
 
-        for claim in claims {
-            ui.lock().unwrap().start_lemma(
-                &eqctx.theorem().name,
-                &proofstep_name,
-                export.name(),
-                claim.name(),
-            );
-
+        for (claim, mut ui) in claims
+            .iter()
+            .map(|claim| (claim, ui.start_lemma(claim.name())))
+            .collect::<Vec<_>>()
+        {
+            ui.start();
             writeln!(prover, "(push 1)").unwrap();
-            eqctx.emit_claim_assert(&mut prover, export.name(), &claim)?;
+            eqctx.emit_claim_assert(&mut prover, export, claim)?;
             match prover.check_sat()? {
                 ProverResponse::Unsat => {}
                 response => {
+                    #[cfg(target_family = "wasm")]
+                    let modelfile = Ok(std::path::PathBuf::new());
+                    #[cfg(not(target_family = "wasm"))]
                     let modelfile = prover.get_model().map(|(modelstring, _model)| {
                         let mut modelfile =
                             tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
                         modelfile.write_all(modelstring.as_bytes()).unwrap();
+
                         let (_, fname) = modelfile.keep().unwrap();
                         fname
                     });
                     prover.close();
                     return Err(Error::ClaimTheoremFailed {
                         claim_name: claim.name().to_string(),
-                        oracle_name: export.name().to_string(),
+                        oracle_name: export.to_string(),
                         response,
                         modelfile,
                     });
                 }
             }
             writeln!(prover, "(pop 1)").unwrap();
-            ui.lock().unwrap().finish_lemma(
-                &eqctx.theorem().name,
-                &proofstep_name,
-                export.name(),
-                claim.name(),
-            );
+            ui.finish();
         }
 
         writeln!(prover, "(pop 1)").unwrap();
-        ui.lock()
-            .unwrap()
-            .finish_oracle(&eqctx.theorem().name, &proofstep_name, export.name());
+        ui.finish();
     }
     Ok(())
 }
 
-pub fn verify<UI: TheoremUI>(
-    project: &Project,
-    ui: &mut UI,
+pub fn verify(
+    project: &impl Project,
+    ui: &impl ProveProofstepUI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
-    backend: ProverBackend,
+    backend: &impl ProverFactory,
     transcript: bool,
     req_oracle: &Option<String>,
 ) -> Result<()> {
@@ -181,38 +165,33 @@ pub fn verify<UI: TheoremUI>(
         });
     }
 
-    let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
         .into_iter()
-        .filter(|export| {
+        .filter_map(|export| {
             if let Some(name) = req_oracle {
-                export.name() == *name
+                if export.name() == *name {
+                    Some((export.name(), ui.start_oracle(export.name().to_string())))
+                } else {
+                    None
+                }
             } else {
-                true
+                None
             }
         })
         .collect();
 
-    ui.proofstep_set_oracles(
-        &theorem.name,
-        &proofstep_name,
-        oracle_sequence.len().try_into().unwrap(),
-    );
-
-    let ui = Arc::new(Mutex::new(ui));
-
-    verify_oracle(project, ui, &eqctx, backend, transcript, &oracle_sequence)?;
+    verify_oracles(project, &eqctx, backend, transcript, oracle_sequence)?;
 
     Ok(())
 }
 
-pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project,
-    ui: &mut UI,
+pub fn verify_parallel(
+    project: &impl Project,
+    ui: &impl ProveProofstepUI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
-    backend: ProverBackend,
+    backend: &(impl ProverFactory + Sync),
     transcript: bool,
     parallel: usize,
     req_oracle: &Option<String>,
@@ -248,43 +227,38 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         });
     }
 
-    let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
     let oracle_sequence: Vec<_> = eqctx
         .oracle_sequence()
-        .into_iter()
-        .filter(|export| {
+        .iter()
+        .filter_map(|export| {
             if let Some(name) = req_oracle {
-                export.name() == *name
+                if export.name() == *name {
+                    Some((export.name(), ui.start_oracle(export.name().to_string())))
+                } else {
+                    None
+                }
             } else {
-                true
+                Some((export.name(), ui.start_oracle(export.name().to_string())))
             }
         })
         .collect();
 
-    ui.proofstep_set_oracles(
-        &theorem.name,
-        &proofstep_name,
-        oracle_sequence.len().try_into().unwrap(),
-    );
-
-    let ui = Arc::new(Mutex::new(ui));
-
     rayon::ThreadPoolBuilder::new()
-        .num_threads(parallel + 1) // one process is reserved for the "main" method
+        .num_threads(parallel)
         .build()
         .unwrap()
         .install(|| -> Result<()> {
             let failed_oracles: Vec<_> = oracle_sequence
-                .par_iter()
+                .into_par_iter()
                 .map(|export| -> (&str, Result<()>) {
-                    let result =
-                        verify_oracle(project, ui.clone(), &eqctx, backend, transcript, &[*export]);
+                    let name = export.0;
+                    let result = verify_oracles(project, &eqctx, backend, transcript, vec![export]);
                     if let Err(ref e) = result {
-                        ui.lock().unwrap().println(&format!("{e}")).unwrap();
+                        ui.println(&format!("{e}")).unwrap();
                     }
-                    (export.name(), result)
+                    (name, result)
                 })
-                .filter_map(|(name, res)| {
+                .filter_map(|(name, res): (&str, Result<()>)| {
                     if let Err(err) = res {
                         Some((name.to_string(), err))
                     } else {

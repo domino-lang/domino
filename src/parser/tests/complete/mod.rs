@@ -15,7 +15,7 @@ use crate::{
     statement::Statement,
     theorem::{Claim, ClaimType},
     types::{CountSpec, Type, TypeKind},
-    util::prover_process::ProverBackend,
+    util::prover::process::{ProcessProverFactory, ProverBackend},
 };
 use std::{
     collections::HashMap,
@@ -24,7 +24,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::ui::mock::MockTestTheoremUI;
+use crate::ui::mock::TestUI;
 
 #[test]
 fn empty_param_section_is_fine() {
@@ -185,15 +185,15 @@ fn equivalence_gamehome_generates_code() {
         })
         .unwrap();
 
-    let backend = ProverBackend::Cvc5;
+    let backend = ProcessProverFactory::new(ProverBackend::Cvc5, false);
     let transcript = SharedVecWriter::default();
-    let project = crate::project::Project::empty();
+    let project = crate::project::DirectoryProject::empty();
     equivalence::verify(
         &project,
-        &mut MockTestTheoremUI::new(),
+        &TestUI::new(),
         eq,
         &theorem,
-        backend,
+        &backend,
         false,
         &None,
     )

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::{Parser, Subcommand};
-use sspverif::util::prover_process::ProverBackend;
+use sspverif::util::prover::process::ProverBackend;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -28,7 +28,7 @@ pub(crate) enum Commands {
     /// Reformat file or directory
     Format(Format),
 
-    Proofsteps,
+    Proofsteps(Proofsteps),
 }
 
 #[derive(clap::Args, Debug)]
@@ -36,6 +36,14 @@ pub(crate) enum Commands {
 pub(crate) struct Format {
     /// Input to reformat
     pub(crate) input: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Proofsteps {
+    #[cfg(feature = "zipfile")]
+    #[clap(short, long)]
+    pub(crate) zipfile: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -70,6 +78,9 @@ pub(crate) struct Prove {
     pub(crate) oracle: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
+    #[cfg(feature = "zipfile")]
+    #[clap(short, long)]
+    pub(crate) zipfile: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
