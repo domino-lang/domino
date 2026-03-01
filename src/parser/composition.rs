@@ -540,12 +540,21 @@ fn handle_types_def_list(
     ast: Pair<Rule>,
 ) -> Result<Vec<(String, Type)>, ParseGameError> {
     ast.into_inner()
-        .map(|pair_ast| {
-            let mut inner = pair_ast.into_inner();
-            let name = inner.next().unwrap().as_str();
-            let ty = handle_type(&ctx.parse_ctx(), inner.next().unwrap())?;
-
-            Ok((name.to_string(), ty))
+        .map(|pair_ast| match pair_ast.as_rule() {
+            Rule::types_def_spec_full => {
+                let mut inner = pair_ast.into_inner();
+                let name = inner.next().unwrap().as_str();
+                let ty = handle_type(&ctx.parse_ctx(), inner.next().unwrap())?;
+                Ok((name.to_string(), ty))
+            }
+            Rule::types_def_spec_simple => {
+                let mut inner = pair_ast.into_inner();
+                let ty = handle_type(&ctx.parse_ctx(), inner.next().unwrap())?;
+                Ok((format!("{ty}"), ty))
+            }
+            _ => {
+                unreachable!()
+            }
         })
         .collect()
 }

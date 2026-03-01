@@ -407,7 +407,9 @@ params_def = { kw_params ~ ("{" ~ params_def_list ~ "}" | "{" ~ "}") }
 params_def_list = { params_def_spec ~ ( "," ~ params_def_spec )* ~ ","? }
 
 /// A single parameter assignment: name and value.
-params_def_spec = { identifier ~ ":" ~ expression  }
+params_def_spec = _{  params_def_spec_full | params_def_spec_simple }
+params_def_spec_full = { identifier ~ ":" ~ expression  }
+params_def_spec_simple = { identifier  }
 
 /// Types definition block in an instance: assigns concrete types to
 /// user-defined type names.
@@ -417,7 +419,9 @@ types_def = { kw_types ~ ("{" ~ types_def_list ~ "}" | "{" ~ "}") }
 types_def_list = { types_def_spec ~ ( "," ~ types_def_spec )* ~ ","? }
 
 /// A single type assignment: user-defined type name to concrete type.
-types_def_spec = { type_userdefined ~ ":" ~ tipe }
+types_def_spec        = _{ types_def_spec_full | types_def_spec_simple }
+types_def_spec_full   = { type_userdefined ~ ":" ~ tipe }
+types_def_spec_simple = { type_userdefined }
 
 /// State block: declares the mutable state variables of the package.
 state = { kw_state ~ "{" ~ decl_list? ~ "}"  }

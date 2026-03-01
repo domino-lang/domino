@@ -168,9 +168,23 @@ pub(crate) fn handle_game_params_def_list(
         // loop over the parameter definitions
         .map(|inner| {
             let pair_span = inner.as_span();
-            let mut inner = inner.into_inner();
-            let name_ast = inner.next().unwrap();
-            let value_ast = inner.next().unwrap();
+            let (name_ast, value_ast) = match inner.as_rule() {
+                Rule::params_def_spec_full => {
+                    let mut inner = inner.into_inner();
+                    let name_ast = inner.next().unwrap();
+                    let value_ast = inner.next().unwrap();
+                    (name_ast, value_ast)
+                }
+                Rule::params_def_spec_simple => {
+                    let mut inner = inner.into_inner();
+                    let name_ast = inner.next().unwrap();
+                    let value_ast = name_ast.clone();
+                    (name_ast, value_ast)
+                }
+                _ => {
+                    unreachable!()
+                }
+            };
 
             let name_span = name_ast.as_span();
             let name = name_ast.as_str();
