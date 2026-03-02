@@ -338,12 +338,22 @@ pub(crate) fn handle_theorem_params_def_list(
     ctx: &ParseTheoremContext,
     game: &Composition,
     game_inst_name: &str,
+    types: &[(&str, Type)],
     ast: Pair<Rule>,
 ) -> Result<Vec<(String, Expression)>, ParseTheoremError> {
     let params = &game.consts;
     let mut defined_params = HashMap::<String, SourceSpan>::new();
     let block_span = ast.as_span();
 
+    let types: Vec<_> = types
+        .iter()
+        .map(|(name, ty)| {
+            (
+                Type::user_defined(crate::types::UserDefinedType::Game(name.to_string())),
+                ty.clone(),
+            )
+        })
+        .collect();
     // We need to process ints first, so we can rewrite the Bits(<some int>) that contain the name
     // of the const parameter on one side, and the name of the value that is assigned on the other.
     // We first split the two...
@@ -388,10 +398,11 @@ pub(crate) fn handle_theorem_params_def_list(
 
         // parse the assigned value, and set the expected type to what the clone
         // prescribes.
+        let expected_type = expected_type.rewrite_type(&types);
         let value = super::package::handle_expression(
             &ctx.parse_ctx(),
             value_ast.clone(),
-            Some(expected_type),
+            Some(&expected_type),
         )?;
 
         let assigned_countspec = match value.into_kind() {
@@ -461,6 +472,7 @@ pub(crate) fn handle_theorem_params_def_list(
             }
 
 
+            let expected_type = expected_type.rewrite_type(&types);
             let value = super::package::handle_expression(
                 &ctx.parse_ctx(),
                 value_ast,
