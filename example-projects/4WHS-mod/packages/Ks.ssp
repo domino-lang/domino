@@ -1,0 +1,37 @@
+package Ks {
+    params {
+        ideal: Bool,
+        n: Integer,
+    }
+
+    state {
+        ks: Table((Integer, Integer, Integer,Bits(n), Bits(n)), Bits(n)),
+        hons: Table((Integer, Integer, Integer,Bits(n), Bits(n)), Bool), /* is_pseudorandom */
+    }
+
+    oracle SetK(kid: (Integer, Integer, Integer,Bits(n), Bits(n)), k: Bits(n), hon: Bool) {
+        /* _should_ imply the rest is unset as well */
+        if not(ks[kid] == None as Bits(n)) {
+            abort;
+        }
+
+        if (hon and ideal) {
+            k <-$ Bits(n);
+        }
+
+        ks[kid] <- Some(k);
+        hons[kid] <- Some(hon);
+    }
+
+    oracle GetK(kid: (Integer, Integer, Integer,Bits(n), Bits(n))) -> Bits(n) {
+        k_opt <- ks[kid];
+        return Unwrap(k_opt);
+    }
+
+    oracle HonK(kid: (Integer, Integer, Integer,Bits(n), Bits(n))) -> Bool {
+        hon_opt <- hons[kid];
+        return Unwrap(hon_opt);
+    }
+}
+
+
