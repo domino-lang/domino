@@ -1,4 +1,4 @@
-use super::SmtParser;
+use super::{Result, SmtParser};
 
 use crate::writers::smt::exprs::SmtExpr;
 
@@ -42,15 +42,17 @@ impl FunctionExtractor {
 }
 
 impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
-    fn handle_atom(&mut self, content: &str) -> Option<SmtExpr> {
-        Some(SmtExpr::Atom(content.to_string()))
+    fn handle_atom(&mut self, content: &str) -> Result<Option<SmtExpr>> {
+        Ok(Some(SmtExpr::Atom(content.to_string())))
     }
 
-    fn handle_list(&mut self, content: Vec<Option<SmtExpr>>) -> Option<SmtExpr> {
-        Some(SmtExpr::List(content.into_iter().flatten().collect()))
+    fn handle_list(&mut self, content: Vec<Option<SmtExpr>>) -> Result<Option<SmtExpr>> {
+        Ok(Some(SmtExpr::List(content.into_iter().flatten().collect())))
     }
 
-    fn handle_sexp(&mut self, mut _parsed: Option<SmtExpr>) {}
+    fn handle_sexp(&mut self, mut _parsed: Option<SmtExpr>) -> Result<()> {
+        Ok(())
+    }
 
     fn handle_definefun(
         &mut self,
@@ -58,7 +60,7 @@ impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
         args: Vec<Option<SmtExpr>>,
         smttype: &str,
         _body: Option<SmtExpr>,
-    ) -> Option<SmtExpr> {
+    ) -> Result<Option<SmtExpr>> {
         let smtargs = args
             .into_iter()
             .filter_map(|expr| {
@@ -79,7 +81,7 @@ impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
             smtargs,
             smttype: smttype.to_string(),
         });
-        None
+        Ok(None)
     }
 }
 

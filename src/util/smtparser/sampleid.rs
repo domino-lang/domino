@@ -1,4 +1,4 @@
-use super::SmtParser;
+use super::{Result, SmtParser};
 
 #[derive(Debug)]
 pub struct ExtractedSampleId {
@@ -51,15 +51,19 @@ impl SampleIdExtractor {
 }
 
 impl SmtParser<Vec<ExtractedSampleId>> for SampleIdExtractor {
-    fn handle_atom(&mut self, _content: &str) -> Vec<ExtractedSampleId> {
-        Vec::new()
+    fn handle_atom(&mut self, _content: &str) -> Result<Vec<ExtractedSampleId>> {
+        Ok(Vec::new())
     }
 
-    fn handle_list(&mut self, content: Vec<Vec<ExtractedSampleId>>) -> Vec<ExtractedSampleId> {
-        content.into_iter().flatten().collect()
+    fn handle_list(
+        &mut self,
+        content: Vec<Vec<ExtractedSampleId>>,
+    ) -> Result<Vec<ExtractedSampleId>> {
+        Ok(content.into_iter().flatten().collect())
     }
-    fn handle_sexp(&mut self, mut parsed: Vec<ExtractedSampleId>) {
+    fn handle_sexp(&mut self, mut parsed: Vec<ExtractedSampleId>) -> Result<()> {
         self.sample_ids.append(&mut parsed);
+        Ok(())
     }
 
     fn handle_sampleid(
@@ -67,8 +71,10 @@ impl SmtParser<Vec<ExtractedSampleId>> for SampleIdExtractor {
         pkgname: &str,
         oraclename: &str,
         samplename: &str,
-    ) -> Vec<ExtractedSampleId> {
-        vec![ExtractedSampleId::new(pkgname, oraclename, samplename)]
+    ) -> Result<Vec<ExtractedSampleId>> {
+        Ok(vec![ExtractedSampleId::new(
+            pkgname, oraclename, samplename,
+        )])
     }
 
     fn handle_definefun(
@@ -77,13 +83,14 @@ impl SmtParser<Vec<ExtractedSampleId>> for SampleIdExtractor {
         _args: Vec<Vec<ExtractedSampleId>>,
         _ty: &str,
         body: Vec<ExtractedSampleId>,
-    ) -> Vec<ExtractedSampleId> {
-        body.into_iter()
+    ) -> Result<Vec<ExtractedSampleId>> {
+        Ok(body
+            .into_iter()
             .map(|mut sampleid| {
                 sampleid.set_smtfun(funname);
                 sampleid
             })
-            .collect()
+            .collect())
     }
 }
 
