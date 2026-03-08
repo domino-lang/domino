@@ -514,14 +514,14 @@ fn handle_edges_compose_assign_list(
 
         let found_duplicate_edge = edges
             .iter()
-            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.name() == oracle_name);
+            .any(|edge: &Edge| edge.from() == source_pkgidx && edge.name() == import_name);
 
         if found_duplicate_edge {
             return Err(DuplicateEdgeDefinitionError {
                 source_code: ctx.named_source(),
-                at: (oracle_name_span.start()..oracle_name_span.end()).into(),
+                at: (import_span.start()..import_span.end()).into(),
                 pkg_inst_name: src_pkg_inst.name.to_string(),
-                oracle_name: oracle_name.to_string(),
+                oracle_name: import_name.to_string(),
                 game_name: ctx.game_name.to_string(),
             }
             .into());
