@@ -1,6 +1,5 @@
 theorem Proof {
     const n: Integer;
-    const m: Integer;
 
     instance small_composition = SmallComposition {
         params {
@@ -36,7 +35,6 @@ theorem Proof {
         }
           types {
             Domain: Bits(n),
-            Tomain: Bits(m),
         }
 
     }
