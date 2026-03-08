@@ -1,0 +1,16 @@
+composition Gcoll {
+    const b: Bool;
+
+    instance pkg_Coll = Coll {
+        params {
+            b: b
+        }
+        
+    }
+
+    compose {
+        adversary: {
+            GET: pkg_Coll
+        }
+    }
+}

@@ -1,0 +1,17 @@
+composition Gweakprf {
+    const b: Bool;
+    const prf: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance pkg_WeakPrf = WeakPrf {
+        params {
+            b: b,
+            prf: prf
+        }
+    }
+
+    compose {
+        adversary: {
+            SAM: pkg_WeakPrf
+        }
+    }
+}

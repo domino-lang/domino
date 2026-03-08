@@ -1,0 +1,17 @@
+composition Gprf {
+    const b1: Bool;
+    const prf1: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance pkg_Prf = Prf {
+        params {
+            b: b1,
+            prf: prf1
+        }
+    }
+
+    compose {
+        adversary: {
+            EVAL: pkg_Prf
+        }
+    }
+}

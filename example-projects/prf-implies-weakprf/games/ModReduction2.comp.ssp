@@ -1,0 +1,22 @@
+composition ModReduction2 {
+    const b: Bool;
+
+    /* R' -> Gcoll^b */
+
+    instance pkg_Coll = Coll {
+        params {
+            b: b
+        }
+    }
+
+    instance reduction2 = Reduction2 {}
+
+    compose {
+        adversary: {
+            SAM: reduction2
+        }
+        reduction2: {
+            GET: pkg_Coll
+        }
+    }
+}

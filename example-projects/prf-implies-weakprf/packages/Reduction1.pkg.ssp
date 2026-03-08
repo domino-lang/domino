@@ -1,0 +1,11 @@
+package Reduction1 {
+    import oracles {
+        EVAL(x: Bits(256)) -> Bits(256),
+    }
+
+    oracle SAM() -> (Bits(256), Bits(256)) {
+        x <-$ Bits(256) sample-name x;
+        y <- invoke EVAL(x);
+        return (x, y);
+    }
+}

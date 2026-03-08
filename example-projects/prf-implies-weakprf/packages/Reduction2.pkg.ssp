@@ -1,0 +1,19 @@
+package Reduction2 {
+    import oracles {
+        GET() -> (Bits(256), Bool),
+    }
+
+    state {
+        T: Table(Bits(256), Bits(256))
+    }
+
+    oracle SAM() -> (Bits(256), Bits(256)) {
+        t <- invoke GET();
+        (x, b) <- parse t;
+        if not b {
+            y <-$ Bits(256) sample-name y;
+            T[x] <- Some(y);
+        }
+        return (x, Unwrap(T[x]));
+    }
+}

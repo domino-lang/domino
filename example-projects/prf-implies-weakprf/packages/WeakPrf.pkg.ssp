@@ -1,0 +1,24 @@
+package WeakPrf {
+    params {
+        b: Bool,
+        prf: fn Bits(256), Bits(256) -> Bits(256)
+    }
+
+    state {
+        k: Maybe(Bits(256))
+    }
+
+    oracle SAM() -> (Bits(256), Bits(256)) {
+        x <-$ Bits(256) sample-name x;
+        if b {
+            y <-$ Bits(256) sample-name y;
+            return (x, y);
+        }
+        if (k == None) {
+            r <-$ Bits(256) sample-name k;
+            k <- Some(r);
+        }
+        y <- prf(Unwrap(k), x);
+        return (x, y);
+    }
+}

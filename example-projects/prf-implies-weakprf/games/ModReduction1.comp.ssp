@@ -1,0 +1,24 @@
+composition ModReduction1 {
+    const b: Bool;
+    const prf: fn Bits(256), Bits(256) -> Bits(256);
+
+    /* R -> Gprf0 */
+
+    instance pkg_Prf = Prf {
+        params {
+            b: b,
+            prf: prf
+        }
+    }
+
+    instance reduction1 = Reduction1 {}
+
+    compose {
+        adversary: {
+            SAM: reduction1
+        }
+        reduction1: {
+            EVAL: pkg_Prf
+        }
+    }
+}

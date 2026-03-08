@@ -1,0 +1,153 @@
+theorem PrfImpliesWeakPrf {
+    const prf: fn Bits(256), Bits(256) -> Bits(256);
+
+    instance Gcoll0 = Gcoll {
+        params {
+            b: false
+        }
+    }
+
+    instance Gcoll1 = Gcoll {
+        params {
+            b: true
+        }
+    }
+
+    instance Gprf0 = Gprf {
+        params {
+            b1: false,
+            prf1: prf
+        }
+    }
+
+    instance Gprf1 = Gprf {
+        params {
+            b1: true,
+            prf1: prf
+        }
+    }
+
+    instance Gmod0 = ModReduction1 {
+        params {
+            b: false,
+            prf: prf
+        }
+    }
+
+    instance Gmod1 = ModReduction1 {
+        params {
+            b: true,
+            prf: prf
+        }
+    }
+
+    instance Gmod2 = ModReduction2 {
+        params {
+            b: false
+        }
+    }
+
+    instance Gmod3 = ModReduction2 {
+        params {
+            b: true
+        }
+    }
+
+    instance Gweakprf0 = Gweakprf {
+        params {
+            b: false,
+            prf: prf
+        }
+    }
+
+    instance Gweakprf1 = Gweakprf {
+        params {
+            b: true,
+            prf: prf
+        }
+    }
+
+    assumptions {
+        Coll: Gcoll0 ~ Gcoll1
+        Prf: Gprf0 ~ Gprf1
+    }
+
+    gamehops {
+        /* Gwprf = R -> Gprf0 */
+        conjecture Gweakprf0 Gmod0
+
+        /*
+        equivalence Gweakprf0 Gmod0 {
+            SAM: {
+                invariant: [
+                    ./theorem/invariant-Gweakprf0-Gmod0.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+        */
+        /* R -> Gprf0 ~ R -> Gprf1 */
+        reduction Gmod0 Gmod1 { 
+            assumption Prf
+            map Gprf0 Gmod0 {
+                pkg_Prf: pkg_Prf
+            }
+            map Gprf1 Gmod1 {
+                pkg_Prf: pkg_Prf
+            }
+        }
+        /* R -> Gprf1 = R' -> Gcoll0 */
+        conjecture Gmod1 Gmod2
+        /*
+        equivalence Gmod1 Gmod2 { 
+            SAM: {
+                invariant: [
+                    ./theorem/invariant-Gmod1-Gmod2.smt2
+                ]
+
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+        }
+        */
+        /* R' -> Gcoll0 ~ R' -> Gcoll1 */
+        reduction Gmod2 Gmod3 { 
+            assumption Coll
+            map Gcoll0 Gmod2 {
+                pkg_Coll: pkg_Coll
+            }
+            map Gcoll1 Gmod3 {
+                pkg_Coll: pkg_Coll
+            }
+        }
+        /* R' -> Gcoll1 = Gwprf1 */
+        conjecture Gmod3 Gweakprf1
+        /*
+        equivalence Gmod3 Gweakprf1 { 
+            SAM: {
+                invariant: [
+                    ./theorem/invariant-Gmod3-Gweakprf1.smt2
+                ]
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+        */
+    }
+
+    propositions {
+      Wprf: Gweakprf0 ~ Gweakprf1
+    }
+}
