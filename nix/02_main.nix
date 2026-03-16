@@ -44,6 +44,9 @@ ctx.scoped rec {
   result.apps = apps;
   result.checks = checks;
   result.formatter = formatter;
+  result.lib = {
+    inherit dominoTreefmtFormatter;
+  };
 
   apps = { };
 
@@ -67,8 +70,9 @@ ctx.scoped rec {
   toml = readToml (workspace.path + "/Cargo.toml");
 
   packages.default = packages.domino;
+  packages.domino = domino;
 
-  packages.domino = buildRustPackage {
+  domino = buildRustPackage {
     name = toml.package.name;
     version = toml.package.version;
     src = workspace.src;
@@ -93,6 +97,20 @@ ctx.scoped rec {
     '';
   };
 
+  dominoTreefmtFormatter = {
+    command = "${pkgs.bash}/bin/bash";
+    options = [
+      "-euc"
+      ''
+        for file in "$@"; do
+          ${domino}/bin/domino format $file
+        done
+      ''
+      "--" # bash swallows the second argument when using -c
+    ];
+    includes = [ "*.ssp" ];
+  };
+
   dominoTreefmt = treefmt.evalModule pkgs {
     projectRootFile = "flake.nix";
     programs.nixfmt.enable = true;
@@ -111,6 +129,7 @@ ctx.scoped rec {
       "*.yaml"
       "*.yml"
     ];
+    settings.formatter.domino = dominoTreefmtFormatter;
   };
 
   formatter = dominoTreefmt.config.build.wrapper;

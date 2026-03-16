@@ -19,6 +19,7 @@ outer_ctx.scoped rec {
     apps = eachSupportedSystem (system: (setupSystem system).apps);
     checks = eachSupportedSystem (system: (setupSystem system).checks);
     formatter = eachSupportedSystem (system: (setupSystem system).formatter);
+    lib = eachSupportedSystem (system: (setupSystem system).lib);
   };
 
   setupSystem = (
