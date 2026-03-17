@@ -119,10 +119,21 @@ This would be the contents is JSONy notation. We'll see how that looks like in t
 */
 
 use clap::Parser;
+use shadow_rs::shadow;
+shadow!(build);
+
 use sspverif::project;
 
 mod cli;
 use crate::cli::*;
+
+#[derive(Parser, Debug)]
+#[clap(author, version, long_version = build::CLAP_LONG_VERSION, about, long_about = None)]
+#[clap(propagate_version = true)]
+pub(crate) struct Cli {
+    #[clap(subcommand)]
+    pub(crate) command: Commands,
+}
 
 fn proofsteps() -> Result<(), project::error::Error> {
     let project_root = project::find_project_root()?;

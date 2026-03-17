@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use clap::{CommandFactory, ValueEnum};
+use clap::{CommandFactory, Parser, ValueEnum};
 use clap_complete::{generate_to, Shell};
 use std::env;
 use std::io::Error;
 
+use shadow_rs::{BuildPattern, ShadowBuilder};
+
 include!("src/cli.rs");
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+#[clap(propagate_version = true)]
+pub(crate) struct Cli {
+    #[clap(subcommand)]
+    pub(crate) command: Commands,
+}
 
 fn main() -> Result<(), Error> {
     let mut cmd = Cli::command();
@@ -18,6 +28,11 @@ fn main() -> Result<(), Error> {
     for &shell in Shell::value_variants() {
         generate_to(shell, &mut cmd, "domino", &outdir)?;
     }
+
+    ShadowBuilder::builder()
+        .build_pattern(BuildPattern::RealTime)
+        .build()
+        .unwrap();
 
     Ok(())
 }

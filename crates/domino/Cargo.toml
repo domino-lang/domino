@@ -9,8 +9,10 @@ sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
 miette = { version = "7.2.0", features = ["fancy"] }
 env_logger = "0.11"
+shadow-rs = {version = "1.7", default-features = false}
 
 [build-dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
 clap_complete = "*"
+shadow-rs = "1.7"
