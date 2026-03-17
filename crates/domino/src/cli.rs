@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use clap::{Parser, Subcommand};
+use clap::Subcommand;
 use sspverif::util::prover_process::ProverBackend;
-
-#[derive(Parser, Debug)]
-#[clap(author, version, about, long_about = None)]
-#[clap(propagate_version = true)]
-pub(crate) struct Cli {
-    #[clap(subcommand)]
-    pub(crate) command: Commands,
-}
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
