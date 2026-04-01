@@ -5,8 +5,6 @@ use miette::Diagnostic;
 use std::io::Error as IOError;
 use thiserror::Error;
 
-use super::FindProjectRootError;
-
 #[derive(Debug, Error, Diagnostic)]
 pub enum Error {
     #[error("error showing equivalence")]
@@ -34,6 +32,10 @@ pub enum Error {
     #[error("error finding project root")]
     FindProjectRoot(#[from] FindProjectRootError),
 
+    #[cfg(feature = "zipfile")]
+    #[error("Error processing zipfile")]
+    ZipFileError(#[from] zip::result::ZipError),
+
     // confirmed needed errors are below:
     #[error("syntax error: {0} at {1:?} / {2:?}")]
     PestParseError(
@@ -51,6 +53,16 @@ pub enum Error {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ParseTheorem(#[from] parser::theorem::ParseTheoremError),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum FindProjectRootError {
+    #[error("Error determining current directory:")]
+    CurrentDir(std::io::Error),
+    #[error("Error reading directory:")]
+    ReadDir(std::io::Error),
+    #[error("Not in project: no ssp.toml file in this or any parent directory")]
+    NotInProject,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

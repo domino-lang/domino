@@ -23,7 +23,7 @@ use crate::{
 use super::EquivalenceContext;
 
 fn verify_oracle<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: Arc<Mutex<&mut UI>>,
     eqctx: &EquivalenceContext,
     backend: ProverBackend,
@@ -93,7 +93,7 @@ fn verify_oracle<UI: TheoremUI>(
         log::info!("verify: oracle:{export:?}");
         writeln!(prover, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut prover, export.name())?;
-        eqctx.emit_invariant(&mut prover, export.name())?;
+        eqctx.emit_invariant(project, &mut prover, export.name())?;
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
@@ -142,7 +142,7 @@ fn verify_oracle<UI: TheoremUI>(
 }
 
 pub fn verify<UI: TheoremUI>(
-    project: &Project,
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
@@ -208,7 +208,7 @@ pub fn verify<UI: TheoremUI>(
 }
 
 pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
-    project: &Project,
+    project: &impl Project,
     ui: &mut UI,
     eq: &Equivalence,
     orig_theorem: &Theorem,
