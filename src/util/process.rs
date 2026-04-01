@@ -45,9 +45,11 @@ impl Communicator {
         let stdout = cmd.stdout.unwrap();
 
         let thrd = std::thread::spawn(move || {
-            write!(stdin, "")?;
+            writeln!(stdin)?;
+            stdin.flush()?;
             if let Some(ref mut transcript) = transcript {
-                write!(transcript, "")?;
+                writeln!(transcript)?;
+                transcript.flush()?;
             }
             for data in recv {
                 if let Some(ref mut transcript) = transcript {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Subcommand;
-use sspverif::util::prover_process::ProverBackend;
+use sspverif::util::smtsolver::process::SolverVariant;
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
@@ -35,7 +35,7 @@ pub(crate) struct Format {
 pub(crate) struct Latex {
     /// Solver for graph layouting
     #[clap(short, long, default_value = "cvc5")]
-    pub(crate) prover: Option<ProverBackend>,
+    pub(crate) smtsolver: Option<SolverVariant>,
     // TODO: given we have a default here, it seems impossible to choose none
 }
 
@@ -51,7 +51,7 @@ pub(crate) struct Explain {
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Prove {
     #[clap(short, long, default_value = "cvc5")]
-    pub(crate) prover: ProverBackend,
+    pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
     pub(crate) transcript: bool,
     #[clap(long)]

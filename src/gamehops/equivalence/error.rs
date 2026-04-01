@@ -2,7 +2,7 @@
 
 use crate::{
     gamehops::equivalence::Equivalence,
-    util::prover_process::{ProverResponse, Result as ProverResponseResult},
+    util::smtsolver::{Result as SmtSolverResponseResult, SmtSolverResponse},
 };
 use itertools::Itertools;
 use std::path::PathBuf;
@@ -13,7 +13,7 @@ pub enum Error {
         equivalence: Equivalence,
         oracle_name: String,
     },
-    ProverProcessError(crate::util::prover_process::Error),
+    ProverProcessError(crate::util::smtsolver::Error),
     InvariantFileReadError {
         oracle_name: String,
         invariant_file_name: String,
@@ -32,8 +32,8 @@ pub enum Error {
     ClaimTheoremFailed {
         claim_name: String,
         oracle_name: String,
-        response: ProverResponse,
-        modelfile: ProverResponseResult<PathBuf>,
+        response: SmtSolverResponse,
+        modelfile: SmtSolverResponseResult<PathBuf>,
     },
     ParallelEquivalenceError {
         left_game_inst_name: String,
@@ -137,8 +137,8 @@ impl std::fmt::Display for Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-impl From<crate::util::prover_process::Error> for Error {
-    fn from(err: crate::util::prover_process::Error) -> Self {
+impl From<crate::util::smtsolver::Error> for Error {
+    fn from(err: crate::util::smtsolver::Error) -> Self {
         new_prover_process_error(err)
     }
 }
@@ -149,7 +149,7 @@ impl From<crate::util::smtparser::Error> for Error {
     }
 }
 
-pub(crate) fn new_prover_process_error(err: crate::util::prover_process::Error) -> Error {
+pub(crate) fn new_prover_process_error(err: crate::util::smtsolver::Error) -> Error {
     Error::ProverProcessError(err)
 }
 

@@ -31,7 +31,7 @@ use crate::{
         samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
     },
     types::Type,
-    util::prover_process::{Communicator, ProverResponse},
+    util::smtsolver::{SmtSolver, SmtSolverResponse},
     writers::smt::{
         contexts::{self, GenericOracleContext},
         declare,
@@ -171,7 +171,7 @@ impl<'a> EquivalenceContext<'a> {
 }
 
 impl<'a> EquivalenceContext<'a> {
-    fn emit_base_declarations(&self, comm: &mut Communicator) -> Result<()> {
+    fn emit_base_declarations(&self, comm: &mut impl SmtSolver) -> Result<()> {
         let mut base_declarations: Vec<SmtExpr> = vec![("set-logic", "ALL").into()];
 
         let mut bits_sort_suffixes = HashSet::new();
@@ -232,7 +232,7 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_theorem_paramfuncs(&self, comm: &mut Communicator) -> Result<()> {
+    fn emit_theorem_paramfuncs(&self, comm: &mut impl SmtSolver) -> Result<()> {
         fn get_fn<T: Clone>(arg: &(T, Type)) -> Option<(T, Vec<Type>, Type)> {
             let (other, ty) = arg;
             match ty.kind() {
@@ -261,7 +261,7 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_game_definitions(&self, comm: &mut Communicator) -> Result<()> {
+    fn emit_game_definitions(&self, comm: &mut impl SmtSolver) -> Result<()> {
         let left = self
             .theorem
             .find_game_instance(self.equivalence.left_name())
@@ -328,7 +328,7 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_constant_declarations(&self, comm: &mut Communicator) -> Result<()> {
+    fn emit_constant_declarations(&self, comm: &mut impl SmtSolver) -> Result<()> {
         /*
          *
          * things being declared here:
@@ -723,7 +723,11 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_return_value_helpers(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+    fn emit_return_value_helpers(
+        &self,
+        comm: &mut impl SmtSolver,
+        oracle_name: &str,
+    ) -> Result<()> {
         let left_gctx = self.left_game_inst_ctx();
         let left_octx = left_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
         let left_pctx = left_octx.pkg_inst_ctx();
@@ -796,7 +800,7 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_auto_randomness(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+    fn emit_auto_randomness(&self, comm: &mut impl SmtSolver, oracle_name: &str) -> Result<()> {
         match self.equivalence.randomness_by_oracle_name(oracle_name) {
             RandomnessType::Custom => {}
             RandomnessType::Simple => {
@@ -865,7 +869,7 @@ impl<'a> EquivalenceContext<'a> {
         Ok(())
     }
 
-    fn emit_invariant(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+    fn emit_invariant(&self, comm: &mut impl SmtSolver, oracle_name: &str) -> Result<()> {
         let mut linter = lint::Linter::new(self, oracle_name);
 
         for file_name in &self.equivalence.invariants_by_oracle_name(oracle_name) {
@@ -883,7 +887,7 @@ impl<'a> EquivalenceContext<'a> {
 
             log::info!("wrote contents of file {file_name}");
 
-            if comm.check_sat()? != ProverResponse::Sat {
+            if comm.check_sat()? != SmtSolverResponse::Sat {
                 return Err(Error::UnsatAfterInvariantRead {
                     equivalence: self.equivalence.clone(),
                     oracle_name: oracle_name.to_string(),
@@ -1187,7 +1191,7 @@ impl<'a> EquivalenceContext<'a> {
 
     fn emit_claim_assert(
         &self,
-        comm: &mut Communicator,
+        comm: &mut impl SmtSolver,
         oracle_name: &str,
         claim: &Claim,
     ) -> Result<()> {
