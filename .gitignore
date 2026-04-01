@@ -6,3 +6,4 @@ settings.json
 test*.smt
 test*.z3out
 .DS_Store
+.vscode
