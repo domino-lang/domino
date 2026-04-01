@@ -126,7 +126,10 @@
         };
 
         devShells.default = pkgs.mkShellNoCC {
-          packages = devShellPackages ++ [ domino ];
+          packages = devShellPackages ++ [
+            domino
+            pkgs.cvc5
+          ];
         };
         devShells.dev = pkgs.mkShellNoCC {
           packages = devShellPackages;
