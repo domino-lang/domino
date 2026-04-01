@@ -1,0 +1,15 @@
+composition G2 {
+    instance A1 = A {}
+    instance A2 = A {}
+    instance B  = B {}
+
+    compose {
+        adversary: {
+            S: B,
+        }
+        B: {
+            O: A1,
+            Q: O of A2,
+        }
+    }
+}

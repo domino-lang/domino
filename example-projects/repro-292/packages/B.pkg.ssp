@@ -1,0 +1,11 @@
+package B {
+    import oracles {
+        O(),
+        Q(),
+    }
+
+    oracle S() {
+        _ <- invoke O();
+        _ <- invoke Q();
+    }
+}
