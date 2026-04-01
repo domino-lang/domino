@@ -28,7 +28,7 @@ pub enum Error {
     #[error("error interactiv with prover process")]
     ProcessError(#[from] crate::util::process::Error),
     #[error("error interactiv with prover process")]
-    ProverProcessError(#[from] crate::util::prover_process::Error),
+    ProverProcessError(#[from] crate::util::prover::error::Error),
     //#[error("got a formatting error")]
     //FmtError(#[from] std::fmt::Error),
     #[error("error finding project root")]
