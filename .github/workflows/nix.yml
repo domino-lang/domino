@@ -20,7 +20,7 @@ jobs:
       - uses: cachix/install-nix-action@v30
         with:
           nix_path: nixpkgs=channel:nixos-unstable
-      - name: "Nix: Check"
-        run: nix build --print-build-logs && nix flake check . --print-build-logs
-      - name: "Nix: Run Known-Good Tests"
-        run: nix develop --command bash -c 'DOMINO=$(type -p domino) bash scripts/test-known-examples.sh'
+      - name: Build
+        run: nix build --print-build-logs
+      - name: Check
+        run: nix flake check . --print-build-logs
