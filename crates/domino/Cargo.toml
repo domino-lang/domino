@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 readme = { workspace = true }
 
+[features]
+zipfile = ["sspverif/zipfile"]
+
 [dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }

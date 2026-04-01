@@ -34,6 +34,10 @@ pub enum Error {
     #[error("error finding project root")]
     FindProjectRoot(#[from] FindProjectRootError),
 
+    #[cfg(feature = "zipfile")]
+    #[error("Error processing zipfile")]
+    ZipFileError(#[from] zip::result::ZipError),
+
     // confirmed needed errors are below:
     #[error("syntax error: {0} at {1:?} / {2:?}")]
     PestParseError(
