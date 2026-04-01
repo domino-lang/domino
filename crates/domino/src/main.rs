@@ -150,8 +150,9 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
 
     assert!(p.proofstep.is_none() || p.proof.is_some());
 
+    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
     project.prove(
-        p.prover,
+        &smtsolver,
         p.transcript,
         p.parallel,
         &p.proof,
@@ -178,7 +179,10 @@ fn latex(l: &Latex) -> Result<(), project::error::Error> {
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
-    project.latex(l.prover)
+    let smtsolver = l
+        .smtsolver
+        .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
+    project.latex(&smtsolver)
 }
 
 fn format(f: &Format) -> Result<(), project::error::Error> {
