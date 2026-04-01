@@ -2,7 +2,7 @@
 
 `Domino` is a tool that helps you manage the tedious parts of working with the State-Separation Proofs framework for doing crypto proofs.
 
-> **This project is in early alpha. Expect insufficient documentation and  bugs, bugs, bugs!**
+> **This project is in early alpha. Expect insufficient documentation and bugs, bugs, bugs!**
 
 ## Features
 
@@ -20,7 +20,7 @@ Requirements:
 - A somewhat recent Rust toolchain. If you don't have that, look into [rustup].
 - CVC5 installed and in the `PATH` (not needed for building domino, but for running it)
 
-Install the tool using `cargo install --git https://github.com/domino-lang/domino domino`. 
+Install the tool using `cargo install --git https://github.com/domino-lang/domino domino`.
 Ensure that the installed binary is in your `PATH`. (By default, Cargo installs to (`~/.cargo/bin`).)
 
 ## Usage
@@ -51,6 +51,5 @@ Right now, the tool does the hard parts of equivalence proofs, but so far two pr
 - [ ] Automatically Determine Advantage Terms
 - [ ] Type parameters - in instantiations, allow not just assigning constants, but also types.
 - [ ] Automatically find invariants for equivalence proofs.
-
 
 [rustup]: https://rustup.rs/

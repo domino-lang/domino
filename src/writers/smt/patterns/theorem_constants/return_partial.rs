@@ -4,7 +4,9 @@ use crate::{
     expressions::Expression,
     identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
     writers::smt::{
-        patterns::{theorem_constants::ConstantPattern, DatastructurePattern, PartialReturnPattern},
+        patterns::{
+            theorem_constants::ConstantPattern, DatastructurePattern, PartialReturnPattern,
+        },
         sorts::Sort,
     },
 };
