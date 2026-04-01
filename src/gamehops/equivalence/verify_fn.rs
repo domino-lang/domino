@@ -96,7 +96,7 @@ fn verify_oracle<UI: TheoremUI>(
         writeln!(solver, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut solver, export.name())?;
         eqctx.emit_auto_randomness(&mut solver, export.name())?;
-        eqctx.emit_invariant(&mut solver, export.name())?;
+        eqctx.emit_invariant(project, &mut solver, export.name())?;
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
