@@ -5,15 +5,15 @@ use crate::{
     parser::ast::Identifier,
     parser::reduction::ReductionMapping,
     util::{
-        prover_process::{Communicator, ProverBackend, ProverResponse},
         smtmodel::SmtModel,
+        smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     },
 };
 
 use std::{collections::HashSet, fmt::Write};
 
 pub(crate) trait TikzGraph {
-    fn tikz_graph(&self, backend: &ProverBackend) -> String;
+    fn tikz_graph(&self, backend: &impl SmtSolverBackend) -> String;
 }
 
 pub(crate) struct ReductionGraph<'a> {
@@ -22,7 +22,7 @@ pub(crate) struct ReductionGraph<'a> {
 }
 
 impl TikzGraph for ReductionGraph<'_> {
-    fn tikz_graph(&self, backend: &ProverBackend) -> String {
+    fn tikz_graph(&self, backend: &impl SmtSolverBackend) -> String {
         smt_composition_graph(backend, self.composition, Some(self.mapping)).unwrap_or(
             fallback_composition_graph(self.composition, Some(self.mapping)),
         )
@@ -30,7 +30,7 @@ impl TikzGraph for ReductionGraph<'_> {
 }
 
 impl TikzGraph for Composition {
-    fn tikz_graph(&self, backend: &ProverBackend) -> String {
+    fn tikz_graph(&self, backend: &impl SmtSolverBackend) -> String {
         smt_composition_graph(backend, self, None).unwrap_or(fallback_composition_graph(self, None))
     }
 }
@@ -100,7 +100,7 @@ fn fallback_composition_graph(
 }
 
 fn smt_composition_graph(
-    backend: &ProverBackend,
+    backend: &impl SmtSolverBackend,
     composition: &Composition,
     reduction_mapping: Option<&ReductionMapping>,
 ) -> Option<String> {
@@ -366,7 +366,7 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
 }
 
 pub(crate) fn solve_composition_graph(
-    backend: &ProverBackend,
+    backend: &impl SmtSolverBackend,
     composition: &Composition,
 ) -> Option<SmtModel> {
     let constraints = composition_graph_smt_query(composition).unwrap();
@@ -376,10 +376,10 @@ pub(crate) fn solve_composition_graph(
     let mut min_height = 0;
 
     let mut model;
-    let mut comm = Communicator::new(*backend).unwrap();
+    let mut comm = backend.new_smtsolver().unwrap();
     write!(comm, "{constraints}").unwrap();
 
-    if comm.check_sat().unwrap() != ProverResponse::Sat {
+    if comm.check_sat().unwrap() != SmtSolverResponse::Sat {
         return None;
     } else {
         model = Some(comm.get_model().unwrap().1);
@@ -393,12 +393,12 @@ pub(crate) fn solve_composition_graph(
     loop {
         let width = min_width + (max_width - min_width) / 2;
 
-        let mut comm = Communicator::new(*backend).unwrap();
+        let mut comm = backend.new_smtsolver().unwrap();
         write!(comm, "{constraints}").unwrap();
         writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< width {width}))").unwrap();
 
-        if comm.check_sat().unwrap() == ProverResponse::Sat {
+        if comm.check_sat().unwrap() == SmtSolverResponse::Sat {
             log::debug!("Success: width = {width}");
             max_width = width;
 
@@ -421,13 +421,13 @@ pub(crate) fn solve_composition_graph(
     loop {
         let height = min_height + (max_height - min_height) / 2;
 
-        let mut comm = Communicator::new(*backend).unwrap();
+        let mut comm = backend.new_smtsolver().unwrap();
         write!(comm, "{constraints}").unwrap();
         writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< height {height}))").unwrap();
         writeln!(comm, "(assert (< width {max_width}))").unwrap();
 
-        if comm.check_sat().unwrap() == ProverResponse::Sat {
+        if comm.check_sat().unwrap() == SmtSolverResponse::Sat {
             log::debug!("Success: height = {height}");
             max_height = height;
         } else {
@@ -442,7 +442,7 @@ pub(crate) fn solve_composition_graph(
     }
 
     log::debug!("Conclusion: height = {max_height}, width = {max_width}");
-    let mut comm = Communicator::new(*backend).unwrap();
+    let mut comm = backend.new_smtsolver().unwrap();
     write!(comm, "{constraints}").unwrap();
     writeln!(comm, "(assert (< height {max_height}))").unwrap();
     writeln!(comm, "(assert (< width {max_width}))").unwrap();

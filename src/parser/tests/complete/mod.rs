@@ -15,7 +15,7 @@ use crate::{
     statement::Statement,
     theorem::{Claim, ClaimType},
     types::{CountSpec, Type, TypeKind},
-    util::prover_process::ProverBackend,
+    util::smtsolver::process::{ProcessSmtSolverBackend, SolverVariant},
 };
 use std::{
     collections::HashMap,
@@ -185,7 +185,7 @@ fn equivalence_gamehome_generates_code() {
         })
         .unwrap();
 
-    let backend = ProverBackend::Cvc5;
+    let backend = ProcessSmtSolverBackend::new(SolverVariant::Cvc5);
     let transcript = SharedVecWriter::default();
     let project = crate::project::Project::empty();
     equivalence::verify(
@@ -193,7 +193,7 @@ fn equivalence_gamehome_generates_code() {
         &mut MockTestTheoremUI::new(),
         eq,
         &theorem,
-        backend,
+        &backend,
         false,
         &None,
     )
