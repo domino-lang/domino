@@ -41,6 +41,8 @@
           "^testdata/.*"
           "^example-projects$"
           "^example-projects/.*"
+          "^test-projects$"
+          "^test-projects/.*"
           "^scripts"
           "^scripts/.*"
         ];
@@ -98,6 +100,17 @@
           pkgs.cargo-release
           pkgs.rustfmt
         ];
+
+        texlive = pkgs.texlive.combine {
+          inherit (pkgs.texlive)
+            scheme-small
+            collection-plaingeneric
+            collection-latexextra
+            collection-fontsrecommended
+            cryptocode
+            pgfplots
+            ;
+        };
       in
       {
         packages.default = domino;
@@ -109,26 +122,31 @@
         checks.default = domino;
         checks.domino = domino;
         checks.treefmt = dominoTreefmt.config.build.check self;
+
         checks.knownWorkingExamples = pkgs.stdenv.mkDerivation {
           name = "domino-knownWorkingExamples";
           src = src;
-          buildInputs = with pkgs; [
-            domino
-            cvc5
+          buildInputs = [ domino ];
+          nativeCheckInputs = [
+            pkgs.cvc5
+            texlive
           ];
-          buildCommand = ''
+          doCheck = true;
+          buildPhase = ''
             cp -R "$src" src/
             chmod -R u+w src/
-            cd src
-            DOMINO="$(type -p domino)" ${pkgs.bash}/bin/bash ./scripts/test-known-examples.sh
-            touch $out
           '';
+          checkPhase = ''
+            DOMINO="$(type -p domino)" ${pkgs.bash}/bin/bash ./scripts/test-known-examples.sh
+          '';
+          installPhase = "touch $out";
         };
 
         devShells.default = pkgs.mkShellNoCC {
           packages = devShellPackages ++ [
             domino
             pkgs.cvc5
+            texlive
           ];
         };
         devShells.dev = pkgs.mkShellNoCC {
