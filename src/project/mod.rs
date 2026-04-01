@@ -25,6 +25,11 @@ use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
 mod consts;
 mod load;
 
+#[cfg(feature = "zipfile")]
+pub mod zipfile;
+#[cfg(feature = "zipfile")]
+pub use zipfile::{ZipFiles, ZipProject};
+
 pub mod directory;
 pub use directory::{DirectoryFiles, DirectoryProject};
 
@@ -38,6 +43,8 @@ pub trait Project: Sync {
 
     fn get_theorem(&self, name: &str) -> Option<&Theorem<'_>>;
     fn get_game(&self, name: &str) -> Option<&Composition>;
+
+    fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
     fn proofsteps(&self) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();

@@ -97,6 +97,13 @@ impl Project for DirectoryProject<'_> {
     fn get_root_dir(&self) -> PathBuf {
         self.root_dir.clone()
     }
+
+    fn read_input_file(&self, extension: &str) -> std::io::Result<String> {
+        let mut path = self.root_dir.clone();
+        path.push(extension);
+        let file = std::fs::OpenOptions::new().read(true).open(path)?;
+        std::io::read_to_string(file)
+    }
 }
 
 pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjectRootError> {
