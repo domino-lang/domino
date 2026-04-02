@@ -53,13 +53,19 @@ pub mod error {
 #[macro_export]
 macro_rules! debug_assert_matches {
     ($v:expr, $p:pat) => {
-        debug_assert!(matches!($v, $p))
+        #[allow(clippy::redundant_pattern_matching)]
+        {
+            debug_assert!(matches!($v, $p))
+        }
     };
 }
 
 #[macro_export]
 macro_rules! assert_matches {
     ($v:expr, $p:pat) => {
-        assert!(matches!($v, $p))
+        #[allow(clippy::redundant_pattern_matching)]
+        {
+            assert!(matches!($v, $p))
+        }
     };
 }
