@@ -24,7 +24,7 @@ use crate::{
     util::prover_process::ProverBackend,
 };
 
-use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
+use crate::ui::{LatexUI, LatexUIGameIterator, ProveProofstepUI, ProveTheoremUI, ProveUI};
 
 pub const PROJECT_FILE: &str = "ssp.toml";
 
@@ -211,6 +211,7 @@ impl<'a> Project<'a> {
     // we could then extract the theorem viewer output and other useful info trom the trace
     pub fn prove(
         &self,
+        ui: impl ProveUI,
         backend: ProverBackend,
         transcript: bool,
         parallel: usize,
@@ -221,45 +222,51 @@ impl<'a> Project<'a> {
         let mut theorem_keys: Vec<_> = self.theorems.keys().collect();
         theorem_keys.sort();
 
-        let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
-
-        for theorem_key in theorem_keys.into_iter() {
+        for (theorem_key, mut ui) in theorem_keys
+            .into_iter()
+            .map(|theorem_name| (theorem_name, ui.start_theorem(theorem_name)))
+            .collect::<Vec<_>>()
+        {
+            ui.start();
             let theorem = &self.theorems[theorem_key];
-            ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
 
             if let Some(ref req_theorem) = req_theorem {
                 if theorem_key != req_theorem {
-                    ui.finish_theorem(&theorem.name);
+                    ui.finish();
                     continue;
                 }
             }
 
-            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
-                ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
-
+            for (i, game_hop, mut ui) in theorem
+                .game_hops
+                .iter()
+                .enumerate()
+                .map(|(idx, game_hop)| (idx, game_hop, ui.start_proofstep(format!("{game_hop}"))))
+                .collect::<Vec<_>>()
+            {
+                ui.start();
                 if let Some(ref req_proofstep) = req_proofstep {
                     if i != *req_proofstep {
-                        ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
+                        ui.finish();
                         continue;
                     }
                 }
 
                 match game_hop {
                     GameHop::Reduction(_) => {
-                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.is_reduction();
                     }
                     GameHop::Conjecture(_) => {
-                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.is_reduction();
                     }
                     GameHop::Equivalence(eq) => {
                         if parallel > 1 {
                             equivalence::verify_parallel(
-                                self, &mut ui, eq, theorem, backend, transcript, parallel,
-                                req_oracle,
+                                self, &ui, eq, theorem, backend, transcript, parallel, req_oracle,
                             )?;
                         } else {
                             equivalence::verify(
-                                self, &mut ui, eq, theorem, backend, transcript, req_oracle,
+                                self, &ui, eq, theorem, backend, transcript, req_oracle,
                             )?;
                         }
                     }
@@ -267,7 +274,7 @@ impl<'a> Project<'a> {
                         if parallel > 1 {
                             equivalence::verify_parallel(
                                 self,
-                                &mut ui,
+                                &ui,
                                 hyb.equivalence(),
                                 theorem,
                                 backend,
@@ -278,7 +285,7 @@ impl<'a> Project<'a> {
                         } else {
                             equivalence::verify(
                                 self,
-                                &mut ui,
+                                &ui,
                                 hyb.equivalence(),
                                 theorem,
                                 backend,
@@ -289,30 +296,36 @@ impl<'a> Project<'a> {
                         //unimplemented!()
                     }
                 }
-                ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
+                ui.finish();
             }
 
-            ui.finish_theorem(&theorem.name);
+            ui.finish();
         }
 
+        ui.finish();
         Ok(())
     }
 
-    pub fn latex(&self, backend: Option<ProverBackend>) -> Result<()> {
+    pub fn latex(&self, ui: impl LatexUI, backend: Option<ProverBackend>) -> Result<()> {
         let mut path = self.root_dir.clone();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
 
-        for (name, game) in &self.games {
+        for (name, game) in self.games.iter().ui_iter(&ui, "Exporting Games") {
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
             let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
                 .transform()
                 .unwrap();
+            crate::writers::tex::writer::tex_write_composition_graph_file(
+                &backend,
+                &transformed,
+                name,
+                path.as_path(),
+            )?;
             for lossy in [true, false] {
                 crate::writers::tex::writer::tex_write_composition(
-                    &backend,
                     lossy,
                     &transformed,
                     name,
@@ -321,7 +334,7 @@ impl<'a> Project<'a> {
             }
         }
 
-        for (name, theorem) in &self.theorems {
+        for (name, theorem) in self.theorems.iter().ui_iter(&ui, "Exporting Theorems") {
             for lossy in [true, false] {
                 crate::writers::tex::tex_write_theorem(
                     &backend,

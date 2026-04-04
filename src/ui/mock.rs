@@ -1,51 +1,101 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::ui::TheoremUI;
-use mockall::mock;
+use crate::ui::{
+    LatexUI, ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI, UI,
+};
 
-mock! {
-    pub(crate) TestTheoremUI {}
+#[derive(Clone)]
+pub struct TestUI {}
 
-    impl TheoremUI for TestTheoremUI {
+impl TestUI {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
-        fn println(&self, line: &str) -> std::io::Result<()>;
+impl UI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 
-        fn start_theorem(&mut self, theorem_name: &str, num_proofsteps: u64);
+    fn prove_ui(&self) -> impl ProveUI {
+        self.clone()
+    }
 
-        fn finish_theorem(&mut self, theorem_name: &str);
+    fn latex_ui(&self) -> impl LatexUI {
+        self.clone()
+    }
+}
 
-        fn start_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
+impl ProveUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 
-        fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn start(&self) {}
+    fn finish(&self) {}
 
-        fn proofstep_set_oracles(&mut self, theorem_name: &str, proofstep_name: &str, num_oracles: u64);
+    fn start_theorem(&self, _theorem_name: &str) -> impl ProveTheoremUI {
+        self.clone()
+    }
+}
 
-        fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
+impl ProveTheoremUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 
-        fn start_oracle(
-            &mut self,
-            theorem_name: &str,
-            proofstep_name: &str,
-            oracle_name: &str,
-            num_lemmata: u64,
-        );
+    fn start(&mut self) {}
+    fn finish(&self) {}
 
-        fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
+    fn start_proofstep(&self, _proofstep_name: String) -> impl ProveProofstepUI {
+        self.clone()
+    }
+}
 
-        fn start_lemma(
-            &mut self,
-            theorem_name: &str,
-            proofstep_name: &str,
-            oracle_name: &str,
-            lemma_name: &str,
-        );
+impl ProveProofstepUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 
-        fn finish_lemma(
-            &mut self,
-            theorem_name: &str,
-            proofstep_name: &str,
-            oracle_name: &str,
-            lemma_name: &str,
-        );
+    fn start(&mut self) {}
+    fn finish(&self) {}
+
+    fn is_reduction(&self) {}
+
+    fn start_oracle(&self, _oracle_name: String) -> impl ProveOracleUI {
+        self.clone()
+    }
+}
+
+impl ProveOracleUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn start(&mut self) {}
+    fn finish(&self) {}
+
+    fn start_lemma(&self, _lemma_name: &str) -> impl ProveLemmaUI {
+        self.clone()
+    }
+}
+
+impl ProveLemmaUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn start(&mut self) {}
+    fn finish(&self) {}
+}
+
+impl LatexUI for TestUI {
+    fn game_iterator<Item>(
+        &self,
+        iter: impl ExactSizeIterator<Item = Item>,
+        _caption: String,
+    ) -> impl Iterator<Item = Item> {
+        iter
     }
 }
