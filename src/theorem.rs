@@ -8,7 +8,7 @@ use crate::{
     },
     identifier::game_ident::GameConstIdentifier,
     package::{Composition, Edge, Export, Package},
-    packageinstance::instantiate::InstantiationContext,
+    packageinstance::{game_inst_type_mapping_vec, instantiate::InstantiationContext},
     proof::Proof,
     types::Type,
 };
@@ -116,11 +116,12 @@ impl GameInstance {
         types: Vec<(String, Type)>,
         params: Vec<(GameConstIdentifier, Expression)>,
     ) -> GameInstance {
+        let rewrite_types = game_inst_type_mapping_vec(&types);
         let inst_ctx: InstantiationContext = InstantiationContext::new_game_instantiation_context(
             &game_inst_name,
             &theorem_name,
             &params,
-            &types,
+            &rewrite_types,
         );
 
         let new_pkg_instances = game
@@ -168,6 +169,9 @@ impl GameInstance {
             consts: resolved_params,
             edges: new_edges,
             exports: new_exports,
+
+            // XXX: This probably needs rewriting
+            type_params: game.type_params,
         };
 
         GameInstance {
@@ -252,6 +256,7 @@ impl Claim {
 #[derive(Clone, Debug)]
 pub struct Theorem<'a> {
     pub name: String,
+    pub types: Vec<String>,
     pub consts: Vec<(String, Type)>,
     pub instances: Vec<GameInstance>,
     pub assumptions: Vec<Assumption>,
