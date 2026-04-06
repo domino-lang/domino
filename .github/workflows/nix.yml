@@ -12,9 +12,15 @@ concurrency:
 
 jobs:
   nix-build:
-    name: Run Nix Build & Checks
-    runs-on:
-      - ubuntu-latest
+    name: Nix Build & Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v30
