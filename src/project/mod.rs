@@ -124,7 +124,9 @@ impl<'a> Project<'a> {
             .packages()
             .map(|pkg| pkg.map(|pkg| (pkg.name.clone(), pkg)))
             .collect::<Result<_>>()?;
-
+        if packages.is_empty() {
+            eprintln!("No packages found in project");
+        }
         /* we already typecheck during parsing, and the typecheck transform uses a bunch of deprecated
            stuff, so we just comment it out.
 
@@ -139,6 +141,10 @@ impl<'a> Project<'a> {
          */
 
         let games = load::games(&files.games, &packages)?;
+        if games.is_empty() {
+            eprintln!("No games found in project");
+        }
+
         // let mut game_names: Vec<_> = games.keys().collect();
         // game_names.sort();
         //
@@ -149,6 +155,9 @@ impl<'a> Project<'a> {
         // }
 
         let theorems = load::theorems(&files.theorems, packages.to_owned(), games.to_owned())?;
+        if theorems.is_empty() {
+            eprintln!("No theorems found in project");
+        }
 
         let project = Project {
             root_dir,
