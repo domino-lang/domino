@@ -61,6 +61,9 @@
           buildAndTestSubdir = "crates/domino/";
           cargoBuildFlags = [ "--workspace" ];
           checkPhase = ''
+            rustc --version
+            cargo --version
+            cargo clippy -- --version
             export RUSTFLAGS="-D warnings"
             cargo test --verbose --workspace --all-targets
             cargo test --verbose --workspace --doc

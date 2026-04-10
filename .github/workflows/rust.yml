@@ -19,6 +19,11 @@ jobs:
         run: rustup override set 1.91.1
       - name: Add rustfmt for override version
         run: rustup component add rustfmt
+      - name: Tool versions
+        run: |
+          rustc --version
+          cargo --version
+          cargo clippy -- --version
       - name: Run cargo fmt
         run: cargo fmt --check
   Check:
