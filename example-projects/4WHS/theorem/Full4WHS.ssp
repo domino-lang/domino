@@ -647,9 +647,25 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
+                    equal-aborts:                    []
+                    same-output:                     [no-abort]
+                    relation-mac-table-wellformed:   [no-abort]
+                    relation-prf-table-wellformed:   [no-abort]
+                    relation-nonce-table-wellformed: [no-abort]
+                    relation-collision-resistance:   [no-abort]
+                    relation-keys-wellformed:        [no-abort]
+                    relation-time-of-initialization: [no-abort]
+                    relation-time-of-acceptance:     [no-abort]
+                    relation-sid-wellformed:         [no-abort]
+                    relation-own-nonce-unique:       [no-abort]
+                    relation-session-matching:       [no-abort]
+                    invariant:    [no-abort,
+                                   relation-mac-table-wellformed,relation-mac-table-wellformed,
+                                   relation-mac-table-wellformed,relation-collision-resistance,
+                                   relation-keys-wellformed,relation-time-of-initialization,
+                                   relation-time-of-acceptance,relation-sid-wellformed,
+                                   relation-own-nonce-unique,relation-session-matching
+                                   ]
                 }
             }
             Send4: {
@@ -659,9 +675,25 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
+                    equal-aborts:                    []
+                    same-output:                     [no-abort]
+                    relation-mac-table-wellformed:   [no-abort]
+                    relation-prf-table-wellformed:   [no-abort]
+                    relation-nonce-table-wellformed: [no-abort]
+                    relation-collision-resistance:   [no-abort]
+                    relation-keys-wellformed:        [no-abort]
+                    relation-time-of-initialization: [no-abort]
+                    relation-time-of-acceptance:     [no-abort]
+                    relation-sid-wellformed:         [no-abort]
+                    relation-own-nonce-unique:       [no-abort]
+                    relation-session-matching:       [no-abort]
+                    invariant:    [no-abort,
+                                   relation-mac-table-wellformed,relation-mac-table-wellformed,
+                                   relation-mac-table-wellformed,relation-collision-resistance,
+                                   relation-keys-wellformed,relation-time-of-initialization,
+                                   relation-time-of-acceptance,relation-sid-wellformed,
+                                   relation-own-nonce-unique,relation-session-matching
+                                   ]
                 }
             }
             Send5: {
