@@ -84,6 +84,7 @@ theorem LayerSecurity {
             GETAOUT: {
                 invariant: [
                     ./theorem/invariant-Layer.smt2
+                    ./theorem/randomness-Layer.smt2
                 ]
 
                 lemmas {
@@ -95,6 +96,7 @@ theorem LayerSecurity {
             SETBIT: {
                 invariant: [
                     ./theorem/invariant-Layer.smt2
+                    ./theorem/randomness-Layer.smt2
                 ]
 
                 lemmas {
@@ -106,6 +108,7 @@ theorem LayerSecurity {
             GETKEYSIN: {
                 invariant: [
                     ./theorem/invariant-Layer.smt2
+                    ./theorem/randomness-Layer.smt2
                 ]
 
                 lemmas {
@@ -117,6 +120,7 @@ theorem LayerSecurity {
             GBLG: {
                 invariant: [
                     ./theorem/invariant-Layer.smt2
+                    ./theorem/randomness-Layer.smt2
                 ]
 
                 lemmas {
