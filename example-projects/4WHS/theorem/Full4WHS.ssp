@@ -1588,7 +1588,6 @@ theorem Full4WHS {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send3.smt2
                 ]
 
                 lemmas {
@@ -1606,23 +1605,15 @@ theorem Full4WHS {
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    not-in-first-second:          [no-abort]
-                    empty-second:                 [no-abort]
-                    empty-first:                  [no-abort]
-                    /*other-session: [no-abort]*/
                 }
             }
             Send4: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send4.smt2
                 ]
 
                 lemmas {
-                    empty-second:                 [no-abort]
-                    not-in-first-second:          [no-abort]
-                    first-exists:                 [no-abort]
                     equal-aborts:                 []
                     same-output:                  [no-abort]
                     relation-mac-implies-message: [no-abort]
@@ -1637,14 +1628,12 @@ theorem Full4WHS {
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    /*other-session: [no-abort]*/
                 }
             }
             Send5: {
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
                     ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send5.smt2
                 ]
 
                 lemmas {
@@ -1662,10 +1651,6 @@ theorem Full4WHS {
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    first-exists:                 [no-abort]
-                    second-exists:                [no-abort]
-                    in-first-or-second:           [no-abort]
-                    in-first:                     [no-abort]
                 }
             }
             NewKey: {
