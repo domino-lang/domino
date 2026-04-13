@@ -85,11 +85,7 @@
   Bool
   (and
    ;; mac keys are computed before output keys
-   (forall ((kid Int)
-            (U Int)
-            (V Int)
-            (ni Bits_n)
-            (nr Bits_n))
+   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
            (=> (not (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))
                        (as mk-none (Maybe Bits_n))))
                (ite (= (select H kid) (mk-some true))
@@ -97,12 +93,7 @@
                     (not (is-mk-none (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))))
 
    ;; output keys are only computed when revtesting
-   (forall ((kid Int)
-            (U Int)
-            (V Int)
-            (ni Bits_n)
-            (nr Bits_n)
-            (kmac-prime Bits_n))
+   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (kmac-prime Bits_n))
            (and
             ;; entry in PRF table => entry in revtest
             (=> (not (is-mk-none (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))
@@ -135,11 +126,7 @@
   Bool
   (and
    ;; mac keys are computed before output keys
-   (forall ((kid Int)
-            (U Int)
-            (V Int)
-            (ni Bits_n)
-            (nr Bits_n))
+   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
            (=> (not (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))
                        (as mk-none (Maybe Bits_n))))
                (ite (= (select H kid) (mk-some true))
@@ -147,12 +134,7 @@
                     (not (is-mk-none (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))))
 
    ;; output keys are only computed when revealing
-   (forall ((kid Int)
-            (U Int)
-            (V Int)
-            (ni Bits_n)
-            (nr Bits_n)
-            (kmac-prime Bits_n))
+   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (kmac-prime Bits_n))
            (and
             ;; entry in PRF table => false entry in revtest
             (=> (not (is-mk-none (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))
@@ -182,8 +164,7 @@
                             (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))
                        (mk-some kmac-prime))
                     (= (select prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))
-                       (as mk-none (Maybe Bits_n)))))
-            ))))
+                       (as mk-none (Maybe Bits_n)))))))))
 
 (define-fun prfeval-has-matching-session
     ((prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
@@ -318,8 +299,6 @@
                               (maybe-get sid)))))))))))
 
 
-
-
 ;; Some consistency checks on the PRF package
 ;;
 ;; (i) LTK and H are written at the same locations
@@ -355,8 +334,6 @@
           (= (> i ctr)
              (is-mk-none (select fresh i))
              (is-mk-none (select state i)))))
-
-
 
 
 (define-fun kmac-and-tau-are-computed-correctly
@@ -819,9 +796,6 @@
                       (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                                  (mk-tuple2 (maybe-get ni) 3)))))))))))
 
-;; if first[sid] = some ctr and state[ctr].kid is fresh
-;; the state[ctr].u == false and prfvalues[...] = tau
-;; (forall kid U V ni nr tau ctr
 
 (define-fun reverse-mac-state-consistent
     ((ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
@@ -863,14 +837,9 @@
   (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
           (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                    (mk-tuple2 msg tag))))
-            (and (= (and (is-mk-none (select ReverseMac handle))
-                         (= (select H kid) (mk-some true)))
-                    (is-mk-none (select Values handle)))
-                 ;;(=> (not (is-mk-none (select Values handle)))
-                 ;;    (= (select H kid) (mk-some true)))
-                 ;;(=> (not (is-mk-none (select ReverseMac handle)))
-                 ;;    (= (select H kid) (mk-some true)))
-                 true))))
+            (= (and (is-mk-none (select ReverseMac handle))
+                    (= (select H kid) (mk-some true)))
+               (is-mk-none (select Values handle))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Brainstorming on AtLeast
@@ -956,8 +925,6 @@
                        (and u (or (= mess 1) (= mess 2)))))))))))))
 
 
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Unless key corruption, if we accept the mac in Send5,
 ;; then it was generated in send4:
@@ -992,22 +959,19 @@
               (=> (= mess 3)
                   (and
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                              (mk-tuple2 zeron 4)))))
-                   ))
+                                                              (mk-tuple2 zeron 4)))))))
               (=> (and u (or (= mess 2) (= mess 3)) (= acc (mk-some true)))
                   (and
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 (maybe-get ni) 3)))))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                              (mk-tuple2 zeron 4)))))
-                   ))
+                                                              (mk-tuple2 zeron 4)))))))
               (=> (and (not u) (or (= mess 2) (= mess 3)))
                   (and
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 (maybe-get nr) 2)))))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 (maybe-get ni) 3))))))))))))))
-
 
 
 
@@ -1172,10 +1136,7 @@
            (=> (and (not (= ctr1 ctr2))
                     (not (is-mk-none sid1))
                     (= sid1 sid2))
-               (not (= u1 u2)))
-           )))))
-
-
+               (not (= u1 u2))))))))
 
 
 ;; TODO also claim for four mac
