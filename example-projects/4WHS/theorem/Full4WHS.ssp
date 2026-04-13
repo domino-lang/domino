@@ -1673,8 +1673,7 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
-                    lemma-aux:                    [no-abort]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             NewSession: {
@@ -1686,7 +1685,6 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1698,7 +1696,7 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             Test: {
@@ -1756,7 +1754,6 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1768,7 +1765,7 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             AtLeast: {
@@ -1780,7 +1777,6 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1792,7 +1788,7 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             AtMost: {
@@ -1804,7 +1800,6 @@ theorem Full4WHS {
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1816,7 +1811,7 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
         }
