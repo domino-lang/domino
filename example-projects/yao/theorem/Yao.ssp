@@ -61,12 +61,12 @@ theorem Yao {
     }
 
     assumptions {
-        Core: CoreReal ~ CoreIdeal
+        HybridCircuitSecurity: CoreReal ~ CoreIdeal
     }
 
     gamehops {
         reduction YaoReal YaoIdeal {
-            assumption Core
+            assumption HybridCircuitSecurity
 
             map CoreReal YaoReal {
                 Keys: Keys
