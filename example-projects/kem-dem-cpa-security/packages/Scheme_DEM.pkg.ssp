@@ -1,0 +1,14 @@
+package Scheme_DEM {
+    params {
+        dem_enc: fn Bits(256), Bits(4000) -> Bits(8000),
+        dem_dec: fn Bits(256), Bits(8000) -> Bits(4000)
+    }
+
+    oracle DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000) {
+        return dem_enc(k, m);
+    }
+
+    oracle DEM_DEC(k: Bits(256), c: Bits(8000)) -> Bits(4000) {
+        return dem_dec(k, c);
+    }
+}

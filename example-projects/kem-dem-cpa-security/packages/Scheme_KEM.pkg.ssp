@@ -1,4 +1,4 @@
-package KemScheme {
+package Scheme_KEM {
     params {
         kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000)),
         kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400)),

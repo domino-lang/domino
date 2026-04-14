@@ -4,10 +4,10 @@ composition Hybrid2 {
     const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
     const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
     const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
-    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
-    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
+    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
 
-    instance pkg_KemScheme = KemScheme {
+    instance pkg_Scheme_KEM = Scheme_KEM {
         params {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
@@ -15,14 +15,14 @@ composition Hybrid2 {
         }
     }
 
-    instance pkg_DemScheme = DemScheme {
+    instance pkg_Scheme_DEM = Scheme_DEM {
         params {
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
     }
 
-    instance pkg_KEM_CPA = KEM_CPA {
+    instance pkg_CPA_KEM = CPA_KEM {
         params {
             b: b,
         }
@@ -32,14 +32,14 @@ composition Hybrid2 {
     }
 
     compose {
-        pkg_KEM_CPA: {
-            KEM_GEN: pkg_KemScheme,
-            KEM_ENCAPS: pkg_KemScheme,
+        pkg_CPA_KEM: {
+            KEM_GEN: pkg_Scheme_KEM,
+            KEM_ENCAPS: pkg_Scheme_KEM,
         }
         pkg_Reduction_KEM_1: {
-            ENCAPS: pkg_KEM_CPA,
-            KEMGEN: pkg_KEM_CPA,
-            DEM_ENC: pkg_DemScheme,
+            ENCAPS: pkg_CPA_KEM,
+            KEMGEN: pkg_CPA_KEM,
+            DEM_ENC: pkg_Scheme_DEM,
         }
         adversary: {
             PKGEN: pkg_Reduction_KEM_1,

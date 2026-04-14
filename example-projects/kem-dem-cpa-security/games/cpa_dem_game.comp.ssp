@@ -1,0 +1,28 @@
+composition CpaDemGame {
+    const b: Bool;
+
+    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
+    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
+
+    instance pkg_Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance pkg_CPA_DEM = CPA_DEM {
+        params {
+            b: b,
+        }
+    }
+
+    compose {
+        pkg_CPA_DEM: {
+            DEM_ENC: pkg_Scheme_DEM,
+        }
+        adversary: {
+            ENC: pkg_CPA_DEM,
+        }
+    }
+}
