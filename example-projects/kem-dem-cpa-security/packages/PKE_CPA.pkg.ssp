@@ -1,0 +1,36 @@
+package PKE_CPA {
+    params {
+        b: Bool
+    }
+
+    import oracles {
+        GEN() -> (Bits(100), Bits(1000)),
+        ENC(pk: Bits(100), m: Bits(*)) -> (Bits(400),Bits(*)) /* ciphertext type */,
+    }
+
+    state {
+        pk: Maybe(Bits(100)),
+        ek: Maybe(Bits(400)),
+    }
+
+    oracle PKGEN() -> Bits(100) {
+        assert (pk == None);
+        pk_sk <- invoke GEN();
+        (pk1, sk1) <- parse pk_sk;
+        pk <- Some(pk1);
+        return pk1;
+    }
+
+    oracle PKENC(m0: Bits(*), m1: Bits(*)) -> (Bits(400),Bits(*)) {
+        assert (pk != None as Bits(100));
+        assert (ek == None);
+        if b {
+            c1 <- invoke ENC(Unwrap(pk), m1);
+        } else {
+            c1 <- invoke ENC(Unwrap(pk), m0);
+        }
+        (ek1, c2) <- parse c1;
+        ek <- Some(ek1);
+        return (ek1, c2);
+    }
+}

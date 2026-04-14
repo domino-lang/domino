@@ -1,0 +1,37 @@
+package KEM_CPA {
+    params {
+        b: Bool,
+    }
+
+    state {
+        pk: Maybe(Bits(100)),
+        ek: Maybe(Bits(400)),
+    }
+
+    import oracles {
+        KEM_GEN() -> (Bits(100), Bits(1000)),
+        KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
+    }
+
+    oracle KEMGEN() -> Bits(100) {
+        assert (pk == None);
+        pk_sk <- invoke KEM_GEN();
+        (pk1, sk1) <- parse pk_sk;
+        pk <- Some(pk1);
+        return pk1;
+    }
+
+    oracle ENCAPS() -> (Bits(400), Bits(256)) { /* (ek, k) */
+        assert (pk != None as Bits(100));
+        assert (ek == None);
+        k_ek <- invoke KEM_ENCAPS(Unwrap(pk));
+        (k0, ek1) <- parse k_ek;
+        ek <- Some(ek1);
+        if b {
+            k <-$ Bits(256) sample-name k;
+        } else {
+            k <- k0;
+        }
+        return (ek1, k);
+    }
+}

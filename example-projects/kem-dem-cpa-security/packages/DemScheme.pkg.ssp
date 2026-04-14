@@ -1,0 +1,15 @@
+package DemScheme {
+    params {
+        dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*),
+        dem_dec: fn Bits(256), Bits(*) -> Bits(*)
+    }
+
+    oracle DEM_ENC(k: Bits(256), m: Bits(*)) -> Bits(*) {
+        r <-$ Bits(500) sample-name dem_enc;
+        return dem_enc(r, k, m);
+    }
+
+    oracle DEM_DEC(k: Bits(256), c: Bits(*)) -> Bits(*) {
+        return dem_dec(k, c);
+    }
+}
