@@ -29,9 +29,6 @@ composition Hybrid1 {
     }
 
     instance pkg_Reduction_DEM = Reduction_DEM {
-        params {
-            b: false,
-        }
     }
 
     compose {

@@ -1,8 +1,4 @@
 package Reduction_DEM {
-    params {
-        b: Bool
-    }
-
     import oracles {
         KEM_GEN() -> (Bits(100), Bits(1000)),
         KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),

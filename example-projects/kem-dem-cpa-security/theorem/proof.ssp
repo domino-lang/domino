@@ -256,9 +256,9 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    same-output: [no-abort, relation-randomness]
+                    invariant: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
                 }
             }
         }
