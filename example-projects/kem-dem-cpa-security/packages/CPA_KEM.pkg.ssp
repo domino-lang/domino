@@ -1,4 +1,4 @@
-package KEM_CPA {
+package CPA_KEM {
     params {
         b: Bool,
     }

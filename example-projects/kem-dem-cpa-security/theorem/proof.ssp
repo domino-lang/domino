@@ -2,10 +2,10 @@ theorem Proof {
     const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
     const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
     const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
-    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
-    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
+    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
 
-    instance pke_cpa_0 = PkeCpaGame {
+    instance pke_cpa_0 = CpaPkeGame {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -16,7 +16,7 @@ theorem Proof {
         }
     }
 
-    instance pke_cpa_1 = PkeCpaGame {
+    instance pke_cpa_1 = CpaPkeGame {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -49,7 +49,7 @@ theorem Proof {
         }
     }
 
-    instance game_0 = GameComp {
+    instance game_0 = CpaPkeIdealKemGame {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -60,7 +60,7 @@ theorem Proof {
         }
     }
 
-    instance game_1 = GameComp {
+    instance game_1 = CpaPkeIdealKemGame {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -116,7 +116,7 @@ theorem Proof {
     }
 
     /* Assumption game instances */
-    instance kem_cpa_game_real = KemCpaGame {
+    instance cpa_kem_game_real = CpaKemGame {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -125,7 +125,7 @@ theorem Proof {
         }
     }
 
-    instance kem_cpa_game_ideal = KemCpaGame {
+    instance cpa_kem_game_ideal = CpaKemGame {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -134,7 +134,7 @@ theorem Proof {
         }
     }
 
-    instance dem_eav_game_real = DemEavGame {
+    instance cpa_dem_game_real = CpaDemGame {
         params {
             b: false,
             dem_enc: dem_enc,
@@ -142,7 +142,7 @@ theorem Proof {
         }
     }
 
-    instance dem_eav_game_ideal = DemEavGame {
+    instance cpa_dem_game_ideal = CpaDemGame {
         params {
             b: true,
             dem_enc: dem_enc,
@@ -151,26 +151,27 @@ theorem Proof {
     }
 
     assumptions {
-        KEM_CPA_Security: kem_cpa_game_real ~ kem_cpa_game_ideal
-        DEM_EAV_Security: dem_eav_game_real ~ dem_eav_game_ideal
+        KEM_CPA_Security: cpa_kem_game_real ~ cpa_kem_game_ideal
+        DEM_CPA_Security: cpa_dem_game_real ~ cpa_dem_game_ideal
     }
 
     gamehops {
         /*
         Goal: pke_cpa_0 ~ pke_cpa_1
         We prove PKE-CPA security of the KEM-DEM construction and reduce to
-        KEM-CPA and DEM-EAV security of the underlying KEM and DEM schemes.
+        KEM-CPA and DEM-CPA security of the underlying KEM and DEM schemes.
 
         Proof chain:
-        PKE_CPA^0 = Hybrid0^0 ~ (KEM-CPA) Hybrid0^1 = Game^0
-                   = Hybrid1^0 ~ (DEM-EAV) Hybrid1^1 = Game^1
-                   = Hybrid2^1 ~ (KEM-CPA) Hybrid2^0 = PKE_CPA^1
+        CPA_PKE^0 = Hybrid0^0 ~ (KEM-CPA) Hybrid0^1 = CPA_PKE_Ideal_KEM^0
+                   = Hybrid1^0 ~ (DEM-CPA) Hybrid1^1 = CPA_PKE_Ideal_KEM^1
+                   = Hybrid2^1 ~ (KEM-CPA) Hybrid2^0 = CPA_PKE^1
         */
 
-        /* Step 1: PKE_CPA^0 = Hybrid0^0 */
+        /* Step 1: CPA_PKE^0 = Hybrid0^0 */
         equivalence pke_cpa_0 hybrid0_0 {
             PKGEN: {
                 invariant: [
+                    ./theorem/randmap-step1.smt2,
                     ./theorem/invariant-step1.smt2
                 ]
 
@@ -183,13 +184,14 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
+                    ./theorem/randmap-step1.smt2,
                     ./theorem/invariant-step1.smt2
                 ]
 
                 lemmas {
                     same-output: [no-abort]
                     equal-aborts: []
-                    invariant: [no-abort, relation-randomness]
+                    invariant: [no-abort]
                 }
             }
         }
@@ -198,21 +200,22 @@ theorem Proof {
         reduction hybrid0_0 hybrid0_1 {
             assumption KEM_CPA_Security
 
-            map kem_cpa_game_real hybrid0_0 {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_KEM_CPA: pkg_KEM_CPA
+            map cpa_kem_game_real hybrid0_0 {
+                pkg_Scheme_KEM: pkg_Scheme_KEM
+                pkg_CPA_KEM: pkg_CPA_KEM
             }
 
-            map kem_cpa_game_ideal hybrid0_1 {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_KEM_CPA: pkg_KEM_CPA
+            map cpa_kem_game_ideal hybrid0_1 {
+                pkg_Scheme_KEM: pkg_Scheme_KEM
+                pkg_CPA_KEM: pkg_CPA_KEM
             }
         }
 
-        /* Step 3: Hybrid0^1 = Game^0 */
+        /* Step 3: Hybrid0^1 = CPA_PKE_Ideal_KEM^0 */
         equivalence hybrid0_1 game_0 {
             PKGEN: {
                 invariant: [
+                    ./theorem/randmap-step3.smt2,
                     ./theorem/invariant-step3.smt2
                 ]
 
@@ -225,6 +228,7 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
+                    ./theorem/randmap-step3.smt2,
                     ./theorem/invariant-step3.smt2
                 ]
 
@@ -236,10 +240,11 @@ theorem Proof {
             }
         }
 
-        /* Step 4: Game^0 = Hybrid1^0 */
+        /* Step 4: CPA_PKE_Ideal_KEM^0 = Hybrid1^0 */
         equivalence game_0 hybrid1_0 {
             PKGEN: {
                 invariant: [
+                    ./theorem/randmap-step4.smt2,
                     ./theorem/invariant-step4.smt2
                 ]
 
@@ -252,6 +257,7 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
+                    ./theorem/randmap-step4.smt2,
                     ./theorem/invariant-step4.smt2
                 ]
 
@@ -263,25 +269,26 @@ theorem Proof {
             }
         }
 
-        /* Step 5: Hybrid1^0 ~ (DEM-EAV) Hybrid1^1 */
+        /* Step 5: Hybrid1^0 ~ (DEM-CPA) Hybrid1^1 */
         reduction hybrid1_0 hybrid1_1 {
-            assumption DEM_EAV_Security
+            assumption DEM_CPA_Security
 
-            map dem_eav_game_real hybrid1_0 {
-                pkg_DemScheme: pkg_DemScheme
-                pkg_DEM_EAV: pkg_DEM_EAV
+            map cpa_dem_game_real hybrid1_0 {
+                pkg_Scheme_DEM: pkg_Scheme_DEM
+                pkg_CPA_DEM: pkg_CPA_DEM
             }
 
-            map dem_eav_game_ideal hybrid1_1 {
-                pkg_DemScheme: pkg_DemScheme
-                pkg_DEM_EAV: pkg_DEM_EAV
+            map cpa_dem_game_ideal hybrid1_1 {
+                pkg_Scheme_DEM: pkg_Scheme_DEM
+                pkg_CPA_DEM: pkg_CPA_DEM
             }
         }
 
-        /* Step 6: Game^1 = Hybrid1^1 */
+        /* Step 6: CPA_PKE_Ideal_KEM^1 = Hybrid1^1 */
         equivalence game_1 hybrid1_1 {
             PKGEN: {
                 invariant: [
+                    ./theorem/randmap-step6.smt2,
                     ./theorem/invariant-step6.smt2
                 ]
 
@@ -294,6 +301,7 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
+                    ./theorem/randmap-step6.smt2,
                     ./theorem/invariant-step6.smt2
                 ]
 
@@ -305,10 +313,11 @@ theorem Proof {
             }
         }
 
-        /* Step 7: Hybrid2^1 = Game^1 */
+        /* Step 7: Hybrid2^1 = CPA_PKE_Ideal_KEM^1 */
         equivalence hybrid2_1 game_1  {
             PKGEN: {
                 invariant: [
+                    ./theorem/randmap-step7.smt2,
                     ./theorem/invariant-step7.smt2
                 ]
 
@@ -321,6 +330,7 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
+                    ./theorem/randmap-step7.smt2,
                     ./theorem/invariant-step7.smt2
                 ]
 
@@ -336,21 +346,22 @@ theorem Proof {
         reduction hybrid2_1 hybrid2_0 {
             assumption KEM_CPA_Security
 
-            map kem_cpa_game_ideal hybrid2_1 {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_KEM_CPA: pkg_KEM_CPA
+            map cpa_kem_game_ideal hybrid2_1 {
+                pkg_Scheme_KEM: pkg_Scheme_KEM
+                pkg_CPA_KEM: pkg_CPA_KEM
             }
 
-            map kem_cpa_game_real hybrid2_0 {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_KEM_CPA: pkg_KEM_CPA
+            map cpa_kem_game_real hybrid2_0 {
+                pkg_Scheme_KEM: pkg_Scheme_KEM
+                pkg_CPA_KEM: pkg_CPA_KEM
             }
         }
 
-        /* Step 9: Hybrid2^0 = PKE_CPA^1 */
+        /* Step 9: Hybrid2^0 = CPA_PKE^1 */
         equivalence pke_cpa_1 hybrid2_0 {
             PKGEN: {
                 invariant: [
+                    ./theorem/randmap-step9.smt2,
                     ./theorem/invariant-step9.smt2
                 ]
 
@@ -363,13 +374,14 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
+                    ./theorem/randmap-step9.smt2,
                     ./theorem/invariant-step9.smt2
                 ]
 
                 lemmas {
-                    invariant: [no-abort, relation-randomness]
-                    same-output: [no-abort, relation-randomness]
-                    equal-aborts: [relation-randomness]
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
                 }
             }
         }

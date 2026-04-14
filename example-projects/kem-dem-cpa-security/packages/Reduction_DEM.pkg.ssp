@@ -2,7 +2,7 @@ package Reduction_DEM {
     import oracles {
         KEM_GEN() -> (Bits(100), Bits(1000)),
         KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
-        ENC(m0: Bits(*), m1: Bits(*)) -> Bits(*),
+        ENC(m0: Bits(4000), m1: Bits(4000)) -> Bits(8000),
     }
 
     state {
@@ -18,7 +18,7 @@ package Reduction_DEM {
         return pk1;
     }
 
-    oracle PKENC(m0: Bits(*), m1: Bits(*)) -> (Bits(400),Bits(*)) {
+    oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
         assert (pk != None as Bits(100));
         assert (ek == None);
         k_ek <- invoke KEM_ENCAPS(Unwrap(pk));

@@ -1,4 +1,4 @@
-composition Hybrid1 {
+composition CpaPkeGame {
     const b: Bool;
 
     const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
@@ -22,27 +22,30 @@ composition Hybrid1 {
         }
     }
 
-    instance pkg_CPA_DEM = CPA_DEM {
+    instance pkg_Scheme_KEMDEM = Scheme_KEMDEM {
+    }
+
+    instance pkg_CPA_PKE = CPA_PKE {
         params {
             b: b,
         }
     }
 
-    instance pkg_Reduction_DEM = Reduction_DEM {
-    }
-
     compose {
-        pkg_CPA_DEM: {
-            DEM_ENC: pkg_Scheme_DEM,
-        }
-        pkg_Reduction_DEM: {
+        pkg_Scheme_KEMDEM: {
             KEM_GEN: pkg_Scheme_KEM,
             KEM_ENCAPS: pkg_Scheme_KEM,
-            ENC: pkg_CPA_DEM,
+            KEM_DECAPS: pkg_Scheme_KEM,
+            DEM_ENC: pkg_Scheme_DEM,
+            DEM_DEC: pkg_Scheme_DEM,
+        }
+        pkg_CPA_PKE: {
+            GEN: pkg_Scheme_KEMDEM,
+            ENC: pkg_Scheme_KEMDEM,
         }
         adversary: {
-            PKGEN: pkg_Reduction_DEM,
-            PKENC: pkg_Reduction_DEM,
+            PKGEN: pkg_CPA_PKE,
+            PKENC: pkg_CPA_PKE,
         }
     }
 }

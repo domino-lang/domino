@@ -1,11 +1,11 @@
-package PkeScheme {
+package Scheme_KEMDEM {
 
     import oracles {
         KEM_GEN() -> (Bits(100), Bits(1000)),
         KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
         KEM_DECAPS(sk: Bits(1000), ek: Bits(400)) -> Bits(256),
-        DEM_ENC(k: Bits(256), m: Bits(*)) -> Bits(*) /* ciphertext length */,
-        DEM_DEC(k: Bits(256), c: Bits(*) /* ciphertext length */) -> Bits(*),
+        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
+        DEM_DEC(k: Bits(256), c: Bits(8000)) -> Bits(4000),
     }
 
     oracle GEN() -> (Bits(100), Bits(1000)) {
@@ -13,14 +13,14 @@ package PkeScheme {
         return pk_sk;
     }
 
-    oracle ENC(pk: Bits(100), m: Bits(*)) -> (Bits(400), Bits(*)) {
+    oracle ENC(pk: Bits(100), m: Bits(4000)) -> (Bits(400), Bits(8000)) {
         k_ek <- invoke KEM_ENCAPS(pk);
         (k, ek) <- parse k_ek;
         c <- invoke DEM_ENC(k, m);
         return (ek, c);
     }
 
-    oracle DEC(sk: Bits(1000), c: (Bits(400), Bits(*))) -> Bits(*) {
+    oracle DEC(sk: Bits(1000), c: (Bits(400), Bits(8000))) -> Bits(4000) {
         (ek, ctxt) <- parse c;
         k <- invoke KEM_DECAPS(sk, ek);
         m <- invoke DEM_DEC(k, ctxt);

@@ -1,4 +1,4 @@
-package DEM_EAV {
+package CPA_DEM {
     params {
         b: Bool,
     }
@@ -8,10 +8,10 @@ package DEM_EAV {
     }
 
     import oracles {
-        DEM_ENC(k: Bits(256), m: Bits(*)) -> Bits(*),
+        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
     }
 
-    oracle ENC(m0: Bits(*), m1: Bits(*)) -> Bits(*) {
+    oracle ENC(m0: Bits(4000), m1: Bits(4000)) -> Bits(8000) {
         assert (k == None);
         k1 <-$ Bits(256) sample-name k;
         k <- Some(k1);
