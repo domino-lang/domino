@@ -1,0 +1,25 @@
+package DEM_EAV {
+    params {
+        b: Bool,
+    }
+
+    state {
+        k: Maybe(Bits(256))
+    }
+
+    import oracles {
+        DEM_ENC(k: Bits(256), m: Bits(*)) -> Bits(*),
+    }
+
+    oracle ENC(m0: Bits(*), m1: Bits(*)) -> Bits(*) {
+        assert (k == None);
+        k1 <-$ Bits(256) sample-name k;
+        k <- Some(k1);
+        if b {
+            c <- invoke DEM_ENC(k1, m1);
+        } else {
+            c <- invoke DEM_ENC(k1, m0);
+        }
+        return c;
+    }
+}

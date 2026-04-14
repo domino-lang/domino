@@ -1,0 +1,377 @@
+theorem Proof {
+    const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
+    const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
+    const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
+    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
+    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+
+    instance pke_cpa_0 = PkeCpaGame {
+        params {
+            b: false,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance pke_cpa_1 = PkeCpaGame {
+        params {
+            b: true,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance hybrid0_0 = Hybrid0 {
+        params {
+            b: false,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance hybrid0_1 = Hybrid0 {
+        params {
+            b: true,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance game_0 = GameComp {
+        params {
+            b: false,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance game_1 = GameComp {
+        params {
+            b: true,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance hybrid1_0 = Hybrid1 {
+        params {
+            b: false,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance hybrid1_1 = Hybrid1 {
+        params {
+            b: true,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance hybrid2_0 = Hybrid2 {
+        params {
+            b: false,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance hybrid2_1 = Hybrid2 {
+        params {
+            b: true,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    /* Assumption game instances */
+    instance kem_cpa_game_real = KemCpaGame {
+        params {
+            b: false,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance kem_cpa_game_ideal = KemCpaGame {
+        params {
+            b: true,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance dem_eav_game_real = DemEavGame {
+        params {
+            b: false,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance dem_eav_game_ideal = DemEavGame {
+        params {
+            b: true,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    assumptions {
+        KEM_CPA_Security: kem_cpa_game_real ~ kem_cpa_game_ideal
+        DEM_EAV_Security: dem_eav_game_real ~ dem_eav_game_ideal
+    }
+
+    gamehops {
+        /*
+        Goal: pke_cpa_0 ~ pke_cpa_1
+        We prove PKE-CPA security of the KEM-DEM construction and reduce to
+        KEM-CPA and DEM-EAV security of the underlying KEM and DEM schemes.
+
+        Proof chain:
+        PKE_CPA^0 = Hybrid0^0 ~ (KEM-CPA) Hybrid0^1 = Game^0
+                   = Hybrid1^0 ~ (DEM-EAV) Hybrid1^1 = Game^1
+                   = Hybrid2^1 ~ (KEM-CPA) Hybrid2^0 = PKE_CPA^1
+        */
+
+        /* Step 1: PKE_CPA^0 = Hybrid0^0 */
+        equivalence pke_cpa_0 hybrid0_0 {
+            PKGEN: {
+                invariant: [
+                    ./theorem/invariant-step1.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/invariant-step1.smt2
+                ]
+
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+
+        /* Step 2: Hybrid0^0 ~ (KEM-CPA) Hybrid0^1 */
+        reduction hybrid0_0 hybrid0_1 {
+            assumption KEM_CPA_Security
+
+            map kem_cpa_game_real hybrid0_0 {
+                pkg_KemScheme: pkg_KemScheme
+                pkg_KEM_CPA: pkg_KEM_CPA
+            }
+
+            map kem_cpa_game_ideal hybrid0_1 {
+                pkg_KemScheme: pkg_KemScheme
+                pkg_KEM_CPA: pkg_KEM_CPA
+            }
+        }
+
+        /* Step 3: Hybrid0^1 = Game^0 */
+        equivalence hybrid0_1 game_0 {
+            PKGEN: {
+                invariant: [
+                    ./theorem/invariant-step3.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/invariant-step3.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        /* Step 4: Game^0 = Hybrid1^0 */
+        equivalence game_0 hybrid1_0 {
+            PKGEN: {
+                invariant: [
+                    ./theorem/invariant-step4.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/invariant-step4.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        /* Step 5: Hybrid1^0 ~ (DEM-EAV) Hybrid1^1 */
+        reduction hybrid1_0 hybrid1_1 {
+            assumption DEM_EAV_Security
+
+            map dem_eav_game_real hybrid1_0 {
+                pkg_DemScheme: pkg_DemScheme
+                pkg_DEM_EAV: pkg_DEM_EAV
+            }
+
+            map dem_eav_game_ideal hybrid1_1 {
+                pkg_DemScheme: pkg_DemScheme
+                pkg_DEM_EAV: pkg_DEM_EAV
+            }
+        }
+
+        /* Step 6: Hybrid1^1 = Game^1 */
+        equivalence hybrid1_1 game_1 {
+            PKGEN: {
+                invariant: [
+                    ./theorem/invariant-step6.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/invariant-step6.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        /* Step 7: Game^1 = Hybrid2^1 */
+        equivalence game_1 hybrid2_1 {
+            PKGEN: {
+                invariant: [
+                    ./theorem/invariant-step7.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/invariant-step7.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        /* Step 8: Hybrid2^1 ~ (KEM-CPA) Hybrid2^0 */
+        reduction hybrid2_1 hybrid2_0 {
+            assumption KEM_CPA_Security
+
+            map kem_cpa_game_ideal hybrid2_1 {
+                pkg_KemScheme: pkg_KemScheme
+                pkg_KEM_CPA: pkg_KEM_CPA
+            }
+
+            map kem_cpa_game_real hybrid2_0 {
+                pkg_KemScheme: pkg_KemScheme
+                pkg_KEM_CPA: pkg_KEM_CPA
+            }
+        }
+
+        /* Step 9: Hybrid2^0 = PKE_CPA^1 */
+        equivalence hybrid2_0 pke_cpa_1 {
+            PKGEN: {
+                invariant: [
+                    ./theorem/invariant-step9.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/invariant-step9.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+    }
+}

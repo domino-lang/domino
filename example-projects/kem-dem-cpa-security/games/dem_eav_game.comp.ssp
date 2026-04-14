@@ -1,0 +1,28 @@
+composition DemEavGame {
+    const b: Bool;
+
+    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
+    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+
+    instance pkg_DemScheme = DemScheme {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance pkg_DEM_EAV = DEM_EAV {
+        params {
+            b: b,
+        }
+    }
+
+    compose {
+        pkg_DEM_EAV: {
+            DEM_ENC: pkg_DemScheme,
+        }
+        adversary: {
+            ENC: pkg_DEM_EAV,
+        }
+    }
+}
