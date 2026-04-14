@@ -28,21 +28,10 @@
         (sample-ctr-right Int)
     )
     Bool
-    (or
-        (and
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right)
-            (= sample-id-left (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc"))
-            (= sample-id-right (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc"))
-        )
-        (and
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right)
-            (= sample-id-left (sample-id "pkg_KemScheme" "KEM_ENCAPS" "kem_encaps"))
-            (= sample-id-right (sample-id "pkg_KemScheme" "KEM_ENCAPS" "kem_encaps"))
-        )
-    )
-)
+    (and
+     (= sample-ctr-left sample-ctr-old-left)
+     (= sample-ctr-right sample-ctr-old-right)
+     (= sample-id-left sample-id-right)))
 
 (define-state-relation invariant
     (
