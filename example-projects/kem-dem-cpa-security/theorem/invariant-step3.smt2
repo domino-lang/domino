@@ -8,13 +8,11 @@
         (sample-ctr-right Int)
     )
     Bool
-    (or
-        (and
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right)
-            (= sample-id-left (sample-id "pkg_KemScheme" "KEM_GEN" "kem_gen"))
-            (= sample-id-right (sample-id "pkg_KemScheme" "KEM_GEN" "kem_gen"))
-        )
+    (and
+        (= sample-ctr-left sample-ctr-old-left)
+        (= sample-ctr-right sample-ctr-old-right)
+        (= sample-id-left (sample-id "pkg_KemScheme" "KEM_GEN" "kem_gen"))
+        (= sample-id-right (sample-id "pkg_KemScheme" "KEM_GEN" "kem_gen"))
     )
 )
 
