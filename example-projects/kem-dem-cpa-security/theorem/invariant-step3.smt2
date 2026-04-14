@@ -44,6 +44,19 @@
     )
 )
 
+(define-state-relation relation-randomness
+    ((left-game <GameState_Hybrid0>)
+     (right-game <GameState_GameComp>))
+  (and (= (__sample-rand-hybrid0_1-Bits_500 (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc")
+                                            (<game-Hybrid0-rand-pkg_DemScheme-DEM_ENC-dem_enc> left-game))
+          (__sample-rand-game_0-Bits_500 (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc")
+                                         (<game-GameComp-rand-pkg_DemScheme-DEM_ENC-dem_enc> right-game)))
+       (= (__sample-rand-hybrid0_1-Bits_256 (sample-id "pkg_KEM_CPA" "ENCAPS" "k")
+                                            (<game-Hybrid0-rand-pkg_KEM_CPA-ENCAPS-k> left-game))
+          (__sample-rand-game_0-Bits_256 (sample-id "pkg_Game" "PKENC" "k")
+                                         (<game-GameComp-rand-pkg_DemScheme-DEM_ENC-dem_enc> right-game)))))
+
+
 (define-state-relation invariant
     (
         (left-game <GameState_Hybrid0>)

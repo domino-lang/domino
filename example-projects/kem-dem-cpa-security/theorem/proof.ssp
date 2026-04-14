@@ -229,7 +229,7 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
+                    invariant: [no-abort,relation-randomness]
                     same-output: [no-abort]
                     equal-aborts: []
                 }
