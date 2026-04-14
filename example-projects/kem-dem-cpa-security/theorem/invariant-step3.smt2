@@ -28,33 +28,35 @@
         (sample-ctr-right Int)
     )
     Bool
-    (or
-        (and
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right)
-            (= sample-id-left (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc"))
-            (= sample-id-right (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc"))
-        )
-        (and
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right)
-            (= sample-id-left (sample-id "pkg_KEM_CPA" "ENCAPS" "k"))
-            (= sample-id-right (sample-id "pkg_Game" "PKENC" "k"))
-        )
-    )
+    false
 )
 
 (define-state-relation relation-randomness
-    ((left-game <GameState_Hybrid0>)
-     (right-game <GameState_GameComp>))
-  (and (= (__sample-rand-hybrid0_1-Bits_500 (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc")
-                                            (<game-Hybrid0-rand-pkg_DemScheme-DEM_ENC-dem_enc> left-game))
-          (__sample-rand-game_0-Bits_500 (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc")
-                                         (<game-GameComp-rand-pkg_DemScheme-DEM_ENC-dem_enc> right-game)))
-       (= (__sample-rand-hybrid0_1-Bits_256 (sample-id "pkg_KEM_CPA" "ENCAPS" "k")
-                                            (<game-Hybrid0-rand-pkg_KEM_CPA-ENCAPS-k> left-game))
-          (__sample-rand-game_0-Bits_256 (sample-id "pkg_Game" "PKENC" "k")
-                                         (<game-GameComp-rand-pkg_DemScheme-DEM_ENC-dem_enc> right-game)))))
+    (
+        (left-game <GameState_Hybrid0>)
+        (right-game <GameState_GameComp>)
+    )
+    (and 
+        (rand-is-eq 
+            (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc")
+            (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc")
+            (get-rand-ctr-hybrid0_1 (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc"))
+            (get-rand-ctr-game_0 (sample-id "pkg_DemScheme" "DEM_ENC" "dem_enc"))
+        )
+        (rand-is-eq 
+            (sample-id "pkg_KemScheme" "KEM_ENCAPS" "kem_encaps")
+            (sample-id "pkg_KemScheme" "KEM_ENCAPS" "kem_encaps")
+            (get-rand-ctr-hybrid0_1 (sample-id "pkg_KemScheme" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-game_0 (sample-id "pkg_KemScheme" "KEM_ENCAPS" "kem_encaps"))
+        )
+        (rand-is-eq 
+            (sample-id "pkg_KEM_CPA" "ENCAPS" "k")
+            (sample-id "pkg_Game" "PKENC" "k")
+            (get-rand-ctr-hybrid0_1 (sample-id "pkg_KEM_CPA" "ENCAPS" "k"))
+            (get-rand-ctr-game_0 (sample-id "pkg_Game" "PKENC" "k"))
+        )
+    )
+)
 
 
 (define-state-relation invariant
