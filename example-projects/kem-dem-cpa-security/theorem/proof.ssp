@@ -278,8 +278,8 @@ theorem Proof {
             }
         }
 
-        /* Step 6: Hybrid1^1 = Game^1 */
-        equivalence hybrid1_1 game_1 {
+        /* Step 6: Game^1 = Hybrid1^1 */
+        equivalence game_1 hybrid1_1 {
             PKGEN: {
                 invariant: [
                     ./theorem/invariant-step6.smt2
@@ -298,15 +298,15 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant: [no-abort, relation-randomness]
+                    same-output: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
                 }
             }
         }
 
-        /* Step 7: Game^1 = Hybrid2^1 */
-        equivalence game_1 hybrid2_1 {
+        /* Step 7: Hybrid2^1 = Game^1 */
+        equivalence hybrid2_1 game_1  {
             PKGEN: {
                 invariant: [
                     ./theorem/invariant-step7.smt2
@@ -325,9 +325,9 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant: [no-abort, relation-randomness]
+                    same-output: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
                 }
             }
         }
@@ -348,7 +348,7 @@ theorem Proof {
         }
 
         /* Step 9: Hybrid2^0 = PKE_CPA^1 */
-        equivalence hybrid2_0 pke_cpa_1 {
+        equivalence pke_cpa_1 hybrid2_0 {
             PKGEN: {
                 invariant: [
                     ./theorem/invariant-step9.smt2
@@ -367,11 +367,14 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant: [no-abort, relation-randomness]
+                    same-output: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
                 }
             }
         }
+    }
+    propositions {
+        main: pke_cpa_0 ~ pke_cpa_1
     }
 }
