@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::fmt;
 use std::fmt::Write;
 use std::result;
-
-use thiserror::Error;
 
 use crate::util::smtmodel::SmtModel;
 use crate::writers::smt::exprs::SmtExpr;
 
-use super::process;
+use super::{Error, Prover, ProverFactory, ProverResponse, Result};
+
+use crate::util::process;
 use clap::ValueEnum;
 
 pub struct Communicator(process::Communicator);
@@ -21,62 +20,40 @@ pub enum ProverBackend {
     Z3,
 }
 
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("error writing to prover process: {0}")]
-    WriteError(#[from] std::fmt::Error),
-    #[error("io error: {0}")]
-    IOError(#[from] std::io::Error),
-    #[error("error interacting with prover process: {0}")]
-    ProcessError(#[from] super::process::Error),
-    #[error("prover error: {0}")]
-    ProverError(String),
+pub struct ProcessProverFactory {
+    backend: ProverBackend,
+    transcript: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProverResponse {
-    Sat,
-    Unsat,
-    Unknown,
-}
-
-impl ProverResponse {
-    /// Returns `true` if the prover response is [`Sat`].
-    ///
-    /// [`Sat`]: ProverResponse::Sat
-    #[must_use]
-    pub fn is_sat(&self) -> bool {
-        matches!(self, Self::Sat)
-    }
-
-    /// Returns `true` if the prover response is [`Unsat`].
-    ///
-    /// [`Unsat`]: ProverResponse::Unsat
-    #[must_use]
-    pub fn is_unsat(&self) -> bool {
-        matches!(self, Self::Unsat)
-    }
-
-    /// Returns `true` if the prover response is [`Unknown`].
-    ///
-    /// [`Unknown`]: ProverResponse::Unknown
-    #[must_use]
-    pub fn is_unknown(&self) -> bool {
-        matches!(self, Self::Unknown)
-    }
-}
-
-impl fmt::Display for ProverResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ProverResponse::Sat => write!(f, "sat"),
-            ProverResponse::Unsat => write!(f, "unsat"),
-            ProverResponse::Unknown => write!(f, "unknown"),
+impl ProcessProverFactory {
+    pub fn new(backend: ProverBackend, transcript: bool) -> Self {
+        Self {
+            backend,
+            transcript,
         }
     }
 }
 
-pub type Result<T> = std::result::Result<T, Error>;
+impl ProverFactory for ProcessProverFactory {
+    fn new_prover(&self) -> Result<impl Prover> {
+        Communicator::new(self.backend)
+    }
+
+    fn new_prover_with_transcript<W: std::io::Write + Send + Sync + 'static>(
+        &self,
+        writer: W,
+    ) -> Result<impl Prover> {
+        if self.transcript {
+            Communicator::new_with_transcript(self.backend, writer)
+        } else {
+            Communicator::new(self.backend)
+        }
+    }
+
+    fn transcript_enabled(&self) -> bool {
+        self.transcript
+    }
+}
 
 impl Communicator {
     pub fn new(backend: ProverBackend) -> Result<Self> {
@@ -192,14 +169,24 @@ impl Communicator {
         )?))
     }
 
-    pub fn get_model(&mut self) -> Result<(String, SmtModel)> {
+    pub fn read_until_end(&mut self) -> Result<String> {
+        Ok(self.0.read_until_end()?)
+    }
+
+    pub fn join(&mut self) -> Result<()> {
+        Ok(self.0.join()?)
+    }
+}
+
+impl Prover for Communicator {
+    fn get_model(&mut self) -> Result<(String, SmtModel)> {
         writeln!(self, "\n(get-model)")?;
         let (_cnt, modelstring, model) = self.0.read_model()?;
         Ok((modelstring, model))
     }
 
     #[cfg(not(target_os = "windows"))]
-    pub fn check_sat(&mut self) -> Result<ProverResponse> {
+    fn check_sat(&mut self) -> Result<ProverResponse> {
         writeln!(self, "\n(check-sat)")?;
 
         let pred =
@@ -224,7 +211,7 @@ impl Communicator {
     }
 
     #[cfg(target_os = "windows")]
-    pub fn check_sat(&mut self) -> Result<ProverResponse> {
+    fn check_sat(&mut self) -> Result<ProverResponse> {
         writeln!(self, "\n(check-sat)")?;
 
         let pred =
@@ -248,7 +235,7 @@ impl Communicator {
         Ok(resp)
     }
 
-    pub fn write_smt<I: Into<SmtExpr>>(&mut self, expr: I) -> Result<()> {
+    fn write_smt<I: Into<SmtExpr>>(&mut self, expr: I) -> Result<()> {
         // avoid making a lot of tiny writes. instead, write everything into a buffer and write
         // that buffer. In the future, we could optimize this further by reusing the buffer instead
         // of allocating a new one every time.
@@ -259,16 +246,8 @@ impl Communicator {
         Ok(())
     }
 
-    pub fn read_until_end(&mut self) -> Result<String> {
-        Ok(self.0.read_until_end()?)
-    }
-
-    pub fn close(&mut self) {
+    fn close(&mut self) {
         self.0.close();
-    }
-
-    pub fn join(&mut self) -> Result<()> {
-        Ok(self.0.join()?)
     }
 }
 

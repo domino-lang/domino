@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Subcommand;
-use sspverif::util::prover_process::ProverBackend;
+use sspverif::util::prover::process::ProverBackend;
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
