@@ -28,9 +28,6 @@
           "rust-std"
         ];
 
-        toml = pkgs.lib.importTOML ./crates/domino/Cargo.toml;
-        workspaceToml = pkgs.lib.importTOML ./Cargo.toml;
-
         src = pkgs.lib.sources.sourceByRegex ./. [
           "^Cargo.(lock|toml)$"
           "^crates$"
@@ -47,23 +44,28 @@
           "^scripts/.*"
         ];
 
+        crateCargotoml = pkgs.lib.importTOML ./crates/domino/Cargo.toml;
+        workspaceCargoToml = pkgs.lib.importTOML ./Cargo.toml;
+
         rustPlatform = pkgs.makeRustPlatform {
           cargo = dominoToolchain;
           rustc = dominoToolchain;
         };
 
         domino = rustPlatform.buildRustPackage {
-          name = toml.package.name;
-          version = workspaceToml.workspace.package.version;
+          name = crateCargotoml.package.name;
+          version = workspaceCargoToml.workspace.package.version;
           src = src;
           doCheck = true;
           cargoLock.lockFile = ./Cargo.lock;
           buildAndTestSubdir = "crates/domino/";
           cargoBuildFlags = [ "--workspace" ];
           checkPhase = ''
+            echo "==== BEGIN TOOL VERSIONS ===="
             rustc --version
             cargo --version
             cargo clippy -- --version
+            echo "==== END TOOL VERSIONS ===="
             export RUSTFLAGS="-D warnings"
             cargo test --verbose --workspace --all-targets
             cargo test --verbose --workspace --doc
@@ -82,7 +84,7 @@
           projectRootFile = "flake.nix";
           programs.nixfmt.enable = true;
           programs.rustfmt.enable = true;
-          programs.rustfmt.edition = workspaceToml.workspace.package.edition;
+          programs.rustfmt.edition = workspaceCargoToml.workspace.package.edition;
           programs.prettier.enable = true;
           programs.taplo.enable = true;
           programs.taplo.excludes = [
@@ -98,11 +100,26 @@
           ];
         };
 
-        devShellPackages = [
+        devShellBasePackages = [
           dominoToolchain
           pkgs.cargo-release
           pkgs.rustfmt
         ];
+
+        devShellPackages = devShellBasePackages ++ [
+          domino
+          pkgs.cvc5
+          texlive
+        ];
+
+        defaultDevShell = pkgs.mkShellNoCC {
+          packages = devShellPackages;
+        };
+
+        # for doing dev on domino
+        devDevShell = pkgs.mkShellNoCC {
+          packages = devShellBasePackages;
+        };
 
         texlive = pkgs.texlive.combine {
           inherit (pkgs.texlive)
@@ -114,19 +131,8 @@
             pgfplots
             ;
         };
-      in
-      {
-        packages.default = domino;
-        packages.domino = domino;
-        packages.dominoToolchain = dominoToolchain;
 
-        formatter = dominoTreefmt.config.build.wrapper;
-
-        checks.default = domino;
-        checks.domino = domino;
-        checks.treefmt = dominoTreefmt.config.build.check self;
-
-        checks.knownWorkingExamples = pkgs.stdenv.mkDerivation {
+        knownWorkingExamplesCheck = pkgs.stdenv.mkDerivation {
           name = "domino-knownWorkingExamples";
           src = src;
           buildInputs = [ domino ];
@@ -144,17 +150,21 @@
           '';
           installPhase = "touch $out";
         };
+      in
+      {
+        packages.default = domino;
+        packages.domino = domino;
+        packages.dominoToolchain = dominoToolchain;
 
-        devShells.default = pkgs.mkShellNoCC {
-          packages = devShellPackages ++ [
-            domino
-            pkgs.cvc5
-            texlive
-          ];
-        };
-        devShells.dev = pkgs.mkShellNoCC {
-          packages = devShellPackages;
-        };
+        formatter = dominoTreefmt.config.build.wrapper;
+
+        checks.default = domino;
+        checks.domino = domino;
+        checks.treefmt = dominoTreefmt.config.build.check self;
+        checks.knownWorkingExamples = knownWorkingExamplesCheck;
+
+        devShells.default = defaultDevShell;
+        devShells.dev = devDevShell;
       }
     );
 }
