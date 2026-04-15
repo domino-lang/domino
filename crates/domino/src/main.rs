@@ -123,6 +123,7 @@ use shadow_rs::shadow;
 shadow!(build);
 
 use sspverif::project;
+use sspverif::project::Project;
 
 mod cli;
 use crate::cli::*;
@@ -135,18 +136,37 @@ pub(crate) struct Cli {
     pub(crate) command: Commands,
 }
 
-fn proofsteps() -> Result<(), project::error::Error> {
-    let project_root = project::find_project_root()?;
-    let files = project::Files::load(&project_root)?;
-    let project = project::Project::load(&files)?;
+#[cfg(not(feature = "zipfile"))]
+fn proofsteps(_p: &Proofsteps) -> Result<(), project::error::Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
 
     project.proofsteps()
 }
 
+#[cfg(feature = "zipfile")]
+fn proofsteps(p: &Proofsteps) -> Result<(), project::error::Error> {
+    if let Some(zipfile) = &p.zipfile {
+        let zipfile = std::fs::File::open(zipfile)?;
+        let files = project::ZipFiles::load(zipfile)?;
+        let project = project::ZipProject::load(&files)?;
+
+        project.proofsteps()
+    } else {
+        let project_root = project::directory::find_project_root()?;
+        let files = project::DirectoryFiles::load(&project_root)?;
+        let project = project::DirectoryProject::load(&files)?;
+
+        project.proofsteps()
+    }
+}
+
+#[cfg(not(feature = "zipfile"))]
 fn prove(p: &Prove) -> Result<(), project::error::Error> {
-    let project_root = project::find_project_root()?;
-    let files = project::Files::load(&project_root)?;
-    let project = project::Project::load(&files)?;
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
 
     assert!(p.proofstep.is_none() || p.proof.is_some());
 
@@ -158,6 +178,41 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
         p.proofstep,
         &p.oracle,
     )
+}
+
+#[cfg(feature = "zipfile")]
+fn prove(p: &Prove) -> Result<(), project::error::Error> {
+    if let Some(zipfile) = &p.zipfile {
+        let zipfile = std::fs::File::open(zipfile)?;
+        let files = project::ZipFiles::load(zipfile)?;
+        let project = project::ZipProject::load(&files)?;
+
+        assert!(p.proofstep.is_none() || p.proof.is_some());
+
+        project.prove(
+            p.prover,
+            p.transcript,
+            p.parallel,
+            &p.proof,
+            p.proofstep,
+            &p.oracle,
+        )
+    } else {
+        let project_root = project::directory::find_project_root()?;
+        let files = project::DirectoryFiles::load(&project_root)?;
+        let project = project::DirectoryProject::load(&files)?;
+
+        assert!(p.proofstep.is_none() || p.proof.is_some());
+
+        project.prove(
+            p.prover,
+            p.transcript,
+            p.parallel,
+            &p.proof,
+            p.proofstep,
+            &p.oracle,
+        )
+    }
 }
 
 fn explain(_game_name: &str, _dst: &Option<String>) -> Result<(), project::error::Error> {
@@ -174,9 +229,9 @@ fn explain(_game_name: &str, _dst: &Option<String>) -> Result<(), project::error
 }
 
 fn latex(l: &Latex) -> Result<(), project::error::Error> {
-    let project_root = project::find_project_root()?;
-    let files = project::Files::load(&project_root)?;
-    let project = project::Project::load(&files)?;
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
 
     project.latex(l.prover)
 }
@@ -185,18 +240,20 @@ fn format(f: &Format) -> Result<(), project::error::Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
-        let root = crate::project::find_project_root();
+        let root = crate::project::directory::find_project_root();
         sspverif::format::format_file(&root?)?;
     }
     Ok(())
 }
 
-fn wire_check(game_name: &str, dst_idx: usize) -> Result<(), project::error::Error> {
+fn wire_check(_game_name: &str, _dst_idx: usize) -> Result<(), project::error::Error> {
+    /*
     let project_root = project::find_project_root()?;
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
     project.print_wire_check_smt(game_name, dst_idx);
+    */
     Ok(())
 }
 
@@ -205,7 +262,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(p),
-        Commands::Proofsteps => proofsteps(),
+        Commands::Proofsteps(p) => proofsteps(p),
         Commands::Latex(l) => latex(l),
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
         Commands::WireCheck(args) => wire_check(&args.game_name, args.dst_idx),

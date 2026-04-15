@@ -25,6 +25,9 @@ debug = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+zipfile = ["dep:zip"]
+
 [dependencies]
 clap = { version = "4.0", features = ["derive"] }
 env_logger = "0.11"
@@ -46,6 +49,7 @@ subprocess = "0.2"
 tempfile = "3"
 thiserror = "1.0.61"
 walkdir = "2"
+zip = { version = "8", features = ["deflate"], default-features = false, optional = true }
 
 [dev-dependencies]
 mockall = "0.13"
