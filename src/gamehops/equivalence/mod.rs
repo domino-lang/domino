@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::iter::FromIterator;
 
 use crate::expressions::{Expression, ExpressionKind};
@@ -1744,14 +1744,14 @@ impl<'a> EquivalenceContext<'a> {
         let left_positions = &self.sample_info_left().positions;
         let right_positions = &self.sample_info_right().positions;
 
-        let left_types: HashSet<Type> = HashSet::from_iter(
+        let left_types: BTreeSet<Type> = BTreeSet::from_iter(
             self.sample_info_left()
                 .tys
                 .iter()
                 .cloned()
                 .map(type_use_theorem_ident),
         );
-        let right_types: HashSet<Type> = HashSet::from_iter(
+        let right_types: BTreeSet<Type> = BTreeSet::from_iter(
             self.sample_info_right()
                 .tys
                 .iter()
@@ -1761,8 +1761,8 @@ impl<'a> EquivalenceContext<'a> {
 
         let types: Vec<&Type> = left_types.intersection(&right_types).collect();
 
-        let mut left_positions_by_type: HashMap<_, Vec<_>> = HashMap::new();
-        let mut right_positions_by_type: HashMap<_, Vec<_>> = HashMap::new();
+        let mut left_positions_by_type: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        let mut right_positions_by_type: BTreeMap<_, Vec<_>> = BTreeMap::new();
 
         for pos in left_positions {
             let pos_ty = pos.ty.clone();
