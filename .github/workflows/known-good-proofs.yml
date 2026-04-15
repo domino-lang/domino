@@ -2,7 +2,7 @@ name: Run Known-Good Proofs
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -30,4 +30,3 @@ jobs:
           name: Project PDFs
           path: ./example-projects/**/_build/latex/Theorem_*.pdf
           retention-days: 14
-
