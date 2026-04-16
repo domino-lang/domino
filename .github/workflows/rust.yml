@@ -70,8 +70,17 @@ jobs:
       - name: Run cargo test
         run: cargo test --workspace --verbose
   Tests_Latest:
-    runs-on: ubuntu-latest
-    name: Tests (latest rust)
+    runs-on: ${{ matrix.os }}
+    name: Tests (latest rust) (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - windows-latest
+          - windows-11-arm
     steps:
       - uses: actions/checkout@v4
       - name: Tool versions

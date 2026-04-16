@@ -42,6 +42,7 @@ sed -e 's/[[:space:]]*#.*// ; /^[[:space:]]*$/d' "example-projects/known-good.tx
       cd _build/latex
       for file in Theorem_*.tex; do
         TEMPFILE=$(mktemp)
+        echo "### Runnin latex on $file"
         pdflatex "$file" >$TEMPFILE 2>&1 || fail "$(tail -n 20 $TEMPFILE)"
       done
     )
