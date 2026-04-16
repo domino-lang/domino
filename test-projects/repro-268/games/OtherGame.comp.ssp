@@ -1,0 +1,5 @@
+composition OtherGame {
+   const e: Bool;
+   const f: Bool;
+   const i: Integer;
+}

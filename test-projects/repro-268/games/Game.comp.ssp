@@ -1,0 +1,5 @@
+composition Game {
+   const a: Bool;
+   const b: Bool;
+   const i: Integer;
+}
