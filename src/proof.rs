@@ -70,6 +70,19 @@ impl<'a> Proof<'a> {
             })
             .collect();
 
+        // Check whether we are already done
+        if game_is_equivalent(&instances[left], &instances[right]) {
+            return Some(Proof {
+                name,
+                left_name,
+                right_name,
+                specialization,
+                gamehops: gamehops.to_vec(),
+                sequence: vec![left],
+                hops: Vec::new(),
+            });
+        }
+
         // preppare the work queue with the start value.
         let mut workque = VecDeque::new();
         workque.push_back(left);
