@@ -1,0 +1,13 @@
+theorem TheoremTrivial {
+  instance Real = Game {
+    params {
+      a: false,
+      b: false,
+      i: 0,
+    }
+  }
+
+  propositions {
+    main: Real ~ Real
+  }
+}
