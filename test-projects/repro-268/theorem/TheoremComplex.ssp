@@ -1,0 +1,105 @@
+theorem TheoremComplex {
+  const c: Bool;
+  
+  instance Real = Game {
+    params {
+      a: false,
+      b: false,
+      i: 0,
+    }
+  }
+  instance Ideal = Game {
+    params {
+      a: true,
+      b: true,
+      i: 0,
+    }
+  }
+
+  instance H0 = Game {
+    params {
+      a: c,
+      b: c,
+      i: 0,
+    }
+  }
+
+  instance H1 = OtherGame {
+    params {
+      e: c,
+      f: c,
+      i: 1,
+    }
+  }
+  instance H1false = OtherGame {
+    params {
+      e: false,
+      f: false,
+      i: 1,
+    }
+  }
+  instance H1true = OtherGame {
+    params {
+      e: true,
+      f: true,
+      i: 1,
+    }
+  }
+
+  instance H2 = Game {
+    params {
+      a: c,
+      b: c,
+      i: 2,
+    }
+  }
+  instance H2false = Game {
+    params {
+      a: c,
+      b: false,
+      i: 2,
+    }
+  }
+  instance H2true = Game {
+    params {
+      a: c,
+      b: true,
+      i: 2,
+    }
+  }
+
+  instance H3 = Game {
+    params {
+      a: c,
+      b: true,
+      i: 3,
+    }
+  }
+  instance H3false = Game {
+    params {
+      a: false,
+      b: true,
+      i: 3,
+    }
+  }
+  instance H3true = Game {
+    params {
+      a: true,
+      b: true,
+      i: 3,
+    }
+  }
+
+
+  gamehops {
+    conjecture H0 H1
+    conjecture H1 H2
+    conjecture H2false  H2true
+    conjecture H2true   H3
+    conjecture H3false  H3true
+  }
+
+  propositions {
+    main: Real ~ Ideal
+  }
+}
