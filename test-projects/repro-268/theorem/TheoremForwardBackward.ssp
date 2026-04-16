@@ -1,0 +1,66 @@
+theorem TheoremForwardBackward {
+  const b: Bool;
+  
+  instance Real = Game {
+    params {
+      a: false,
+      b: false,
+      i: 0,
+    }
+  }
+  instance Ideal = Game {
+    params {
+      a: true,
+      b: true,
+      i: 0,
+    }
+  }
+
+  instance H0 = Game {
+    params {
+      a: b,
+      b: b,
+      i: 0,
+    }
+  }
+
+  instance H1 = Game {
+    params {
+      a: b,
+      b: b,
+      i: 1,
+    }
+  }
+
+  instance H2 = Game {
+    params {
+      a: b,
+      b: b,
+      i: 2,
+    }
+  }
+  instance H2false = Game {
+    params {
+      a: false,
+      b: false,
+      i: 2,
+    }
+  }
+  instance H2true = Game {
+    params {
+      a: true,
+      b: true,
+      i: 2,
+    }
+  }
+
+  gamehops {
+    conjecture H0 H1
+    conjecture H1 H2
+    conjecture H2false H2true
+  }
+
+  propositions {
+    main: Real ~ Ideal
+  }
+}
