@@ -6,9 +6,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-proofs:
-    runs-on: ubuntu-latest
-    name: Check Proofs
+  check-proofs-linux:
+    runs-on: ${{ matrix.os }}
+    name: Check Proofs (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v2
       - name: Install CVC5
@@ -16,6 +22,80 @@ jobs:
 
       - name: Install Enough TexLive
         run: sudo apt install --no-install-recommends texlive-base texlive-science texlive-latex-extra
+
+      - name: Build Domino
+        run: |
+          cargo build --release -p domino
+          echo "DOMINO=$(pwd)/target/release/domino">>$GITHUB_ENV
+
+      - name: Run proofs
+        run: "./scripts/test-known-examples.sh || exit 1"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Project PDFs
+          path: ./example-projects/**/_build/latex/Theorem_*.pdf
+          retention-days: 14
+  check-proofs-windows:
+    runs-on: ${{ matrix.os }}
+    name: Check Proofs (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - windows-11-arm
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install CVC5
+        shell: bash
+        run: |
+          choco install wget
+          wget https://github.com/cvc5/cvc5/releases/download/cvc5-1.3.3/cvc5-Win64-x86_64-static.zip
+          7z e cvc5-Win64-x86_64-static.zip cvc5-Win64-x86_64-static/bin/cvc5.exe
+          echo "${{ github.workspace }}" >> $GITHUB_PATH
+
+      - name: Install Enough TexLive
+        shell: bash
+        run: |
+          choco install texlive
+          C:/texlive/*/bin/windows/tlmgr.bat install cryptocode mathtools xcolor pgf xargs xkeyval forloop pbox varwidth environ bigfoot environ trimspaces
+          echo C:/texlive/*/bin/windows >> $GITHUB_PATH
+
+      - name: Build Domino
+        shell: bash
+        run: |
+          cargo build --release -p domino
+          echo "DOMINO=$(pwd)/target/release/domino">>$GITHUB_ENV
+
+      - name: Run proofs
+        run: |
+          ./scripts/test-known-examples.sh || exit 1
+        shell: bash
+        env:
+          DOMINO: "${{ github.workspace }}/target/release/domino"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Project PDFs
+          path: ./example-projects/**/_build/latex/Theorem_*.pdf
+          retention-days: 14
+  check-proofs-macos:
+    runs-on: ${{ matrix.os }}
+    name: Check Proofs (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - macos-26-intel
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install CVC5
+        run: brew install --cask cvc5/cvc5/cvc5
+
+      - name: Install Enough TexLive
+        run: brew install texlive
 
       - name: Build Domino
         run: |

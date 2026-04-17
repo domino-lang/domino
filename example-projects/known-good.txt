@@ -7,6 +7,3 @@ kem-dem-cca-security
 # the helloworld projects
 hello-world
 hello-world-oracle-rename
-
-# the test for deconstructing assignments with oracle invocations: (a, b) <- invoke Foo()
-test-splitinvoke
