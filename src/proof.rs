@@ -3,8 +3,12 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use crate::{
-    expressions::ExpressionKind, gamehops::equivalence::Equivalence,
-    gamehops::reduction::Reduction, gamehops::GameHop, theorem::GameInstance,
+    expressions::{Expression, ExpressionKind},
+    gamehops::equivalence::Equivalence,
+    gamehops::reduction::Reduction,
+    gamehops::GameHop,
+    identifier::game_ident::GameConstIdentifier,
+    theorem::GameInstance,
 };
 
 #[derive(Debug, Clone)]
@@ -23,8 +27,9 @@ pub struct Proof<'a> {
 /// A value assigned to a constant, already encoded as a string.
 #[derive(Debug, Clone)]
 struct ConstAssignment {
-    name: String,
-    assigned_value: String,
+    name: GameConstIdentifier,
+    original_value: Expression,
+    assigned_value: Expression,
 }
 
 /// GameInstances often refer to families of game instances, because they are parameterized.
@@ -434,29 +439,36 @@ fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<ConstAssign
                 })
                 .unwrap();
 
-            // if the referenced is an identifier, write down the value assigned in game
-            if let ExpressionKind::Identifier(ident) = other_val.kind() {
-                if let ExpressionKind::BooleanLiteral(lit) = val.kind() {
-                    return Some(ConstAssignment {
-                        name: ident.ident(),
-                        assigned_value: lit.clone(),
-                    });
-                }
-                if let ExpressionKind::IntegerLiteral(lit) = val.kind() {
-                    return Some(ConstAssignment {
-                        name: ident.ident(),
-                        assigned_value: lit.to_string(),
-                    });
-                }
+            if matches!(other_val.kind(), ExpressionKind::Identifier(_))
+                && (matches!(val.kind(), ExpressionKind::IntegerLiteral(_))
+                    || matches!(val.kind(), ExpressionKind::BooleanLiteral(_)))
+            {
+                Some(ConstAssignment {
+                    name: var.clone(),
+                    original_value: val.clone(),
+                    assigned_value: other_val.clone(),
+                })
+            } else {
+                None
             }
-            None
         })
         .collect()
 }
 
 impl std::fmt::Display for ConstAssignment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}={}", self.name, self.assigned_value)
+        let name = &self.name.name;
+        let lhs = if let ExpressionKind::Identifier(ident) = self.original_value.kind() {
+            ident.ident()
+        } else {
+            unreachable!()
+        };
+        let rhs = match self.assigned_value.kind() {
+            ExpressionKind::BooleanLiteral(lit) => lit,
+            ExpressionKind::IntegerLiteral(lit) => &lit.to_string(),
+            _ => unreachable!(),
+        };
+        write!(f, "{name}: {lhs}->{rhs}")
     }
 }
 
