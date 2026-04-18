@@ -236,39 +236,24 @@ fn specialize<'a>(
             generic_other.name
         );
 
+        let match_assignments = assignments(
+            &specializations[spec_game_inst_idx].game_instance,
+            generic_match,
+        );
+
         let mut new_game = generic_other.clone();
         new_game.consts = new_game
             .consts
             .into_iter()
             .map(|(var, val)| {
-                // Find all constants that the other side of the game hop has set to identifiers
-                if let ExpressionKind::Identifier(ref ident) = val.kind() {
-                    if ident.ident() == "hybrid$loop" {
-                        return (var, val);
-                    }
-
-                    // find the values that our current specialization assigns to it
-                    let other_val = specializations[spec_game_inst_idx]
-                        .game_instance
-                        .consts
+                if let ExpressionKind::Identifier(_) = val.kind() {
+                    if let Some(assignment) = match_assignments
                         .iter()
-                        .find_map(|(other_var, other_val)| {
-                            if var.name == other_var.name {
-                                Some(other_val)
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap();
-
-                    // if it is a literal, copy it over, otherwise keep the identifier
-                    match other_val.kind() {
-                        ExpressionKind::Identifier(_) => (var, val),
-                        ExpressionKind::BooleanLiteral(_) => (var, other_val.clone()),
-                        ExpressionKind::IntegerLiteral(_) => (var, other_val.clone()),
-                        _ => {
-                            unimplemented!()
-                        }
+                        .find(|assign| assign.original_value == val)
+                    {
+                        (var, assignment.assigned_value.clone())
+                    } else {
+                        (var, val)
                     }
                 } else {
                     (var, val)
@@ -423,6 +408,8 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
 
 /// Extract the assignments where the the game is more specific than the reference.
 fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<ConstAssignment> {
+    debug_assert!(game_is_compatible(game, reference));
+
     game.consts
         .iter()
         .filter_map(|(var, val)| {
@@ -445,8 +432,8 @@ fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<ConstAssign
             {
                 Some(ConstAssignment {
                     name: var.clone(),
-                    original_value: val.clone(),
-                    assigned_value: other_val.clone(),
+                    original_value: other_val.clone(),
+                    assigned_value: val.clone(),
                 })
             } else {
                 None
