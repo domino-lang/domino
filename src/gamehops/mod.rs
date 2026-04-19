@@ -15,6 +15,7 @@ pub mod hybrid;
 pub mod reduction;
 //
 // TODO: add a HybridArgument variant
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum GameHop<'a> {
     Conjecture(Conjecture<'a>),
