@@ -18,6 +18,7 @@ use crate::writers::smt::patterns::functions::const_mapping::define_pkg_const_ma
 use crate::writers::smt::patterns::oracle_args::{
     OldNewOracleArgPattern as _, UnitOracleArgPattern as _,
 };
+use crate::writers::smt::patterns::SmtDefineFun;
 use crate::writers::smt::patterns::{
     declare_datatype, FunctionPattern, GameStateDeclareInfo, ReturnIsAbortConst,
 };
@@ -25,7 +26,7 @@ use crate::writers::smt::sorts::Sort;
 use crate::{
     hacks,
     package::{Export, OracleSig},
-    theorem::{Claim, ClaimType, GameInstance, Theorem},
+    theorem::{Claim, ClaimType, GameInstance, RandomnessType, Theorem},
     transforms::{
         samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
     },
@@ -50,6 +51,7 @@ pub struct Equivalence {
     pub(crate) right_name: String,
     pub(crate) invariants: Vec<(String, Vec<String>)>,
     pub(crate) trees: Vec<(String, Vec<Claim>)>,
+    pub(crate) randomness: Vec<(String, RandomnessType)>,
 }
 
 impl Equivalence {
@@ -58,15 +60,18 @@ impl Equivalence {
         right_name: String,
         mut invariants: Vec<(String, Vec<String>)>,
         mut trees: Vec<(String, Vec<Claim>)>,
+        mut randomness: Vec<(String, RandomnessType)>,
     ) -> Self {
         trees.sort();
         invariants.sort();
+        randomness.sort();
 
         Equivalence {
             left_name,
             right_name,
             invariants, // TODO INV
             trees,
+            randomness,
         }
     }
 
@@ -107,6 +112,14 @@ impl Equivalence {
             .find(|(name, _tree)| name == oracle_name)
             .map(|(_oname, tree)| tree.clone())
             .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
+    }
+
+    pub(crate) fn randomness_by_oracle_name(&self, oracle_name: &str) -> RandomnessType {
+        self.randomness
+            .iter()
+            .find(|(name, _randomness)| name == oracle_name)
+            .map(|(_oname, randomness)| randomness.clone())
+            .unwrap_or_else(|| panic!("can't find randomness for {oracle_name}"))
     }
 }
 
@@ -780,6 +793,75 @@ impl<'a> EquivalenceContext<'a> {
         comm.write_smt(self.relation_definition_no_abort(oracle_name))?;
         comm.write_smt(self.relation_definition_same_output(oracle_name))?;
 
+        Ok(())
+    }
+
+    fn emit_auto_randomness(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
+        match self.equivalence.randomness_by_oracle_name(oracle_name) {
+            RandomnessType::Custom => {}
+            RandomnessType::Auto => {
+                let define = SmtDefineFun {
+                    is_rec: false,
+                    sort: Type::boolean().into(),
+                    name: format!("randomness-mapping-{oracle_name}"),
+                    body: SmtAnd(vec![
+                        SmtEq2 {
+                            lhs: "sample-id-0",
+                            rhs: "sample-id-1",
+                        }
+                        .into(),
+                        SmtEq2 {
+                            lhs: "base-ctr-0",
+                            rhs: "offset-0",
+                        }
+                        .into(),
+                        SmtEq2 {
+                            lhs: "base-ctr-1",
+                            rhs: "offset-1",
+                        }
+                        .into(),
+                    ]),
+                    args: vec![
+                        ("base-ctr-0".to_string(), Type::integer().into()),
+                        ("base-ctr-1".to_string(), Type::integer().into()),
+                        (
+                            "sample-id-0".to_string(),
+                            Sort::Other("SampleId".to_string(), vec![]),
+                        ),
+                        (
+                            "sample-id-1".to_string(),
+                            Sort::Other("SampleId".to_string(), vec![]),
+                        ),
+                        ("offset-0".to_string(), Type::integer().into()),
+                        ("offset-1".to_string(), Type::integer().into()),
+                    ],
+                };
+                comm.write_smt(define)?;
+            }
+            RandomnessType::None => {
+                let define = SmtDefineFun {
+                    is_rec: false,
+                    sort: Type::boolean().into(),
+                    name: format!("randomness-mapping-{oracle_name}"),
+                    body: "false",
+                    args: vec![
+                        ("base-ctr-0".to_string(), Type::integer().into()),
+                        ("base-ctr-1".to_string(), Type::integer().into()),
+                        (
+                            "sample-id-0".to_string(),
+                            Sort::Other("SampleId".to_string(), vec![]),
+                        ),
+                        (
+                            "sample-id-1".to_string(),
+                            Sort::Other("SampleId".to_string(), vec![]),
+                        ),
+                        ("offset-0".to_string(), Type::integer().into()),
+                        ("offset-1".to_string(), Type::integer().into()),
+                    ],
+                };
+                comm.write_smt(define)?;
+            }
+        }
         Ok(())
     }
 
