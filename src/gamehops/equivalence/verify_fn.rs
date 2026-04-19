@@ -93,6 +93,7 @@ fn verify_oracle<UI: TheoremUI>(
         log::info!("verify: oracle:{export:?}");
         writeln!(prover, "(push 1)").unwrap();
         eqctx.emit_return_value_helpers(&mut prover, export.name())?;
+        eqctx.emit_auto_randomness(&mut prover, export.name())?;
         eqctx.emit_invariant(&mut prover, export.name())?;
 
         for claim in claims {
