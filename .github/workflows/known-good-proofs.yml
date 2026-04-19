@@ -25,6 +25,9 @@ jobs:
       - name: Run proofs
         run: "./scripts/test-known-examples.sh || exit 1"
 
+      - name: Check for SMT stability
+        run: "./scripts/test-for-stability.sh || exit 1"
+
       - uses: actions/upload-artifact@v4
         with:
           name: Project PDFs
