@@ -26,7 +26,7 @@ use crate::{
         Rule,
     },
     proof::Proof,
-    theorem::{Claim, GameInstance, Theorem},
+    theorem::{Claim, GameInstance, RandomnessType, Theorem},
     types::Type,
     util::scope::{Declaration, Error as ScopeError, Scope},
 };
@@ -841,10 +841,16 @@ pub(crate) fn handle_hybrid<'a>(
             .map(handle_equivalence_oracle)
             .collect();
 
+        let randomness: Vec<_> = equivalence_data
+            .iter()
+            .cloned()
+            .map(|(oracle_name, _, _, randomness)| (oracle_name, randomness))
+            .collect();
+
         let trees: Vec<_> = equivalence_data
             .iter()
             .cloned()
-            .map(|(oracle_name, _, lemmas)| {
+            .map(|(oracle_name, _, lemmas, _)| {
                 (
                     oracle_name,
                     lemmas.into_iter().map(Claim::from_tuple).collect(),
@@ -855,7 +861,7 @@ pub(crate) fn handle_hybrid<'a>(
         let invariants: Vec<_> = equivalence_data
             .iter()
             .cloned()
-            .map(|(oracle_name, inv_paths, _)| (oracle_name, inv_paths))
+            .map(|(oracle_name, inv_paths, _, _)| (oracle_name, inv_paths))
             .collect();
 
         if ctx.game_instance(&left_equiv_name).is_none() {
@@ -875,7 +881,13 @@ pub(crate) fn handle_hybrid<'a>(
             .into());
         }
 
-        Equivalence::new(left_equiv_name, right_equiv_name, invariants, trees)
+        Equivalence::new(
+            left_equiv_name,
+            right_equiv_name,
+            invariants,
+            trees,
+            randomness,
+        )
     };
 
     Ok(GameHop::Hybrid(Hybrid::new(
@@ -907,10 +919,16 @@ fn handle_equivalence<'a>(
 
     let equivalence_data: Vec<_> = ast.map(handle_equivalence_oracle).collect();
 
+    let randomness: Vec<_> = equivalence_data
+        .iter()
+        .cloned()
+        .map(|(oracle_name, _, _, randomness)| (oracle_name, randomness))
+        .collect();
+
     let trees: Vec<_> = equivalence_data
         .iter()
         .cloned()
-        .map(|(oracle_name, _, lemmas)| {
+        .map(|(oracle_name, _, lemmas, _)| {
             (
                 oracle_name,
                 lemmas.into_iter().map(Claim::from_tuple).collect(),
@@ -921,7 +939,7 @@ fn handle_equivalence<'a>(
     let invariants: Vec<_> = equivalence_data
         .iter()
         .cloned()
-        .map(|(oracle_name, inv_paths, _)| (oracle_name, inv_paths))
+        .map(|(oracle_name, inv_paths, _, _)| (oracle_name, inv_paths))
         .collect();
 
     if ctx.game_instance(left_name.as_str()).is_none() {
@@ -946,18 +964,45 @@ fn handle_equivalence<'a>(
         right_name.as_str().to_string(),
         invariants,
         trees,
+        randomness,
     );
 
     Ok(GameHop::Equivalence(eq))
 }
 
-fn handle_equivalence_oracle(ast: Pair<Rule>) -> (String, Vec<String>, Vec<(String, Vec<String>)>) {
+fn handle_equivalence_oracle(
+    ast: Pair<Rule>,
+) -> (
+    String,
+    Vec<String>,
+    Vec<(String, Vec<String>)>,
+    RandomnessType,
+) {
     let mut ast = ast.into_inner();
     let oracle_name = ast.next().unwrap().as_str().to_string();
-    let invariant_paths = handle_invariant_spec(next_pairs(&mut ast));
-    let lemmas = handle_lemmas_spec(next_pairs(&mut ast));
+    let mut invariant_paths = Vec::new();
+    let mut lemmas = Vec::new();
+    let mut randomness = RandomnessType::Custom;
 
-    (oracle_name, invariant_paths, lemmas)
+    for next in ast {
+        match next.as_rule() {
+            Rule::randomness_spec => {
+                let value = next.into_inner().next().unwrap().as_rule();
+                match value {
+                    Rule::kw_randomness_auto => randomness = RandomnessType::Auto,
+                    Rule::kw_randomness_none => randomness = RandomnessType::None,
+                    _ => unreachable!(),
+                }
+            }
+            Rule::invariant_spec => {
+                invariant_paths.extend(handle_invariant_spec(next.into_inner()));
+            }
+            Rule::lemmas_spec => lemmas.extend(handle_lemmas_spec(next.into_inner())),
+            _ => unimplemented!(),
+        }
+    }
+
+    (oracle_name, invariant_paths, lemmas, randomness)
 }
 
 fn handle_invariant_spec(ast: Pairs<Rule>) -> Vec<String> {
@@ -1001,10 +1046,6 @@ fn handle_string_pair<'a>(ast: &mut Pairs<'a, Rule>) -> (Pair<'a, Rule>, Pair<'a
     let [left, right] = ast.take(2).collect::<Vec<_>>().try_into().unwrap();
 
     (left, right)
-}
-
-fn next_pairs<'a>(ast: &'a mut Pairs<Rule>) -> Pairs<'a, Rule> {
-    ast.next().unwrap().into_inner()
 }
 
 fn next_str<'a>(ast: &'a mut Pairs<Rule>) -> &'a str {
