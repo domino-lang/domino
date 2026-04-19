@@ -21,7 +21,7 @@ use crate::{
     package::{Composition, Package},
     theorem::Theorem,
     transforms::Transformation,
-    util::prover_process::ProverBackend,
+    util::prover::ProverFactory,
 };
 
 use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
@@ -220,7 +220,7 @@ impl<'a> Project<'a> {
     // we could then extract the theorem viewer output and other useful info trom the trace
     pub fn prove(
         &self,
-        backend: ProverBackend,
+        backend: &(impl ProverFactory + Sync),
         transcript: bool,
         parallel: usize,
         req_theorem: &Option<String>,
@@ -307,7 +307,7 @@ impl<'a> Project<'a> {
         Ok(())
     }
 
-    pub fn latex(&self, backend: Option<ProverBackend>) -> Result<()> {
+    pub fn latex(&self, backend: &Option<impl ProverFactory>) -> Result<()> {
         let mut path = self.root_dir.clone();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
@@ -321,7 +321,7 @@ impl<'a> Project<'a> {
                 .unwrap();
             for lossy in [true, false] {
                 crate::writers::tex::writer::tex_write_composition(
-                    &backend,
+                    backend,
                     lossy,
                     &transformed,
                     name,
@@ -333,7 +333,7 @@ impl<'a> Project<'a> {
         for (name, theorem) in &self.theorems {
             for lossy in [true, false] {
                 crate::writers::tex::tex_write_theorem(
-                    &backend,
+                    backend,
                     lossy,
                     theorem,
                     name,
