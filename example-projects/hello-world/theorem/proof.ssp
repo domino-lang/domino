@@ -32,6 +32,8 @@ theorem Proof {
     gamehops {
         equivalence medium_composition small_composition {
             UsefulOracle: {
+                randomness: auto
+
                 invariant: [
                     ./theorem/invariant.smt2
                 ]
