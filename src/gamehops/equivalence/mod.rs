@@ -214,7 +214,7 @@ impl<'a> EquivalenceContext<'a> {
                 // ensure we don't write more than once. Earlier we also dedupe, but we dedupe
                 // identifiers, which contain more info than just the name.
                 if bits_sort_suffixes.insert(bits_sort_suffix.clone()) {
-                    base_declarations.extend(hacks::BitsDeclaration(bits_sort_suffix).into_iter());
+                    base_declarations.extend(hacks::BitsDeclaration(bits_sort_suffix));
                 }
             }
         }
