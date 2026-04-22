@@ -252,7 +252,7 @@ impl Claim {
 #[derive(Clone, Debug, Ord, Eq, PartialOrd, PartialEq)]
 pub enum RandomnessType {
     Custom,
-    Auto,
+    Simple,
     None,
 }
 

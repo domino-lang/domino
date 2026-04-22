@@ -799,7 +799,7 @@ impl<'a> EquivalenceContext<'a> {
     fn emit_auto_randomness(&self, comm: &mut Communicator, oracle_name: &str) -> Result<()> {
         match self.equivalence.randomness_by_oracle_name(oracle_name) {
             RandomnessType::Custom => {}
-            RandomnessType::Auto => {
+            RandomnessType::Simple => {
                 let define = SmtDefineFun {
                     is_rec: false,
                     sort: Type::boolean().into(),

@@ -65,8 +65,6 @@ kw_map = _{ "map" }
 kw_invariant = _{ "invariant" }
 kw_lemmas = _{ "lemmas" }
 kw_randomness = _{ "randomness" }
-kw_randomness_auto = { "auto" }
-kw_randomness_none = { "none" }
 
 // -- base types --
 
@@ -296,7 +294,7 @@ theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assu
       equivalence_oracle = { identifier ~ ":" ~ "{" ~ randomness_spec? ~ invariant_spec ~ lemmas_spec ~ "}"}
 
         /// auto randomness mapping
-        randomness_spec = {kw_randomness ~ ":" ~ ( kw_randomness_auto  | kw_randomness_none )}
+        randomness_spec = {kw_randomness ~ ":" ~ identifier}
 
         /// The invariant(s) needed to prove this oracle equivalence.
         invariant_spec  = {kw_invariant ~ ":" ~ (("[" ~ path ~ (","? ~ path)* ~ "]") | path)}
