@@ -14,6 +14,19 @@ use super::ast::Identifier as _;
 pub enum NewError {}
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("undefined randomness sort '{randomness_sort}', supported: none, simple")]
+#[diagnostic(code(domino::code::theorem::unknown_randomness_sort))]
+pub struct UndefinedRandomnessSortError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this game instance is not defined")]
+    pub at: SourceSpan,
+
+    pub randomness_sort: String,
+}
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("syntax error: {variant}")]
 #[diagnostic(code(domino::syntax))]
 pub struct PestParseError {
