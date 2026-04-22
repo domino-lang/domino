@@ -1835,8 +1835,8 @@ theorem Full4WHS {
                 }
             }
         }
-    }/*
+    }
     propositions {
        main: Real ~ Ideal
-    }*/
+    }
 }
