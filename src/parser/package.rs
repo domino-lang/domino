@@ -1140,7 +1140,7 @@ fn handle_assign_rhs(
                     .zip(target_oracle_sig.args.iter())
                     .map(|(expr, (_, ty))| handle_expression(&parse_ctx, expr, Some(ty)))
                     .collect();
-                args.extend(arglist?.into_iter());
+                args.extend(arglist?);
             }
 
             Ok(OracleExprResult::Invoke(
@@ -1270,7 +1270,7 @@ pub fn handle_code(
                             .zip(target_oracle_sig.args.iter())
                             .map(|(expr, (_, ty))| handle_expression(&ctx.parse_ctx(), expr, Some(ty)))
                             .collect();
-                        args.extend(arglist?.into_iter());
+                        args.extend(arglist?);
                     }
 
                     Statement::InvokeOracle (InvokeOracle{
