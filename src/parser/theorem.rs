@@ -49,6 +49,7 @@ use super::{
         NoSuchGameParameterError, ParserScopeError, ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
+        UndefinedRandomnessSortError,
     },
     package::ParseExpressionError,
     ParseContext,
@@ -145,6 +146,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ParseExpression(#[from] ParseExpressionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    UndefinedRandomnessSort(#[from] UndefinedRandomnessSortError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -836,10 +841,11 @@ pub(crate) fn handle_hybrid<'a>(
     let left_equiv_name = format!("{}$true$", hybrid_name_ast.as_str());
     let right_equiv_name = format!("{}$false$+", hybrid_name_ast.as_str());
     let equivalence = {
-        let equivalence_data: Vec<_> = equivalence_ast
+        let equivalence_data: Result<Vec<_>, _> = equivalence_ast
             .into_inner()
-            .map(handle_equivalence_oracle)
+            .map(|ast| handle_equivalence_oracle(ctx, ast))
             .collect();
+        let equivalence_data = equivalence_data?;
 
         let randomness: Vec<_> = equivalence_data
             .iter()
@@ -917,7 +923,9 @@ fn handle_equivalence<'a>(
     let mut ast = ast.into_inner();
     let (left_name, right_name) = handle_string_pair(&mut ast);
 
-    let equivalence_data: Vec<_> = ast.map(handle_equivalence_oracle).collect();
+    let equivalence_data: Result<Vec<_>, _> =
+        ast.map(|ast| handle_equivalence_oracle(ctx, ast)).collect();
+    let equivalence_data = equivalence_data?;
 
     let randomness: Vec<_> = equivalence_data
         .iter()
@@ -971,13 +979,17 @@ fn handle_equivalence<'a>(
 }
 
 fn handle_equivalence_oracle(
+    ctx: &mut ParseTheoremContext,
     ast: Pair<Rule>,
-) -> (
-    String,
-    Vec<String>,
-    Vec<(String, Vec<String>)>,
-    RandomnessType,
-) {
+) -> Result<
+    (
+        String,
+        Vec<String>,
+        Vec<(String, Vec<String>)>,
+        RandomnessType,
+    ),
+    ParseTheoremError,
+> {
     let mut ast = ast.into_inner();
     let oracle_name = ast.next().unwrap().as_str().to_string();
     let mut invariant_paths = Vec::new();
@@ -987,11 +999,19 @@ fn handle_equivalence_oracle(
     for next in ast {
         match next.as_rule() {
             Rule::randomness_spec => {
+                let span = next.as_span();
                 let value = next.into_inner().next().unwrap().as_str();
                 match value {
                     "simple" => randomness = RandomnessType::Simple,
                     "none" => randomness = RandomnessType::None,
-                    _ => unreachable!(),
+                    _ => {
+                        return Err(UndefinedRandomnessSortError {
+                            source_code: ctx.named_source(),
+                            at: (span.start()..span.end()).into(),
+                            randomness_sort: value.to_string(),
+                        }
+                        .into())
+                    }
                 }
             }
             Rule::invariant_spec => {
@@ -1002,7 +1022,7 @@ fn handle_equivalence_oracle(
         }
     }
 
-    (oracle_name, invariant_paths, lemmas, randomness)
+    Ok((oracle_name, invariant_paths, lemmas, randomness))
 }
 
 fn handle_invariant_spec(ast: Pairs<Rule>) -> Vec<String> {
