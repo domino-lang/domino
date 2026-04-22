@@ -36,12 +36,12 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 #[derive(Clone, Debug)]
-pub struct ParsePackageContext<'a> {
-    pub file_name: &'a str,
-    pub file_content: &'a str,
+pub struct ParsePackageContext<'src> {
+    pub file_name: &'src str,
+    pub file_content: &'src str,
     pub scope: Scope,
 
-    pub pkg_name: &'a str,
+    pub pkg_name: &'src str,
     pub oracles: Vec<OracleDef>,
     pub state: Vec<(String, Type, SourceSpan)>,
     pub params: Vec<(String, Type, SourceSpan)>,
@@ -49,8 +49,8 @@ pub struct ParsePackageContext<'a> {
     pub imported_oracles: HashMap<String, (OracleSig, SourceSpan)>,
 }
 
-impl<'a> ParseContext<'a> {
-    fn pkg_parse_context(self, pkg_name: &'a str) -> ParsePackageContext<'a> {
+impl<'src> ParseContext<'src> {
+    fn pkg_parse_context(self, pkg_name: &'src str) -> ParsePackageContext<'src> {
         let mut scope = Scope::new();
         scope.enter();
 
@@ -69,12 +69,12 @@ impl<'a> ParseContext<'a> {
     }
 }
 
-impl<'a> ParsePackageContext<'a> {
+impl<'src> ParsePackageContext<'src> {
     pub(crate) fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
 
-    pub(crate) fn parse_ctx(&self) -> ParseContext<'a> {
+    pub(crate) fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
             file_name: self.file_name,
             file_content: self.file_content,
@@ -84,8 +84,8 @@ impl<'a> ParsePackageContext<'a> {
     }
 }
 
-impl<'a> From<ParsePackageContext<'a>> for ParseContext<'a> {
-    fn from(value: ParsePackageContext<'a>) -> Self {
+impl<'src> From<ParsePackageContext<'src>> for ParseContext<'src> {
+    fn from(value: ParsePackageContext<'src>) -> Self {
         Self {
             file_name: value.file_name,
             file_content: value.file_content,
@@ -181,9 +181,9 @@ pub enum IdentType {
     Const,
 }
 
-pub fn handle_pkg_spec(
-    mut ctx: ParsePackageContext,
-    pkg_spec: Pair<Rule>,
+pub fn handle_pkg_spec<'src>(
+    mut ctx: ParsePackageContext<'src>,
+    pkg_spec: Pair<'src, Rule>,
 ) -> Result<Package, ParsePackageError> {
     // TODO(2024-04-03): get rid of the unwraps in params, state, import_oracles
     for spec in pkg_spec.into_inner() {
