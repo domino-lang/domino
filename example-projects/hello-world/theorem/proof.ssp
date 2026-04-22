@@ -32,7 +32,7 @@ theorem Proof {
     gamehops {
         equivalence medium_composition small_composition {
             UsefulOracle: {
-                randomness: auto
+                randomness: simple
 
                 invariant: [
                     ./theorem/invariant.smt2

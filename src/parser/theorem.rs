@@ -987,10 +987,10 @@ fn handle_equivalence_oracle(
     for next in ast {
         match next.as_rule() {
             Rule::randomness_spec => {
-                let value = next.into_inner().next().unwrap().as_rule();
+                let value = next.into_inner().next().unwrap().as_str();
                 match value {
-                    Rule::kw_randomness_auto => randomness = RandomnessType::Auto,
-                    Rule::kw_randomness_none => randomness = RandomnessType::None,
+                    "simple" => randomness = RandomnessType::Simple,
+                    "none" => randomness = RandomnessType::None,
                     _ => unreachable!(),
                 }
             }
