@@ -14,7 +14,7 @@ use super::ast::Identifier as _;
 pub enum NewError {}
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("undefined randomness sort '{randomness_sort}', supported: none, simple")]
+#[error("undefined randomness sort '{randomness_sort}', supported: custom, none, simple")]
 #[diagnostic(code(domino::code::theorem::unknown_randomness_sort))]
 pub struct UndefinedRandomnessSortError {
     #[source_code]
