@@ -280,11 +280,13 @@ pub fn tex_write_theorem(
             assumption.name.replace('_', "\\_")
         )?;
         writeln!(file, "\\label{{{}}}", assumption.latex_label("advantage"))?;
+        let asp = &assumption.name;
+        let asp_esc = asp.replace('_', "\\_");
         let left = &assumption.left_name;
         let left_esc = left.replace('_', "\\_");
         let right = &assumption.right_name;
         let right_esc = right.replace('_', "\\_");
-        write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
+        write!(file, "For all adversaries $\\adv$, we define the {asp_esc} advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left_esc},{right_esc}):=\\abs{{\\begin{{array}}{{l}}\
                       \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left_esc}}}\\\\\
@@ -297,12 +299,14 @@ pub fn tex_write_theorem(
     for thm in &theorem.proofs {
         writeln!(file, "\\begin{{definition}}[{}]", thm.name())?;
         writeln!(file, "\\label{{{}}}", thm.latex_label("advantage"))?;
+        let thmname = &thm.name;
+        let thmname_esc = thmname.replace('_', "\\_");
         let left = thm.left_name();
         let left_esc = left.replace('_', "\\_");
         let right = thm.right_name();
         let right_esc = right.replace('_', "\\_");
 
-        write!(file, "For all adversaries $\\adv$, we define the asp-name advantage as\
+        write!(file, "For all adversaries $\\adv$, we define the {thmname_esc} advantage as\
                       \\[\
                       \\mathsf{{Adv}}(\\adv;{left_esc},{right_esc}):=\\abs{{\\begin{{array}}{{l}}\
                       \\phantom{{-}}\\prob{{1 = \\adv\\rightarrow {left_esc}}}\\\\\
