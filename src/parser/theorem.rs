@@ -1002,6 +1002,7 @@ fn handle_equivalence_oracle(
                 let span = next.as_span();
                 let value = next.into_inner().next().unwrap().as_str();
                 match value {
+                    "custom" => randomness = RandomnessType::Custom,
                     "simple" => randomness = RandomnessType::Simple,
                     "none" => randomness = RandomnessType::None,
                     _ => {
