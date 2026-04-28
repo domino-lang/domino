@@ -18,6 +18,9 @@ theorem SmallIsSmall {
       N: {
         invariant: ./invariant.smt
         lemmas {
+        invariant: []
+        equal-aborts: []
+        same-output: []
         smt_ident: []
         }
       }
