@@ -212,6 +212,7 @@ theorem Proof {
                     invariant: [no-abort, lemma-rand-is-eq]
                     same-output: [no-abort, lemma-rand-is-eq]
                     equal-aborts: []
+                    lemma-rand-is-eq: admit []
                 }
             }
 
@@ -224,6 +225,7 @@ theorem Proof {
                     invariant: [no-abort]
                     same-output: [no-abort, lemma-kem-correctness]
                     equal-aborts: []
+                    lemma-kem-correctness: admit []
                 }
             }
         }
@@ -304,6 +306,7 @@ theorem Proof {
                     invariant: [no-abort, lemma-rand-is-eq]
                     same-output: [no-abort, lemma-rand-is-eq]
                     equal-aborts: []
+                    lemma-rand-is-eq: admit []
                 }
             }
 
@@ -316,6 +319,7 @@ theorem Proof {
                     invariant: [no-abort]
                     same-output: [no-abort, lemma-kem-correctness]
                     equal-aborts: []
+                    lemma-kem-correctness: admit []
                 }
             }
         }
@@ -346,6 +350,7 @@ theorem Proof {
                     invariant: [no-abort, lemma-rand-is-eq]
                     same-output: [no-abort, lemma-rand-is-eq]
                     equal-aborts: []
+                    lemma-rand-is-eq: admit []
                 }
             }
 
@@ -358,6 +363,7 @@ theorem Proof {
                     invariant: [no-abort]
                     same-output: [no-abort, lemma-kem-correctness]
                     equal-aborts: []
+                    lemma-kem-correctness: admit []
                 }
             }
         }
