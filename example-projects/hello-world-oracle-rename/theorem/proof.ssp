@@ -51,6 +51,7 @@ theorem Proof {
                     equal-aborts: [trivial]
                     invariant:    [no-abort]
                     same-output:  [no-abort]
+                    trivial: []
                 }
             }
         }

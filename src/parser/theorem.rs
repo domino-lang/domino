@@ -864,25 +864,29 @@ fn handle_game_hops<'a>(
     Ok(())
 }
 
-/* Required to be proven: equal-aborts, invariant, same-output
- * Allowed to use: no-abort
- *
- * We iteratively add all claims that have all their requirements
- * met. When we can no longer add additional claims, the algorithm
- * terminates.
- *
- * As we *prove* equal-aborts but use no-abort, special care is
- * needed. We run the algorithm until equal-aborts is proven (making
- * sure it does not (even transitively) depend on no-abort. Once
- * equal-aborts is proven, we allow dependencies on no-abort.
+/** Required to be proven: equal-aborts, invariant, same-output
+ ** Allowed to use: no-abort
+ **
+ ** We iteratively add all claims that have all their requirements
+ ** met. When we can no longer add additional claims, the algorithm
+ ** terminates.
+ **
+ ** As we *prove* equal-aborts but use no-abort, special care is
+ ** needed. We run the algorithm until equal-aborts is proven (making
+ ** sure it does not (even transitively) depend on no-abort. Once
+ ** equal-aborts is proven, we allow dependencies on no-abort.
  */
 pub(crate) fn verify_induction_step(
     ctx: &mut ParseTheoremContext,
-    step: &[(String, BTreeSet<String>)],
+    step: &[(String, BTreeSet<String>, bool)],
     span: SourceSpan,
 ) -> Result<(), ParseTheoremError> {
     let mut progress = true;
-    let mut provable: BTreeSet<String> = BTreeSet::new();
+    let mut provable: BTreeSet<String> = step
+        .iter()
+        .filter_map(|(name, _, admited)| if *admited { Some(name) } else { None })
+        .cloned()
+        .collect();
 
     while progress {
         progress = false;
@@ -892,7 +896,7 @@ pub(crate) fn verify_induction_step(
 
         let mut new: BTreeSet<_> = step
             .iter()
-            .filter_map(|(name, dependencies)| {
+            .filter_map(|(name, dependencies, _)| {
                 if !provable.contains(name) && provable.is_superset(dependencies) {
                     Some(name.clone())
                 } else {
@@ -964,8 +968,8 @@ pub(crate) fn handle_hybrid<'a>(
                     oracle_name,
                     lemmas
                         .into_iter()
-                        .map(|(name, dependencies)| {
-                            Claim::from_tuple((name, dependencies.into_iter().collect()))
+                        .map(|(name, dependencies, admited)| {
+                            Claim::from_tuple((name, dependencies.into_iter().collect(), admited))
                         })
                         .collect(),
                 )
@@ -1049,8 +1053,8 @@ fn handle_equivalence<'a>(
                 oracle_name,
                 lemmas
                     .into_iter()
-                    .map(|(name, dependencies)| {
-                        Claim::from_tuple((name, dependencies.into_iter().collect()))
+                    .map(|(name, dependencies, admited)| {
+                        Claim::from_tuple((name, dependencies.into_iter().collect(), admited))
                     })
                     .collect(),
             )
@@ -1098,7 +1102,7 @@ fn handle_equivalence_oracle(
     (
         String,
         Vec<String>,
-        Vec<(String, BTreeSet<String>)>,
+        Vec<(String, BTreeSet<String>, bool)>,
         RandomnessType,
     ),
     ParseTheoremError,
@@ -1148,16 +1152,25 @@ fn handle_invariant_spec(ast: Pairs<Rule>) -> Vec<String> {
     ast.map(|ast| ast.as_str().to_string()).collect()
 }
 
-fn handle_lemmas_spec(ast: Pairs<Rule>) -> Vec<(String, BTreeSet<String>)> {
+fn handle_lemmas_spec(ast: Pairs<Rule>) -> Vec<(String, BTreeSet<String>, bool)> {
     ast.map(handle_lemma_line).collect()
 }
 
-fn handle_lemma_line(ast: Pair<Rule>) -> (String, BTreeSet<String>) {
+fn handle_lemma_line(ast: Pair<Rule>) -> (String, BTreeSet<String>, bool) {
     let mut ast = ast.into_inner();
     let name = next_str(&mut ast).to_string();
+    let admit = if matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::lemma_modifier)) {
+        let modifier = ast.next().unwrap().as_str();
+        match modifier {
+            "admit" => true,
+            _ => todo!(),
+        }
+    } else {
+        false
+    };
     let deps = ast.map(|dep| dep.as_str().to_string()).collect();
 
-    (name, deps)
+    (name, deps, admit)
 }
 
 fn handle_string_triplet<'a>(

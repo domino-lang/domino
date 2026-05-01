@@ -104,28 +104,30 @@ fn verify_oracle<UI: TheoremUI>(
                 claim.name(),
             );
 
-            writeln!(prover, "(push 1)").unwrap();
-            eqctx.emit_claim_assert(&mut prover, export.name(), &claim)?;
-            match prover.check_sat()? {
-                ProverResponse::Unsat => {}
-                response => {
-                    let modelfile = prover.get_model().map(|(modelstring, _model)| {
-                        let mut modelfile =
-                            tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
-                        modelfile.write_all(modelstring.as_bytes()).unwrap();
-                        let (_, fname) = modelfile.keep().unwrap();
-                        fname
-                    });
-                    prover.close();
-                    return Err(Error::ClaimTheoremFailed {
-                        claim_name: claim.name().to_string(),
-                        oracle_name: export.name().to_string(),
-                        response,
-                        modelfile,
-                    });
+            if !claim.is_admited() {
+                writeln!(prover, "(push 1)").unwrap();
+                eqctx.emit_claim_assert(&mut prover, export.name(), &claim)?;
+                match prover.check_sat()? {
+                    ProverResponse::Unsat => {}
+                    response => {
+                        let modelfile = prover.get_model().map(|(modelstring, _model)| {
+                            let mut modelfile =
+                                tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
+                            modelfile.write_all(modelstring.as_bytes()).unwrap();
+                            let (_, fname) = modelfile.keep().unwrap();
+                            fname
+                        });
+                        prover.close();
+                        return Err(Error::ClaimTheoremFailed {
+                            claim_name: claim.name().to_string(),
+                            oracle_name: export.name().to_string(),
+                            response,
+                            modelfile,
+                        });
+                    }
                 }
+                writeln!(prover, "(pop 1)").unwrap();
             }
-            writeln!(prover, "(pop 1)").unwrap();
             ui.lock().unwrap().finish_lemma(
                 &eqctx.theorem().name,
                 &proofstep_name,

@@ -19,6 +19,8 @@ theorem SplitInvokeProof {
                 invariant: ./theorem/invariant.smt2
                 lemmas {
                     same-output: []
+                    equal-aborts: []
+                    invariant: []
                 }
             }
         }
