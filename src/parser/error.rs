@@ -314,6 +314,23 @@ pub struct ForLoopIdentifersDontMatchError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("game instance '{inst_name}' has been defined twice in theorem {theorem_name}")]
+#[diagnostic(code(domino::theorem::duplicate_game_instance))]
+pub struct DuplicateGameInstanceDefinitionError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this identifier here")]
+    pub at: SourceSpan,
+
+    #[label("has previously been defined here")]
+    pub other: SourceSpan,
+
+    pub inst_name: String,
+    pub theorem_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error(
     "package parameter '{param_name}' has been defined twice in package instance {pkg_inst_name}"
 )]

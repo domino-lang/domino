@@ -44,9 +44,10 @@ use super::{
     error::{
         AssumptionExportsNotSufficientError, AssumptionMappingMissesPackageInstanceError,
         AssumptionMappingParameterMismatchError,
-        AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameParameterDefinitionError,
-        InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
-        NoSuchGameParameterError, ParserScopeError, ReductionInconsistentAssumptionBoundaryError,
+        AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameInstanceDefinitionError,
+        DuplicateGameParameterDefinitionError, InvalidGameInstanceInReductionError,
+        MissingGameParameterDefinitionError, NoSuchGameParameterError, ParserScopeError,
+        ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
         UndefinedRandomnessSortError,
@@ -67,7 +68,7 @@ pub(crate) struct ParseTheoremContext<'a> {
 
     pub consts: HashMap<String, Type>,
     pub instances: Vec<GameInstance>,
-    pub instances_table: HashMap<String, (usize, GameInstance)>,
+    pub instances_table: HashMap<String, (usize, GameInstance, Span<'a>)>,
     pub assumptions: Vec<Assumption>,
     pub propositions: Vec<Proof<'a>>,
     pub game_hops: Vec<GameHop<'a>>,
@@ -116,23 +117,38 @@ impl<'a> ParseTheoremContext<'a> {
     }
 }
 
-impl ParseTheoremContext<'_> {
+impl<'a> ParseTheoremContext<'a> {
     fn declare(&mut self, name: &str, clone: Declaration) -> Result<(), ScopeError> {
         self.scope.declare(name, clone)
     }
     // TODO: check dupes here?
 
-    fn add_game_instance(&mut self, game_inst: GameInstance) {
+    fn add_game_instance(
+        &mut self,
+        game_inst: GameInstance,
+        span: Span<'a>,
+    ) -> Result<(), ParseTheoremError> {
+        if let Some((_, _, otherspan)) = self.instances_table.get(game_inst.name()) {
+            return Err(DuplicateGameInstanceDefinitionError {
+                at: (span.start()..span.end()).into(),
+                other: (otherspan.start()..otherspan.end()).into(),
+                source_code: self.named_source(),
+                theorem_name: self.theorem_name.to_string(),
+                inst_name: game_inst.name().to_string(),
+            }
+            .into());
+        }
         let offset = self.instances.len();
         self.instances.push(game_inst.clone());
         self.instances_table
-            .insert(game_inst.name().to_string(), (offset, game_inst));
+            .insert(game_inst.name().to_string(), (offset, game_inst, span));
+        Ok(())
     }
 
     pub(crate) fn game_instance(&self, name: &str) -> Option<(usize, &GameInstance)> {
         self.instances_table
             .get(name)
-            .map(|(offset, game_inst)| (*offset, game_inst))
+            .map(|(offset, game_inst, _)| (*offset, game_inst))
     }
 
     // TODO: check dupes here?
@@ -143,6 +159,10 @@ impl ParseTheoremContext<'_> {
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum ParseTheoremError {
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    DuplicateGameInstanceDefinition(#[from] DuplicateGameInstanceDefinitionError),
+
     #[diagnostic(transparent)]
     #[error(transparent)]
     ParseExpression(#[from] ParseExpressionError),
@@ -340,7 +360,9 @@ fn handle_instance_decl<'a>(
 ) -> Result<(), ParseTheoremError> {
     let mut ast = ast.into_inner();
 
-    let game_inst_name = ast.next().unwrap().as_str().to_string();
+    let game_inst_ast = ast.next().unwrap();
+    let game_inst_name = game_inst_ast.as_str().to_string();
+    let game_inst_span = game_inst_ast.as_span();
     let game_name_ast = ast.next().unwrap();
     let game_name_span = game_name_ast.as_span();
     let game_name = game_name_ast.as_str();
@@ -369,7 +391,7 @@ fn handle_instance_decl<'a>(
         types,
         consts_as_ident,
     );
-    ctx.add_game_instance(game_inst);
+    ctx.add_game_instance(game_inst, game_inst_span)?;
 
     Ok(())
 }
@@ -445,7 +467,9 @@ fn handle_hybrid_instance_decl_one<'a>(
     }
 
     let mut ast = ast.into_inner();
-    let game_inst_name = ast.next().unwrap().as_str().to_string();
+    let game_inst_ast = ast.next().unwrap();
+    let game_inst_name = game_inst_ast.as_str().to_string();
+    let game_inst_span = game_inst_ast.as_span();
 
     let loop_var_ast = ast.next().unwrap();
     let loop_var_span = loop_var_ast.as_span();
@@ -500,42 +524,51 @@ fn handle_hybrid_instance_decl_one<'a>(
     let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
 
     // H[i,false]
-    ctx.add_game_instance(patch_game_instance(
-        game.clone(),
-        ctx.theorem_name,
-        &game_inst_name,
-        types.clone(),
-        &consts,
-        loop_var_name,
-        Some(bit_var_name),
-        false,
-        false,
-    ));
+    ctx.add_game_instance(
+        patch_game_instance(
+            game.clone(),
+            ctx.theorem_name,
+            &game_inst_name,
+            types.clone(),
+            &consts,
+            loop_var_name,
+            Some(bit_var_name),
+            false,
+            false,
+        ),
+        game_inst_span,
+    )?;
     // H[i+1,false]
-    ctx.add_game_instance(patch_game_instance(
-        game.clone(),
-        ctx.theorem_name,
-        &game_inst_name,
-        types.clone(),
-        &consts,
-        loop_var_name,
-        Some(bit_var_name),
-        false,
-        true,
-    ));
+    ctx.add_game_instance(
+        patch_game_instance(
+            game.clone(),
+            ctx.theorem_name,
+            &game_inst_name,
+            types.clone(),
+            &consts,
+            loop_var_name,
+            Some(bit_var_name),
+            false,
+            true,
+        ),
+        game_inst_span,
+    )?;
 
     // H[i,true]
-    ctx.add_game_instance(patch_game_instance(
-        game.clone(),
-        ctx.theorem_name,
-        &game_inst_name,
-        types.clone(),
-        &consts,
-        loop_var_name,
-        Some(bit_var_name),
-        true,
-        false,
-    ));
+    ctx.add_game_instance(
+        patch_game_instance(
+            game.clone(),
+            ctx.theorem_name,
+            &game_inst_name,
+            types.clone(),
+            &consts,
+            loop_var_name,
+            Some(bit_var_name),
+            true,
+            false,
+        ),
+        game_inst_span,
+    )?;
 
     ctx.scope.leave();
 
@@ -555,7 +588,10 @@ fn handle_hybrid_instance_decl_two<'a>(
     }
 
     let mut ast = ast.into_inner();
-    let game_inst_name = ast.next().unwrap().as_str().to_string();
+
+    let game_inst_ast = ast.next().unwrap();
+    let game_inst_name = game_inst_ast.as_str().to_string();
+    let game_inst_span = game_inst_ast.as_span();
 
     let loop_var_ast = ast.next().unwrap();
     let loop_var_span = loop_var_ast.as_span();
@@ -591,29 +627,35 @@ fn handle_hybrid_instance_decl_two<'a>(
     let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
 
     // H[i,false]
-    ctx.add_game_instance(patch_game_instance(
-        game.clone(),
-        ctx.theorem_name,
-        &game_inst_name,
-        types.clone(),
-        &consts,
-        loop_var_name,
-        None,
-        false,
-        false,
-    ));
+    ctx.add_game_instance(
+        patch_game_instance(
+            game.clone(),
+            ctx.theorem_name,
+            &game_inst_name,
+            types.clone(),
+            &consts,
+            loop_var_name,
+            None,
+            false,
+            false,
+        ),
+        game_inst_span,
+    )?;
     // H[i+1,false]
-    ctx.add_game_instance(patch_game_instance(
-        game.clone(),
-        ctx.theorem_name,
-        &game_inst_name,
-        types.clone(),
-        &consts,
-        loop_var_name,
-        None,
-        false,
-        true,
-    ));
+    ctx.add_game_instance(
+        patch_game_instance(
+            game.clone(),
+            ctx.theorem_name,
+            &game_inst_name,
+            types.clone(),
+            &consts,
+            loop_var_name,
+            None,
+            false,
+            true,
+        ),
+        game_inst_span,
+    )?;
 
     let game_name_ast = ast.next().unwrap();
     let game_name_span = game_name_ast.as_span();
@@ -630,17 +672,20 @@ fn handle_hybrid_instance_decl_two<'a>(
     let (types, consts) = handle_instance_assign_list(ctx, &game_inst_name, game, body_ast)?;
 
     // H[i,true]
-    ctx.add_game_instance(patch_game_instance(
-        game.clone(),
-        ctx.theorem_name,
-        &game_inst_name,
-        types.clone(),
-        &consts,
-        loop_var_name,
-        None,
-        true,
-        false,
-    ));
+    ctx.add_game_instance(
+        patch_game_instance(
+            game.clone(),
+            ctx.theorem_name,
+            &game_inst_name,
+            types.clone(),
+            &consts,
+            loop_var_name,
+            None,
+            true,
+            false,
+        ),
+        game_inst_span,
+    )?;
 
     ctx.scope.leave();
 
