@@ -96,6 +96,18 @@ fn prove(p: &Prove) -> Result<(), Error> {
     Ok(())
 }
 
+fn html(h: &Html) -> Result<(), Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
+
+    let smtsolver = h
+        .smtsolver
+        .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
+
+    Ok(project.html(&smtsolver)?)
+}
+
 fn latex(l: &Latex) -> Result<(), Error> {
     let project_root = l
         .path
@@ -107,8 +119,8 @@ fn latex(l: &Latex) -> Result<(), Error> {
     let smtsolver = l
         .smtsolver
         .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
-    project.latex(&smtsolver)?;
-    Ok(())
+
+    Ok(project.latex(&smtsolver)?)
 }
 
 fn format(f: &Format) -> Result<(), Error> {
@@ -137,6 +149,7 @@ fn main() -> miette::Result<()> {
         Commands::Prove(p) => prove(p),
         Commands::Proofsteps(p) => proofsteps(p),
         Commands::Latex(l) => latex(l),
+        Commands::Html(h) => html(h),
         Commands::Format(f) => format(f),
     };
 
