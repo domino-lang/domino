@@ -200,6 +200,24 @@ pub trait Project: Sync {
         Ok(())
     }
 
+    fn html(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
+        let mut path = self.get_root_dir();
+        path.push("_build/html/");
+        std::fs::create_dir_all(&path)?;
+
+        for (name, game) in &self.games {
+            let (transformed, _) = crate::transforms::samplify::Transformation(game)
+                .transform()
+                .unwrap();
+            let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
+                .transform()
+                .unwrap();
+            crate::writers::html::write_game_instance(game, &path)?;
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "latex-export")]
     fn latex(&self, ui: impl LatexUI, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
         let mut path = self.get_root_dir();
         path.push("_build/latex/");
