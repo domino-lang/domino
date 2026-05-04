@@ -207,51 +207,6 @@ pub trait Project {
         Ok(())
     }
 
-    // fn latex(&self, ui: impl LatexUI, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
-    //     let mut path = self.get_root_dir();
-    //     path.push("_build/latex/");
-    //     std::fs::create_dir_all(&path)?;
-
-    //     for name in self.games().ui_iter(&ui, "Exporting Games") {
-    //         let game = self.get_game(name).unwrap();
-    //         let (transformed, _) = crate::transforms::samplify::Transformation(game)
-    //             .transform()
-    //             .unwrap();
-    //         let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
-    //             .transform()
-    //             .unwrap();
-    //         crate::writers::tex::writer::tex_write_composition_graph_file(
-    //             backend,
-    //             &transformed,
-    //             name,
-    //             path.as_path(),
-    //         )?;
-    //         for lossy in [true, false] {
-    //             crate::writers::tex::writer::tex_write_composition(
-    //                 lossy,
-    //                 &transformed,
-    //                 name,
-    //                 path.as_path(),
-    //             )?;
-    //         }
-    //     }
-
-    //     for name in self.theorems().ui_iter(&ui, "Exporting Theorems") {
-    //         let theorem = self.get_theorem(name).unwrap();
-    //         for lossy in [true, false] {
-    //             crate::writers::tex::tex_write_theorem(
-    //                 backend,
-    //                 lossy,
-    //                 theorem,
-    //                 name,
-    //                 path.as_path(),
-    //             )?;
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-
     fn get_smt_file(
         &self,
         theorem_name: &str,

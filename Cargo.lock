@@ -315,6 +315,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "console",
+ "domino-export-html",
  "domino-export-latex",
  "env_logger",
  "indicatif",

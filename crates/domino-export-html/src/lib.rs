@@ -1,3 +1,7 @@
+// We have a lot of large errors.
+// This is fine for now. We will want to address that at some point in the future.
+#![allow(clippy::result_large_err)]
+
 use maud::{html, PreEscaped, Render, DOCTYPE};
 
 use std::fs::File;
@@ -9,12 +13,41 @@ mod render;
 mod util;
 
 use sspverif::{
+    transforms::Transformation,
     package::{Composition, OracleDef},
     theorem::Theorem,
+    project::{Project, error::Result, DirectoryProject},
     util::smtsolver::SmtSolverBackend,
 };
 
 use crate::render::Renderable;
+
+pub trait HtmlProject : Project {
+    fn html(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
+        let mut path = self.get_root_dir();
+        path.push("_build/html/");
+        std::fs::create_dir_all(&path)?;
+
+        for name in self.games() {
+            let game = self.get_game(name).unwrap();
+            let (transformed, _) = sspverif::transforms::samplify::Transformation(game)
+                .transform()
+                .unwrap();
+            let (transformed, _) = sspverif::transforms::resolveoracles::Transformation(&transformed)
+                .transform()
+                .unwrap();
+            write_game_instance(&path, backend, &transformed)?;
+        }
+        for name in self.theorems() {
+            let theorem = self.get_theorem(name).unwrap();
+            write_theorem(&path, backend, theorem)?;
+        }
+        Ok(())
+    }
+}
+
+impl HtmlProject for DirectoryProject<'_> {}
+
 
 pub fn render_oracle(oracle: &OracleDef) -> String {
     Renderable(oracle).render().into()
