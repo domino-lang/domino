@@ -1,0 +1,13 @@
+[package]
+name = "domino-export-html"
+version.workspace = true
+edition.workspace = true
+readme = { workspace = true }
+
+[dependencies]
+sspverif = { workspace = true }
+domino-export-common = { workspace = true }
+miette = { version = "7.6.0", features = ["fancy"] }
+thiserror = "2"
+itertools = "0.15"
+maud = "0.27"
