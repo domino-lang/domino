@@ -38,7 +38,8 @@ indicatif-log-bridge = "0.2"
 # indoc = "2.0"
 itertools = "0.10"
 log = "0.4.22 "
-miette = { version = "7.2.0", features = ["fancy"] }
+maud = "0.27"
+miette = { version = "7.6.0", features = ["fancy"] }
 pest = { version = "2.7", features = ["miette-error"] }
 pest_derive = "2.7"
 rayon = "1.10"
