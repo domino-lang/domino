@@ -100,6 +100,21 @@ fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
     Ok(())
 }
 
+fn html(h: &Html) -> Result<(), Error> {
+    let project_root = h
+        .path
+        .to_owned()
+        .unwrap_or(project::directory::find_project_root()?);
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
+
+    let smtsolver = h
+        .smtsolver
+        .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
+
+    Ok(project.html(&smtsolver)?)
+}
+
 fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
     let project_root = match &l.path {
         Some(path) => path.clone(),
@@ -142,6 +157,7 @@ fn main() -> miette::Result<()> {
         Commands::Prove(p) => prove(ui.prove_ui(), p),
         Commands::Proofsteps(p) => proofsteps(ui.proofstep_ui(), p),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
+        Commands::Html(h) => html(h),
         Commands::Format(f) => format(f),
     };
 
