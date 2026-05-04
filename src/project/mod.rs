@@ -205,14 +205,17 @@ pub trait Project: Sync {
         path.push("_build/html/");
         std::fs::create_dir_all(&path)?;
 
-        for (name, game) in &self.games {
+        for game in self.games.values() {
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
             let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
                 .transform()
                 .unwrap();
-            crate::writers::html::write_game_instance(game, &path)?;
+            crate::writers::html::write_game_instance(&path, backend, &transformed)?;
+        }
+        for theorem in self.theorems.values() {
+            crate::writers::html::write_theorem(&path, backend, theorem)?;
         }
         Ok(())
     }
