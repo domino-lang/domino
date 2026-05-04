@@ -1,28 +1,24 @@
 use maud::{html, Markup, PreEscaped, Render};
-use std::fs::File;
-use std::path::Path;
-use std::io::Write;
 use std::fmt::Debug;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
 
 use crate::{
     expressions::{Expression, ExpressionKind},
     identifier::Identifier,
-    theorem::GameInstance,
-    package::{OracleDef, OracleSig, Package, Composition},
+    package::{Composition, OracleDef, OracleSig, Package},
     packageinstance::PackageInstance,
     statement::{AssignmentRhs, CodeBlock, Pattern, Statement},
+    theorem::GameInstance,
 };
 
 pub fn render_oracle(oracle: &OracleDef) -> String {
     oracle.render().into()
 }
 
-
 pub fn write_game_instance(instance: &Composition, target: &Path) -> std::io::Result<()> {
-    let fname = target.join(format!(
-        "GameInstance_{}.html",
-        instance.name,
-    ));
+    let fname = target.join(format!("GameInstance_{}.html", instance.name,));
     let mut file = File::create(fname.clone())?;
 
     write!(file, "{}", instance.render().into_string())
@@ -47,7 +43,7 @@ impl Render for GameInstance {
 
 impl Render for Composition {
     fn render(&self) -> Markup {
-        html!{
+        html! {
             @for pkg in &self.pkgs {
                 (pkg)
             }
@@ -98,11 +94,10 @@ impl Render for OracleDef {
 
 impl Render for Expression {
     fn render(&self) -> Markup {
-        
         match self.kind() {
             ExpressionKind::Identifier(ident) => ident.render(),
-            ExpressionKind::Tuple(exprs) => html!{ "(" (join(",", exprs))  ")" },
-            ExpressionKind::IntegerLiteral(value) => html!{mn{(value)}},
+            ExpressionKind::Tuple(exprs) => html! { "(" (join(",", exprs))  ")" },
+            ExpressionKind::IntegerLiteral(value) => html! {mn{(value)}},
             ExpressionKind::Bot => PreEscaped("&#x22A5;".to_string()),
             ExpressionKind::And(terms) => join("&and;", terms),
             ExpressionKind::Or(terms) => join("&or;", terms),
@@ -132,7 +127,7 @@ impl Render for CodeBlock {
 impl Render for Statement {
     fn render(&self) -> Markup {
         dbg!(&self);
-        
+
         match self {
             Statement::Abort(_) => html! {
                 math {mi #keyword {"abort"}}
@@ -190,13 +185,12 @@ impl Render for AssignmentRhs {
 
 fn join<V: Render + Debug>(with: &str, values: &[V]) -> Markup {
     dbg!(values);
-        
 
     if values.is_empty() {
-        return html!{};
+        return html! {};
     }
     if values.len() == 1 {
-        return html!{(values[0])};
+        return html! {(values[0])};
     }
     let prefix = html! {
         @for value in &values[..(values.len()-1)] {
