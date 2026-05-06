@@ -38,7 +38,6 @@ pub(crate) fn solve_composition_graph(
 
         let mut comm = backend.new_smtsolver().unwrap();
         write!(comm, "{constraints}").unwrap();
-        writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< width {width}))").unwrap();
 
         if comm.check_sat().unwrap() == SmtSolverResponse::Sat {
@@ -53,7 +52,6 @@ pub(crate) fn solve_composition_graph(
             log::debug!("Failure: width = {width}");
             min_width = width;
         }
-        //writeln!(comm, "(pop 1)").unwrap();
 
         if min_width + 1 == max_width {
             break;
@@ -66,18 +64,17 @@ pub(crate) fn solve_composition_graph(
 
         let mut comm = backend.new_smtsolver().unwrap();
         write!(comm, "{constraints}").unwrap();
-        writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< height {height}))").unwrap();
         writeln!(comm, "(assert (< width {max_width}))").unwrap();
 
         if comm.check_sat().unwrap() == SmtSolverResponse::Sat {
             log::debug!("Success: height = {height}");
+            model = Some(comm.get_model().unwrap().1);
             max_height = height;
         } else {
             log::debug!("Failure: height = {height} (width = {max_width})");
             min_height = height;
         }
-        //writeln!(comm, "(pop 1)").unwrap();
 
         if min_height + 1 == max_height {
             break;
@@ -85,10 +82,6 @@ pub(crate) fn solve_composition_graph(
     }
 
     log::debug!("Conclusion: height = {max_height}, width = {max_width}");
-    let mut comm = backend.new_smtsolver().unwrap();
-    write!(comm, "{constraints}").unwrap();
-    writeln!(comm, "(assert (< height {max_height}))").unwrap();
-    writeln!(comm, "(assert (< width {max_width}))").unwrap();
 
     model
 }
@@ -97,7 +90,7 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
     let mut result = String::new();
     let mut edges: HashSet<(usize, usize)> = HashSet::new();
 
-    writeln!(result, "(set-logic ALL)")?;
+    writeln!(result, "(set-logic QF_LIA)")?;
     writeln!(result, "(declare-const num-pkgs Int)")?;
     writeln!(result, "(declare-const width Int)")?;
     writeln!(result, "(declare-const height Int)")?;
@@ -166,11 +159,9 @@ fn composition_graph_smt_query(composition: &Composition) -> Result<String, std:
             writeln!(
                 result,
                 "
-(assert (not (exists ((l Int))
-               (and
-                 (<= {pkga}-bottom l {pkga}-top)
-                 (<= {pkgb}-bottom l {pkgb}-top)
-                 (= {pkga}-column {pkgb}-column)))))"
+(assert (=> (= {pkga}-column {pkgb}-column)
+            (or (< {pkga}-top {pkgb}-bottom)
+                (< {pkgb}-top {pkga}-bottom))))"
             )?;
         }
     }
