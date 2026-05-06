@@ -106,6 +106,27 @@ impl Render for Expression {
             ExpressionKind::Add(lhs, rhs) => html! {
                 (lhs) mo {"+"} (rhs)
             },
+            ExpressionKind::Sub(lhs, rhs) => html! {
+                (lhs) mo {"-"} (rhs)
+            },
+            ExpressionKind::Mul(lhs, rhs) => html! {
+                (lhs) mo {(PreEscaped("&sdot;"))} (rhs)
+            },
+            ExpressionKind::Div(lhs, rhs) => html! {
+                (lhs) mo {(PreEscaped("/"))} (rhs)
+            },
+            ExpressionKind::GreaterThen(lhs, rhs) => html! {
+                (lhs) mo {">"} (rhs)
+            },
+            ExpressionKind::LessThen(lhs, rhs) => html! {
+                (lhs) mo {"<"} (rhs)
+            },
+            ExpressionKind::GreaterThenEq(lhs, rhs) => html! {
+                (lhs) mo {(PreEscaped("&ge;"))} (rhs)
+            },
+            ExpressionKind::LessThenEq(lhs, rhs) => html! {
+                (lhs) mo {(PreEscaped("&le;"))} (rhs)
+            },
             ExpressionKind::TableAccess(ident, expr) => html! {
                 (ident) "[" (expr) "]"
             },
@@ -115,6 +136,7 @@ impl Render for Expression {
                 mi{(name)} "(" (join(",", exprs)) ")"
             },
             ExpressionKind::Unwrap(expr) => expr.render(),
+            ExpressionKind::EmptyTable(_) => html! {mi{"EmptyTable"}"()"},
             _ => todo!("{self:?}"),
         }
     }
@@ -142,26 +164,29 @@ impl Render for Statement {
                 math {mtext .keyword {"return"}}
             },
             Statement::Return(Some(val), _) => html! {
-                math {mtext .keyword {"return "} (val)}
+                math {mtext .keyword {(PreEscaped("return&nbsp;"))} (val)}
             },
             Statement::Assignment(assign, _) => html! {
-                math {(assign.pattern) (PreEscaped("&larr;")) (assign.rhs)}
+                math {(assign.pattern) {mo {(PreEscaped("&larr;"))}} (assign.rhs)}
             },
             Statement::InvokeOracle(invoke) => html! {
                 math {mi{(invoke.oracle_name)} "(" (join(",", &invoke.args)) ")"}
             },
             Statement::IfThenElse(ite) if ite_is_assert(ite) => html! {
-                math {mtext .keyword {"assert"} " " (ite.cond)}
+                math {mtext .keyword {(PreEscaped("assert&nbsp;"))}  (ite.cond)}
             },
             Statement::IfThenElse(ite) => html! {
-                math {mtext .keyword {"if "} " " (ite.cond)}
+                math {mtext .keyword {(PreEscaped("if&nbsp;"))} (ite.cond)}
                 (ite.then_block)
                     @if !ite.else_block.0.is_empty() {
                         math {mtext .keyword {"else"}}
                         (ite.else_block)
                     }
             },
-            Statement::For(_ident, _lower, _upper, _block, _) => todo!(),
+            Statement::For(ident, lower, upper, block, _) => html! {
+                math {mtext .keyword {(PreEscaped("for&nbsp;"))} (lower) mo{(PreEscaped("&le;"))} (ident) mo{"<"} (upper)}
+                (block)
+            },
         }
     }
 }
