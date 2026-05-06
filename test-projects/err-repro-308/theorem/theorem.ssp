@@ -1,0 +1,4 @@
+theorem theorem {
+    instance foo = game {}
+    instance foo = game {}
+}
