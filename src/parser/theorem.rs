@@ -18,7 +18,7 @@ use crate::{
     package::{Composition, Package},
     parser::{
         error::{
-            AssumptionMappingContainsDifferentPackagesError,
+            AdmitedClaimWarning, AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
             AssumptionMappingLeftGameInstanceIsNotFromAssumption, InductionStepUnprovableError,
             ReductionContainsDifferentPackagesError, UnprovenTheoremError,
@@ -1108,7 +1108,7 @@ fn handle_equivalence_oracle(
     ParseTheoremError,
 > {
     let mut ast = ast.into_inner();
-    let oracle_name = ast.next().unwrap().as_str().to_string();
+    let oracle_name = ast.next().unwrap().as_str();
     let mut invariant_paths = Vec::new();
     let mut lemmas = Vec::new();
     let mut randomness = RandomnessType::Custom;
@@ -1137,7 +1137,7 @@ fn handle_equivalence_oracle(
             }
             Rule::lemmas_spec => {
                 let span = next.as_span();
-                let new_lemmas = handle_lemmas_spec(next.into_inner());
+                let new_lemmas = handle_lemmas_spec(ctx, oracle_name, next.into_inner());
                 verify_induction_step(ctx, &new_lemmas, (span.start()..span.end()).into())?;
                 lemmas.extend(new_lemmas);
             }
@@ -1145,24 +1145,46 @@ fn handle_equivalence_oracle(
         }
     }
 
-    Ok((oracle_name, invariant_paths, lemmas, randomness))
+    Ok((oracle_name.to_string(), invariant_paths, lemmas, randomness))
 }
 
 fn handle_invariant_spec(ast: Pairs<Rule>) -> Vec<String> {
     ast.map(|ast| ast.as_str().to_string()).collect()
 }
 
-fn handle_lemmas_spec(ast: Pairs<Rule>) -> Vec<(String, BTreeSet<String>, bool)> {
-    ast.map(handle_lemma_line).collect()
+fn handle_lemmas_spec(
+    ctx: &mut ParseTheoremContext,
+    oracle_name: &str,
+    ast: Pairs<Rule>,
+) -> Vec<(String, BTreeSet<String>, bool)> {
+    ast.map(|ast| handle_lemma_line(ctx, oracle_name, ast))
+        .collect()
 }
 
-fn handle_lemma_line(ast: Pair<Rule>) -> (String, BTreeSet<String>, bool) {
+fn handle_lemma_line(
+    ctx: &mut ParseTheoremContext,
+    oracle_name: &str,
+    ast: Pair<Rule>,
+) -> (String, BTreeSet<String>, bool) {
+    let span = ast.as_span();
     let mut ast = ast.into_inner();
     let name = next_str(&mut ast).to_string();
     let admit = if matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::lemma_modifier)) {
-        let modifier = ast.next().unwrap().as_str();
+        let modifier_ast = ast.next().unwrap();
+        let modifier = modifier_ast.as_str();
         match modifier {
-            "admit" => true,
+            "admit" => {
+                eprintln!(
+                    "{:?}",
+                    miette::Report::new(AdmitedClaimWarning {
+                        claim: name.to_string(),
+                        oracle: oracle_name.to_string(),
+                        at: (span.start()..span.end()).into(),
+                        source_code: ctx.named_source(),
+                    })
+                );
+                true
+            }
             _ => todo!(),
         }
     } else {
