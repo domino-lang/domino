@@ -14,6 +14,20 @@ use super::ast::Identifier as _;
 pub enum NewError {}
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("claim {claim}, oracle {oracle} is admited")]
+#[diagnostic(code(domino::code::theorem::inductionstep::admited), severity(Warning))]
+pub struct AdmitedClaimWarning {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this claim block")]
+    pub at: SourceSpan,
+
+    pub claim: String,
+    pub oracle: String,
+}
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("could not prove claim {target}. provable claims: {provable}")]
 #[diagnostic(code(domino::code::theorem::inductionstep::unprovable))]
 pub struct InductionStepUnprovableError {
