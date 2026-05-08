@@ -14,11 +14,13 @@ pub mod indicatif;
 pub(crate) mod mock;
 
 pub trait UI {
+    type ProofstepUI: ProofstepUI;
     type ProveUI: ProveUI;
     type LatexUI: LatexUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
+    fn proofstep_ui(&self) -> Self::ProofstepUI;
     fn prove_ui(&self) -> Self::ProveUI;
     fn latex_ui(&self) -> Self::LatexUI;
 }
@@ -85,6 +87,10 @@ pub trait ProveClaimUI: Send + Sync {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()>;
+}
+
+pub trait ProofstepUI {
+    fn println(&self, line: &str) -> std::io::Result<()>;
 }
 
 pub trait LatexUI {
