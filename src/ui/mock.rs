@@ -18,6 +18,10 @@ impl UI for TestUI {
         Ok(())
     }
 
+    fn proofstep_ui(&self) -> impl ProofstepUI {
+        self.clone()
+    }
+
     fn prove_ui(&self) -> impl ProveUI {
         self.clone()
     }
@@ -88,6 +92,12 @@ impl ProveLemmaUI for TestUI {
 
     fn start(&mut self) {}
     fn finish(&self) {}
+}
+
+impl ProofstepUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl LatexUI for TestUI {

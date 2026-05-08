@@ -20,7 +20,9 @@ use crate::{
     util::smtsolver::SmtSolverBackend,
 };
 
-use crate::ui::{LatexUI, LatexUIGameIterator, ProveProofstepUI, ProveTheoremUI, ProveUI};
+use crate::ui::{
+    LatexUI, LatexUIGameIterator, ProofstepUI, ProveProofstepUI, ProveTheoremUI, ProveUI,
+};
 
 mod consts;
 mod load;
@@ -46,7 +48,7 @@ pub trait Project: Sync {
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
-    fn proofsteps(&self) -> Result<()> {
+    fn proofsteps(&self, ui: impl ProofstepUI) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
@@ -60,33 +62,35 @@ pub trait Project: Sync {
                 .max()
                 .unwrap_or(0);
 
-            println!("{theorem_key}:");
+            ui.println(&format!("{theorem_key}:"))?;
             for (i, game_hop) in theorem.game_hops.iter().enumerate() {
                 match game_hop {
                     GameHop::Equivalence(eq) => {
                         let left_name = eq.left_name();
                         let right_name = eq.right_name();
                         let spaces = " ".repeat(max_width_left - left_name.len());
-                        println!("{i}: Equivalence {left_name}{spaces} == {right_name}");
+                        ui.println(&format!(
+                            "{i}: Equivalence {left_name}{spaces} == {right_name}"
+                        ))?;
                     }
                     GameHop::Reduction(red) => {
-                        println!(
+                        ui.println(&format!(
                             "{i}: Reduction   {} ~= {} using {}",
                             red.left().construction_game_instance_name().as_str(),
                             red.right().construction_game_instance_name().as_str(),
                             red.assumption_name()
-                        );
+                        ))?;
                     }
                     GameHop::Conjecture(conj) => {
-                        println!(
+                        ui.println(&format!(
                             "{i}: Conjecture   {} ~= {}",
                             conj.left_name().as_str(),
                             conj.right_name().as_str()
-                        );
+                        ))?;
                     }
                     GameHop::Hybrid(hybrid) => {
                         let hybrid_name = hybrid.hybrid_name().as_str();
-                        println!("hybrid: {hybrid_name}");
+                        ui.println(&format!("hybrid: {hybrid_name}"))?;
                     }
                 }
             }
