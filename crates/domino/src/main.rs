@@ -11,7 +11,7 @@ use thiserror::Error;
 shadow!(build);
 
 use sspverif::project::{self, Project};
-use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProveUI, UI};
+use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProofstepUI, ProveUI, UI};
 
 mod cli;
 use crate::cli::*;
@@ -40,12 +40,12 @@ enum Error {
     IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
 }
 
-fn proofsteps() -> Result<(), Error> {
+fn proofsteps(ui: impl ProofstepUI) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
 
-    project.proofsteps()?;
+    project.proofsteps(ui)?;
     Ok(())
 }
 
@@ -110,7 +110,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(ui.prove_ui(), p),
-        Commands::Proofsteps => proofsteps(),
+        Commands::Proofsteps => proofsteps(ui.proofstep_ui()),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Format(f) => format(f),
     };
