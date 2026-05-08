@@ -11,7 +11,7 @@ use thiserror::Error;
 shadow!(build);
 
 use sspverif::project::{self, Project};
-use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProveUI, UI};
+use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProofstepUI, ProveUI, UI};
 
 mod cli;
 use crate::cli::*;
@@ -53,7 +53,7 @@ enum Error {
     ReqOracleWithInvariantStart(#[from] ReqOracleWithInvariantStart),
 }
 
-fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
+fn proofsteps(ui: impl ProofstepUI, p: &Proofsteps) -> Result<(), Error> {
     let project_root = p
         .path
         .to_owned()
@@ -61,7 +61,7 @@ fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
-    project.proofsteps()?;
+    project.proofsteps(ui)?;
     Ok(())
 }
 
@@ -137,7 +137,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(ui.prove_ui(), p),
-        Commands::Proofsteps(p) => proofsteps(p),
+        Commands::Proofsteps(p) => proofsteps(ui.proofstep_ui(), p),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Format(f) => format(f),
     };
