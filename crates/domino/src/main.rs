@@ -123,7 +123,7 @@ use shadow_rs::shadow;
 shadow!(build);
 
 use sspverif::project;
-use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProveUI, UI};
+use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProofstepUI, ProveUI, UI};
 
 mod cli;
 use crate::cli::*;
@@ -136,12 +136,12 @@ pub(crate) struct Cli {
     pub(crate) command: Commands,
 }
 
-fn proofsteps() -> Result<(), project::error::Error> {
+fn proofsteps(ui: impl ProofstepUI) -> Result<(), project::error::Error> {
     let project_root = project::find_project_root()?;
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
-    project.proofsteps()
+    project.proofsteps(ui)
 }
 
 fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), project::error::Error> {
@@ -212,7 +212,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(ui.prove_ui(), p),
-        Commands::Proofsteps => proofsteps(),
+        Commands::Proofsteps => proofsteps(ui.proofstep_ui()),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
         Commands::WireCheck(args) => wire_check(&args.game_name, args.dst_idx),

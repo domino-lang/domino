@@ -7,6 +7,7 @@ pub(crate) mod mock;
 pub trait UI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
+    fn proofstep_ui(&self) -> impl ProofstepUI;
     fn prove_ui(&self) -> impl ProveUI;
     fn latex_ui(&self) -> impl LatexUI;
 }
@@ -54,6 +55,10 @@ pub trait ProveLemmaUI {
 
     fn start(&mut self);
     fn finish(&self);
+}
+
+pub trait ProofstepUI {
+    fn println(&self, line: &str) -> std::io::Result<()>;
 }
 
 pub trait LatexUI {

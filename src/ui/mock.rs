@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::ui::{
-    LatexUI, ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI, UI,
+    LatexUI, ProofstepUI, ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI,
+    UI,
 };
 
 #[derive(Clone)]
@@ -16,6 +17,10 @@ impl TestUI {
 impl UI for TestUI {
     fn println(&self, _line: &str) -> std::io::Result<()> {
         Ok(())
+    }
+
+    fn proofstep_ui(&self) -> impl ProofstepUI {
+        self.clone()
     }
 
     fn prove_ui(&self) -> impl ProveUI {
@@ -88,6 +93,12 @@ impl ProveLemmaUI for TestUI {
 
     fn start(&mut self) {}
     fn finish(&self) {}
+}
+
+impl ProofstepUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 impl LatexUI for TestUI {

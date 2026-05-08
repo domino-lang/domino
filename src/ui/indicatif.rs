@@ -3,7 +3,10 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
-use super::{LatexUI, ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI, UI};
+use super::{
+    LatexUI, ProofstepUI, ProveLemmaUI, ProveOracleUI, ProveProofstepUI, ProveTheoremUI, ProveUI,
+    UI,
+};
 
 #[derive(Clone)]
 pub struct IndicatifUI {
@@ -34,6 +37,12 @@ impl Default for IndicatifUI {
 impl UI for IndicatifUI {
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.multi_progress.println(line)
+    }
+
+    fn proofstep_ui(&self) -> impl ProofstepUI {
+        IndicatifProofstepUI {
+            main_ui: self.clone(),
+        }
     }
 
     fn prove_ui(&self) -> impl ProveUI {
@@ -313,6 +322,16 @@ impl LatexUI for IndicatifLatexUI {
         progress.set_message(caption);
 
         iter.progress_with(progress)
+    }
+}
+
+pub(crate) struct IndicatifProofstepUI {
+    main_ui: IndicatifUI,
+}
+
+impl ProofstepUI for IndicatifProofstepUI {
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.main_ui.println(line)
     }
 }
 
