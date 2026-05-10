@@ -8,6 +8,7 @@ use crate::identifier::game_ident::GameIdentifier;
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::theorem_ident::{TheoremConstIdentifier, TheoremIdentifier};
 use crate::identifier::Identifier;
+use crate::project::find_project_root;
 use crate::types::{CountSpec, TypeKind};
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::declare::declare_const;
@@ -870,7 +871,9 @@ impl<'a> EquivalenceContext<'a> {
 
         for file_name in &self.equivalence.invariants_by_oracle_name(oracle_name) {
             log::info!("reading file {file_name}");
-            let file_contents = std::fs::read_to_string(file_name).map_err(|err| {
+            let mut path = find_project_root().expect("project was successfully loaded already");
+            path.push(file_name);
+            let file_contents = std::fs::read_to_string(path).map_err(|err| {
                 let file_name = file_name.clone();
                 error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
             })?;
