@@ -360,6 +360,7 @@ dependencies = [
  "miette",
  "shadow-rs",
  "sspverif",
+ "thiserror 1.0.61",
 ]
 
 [[package]]

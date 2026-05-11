@@ -10,6 +10,7 @@ clap = { version = "4.0", features = ["derive"] }
 miette = { version = "7.2.0", features = ["fancy"] }
 env_logger = "0.11"
 shadow-rs = { version = "1.7", default-features = false }
+thiserror = "1.0.61"
 
 [build-dependencies]
 sspverif = { workspace = true }

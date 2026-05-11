@@ -5,7 +5,9 @@
 #![allow(clippy::result_large_err)]
 
 use clap::Parser;
+use miette::Diagnostic;
 use shadow_rs::shadow;
+use thiserror::Error;
 shadow!(build);
 
 use sspverif::project;
@@ -22,33 +24,52 @@ pub(crate) struct Cli {
     pub(crate) command: Commands,
 }
 
-fn proofsteps() -> Result<(), project::error::Error> {
+#[derive(Error, Diagnostic, Debug)]
+#[error("Need to specify a proof when specifying a proofstep")]
+#[diagnostic(code(cli::incompatible_arguments))]
+pub struct IncompatibleArgumentsError;
+
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Error, Diagnostic)]
+enum Error {
+    #[error(transparent)]
+    ProjectError(#[from] project::error::Error),
+    #[error(transparent)]
+    IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
+}
+
+fn proofsteps() -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
 
-    project.proofsteps()
+    project.proofsteps()?;
+    Ok(())
 }
 
-fn prove(p: &Prove) -> Result<(), project::error::Error> {
+fn prove(p: &Prove) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
 
-    assert!(p.proofstep.is_none() || p.proof.is_some());
-
-    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
-    project.prove(
-        &smtsolver,
-        p.transcript,
-        p.parallel,
-        &p.proof,
-        p.proofstep,
-        &p.oracle,
-    )
+    if p.proofstep.is_none() || p.proof.is_some() {
+        let smtsolver =
+            sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
+        project.prove(
+            &smtsolver,
+            p.transcript,
+            p.parallel,
+            &p.proof,
+            p.proofstep,
+            &p.oracle,
+        )?;
+    } else {
+        return Err(IncompatibleArgumentsError.into());
+    }
+    Ok(())
 }
 
-fn latex(l: &Latex) -> Result<(), project::error::Error> {
+fn latex(l: &Latex) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
@@ -56,10 +77,11 @@ fn latex(l: &Latex) -> Result<(), project::error::Error> {
     let smtsolver = l
         .smtsolver
         .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
-    project.latex(&smtsolver)
+    project.latex(&smtsolver)?;
+    Ok(())
 }
 
-fn format(f: &Format) -> Result<(), project::error::Error> {
+fn format(f: &Format) -> Result<(), Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
