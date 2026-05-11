@@ -118,7 +118,7 @@ impl Project for DirectoryProject<'_> {
     }
 }
 
-pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjectRootError> {
+pub fn find_project_root() -> std::result::Result<std::path::PathBuf, super::error::Error> {
     let mut dir = std::env::current_dir().map_err(FindProjectRootError::CurrentDir)?;
 
     loop {
@@ -135,7 +135,7 @@ pub fn find_project_root() -> std::result::Result<std::path::PathBuf, FindProjec
         }
 
         match dir.parent() {
-            None => return Err(FindProjectRootError::NotInProject),
+            None => return Err(FindProjectRootError::NotInProject.into()),
             Some(parent) => dir = parent.into(),
         }
     }
