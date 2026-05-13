@@ -1,0 +1,19 @@
+package CPA_DEM {
+    params {
+        b: Bool,
+    }
+
+    import oracles {
+        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
+    }
+
+    oracle ENC(m0: Bits(4000), m1: Bits(4000)) -> Bits(8000) {
+        k <-$ Bits(256) sample-name k;
+        if b {
+            c <- invoke DEM_ENC(k, m1);
+        } else {
+            c <- invoke DEM_ENC(k, m0);
+        }
+        return c;
+    }
+}

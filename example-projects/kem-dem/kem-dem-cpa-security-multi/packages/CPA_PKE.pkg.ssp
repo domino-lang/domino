@@ -1,0 +1,33 @@
+package CPA_PKE {
+    params {
+        b: Bool
+    }
+
+    import oracles {
+        GEN() -> (Bits(100), Bits(1000)),
+        ENC(pk: Bits(100), m: Bits(4000)) -> (Bits(400),Bits(8000)),
+    }
+
+    state {
+        pk: Maybe(Bits(100))
+    }
+
+    oracle PKGEN() -> Bits(100) {
+        assert (pk == None);
+        pk_sk <- invoke GEN();
+        (pk1, sk1) <- parse pk_sk;
+        pk <- Some(pk1);
+        return pk1;
+    }
+
+    oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
+        assert (pk != None as Bits(100));
+        if b {
+            c1 <- invoke ENC(Unwrap(pk), m1);
+        } else {
+            c1 <- invoke ENC(Unwrap(pk), m0);
+        }
+        (ek, c2) <- parse c1;
+        return (ek, c2);
+    }
+}
