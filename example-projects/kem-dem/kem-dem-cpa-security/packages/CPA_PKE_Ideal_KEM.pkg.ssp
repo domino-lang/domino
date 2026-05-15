@@ -11,7 +11,7 @@ package CPA_PKE_Ideal_KEM {
 
     state {
         pk: Maybe(Bits(100)),
-        ek: Maybe(Bits(400))
+        c: Maybe((Bits(400),Bits(8000)))
     }
 
     oracle PKGEN() -> Bits(100) {
@@ -24,16 +24,16 @@ package CPA_PKE_Ideal_KEM {
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
         assert (pk != None as Bits(100));
-        assert (ek == None);
-        ek_k <- invoke KEM_ENCAPS(Unwrap(pk));
-        (k0, ek1) <- parse ek_k;
+        assert (c == None);
+        (_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         k <-$ Bits(256) sample-name k;
         if b {
-            c1 <- invoke DEM_ENC(k, m1);
+            c_dem <- invoke DEM_ENC(k, m1);
         } else {
-            c1 <- invoke DEM_ENC(k, m0);
+            c_dem <- invoke DEM_ENC(k, m0);
         }
-        ek <- Some(ek1);
-        return (ek1, c1);
+        c_ <- (c_kem, c_dem);
+        c <- Some(c_);
+        return c_;
     }
 }

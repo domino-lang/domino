@@ -7,7 +7,7 @@ composition Hybrid0 {
     const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
     const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
 
-    instance pkg_Scheme_KEM = Scheme_KEM {
+    instance Scheme_KEM = Scheme_KEM {
         params {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
@@ -15,35 +15,35 @@ composition Hybrid0 {
         }
     }
 
-    instance pkg_Scheme_DEM = Scheme_DEM {
+    instance Scheme_DEM = Scheme_DEM {
         params {
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
     }
 
-    instance pkg_CPA_KEM = CPA_KEM {
+    instance CPA_KEM = CPA_KEM {
         params {
             b: b,
         }
     }
 
-    instance pkg_Reduction_KEM_0 = Reduction_KEM_0 {
+    instance Reduction_KEM_0 = Reduction_KEM_0 {
     }
 
     compose {
-        pkg_CPA_KEM: {
-            KEM_GEN: pkg_Scheme_KEM,
-            KEM_ENCAPS: pkg_Scheme_KEM,
+        CPA_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
         }
-        pkg_Reduction_KEM_0: {
-            ENCAPS: pkg_CPA_KEM,
-            KEMGEN: pkg_CPA_KEM,
-            DEM_ENC: pkg_Scheme_DEM,
+        Reduction_KEM_0: {
+            ENCAPS: CPA_KEM,
+            KEMGEN: CPA_KEM,
+            DEM_ENC: Scheme_DEM,
         }
         adversary: {
-            PKGEN: pkg_Reduction_KEM_0,
-            PKENC: pkg_Reduction_KEM_0,
+            PKGEN: Reduction_KEM_0,
+            PKENC: Reduction_KEM_0,
         }
     }
 }

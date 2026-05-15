@@ -11,8 +11,8 @@
     (and
         (= sample-ctr-left sample-ctr-old-left)
         (= sample-ctr-right sample-ctr-old-right)
-        (= sample-id-left (sample-id "pkg_Scheme_KEM" "KEM_GEN" "kem_gen"))
-        (= sample-id-right (sample-id "pkg_Scheme_KEM" "KEM_GEN" "kem_gen"))
+        (= sample-id-left (sample-id "Scheme_KEM" "KEM_GEN" "kem_gen"))
+        (= sample-id-right (sample-id "Scheme_KEM" "KEM_GEN" "kem_gen"))
     )
 )
 
@@ -36,16 +36,16 @@
     )
     (and 
         (rand-is-eq 
-            (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (get-rand-ctr-hybrid0_1 (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-            (get-rand-ctr-game_0 (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
+            (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
+            (get-rand-ctr-hybrid0_1 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-game_0 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
         )
         (rand-is-eq 
-            (sample-id "pkg_CPA_KEM" "ENCAPS" "k")
-            (sample-id "pkg_CPA_PKE_Ideal_KEM" "PKENC" "k")
-            (get-rand-ctr-hybrid0_1 (sample-id "pkg_CPA_KEM" "ENCAPS" "k"))
-            (get-rand-ctr-game_0 (sample-id "pkg_CPA_PKE_Ideal_KEM" "PKENC" "k"))
+            (sample-id "CPA_KEM" "ENCAPS" "k")
+            (sample-id "CPA_PKE_Ideal_KEM" "PKENC" "k")
+            (get-rand-ctr-hybrid0_1 (sample-id "CPA_KEM" "ENCAPS" "k"))
+            (get-rand-ctr-game_0 (sample-id "CPA_PKE_Ideal_KEM" "PKENC" "k"))
         )
     )
 )

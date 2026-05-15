@@ -11,9 +11,8 @@ package Reduction_KEM_1 {
     }
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
-        ek_k <- invoke ENCAPS();
-        (ek, k) <- parse ek_k;
-        c <- invoke DEM_ENC(k, m1);
-        return (ek, c);
+        (c_kem, k) <- parse invoke ENCAPS();
+        c_dem <- invoke DEM_ENC(k, m1);
+        return (c_kem, c_dem);
     }
 }

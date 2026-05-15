@@ -5,7 +5,7 @@ package CPA_KEM {
 
     state {
         pk: Maybe(Bits(100)),
-        ek: Maybe(Bits(400)),
+        c: Maybe(Bits(400)),
     }
 
     import oracles {
@@ -21,17 +21,16 @@ package CPA_KEM {
         return pk1;
     }
 
-    oracle ENCAPS() -> (Bits(400), Bits(256)) { /* (ek, k) */
+    oracle ENCAPS() -> (Bits(400), Bits(256)) {
         assert (pk != None as Bits(100));
-        assert (ek == None);
-        k_ek <- invoke KEM_ENCAPS(Unwrap(pk));
-        (k0, ek1) <- parse k_ek;
-        ek <- Some(ek1);
+        assert (c == None);
+        (k_, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        c <- Some(c_);
         if b {
             k <-$ Bits(256) sample-name k;
         } else {
-            k <- k0;
+            k <- k_;
         }
-        return (ek1, k);
+        return (c_, k);
     }
 }

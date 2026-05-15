@@ -19,7 +19,7 @@ package Reduction_DEM {
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
         assert (pk != None as Bits(100));
-        (k, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        (_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         c_dem <- invoke ENC(m0, m1);
         return (c_kem, c_dem);
     }

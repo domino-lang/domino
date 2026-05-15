@@ -7,7 +7,7 @@ composition CpaPkeIdealKemGame {
     const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
     const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
 
-    instance pkg_Scheme_KEM = Scheme_KEM {
+    instance Scheme_KEM = Scheme_KEM {
         params {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
@@ -15,28 +15,28 @@ composition CpaPkeIdealKemGame {
         }
     }
 
-    instance pkg_Scheme_DEM = Scheme_DEM {
+    instance Scheme_DEM = Scheme_DEM {
         params {
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
     }
 
-    instance pkg_CPA_PKE_Ideal_KEM = CPA_PKE_Ideal_KEM {
+    instance CPA_PKE_Ideal_KEM = CPA_PKE_Ideal_KEM {
         params {
             b: b,
         }
     }
 
     compose {
-        pkg_CPA_PKE_Ideal_KEM: {
-            KEM_GEN: pkg_Scheme_KEM,
-            KEM_ENCAPS: pkg_Scheme_KEM,
-            DEM_ENC: pkg_Scheme_DEM,
+        CPA_PKE_Ideal_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            DEM_ENC: Scheme_DEM,
         }
         adversary: {
-            PKGEN: pkg_CPA_PKE_Ideal_KEM,
-            PKENC: pkg_CPA_PKE_Ideal_KEM,
+            PKGEN: CPA_PKE_Ideal_KEM,
+            PKENC: CPA_PKE_Ideal_KEM,
         }
     }
 }
