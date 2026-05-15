@@ -17,7 +17,7 @@ theorem Proof {
         }
     }
 
-    instance pke_cpa_0 = CpaPkeGame {
+    instance pke_cpa_real = CpaPkeGame {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -28,7 +28,7 @@ theorem Proof {
         }
     }
 
-    instance pke_cpa_1 = CpaPkeGame {
+    instance pke_cpa_ideal = CpaPkeGame {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -39,7 +39,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid0_0_b = Hybrid0 {
+    instance hybrid0 = Hybrid0 {
         params {
             bDem: b,
             bKem: false,
@@ -51,7 +51,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid0_1_b = Hybrid0 {
+    instance hybrid1 = Hybrid0 {
         params {
             bDem: b,
             bKem: true,
@@ -63,7 +63,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid1_b = Hybrid1 {
+    instance hybrid2 = Hybrid1 {
         params {
             b: b,
             kem_gen: kem_gen,
@@ -74,7 +74,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid1_0 = Hybrid1 {
+    instance hybrid2_real = Hybrid1 {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -85,7 +85,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid1_1 = Hybrid1 {
+    instance hybrid2_ideal = Hybrid1 {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -143,15 +143,15 @@ theorem Proof {
         KEM-CPA and DEM-CPA security of the underlying KEM and DEM schemes.
 
         Proof chain:
-        CPA_PKE^b = Hybrid0^{bKem=0, bDem=b} 
-                  ~(KEM-CPA) Hybrid0^{bKem=1, bDem=b}
-                  = Hybrid1^b
+        CPA_PKE^b = Hybrid0^b
+                  ~(KEM-CPA) Hybrid1^b
+                  = Hybrid2^b
                   and 
-                  Hybrid1^0 ~ (DEM-CPA) Hybrid1^1
+                  Hybrid2^0 ~ (DEM-CPA) Hybrid2^1
         */
 
-        /* Step 1: CPA_PKE^b = Hybrid0^{bKem=0, bDem=b} */
-        equivalence pke_cpa_b hybrid0_0_b {
+        /* Step 1: CPA_PKE^b = Hybrid0^b */
+        equivalence pke_cpa_b hybrid0 {
             PKGEN: {
                 randomness: simple
 
@@ -181,23 +181,23 @@ theorem Proof {
             }
         }
 
-        /* Step 2: Hybrid0^{bKem=0, bDem=b} ~ (KEM-CPA) Hybrid0^{bKem=1, bDem=b} */
-        reduction hybrid0_0_b hybrid0_1_b {
+        /* Step 2: Hybrid0^b ~ (KEM-CPA) Hybrid1^b */
+        reduction hybrid0 hybrid1 {
             assumption KEM_CPA_Security
 
-            map cpa_kem_game_real hybrid0_0_b {
+            map cpa_kem_game_real hybrid0 {
                 pkg_Scheme_KEM: pkg_Scheme_KEM
                 pkg_CPA_KEM: pkg_CPA_KEM
             }
 
-            map cpa_kem_game_ideal hybrid0_1_b {
+            map cpa_kem_game_ideal hybrid1 {
                 pkg_Scheme_KEM: pkg_Scheme_KEM
                 pkg_CPA_KEM: pkg_CPA_KEM
             }
         }
 
-        /* Step 3: Hybrid0^{bKem=1, bDem=b} = Hybrid1^b */
-        equivalence hybrid0_1_b hybrid1_b {
+        /* Step 3: Hybrid1^b = Hybrid2^b */
+        equivalence hybrid1 hybrid2 {
             PKGEN: {
                 invariant: [
                     ./theorem/randmap-step3.smt2,
@@ -226,21 +226,21 @@ theorem Proof {
         }
 
         /* Step 4: Hybrid1^0 ~ (DEM-CPA) Hybrid1^1 */
-        reduction hybrid1_0 hybrid1_1 {
+        reduction hybrid2_real hybrid2_ideal {
             assumption DEM_CPA_Security
 
-            map cpa_dem_game_real hybrid1_0 {
+            map cpa_dem_game_real hybrid2_real {
                 pkg_Scheme_DEM: pkg_Scheme_DEM
                 pkg_CPA_DEM: pkg_CPA_DEM
             }
 
-            map cpa_dem_game_ideal hybrid1_1 {
+            map cpa_dem_game_ideal hybrid2_ideal {
                 pkg_Scheme_DEM: pkg_Scheme_DEM
                 pkg_CPA_DEM: pkg_CPA_DEM
             }
         }
     }
     propositions {
-        main: pke_cpa_0 ~ pke_cpa_1
+        main: pke_cpa_real ~ pke_cpa_ideal
     }
 }

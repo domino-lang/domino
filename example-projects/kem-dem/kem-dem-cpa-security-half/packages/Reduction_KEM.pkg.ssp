@@ -15,13 +15,12 @@ package Reduction_KEM {
     }
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
-        ek_k <- invoke ENCAPS();
-        (ek, k) <- parse ek_k;
+        (c_kem, k) <- parse invoke ENCAPS();
         if b {
-            c <- invoke DEM_ENC(k, m1);
+            c_dem <- invoke DEM_ENC(k, m1);
         } else {
-            c <- invoke DEM_ENC(k, m0);
+            c_dem <- invoke DEM_ENC(k, m0);
         }
-        return (ek, c);
+        return (c_kem, c_dem);
     }
 }

@@ -7,7 +7,7 @@ package Reduction_DEM {
 
     state {
         pk: Maybe(Bits(100)),
-        ek: Maybe(Bits(400)),
+        c: Maybe(Bits(400)),
     }
 
     oracle PKGEN() -> Bits(100) {
@@ -20,11 +20,10 @@ package Reduction_DEM {
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
         assert (pk != None as Bits(100));
-        assert (ek == None);
-        k_ek <- invoke KEM_ENCAPS(Unwrap(pk));
-        (k, ek1) <- parse k_ek;
-        ek <- Some(ek1);
-        c <- invoke ENC(m0, m1);
-        return (ek1, c);
+        assert (c == None);
+        (_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        c <- Some(c_kem);
+        c_dem <- invoke ENC(m0, m1);
+        return (c_kem, c_dem);
     }
 }
