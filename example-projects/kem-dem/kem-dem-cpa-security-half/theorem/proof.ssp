@@ -186,13 +186,13 @@ theorem Proof {
             assumption KEM_CPA_Security
 
             map cpa_kem_game_real hybrid0 {
-                pkg_Scheme_KEM: pkg_Scheme_KEM
-                pkg_CPA_KEM: pkg_CPA_KEM
+                Scheme_KEM: Scheme_KEM
+                CPA_KEM: CPA_KEM
             }
 
             map cpa_kem_game_ideal hybrid1 {
-                pkg_Scheme_KEM: pkg_Scheme_KEM
-                pkg_CPA_KEM: pkg_CPA_KEM
+                Scheme_KEM: Scheme_KEM
+                CPA_KEM: CPA_KEM
             }
         }
 
@@ -230,13 +230,13 @@ theorem Proof {
             assumption DEM_CPA_Security
 
             map cpa_dem_game_real hybrid2_real {
-                pkg_Scheme_DEM: pkg_Scheme_DEM
-                pkg_CPA_DEM: pkg_CPA_DEM
+                Scheme_DEM: Scheme_DEM
+                CPA_DEM: CPA_DEM
             }
 
             map cpa_dem_game_ideal hybrid2_ideal {
-                pkg_Scheme_DEM: pkg_Scheme_DEM
-                pkg_CPA_DEM: pkg_CPA_DEM
+                Scheme_DEM: Scheme_DEM
+                CPA_DEM: CPA_DEM
             }
         }
     }

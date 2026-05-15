@@ -11,8 +11,8 @@
     (and
         (= sample-ctr-left sample-ctr-old-left)
         (= sample-ctr-right sample-ctr-old-right)
-        (= sample-id-left (sample-id "pkg_Scheme_KEM" "KEM_GEN" "kem_gen"))
-        (= sample-id-right (sample-id "pkg_Scheme_KEM" "KEM_GEN" "kem_gen"))
+        (= sample-id-left (sample-id "Scheme_KEM" "KEM_GEN" "kem_gen"))
+        (= sample-id-right (sample-id "Scheme_KEM" "KEM_GEN" "kem_gen"))
     )
 )
 
@@ -29,7 +29,7 @@
     (and
         (= sample-ctr-left sample-ctr-old-left)
         (= sample-ctr-right sample-ctr-old-right)
-        (= sample-id-left (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-        (= sample-id-right (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+        (= sample-id-left (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+        (= sample-id-right (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
     )
 )
