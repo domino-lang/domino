@@ -20,15 +20,14 @@ package CPA_KEM {
         return pk1;
     }
 
-    oracle ENCAPS() -> (Bits(400), Bits(256)) { /* (ek, k) */
+    oracle ENCAPS() -> (Bits(400), Bits(256)) {
         assert (pk != None as Bits(100));
-        k_ek <- invoke KEM_ENCAPS(Unwrap(pk));
-        (k0, ek) <- parse k_ek;
+        (k_, c) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         if b {
             k <-$ Bits(256) sample-name k;
         } else {
-            k <- k0;
+            k <- k_;
         }
-        return (ek, k);
+        return (c, k);
     }
 }

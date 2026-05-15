@@ -23,11 +23,10 @@ package CPA_PKE {
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
         assert (pk != None as Bits(100));
         if b {
-            c1 <- invoke ENC(Unwrap(pk), m1);
+            c <- invoke ENC(Unwrap(pk), m1);
         } else {
-            c1 <- invoke ENC(Unwrap(pk), m0);
+            c <- invoke ENC(Unwrap(pk), m0);
         }
-        (ek, c2) <- parse c1;
-        return (ek, c2);
+        return c;
     }
 }

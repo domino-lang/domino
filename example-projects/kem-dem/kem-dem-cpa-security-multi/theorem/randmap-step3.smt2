@@ -38,14 +38,14 @@
         (rand-is-eq 
             (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
             (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (get-rand-ctr-hybrid0_1_b (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-            (get-rand-ctr-hybrid1_b (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-hybrid1 (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-hybrid2 (sample-id "pkg_Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
         )
         (rand-is-eq 
             (sample-id "pkg_CPA_KEM" "ENCAPS" "k")
             (sample-id "pkg_CPA_DEM" "ENC" "k")
-            (get-rand-ctr-hybrid0_1_b (sample-id "pkg_CPA_KEM" "ENCAPS" "k"))
-            (get-rand-ctr-hybrid1_b (sample-id "pkg_CPA_DEM" "ENC" "k"))
+            (get-rand-ctr-hybrid1 (sample-id "pkg_CPA_KEM" "ENCAPS" "k"))
+            (get-rand-ctr-hybrid2 (sample-id "pkg_CPA_DEM" "ENC" "k"))
         )
     )
 )
