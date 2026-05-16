@@ -11,14 +11,13 @@ package Reduction_DEM {
 
     oracle PKGEN() -> Bits(100) {
         assert (pk == None);
-        pk_sk <- invoke KEM_GEN();
-        (pk1, sk1) <- parse pk_sk;
+        (pk1, sk1) <- parse invoke KEM_GEN();
         pk <- Some(pk1);
         return pk1;
     }
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
-        assert (pk != None as Bits(100));
+        assert (pk != None);
         (_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         c_dem <- invoke ENC(m0, m1);
         return (c_kem, c_dem);

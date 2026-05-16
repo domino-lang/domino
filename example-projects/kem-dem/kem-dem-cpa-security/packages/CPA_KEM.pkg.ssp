@@ -15,14 +15,13 @@ package CPA_KEM {
 
     oracle KEMGEN() -> Bits(100) {
         assert (pk == None);
-        pk_sk <- invoke KEM_GEN();
-        (pk1, sk1) <- parse pk_sk;
-        pk <- Some(pk1);
-        return pk1;
+        (pk_, sk_) <- parse invoke KEM_GEN();
+        pk <- Some(pk_);
+        return pk_;
     }
 
     oracle ENCAPS() -> (Bits(400), Bits(256)) {
-        assert (pk != None as Bits(100));
+        assert (pk != None);
         assert (c == None);
         (k_, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         c <- Some(c_);

@@ -1,0 +1,45 @@
+package Correct_KEM {
+    params {
+        b: Bool,
+    }
+
+    import oracles {
+        KEM_GEN() -> (Bits(100), Bits(1000)),
+        KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
+        KEM_DECAPS(sk: Bits(1000), c: Bits(400)) -> Maybe(Bits(256)),
+    }
+
+    state {
+        sk: Maybe(Bits(1000)),
+        pk: Maybe(Bits(100)),
+        c: Maybe(Bits(400)),
+        k: Maybe(Bits(256)),
+    }
+
+    oracle CORR_GEN() -> Bits(100) {
+        (pk_, sk_) <- parse invoke KEM_GEN();
+        sk <- Some(sk_);
+        pk <- Some(pk_);
+        return pk_;
+    }
+
+    oracle CORR_ENCAPS() -> (Bits(400), Bits(256)) {
+        assert (pk != None);
+        assert (c == None);
+        (k_, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        c <- Some(c_);
+        k <- Some(k_);
+        return (c_, k_);
+    }
+
+    oracle CORR_DECAPS(c_: Bits(400)) -> Maybe(Bits(256)) {
+        assert (sk != None);
+        assert (c != None);
+        if ((c_ == Unwrap(c)) and b) {
+            return k;
+        } else {
+            k_ <- invoke KEM_DECAPS(Unwrap(sk), c_);
+            return k_;
+        }
+    }
+}

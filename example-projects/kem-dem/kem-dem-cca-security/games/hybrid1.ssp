@@ -1,0 +1,57 @@
+composition Hybrid1 {
+    const bKem: Bool;
+    const bDem: Bool;
+
+    const kem_gen: fn Bits(*), Bits(2000) -> (Bits(*), Bits(100), Bits(1000));
+    const kem_encaps: fn Bits(*), Bits(3000), Bits(100) -> (Bits(*), Bits(256), Bits(400));
+    const kem_decaps: fn Bits(*), Bits(1000), Bits(400) -> (Bits(*), Maybe(Bits(256)));
+    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
+    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance CCA_KEM = CCA_KEM {
+        params {
+            b: bKem
+        }
+    }
+
+    instance Reduction_KEM = Reduction_KEM {
+        params {
+            b: bDem
+        }
+    }
+
+    compose {
+        CCA_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+        }
+        Reduction_KEM: {
+            ENCAPS: CCA_KEM,
+            KEMGEN: CCA_KEM,
+            DECAPS: CCA_KEM,
+            DEM_DEC: Scheme_DEM,
+            DEM_ENC: Scheme_DEM,
+        }
+        adversary: {
+            PKGEN: Reduction_KEM,
+            PKENC: Reduction_KEM,
+            PKDEC: Reduction_KEM,
+        }
+    }
+}

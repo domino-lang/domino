@@ -1,0 +1,31 @@
+composition Composition_CCA_DEM {
+    const b: Bool;
+
+    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
+    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance CCA_DEM = CCA_DEM {
+        params {
+            b: b,
+        }
+    }
+
+    compose {
+        CCA_DEM: {
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
+        }
+        adversary: {
+            ENC: CCA_DEM,
+            DEC: CCA_DEM,
+            DEM_DEC: Scheme_DEM,
+        }
+    }
+}

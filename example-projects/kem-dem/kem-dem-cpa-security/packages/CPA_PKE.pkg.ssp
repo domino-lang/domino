@@ -15,14 +15,13 @@ package CPA_PKE {
 
     oracle PKGEN() -> Bits(100) {
         assert (pk == None);
-        pk_sk <- invoke GEN();
-        (pk1, sk1) <- parse pk_sk;
-        pk <- Some(pk1);
-        return pk1;
+        (pk_, sk_) <- parse invoke GEN();
+        pk <- Some(pk_);
+        return pk_;
     }
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
-        assert (pk != None as Bits(100));
+        assert (pk != None);
         assert (c == None);
         if b {
             c_ <- invoke ENC(Unwrap(pk), m1);

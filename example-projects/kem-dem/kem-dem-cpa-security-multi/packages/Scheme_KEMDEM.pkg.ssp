@@ -14,16 +14,15 @@ package Scheme_KEMDEM {
     }
 
     oracle ENC(pk: Bits(100), m: Bits(4000)) -> (Bits(400), Bits(8000)) {
-        k_ek <- invoke KEM_ENCAPS(pk);
-        (k, ek) <- parse k_ek;
-        c <- invoke DEM_ENC(k, m);
-        return (ek, c);
+        (k, c_kem) <- parse invoke KEM_ENCAPS(pk);
+        c_dem <- invoke DEM_ENC(k, m);
+        return (c_kem, c_dem);
     }
 
     oracle DEC(sk: Bits(1000), c: (Bits(400), Bits(8000))) -> Bits(4000) {
-        (ek, ctxt) <- parse c;
-        k <- invoke KEM_DECAPS(sk, ek);
-        m <- invoke DEM_DEC(k, ctxt);
+        (c_kem, c_dem) <- parse c;
+        k <- invoke KEM_DECAPS(sk, c_kem);
+        m <- invoke DEM_DEC(k, c_dem);
         return m;
     }
 }

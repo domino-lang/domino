@@ -1,4 +1,4 @@
-package CPA_PKE {
+package CCA_PKE {
     params {
         b: Bool
     }
@@ -6,18 +6,21 @@ package CPA_PKE {
     import oracles {
         GEN() -> (Bits(100), Bits(1000)),
         ENC(pk: Bits(100), m: Bits(4000)) -> (Bits(400),Bits(8000)),
+        DEC(sk: Bits(1000), c: (Bits(400), Bits(8000))) -> Maybe(Bits(4000)),
     }
 
     state {
         pk: Maybe(Bits(100)),
+        sk: Maybe(Bits(1000)),
         c: Maybe((Bits(400),Bits(8000))),
     }
 
     oracle PKGEN() -> Bits(100) {
         assert (pk == None);
-        (pk1, sk1) <- parse invoke GEN();
-        pk <- Some(pk1);
-        return pk1;
+        (pk_, sk_) <- parse invoke GEN();
+        pk <- Some(pk_);
+        sk <- Some(sk_);
+        return pk_;
     }
 
     oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
@@ -30,5 +33,12 @@ package CPA_PKE {
         }
         c <- Some(c_);
         return c_;
+    }
+
+    oracle PKDEC(c_: (Bits(400),Bits(8000))) -> Maybe(Bits(4000)) {
+        assert (sk != None);
+        assert (c_ != Unwrap(c));
+        m <- invoke DEC(Unwrap(sk), c_);
+        return m;
     }
 }

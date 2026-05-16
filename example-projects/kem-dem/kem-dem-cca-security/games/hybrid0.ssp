@@ -1,0 +1,57 @@
+composition Hybrid0 {
+    const bCorrect: Bool;
+    const bDem: Bool;
+
+    const kem_gen: fn Bits(*), Bits(2000) -> (Bits(*), Bits(100), Bits(1000));
+    const kem_encaps: fn Bits(*), Bits(3000), Bits(100) -> (Bits(*), Bits(256), Bits(400));
+    const kem_decaps: fn Bits(*), Bits(1000), Bits(400) -> (Bits(*), Maybe(Bits(256)));
+    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
+    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Correct_KEM = Correct_KEM {
+        params {
+            b: bCorrect
+        }
+    }
+
+    instance Reduction_Correct_KEM = Reduction_Correct_KEM {
+        params {
+            b: bDem
+        }
+    }
+
+    compose {
+        Correct_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+        }
+        Reduction_Correct_KEM: {
+            CORR_GEN: Correct_KEM,
+            CORR_ENCAPS: Correct_KEM,
+            CORR_DECAPS: Correct_KEM,
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
+        }
+        adversary: {
+            PKGEN: Reduction_Correct_KEM,
+            PKENC: Reduction_Correct_KEM,
+            PKDEC: Reduction_Correct_KEM,
+        }
+    }
+}

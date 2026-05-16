@@ -1,0 +1,31 @@
+package Scheme_KEM {
+    /* KEM is modeled as a stateful oracle with an internal state that is 
+    updated on each call. */
+    
+    params {
+        kem_gen: fn Bits(*), Bits(2000) -> (Bits(*), Bits(100), Bits(1000)),
+        kem_encaps: fn Bits(*), Bits(3000), Bits(100) -> (Bits(*), Bits(256), Bits(400)),
+        kem_decaps: fn Bits(*), Bits(1000), Bits(400) -> (Bits(*), Maybe(Bits(256))),
+    }
+
+    state {
+        st: Bits(*)
+    }
+
+    oracle KEM_GEN() -> (Bits(100), Bits(1000)) {
+        r <-$ Bits(2000) sample-name kem_gen;
+        (st, pk, sk) <- parse kem_gen(st, r);
+        return (pk, sk);
+    }
+
+    oracle KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)) {
+        r <-$ Bits(3000) sample-name kem_encaps;
+        (st, k, c) <- parse kem_encaps(st, r, pk);
+        return (k, c);
+    }
+
+    oracle KEM_DECAPS(sk: Bits(1000), c: Bits(400)) -> Maybe(Bits(256)) {
+        (st, k) <- parse kem_decaps(st, sk, c);
+        return k;
+    }
+}

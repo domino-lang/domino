@@ -1,0 +1,35 @@
+package CCA_DEM {
+    params {
+        b: Bool,
+    }
+
+    state {
+        k: Maybe(Bits(256)),
+        c: Maybe(Bits(8000))
+    }
+
+    import oracles {
+        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
+        DEM_DEC(k: Bits(256), c: Bits(8000)) -> Bits(4000),
+    }
+
+    oracle ENC(m0: Bits(4000), m1: Bits(4000)) -> Bits(8000) {
+        assert (k == None);
+        k_ <-$ Bits(256) sample-name k;
+        k <- Some(k_);
+        if b {
+            c_ <- invoke DEM_ENC(k_, m1);
+        } else {
+            c_ <- invoke DEM_ENC(k_, m0);
+        }
+        c <- Some(c_);
+        return c_;
+    }
+
+    oracle DEC(c_: Bits(8000)) -> Bits(4000) {
+        assert (k != None);
+        assert (c_ == Unwrap(c));
+        m <- invoke DEM_DEC(Unwrap(k), c_);
+        return m;
+    }
+}

@@ -1,0 +1,34 @@
+composition Composition_CCA_KEM {
+    const b: Bool;
+
+    const kem_gen: fn Bits(*), Bits(2000) -> (Bits(*), Bits(100), Bits(1000));
+    const kem_encaps: fn Bits(*), Bits(3000), Bits(100) -> (Bits(*), Bits(256), Bits(400));
+    const kem_decaps: fn Bits(*), Bits(1000), Bits(400) -> (Bits(*), Maybe(Bits(256)));
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance CCA_KEM = CCA_KEM {
+        params {
+            b: b,
+        }
+    }
+
+    compose {
+        CCA_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+        }
+        adversary: {
+            KEMGEN: CCA_KEM,
+            ENCAPS: CCA_KEM,
+            DECAPS: CCA_KEM,
+        }
+    }
+}

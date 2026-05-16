@@ -1,23 +1,26 @@
-package CPA_KEM {
+package CCA_KEM {
     params {
         b: Bool,
     }
 
     state {
         pk: Maybe(Bits(100)),
+        sk: Maybe(Bits(1000)),
         c: Maybe(Bits(400)),
     }
 
     import oracles {
         KEM_GEN() -> (Bits(100), Bits(1000)),
         KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
+        KEM_DECAPS(sk: Bits(1000), c: Bits(400)) -> Maybe(Bits(256)),
     }
 
     oracle KEMGEN() -> Bits(100) {
         assert (pk == None);
-        (pk1, sk1) <- parse invoke KEM_GEN();
-        pk <- Some(pk1);
-        return pk1;
+        (pk_, sk_) <- parse invoke KEM_GEN();
+        pk <- Some(pk_);
+        sk <- Some(sk_);
+        return pk_;
     }
 
     oracle ENCAPS() -> (Bits(400), Bits(256)) {
@@ -31,5 +34,12 @@ package CPA_KEM {
             k <- k_;
         }
         return (c_, k);
+    }
+
+    oracle DECAPS(c_: Bits(400)) -> Maybe(Bits(256)) {
+        assert (sk != None);
+        assert (c_ != Unwrap(c));
+        k <- parse invoke KEM_DECAPS(Unwrap(sk), c_);
+        return k;
     }
 }
