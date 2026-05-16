@@ -1,11 +1,11 @@
-composition CpaKemGame {
+composition Composition_CPA_KEM {
     const b: Bool;
 
     const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
     const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
     const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
 
-    instance Scheme_KEM = Scheme_KEM {
+    instance pkg_Scheme_KEM = Scheme_KEM {
         params {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
@@ -13,20 +13,20 @@ composition CpaKemGame {
         }
     }
 
-    instance CPA_KEM = CPA_KEM {
+    instance pkg_CPA_KEM = CPA_KEM {
         params {
             b: b,
         }
     }
 
     compose {
-        CPA_KEM: {
-            KEM_GEN: Scheme_KEM,
-            KEM_ENCAPS: Scheme_KEM,
+        pkg_CPA_KEM: {
+            KEM_GEN: pkg_Scheme_KEM,
+            KEM_ENCAPS: pkg_Scheme_KEM,
         }
         adversary: {
-            KEMGEN: CPA_KEM,
-            ENCAPS: CPA_KEM,
+            KEMGEN: pkg_CPA_KEM,
+            ENCAPS: pkg_CPA_KEM,
         }
     }
 }

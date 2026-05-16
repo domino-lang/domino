@@ -1,4 +1,4 @@
-composition CpaDemGame {
+composition Composition_CPA_DEM {
     const b: Bool;
 
     const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);

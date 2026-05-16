@@ -6,7 +6,7 @@ theorem Proof {
     const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
     const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
 
-    instance pke_cpa_b = CpaPkeGame {
+    instance CPA_PKE = Composition_CPA_PKE {
         params {
             b: b,
             kem_gen: kem_gen,
@@ -17,7 +17,7 @@ theorem Proof {
         }
     }
 
-    instance pke_cpa_real = CpaPkeGame {
+    instance CPA_PKE_0 = Composition_CPA_PKE {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -28,7 +28,7 @@ theorem Proof {
         }
     }
 
-    instance pke_cpa_ideal = CpaPkeGame {
+    instance CPA_PKE_1 = Composition_CPA_PKE {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -39,7 +39,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid0 = Hybrid0 {
+    instance H0 = Hybrid0 {
         params {
             bDem: b,
             bKem: false,
@@ -51,7 +51,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid1 = Hybrid0 {
+    instance H1 = Hybrid0 {
         params {
             bDem: b,
             bKem: true,
@@ -63,7 +63,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid2 = Hybrid1 {
+    instance H2 = Hybrid1 {
         params {
             b: b,
             kem_gen: kem_gen,
@@ -74,7 +74,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid2_real = Hybrid1 {
+    instance H2_0 = Hybrid1 {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -85,7 +85,7 @@ theorem Proof {
         }
     }
 
-    instance hybrid2_ideal = Hybrid1 {
+    instance H2_1 = Hybrid1 {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -97,7 +97,7 @@ theorem Proof {
     }
 
     /* Assumption game instances */
-    instance cpa_kem_game_real = CpaKemGame {
+    instance CPA_KEM_0 = Composition_CPA_KEM {
         params {
             b: false,
             kem_gen: kem_gen,
@@ -106,7 +106,7 @@ theorem Proof {
         }
     }
 
-    instance cpa_kem_game_ideal = CpaKemGame {
+    instance CPA_KEM_1 = Composition_CPA_KEM {
         params {
             b: true,
             kem_gen: kem_gen,
@@ -115,7 +115,7 @@ theorem Proof {
         }
     }
 
-    instance cpa_dem_game_real = CpaDemGame {
+    instance CPA_DEM_0 = Composition_CPA_DEM {
         params {
             b: false,
             dem_enc: dem_enc,
@@ -123,7 +123,7 @@ theorem Proof {
         }
     }
 
-    instance cpa_dem_game_ideal = CpaDemGame {
+    instance CPA_DEM_1 = Composition_CPA_DEM {
         params {
             b: true,
             dem_enc: dem_enc,
@@ -132,31 +132,31 @@ theorem Proof {
     }
 
     assumptions {
-        KEM_CPA_Security: cpa_kem_game_real ~ cpa_kem_game_ideal
-        DEM_CPA_Security: cpa_dem_game_real ~ cpa_dem_game_ideal
+        CPA_KEM: CPA_KEM_0 ~ CPA_KEM_1
+        CPA_DEM: CPA_DEM_0 ~ CPA_DEM_1
     }
 
     gamehops {
         /*
-        Goal: pke_cpa_0 ~ pke_cpa_1
+        Goal: CPA_PKE_0 ~ CPA_PKE_1
         We prove PKE-CPA security of the KEM-DEM construction and reduce to
         KEM-CPA and DEM-CPA security of the underlying KEM and DEM schemes.
 
         Proof chain:
-        CPA_PKE^b = Hybrid0^b
-                  ~(KEM-CPA) Hybrid1^b
-                  = Hybrid2^b
+        CPA_PKE = H0
+                ~(CPA_KEM) H1
+                = H2
                   and 
-                  Hybrid2^0 ~ (DEM-CPA) Hybrid2^1
+                  H2_0 ~ (CPA_DEM) H2_1
         */
 
-        /* Step 1: CPA_PKE^b = Hybrid0^b */
-        equivalence pke_cpa_b hybrid0 {
+        /* Step 1: CPA_PKE = H0 */
+        equivalence CPA_PKE H0 {
             PKGEN: {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/invariant-step1.smt2
+                    ./theorem/invariant-CPA_PKE-H0.smt2
                 ]
 
                 lemmas {
@@ -170,7 +170,7 @@ theorem Proof {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/invariant-step1.smt2
+                    ./theorem/invariant-CPA_PKE-H0.smt2
                 ]
 
                 lemmas {
@@ -181,27 +181,27 @@ theorem Proof {
             }
         }
 
-        /* Step 2: Hybrid0^b ~ (KEM-CPA) Hybrid1^b */
-        reduction hybrid0 hybrid1 {
-            assumption KEM_CPA_Security
+        /* Step 2: H0 ~ (CPA_KEM) H1 */
+        reduction H0 H1 {
+            assumption CPA_KEM
 
-            map cpa_kem_game_real hybrid0 {
+            map CPA_KEM_0 H0 {
                 Scheme_KEM: Scheme_KEM
                 CPA_KEM: CPA_KEM
             }
 
-            map cpa_kem_game_ideal hybrid1 {
+            map CPA_KEM_1 H1 {
                 Scheme_KEM: Scheme_KEM
                 CPA_KEM: CPA_KEM
             }
         }
 
-        /* Step 3: Hybrid1^b = Hybrid2^b */
-        equivalence hybrid1 hybrid2 {
+        /* Step 3: H1 = H2 */
+        equivalence H1 H2 {
             PKGEN: {
                 invariant: [
-                    ./theorem/randmap-step3.smt2,
-                    ./theorem/invariant-step3.smt2
+                    ./theorem/randomness-H1-H2.smt2,
+                    ./theorem/invariant-H1-H2.smt2
                 ]
 
                 lemmas {
@@ -213,8 +213,8 @@ theorem Proof {
 
             PKENC: {
                 invariant: [
-                    ./theorem/randmap-step3.smt2,
-                    ./theorem/invariant-step3.smt2
+                    ./theorem/randomness-H1-H2.smt2,
+                    ./theorem/invariant-H1-H2.smt2
                 ]
 
                 lemmas {
@@ -225,22 +225,22 @@ theorem Proof {
             }
         }
 
-        /* Step 4: Hybrid1^0 ~ (DEM-CPA) Hybrid1^1 */
-        reduction hybrid2_real hybrid2_ideal {
-            assumption DEM_CPA_Security
+        /* Step 4: H2_0 ~ (CPA_DEM) H2_1 */
+        reduction H2_0 H2_1 {
+            assumption CPA_DEM
 
-            map cpa_dem_game_real hybrid2_real {
+            map CPA_DEM_0 H2_0 {
                 Scheme_DEM: Scheme_DEM
                 CPA_DEM: CPA_DEM
             }
 
-            map cpa_dem_game_ideal hybrid2_ideal {
+            map CPA_DEM_1 H2_1 {
                 Scheme_DEM: Scheme_DEM
                 CPA_DEM: CPA_DEM
             }
         }
     }
     propositions {
-        main: pke_cpa_real ~ pke_cpa_ideal
+        main: CPA_PKE_0 ~ CPA_PKE_1
     }
 }

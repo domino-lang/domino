@@ -26,25 +26,26 @@
         (sample-ctr-right Int)
     )
     Bool
-    (and
-        (= sample-ctr-left sample-ctr-old-left)
-        (= sample-ctr-right sample-ctr-old-right)
-        (= sample-id-left (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-        (= sample-id-right (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-    )
+    false
 )
 
 (define-state-relation relation-randomness
     (
-        (left-game <GameState_CpaPkeGame>)
-        (right-game <GameState_Hybrid0>)
+        (left-game <GameState_Hybrid0>)
+        (right-game <GameState_Hybrid1>)
     )
     (and 
         (rand-is-eq 
             (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
             (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (get-rand-ctr-pke_cpa_0 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-            (get-rand-ctr-hybrid0_0 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-H1 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-H2 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+        )
+        (rand-is-eq 
+            (sample-id "CPA_KEM" "ENCAPS" "k")
+            (sample-id "CPA_DEM" "ENC" "k")
+            (get-rand-ctr-H1 (sample-id "CPA_KEM" "ENCAPS" "k"))
+            (get-rand-ctr-H2 (sample-id "CPA_DEM" "ENC" "k"))
         )
     )
 )

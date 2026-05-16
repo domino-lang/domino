@@ -1,4 +1,4 @@
-composition CpaPkeGame {
+composition Composition_CPA_PKE {
     const b: Bool;
 
     const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));

@@ -33,21 +33,21 @@
 
 (define-state-relation relation-randomness
     (
-        (left-game <GameState_CpaPkeIdealKemGame>)
+        (left-game <GameState_Composition_CPA_PKE_Ideal_KEM>)
         (right-game <GameState_Hybrid1>)
     )
     (and 
         (rand-is-eq 
             (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
             (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (get-rand-ctr-game_1 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-            (get-rand-ctr-hybrid1_1 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-H5 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (get-rand-ctr-H4 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
         )
         (rand-is-eq 
             (sample-id "CPA_PKE_Ideal_KEM" "PKENC" "k")
             (sample-id "CPA_DEM" "ENC" "k")
-            (get-rand-ctr-game_1 (sample-id "CPA_PKE_Ideal_KEM" "PKENC" "k"))
-            (get-rand-ctr-hybrid1_1 (sample-id "CPA_DEM" "ENC" "k"))
+            (get-rand-ctr-H5 (sample-id "CPA_PKE_Ideal_KEM" "PKENC" "k"))
+            (get-rand-ctr-H4 (sample-id "CPA_DEM" "ENC" "k"))
         )
     )
 )
