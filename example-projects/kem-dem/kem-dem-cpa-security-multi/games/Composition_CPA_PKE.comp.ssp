@@ -7,7 +7,7 @@ composition Composition_CPA_PKE {
     const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
     const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
 
-    instance pkg_Scheme_KEM = Scheme_KEM {
+    instance Scheme_KEM = Scheme_KEM {
         params {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
@@ -15,37 +15,37 @@ composition Composition_CPA_PKE {
         }
     }
 
-    instance pkg_Scheme_DEM = Scheme_DEM {
+    instance Scheme_DEM = Scheme_DEM {
         params {
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
     }
 
-    instance pkg_Scheme_KEMDEM = Scheme_KEMDEM {
+    instance Scheme_KEMDEM = Scheme_KEMDEM {
     }
 
-    instance pkg_CPA_PKE = CPA_PKE {
+    instance CPA_PKE = CPA_PKE {
         params {
             b: b,
         }
     }
 
     compose {
-        pkg_Scheme_KEMDEM: {
-            KEM_GEN: pkg_Scheme_KEM,
-            KEM_ENCAPS: pkg_Scheme_KEM,
-            KEM_DECAPS: pkg_Scheme_KEM,
-            DEM_ENC: pkg_Scheme_DEM,
-            DEM_DEC: pkg_Scheme_DEM,
+        Scheme_KEMDEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
         }
-        pkg_CPA_PKE: {
-            GEN: pkg_Scheme_KEMDEM,
-            ENC: pkg_Scheme_KEMDEM,
+        CPA_PKE: {
+            GEN: Scheme_KEMDEM,
+            ENC: Scheme_KEMDEM,
         }
         adversary: {
-            PKGEN: pkg_CPA_PKE,
-            PKENC: pkg_CPA_PKE,
+            PKGEN: CPA_PKE,
+            PKENC: CPA_PKE,
         }
     }
 }
