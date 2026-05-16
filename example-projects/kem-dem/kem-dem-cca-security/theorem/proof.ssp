@@ -182,9 +182,9 @@ theorem Proof {
     gamehops {
         equivalence CCA_PKE H0 {
             PKGEN: {
+                randomness: simple
                 invariant: [
                     ./theorem/invariant-CCA_PKE-H0.smt2
-                    ./theorem/randomness-CCA_PKE-H0.smt2
                 ]
 
                 lemmas {
@@ -195,9 +195,9 @@ theorem Proof {
             }
 
             PKENC: {
+                randomness: simple
                 invariant: [
                     ./theorem/invariant-CCA_PKE-H0.smt2
-                    ./theorem/randomness-CCA_PKE-H0.smt2
                 ]
 
                 lemmas {
@@ -208,9 +208,9 @@ theorem Proof {
             }
 
             PKDEC: {
+                randomness: simple
                 invariant: [
                     ./theorem/invariant-CCA_PKE-H0.smt2
-                    ./theorem/randomness-CCA_PKE-H0.smt2
                 ]
 
                 lemmas {
@@ -237,8 +237,8 @@ theorem Proof {
 
         equivalence H1 H2 {
             PKGEN: {
+                randomness: simple
                 invariant: [
-                    ./theorem/randomness-H1-H2.smt2
                     ./theorem/invariant-H1-H2.smt2
                 ]
 
@@ -250,8 +250,8 @@ theorem Proof {
             }
 
             PKENC: {
+                randomness: simple
                 invariant: [
-                    ./theorem/randomness-H1-H2.smt2
                     ./theorem/invariant-H1-H2.smt2
                 ]
 
@@ -263,8 +263,8 @@ theorem Proof {
             }
 
             PKDEC: {
+                randomness: simple
                 invariant: [
-                    ./theorem/randomness-H1-H2.smt2
                     ./theorem/invariant-H1-H2.smt2
                 ]
 
@@ -299,8 +299,8 @@ theorem Proof {
 
                 lemmas {
                     invariant: [no-abort]
-                    same-output: [no-abort]
                     equal-aborts: []
+                    same-output: [no-abort]
                 }
             }
 
@@ -318,8 +318,8 @@ theorem Proof {
             }
 
             PKDEC: {
+                randomness: simple
                 invariant: [
-                    ./theorem/randomness-H3-H4.smt2
                     ./theorem/invariant-H3-H4.smt2
                 ]
 
