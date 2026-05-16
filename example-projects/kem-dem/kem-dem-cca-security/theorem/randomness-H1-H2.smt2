@@ -1,5 +1,5 @@
 (define-fun randomness-mapping-PKGEN
-    ( 
+    (
         (sample-ctr-old-left Int)
         (sample-ctr-old-right Int)
         (sample-id-left SampleId)
@@ -17,7 +17,7 @@
 )
 
 (define-fun randomness-mapping-PKENC
-    ( 
+    (
         (sample-ctr-old-left Int)
         (sample-ctr-old-right Int)
         (sample-id-left SampleId)
@@ -35,7 +35,7 @@
 )
 
 (define-fun randomness-mapping-PKDEC
-    ( 
+    (
         (sample-ctr-old-left Int)
         (sample-ctr-old-right Int)
         (sample-id-left SampleId)

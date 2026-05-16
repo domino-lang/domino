@@ -44,7 +44,7 @@ package Reduction_KEM {
         (c_kem_, c_dem) <- parse c_;
         (c_kem, _) <- parse Unwrap(c);
         if (c_kem_ != c_kem) {
-            k_ <- invoke DECAPS(c_kem);
+            k_ <- invoke DECAPS(c_kem_);
         } else {
             k_ <- k;
         }

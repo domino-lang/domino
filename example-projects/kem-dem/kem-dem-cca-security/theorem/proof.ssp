@@ -220,7 +220,7 @@ theorem Proof {
                 }
             }
         }
-        /*
+
         reduction H0 H1 {
             assumption Correct_KEM
 
@@ -311,9 +311,9 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant: [no-abort, relation-randomness]
+                    same-output: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
                 }
             }
 
@@ -344,11 +344,8 @@ theorem Proof {
                 CCA_DEM: CCA_DEM
             }
         }
-        */
     }
-    /*
     propositions {
         main: CCA_PKE_0 ~ CCA_PKE_1
     }
-    */
 }
