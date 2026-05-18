@@ -205,7 +205,8 @@ pub trait Project: Sync {
         path.push("_build/html/");
         std::fs::create_dir_all(&path)?;
 
-        for game in self.games.values() {
+        for name in self.games() {
+            let game = self.get_game(name).unwrap();
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
@@ -214,7 +215,8 @@ pub trait Project: Sync {
                 .unwrap();
             crate::writers::html::write_game_instance(&path, backend, &transformed)?;
         }
-        for theorem in self.theorems.values() {
+        for name in self.theorems() {
+            let theorem = self.get_theorem(name).unwrap();
             crate::writers::html::write_theorem(&path, backend, theorem)?;
         }
         Ok(())
