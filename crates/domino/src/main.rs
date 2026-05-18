@@ -123,6 +123,8 @@ use shadow_rs::shadow;
 shadow!(build);
 
 use sspverif::project;
+use sspverif::project::Project;
+use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProofstepUI, ProveUI, UI};
 
 mod cli;
 use crate::cli::*;
@@ -135,29 +137,86 @@ pub(crate) struct Cli {
     pub(crate) command: Commands,
 }
 
-fn proofsteps() -> Result<(), project::error::Error> {
-    let project_root = project::find_project_root()?;
-    let files = project::Files::load(&project_root)?;
-    let project = project::Project::load(&files)?;
+#[cfg(not(feature = "zipfile"))]
+fn proofsteps(ui: impl ProofstepUI, _p: &Proofsteps) -> Result<(), project::error::Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
 
-    project.proofsteps()
+    project.proofsteps(ui)
 }
 
-fn prove(p: &Prove) -> Result<(), project::error::Error> {
-    let project_root = project::find_project_root()?;
-    let files = project::Files::load(&project_root)?;
-    let project = project::Project::load(&files)?;
+#[cfg(feature = "zipfile")]
+fn proofsteps(p: &Proofsteps) -> Result<(), project::error::Error> {
+    if let Some(zipfile) = &p.zipfile {
+        let zipfile = std::fs::File::open(zipfile)?;
+        let files = project::ZipFiles::load(zipfile)?;
+        let project = project::ZipProject::load(&files)?;
+
+        project.proofsteps()
+    } else {
+        let project_root = project::directory::find_project_root()?;
+        let files = project::DirectoryFiles::load(&project_root)?;
+        let project = project::DirectoryProject::load(&files)?;
+
+        project.proofsteps()
+    }
+}
+
+#[cfg(not(feature = "zipfile"))]
+fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), project::error::Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
 
     assert!(p.proofstep.is_none() || p.proof.is_some());
 
+    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
     project.prove(
-        p.prover,
+        ui,
+        &smtsolver,
         p.transcript,
         p.parallel,
         &p.proof,
         p.proofstep,
         &p.oracle,
     )
+}
+
+#[cfg(feature = "zipfile")]
+fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), project::error::Error> {
+    if let Some(zipfile) = &p.zipfile {
+        let zipfile = std::fs::File::open(zipfile)?;
+        let files = project::ZipFiles::load(zipfile)?;
+        let project = project::ZipProject::load(&files)?;
+
+        assert!(p.proofstep.is_none() || p.proof.is_some());
+
+        project.prove(
+            ui,
+            p.prover,
+            p.transcript,
+            p.parallel,
+            &p.proof,
+            p.proofstep,
+            &p.oracle,
+        )
+    } else {
+        let project_root = project::directory::find_project_root()?;
+        let files = project::DirectoryFiles::load(&project_root)?;
+        let project = project::DirectoryProject::load(&files)?;
+
+        assert!(p.proofstep.is_none() || p.proof.is_some());
+
+        project.prove(
+            p.prover,
+            p.transcript,
+            p.parallel,
+            &p.proof,
+            p.proofstep,
+            &p.oracle,
+        )
+    }
 }
 
 fn explain(_game_name: &str, _dst: &Option<String>) -> Result<(), project::error::Error> {
@@ -173,40 +232,58 @@ fn explain(_game_name: &str, _dst: &Option<String>) -> Result<(), project::error
     // Ok(())
 }
 
-fn latex(l: &Latex) -> Result<(), project::error::Error> {
-    let project_root = project::find_project_root()?;
-    let files = project::Files::load(&project_root)?;
-    let project = project::Project::load(&files)?;
+fn html(h: &Html) -> Result<(), project::error::Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
 
-    project.latex(l.prover)
+    let smtsolver = h
+        .smtsolver
+        .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
+    project.html(&smtsolver)
+}
+
+fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), project::error::Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
+
+    let smtsolver = l
+        .smtsolver
+        .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
+    project.latex(ui, &smtsolver)
 }
 
 fn format(f: &Format) -> Result<(), project::error::Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
-        let root = crate::project::find_project_root();
+        let root = crate::project::directory::find_project_root();
         sspverif::format::format_file(&root?)?;
     }
     Ok(())
 }
 
-fn wire_check(game_name: &str, dst_idx: usize) -> Result<(), project::error::Error> {
+fn wire_check(_game_name: &str, _dst_idx: usize) -> Result<(), project::error::Error> {
+    /*
     let project_root = project::find_project_root()?;
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
 
     project.print_wire_check_smt(game_name, dst_idx);
+    */
     Ok(())
 }
 
 fn main() -> miette::Result<()> {
     let cli = Cli::parse();
+    let ui = IndicatifUI::new();
 
     let result = match &cli.command {
-        Commands::Prove(p) => prove(p),
-        Commands::Proofsteps => proofsteps(),
-        Commands::Latex(l) => latex(l),
+        Commands::Prove(p) => prove(ui.prove_ui(), p),
+        Commands::Proofsteps(p) => proofsteps(ui.proofstep_ui(), p),
+        Commands::Latex(l) => latex(ui.latex_ui(), l),
+        Commands::Html(h) => html(h),
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
         Commands::WireCheck(args) => wire_check(&args.game_name, args.dst_idx),
         Commands::Format(f) => format(f),

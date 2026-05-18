@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Subcommand;
-use sspverif::util::prover_process::ProverBackend;
+use sspverif::util::smtsolver::process::SolverVariant;
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
     /// Export to LaTeX
     Latex(Latex),
+
+    /// Export to HTML
+    Html(Html),
 
     /// Give information about the provided code
     Explain(Explain),
@@ -20,7 +23,7 @@ pub(crate) enum Commands {
     /// Reformat file or directory
     Format(Format),
 
-    Proofsteps,
+    Proofsteps(Proofsteps),
 }
 
 #[derive(clap::Args, Debug)]
@@ -32,10 +35,27 @@ pub(crate) struct Format {
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
+pub(crate) struct Proofsteps {
+    #[cfg(feature = "zipfile")]
+    #[clap(short, long)]
+    pub(crate) zipfile: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
 pub(crate) struct Latex {
     /// Solver for graph layouting
     #[clap(short, long, default_value = "cvc5")]
-    pub(crate) prover: Option<ProverBackend>,
+    pub(crate) smtsolver: Option<SolverVariant>,
+    // TODO: given we have a default here, it seems impossible to choose none
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Html {
+    /// Solver for graph layouting
+    #[clap(short, long, default_value = "z3")]
+    pub(crate) smtsolver: Option<SolverVariant>,
     // TODO: given we have a default here, it seems impossible to choose none
 }
 
@@ -51,7 +71,7 @@ pub(crate) struct Explain {
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Prove {
     #[clap(short, long, default_value = "cvc5")]
-    pub(crate) prover: ProverBackend,
+    pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
     pub(crate) transcript: bool,
     #[clap(long)]
@@ -62,6 +82,9 @@ pub(crate) struct Prove {
     pub(crate) oracle: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
+    #[cfg(feature = "zipfile")]
+    #[clap(short, long)]
+    pub(crate) zipfile: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]

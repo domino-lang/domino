@@ -1,0 +1,26 @@
+.code-block {
+    margin: 0 0 0 1em;
+}
+.keyword {
+    font-weight: bold;
+}
+.packages {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(20em, 1fr));
+}
+.package {
+    border: 1px green solid;
+    margin: .5em;
+    padding: .2em;
+}
+math {
+    margin: 0;
+    padding: 0;
+    display: block;
+}
+summary math {
+    display: inline;
+}
+summary h2 {
+    display: inline;
+}
