@@ -159,25 +159,25 @@ fn equivalence_parses() {
                     name: "invariant".into(),
                     ty: ClaimType::Invariant,
                     dependencies: vec![],
-                    admited: false,
+                    admitted: false,
                 },
                 Claim {
                     name: "equal-aborts".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admited: false
+                    admitted: false
                 },
                 Claim {
                     name: "same-output".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admited: false
+                    admitted: false
                 },
                 Claim {
                     name: "smt_ident".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admited: false
+                    admitted: false
                 },
             ]
         )]

@@ -222,19 +222,19 @@ pub struct Claim {
     pub(crate) name: String,
     pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
-    pub(crate) admited: bool,
+    pub(crate) admitted: bool,
 }
 
 impl Claim {
     pub fn from_tuple(data: (String, Vec<String>, bool)) -> Self {
-        let (name, dependencies, admited) = data;
+        let (name, dependencies, admitted) = data;
         let ty = ClaimType::guess_from_name(&name);
 
         Self {
             name,
             ty,
             dependencies,
-            admited,
+            admitted,
         }
     }
 
@@ -250,8 +250,8 @@ impl Claim {
         &self.dependencies
     }
 
-    pub fn is_admited(&self) -> bool {
-        self.admited
+    pub fn is_admitted(&self) -> bool {
+        self.admitted
     }
 }
 
