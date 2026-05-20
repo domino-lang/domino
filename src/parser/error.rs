@@ -15,7 +15,10 @@ pub enum NewError {}
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("claim {claim}, oracle {oracle} is admitted")]
-#[diagnostic(code(domino::code::theorem::inductionstep::admitted), severity(Warning))]
+#[diagnostic(
+    code(domino::code::theorem::inductionstep::admitted),
+    severity(Warning)
+)]
 pub struct AdmittedClaimWarning {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
