@@ -18,7 +18,7 @@ use crate::{
     package::{Composition, Package},
     parser::{
         error::{
-            AdmitedClaimWarning, AssumptionMappingContainsDifferentPackagesError,
+            AdmittedClaimWarning, AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
             AssumptionMappingLeftGameInstanceIsNotFromAssumption, InductionStepUnprovableError,
             ReductionContainsDifferentPackagesError, UnprovenTheoremError,
@@ -884,7 +884,7 @@ pub(crate) fn verify_induction_step(
     let mut progress = true;
     let mut provable: BTreeSet<String> = step
         .iter()
-        .filter_map(|(name, _, admited)| if *admited { Some(name) } else { None })
+        .filter_map(|(name, _, admitted)| if *admitted { Some(name) } else { None })
         .cloned()
         .collect();
 
@@ -968,8 +968,8 @@ pub(crate) fn handle_hybrid<'a>(
                     oracle_name,
                     lemmas
                         .into_iter()
-                        .map(|(name, dependencies, admited)| {
-                            Claim::from_tuple((name, dependencies.into_iter().collect(), admited))
+                        .map(|(name, dependencies, admitted)| {
+                            Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
                         })
                         .collect(),
                 )
@@ -1053,8 +1053,8 @@ fn handle_equivalence<'a>(
                 oracle_name,
                 lemmas
                     .into_iter()
-                    .map(|(name, dependencies, admited)| {
-                        Claim::from_tuple((name, dependencies.into_iter().collect(), admited))
+                    .map(|(name, dependencies, admitted)| {
+                        Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
                     })
                     .collect(),
             )
@@ -1176,7 +1176,7 @@ fn handle_lemma_line(
             "admit" => {
                 eprintln!(
                     "{:?}",
-                    miette::Report::new(AdmitedClaimWarning {
+                    miette::Report::new(AdmittedClaimWarning {
                         claim: name.to_string(),
                         oracle: oracle_name.to_string(),
                         at: (span.start()..span.end()).into(),

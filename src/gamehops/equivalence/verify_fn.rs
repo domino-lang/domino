@@ -104,7 +104,7 @@ fn verify_oracle<UI: TheoremUI>(
                 claim.name(),
             );
 
-            if !claim.is_admited() {
+            if !claim.is_admitted() {
                 writeln!(prover, "(push 1)").unwrap();
                 eqctx.emit_claim_assert(&mut prover, export.name(), &claim)?;
                 match prover.check_sat()? {
