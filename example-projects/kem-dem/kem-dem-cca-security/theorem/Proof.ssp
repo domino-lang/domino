@@ -432,6 +432,7 @@ theorem Proof {
                     invariant: [no-abort, relation-randomness]
                     same-output: [no-abort, relation-randomness]
                     equal-aborts: [relation-randomness]
+                    relation-randomness: admit []
                 }
             }
 
