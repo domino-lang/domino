@@ -71,7 +71,6 @@ theorem Yao {
                 Enc: Enc
                 Gate: Gate
                 LayerMap: LayerMap
-                Proxy: Proxy
             }
 
             map CoreIdeal YaoIdeal {
@@ -79,7 +78,6 @@ theorem Yao {
                 Lev: Lev
                 Sim: Sim
                 LayerMap: LayerMap
-                Proxy: Proxy
             }
         }
     }

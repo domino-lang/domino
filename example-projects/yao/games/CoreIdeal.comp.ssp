@@ -33,14 +33,8 @@ composition CoreIdeal {
     instance LayerMap = LayerMap {
         params {
             n: n,
-            d: d
-        }
-    }
-
-    instance Proxy = LayeredSimProxy {
-        params {
-            p: p,
-            d: d
+            d: d,
+            p: p
         }
     }
 
@@ -48,16 +42,14 @@ composition CoreIdeal {
         adversary: {
             GETAOUT: LayerMap,
             SETBIT: LayerMap,
-            GBLG: Proxy,
+            GBLG: LayerMap,
             GETKEYSIN: LayerMap,
-        }
-        Proxy: {
-            LSIMGBLG: Sim,
         }
         LayerMap: {
             LSETBIT: Keys,
             LGETAOUT: Keys,
             LGETKEYSIN: Keys,
+            LGBLG: LSIMGBLG of Sim
         }
         Sim: {
             LGETAOUT: Keys,

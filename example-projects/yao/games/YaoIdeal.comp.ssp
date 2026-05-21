@@ -34,14 +34,8 @@ composition YaoIdeal {
     instance LayerMap = LayerMap {
         params {
             n: n,
-            d: d
-        }
-    }
-
-    instance Proxy = LayeredSimProxy {
-        params {
-            p: p,
-            d: d
+            d: d,
+            p: p
         }
     }
 
@@ -72,15 +66,13 @@ composition YaoIdeal {
             GETKEYSIN: LayerMap,
         }
         MODGB: {
-            GBLG: Proxy,
-        }
-        Proxy: {
-            LSIMGBLG: Sim,
+            GBLG: LayerMap,
         }
         LayerMap: {
             LSETBIT: Keys,
             LGETAOUT: Keys,
             LGETKEYSIN: Keys,
+            LGBLG: LSIMGBLG of Sim
         }
         Sim: {
             LGETAOUT: Keys,

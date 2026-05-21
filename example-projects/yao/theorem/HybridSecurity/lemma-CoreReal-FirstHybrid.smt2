@@ -2,7 +2,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -20,7 +20,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -38,7 +38,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -56,7 +56,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -75,7 +75,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -94,7 +94,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
@@ -124,7 +124,7 @@
     (
         (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
         (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
         (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)

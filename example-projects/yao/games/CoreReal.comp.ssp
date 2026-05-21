@@ -35,14 +35,8 @@ composition CoreReal {
     instance LayerMap = LayerMap {
         params {
             n: n,
-            d: d
-        }
-    }
-
-    instance Proxy = LayeredGateProxy {
-        params {
-            p: p,
             d: d,
+            p: p
         }
     }
 
@@ -50,16 +44,14 @@ composition CoreReal {
         adversary: {
             GETAOUT: LayerMap,
             SETBIT: LayerMap,
-            GBLG: Proxy,
+            GBLG: LayerMap,
             GETKEYSIN: LayerMap,
-        }
-        Proxy: {
-            LGATEGBLG: Gate,
         }
         LayerMap: {
             LSETBIT: Keys,
             LGETAOUT: Keys,
             LGETKEYSIN: Keys,
+            LGBLG: LGATEGBLG of Gate,
         }
         Gate: {
             LENCN: Enc,
