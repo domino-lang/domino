@@ -154,11 +154,32 @@ fn equivalence_parses() {
         eq.trees,
         vec![(
             "N".into(),
-            vec![Claim {
-                name: "smt_ident".into(),
-                ty: ClaimType::Lemma,
-                dependencies: vec![]
-            }]
+            vec![
+                Claim {
+                    name: "invariant".into(),
+                    ty: ClaimType::Invariant,
+                    dependencies: vec![],
+                    admitted: false,
+                },
+                Claim {
+                    name: "equal-aborts".into(),
+                    ty: ClaimType::Lemma,
+                    dependencies: vec![],
+                    admitted: false
+                },
+                Claim {
+                    name: "same-output".into(),
+                    ty: ClaimType::Lemma,
+                    dependencies: vec![],
+                    admitted: false
+                },
+                Claim {
+                    name: "smt_ident".into(),
+                    ty: ClaimType::Lemma,
+                    dependencies: vec![],
+                    admitted: false
+                },
+            ]
         )]
     );
 }

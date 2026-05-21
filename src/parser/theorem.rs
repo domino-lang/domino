@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use itertools::Itertools;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::{
     expressions::Expression,
@@ -18,9 +18,9 @@ use crate::{
     package::{Composition, Package},
     parser::{
         error::{
-            AssumptionMappingContainsDifferentPackagesError,
+            AdmittedClaimWarning, AssumptionMappingContainsDifferentPackagesError,
             AssumptionMappingDuplicatePackageInstanceError,
-            AssumptionMappingLeftGameInstanceIsNotFromAssumption,
+            AssumptionMappingLeftGameInstanceIsNotFromAssumption, InductionStepUnprovableError,
             ReductionContainsDifferentPackagesError, UnprovenTheoremError,
         },
         Rule,
@@ -31,7 +31,7 @@ use crate::{
     util::scope::{Declaration, Error as ScopeError, Scope},
 };
 
-use miette::{Diagnostic, NamedSource};
+use miette::{Diagnostic, NamedSource, SourceSpan};
 use pest::{
     iterators::{Pair, Pairs},
     Span,
@@ -162,6 +162,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     DuplicateGameInstanceDefinition(#[from] DuplicateGameInstanceDefinitionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    InductionStepUnprovable(#[from] InductionStepUnprovableError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -860,6 +864,64 @@ fn handle_game_hops<'a>(
     Ok(())
 }
 
+/** Required to be proven: equal-aborts, invariant, same-output
+ ** Allowed to use: no-abort
+ **
+ ** We iteratively add all claims that have all their requirements
+ ** met. When we can no longer add additional claims, the algorithm
+ ** terminates.
+ **
+ ** As we *prove* equal-aborts but use no-abort, special care is
+ ** needed. We run the algorithm until equal-aborts is proven (making
+ ** sure it does not (even transitively) depend on no-abort. Once
+ ** equal-aborts is proven, we allow dependencies on no-abort.
+ */
+pub(crate) fn verify_induction_step(
+    ctx: &mut ParseTheoremContext,
+    step: &[(String, BTreeSet<String>, bool)],
+    span: SourceSpan,
+) -> Result<(), ParseTheoremError> {
+    let mut progress = true;
+    let mut provable: BTreeSet<String> = step
+        .iter()
+        .filter_map(|(name, _, admitted)| if *admitted { Some(name) } else { None })
+        .cloned()
+        .collect();
+
+    while progress {
+        progress = false;
+        if provable.contains("equal-aborts") {
+            provable.insert("no-abort".to_string());
+        }
+
+        let mut new: BTreeSet<_> = step
+            .iter()
+            .filter_map(|(name, dependencies, _)| {
+                if !provable.contains(name) && provable.is_superset(dependencies) {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        progress = !new.is_empty();
+        provable.append(&mut new);
+    }
+    for target_claim in ["equal-aborts", "invariant", "same-output"] {
+        if !provable.contains(target_claim) {
+            return Err(InductionStepUnprovableError {
+                source_code: ctx.named_source(),
+                at: span,
+                target: target_claim.to_string(),
+                provable: provable.into_iter().join(", "),
+            }
+            .into());
+        }
+    }
+
+    Ok(())
+}
+
 pub(crate) fn handle_hybrid<'a>(
     ctx: &mut ParseTheoremContext<'a>,
     ast: Pair<'a, Rule>,
@@ -904,7 +966,12 @@ pub(crate) fn handle_hybrid<'a>(
             .map(|(oracle_name, _, lemmas, _)| {
                 (
                     oracle_name,
-                    lemmas.into_iter().map(Claim::from_tuple).collect(),
+                    lemmas
+                        .into_iter()
+                        .map(|(name, dependencies, admitted)| {
+                            Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
+                        })
+                        .collect(),
                 )
             })
             .collect();
@@ -984,7 +1051,12 @@ fn handle_equivalence<'a>(
         .map(|(oracle_name, _, lemmas, _)| {
             (
                 oracle_name,
-                lemmas.into_iter().map(Claim::from_tuple).collect(),
+                lemmas
+                    .into_iter()
+                    .map(|(name, dependencies, admitted)| {
+                        Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
+                    })
+                    .collect(),
             )
         })
         .collect();
@@ -1030,13 +1102,13 @@ fn handle_equivalence_oracle(
     (
         String,
         Vec<String>,
-        Vec<(String, Vec<String>)>,
+        Vec<(String, BTreeSet<String>, bool)>,
         RandomnessType,
     ),
     ParseTheoremError,
 > {
     let mut ast = ast.into_inner();
-    let oracle_name = ast.next().unwrap().as_str().to_string();
+    let oracle_name = ast.next().unwrap().as_str();
     let mut invariant_paths = Vec::new();
     let mut lemmas = Vec::new();
     let mut randomness = RandomnessType::Custom;
@@ -1063,28 +1135,64 @@ fn handle_equivalence_oracle(
             Rule::invariant_spec => {
                 invariant_paths.extend(handle_invariant_spec(next.into_inner()));
             }
-            Rule::lemmas_spec => lemmas.extend(handle_lemmas_spec(next.into_inner())),
+            Rule::lemmas_spec => {
+                let span = next.as_span();
+                let new_lemmas = handle_lemmas_spec(ctx, oracle_name, next.into_inner());
+                verify_induction_step(ctx, &new_lemmas, (span.start()..span.end()).into())?;
+                lemmas.extend(new_lemmas);
+            }
             _ => unimplemented!(),
         }
     }
 
-    Ok((oracle_name, invariant_paths, lemmas, randomness))
+    Ok((oracle_name.to_string(), invariant_paths, lemmas, randomness))
 }
 
 fn handle_invariant_spec(ast: Pairs<Rule>) -> Vec<String> {
     ast.map(|ast| ast.as_str().to_string()).collect()
 }
 
-fn handle_lemmas_spec(ast: Pairs<Rule>) -> Vec<(String, Vec<String>)> {
-    ast.map(handle_lemma_line).collect()
+fn handle_lemmas_spec(
+    ctx: &mut ParseTheoremContext,
+    oracle_name: &str,
+    ast: Pairs<Rule>,
+) -> Vec<(String, BTreeSet<String>, bool)> {
+    ast.map(|ast| handle_lemma_line(ctx, oracle_name, ast))
+        .collect()
 }
 
-fn handle_lemma_line(ast: Pair<Rule>) -> (String, Vec<String>) {
+fn handle_lemma_line(
+    ctx: &mut ParseTheoremContext,
+    oracle_name: &str,
+    ast: Pair<Rule>,
+) -> (String, BTreeSet<String>, bool) {
+    let span = ast.as_span();
     let mut ast = ast.into_inner();
     let name = next_str(&mut ast).to_string();
+    let admit = if matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::lemma_modifier)) {
+        let modifier_ast = ast.next().unwrap();
+        let modifier = modifier_ast.as_str();
+        match modifier {
+            "admit" => {
+                eprintln!(
+                    "{:?}",
+                    miette::Report::new(AdmittedClaimWarning {
+                        claim: name.to_string(),
+                        oracle: oracle_name.to_string(),
+                        at: (span.start()..span.end()).into(),
+                        source_code: ctx.named_source(),
+                    })
+                );
+                true
+            }
+            _ => todo!(),
+        }
+    } else {
+        false
+    };
     let deps = ast.map(|dep| dep.as_str().to_string()).collect();
 
-    (name, deps)
+    (name, deps, admit)
 }
 
 fn handle_string_triplet<'a>(
