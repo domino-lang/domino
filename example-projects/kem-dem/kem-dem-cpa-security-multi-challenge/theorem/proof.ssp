@@ -289,8 +289,8 @@ theorem Proof {
         /* Step 3: H1 = H2 */
         equivalence H1 H2 {
             PKGEN: {
+                randomness: simple
                 invariant: [
-                    ./theorem/randomness-H1-H2.smt2,
                     ./theorem/invariant-H1-H2.smt2
                 ]
 

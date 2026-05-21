@@ -410,8 +410,8 @@ theorem Proof {
 
         equivalence H3 H4 {
             PKGEN: {
+                randomness: simple
                 invariant: [
-                    ./theorem/randomness-H3-H4.smt2
                     ./theorem/invariant-H3-H4.smt2
                 ]
 
