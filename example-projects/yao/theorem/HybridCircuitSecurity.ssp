@@ -3,7 +3,6 @@ theorem HybridCircuitSecurity {
     const m: Integer;
     const p: Integer;
     const d: Integer;
-    const w: Integer;
     const h: Integer;
     const hplusone: Integer;
     const zeron: Bits(n);
@@ -37,7 +36,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             zeron: zeron,
             encm: encm,
@@ -50,7 +48,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             zeron: zeron,
             encm: encm,
@@ -63,7 +60,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             h: 1,
             zeron: zeron,
@@ -77,7 +73,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             h: d,
             zeron: zeron,
@@ -91,7 +86,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             h: h,
             zeron: zeron,
@@ -105,7 +99,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             h: h,
             zeron: zeron,
@@ -119,7 +112,6 @@ theorem HybridCircuitSecurity {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             h: hplusone,
             zeron: zeron,

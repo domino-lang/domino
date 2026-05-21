@@ -1,7 +1,7 @@
 (define-state-relation invariant
     (
-        (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!w!><!d!><!d!>$>>)
+        (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>>)
+        (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>>)
     )
     (let 
         (

@@ -1,9 +1,9 @@
 (define-lemma <relation-case-i-is-one-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)
@@ -18,10 +18,10 @@
 
 (define-lemma <relation-case-i-is-two-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)
@@ -36,10 +36,10 @@
 
 (define-lemma <relation-case-i-gt-two-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)
@@ -54,10 +54,10 @@
 
 (define-lemma <relation-abort-case-i-is-one-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)
@@ -73,10 +73,10 @@
 
 (define-lemma <relation-abort-case-i-is-two-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)
@@ -92,10 +92,10 @@
 
 (define-lemma <relation-abort-case-i-is-two-assumptions-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)
@@ -122,10 +122,10 @@
 
 (define-lemma <relation-abort-case-i-gt-two-CoreReal-FirstHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>>)
-        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>>)
-        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!w!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!w!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        (old-state-left <GameState_CoreReal_<$<!n!><!m!><!p!><!d!>$>>)
+        (old-state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>>)
+        (return-left <OracleReturn_CoreReal_<$<!n!><!m!><!p!><!d!>$>_LayeredGateProxy_<$<!d!><!p!>$>_GBLG>)
+        (return-right <OracleReturn_HybridReal_<$<!n!><!m!><!p!><!d!><!1!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
         (i Int)
         (l Int)
         (r Int)

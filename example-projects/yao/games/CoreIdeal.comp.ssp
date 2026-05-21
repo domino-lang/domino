@@ -3,7 +3,6 @@ composition CoreIdeal {
     const p: Integer;
     const m: Integer;
     const d: Integer;
-    const w: Integer;
     const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
