@@ -1,14 +1,30 @@
 theorem Proof {
     const b: Bool;
-    const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
-    const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
-    const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
-    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
-    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const dctl: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
     instance CPA_PKE = Composition_CPA_PKE {
         params {
             b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -20,6 +36,14 @@ theorem Proof {
     instance CPA_PKE_0 = Composition_CPA_PKE {
         params {
             b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -31,6 +55,14 @@ theorem Proof {
     instance CPA_PKE_1 = Composition_CPA_PKE {
         params {
             b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -43,6 +75,14 @@ theorem Proof {
         params {
             bDem: b,
             bKem: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -55,6 +95,14 @@ theorem Proof {
         params {
             bDem: b,
             bKem: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -66,6 +114,14 @@ theorem Proof {
     instance H2 = Hybrid1 {
         params {
             b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -77,6 +133,14 @@ theorem Proof {
     instance H2_0 = Hybrid1 {
         params {
             b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -88,6 +152,14 @@ theorem Proof {
     instance H2_1 = Hybrid1 {
         params {
             b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -100,6 +172,12 @@ theorem Proof {
     instance CPA_KEM_0 = Composition_CPA_KEM {
         params {
             b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -109,6 +187,12 @@ theorem Proof {
     instance CPA_KEM_1 = Composition_CPA_KEM {
         params {
             b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -118,6 +202,9 @@ theorem Proof {
     instance CPA_DEM_0 = Composition_CPA_DEM {
         params {
             b: false,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
@@ -126,6 +213,9 @@ theorem Proof {
     instance CPA_DEM_1 = Composition_CPA_DEM {
         params {
             b: true,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }

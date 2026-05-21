@@ -1,21 +1,24 @@
 package CCA_DEM {
     params {
         b: Bool,
+        dkeyl: Integer,
+        ptl: Integer,
+        dctl: Integer,
     }
 
     state {
-        k: Maybe(Bits(256)),
-        c: Maybe(Bits(8000))
+        k: Maybe(Bits(dkeyl)),
+        c: Maybe(Bits(dctl))
     }
 
     import oracles {
-        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
-        DEM_DEC(k: Bits(256), c: Bits(8000)) -> Bits(4000),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
     }
 
-    oracle ENC(m0: Bits(4000), m1: Bits(4000)) -> Bits(8000) {
+    oracle ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl) {
         assert (k == None);
-        k_ <-$ Bits(256) sample-name k;
+        k_ <-$ Bits(dkeyl) sample-name k;
         k <- Some(k_);
         if b {
             c_ <- invoke DEM_ENC(k_, m1);
@@ -26,7 +29,7 @@ package CCA_DEM {
         return c_;
     }
 
-    oracle DEC(c_: Bits(8000)) -> Bits(4000) {
+    oracle DEC(c_: Bits(dctl)) -> Bits(ptl) {
         assert (k != None);
         assert (c_ != Unwrap(c));
         m <- invoke DEM_DEC(Unwrap(k), c_);

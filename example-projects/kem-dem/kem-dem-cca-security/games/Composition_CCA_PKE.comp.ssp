@@ -1,17 +1,31 @@
 composition Composition_CCA_PKE {
     const b: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const dctl: Integer;
 
-    const kem_gen: fn Bits(*), Bits(2000) -> (Bits(*), Bits(100), Bits(1000));
-    const kem_encaps: fn Bits(*), Bits(3000), Bits(100) -> (Bits(*), Bits(256), Bits(400));
-    const kem_decaps: fn Bits(*), Bits(1000), Bits(400) -> (Bits(*), Maybe(Bits(256)));
-    const dem_enc: fn Bits(256), Bits(4000) -> Bits(8000);
-    const dem_dec: fn Bits(256), Bits(8000) -> Bits(4000);
+    const kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl)));
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
     instance Scheme_KEM = Scheme_KEM {
         params {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
         }
     }
 
@@ -19,15 +33,32 @@ composition Composition_CCA_PKE {
         params {
             dem_enc: dem_enc,
             dem_dec: dem_dec,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
         }
     }
 
     instance Scheme_KEMDEM = Scheme_KEMDEM {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+        }
     }
 
     instance CCA_PKE = CCA_PKE {
         params {
             b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
         }
     }
 

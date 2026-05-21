@@ -1,20 +1,25 @@
 package Reduction_KEM {
     params {
-        b: Bool
+        b: Bool,
+        pkeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
     }
 
     import oracles {
-        ENCAPS() -> (Bits(400), Bits(256)),
-        KEMGEN() -> Bits(100),
-        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
+        ENCAPS() -> (Bits(kctl), Bits(dkeyl)),
+        KEMGEN() -> Bits(pkeyl),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
     }
 
-    oracle PKGEN() -> Bits(100) {
+    oracle PKGEN() -> Bits(pkeyl) {
         pk <- invoke KEMGEN();
         return pk;
     }
 
-    oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
         (c_kem, k) <- parse invoke ENCAPS();
         if b {
             c_dem <- invoke DEM_ENC(k, m1);

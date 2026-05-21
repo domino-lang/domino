@@ -1,25 +1,34 @@
 package Scheme_KEMDEM {
 
-    import oracles {
-        KEM_GEN() -> (Bits(100), Bits(1000)),
-        KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
-        KEM_DECAPS(sk: Bits(1000), ek: Bits(400)) -> Maybe(Bits(256)),
-        DEM_ENC(k: Bits(256), m: Bits(4000)) -> Bits(8000),
-        DEM_DEC(k: Bits(256), c: Bits(8000)) -> Bits(4000),
+    params {
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
     }
 
-    oracle GEN() -> (Bits(100), Bits(1000)) {
+    import oracles {
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
+        KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+    }
+
+    oracle GEN() -> (Bits(pkeyl), Bits(skeyl)) {
         pk_sk <- invoke KEM_GEN();
         return pk_sk;
     }
 
-    oracle ENC(pk: Bits(100), m: Bits(4000)) -> (Bits(400), Bits(8000)) {
+    oracle ENC(pk: Bits(pkeyl), m: Bits(ptl)) -> (Bits(kctl), Bits(dctl)) {
         (k, c_kem) <- parse invoke KEM_ENCAPS(pk);
         c_dem <- invoke DEM_ENC(k, m);
         return (c_kem, c_dem);
     }
 
-    oracle DEC(sk: Bits(1000), c: (Bits(400), Bits(8000))) -> Maybe(Bits(4000)) {
+    oracle DEC(sk: Bits(skeyl), c: (Bits(kctl), Bits(dctl))) -> Maybe(Bits(ptl)) {
         (c_kem, c_dem) <- parse c;
         k <- invoke KEM_DECAPS(sk, c_kem);
         if (k == None) {

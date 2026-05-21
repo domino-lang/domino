@@ -31,8 +31,8 @@
 
 (define-state-relation relation-randomness
     (
-        (left-game <GameState_Hybrid0>)
-        (right-game <GameState_Hybrid1>)
+        (left-game <GameState_Hybrid0_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
+        (right-game <GameState_Hybrid1_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
     )
     (and 
         (rand-is-eq 

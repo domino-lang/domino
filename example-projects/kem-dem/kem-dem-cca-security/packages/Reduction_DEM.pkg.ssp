@@ -1,20 +1,29 @@
 package Reduction_DEM {
+    params {
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
+
     import oracles {
-        KEM_GEN() -> (Bits(100), Bits(1000)),
-        KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400)),
-        KEM_DECAPS(sk: Bits(1000), c: Bits(400)) -> Maybe(Bits(256)),
-        DEM_DEC(k: Bits(256), c: Bits(8000)) -> Bits(4000),
-        ENC(m0: Bits(4000), m1: Bits(4000)) -> Bits(8000),
-        DEC(c_: Bits(8000)) -> Bits(4000),
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
+        KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+        ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl),
+        DEC(c_: Bits(dctl)) -> Bits(ptl),
     }
 
     state {
-        sk: Maybe(Bits(1000)),
-        pk: Maybe(Bits(100)),
-        c: Maybe((Bits(400),Bits(8000))),
+        sk: Maybe(Bits(skeyl)),
+        pk: Maybe(Bits(pkeyl)),
+        c: Maybe((Bits(kctl),Bits(dctl))),
     }
 
-    oracle PKGEN() -> Bits(100) {
+    oracle PKGEN() -> Bits(pkeyl) {
         assert (pk == None);
         (pk_, sk_) <- parse invoke KEM_GEN();
         pk <- Some(pk_);
@@ -22,7 +31,7 @@ package Reduction_DEM {
         return pk_;
     }
 
-    oracle PKENC(m0: Bits(4000), m1: Bits(4000)) -> (Bits(400),Bits(8000)) {
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
         assert (pk != None);
         assert (c == None);
         (_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
@@ -31,7 +40,7 @@ package Reduction_DEM {
         return (c_kem, c_dem);
     }
 
-    oracle PKDEC(c_: (Bits(400), Bits(8000))) -> Maybe(Bits(4000)) {
+    oracle PKDEC(c_: (Bits(kctl), Bits(dctl))) -> Maybe(Bits(ptl)) {
         assert (sk != None);
         assert (c_ != Unwrap(c));
         (c_kem_, c_dem) <- parse c_;
