@@ -123,6 +123,7 @@ use shadow_rs::shadow;
 shadow!(build);
 
 use sspverif::project;
+use sspverif::ui::indicatif::IndicatifBaseUI;
 
 mod cli;
 use crate::cli::*;
@@ -143,7 +144,7 @@ fn proofsteps() -> Result<(), project::error::Error> {
     project.proofsteps()
 }
 
-fn prove(p: &Prove) -> Result<(), project::error::Error> {
+fn prove(p: &Prove, ui: IndicatifBaseUI) -> Result<(), project::error::Error> {
     let project_root = project::find_project_root()?;
     let files = project::Files::load(&project_root)?;
     let project = project::Project::load(&files)?;
@@ -151,6 +152,7 @@ fn prove(p: &Prove) -> Result<(), project::error::Error> {
     assert!(p.proofstep.is_none() || p.proof.is_some());
 
     project.prove(
+        ui,
         p.prover,
         p.transcript,
         p.parallel,
@@ -202,9 +204,10 @@ fn wire_check(game_name: &str, dst_idx: usize) -> Result<(), project::error::Err
 
 fn main() -> miette::Result<()> {
     let cli = Cli::parse();
+    let ui = IndicatifBaseUI::new();
 
     let result = match &cli.command {
-        Commands::Prove(p) => prove(p),
+        Commands::Prove(p) => prove(p, ui),
         Commands::Proofsteps => proofsteps(),
         Commands::Latex(l) => latex(l),
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
