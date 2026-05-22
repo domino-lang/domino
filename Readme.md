@@ -1,55 +1,53 @@
-# Domino
+Supplementary Material for the CRYPTO 2026 Submission
+===
 
-`Domino` is a tool that helps you manage the tedious parts of working with the State-Separation Proofs framework for doing crypto proofs.
+This Readme contains condensed information for CRYPTO 2026 reviewers. For the regular Readme, refer to [Readme.project.md](./Readme.project.md)
 
-> **This project is in early alpha. Expect insufficient documentation and bugs, bugs, bugs!**
+## Setup
 
-## Features
+To run Domino on your machine, you need
 
-- Handle packages, games and proofs in a custom language close to pseudocode
-- Type-check oracle code and wiring between packages
-- Check that reduction game hops are valid
-- Use SMT solvers to show equivalence of games with different code
-  - This requires hand-writing invariants in SMT-LIB, but not proving them.
-- Generate LATeX cryptocode and diagrams
+ - CVC5 version 1.3 -- https://cvc5.github.io/
+ - Recent rust and cargo -- https://rustup.rs/
 
-## Installation
+You can opt to *install* Domino by running 
+```
+cargo install --path crates/domino
+```
 
-Requirements:
+or run it directly using cargo 
+```
+cargo run -p domino
+```
 
-- A somewhat recent Rust toolchain. If you don't have that, look into [rustup].
-- CVC5 installed and in the `PATH` (not needed for building domino, but for running it)
+within the provided folder
 
-Install the tool using `cargo install --git https://github.com/domino-lang/domino domino`.
-Ensure that the installed binary is in your `PATH`. (By default, Cargo installs to (`~/.cargo/bin`).)
+## Web version
 
-## Usage
+Alternatively to an installation, there is a Web version at https://dainty-froyo-12acd5.netlify.app/. The website also provides prepared archives for all the example projects. While this works well for simple projects, the web version reaches its limits when verifying, for example, the full 4-Way Handshake and is noticeably slower.
 
-Enter a project directory and run `domino prove`.
-To get an idea how a project is structured, see the `example-projects/hello-world` directory (sorry, proper documentation is on the roadmap).
+The web interface in this submission is still extremely basic. It does allow running Domino on a project of your choice, but no further options to inspect projects or make changes. To use it, first upload a zip'ed Domino project, and then choose either the "proofsteps" or "prove" buttons.
 
-To generate LaTeX for a project, use `domino latex`. The output will be in `_build/latex`, relative to the project root.
+## Case Studies from the Submission
 
-## Model
+### 4-Way Handshake
 
-At the lowest level, there are _packages_, which can expose oracles (exports) and call oracles on other packages (imports). A package has both _state_ and _constant parameters_. One layer higher there are _games_, which instantiate packages into package instance and assign which oracle is called for every import. A game also has constant parameters that can be assigned to package constant parameters during instantiation. At the highest layer there are proofs, which instantiate games and describe hops between these. There are reduction game hops, which are graph-based arguments based on an assumption, and equivalence game hops, where we use an SMT solver to show that two games behave identically.
+The Domino project for 4WHS is located in `example-projects/4WHS` and contains both the simplified and full proof. In particular, games associated with the simplified version are named `games/Hybrid{0..3}` while the games associated with the full version are named `games/H{0..7}`. The invariant specifications are located in `theorem/simple` and `theorem/full` respectively. 
 
-## Soundness Gaps
+In the folder `_build/latex` you can find automated pdf exports of the projects. The LaTeX source can be recreated using `domino latex` (resp. `cargo run -p domino latex`).
 
-Right now, the tool does the hard parts of equivalence proofs, but so far two properties have to be checked manually:
+Running `domino prove` (resp. `cargo run -p domino prove`) in that folder will verify both simplified and the full 4-Way Handshake security. You can choose to limit Domino to either proof by passing `--proof Full4WHS` (resp. `--proof Simple4WHS`). For further options, we refer to the output of `--help`.
 
-- **Invariant Induction Base Case**: The left and right base state are equivalent according to the equivalence relation of the invariant.
-- **Injectivity of Randomness Mapping**: The randomness mapping describes which random values in the left and right game should be equivalent. In order to ensure that the random values are not e.g. all constrained to be the same value, this check needs to be done.
+Making use of parallel solving (`--parallel 12`), Simple4WHS takes less than a minute on a modern notebook, while Full4WHS takes around 40 minutes.
 
-## Roadmap
+### Yao's Garbling Scheme
 
-- [ ] Fix Remaining Soundness Gaps
-- [ ] Improve Documentation
-- [ ] Improve Error Reporting
-- [ ] Editor/LSP support
-- [ ] Close Soundness Gaps
-- [ ] Automatically Determine Advantage Terms
-- [ ] Type parameters - in instantiations, allow not just assigning constants, but also types.
-- [ ] Automatically find invariants for equivalence proofs.
-
-[rustup]: https://rustup.rs/
+There are three main theorem files:
+1. HybridCircuitSecurity is the generalized hybrid argument with the three main hybrid proof steps. It proves $CoreReal$ ~ $CoreIdeal$ where $CoreReal = SEC^0_d$ and $CoreIdeal = SEC^1_d$. (`invariant-CoreReal-HybridReal.smt2` for the hybrid start, `invariant-HybridIdeal-HybridReal1.smt2` for hybrid step, and `invariant-CoreIdeal-HybridIdeal.smt2` for hybrid end)
+2. Yao3Layer reduces the security of 3-layer circuit security to layer assumptions by three reduction game hops outlined in section 5.
+3. LayerSecurity is the layer assumption (invariants: invariant-Layer.smt2)
+4. Yao reduces Yao's circuit security to hybrid circuit security with straight line reduction. Yao circuit security games expose a single oracle GARBLE for garbling the entire circuit.
+    
+Estimated proof times: 
+1. HybridCircuitSecuirty = 10 (start) + 30 (step) + 5 (end) minutes
+2. LayerSecurity = 30 seconds
