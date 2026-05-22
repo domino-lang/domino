@@ -1,0 +1,56 @@
+package Reduction_Correct_KEM {
+    params {
+        b: Bool,
+        pkeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
+
+    import oracles {
+        CORR_GEN() -> Bits(pkeyl),
+        CORR_ENCAPS() -> (Bits(kctl), Bits(dkeyl)),
+        CORR_DECAPS(c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        c: Maybe((Bits(kctl), Bits(dctl))),
+    }
+
+    oracle PKGEN() -> Bits(pkeyl) {
+        assert (pk == None);
+        pk_ <- invoke CORR_GEN();
+        pk <- Some(pk_);
+        return pk_;
+    }
+
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None);
+        assert (c == None);
+        (c_kem, k) <- parse invoke CORR_ENCAPS();
+        if b {
+            c_dem <- invoke DEM_ENC(k, m1);
+        } else {
+            c_dem <- invoke DEM_ENC(k, m0);
+        }
+        c <- Some((c_kem, c_dem));
+        return (c_kem, c_dem);
+    }
+
+    oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Maybe(Bits(ptl)) {
+        assert (pk != None);
+        assert (c_ != Unwrap(c));
+        (c_kem, c_dem) <- parse c_;
+        k <- invoke CORR_DECAPS(c_kem);
+        if (k == None) {
+            return None;
+        }
+        m <- invoke DEM_DEC(Unwrap(k), c_dem);
+        return Some(m);
+    }
+
+}
