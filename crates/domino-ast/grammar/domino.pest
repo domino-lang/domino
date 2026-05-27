@@ -1,0 +1,134 @@
+//! # The Domino Package Grammar
+//!
+//! This file defines the grammar used by Domino. Near the top we define how we treat whitespace
+//! and comments. In order to be able to format code, we need to preserve some spacing info.
+//! That is why we handle newlines explicitly.
+
+WHITESPACE = _{ " " | "\t" }
+
+line_comment  = @{ "//" ~ (!NEWLINE  ~ ANY)* }
+block_comment = @{ "/*" ~ (!"*/"  ~ ANY)* ~ "*/" }
+
+// somehow pest hides the NEWLINE rule from rust, we have to wrap it
+newline = { NEWLINE }
+gap = { ( newline | block_comment| line_comment)* }
+
+// ## Keywords
+// In pest, string literals don't enforce word boundaries, so "or" would also match "orifice".
+// We have to explicitly encode that.
+// The underscore means that the rules will be hidden when traversing the parse tree.
+
+kw_invoke  = @{ "invoke"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_abort   = @{ "abort"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_return  = @{ "return"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_if      = @{ "if"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_else    = @{ "else"    ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_oracle  = @{ "oracle"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_consts  = @{ "consts"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_state   = @{ "state"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_types   = @{ "types"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_package = @{ "package" ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_import  = @{ "import"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
+
+// don't hide operators
+kw_and     = @{ "and"     ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_or      = @{ "or"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
+
+// used to detect trailing delimiters
+comma = { "," }
+semicolon = { ";" }
+
+// ## Expressions
+
+just_l_and = { l_and }
+
+// precendence tree
+expr  = { l_and ~ ( gap ~ kw_or   ~ gap ~ l_and )* }
+l_and = { compn ~ ( gap ~ kw_and  ~ gap ~ compn )* }
+compn = { addtn ~ ( gap ~ comp_op ~ gap ~ addtn )* }
+addtn = { multn ~ ( gap ~  add_op ~ gap ~ multn )* }
+multn = { unary ~ ( gap ~  mul_op ~ gap ~ unary )* }
+
+// unary bind strongly
+unary  = { unary_op ~ gap ~unary | atom }
+
+// these have explicit parens
+atom   = { invoke | table_expr | sample | paren_expr | tuple_expr | string_literal | int_literal | call }
+call   = {             identifier ~ ( gap ~ "(" ~ arg_list_expr ~ ")" )* }
+invoke = { kw_invoke ~ identifier ~   gap ~ "(" ~ arg_list_expr ~ ")"    }
+sample = { "$" ~ ty }
+paren_expr = { "(" ~ padded_expr ~ ")" }
+tuple_expr = { "(" ~ arg_list_expr ~ ")" }
+table_expr  = { identifier ~ gap ~ "[" ~ padded_expr ~ "]" }
+
+arg_list_expr = { ( padded_expr ~ ( ","  ~ padded_expr )* ~ comma? ) | gap }
+padded_expr = { gap ~ expr ~ gap }
+
+// operator strings
+unary_op = { "!" | "-" }
+mul_op   = { "*" | "/" | "%" }
+add_op   = { "+" | "-" }
+comp_op  = { "==" | "!=" | "<=" | "<" | ">=" | ">" }
+
+string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+int_literal    = @{ ASCII_DIGIT+ }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+// ## Types
+
+ty = { argd_ty | identifier | tuple_ty }
+
+tuple_ty = {                    "(" ~ arg_list_ty ~ ")" }
+argd_ty  = { identifier ~ gap ~ "(" ~ arg_list_ty ~ ")" }
+
+arg_list_ty = { ( padded_ty ~ ( "," ~ padded_ty )*  ~ comma? ) | gap }
+padded_ty = { gap ~ ty ~ gap }
+
+// ## Statements
+
+statements = { ( padded_statement ~ ( ";" ~ padded_statement )*  ~ semicolon? ) | gap }
+padded_statement = { gap ~ statement ~ gap }
+
+statement = { ifthenelse | abort | assignment | return | expr }
+ifthenelse = { kw_if ~ padded_expr ~ "{" ~  statements  ~ "}" ~ ( gap ~ kw_else ~ gap ~ "{" ~  statements ~ "}" )? }
+abort = { kw_abort }
+assignment = { pattern ~ gap ~ "<-" ~ gap ~ expr }
+return = { kw_return ~ gap ~ expr }
+
+// Patterns describe the left-hand side of an assignment
+patterns = { (padded_pattern ~ ( "," ~ padded_pattern )* ~ comma? ) | gap }
+pattern     = { table_pat | identifier | tuple_pat }
+table_pat   = { identifier ~ gap ~ "[" ~ padded_expr ~ "]"}
+tuple_pat = { "(" ~ patterns ~ ")" }
+padded_pattern = { gap ~ pattern ~ gap }
+
+
+// ## Oracle Definitions
+
+oracle_def = { kw_oracle ~ padded_oracle_sig  ~ "{" ~ statements ~ "}" }
+padded_oracle_sig = { gap ~ oracle_sig ~ gap }
+oracle_sig = { identifier ~ gap ~ "(" ~ expr_ident_decl_list ~ ")" ~ ( gap ~ "->" ~ gap ~ ty)? }
+expr_ident_decl_list = { ( padded_expr_ident_decl ~ ( "," ~ padded_expr_ident_decl )* ~ comma? ) | gap }
+padded_expr_ident_decl = { gap ~ expr_ident_decl ~ gap }
+expr_ident_decl = { identifier ~ gap ~ ":" ~ gap ~ ty }
+padded_ident = { gap ~ identifier ~ gap }
+padded_ident_list = { ( padded_ident ~ ( "," ~ padded_ident )* ~ comma? ) | gap }
+
+// ## Package Definition
+
+oracle_decl_list = { ( padded_oracle_sig ~ ( ";" ~ padded_oracle_sig )* ~ semicolon? ) | gap }
+
+package = { kw_package ~ padded_ident ~ "{" ~ package_item_list ~ "}" }
+package_item_list   = { padded_package_item+ | gap }
+padded_package_item = { gap ~ package_item ~ gap }
+
+package_item = { types_param_block | state_block | consts_param_block | oracle_def | import_oracles_block }
+consts_param_block   = { kw_consts ~ gap ~ "{" ~  expr_ident_decl_list ~ "}" }
+state_block    = { kw_state  ~ gap ~ "{" ~  expr_ident_decl_list ~ "}" }
+types_param_block    = { kw_types  ~ gap ~ "{" ~     padded_ident_list ~ "}" }
+import_oracles_block = { kw_import ~ gap ~ "{" ~      oracle_decl_list ~ "}" }
+
+
+
+
+
