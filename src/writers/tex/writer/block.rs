@@ -41,11 +41,16 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
     }
 
     fn ident_to_tex(&self, ident: &Identifier) -> String {
-        ident
-            .ident()
-            .splitn(2, "_")
-            .map(|comp| format!("\\n{{{}}}", comp.replace("_", "\\_")))
-            .join("_")
+        let ident = ident.ident();
+        if let Some((first, second)) = ident.split_once("_") {
+            if second.is_empty() {
+                format!("\\n{{{first}}}^\\prime")
+            } else {
+                format!("\\n{{{first}}}_\\n{{{}}}", second.replace("_", "\\_"))
+            }
+        } else {
+            format!("\\n{{{ident}}}")
+        }
     }
 
     fn countspec_to_tex(&self, count_spec: &CountSpec) -> String {
