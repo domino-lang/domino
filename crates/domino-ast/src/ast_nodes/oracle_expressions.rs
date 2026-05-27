@@ -1,0 +1,341 @@
+use crate::{
+    arena::{Ref, Slice},
+    ast_nodes::{
+        identifier::{Identifier, OracleIdentifier, OracleValueIdentifier},
+        list::{Comma, List},
+        pure_expressions::{binop_from_pair, BinOp, UnOp},
+        types::Type,
+        PaddedRef, Parsable, Trivia,
+    },
+    source::{FileId, SourceLocation},
+    Rule, State,
+};
+
+#[derive(Debug, Clone)]
+pub enum OracleExpression {
+    Invoke(Ref<OracleInvocationExpression>),
+    TableIndex(Ref<TableIndexExpression>),
+    Sample(Ref<SampleExpression>),
+    Paren(Ref<ParenExpression>),
+    Tuple(Ref<TupleExpression>),
+    Call(Ref<CallExpression>),
+    Identifier(Ref<OracleValueIdentifier>),
+    BinOp(Ref<BinOpExpression>),
+    UnOp(Ref<UnOpExpression>),
+
+    String,
+    Int,
+}
+
+#[derive(Debug, Clone)]
+pub struct BinOpExpression {
+    pub lhs: Ref<OracleExpression>,
+    pub pre_op_trivia: Slice<Trivia>,
+    pub op: BinOp,
+    pub post_op_trivia: Slice<Trivia>,
+    pub rhs: Ref<OracleExpression>,
+}
+
+#[derive(Debug, Clone)]
+pub struct UnOpExpression {
+    pub op: UnOp,
+    pub trivia: Slice<Trivia>,
+    pub expr: Ref<OracleExpression>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OracleInvocationExpression {
+    /// The name of the invoked oracle.
+    pub oracle_name: Ref<OracleIdentifier>,
+
+    /// Trivia between name and (
+    pub oracle_name_trivia: Slice<Trivia>,
+
+    pub args: Ref<ExprList>,
+}
+
+/// A list of expressions, usually comma separated. Usually surrounded by parenthises
+pub type ExprList = List<OracleExpression, Comma>;
+
+#[derive(Debug, Clone, Copy)]
+pub struct TableIndexExpression {
+    pub table_name: Ref<OracleValueIdentifier>,
+
+    pub table_name_trivia: Slice<Trivia>,
+
+    pub index: PaddedRef<OracleExpression>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SampleExpression {
+    pub ty: Ref<Type>,
+    // TODO: sample names
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ParenExpression(pub PaddedRef<OracleExpression>);
+
+#[derive(Debug, Clone, Copy)]
+pub struct CallExpression {
+    pub name: Ref<OracleExpression>,
+    pub trivia: Slice<Trivia>,
+    pub args: Ref<ExprList>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TupleExpression(pub Ref<ExprList>);
+
+fn parse_leftassoc(
+    file_id: crate::source::FileId,
+    state: &mut crate::State,
+    pair: crate::Pair,
+) -> OracleExpression {
+    let mut pairs = pair.into_inner();
+    let first = pairs.next().unwrap();
+
+    let mut lhs_loc = SourceLocation::from_file_and_pair(file_id, &first);
+    let mut lhs_raw = OracleExpression::parse(file_id, state, first);
+
+    if pairs.peek().is_none() {
+        return lhs_raw;
+    }
+
+    while let Some(lhs_trailing_pair) = pairs.next() {
+        let op_pair = pairs.next().unwrap();
+        let rhs_leading_pair = pairs.next().unwrap();
+        let rhs_pair = pairs.next().unwrap();
+        let rhs_loc = super::trimmed_loc(file_id, &rhs_pair);
+
+        let op = binop_from_pair(&op_pair);
+
+        let lhs = Ref::from_parsed(state, lhs_loc, lhs_raw);
+        let lhs_trailing = Slice::from_pair(file_id, state, lhs_trailing_pair);
+        let rhs_leading = Slice::from_pair(file_id, state, rhs_leading_pair);
+        let rhs = OracleExpression::parse_ref(file_id, state, rhs_pair);
+
+        let binop_expr = BinOpExpression {
+            lhs,
+            pre_op_trivia: lhs_trailing,
+            op,
+            post_op_trivia: rhs_leading,
+            rhs,
+        };
+
+        lhs_loc.end = rhs_loc.end;
+
+        let binop_expr = Ref::from_parsed(state, lhs_loc, binop_expr);
+        lhs_raw = OracleExpression::BinOp(binop_expr);
+    }
+
+    lhs_raw
+}
+
+fn parse_unary(
+    file_id: crate::source::FileId,
+    state: &mut crate::State,
+    pair: crate::Pair,
+) -> OracleExpression {
+    debug_assert_eq!(pair.as_rule(), Rule::unary);
+
+    let loc = SourceLocation::from_file_and_pair(file_id, &pair);
+
+    let mut inner = pair.into_inner();
+
+    match inner.peek().unwrap().as_rule() {
+        Rule::atom => OracleExpression::parse(file_id, state, inner.next().unwrap()),
+        Rule::unary_op => {
+            let unary_op_pair = inner.next().unwrap();
+            let trivia_pair = inner.next().unwrap();
+            let inner_unary_pair = inner.next().unwrap();
+
+            let op = match unary_op_pair.as_str() {
+                "!" => UnOp::Not,
+                "-" => UnOp::Neg,
+                _ => unreachable!(),
+            };
+
+            let trivia = Slice::from_pair(file_id, state, trivia_pair);
+
+            let inner_unary_loc = SourceLocation::from_file_and_pair(file_id, &inner_unary_pair);
+            let inner_unary = parse_unary(file_id, state, inner_unary_pair);
+            let inner_unary_ref = Ref::from_parsed(state, inner_unary_loc, inner_unary);
+
+            let unop = UnOpExpression {
+                op,
+                trivia,
+                expr: inner_unary_ref,
+            };
+
+            let unop = Ref::from_parsed(state, loc, unop);
+
+            OracleExpression::UnOp(unop)
+        }
+        _ => unreachable!(),
+    }
+}
+
+impl Parsable for OracleInvocationExpression {
+    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::invoke);
+
+        let mut inner = pair.into_inner();
+        let _invoke = inner.next().unwrap();
+        let name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
+        let trivia = Slice::from_pair(file_id, state, inner.next().unwrap());
+        let expr_list_pair = ExprList::parse_ref(file_id, state, inner.next().unwrap());
+
+        OracleInvocationExpression {
+            oracle_name: name,
+            oracle_name_trivia: trivia,
+            args: expr_list_pair,
+        }
+    }
+}
+
+crate::ast_nodes::list::impl_comma_list!(
+    OracleExpression,
+    Rule::arg_list_expr,
+    Rule::padded_expr,
+    Comma,
+    Rule::comma
+);
+
+impl Parsable for TableIndexExpression {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::table_expr);
+
+        let mut inner = pair.into_inner();
+
+        let ident_pair = inner.next().unwrap();
+        let trivia_pair = inner.next().unwrap();
+        let index_pair = inner.next().unwrap();
+
+        let ident = Identifier::parse_ref(file_id, state, ident_pair);
+        let trivia = Slice::from_pair(file_id, state, trivia_pair);
+        let index = PaddedRef::parse(file_id, state, index_pair);
+
+        TableIndexExpression {
+            table_name: ident,
+            table_name_trivia: trivia,
+            index,
+        }
+    }
+}
+
+impl Parsable for SampleExpression {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::sample);
+
+        SampleExpression {
+            ty: Type::parse_ref(file_id, state, pair.into_inner().next().unwrap()),
+        }
+    }
+}
+
+impl Parsable for ParenExpression {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
+
+        ParenExpression(PaddedRef::parse(
+            file_id,
+            state,
+            pair.into_inner().next().unwrap(),
+        ))
+    }
+}
+
+impl Parsable for TupleExpression {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);
+
+        TupleExpression(ExprList::parse_ref(
+            file_id,
+            state,
+            pair.into_inner().next().unwrap(),
+        ))
+    }
+}
+
+fn parse_call(
+    file_id: crate::source::FileId,
+    state: &mut crate::State,
+    pair: crate::Pair,
+) -> OracleExpression {
+    let span = pair.as_span();
+    let start = span.start() as u32;
+    let mut fun_loc = SourceLocation::from_file_and_pair(file_id, &pair);
+    let mut inner = pair.into_inner();
+
+    let mut fun =
+        OracleExpression::Identifier(Identifier::parse_ref(file_id, state, inner.next().unwrap()));
+
+    while let Some(trivia) = inner.next() {
+        let args_pair = inner.next().unwrap();
+        let end = args_pair.as_span().end() as u32;
+
+        let trivia = Slice::from_pair(file_id, state, trivia);
+        let args = ExprList::parse_ref(file_id, state, args_pair);
+
+        let loc = SourceLocation {
+            file_id,
+            start,
+            end,
+        };
+        let call = CallExpression {
+            name: Ref::from_parsed(state, fun_loc, fun),
+            trivia,
+            args,
+        };
+        fun = OracleExpression::Call(Ref::from_parsed(state, loc, call));
+        fun_loc.end = end;
+    }
+
+    fun
+}
+
+impl Parsable for OracleExpression {
+    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+        match pair.as_rule() {
+            Rule::atom => Self::parse(file_id, state, pair.into_inner().next().unwrap()),
+
+            Rule::expr | Rule::l_and | Rule::compn | Rule::addtn | Rule::multn => {
+                parse_leftassoc(file_id, state, pair)
+            }
+
+            Rule::unary => parse_unary(file_id, state, pair),
+            Rule::call => parse_call(file_id, state, pair),
+
+            Rule::invoke => OracleExpression::Invoke(OracleInvocationExpression::parse_ref(
+                file_id, state, pair,
+            )),
+            Rule::table_expr => {
+                OracleExpression::TableIndex(TableIndexExpression::parse_ref(file_id, state, pair))
+            }
+            Rule::sample => {
+                OracleExpression::Sample(SampleExpression::parse_ref(file_id, state, pair))
+            }
+            Rule::paren_expr => {
+                OracleExpression::Paren(ParenExpression::parse_ref(file_id, state, pair))
+            }
+            Rule::tuple_expr => {
+                OracleExpression::Tuple(TupleExpression::parse_ref(file_id, state, pair))
+            }
+
+            Rule::string_literal => OracleExpression::String,
+            Rule::int_literal => OracleExpression::Int,
+
+            _ => todo!(),
+        }
+    }
+}
+
+super::impl_node_type!(0x70, OracleExpression, noop_index);
+super::impl_node_type!(0x71, OracleInvocationExpression, noop_index);
+super::impl_node_type!(0x72, ExprList, noop_index);
+super::impl_node_type!(0x73, TableIndexExpression, noop_index);
+super::impl_node_type!(0x75, SampleExpression, noop_index); // TODO: index sample id?
+super::impl_node_type!(0x76, ParenExpression, noop_index);
+super::impl_node_type!(0x77, CallExpression, noop_index);
+super::impl_node_type!(0x78, TupleExpression, noop_index);
+super::impl_node_type!(0x7a, BinOpExpression, noop_index);
+super::impl_node_type!(0x7b, UnOpExpression, noop_index);

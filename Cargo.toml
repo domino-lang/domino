@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/smtlib", "crates/domino"]
+members = [".", "crates/smtlib", "crates/domino", "crates/domino-ast"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,6 +10,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 sspverif-smtlib = { path = "crates/smtlib" }
 sspverif = { path = "" }
+pest = { version = "2.7" }
+pest_derive = "2.7"
 
 [package]
 name = "sspverif"
@@ -36,8 +38,8 @@ indicatif-log-bridge = "0.2"
 itertools = "0.10"
 log = "0.4.22 "
 miette = { version = "7.2.0", features = ["fancy"] }
-pest = { version = "2.7", features = ["miette-error"] }
-pest_derive = "2.7"
+pest = { workspace = true, features = ["miette-error"] }
+pest_derive.workspace = true
 rayon = "1.10"
 serde = "1.0.137"
 serde_derive = "1.0.137"
