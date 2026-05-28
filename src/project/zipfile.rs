@@ -11,6 +11,7 @@ use super::Project;
 #[derive(Debug)]
 pub struct ZipProject<'a> {
     archive: &'a Vec<u8>,
+    packages: HashMap<String, Package>,
     games: HashMap<String, Composition>,
     theorems: HashMap<String, Theorem<'a>>,
 }
@@ -71,6 +72,7 @@ impl<'a> ZipProject<'a> {
 
         Ok(Self {
             archive: &files.archive,
+            packages,
             games,
             theorems,
         })
@@ -78,11 +80,17 @@ impl<'a> ZipProject<'a> {
 }
 
 impl Project for ZipProject<'_> {
+    fn packages(&self) -> impl Iterator<Item = &String> {
+        self.packages.keys()
+    }
     fn games(&self) -> impl Iterator<Item = &String> {
         self.games.keys()
     }
     fn theorems(&self) -> impl Iterator<Item = &String> {
         self.theorems.keys()
+    }
+    fn get_package(&self, name: &str) -> Option<&Package> {
+        self.packages.get(name)
     }
     fn get_game(&self, name: &str) -> Option<&Composition> {
         self.games.get(name)

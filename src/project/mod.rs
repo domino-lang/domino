@@ -14,7 +14,7 @@ use error::Result;
 use crate::parser::ast::Identifier;
 use crate::{
     gamehops::{equivalence, GameHop},
-    package::Composition,
+    package::{Composition, Package},
     theorem::Theorem,
     transforms::Transformation,
     util::smtsolver::SmtSolverBackend,
@@ -39,10 +39,12 @@ pub trait Project {
     fn get_root_dir(&self) -> PathBuf;
 
     fn theorems(&self) -> impl Iterator<Item = &String>;
+    fn packages(&self) -> impl Iterator<Item = &String>;
     fn games(&self) -> impl Iterator<Item = &String>;
 
     fn get_theorem(&self, name: &str) -> Option<&Theorem<'_>>;
     fn get_game(&self, name: &str) -> Option<&Composition>;
+    fn get_package(&self, name: &str) -> Option<&Package>;
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 

@@ -2,7 +2,10 @@ use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 use walkdir;
 
-use crate::{package::Composition, theorem::Theorem};
+use crate::{
+    package::{Composition, Package},
+    theorem::Theorem,
+};
 
 use super::consts::{GAMES_DIR, PACKAGES_DIR, PROJECT_FILE, THEOREM_DIR};
 use super::error::{FindProjectRootError, Result};
@@ -48,6 +51,7 @@ impl DirectoryFiles {
 #[derive(Debug)]
 pub struct DirectoryProject<'a> {
     root_dir: PathBuf,
+    packages: HashMap<String, Package>,
     games: HashMap<String, Composition>,
     theorems: HashMap<String, Theorem<'a>>,
 }
@@ -57,6 +61,7 @@ impl<'a> DirectoryProject<'a> {
     pub(crate) fn empty() -> Self {
         Self {
             root_dir: PathBuf::new(),
+            packages: HashMap::new(),
             games: HashMap::new(),
             theorems: HashMap::new(),
         }
@@ -72,6 +77,7 @@ impl<'a> DirectoryProject<'a> {
 
         let project = DirectoryProject {
             root_dir,
+            packages,
             games,
             theorems,
         };
@@ -81,11 +87,17 @@ impl<'a> DirectoryProject<'a> {
 }
 
 impl Project for DirectoryProject<'_> {
+    fn packages(&self) -> impl Iterator<Item = &String> {
+        self.packages.keys()
+    }
     fn games(&self) -> impl Iterator<Item = &String> {
         self.games.keys()
     }
     fn theorems(&self) -> impl Iterator<Item = &String> {
         self.theorems.keys()
+    }
+    fn get_package(&self, name: &str) -> Option<&Package> {
+        self.packages.get(name)
     }
     fn get_game(&self, name: &str) -> Option<&Composition> {
         self.games.get(name)
