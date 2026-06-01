@@ -1,0 +1,6 @@
+package pkg {
+  oracle test() {
+    x <- 12;
+    (a, b) <- x;
+  }
+}
