@@ -4,8 +4,8 @@ use crate::{
     parser::{
         common::HandleTypeError,
         error::{
-            MissingReturnError, NoSuchTypeError, TypeMismatchError, UndefinedIdentifierError,
-            WrongArgumentCountInInvocationError,
+            MissingReturnError, NoSuchTypeError, ParseNonTupleError, TypeMismatchError,
+            UndefinedIdentifierError, WrongArgumentCountInInvocationError,
         },
         package::{ParseExpressionError, ParsePackageError},
         tests::{packages, slice_source_span},
@@ -47,6 +47,22 @@ fn undefined_type_in_pkg_state() {
             if &type_name == "ThisTypeDoesNotExist"
         )
     )
+}
+
+#[test]
+fn parse_int_as_tuple() {
+    let err = packages::parse_file_fails("ErrParseTuple.pkg.ssp");
+
+    match err {
+        ParsePackageError::ParseNonTuple(ParseNonTupleError { got, .. }) => {
+            assert_eq!(got, Type::integer());
+        }
+        other => {
+            let msg = format!("expected a different error; got {other:?}");
+            let report = miette::Report::new(other);
+            panic!("{msg}, which looks like this:\n{report:?}")
+        }
+    }
 }
 
 #[test]

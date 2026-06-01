@@ -4,9 +4,9 @@ use super::{
     common::*,
     error::{
         ArgumentCountMismatchError, ExpectedExpressionIdentifierError,
-        IdentifierAlreadyDeclaredError, IllegalLiteralError, MissingReturnError, ParserScopeError,
-        TypeMismatchError, UndefinedIdentifierError, UntypedNoneTypeInferenceError,
-        WrongArgumentCountInInvocationError,
+        IdentifierAlreadyDeclaredError, IllegalLiteralError, MissingReturnError,
+        ParseNonTupleError, ParserScopeError, TypeMismatchError, UndefinedIdentifierError,
+        UntypedNoneTypeInferenceError, WrongArgumentCountInInvocationError,
     },
     ParseContext, Rule,
 };
@@ -136,6 +136,10 @@ pub enum ParsePackageError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ArgumentCountMismatch(#[from] ArgumentCountMismatchError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ParseNonTuple(#[from] ParseNonTupleError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -1047,9 +1051,8 @@ fn handle_pattern(
         Rule::pattern_tuple => {
             let TypeKind::Tuple(tys) = value_type.clone().into_kind() else {
                 let span = pattern_ast.as_span();
-                return Err(TypeMismatchError {
+                return Err(ParseNonTupleError {
                     at: (span.start()..span.end()).into(),
-                    expected: Type::unknown(), // We expect a tuple but don't know the exact type yet
                     got: value_type,
                     source_code: ctx.named_source(),
                 }

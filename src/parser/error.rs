@@ -178,6 +178,19 @@ pub struct OracleAlreadyImportedError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("type mismatch: got {got}, expected tuple")]
+#[diagnostic(code(domino::code::parse_non_tuple))]
+pub struct ParseNonTupleError {
+    #[label("this expression has the wrong type")]
+    pub at: SourceSpan,
+
+    pub got: Type,
+
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+}
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("type mismatch: got {got}, expected {expected}")]
 #[diagnostic(code(domino::code::type_mismatch))]
 pub struct TypeMismatchError {
@@ -194,7 +207,7 @@ pub struct TypeMismatchError {
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("argument count mismatch: got {got}, expected {expected}")]
-#[diagnostic(code(domino::code::type_mismatch))]
+#[diagnostic(code(domino::code::argument_count_mismatch))]
 pub struct ArgumentCountMismatchError {
     #[label("this expression has the wrong number of arguments")]
     pub at: SourceSpan,
