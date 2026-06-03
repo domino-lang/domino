@@ -2,72 +2,124 @@ use crate::{
     arena::{Ref, Slice},
     ast_nodes::{
         identifier::{
-            Identifier, OracleConstValueIdentifierKind, TypeArgumentIdentifier, TypeIdentifier,
+            GameTypeArgumentIdentifierKind, GameTypeIdentifierKind, Identifier,
+            PackageTypeArgumentIdentifier, PackageTypeArgumentIdentifierKind,
+            PackageTypeIdentifierKind, TypeArgIdentifierKind, TypeIdentifierKind,
         },
         list::{Comma, List},
         pure_expressions::PureExpression,
-        PaddedRef, Parsable, Trivia,
+        InArena, Indexable, NodeType, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
 };
 
 #[derive(Debug, Clone, Copy)]
-pub enum Type {
-    Identifier(Ref<TypeArgumentIdentifier>),
-    Tuple(Ref<TupleType>),
-    Argumented(Ref<ArgumentedType>),
+pub enum Type<IK: TypeIdentifierKind> {
+    Identifier(Ref<PackageTypeArgumentIdentifier>),
+    Tuple(Ref<TupleType<IK>>),
+    Argumented(Ref<ArgumentedType<IK::ArgIdentifierKind>>),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct TupleType(pub Ref<TypeList>);
+pub struct TupleType<IK: TypeIdentifierKind>(pub Ref<TypeList<IK>>);
 
 #[derive(Debug, Clone, Copy)]
-pub struct ArgumentedType {
-    pub name: Ref<TypeIdentifier>,
+pub struct ArgumentedType<IK: TypeArgIdentifierKind> {
+    pub name: Ref<Identifier<IK::ArgTypeIdentifierKind>>,
     pub post_name: Slice<Trivia>,
-    pub args: Ref<TypeList>,
+    pub args: Ref<TypeArgList<IK>>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum TypeArgument {
-    Identifier(Ref<TypeArgumentIdentifier>),
-    Type(Ref<Type>),
-    Expr(Ref<PureExpression<OracleConstValueIdentifierKind>>),
+pub enum TypeArgument<IK: TypeArgIdentifierKind> {
+    Identifier(Ref<PackageTypeArgumentIdentifier>),
+    Tuple(Ref<TypeArgList<IK>>),
+    Application(Ref<ArgumentedType<IK>>),
+    Type(Ref<Type<IK::ArgTypeIdentifierKind>>),
+    Expr(Ref<PureExpression<IK::ArgValueIdentifierKind>>),
 }
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeArgList = List<TypeArgument, Comma>;
+pub type TypeArgList<IK: TypeArgIdentifierKind> = List<TypeArgument<IK>, Comma>;
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeList = List<Type, Comma>;
+pub type TypeList<IK: TypeIdentifierKind> = List<Type<IK>, Comma>;
 
-impl Parsable for Type {
+fn parse_type<IK: TypeIdentifierKind>(
+    file_id: FileId,
+    state: &mut State,
+    pair: crate::Pair,
+) -> Type<IK>
+where
+    Type<IK>: Indexable + InArena,
+    ArgumentedType<IK::ArgIdentifierKind>: Parsable,
+    TupleType<IK>: Parsable,
+    TypeArgList<IK::ArgIdentifierKind>: Parsable,
+{
+    let loc = SourceLocation::from_file_and_pair(file_id, &pair);
+    debug_assert_eq!(pair.as_rule(), Rule::ty, "at {loc:?}");
+
+    let pair = pair.into_inner().next().unwrap();
+    match pair.as_rule() {
+        Rule::identifier => Type::Identifier(Identifier::parse_ref(file_id, state, pair)),
+        Rule::appl_ty => {
+            let argd_ty = ArgumentedType::parse_ref(file_id, state, pair);
+            Type::Argumented(argd_ty)
+        }
+        Rule::tuple_ty => Type::Tuple(TupleType::parse_ref(file_id, state, pair)),
+        _ => unreachable!(),
+    }
+}
+
+impl Parsable for Type<PackageTypeIdentifierKind> {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        let loc = SourceLocation::from_file_and_pair(file_id, &pair);
-        debug_assert_eq!(pair.as_rule(), Rule::ty, "at {loc:?}");
+        parse_type::<PackageTypeIdentifierKind>(file_id, state, pair)
+    }
+}
 
-        let pair = pair.into_inner().next().unwrap();
-        match pair.as_rule() {
-            Rule::identifier => Type::Identifier(Identifier::parse_ref(file_id, state, pair)),
-            Rule::argd_ty => {
-                let argd_ty = ArgumentedType::parse_ref(file_id, state, pair);
-                Type::Argumented(argd_ty)
-            }
-            Rule::tuple_ty => Type::Tuple(TupleType::parse_ref(file_id, state, pair)),
+impl Parsable for Type<GameTypeIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_type::<GameTypeIdentifierKind>(file_id, state, pair)
+    }
+}
+
+impl<IK: TypeArgIdentifierKind> Parsable for TypeArgument<IK>
+where
+    Self: Indexable + InArena + NodeType,
+    ArgumentedType<IK>: Parsable,
+    TypeArgList<IK>: Parsable,
+    Type<IK::ArgTypeIdentifierKind>: Parsable,
+    PureExpression<IK::ArgValueIdentifierKind>: Parsable,
+{
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::appl_ty_arg);
+
+        let inner = pair.into_inner().next().unwrap();
+        match inner.as_rule() {
+            Rule::appl_ty => Self::Application(ArgumentedType::parse_ref(file_id, state, inner)),
+            Rule::tuple_appl_ty_arg => Self::Tuple(TypeArgList::parse_ref(file_id, state, inner)),
+            Rule::identifier => Self::Identifier(Identifier::parse_ref(file_id, state, inner)),
+            Rule::ty => Self::Type(Type::parse_ref(file_id, state, inner)),
+            Rule::expr => Self::Expr(PureExpression::parse_ref(file_id, state, inner)),
             _ => unreachable!(),
         }
     }
 }
 
-impl Parsable for ArgumentedType {
+impl<IK: TypeArgIdentifierKind> Parsable for ArgumentedType<IK>
+where
+    Self: Indexable + InArena + NodeType,
+    TypeArgList<IK>: Parsable,
+    Identifier<IK::ArgTypeIdentifierKind>: Parsable,
+{
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::argd_ty);
+        debug_assert_eq!(pair.as_rule(), Rule::appl_ty);
 
         let mut inner = pair.into_inner();
         let name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
         let post_name = Slice::from_pair(file_id, state, inner.next().unwrap());
-        let args = TypeList::parse_ref(file_id, state, inner.next().unwrap());
+        let args = TypeArgList::parse_ref(file_id, state, inner.next().unwrap());
 
         ArgumentedType {
             name,
@@ -77,7 +129,11 @@ impl Parsable for ArgumentedType {
     }
 }
 
-impl Parsable for TupleType {
+impl<IK: TypeIdentifierKind> Parsable for TupleType<IK>
+where
+    Self: Indexable + InArena + NodeType,
+    TypeList<IK>: Parsable,
+{
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_ty);
         let pair = pair.into_inner().next().unwrap();
@@ -85,9 +141,34 @@ impl Parsable for TupleType {
     }
 }
 
-crate::ast_nodes::list::impl_comma_list!(Type, Rule::arg_list_ty, Rule::padded_ty);
+crate::ast_nodes::list::impl_list!(
+    Type<PackageTypeIdentifierKind>,
+    Rule::ty_list,
+    Rule::padded_ty,
+    crate::ast_nodes::list::Comma,
+    Rule::comma,
+);
 
-super::impl_node_type!(0x10, Type, noop_index);
-super::impl_node_type!(0x11, TupleType, noop_index);
-super::impl_node_type!(0x12, ArgumentedType, noop_index);
-super::impl_node_type!(0x13, TypeList, noop_index);
+crate::ast_nodes::list::impl_list!(
+    Type<GameTypeIdentifierKind>,
+    Rule::ty_list,
+    Rule::padded_ty,
+    crate::ast_nodes::list::Comma,
+    Rule::comma,
+);
+
+crate::ast_nodes::list::impl_list!(
+    TypeArgument<PackageTypeArgumentIdentifierKind>,
+    Rule::appl_ty_arg_list,
+    Rule::appl_ty_arg_padded,
+    crate::ast_nodes::list::Comma,
+    Rule::comma,
+);
+
+crate::ast_nodes::list::impl_list!(
+    TypeArgument<GameTypeArgumentIdentifierKind>,
+    Rule::appl_ty_arg_list,
+    Rule::appl_ty_arg_padded,
+    crate::ast_nodes::list::Comma,
+    Rule::comma,
+);

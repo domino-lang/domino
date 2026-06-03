@@ -2,7 +2,7 @@ use crate::{
     arena::{Ref, Slice},
     ast_nodes::{
         identifier::OracleValueIdentifier,
-        list::{impl_comma_list, Comma, List, Semicolon},
+        list::{impl_list, Comma, List, Semicolon},
         oracle_expressions::OracleExpression,
         PaddedRef, Parsable, Trivia,
     },
@@ -75,20 +75,6 @@ pub struct TuplePattern {
 pub type PatternList = List<Pattern, Comma>;
 
 pub type StatementList = List<Statement, Semicolon>;
-
-super::impl_node_type!(0x40, Statement, noop_index);
-super::impl_node_type!(0x41, AssignStatement, noop_index);
-super::impl_node_type!(0x42, IfThenElseStatement, noop_index);
-super::impl_node_type!(0x43, ReturnStatement, noop_index);
-super::impl_node_type!(0x44, ExpressionStatement, noop_index);
-super::impl_node_type!(0x45, PaddedRef<Statement>);
-super::impl_node_type!(0x46, StatementList, noop_index);
-
-super::impl_node_type!(0x47, Pattern, noop_index);
-super::impl_node_type!(0x48, TablePattern, noop_index);
-super::impl_node_type!(0x49, TuplePattern, noop_index);
-super::impl_node_type!(0x4a, PaddedRef<Pattern>);
-super::impl_node_type!(0x4e, PatternList, noop_index);
 
 impl Parsable for Pattern {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
@@ -230,8 +216,14 @@ impl Parsable for IfThenElseStatement {
     }
 }
 
-impl_comma_list!(Pattern, Rule::patterns, Rule::padded_pattern);
-crate::ast_nodes::list::impl_comma_list!(
+impl_list!(
+    Pattern,
+    Rule::patterns,
+    Rule::padded_pattern,
+    crate::ast_nodes::list::Comma,
+    Rule::comma,
+);
+crate::ast_nodes::list::impl_list!(
     Statement,
     Rule::statements,
     Rule::padded_statement,

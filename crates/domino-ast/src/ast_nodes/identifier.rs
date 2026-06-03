@@ -1,10 +1,18 @@
 use std::marker::PhantomData;
 
-use crate::ast_nodes::{PaddedRef, Parsable};
-
-use super::impl_node_type;
+use crate::ast_nodes::Parsable;
 
 pub trait IdentifierKind {}
+pub trait ValueIdentifierKind: IdentifierKind {}
+
+pub trait TypeArgIdentifierKind: IdentifierKind {
+    type ArgValueIdentifierKind: ValueIdentifierKind;
+    type ArgTypeIdentifierKind: TypeIdentifierKind<ArgIdentifierKind = Self>;
+}
+pub trait TypeIdentifierKind: IdentifierKind {
+    type ArgValueIdentifierKind: ValueIdentifierKind;
+    type ArgIdentifierKind: TypeArgIdentifierKind<ArgTypeIdentifierKind = Self>;
+}
 
 /// An identifier. The span is in the side table, and from there we can get the string.
 /// Once we intern we might hve that in here (or in another side table).
@@ -30,8 +38,83 @@ impl<T: IdentifierKind> Default for Identifier<T> {
     }
 }
 
+macro_rules! define_value_ident_kind {
+    ($kind_name:ident, $ident_name:ident $(,)?) => {
+        #[derive(Debug)]
+        pub struct $kind_name;
+        impl IdentifierKind for $kind_name {}
+        impl ValueIdentifierKind for $kind_name {}
+
+        pub type $ident_name = Identifier<$kind_name>;
+
+        impl Parsable for $ident_name {
+            fn parse(
+                _file_id: crate::source::FileId,
+                _state: &mut crate::State,
+                _pair: crate::Pair,
+            ) -> Self {
+                Identifier::default()
+            }
+        }
+
+        impl crate::ast_nodes::Indexable for $ident_name {}
+    };
+}
+
+macro_rules! define_type_ident_kind {
+    ($kind_name:ident, $ident_name:ident, $arg_kind:ty, $value_kind:ty $(,)?) => {
+        #[derive(Debug)]
+        pub struct $kind_name;
+        impl IdentifierKind for $kind_name {}
+        impl TypeIdentifierKind for $kind_name {
+            type ArgIdentifierKind = $arg_kind;
+            type ArgValueIdentifierKind = $value_kind;
+        }
+
+        pub type $ident_name = Identifier<$kind_name>;
+
+        impl Parsable for $ident_name {
+            fn parse(
+                _file_id: crate::source::FileId,
+                _state: &mut crate::State,
+                _pair: crate::Pair,
+            ) -> Self {
+                Identifier::default()
+            }
+        }
+
+        impl crate::ast_nodes::Indexable for $ident_name {}
+    };
+}
+
+macro_rules! define_type_arg_ident_kind {
+    ($kind_name:ident, $ident_name:ident, $type_kind:ty, $value_kind:ty $(,)?) => {
+        #[derive(Debug)]
+        pub struct $kind_name;
+        impl IdentifierKind for $kind_name {}
+        impl TypeArgIdentifierKind for $kind_name {
+            type ArgValueIdentifierKind = $value_kind;
+            type ArgTypeIdentifierKind = $type_kind;
+        }
+
+        pub type $ident_name = Identifier<$kind_name>;
+
+        impl Parsable for $ident_name {
+            fn parse(
+                _file_id: crate::source::FileId,
+                _state: &mut crate::State,
+                _pair: crate::Pair,
+            ) -> Self {
+                Identifier::default()
+            }
+        }
+
+        impl crate::ast_nodes::Indexable for $ident_name {}
+    };
+}
+
 macro_rules! define_ident_kind {
-    ($id_code:literal, $padded_id_code:literal, $kind_name:ident, $ident_name:ident $(,)?) => {
+    ($kind_name:ident, $ident_name:ident $(,)?) => {
         #[derive(Debug)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
@@ -48,27 +131,41 @@ macro_rules! define_ident_kind {
             }
         }
 
-        impl_node_type!($id_code, Identifier<$kind_name>, noop_index);
-
-        // indexing done by blanket impl
-        impl_node_type!($padded_id_code, PaddedRef<Identifier<$kind_name>>);
+        impl crate::ast_nodes::Indexable for $ident_name {}
     };
 }
 
-define_ident_kind!(0x08, 0xf8, OracleIdentifierKind, OracleIdentifier);
-define_ident_kind!(0x09, 0xf9, TypeIdentifierKind, TypeIdentifier);
-define_ident_kind!(
-    0x0a,
-    0xfa,
-    TypeArgumentIdentifierKind,
-    TypeArgumentIdentifier
+define_type_ident_kind!(
+    PackageTypeIdentifierKind,
+    PackageTypeIdentifier,
+    PackageTypeArgumentIdentifierKind,
+    PackageConstValueIdentifierKind
 );
-define_ident_kind!(0x0b, 0xfb, OracleValueIdentifierKind, OracleValueIdentifier);
-define_ident_kind!(
-    0x0c,
-    0xfc,
-    OracleConstValueIdentifierKind,
-    OracleConstValueIdentifier,
+define_type_ident_kind!(
+    GameTypeIdentifierKind,
+    GameTypeIdentifier,
+    GameTypeArgumentIdentifierKind,
+    GameConstValueIdentifierKind
+);
+define_type_arg_ident_kind!(
+    PackageTypeArgumentIdentifierKind,
+    PackageTypeArgumentIdentifier,
+    PackageTypeIdentifierKind,
+    PackageConstValueIdentifierKind
+);
+define_type_arg_ident_kind!(
+    GameTypeArgumentIdentifierKind,
+    GameTypeArgumentIdentifier,
+    GameTypeIdentifierKind,
+    GameConstValueIdentifierKind
 );
 
-define_ident_kind!(0x0d, 0xfd, PackageIdentifierKind, PackageIdentifier);
+define_value_ident_kind!(OracleValueIdentifierKind, OracleValueIdentifier);
+define_value_ident_kind!(PackageConstValueIdentifierKind, PackageConstValueIdentifier,);
+define_value_ident_kind!(GameConstValueIdentifierKind, GameConstValueIdentifier,);
+
+define_ident_kind!(OracleIdentifierKind, OracleIdentifier);
+define_ident_kind!(PackageIdentifierKind, PackageIdentifier);
+
+define_ident_kind!(GameIdentifierKind, GameIdentifier);
+define_ident_kind!(PackageInstanceIdentifierKind, PackageInstanceIdentifier);

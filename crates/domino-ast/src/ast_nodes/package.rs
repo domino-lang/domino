@@ -1,10 +1,13 @@
 use crate::{
     arena::{Ref, Slice},
     ast_nodes::{
-        identifier::{Identifier, PackageIdentifier, TypeIdentifierKind},
+        identifier::{
+            Identifier, IdentifierKind, PackageIdentifier, PackageTypeArgumentIdentifierKind,
+            PackageTypeIdentifier, PackageTypeIdentifierKind,
+        },
         list::{Comma, List, Newlines, Semicolon},
-        oracles::{DeclList, OracleDefinition, OracleSignature},
-        PaddedRef, Parsable, Trivia,
+        oracles::{OracleDefinition, OracleSignature, OracleValueDeclList},
+        types, PaddedRef, Parsable, Trivia,
     },
     Rule,
 };
@@ -17,7 +20,7 @@ pub struct Package {
 
 #[derive(Debug, Clone, Copy)]
 pub enum PackageItem {
-    TypeParams(Ref<TypeParamBlock>),
+    TypeParams(Ref<PackageTypeParamBlock>),
     ConstParams(Ref<ConstParamBlock>),
     State(Ref<StateBlock>),
     ImportOracles(Ref<ImportOraclesBlock>),
@@ -25,21 +28,23 @@ pub enum PackageItem {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct TypeParamBlock {
+pub struct TypeParamBlock<IK: IdentifierKind> {
     pub trivia: Slice<Trivia>,
-    pub decls: Ref<TypeDeclList>,
+    pub decls: Ref<TypeDeclList<IK>>,
 }
+
+pub type PackageTypeParamBlock = TypeParamBlock<PackageTypeIdentifierKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConstParamBlock {
     pub trivia: Slice<Trivia>,
-    pub decls: Ref<DeclList>,
+    pub decls: Ref<OracleValueDeclList>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct StateBlock {
     pub trivia: Slice<Trivia>,
-    pub decls: Ref<DeclList>,
+    pub decls: Ref<OracleValueDeclList>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,21 +54,16 @@ pub struct ImportOraclesBlock {
 }
 
 pub type OracleDeclList = List<OracleSignature, Semicolon>;
-pub type TypeDeclList = List<Identifier<TypeIdentifierKind>, Comma>;
+pub type TypeDeclList<IK: IdentifierKind> = List<Identifier<IK>, Comma>;
+pub type PackageTypeIdentifierList = List<PackageTypeIdentifier, Comma>;
+pub type PackageTypeDeclList = TypeDeclList<PackageTypeIdentifierKind>;
 pub type PackageItemList = List<PackageItem, Newlines>;
 
-super::impl_node_type!(0x80, OracleDeclList, noop_index);
-super::impl_node_type!(0x81, ImportOraclesBlock, noop_index);
-super::impl_node_type!(0x84, StateBlock, noop_index);
-super::impl_node_type!(0x85, ConstParamBlock, noop_index);
-super::impl_node_type!(0x86, TypeDeclList, noop_index);
-super::impl_node_type!(0x87, TypeParamBlock, noop_index);
-super::impl_node_type!(0x88, PackageItem, noop_index);
-super::impl_node_type!(0x89, PaddedRef<PackageItem>);
-super::impl_node_type!(0x8a, Package, noop_index);
-super::impl_node_type!(0x8b, PackageItemList, noop_index);
+pub type PackageType = types::Type<PackageTypeIdentifierKind>;
+pub type PackageArgumentedType = types::ArgumentedType<PackageTypeArgumentIdentifierKind>;
+pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifierKind>;
 
-super::list::impl_comma_list!(
+super::list::impl_list!(
     OracleSignature,
     Rule::oracle_decl_list,
     Rule::padded_oracle_sig,
@@ -71,13 +71,15 @@ super::list::impl_comma_list!(
     Rule::semicolon
 );
 
-super::list::impl_comma_list!(
-    Identifier<TypeIdentifierKind>,
+super::list::impl_list!(
+    PackageTypeIdentifier,
     Rule::padded_ident_list,
-    Rule::padded_ident
+    Rule::padded_ident,
+    Comma,
+    Rule::comma,
 );
 
-super::list::impl_comma_list!(
+super::list::impl_list!(
     PackageItem,
     Rule::package_item_list,
     Rule::padded_package_item,
@@ -106,9 +108,9 @@ impl Parsable for PackageItem {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         let inner_pair = pair.into_inner().next().unwrap();
         match inner_pair.as_rule() {
-            Rule::types_param_block => {
-                PackageItem::TypeParams(TypeParamBlock::parse_ref(file_id, state, inner_pair))
-            }
+            Rule::types_param_block => PackageItem::TypeParams(PackageTypeParamBlock::parse_ref(
+                file_id, state, inner_pair,
+            )),
             Rule::consts_param_block => {
                 PackageItem::ConstParams(ConstParamBlock::parse_ref(file_id, state, inner_pair))
             }
@@ -138,7 +140,7 @@ impl Parsable for StateBlock {
         let decls_pair = inner.next().unwrap();
 
         let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
-        let decls = DeclList::parse_ref(file_id, state, decls_pair);
+        let decls = OracleValueDeclList::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
     }
@@ -161,7 +163,7 @@ impl Parsable for ImportOraclesBlock {
     }
 }
 
-impl Parsable for TypeParamBlock {
+impl Parsable for PackageTypeParamBlock {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::types_param_block);
 
@@ -172,7 +174,7 @@ impl Parsable for TypeParamBlock {
         let decls_pair = inner.next().unwrap();
 
         let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
-        let decls = TypeDeclList::parse_ref(file_id, state, decls_pair);
+        let decls = List::<PackageTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
     }
@@ -189,8 +191,20 @@ impl Parsable for ConstParamBlock {
         let decls_pair = inner.next().unwrap();
 
         let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
-        let decls = DeclList::parse_ref(file_id, state, decls_pair);
+        let decls = OracleValueDeclList::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
+    }
+}
+
+#[cfg(debug_assertions)]
+#[allow(dead_code)]
+mod static_asserts {
+    use super::*;
+
+    fn is_parsable<T: Parsable>() {}
+
+    fn ensure_are_parsable() {
+        is_parsable::<PackageTypeDeclList>();
     }
 }
