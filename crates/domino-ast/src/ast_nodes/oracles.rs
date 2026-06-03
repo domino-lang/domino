@@ -1,9 +1,11 @@
 use crate::{
     arena::{Ref, Slice},
     ast_nodes::{
-        identifier::{Identifier, OracleIdentifier, OracleValueIdentifier},
-        impl_node_type,
-        list::{impl_comma_list, Comma, List},
+        identifier::{
+            Identifier, OracleIdentifier, OracleValueIdentifierKind, PackageTypeIdentifierKind,
+            ValueIdentifierKind,
+        },
+        list::{impl_list, Comma, List},
         statements::StatementList,
         types::Type,
         PaddedRef, Parsable, Trivia,
@@ -16,7 +18,7 @@ use crate::{
 pub struct OracleSignature {
     pub name: Ref<OracleIdentifier>,
     pub trivia: Slice<Trivia>,
-    pub args: Ref<DeclList>,
+    pub args: Ref<OracleValueDeclList>,
     pub ret_ty: Option<OracleReturnType>,
 }
 
@@ -24,19 +26,22 @@ pub struct OracleSignature {
 pub struct OracleReturnType {
     pub pre_arrow_trivia: Slice<Trivia>,
     pub post_arrow_trivia: Slice<Trivia>,
-    pub ty: Ref<Type>,
+    pub ty: Ref<Type<PackageTypeIdentifierKind>>,
 }
-
-/// A list of declarations, usually comma separated. Usually surrounded by parenthises
-pub type DeclList = List<ArgDecl, Comma>;
 
 #[derive(Debug, Clone, Copy)]
-pub struct ArgDecl {
-    pub name: Ref<OracleValueIdentifier>,
+pub struct ArgDecl<IK: ValueIdentifierKind> {
+    pub name: Ref<Identifier<IK>>,
     pub pre_colon_trivia: Slice<Trivia>,
     pub post_colon_trivia: Slice<Trivia>,
-    pub ty: Ref<Type>,
+    pub ty: Ref<Type<PackageTypeIdentifierKind>>,
 }
+
+pub type OracleValueArgDecl = ArgDecl<OracleValueIdentifierKind>;
+
+/// A list of declarations, usually comma separated. Usually surrounded by parenthises
+pub type OracleValueDeclList = List<ArgDecl<OracleValueIdentifierKind>, Comma>;
+pub type PackageConstDeclList = List<ArgDecl<PackageTypeIdentifierKind>, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct OracleDefinition {
@@ -44,12 +49,13 @@ pub struct OracleDefinition {
     pub statements: Ref<StatementList>,
 }
 
-impl_node_type!(0x50, OracleSignature, noop_index);
-impl_node_type!(0x51, DeclList, noop_index);
-impl_node_type!(0x52, ArgDecl, noop_index);
-impl_node_type!(0x53, OracleDefinition, noop_index);
-impl_node_type!(0x58, PaddedRef<ArgDecl>);
-impl_node_type!(0x59, PaddedRef<OracleSignature>);
+impl_list!(
+    OracleValueArgDecl,
+    Rule::expr_ident_decl_list,
+    Rule::padded_expr_ident_decl,
+    crate::ast_nodes::list::Comma,
+    Rule::comma,
+);
 
 impl Parsable for OracleSignature {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
@@ -62,7 +68,7 @@ impl Parsable for OracleSignature {
 
         let name = Identifier::parse_ref(file_id, state, name_pair);
         let trivia = Slice::from_pair(file_id, state, trivia_pair);
-        let args = DeclList::parse_ref(file_id, state, args_pair);
+        let args = OracleValueDeclList::parse_ref(file_id, state, args_pair);
 
         let ret_ty = inner.next().map(|pre_arrow_trivia_pair| {
             let post_arrow_trivia_pair = inner.next().unwrap();
@@ -88,13 +94,7 @@ impl Parsable for OracleSignature {
     }
 }
 
-impl_comma_list!(
-    ArgDecl,
-    Rule::expr_ident_decl_list,
-    Rule::padded_expr_ident_decl
-);
-
-impl Parsable for ArgDecl {
+impl Parsable for OracleValueArgDecl {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::expr_ident_decl);
 

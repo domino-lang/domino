@@ -46,7 +46,7 @@ impl<T> Copy for Ref<T> {}
 
 impl<T: NodeType> Ref<T> {
     pub const fn global_ref_id(self) -> GlobalRefId {
-        GlobalRefId(T::NODE_TYPE_ID, self.0)
+        GlobalRefId(T::NODE_TYPE, self.0)
     }
 }
 

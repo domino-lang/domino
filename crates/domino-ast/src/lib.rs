@@ -12,6 +12,10 @@
 //!
 //!
 
+// We are doing a lot of generic type aliases that need bounds, and we don't care that the error is
+// shown at the type use place instead of at the type alias definition.
+#![allow(type_alias_bounds)]
+
 mod arena;
 pub mod ast_nodes;
 mod side_tables;

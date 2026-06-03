@@ -1,3 +1,4 @@
+pub mod game;
 pub mod identifier;
 pub mod list;
 pub mod oracle_expressions;
@@ -9,6 +10,10 @@ pub mod types;
 
 use crate::{
     arena::{Ref, Slice},
+    ast_nodes::identifier::{
+        GameTypeArgumentIdentifierKind, GameTypeIdentifierKind, PackageTypeArgumentIdentifierKind,
+        PackageTypeIdentifierKind,
+    },
     source::{FileId, SourceLocation},
     Arenas, Rule, State,
 };
@@ -18,10 +23,10 @@ use crate::{
 pub struct NodeTypeId(pub u8);
 
 pub trait NodeType {
-    const NODE_TYPE_ID: NodeTypeId;
+    const NODE_TYPE: NodeTypeEnum;
 }
 
-pub trait ArenaNode: Sized {
+pub trait InArena: Sized {
     fn arena(arenas: &Arenas) -> &crate::arena::Arena<Self>;
     fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
 }
@@ -31,7 +36,7 @@ pub trait Indexable: Sized {
     fn index(reference: Ref<Self>, state: &mut State) {}
 }
 
-pub trait Parsable: NodeType + ArenaNode + Indexable {
+pub trait Parsable: NodeType + InArena + Indexable {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self;
 
     fn parse_ref(file_id: FileId, state: &mut State, pair: crate::Pair) -> Ref<Self> {
@@ -44,7 +49,7 @@ pub trait Parsable: NodeType + ArenaNode + Indexable {
     }
 }
 
-pub trait ParsableArenaNode: Parsable + ArenaNode + Indexable {}
+pub trait ParsableArenaNode: Parsable + InArena + Indexable {}
 
 /// This predicate checks that the char is neither tab nor space, i.e. the characters we defined as
 /// WHITESPACE in our grammar.
@@ -97,7 +102,7 @@ pub fn trimmed_loc(file_id: FileId, pair: &crate::Pair) -> SourceLocation {
     }
 }
 
-impl<T: NodeType + ArenaNode + Indexable> Ref<T> {
+impl<T: NodeType + InArena + Indexable> Ref<T> {
     pub fn from_parsed(state: &mut State, loc: SourceLocation, node: T) -> Self {
         let arena = T::arena_mut(&mut state.arenas);
         let id = arena.alloc(node);
@@ -169,7 +174,7 @@ pub type PaddedRef<T> = Padded<Ref<T>>;
 
 impl<T: Indexable> Indexable for PaddedRef<T>
 where
-    PaddedRef<T>: NodeType + ArenaNode,
+    PaddedRef<T>: NodeType + InArena,
 {
     fn index(reference: Ref<Self>, state: &mut State) {
         let padded_node = PaddedRef::arena(&state.arenas).get(reference);
@@ -179,7 +184,7 @@ where
 
 impl<T: Parsable> Parsable for PaddedRef<T>
 where
-    PaddedRef<T>: NodeType + ArenaNode,
+    PaddedRef<T>: NodeType + InArena,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut pairs = pair.into_inner();
@@ -189,6 +194,25 @@ where
         let trailing = Slice::from_pair(file_id, state, pairs.next().unwrap());
 
         PaddedRef {
+            leading,
+            inner,
+            trailing,
+        }
+    }
+}
+
+impl<T: Parsable> Parsable for Padded<T>
+where
+    Padded<T>: NodeType + InArena + Indexable,
+{
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        let mut pairs = pair.into_inner();
+
+        let leading = Slice::from_pair(file_id, state, pairs.next().unwrap());
+        let inner = T::parse(file_id, state, pairs.next().unwrap());
+        let trailing = Slice::from_pair(file_id, state, pairs.next().unwrap());
+
+        Padded {
             leading,
             inner,
             trailing,
@@ -257,38 +281,292 @@ impl State {
     }
 }
 
-impl_node_type!(0x00, Trivia, noop_index);
-impl_node_type!(0x01, PaddedRef<types::Type>);
-impl_node_type!(0x02, PaddedRef<oracle_expressions::OracleExpression>);
-
-macro_rules! impl_node_type {
-    ($id:literal, $node_type:ty $(,)?) => {
-        impl crate::ast_nodes::NodeType for $node_type {
-            const NODE_TYPE_ID: crate::ast_nodes::NodeTypeId = crate::ast_nodes::NodeTypeId($id);
+macro_rules! define_node_type_enum {
+    ($($variant_name:ident : $node_type:ty),* $(,)?) => {
+        #[repr(u8)]
+        #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+        pub enum NodeTypeEnum {
+            $($variant_name),*
         }
 
-        impl crate::ast_nodes::NodeTypeIdIsUnique<$id>
+        $(
+            impl NodeType for $node_type {
+                const NODE_TYPE: NodeTypeEnum = NodeTypeEnum::$variant_name;
+            }
+
+        impl crate::ast_nodes::NodeTypeIdIsUnique<{NodeTypeEnum::$variant_name as u8}>
             for crate::ast_nodes::NodeTypeUniquenessGuard
         {
             type Node = $node_type;
         }
-    };
-    ($id:literal, $node_type:ty, noop_index $(,)?) => {
-        impl crate::ast_nodes::NodeType for $node_type {
-            const NODE_TYPE_ID: crate::ast_nodes::NodeTypeId = crate::ast_nodes::NodeTypeId($id);
-        }
+        )*
+    }
+}
 
-        impl crate::ast_nodes::Indexable for $node_type {}
+define_node_type_enum! {
+    Trivia: Trivia,
 
-        impl crate::ast_nodes::NodeTypeIdIsUnique<$id>
-            for crate::ast_nodes::NodeTypeUniquenessGuard
-        {
-            type Node = $node_type;
-        }
+    // Types
+    //
+    // ## In Packages
+
+    PaddedType: PaddedRef<types::Type<identifier::PackageTypeIdentifierKind>>,
+    PaddedOracleExpression: PaddedRef<oracle_expressions::OracleExpression>,
+    Type: types::Type<identifier::PackageTypeIdentifierKind>,
+    TupleType: types::TupleType<identifier::PackageTypeIdentifierKind>,
+    ArgumentedType: types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>,
+    PaddedArgumentedType: PaddedRef<types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>>,
+    TypeArgument: types::TypeArgument<PackageTypeArgumentIdentifierKind>,
+    PaddedTypeArgument: PaddedRef<types::TypeArgument<PackageTypeArgumentIdentifierKind>>,
+    TypeArgList: types::TypeArgList<PackageTypeArgumentIdentifierKind>,
+    TypeList: types::TypeList<PackageTypeIdentifierKind>,
+
+    // ## In Games
+
+    GamePaddedType: PaddedRef<types::Type<identifier::GameTypeIdentifierKind>>,
+    GameType: types::Type<identifier::GameTypeIdentifierKind>,
+    GameTupleType: types::TupleType<identifier::GameTypeIdentifierKind>,
+    GameArgumentedType: types::ArgumentedType<identifier::GameTypeArgumentIdentifierKind>,
+    PaddedGameArgumentedType: PaddedRef<types::ArgumentedType<identifier::GameTypeArgumentIdentifierKind>>,
+    GameTypeArgument: PaddedRef<types::TypeArgument<GameTypeArgumentIdentifierKind>>,
+    PaddedGameTypeArgument: types::TypeArgument<GameTypeArgumentIdentifierKind>,
+    GameTypeArgList: types::TypeArgList<GameTypeArgumentIdentifierKind>,
+    GameTypeList: types::TypeList<GameTypeIdentifierKind>,
+
+    PurePackageConstValueExpression: pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueTupleExpression: pure_expressions::TupleExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueParenExpression: pure_expressions::ParenExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueCallExpression: pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
+    PaddedPurePackageConstValueExpression: PaddedRef<pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>>,
+
+    PureGameConstValueExpression: pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueTupleExpression: pure_expressions::TupleExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueParenExpression: pure_expressions::ParenExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueCallExpression: pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
+    PaddedPureGameConstValueExpression: PaddedRef<pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>>,
+
+    PureConstPackageExpressionList: pure_expressions::PureConstPackageExpressionList,
+    PureConstGameExpressionList: pure_expressions::PureConstGameExpressionList,
+    Statement: statements::Statement,
+    AssignStatement: statements::AssignStatement,
+    IfThenElseStatement: statements::IfThenElseStatement,
+    ReturnStatement: statements::ReturnStatement,
+    ExpressionStatement: statements::ExpressionStatement,
+    PaddedStatement: PaddedRef<statements::Statement>,
+    StatementList: statements::StatementList,
+    Pattern: statements::Pattern,
+    TablePattern: statements::TablePattern,
+    TuplePattern: statements::TuplePattern,
+    PaddedPattern: PaddedRef<statements::Pattern>,
+    PatternList: statements::PatternList,
+
+    OracleSignature: oracles::OracleSignature,
+    OracleValueDeclList: oracles::OracleValueDeclList,
+    OracleValueArgDecl: oracles::OracleValueArgDecl,
+    OracleDefinition: oracles::OracleDefinition,
+    PaddedOracleValueArgDecl: PaddedRef<oracles::OracleValueArgDecl>,
+    PaddedOracleSignature: PaddedRef<oracles::OracleSignature>,
+
+    OracleExpression: oracle_expressions::OracleExpression,
+    OracleInvocationExpression: oracle_expressions::OracleInvocationExpression,
+    ExprList: oracle_expressions::ExprList,
+    TableIndexExpression: oracle_expressions::TableIndexExpression,
+    SampleExpression: oracle_expressions::SampleExpression<PackageTypeIdentifierKind>,
+    ParenExpression: oracle_expressions::ParenExpression,
+    CallExpression: oracle_expressions::CallExpression,
+    TupleExpression: oracle_expressions::TupleExpression,
+    BinOpExpression: oracle_expressions::BinOpExpression,
+    UnOpExpression: oracle_expressions::UnOpExpression,
+
+    OracleDeclList: package::OracleDeclList,
+    ImportOraclesBlock: package::ImportOraclesBlock,
+    StateBlock: package::StateBlock,
+    ConstParamBlock: package::ConstParamBlock,
+    PackageTypeList: package::PackageTypeIdentifierList,
+    TypeParamBlock: package::PackageTypeParamBlock,
+    PackageItem: package::PackageItem,
+    PaddedPackageItem: PaddedRef<package::PackageItem>,
+    Package: package::Package,
+    PackageItemList: package::PackageItemList,
+
+    Colon: list::Colon,
+    PaddedColon: Padded<list::Colon>,
+
+    OracleIdentifier: identifier::OracleIdentifier,
+    PackageTypeIdentifier: identifier::PackageTypeIdentifier,
+    GameTypeIdentifier: identifier::GameTypeIdentifier,
+    PackageTypeArgumentIdentifier: identifier::PackageTypeArgumentIdentifier,
+    GameTypeArgumentIdentifier: identifier::GameTypeArgumentIdentifier,
+    PackageIdentifier: identifier::PackageIdentifier,
+    GameIdentifier: identifier::GameIdentifier,
+    PackageInstanceIdentifier: identifier::PackageInstanceIdentifier,
+
+    PaddedPackageTypeIdentifier: PaddedRef<identifier::PackageTypeIdentifier>,
+    PaddedOracleIdentifier: PaddedRef<identifier::OracleIdentifier>,
+    PaddedPackageIdentifier: PaddedRef<identifier::PackageIdentifier>,
+    PaddedGameIdentifier: PaddedRef<identifier::GameIdentifier>,
+    PaddedPackageInstanceIdentifier: PaddedRef<identifier::PackageInstanceIdentifier>,
+
+    OracleValueIdentifier: identifier::OracleValueIdentifier,
+    PackageConstValueIdentifier: identifier::PackageConstValueIdentifier,
+    GameConstValueIdentifier: identifier::GameConstValueIdentifier,
+
+    PaddedOracleValueIdentifier: PaddedRef<identifier::OracleValueIdentifier>,
+    PaddedPackageConstValueIdentifier: PaddedRef<identifier::PackageConstValueIdentifier>,
+    PaddedGameConstValueIdentifier: PaddedRef<identifier::GameConstValueIdentifier>,
+
+    InstanceConstAssignmentItem: game::InstanceConstAssignmentItem,
+    PaddedInstanceConstAssignmentItem: PaddedRef<game::InstanceConstAssignmentItem>,
+    InstanceConstAssignmentList: game::InstanceConstAssignmentList,
+    InstanceConstBlock: game::InstanceConstBlock,
+
+    InstanceTypeAssignmentItem: game::InstanceTypeAssignmentItem,
+    PaddedInstanceTypeAssignmentItem: PaddedRef<game::InstanceTypeAssignmentItem>,
+    InstanceTypeAssignmentList: game::InstanceTypeAssignmentList,
+    InstanceTypeBlock: game::InstanceTypeBlock,
+
+    InstanceItem: game::InstanceItem,
+    PaddedInstanceItem: PaddedRef<game::InstanceItem>,
+    InstanceItemList: game::InstanceItemList,
+
+    InstanceBlock: game::InstanceBlock,
+
+    ComposeOracleAssignmentItem: game::ComposeOracleAssignmentItem,
+    PaddedComposeOracleAssignmentItem: PaddedRef<game::ComposeOracleAssignmentItem>,
+    ComposeOracleAssignmentList: game::ComposeOracleAssignmentList,
+
+    ComposePackageInstanceItem: game::ComposePackageInstanceItem,
+    PaddedComposePackageInstanceItem: PaddedRef<game::ComposePackageInstanceItem>,
+    ComposePackageInstanceList: game::ComposePackageInstanceList,
+
+    ComposeBlock: game::ComposeBlock,
+    GameItem: game::GameItem,
+    PaddedGameItem: PaddedRef<game::GameItem>,
+    GameItemList: game::GameItemList,
+    Game: game::Game,
+
+}
+
+macro_rules! impl_noop_index {
+    ($($node_type:ty),* $(,)?) => {
+        $(
+            impl Indexable for $node_type {}
+        )*
+
     };
 }
 
-use impl_node_type;
+impl_noop_index! {
+    // pure expressions
+
+    //// package const
+    pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::TableIndexExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::TupleExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::ParenExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::BinOpExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
+    pure_expressions::PureConstPackageExpressionList,
+
+    //// game const
+    pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::TableIndexExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::TupleExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::ParenExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::BinOpExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
+    pure_expressions::PureConstGameExpressionList,
+
+    // types
+    //// in packages
+    types::Type<PackageTypeIdentifierKind>,
+    types::TypeList<PackageTypeIdentifierKind>,
+    types::TupleType<PackageTypeIdentifierKind>,
+    types::ArgumentedType<PackageTypeArgumentIdentifierKind>,
+    types::TypeArgument<PackageTypeArgumentIdentifierKind>,
+    types::TypeArgList<PackageTypeArgumentIdentifierKind>,
+
+    //// in games
+    types::Type<GameTypeIdentifierKind>,
+    types::TypeList<GameTypeIdentifierKind>,
+    types::TupleType<GameTypeIdentifierKind>,
+    types::ArgumentedType<GameTypeArgumentIdentifierKind>,
+    types::TypeArgument<GameTypeArgumentIdentifierKind>,
+    types::TypeArgList<GameTypeArgumentIdentifierKind>,
+
+    // oracle expressions
+    oracle_expressions::OracleExpression,
+    oracle_expressions::OracleInvocationExpression,
+    oracle_expressions::SampleExpression<PackageTypeIdentifierKind>,
+    oracle_expressions::TableIndexExpression,
+    oracle_expressions::TupleExpression,
+    oracle_expressions::ParenExpression,
+    oracle_expressions::BinOpExpression,
+    oracle_expressions::UnOpExpression,
+    oracle_expressions::CallExpression,
+    oracle_expressions::ExprList,
+
+    // statemnts
+    statements::Statement,
+    statements::AssignStatement,
+    statements::IfThenElseStatement,
+    statements::ReturnStatement,
+    statements::ExpressionStatement,
+    statements::StatementList,
+    statements::Pattern,
+    statements::TablePattern,
+    statements::TuplePattern,
+    statements::PatternList,
+
+    // oracles
+    oracles::OracleSignature,
+    oracles::OracleValueArgDecl,
+    oracles::OracleValueDeclList,
+    oracles::OracleDefinition,
+
+    // packages
+    package::OracleDeclList,
+    package::ImportOraclesBlock,
+    package::StateBlock,
+    package::ConstParamBlock,
+    //package::PackageTypeIdentifierList,
+    package::PackageTypeDeclList,
+    package::PackageTypeParamBlock,
+    package::PackageItem,
+    package::Package,
+    package::PackageItemList,
+
+    // games
+    game::InstanceConstAssignmentItem,
+    game::InstanceConstAssignmentList,
+    game::InstanceConstBlock,
+    game::InstanceTypeAssignmentItem,
+    game::InstanceTypeAssignmentList,
+    game::InstanceTypeBlock,
+    game::InstanceItem,
+    game::InstanceItemList,
+    game::InstanceBlock,
+    game::ComposeOracleAssignmentItem,
+    game::ComposeOracleAssignmentList,
+    game::ComposePackageInstanceItem,
+    game::ComposePackageInstanceList,
+    game::ComposeBlock,
+    game::GameItem,
+    game::GameItemList,
+    game::Game,
+
+    // lists
+    list::Colon,
+    Padded<list::Colon>,
+}
 
 // Trick for ensuring we don't reuse node type ids
 

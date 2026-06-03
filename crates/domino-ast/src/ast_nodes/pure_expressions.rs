@@ -1,9 +1,12 @@
 use crate::{
     arena::{Ref, Slice},
     ast_nodes::{
-        identifier::{Identifier, IdentifierKind, OracleConstValueIdentifierKind},
+        identifier::{
+            GameConstValueIdentifierKind, Identifier, IdentifierKind,
+            PackageConstValueIdentifierKind,
+        },
         list::{Comma, List},
-        ArenaNode, Indexable, NodeType, PaddedRef, Parsable, Trivia,
+        InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -87,62 +90,23 @@ pub struct CallExpression<IdentKind: IdentifierKind> {
     pub args: Ref<ExprList<IdentKind>>,
 }
 
-pub type PureConstOracleExpressionList =
-    List<PureExpression<OracleConstValueIdentifierKind>, Comma>;
+pub type PureConstPackageExpressionList =
+    List<PureExpression<PackageConstValueIdentifierKind>, Comma>;
+
+pub type PureConstGameExpressionList = List<PureExpression<GameConstValueIdentifierKind>, Comma>;
 
 #[derive(Debug, Clone)]
 pub struct TupleExpression<IdentKind: IdentifierKind>(pub Ref<ExprList<IdentKind>>);
 
-super::impl_node_type!(
-    0x20,
-    PureExpression<OracleConstValueIdentifierKind>,
-    noop_index
+crate::ast_nodes::list::impl_list!(
+    PureExpression<PackageConstValueIdentifierKind>,
+    Rule::arg_list_expr,
+    Rule::padded_expr,
+    Comma,
+    Rule::comma
 );
-super::impl_node_type!(
-    0x21,
-    TableIndexExpression<OracleConstValueIdentifierKind>,
-    noop_index
-);
-
-super::impl_node_type!(
-    0x22,
-    TupleExpression<OracleConstValueIdentifierKind>,
-    noop_index
-);
-
-super::impl_node_type!(
-    0x23,
-    BinOpExpression<OracleConstValueIdentifierKind>,
-    noop_index
-);
-
-super::impl_node_type!(
-    0x24,
-    UnOpExpression<OracleConstValueIdentifierKind>,
-    noop_index
-);
-
-super::impl_node_type!(
-    0x25,
-    CallExpression<OracleConstValueIdentifierKind>,
-    noop_index
-);
-
-super::impl_node_type!(
-    0x26,
-    ParenExpression<OracleConstValueIdentifierKind>,
-    noop_index
-);
-
-super::impl_node_type!(
-    0x28,
-    PaddedRef<PureExpression<OracleConstValueIdentifierKind>>,
-);
-
-super::impl_node_type!(0x2a, PureConstOracleExpressionList, noop_index);
-
-crate::ast_nodes::list::impl_comma_list!(
-    PureExpression<OracleConstValueIdentifierKind>,
+crate::ast_nodes::list::impl_list!(
+    PureExpression<GameConstValueIdentifierKind>,
     Rule::arg_list_expr,
     Rule::padded_expr,
     Comma,
@@ -178,7 +142,7 @@ fn parse_leftassoc<IK: IdentifierKind>(
 ) -> PureExpression<IK>
 where
     PureExpression<IK>: Parsable,
-    BinOpExpression<IK>: NodeType + ArenaNode + Indexable,
+    BinOpExpression<IK>: NodeType + InArena + Indexable,
 {
     let mut pairs = pair.into_inner();
     let first = pairs.next().unwrap();
@@ -227,7 +191,7 @@ fn parse_unary<IK: IdentifierKind>(
 ) -> PureExpression<IK>
 where
     PureExpression<IK>: Parsable,
-    UnOpExpression<IK>: NodeType + ArenaNode + Indexable,
+    UnOpExpression<IK>: NodeType + InArena + Indexable,
 {
     debug_assert_eq!(pair.as_rule(), Rule::unary);
 
@@ -277,7 +241,7 @@ where
     PureExpression<IK>: Parsable,
     ExprList<IK>: Parsable,
     Identifier<IK>: Parsable,
-    CallExpression<IK>: NodeType + ArenaNode + Indexable,
+    CallExpression<IK>: NodeType + InArena + Indexable,
 {
     let span = pair.as_span();
     let start = span.start() as u32;
@@ -325,9 +289,9 @@ where
     TableIndexExpression<IK>: Parsable,
     TupleExpression<IK>: Parsable,
     ParenExpression<IK>: Parsable,
-    BinOpExpression<IK>: NodeType + ArenaNode + Indexable,
-    UnOpExpression<IK>: NodeType + ArenaNode + Indexable,
-    CallExpression<IK>: NodeType + ArenaNode + Indexable,
+    BinOpExpression<IK>: NodeType + InArena + Indexable,
+    UnOpExpression<IK>: NodeType + InArena + Indexable,
+    CallExpression<IK>: NodeType + InArena + Indexable,
 {
     match pair.as_rule() {
         Rule::atom => parse_pure_expression(file_id, state, pair.into_inner().next().unwrap()),
@@ -352,9 +316,15 @@ where
     }
 }
 
-impl Parsable for PureExpression<OracleConstValueIdentifierKind> {
+impl Parsable for PureExpression<PackageConstValueIdentifierKind> {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression(file_id, state, pair)
+    }
+}
+
+impl Parsable for PureExpression<GameConstValueIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_pure_expression::<GameConstValueIdentifierKind>(file_id, state, pair)
     }
 }
 
@@ -362,7 +332,7 @@ impl<IK: IdentifierKind> Parsable for TableIndexExpression<IK>
 where
     Identifier<IK>: Parsable,
     PaddedRef<PureExpression<IK>>: Parsable,
-    Self: Indexable + ArenaNode + NodeType,
+    Self: Indexable + InArena + NodeType,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::table_expr);
@@ -388,7 +358,7 @@ where
 impl<IK: IdentifierKind> Parsable for ParenExpression<IK>
 where
     PaddedRef<Identifier<IK>>: Parsable,
-    Self: Indexable + ArenaNode + NodeType,
+    Self: Indexable + InArena + NodeType,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
@@ -404,7 +374,7 @@ where
 impl<IK: IdentifierKind> Parsable for TupleExpression<IK>
 where
     PaddedRef<Identifier<IK>>: Parsable,
-    Self: Indexable + ArenaNode + NodeType,
+    Self: Indexable + InArena + NodeType,
     List<PureExpression<IK>, Comma>: Parsable,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
@@ -421,7 +391,7 @@ where
 #[cfg(test)]
 mod static_checks {
     use crate::ast_nodes::{
-        identifier::{OracleConstValueIdentifier, OracleConstValueIdentifierKind},
+        identifier::{PackageConstValueIdentifier, PackageConstValueIdentifierKind},
         pure_expressions::{PureExpression, TableIndexExpression, TupleExpression},
         PaddedRef, Parsable,
     };
@@ -430,10 +400,10 @@ mod static_checks {
 
     #[allow(dead_code)]
     fn ensure_traits_impld_for_oracle() {
-        impls_parsable::<OracleConstValueIdentifier>();
-        impls_parsable::<PaddedRef<OracleConstValueIdentifier>>();
-        impls_parsable::<TableIndexExpression<OracleConstValueIdentifierKind>>();
-        impls_parsable::<TupleExpression<OracleConstValueIdentifierKind>>();
-        impls_parsable::<PureExpression<OracleConstValueIdentifierKind>>();
+        impls_parsable::<PackageConstValueIdentifier>();
+        impls_parsable::<PaddedRef<PackageConstValueIdentifier>>();
+        impls_parsable::<TableIndexExpression<PackageConstValueIdentifierKind>>();
+        impls_parsable::<TupleExpression<PackageConstValueIdentifierKind>>();
+        impls_parsable::<PureExpression<PackageConstValueIdentifierKind>>();
     }
 }

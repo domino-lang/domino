@@ -18,25 +18,30 @@ gap = { ( newline | block_comment| line_comment)* }
 // We have to explicitly encode that.
 // The underscore means that the rules will be hidden when traversing the parse tree.
 
-kw_invoke  = @{ "invoke"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_abort   = @{ "abort"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_return  = @{ "return"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_if      = @{ "if"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_else    = @{ "else"    ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_oracle  = @{ "oracle"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_consts  = @{ "consts"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_state   = @{ "state"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_types   = @{ "types"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_package = @{ "package" ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_import  = @{ "import"  ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_invoke   = @{ "invoke"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_abort    = @{ "abort"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_return   = @{ "return"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_if       = @{ "if"             ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_else     = @{ "else"           ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_oracle   = @{ "oracle"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_consts   = @{ "consts"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_state    = @{ "state"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_types    = @{ "types"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_package  = @{ "package"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_import   = @{ "import"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_game     = @{( "game"
+                | "composition" ) ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_compose  = @{ "compose"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_instance = @{ "instance"       ~ !(ASCII_ALPHANUMERIC | "_" ) }
 
 // don't hide operators
 kw_and     = @{ "and"     ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_or      = @{ "or"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
 
-// used to detect trailing delimiters
+// used to detect trailing delimiters and colons in assignment lists
 comma = { "," }
 semicolon = { ";" }
+colon = { ":" }
 
 // ## Expressions
 
@@ -76,12 +81,20 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 // ## Types
 
-ty = { argd_ty | identifier | tuple_ty }
+ty = { appl_ty | identifier | tuple_ty }
 
-tuple_ty = {                    "(" ~ arg_list_ty ~ ")" }
-argd_ty  = { identifier ~ gap ~ "(" ~ arg_list_ty ~ ")" }
+tuple_ty = {                    "(" ~ ty_list ~ ")" }
+appl_ty  = { identifier ~ gap ~ "(" ~ appl_ty_arg_list ~ ")" }
 
-arg_list_ty = { ( padded_ty ~ ( "," ~ padded_ty )*  ~ comma? ) | gap }
+// The arguments to an application on a type can either be other types (e.g. Table(Int, Int)) or constants (e.g. Bits(n)).
+// We can't distinguish everything at parse time: if there is no obvious tell that something is an expression (e.g. a +)
+// or a type (e.g. a function signature), we have to parse it as ambiguous and resolve it later.
+appl_ty_arg = { appl_ty | tuple_appl_ty_arg | identifier | ty | expr }
+appl_ty_arg_list = { (appl_ty_arg_padded ~ ( "," ~ appl_ty_arg_padded )* ~ ( gap ~ comma )? ~ gap) | gap  }
+tuple_appl_ty_arg = { "(" ~ appl_ty_arg_list ~ ")"  }
+appl_ty_arg_padded = { gap ~ appl_ty_arg ~ gap  }
+
+ty_list = { ( padded_ty ~ ( "," ~ padded_ty )*  ~ comma? ) | gap }
 padded_ty = { gap ~ ty ~ gap }
 
 // ## Statements
@@ -128,7 +141,52 @@ state_block    = { kw_state  ~ gap ~ "{" ~  expr_ident_decl_list ~ "}" }
 types_param_block    = { kw_types  ~ gap ~ "{" ~     padded_ident_list ~ "}" }
 import_oracles_block = { kw_import ~ gap ~ "{" ~      oracle_decl_list ~ "}" }
 
+// ## Package Instance
+
+inst_const_assignment_item = { identifier ~ gap ~ ":" ~ gap ~ expr }
+padded_inst_const_assignment_item = { gap ~ inst_const_assignment_item ~ gap }
+padded_inst_const_assignment_list = { padded_inst_const_assignment_item ~ ( "," ~ gap ~ padded_inst_const_assignment_item )* | gap }
+inst_const_block = { kw_consts ~ gap ~ "{" ~ padded_inst_const_assignment_list ~ "}" }
+
+inst_type_assignment_item = { identifier ~ gap ~ ":" ~ gap ~ ty }
+padded_inst_type_assignment_item = { gap ~ inst_type_assignment_item ~ gap }
+padded_inst_type_assignment_list = { padded_inst_type_assignment_item ~ ( "," ~ gap ~ padded_inst_type_assignment_item )* | gap }
+inst_type_block = { kw_types ~ gap ~ "{" ~ padded_inst_type_assignment_list ~ "}" }
+
+inst_item = { inst_type_block | inst_const_block }
+padded_inst_item = { gap ~ inst_item ~ gap }
+padded_inst_list = { ( padded_inst_item ~ ( padded_inst_item )* ) | gap }
+
+inst_block = { kw_instance ~ padded_ident ~ "{" ~ padded_inst_list ~ "}" }
+
+// ## Composition
+
+compose_oracle_assignment_item = { padded_ident ~ ":" ~ padded_ident }
+compose_oracle_assignment_list = { ( compose_oracle_assignment_item ~ ( "," ~ compose_oracle_assignment_item )* ~ comma? ) | gap }
+padded_compose_oracle_assignment_list = { gap ~ compose_oracle_assignment_list ~ gap  }
+
+compose_package_assignment_item = { identifier ~ gap ~ ":" ~ gap ~ "{" ~ padded_compose_oracle_assignment_list ~ "}" }
+padded_compose_package_assignment_item = { gap ~ compose_package_assignment_item ~ gap }
+padded_compose_package_assignment_list = { ( padded_compose_package_assignment_item ~ ( "," ~ padded_compose_package_assignment_item )* ~ comma? ) | gap }
+
+compose_block = { kw_compose ~ gap ~ "{" ~ padded_compose_package_assignment_list ~ "}" }
 
 
 
+
+// ## Game
+
+game_item = { compose_block | types_param_block | consts_param_block | inst_block }
+padded_game_item = { gap ~ game_item ~ gap }
+padded_game_item_list = { padded_game_item+ | gap}
+
+game = { kw_game ~ padded_ident ~ "{" ~ padded_game_item_list ~ "}" }
+
+// ## 
+
+
+// ## 
+
+
+// ## Theorem
 

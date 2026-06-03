@@ -1,11 +1,14 @@
 use crate::{
     arena::{Ref, Slice},
     ast_nodes::{
-        identifier::{Identifier, OracleIdentifier, OracleValueIdentifier},
+        identifier::{
+            Identifier, OracleIdentifier, OracleValueIdentifier, PackageTypeIdentifierKind,
+            TypeIdentifierKind,
+        },
         list::{Comma, List},
         pure_expressions::{binop_from_pair, BinOp, UnOp},
         types::Type,
-        PaddedRef, Parsable, Trivia,
+        InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -15,7 +18,7 @@ use crate::{
 pub enum OracleExpression {
     Invoke(Ref<OracleInvocationExpression>),
     TableIndex(Ref<TableIndexExpression>),
-    Sample(Ref<SampleExpression>),
+    Sample(Ref<SampleExpression<PackageTypeIdentifierKind>>),
     Paren(Ref<ParenExpression>),
     Tuple(Ref<TupleExpression>),
     Call(Ref<CallExpression>),
@@ -67,8 +70,8 @@ pub struct TableIndexExpression {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SampleExpression {
-    pub ty: Ref<Type>,
+pub struct SampleExpression<IK: TypeIdentifierKind> {
+    pub ty: Ref<Type<IK>>,
     // TODO: sample names
 }
 
@@ -192,7 +195,7 @@ impl Parsable for OracleInvocationExpression {
     }
 }
 
-crate::ast_nodes::list::impl_comma_list!(
+crate::ast_nodes::list::impl_list!(
     OracleExpression,
     Rule::arg_list_expr,
     Rule::padded_expr,
@@ -222,7 +225,11 @@ impl Parsable for TableIndexExpression {
     }
 }
 
-impl Parsable for SampleExpression {
+impl<IK: TypeIdentifierKind> Parsable for SampleExpression<IK>
+where
+    Self: Indexable + InArena + NodeType,
+    Type<IK>: Parsable,
+{
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::sample);
 
@@ -311,9 +318,9 @@ impl Parsable for OracleExpression {
             Rule::table_expr => {
                 OracleExpression::TableIndex(TableIndexExpression::parse_ref(file_id, state, pair))
             }
-            Rule::sample => {
-                OracleExpression::Sample(SampleExpression::parse_ref(file_id, state, pair))
-            }
+            Rule::sample => OracleExpression::Sample(
+                SampleExpression::<PackageTypeIdentifierKind>::parse_ref(file_id, state, pair),
+            ),
             Rule::paren_expr => {
                 OracleExpression::Paren(ParenExpression::parse_ref(file_id, state, pair))
             }
@@ -328,14 +335,3 @@ impl Parsable for OracleExpression {
         }
     }
 }
-
-super::impl_node_type!(0x70, OracleExpression, noop_index);
-super::impl_node_type!(0x71, OracleInvocationExpression, noop_index);
-super::impl_node_type!(0x72, ExprList, noop_index);
-super::impl_node_type!(0x73, TableIndexExpression, noop_index);
-super::impl_node_type!(0x75, SampleExpression, noop_index); // TODO: index sample id?
-super::impl_node_type!(0x76, ParenExpression, noop_index);
-super::impl_node_type!(0x77, CallExpression, noop_index);
-super::impl_node_type!(0x78, TupleExpression, noop_index);
-super::impl_node_type!(0x7a, BinOpExpression, noop_index);
-super::impl_node_type!(0x7b, UnOpExpression, noop_index);
