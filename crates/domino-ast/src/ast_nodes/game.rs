@@ -207,7 +207,7 @@ impl Parsable for InstanceItem {
 
 impl_list! {
     InstanceItem,
-    Rule::padded_inst_list,
+    Rule::inst_list,
     Rule::padded_inst_item,
     Comma,
     Rule::comma,
