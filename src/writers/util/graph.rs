@@ -1,4 +1,12 @@
-use std::{collections::HashSet, fmt::Write};
+use std::{
+    collections::HashSet,
+    fmt::Write,
+    fs::{read_to_string, write},
+    path::{Path, PathBuf},
+};
+
+use miette::Diagnostic;
+use thiserror::Error;
 
 use crate::{
     package::Composition,
@@ -8,14 +16,27 @@ use crate::{
     },
 };
 
+#[derive(Error, Diagnostic, Debug)]
+#[error("Could not write to cache {path}, error {error}")]
+#[diagnostic(code(domino::graph::cache), severity(Warning))]
+pub struct CacheWriteWarning {
+    error: std::io::Error,
+    path: String,
+}
+
 pub struct GraphLayout<'comp> {
     model: SmtModel,
     composition: &'comp Composition,
 }
 
 impl<'comp> GraphLayout<'comp> {
-    pub fn new(backend: &impl SmtSolverBackend, composition: &'comp Composition) -> Option<Self> {
-        solve_composition_graph(backend, composition).map(|model| Self { model, composition })
+    pub fn new(
+        backend: &impl SmtSolverBackend,
+        cache: &Path,
+        composition: &'comp Composition,
+    ) -> Option<Self> {
+        solve_composition_graph(backend, composition, cache)
+            .map(|model| Self { model, composition })
     }
 
     pub fn model(&'comp self) -> &'comp SmtModel {
@@ -30,27 +51,57 @@ impl<'comp> GraphLayout<'comp> {
 pub(crate) fn solve_composition_graph(
     backend: &impl SmtSolverBackend,
     composition: &Composition,
+    cache: &Path,
 ) -> Option<SmtModel> {
     let constraints = composition_graph_smt_query(composition).unwrap();
+
+    let mut path = PathBuf::from(cache);
+    std::fs::create_dir_all(&path).unwrap();
+
+    if let Ok(stored_constraints) = read_to_string(path.join(&composition.name).join("constraints"))
+    {
+        log::debug!(
+            "found potential graph for {} in cache, checking for matching constraints",
+            composition.name
+        );
+        if stored_constraints == constraints {
+            if let Ok(modelstring) = read_to_string(path.join(&composition.name).join("model")) {
+                log::info!("found graph for {} in cache!", composition.name);
+                return SmtModel::from_string(&modelstring);
+            }
+        }
+    }
+    path.push(&composition.name);
+    std::fs::create_dir_all(&path).unwrap();
+    if let Err(e) = write(path.join("constraints"), &constraints) {
+        eprintln!(
+            "{:?}",
+            miette::Report::new(CacheWriteWarning {
+                path: cache.display().to_string(),
+                error: e
+            })
+        );
+    }
+
     let mut max_width;
     let mut min_width = 0;
     let mut max_height;
     let mut min_height = 0;
 
-    let mut model;
     let mut comm = backend.new_smtsolver().unwrap();
     write!(comm, "{constraints}").unwrap();
 
-    if comm.check_sat().unwrap() != SmtSolverResponse::Sat {
+    let (mut modelstring, mut model) = if comm.check_sat().unwrap() != SmtSolverResponse::Sat {
         return None;
     } else {
-        model = Some(comm.get_model().unwrap().1);
-        let value = model.clone()?.get_value_as_int("width").unwrap();
+        let (modelstring, model) = comm.get_model().unwrap();
+        let value = model.get_value_as_int("width").unwrap();
         max_width = value + 1;
 
-        let value = model.clone()?.get_value_as_int("height").unwrap();
+        let value = model.get_value_as_int("height").unwrap();
         max_height = value + 1;
-    }
+        (modelstring, model)
+    };
 
     loop {
         let width = min_width + (max_width - min_width) / 2;
@@ -63,8 +114,8 @@ pub(crate) fn solve_composition_graph(
             log::debug!("Success: width = {width}");
             max_width = width;
 
-            model = Some(comm.get_model().unwrap().1);
-            let value = model.clone()?.get_value_as_int("height").unwrap();
+            (modelstring, model) = comm.get_model().unwrap();
+            let value = model.get_value_as_int("height").unwrap();
 
             max_height = value + 1;
         } else {
@@ -88,7 +139,7 @@ pub(crate) fn solve_composition_graph(
 
         if comm.check_sat().unwrap() == SmtSolverResponse::Sat {
             log::debug!("Success: height = {height}");
-            model = Some(comm.get_model().unwrap().1);
+            (modelstring, model) = comm.get_model().unwrap();
             max_height = height;
         } else {
             log::debug!("Failure: height = {height} (width = {max_width})");
@@ -102,7 +153,17 @@ pub(crate) fn solve_composition_graph(
 
     log::debug!("Conclusion: height = {max_height}, width = {max_width}");
 
-    model
+    if let Err(e) = write(path.join("model"), modelstring) {
+        eprintln!(
+            "{:?}",
+            miette::Report::new(CacheWriteWarning {
+                path: cache.display().to_string(),
+                error: e
+            })
+        );
+    }
+
+    Some(model)
 }
 
 fn composition_graph_smt_query(composition: &Composition) -> Result<String, std::fmt::Error> {
