@@ -2,6 +2,7 @@
 
 use std::fmt::{Debug, Display};
 
+use crate::package::OracleSigType;
 use crate::util::scope::Error as ScopeError;
 use miette::{Diagnostic, SourceSpan};
 use pest::error::ErrorVariant;
@@ -749,7 +750,7 @@ pub struct DuplicateExportError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("oracle {oracle_name} wired to incompatible oracle signature")]
+#[error("oracle {oracle_name} wired to incompatible oracle signature {src_pkg_ty} vs {dst_pkg_ty}")]
 #[diagnostic(code(domino::code::game::signature_mismatch))]
 pub struct OracleSigMismatchError {
     #[source_code]
@@ -761,7 +762,9 @@ pub struct OracleSigMismatchError {
 
     pub oracle_name: String,
     pub src_pkg_inst_name: String,
+    pub src_pkg_ty: OracleSigType,
     pub dst_pkg_inst_name: String,
+    pub dst_pkg_ty: OracleSigType,
 }
 
 #[derive(Error, Diagnostic, Debug)]
