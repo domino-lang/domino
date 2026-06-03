@@ -18,21 +18,33 @@ gap = { ( newline | block_comment| line_comment)* }
 // We have to explicitly encode that.
 // The underscore means that the rules will be hidden when traversing the parse tree.
 
-kw_invoke   = @{ "invoke"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_abort    = @{ "abort"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_return   = @{ "return"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_if       = @{ "if"             ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_else     = @{ "else"           ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_oracle   = @{ "oracle"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_consts   = @{ "consts"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_state    = @{ "state"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_types    = @{ "types"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_package  = @{ "package"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_import   = @{ "import"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_game     = @{( "game"
-                | "composition" ) ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_compose  = @{ "compose"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
-kw_instance = @{ "instance"       ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_invoke       = @{  "invoke"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_invariant    = @{  "invariant"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_abort        = @{  "abort"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_return       = @{  "return"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_if           = @{  "if"             ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_else         = @{  "else"           ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_oracle       = @{  "oracle"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_lemmas       = @{  "lemmas"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_const        = @{  "const"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_consts       = @{  "consts"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_state        = @{  "state"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_types        = @{  "types"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_package      = @{  "package"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_import       = @{  "import"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_game         = @{ ( "game"
+                     | "composition" ) ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_compose      = @{  "compose"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_instance     = @{  "instance"       ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_assumption   = @{  "assumption"     ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_assumptions  = @{  "assumptions"    ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_equivalence  = @{  "equivalence"    ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_reduction    = @{  "reduction"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_conjecture   = @{  "conjecture"     ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_hybrid       = @{  "hybrid"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_map          = @{  "map"            ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_gamehops     = @{  "gamehops"       ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_propositions = @{  "propositions"   ~ !(ASCII_ALPHANUMERIC | "_" ) }
 
 // don't hide operators
 kw_and     = @{ "and"     ~ !(ASCII_ALPHANUMERIC | "_" ) }
@@ -42,6 +54,10 @@ kw_or      = @{ "or"      ~ !(ASCII_ALPHANUMERIC | "_" ) }
 comma = { "," }
 semicolon = { ";" }
 colon = { ":" }
+
+// used in equivalence or indistinguishabilities
+equals = { "=" }
+tilde  = { "~" }
 
 // ## Expressions
 
@@ -157,9 +173,9 @@ inst_type_block = { kw_types ~ gap ~ "{" ~ padded_inst_type_assignment_list ~ "}
 
 inst_item = { inst_type_block | inst_const_block }
 padded_inst_item = { gap ~ inst_item ~ gap }
-padded_inst_list = { ( padded_inst_item ~ ( padded_inst_item )* ) | gap }
+inst_list = { ( padded_inst_item ~ ( padded_inst_item )* ) | gap }
 
-inst_block = { kw_instance ~ padded_ident ~ "{" ~ padded_inst_list ~ "}" }
+inst_block = { kw_instance ~ padded_ident ~ "{" ~ inst_list ~ "}" }
 
 // ## Composition
 
@@ -173,9 +189,6 @@ compose_package_assignment_list = { ( padded_compose_package_assignment_item ~ (
 
 compose_block = { kw_compose ~ gap ~ "{" ~ compose_package_assignment_list ~ "}" }
 
-
-
-
 // ## Game
 
 game_item = { compose_block | types_param_block | consts_param_block | inst_block }
@@ -184,11 +197,76 @@ padded_game_item_list = { padded_game_item+ | gap}
 
 game = { kw_game ~ padded_ident ~ "{" ~ padded_game_item_list ~ "}" }
 
-// ## 
+// ##  Theorem files
+
+hyb_inst_block_one = { kw_hybrid ~ gap ~ kw_instance ~ gap ~ identifier ~ gap ~ identifier ~ gap ~ identifier ~ gap ~ "=" ~ gap ~ identifier ~ gap ~ "{" ~ inst_list ~ "}" }
+hyb_inst_block_two = { kw_hybrid ~ gap ~ kw_instance ~ gap ~ identifier ~ gap ~ identifier ~ gap ~ "=" ~ "{" ~ gap ~ identifier ~ gap ~ "{" ~ inst_list ~ "}" ~ gap ~ identifier ~ gap ~ "{" ~ inst_list ~ "}" ~ gap ~ "}"}
+hyb_inst_block = {hyb_inst_block_one| hyb_inst_block_two}
+
+bound = { padded_ident ~ (equals | tilde) ~ padded_ident }
+assumptions_item  = { padded_ident ~ ":" ~ bound }
+assumptions_items = { (gap ~ assumptions_item) ~ gap }
+assumptions_block = { kw_assumptions ~ gap ~ "{" ~ assumptions_items ~ "}" }
+
+path_list = { ( gap ~ path ~ gap ~ ( path ~ gap )*) | gap }
+paths = { "[" ~ path_list ~ "]" }
+invariant_spec = {kw_invariant ~ gap ~ ":" ~ gap ~ paths }
+
+padded_smt_ident = {gap ~ smt_identifier ~ gap}
+smt_identifier_list = { ( padded_smt_ident ~ ("," ~ padded_smt_ident )* ~ comma? ) | gap }
+lemma_deplist = { "[" ~ smt_identifier_list ~ "]"}
+lemma_item = { identifier ~ padded_colon ~ lemma_deplist }
+padded_lemma_item = { gap ~ lemma_item ~ gap }
+lemma_items = { padded_lemma_item+ | gap }
+lemmas_block = { kw_lemmas ~ gap ~ "{" ~ lemma_items ~ "}" }
+
+eqv_oracle_block_item = { invariant_spec | lemmas_block  }
+eqv_oracle_block_list = { (gap ~ eqv_oracle_block_item)* ~ gap }
+eqv_oracle_block = { identifier ~ gap ~ ":" ~ gap ~ "{" ~ eqv_oracle_block_list ~ "]" }
+eqv_oracle_blocks = { ( gap ~ eqv_oracle_block )* ~ gap }
+equivalence = { kw_equivalence ~ gap ~ identifier ~ gap ~ identifier ~ gap ~ "{" ~ eqv_oracle_blocks ~ "} "}
+
+
+
+conjecture = { kw_conjecture  ~ gap ~ identifier ~ identifier }
+
+
+red_assumption_line = { kw_assumption ~ gap ~ identifier }
+red_map_item = { identifier ~ ":" ~ identifier }
+red_map_items = { (gap ~ red_map_item)* ~ gap }
+red_map = { kw_map ~ gap ~ identifier ~ gap ~ identifier ~ gap ~ "{" ~ red_map_items ~ "}" }
+red_item = { red_assumption_line | red_map}
+red_items = { (gap ~ red_item)* ~ gap}
+reduction = { kw_reduction ~ gap ~ identifier ~ gap ~ identifier ~ gap ~ "{" ~ red_items ~ "}" }
+
+hyb_eqv_block = { kw_equivalence ~ gap ~ "{" ~ eqv_oracle_blocks ~ "}" }
+hyb_red_block = { kw_reduction ~ gap ~ "{" ~ red_items ~ "}" }
+hyb_item = { hyb_eqv_block | hyb_red_block }
+hyb_items = { (gap ~ hyb_item )* ~ gap }
+
+hybrid = { kw_hybrid ~ gap ~ identifier ~ gap ~ "{" ~ hyb_items ~ "}" }
+
+gamehop_item  = { reduction | equivalence | conjecture | hybrid }
+gamehop_items = { (gap ~ gamehop_item)* ~ gap }
+gamehops = { kw_gamehops ~ gap ~ "{" ~ gamehop_items ~ "}" }
+
+proposition_item = { identifier ~ gap ~ ":" ~ gap ~ identifier ~ "~" ~ identifier }
+proposition_items = { ( gap ~ proposition_item )* ~ gap }
+proposition_block = {kw_propositions ~ gap ~ "{" ~ proposition_items ~ "}" }
+
+theorem_item = { consts_param_block | inst_block | hyb_inst_block | assumptions_block | gamehops | proposition_block }
+
 
 
 // ## 
 
 
 // ## Theorem
+
+// --- copied from old grammar ---
+
+// A file path (allows slashes, dots, hyphens).
+path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT |  "/" | "_" | "-" | "." )* }
+// An identifier for SMT lemmas (allows hyphens).
+smt_identifier = @{ ( ASCII_ALPHA | "_" | "-" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" )* }
 
