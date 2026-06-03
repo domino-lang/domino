@@ -94,7 +94,7 @@ macro_rules! impl_list {
                             has_trailing_delim,
                         }
                     }
-                    _ => unreachable!(),
+                    other => unreachable!("got {other:?}"),
                 }
             }
         }

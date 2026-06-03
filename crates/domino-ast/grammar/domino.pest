@@ -90,7 +90,7 @@ appl_ty  = { identifier ~ gap ~ "(" ~ appl_ty_arg_list ~ ")" }
 // We can't distinguish everything at parse time: if there is no obvious tell that something is an expression (e.g. a +)
 // or a type (e.g. a function signature), we have to parse it as ambiguous and resolve it later.
 appl_ty_arg = { appl_ty | tuple_appl_ty_arg | identifier | ty | expr }
-appl_ty_arg_list = { (appl_ty_arg_padded ~ ( "," ~ appl_ty_arg_padded )* ~ ( gap ~ comma )? ~ gap) | gap  }
+appl_ty_arg_list = { (appl_ty_arg_padded ~ ( "," ~ appl_ty_arg_padded )* ~ comma? ) | gap  }
 tuple_appl_ty_arg = { "(" ~ appl_ty_arg_list ~ ")"  }
 appl_ty_arg_padded = { gap ~ appl_ty_arg ~ gap  }
 
@@ -143,14 +143,16 @@ import_oracles_block = { kw_import ~ gap ~ "{" ~      oracle_decl_list ~ "}" }
 
 // ## Package Instance
 
-inst_const_assignment_item = { identifier ~ gap ~ ":" ~ gap ~ expr }
+padded_colon = { gap ~ colon ~ gap }
+
+inst_const_assignment_item = { identifier ~ padded_colon ~ expr }
 padded_inst_const_assignment_item = { gap ~ inst_const_assignment_item ~ gap }
-padded_inst_const_assignment_list = { padded_inst_const_assignment_item ~ ( "," ~ gap ~ padded_inst_const_assignment_item )* | gap }
+padded_inst_const_assignment_list = { padded_inst_const_assignment_item ~ ( "," ~ padded_inst_const_assignment_item )* | gap }
 inst_const_block = { kw_consts ~ gap ~ "{" ~ padded_inst_const_assignment_list ~ "}" }
 
-inst_type_assignment_item = { identifier ~ gap ~ ":" ~ gap ~ ty }
+inst_type_assignment_item = { identifier ~ padded_colon ~ ty }
 padded_inst_type_assignment_item = { gap ~ inst_type_assignment_item ~ gap }
-padded_inst_type_assignment_list = { padded_inst_type_assignment_item ~ ( "," ~ gap ~ padded_inst_type_assignment_item )* | gap }
+padded_inst_type_assignment_list = { padded_inst_type_assignment_item ~ ( "," ~ padded_inst_type_assignment_item )* | gap }
 inst_type_block = { kw_types ~ gap ~ "{" ~ padded_inst_type_assignment_list ~ "}" }
 
 inst_item = { inst_type_block | inst_const_block }
@@ -161,15 +163,15 @@ inst_block = { kw_instance ~ padded_ident ~ "{" ~ padded_inst_list ~ "}" }
 
 // ## Composition
 
-compose_oracle_assignment_item = { padded_ident ~ ":" ~ padded_ident }
-compose_oracle_assignment_list = { ( compose_oracle_assignment_item ~ ( "," ~ compose_oracle_assignment_item )* ~ comma? ) | gap }
-padded_compose_oracle_assignment_list = { gap ~ compose_oracle_assignment_list ~ gap  }
+compose_oracle_assignment_item = { identifier ~ padded_colon ~ identifier }
+padded_compose_oracle_assignment_item = { gap ~ compose_oracle_assignment_item ~ gap }
+compose_oracle_assignment_list = { ( padded_compose_oracle_assignment_item ~ ( "," ~ padded_compose_oracle_assignment_item )* ~ comma? ) | gap }
 
-compose_package_assignment_item = { identifier ~ gap ~ ":" ~ gap ~ "{" ~ padded_compose_oracle_assignment_list ~ "}" }
+compose_package_assignment_item = { identifier ~ padded_colon ~ "{" ~ compose_oracle_assignment_list ~ "}" }
 padded_compose_package_assignment_item = { gap ~ compose_package_assignment_item ~ gap }
-padded_compose_package_assignment_list = { ( padded_compose_package_assignment_item ~ ( "," ~ padded_compose_package_assignment_item )* ~ comma? ) | gap }
+compose_package_assignment_list = { ( padded_compose_package_assignment_item ~ ( "," ~ padded_compose_package_assignment_item )* ~ comma? ) | gap }
 
-compose_block = { kw_compose ~ gap ~ "{" ~ padded_compose_package_assignment_list ~ "}" }
+compose_block = { kw_compose ~ gap ~ "{" ~ compose_package_assignment_list ~ "}" }
 
 
 

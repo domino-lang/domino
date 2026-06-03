@@ -59,15 +59,17 @@ pub struct InstanceBlock {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComposeOracleAssignmentItem {
-    pub oracle_name: PaddedRef<OracleIdentifier>,
-    pub pkg_inst_name: PaddedRef<PackageInstanceIdentifier>,
+    pub oracle_name: Ref<OracleIdentifier>,
+    pub padded_colon: Padded<Colon>,
+    pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
 }
 
 pub type ComposeOracleAssignmentList = List<ComposeOracleAssignmentItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComposePackageInstanceItem {
-    pub pkg_inst_name: PaddedRef<PackageInstanceIdentifier>,
+    pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
+    pub padded_colon: Padded<Colon>,
     pub items: Ref<ComposeOracleAssignmentList>,
 }
 
@@ -75,6 +77,7 @@ pub type ComposePackageInstanceList = List<ComposePackageInstanceItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComposeBlock {
+    pub trivia: Slice<Trivia>,
     pub items: Ref<ComposePackageInstanceList>,
 }
 
@@ -124,7 +127,7 @@ impl Parsable for InstanceConstAssignmentItem {
 impl_list! {
     InstanceConstAssignmentItem,
     Rule::padded_inst_const_assignment_list,
-    Rule::inst_const_assignment_item,
+    Rule::padded_inst_const_assignment_item,
     Comma,
     Rule::comma,
 }
@@ -162,7 +165,7 @@ impl Parsable for InstanceTypeAssignmentItem {
 impl_list! {
     InstanceTypeAssignmentItem,
     Rule::padded_inst_type_assignment_list,
-    Rule::inst_type_assignment_item,
+    Rule::padded_inst_type_assignment_item,
     Comma,
     Rule::comma,
 }
@@ -228,11 +231,14 @@ impl Parsable for ComposeOracleAssignmentItem {
         debug_assert_eq!(pair.as_rule(), Rule::compose_oracle_assignment_item);
 
         let mut inner = pair.into_inner();
-        let oracle_name = PaddedRef::parse(file_id, state, inner.next().unwrap());
-        let pkg_inst_name = PaddedRef::parse(file_id, state, inner.next().unwrap());
+        let oracle_name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
+        let padded_colon = Padded::<Colon>::parse(file_id, state, inner.next().unwrap());
+        let pkg_inst_name =
+            PackageInstanceIdentifier::parse_ref(file_id, state, inner.next().unwrap());
 
         Self {
             oracle_name,
+            padded_colon,
             pkg_inst_name,
         }
     }
@@ -241,7 +247,7 @@ impl Parsable for ComposeOracleAssignmentItem {
 impl_list! {
     ComposeOracleAssignmentItem,
     Rule::compose_oracle_assignment_list,
-    Rule::compose_oracle_assignment_item,
+    Rule::padded_compose_oracle_assignment_item,
     Comma,
     Rule::comma,
 }
@@ -254,17 +260,13 @@ impl Parsable for ComposePackageInstanceItem {
 
         let pkg_inst_name =
             PackageInstanceIdentifier::parse_ref(file_id, state, inner.next().unwrap());
-        let name_trivia = Slice::from_pair(file_id, state, inner.next().unwrap());
-        let pkg_inst_name = Padded {
-            leading: Slice::empty(),
-            inner: pkg_inst_name,
-            trailing: name_trivia,
-        };
+        let padded_colon = Padded::<Colon>::parse(file_id, state, inner.next().unwrap());
 
         let items = ComposeOracleAssignmentList::parse_ref(file_id, state, inner.next().unwrap());
 
         Self {
             pkg_inst_name,
+            padded_colon,
             items,
         }
     }
@@ -272,7 +274,7 @@ impl Parsable for ComposePackageInstanceItem {
 
 impl_list! {
     ComposePackageInstanceItem,
-    Rule::padded_compose_package_assignment_list,
+    Rule::compose_package_assignment_list,
     Rule::padded_compose_package_assignment_item,
     Comma,
     Rule::comma,
@@ -284,9 +286,11 @@ impl Parsable for ComposeBlock {
 
         let mut inner = pair.into_inner();
 
+        let _kw_compose = inner.next().unwrap();
+        let trivia = Slice::from_pair(file_id, state, inner.next().unwrap());
         let items = ComposePackageInstanceList::parse_ref(file_id, state, inner.next().unwrap());
 
-        Self { items }
+        Self { trivia, items }
     }
 }
 
@@ -308,8 +312,8 @@ impl Parsable for GameItem {
 
 impl_list!(
     GameItem,
-    Rule::padded_game_item,
     Rule::padded_game_item_list,
+    Rule::padded_game_item,
     Newlines,
     Rule::newline,
 );
