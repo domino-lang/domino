@@ -499,15 +499,15 @@ fn handle_edges_compose_assign_list(
         let src_oracle_sig = src_pkg_inst.instantiate_oracle_signature(src_oracle_sig.clone());
 
         if !dst_oracle_sig.types_match(&src_oracle_sig) {
-            dbg!(src_oracle_sig);
-            dbg!(dst_oracle_sig);
             return Err(ParseGameError::ConnectedOraclesDontMatch(
                 OracleSigMismatchError {
                     source_code: ctx.named_source(),
                     at: (assignment_span.start()..assignment_span.end()).into(),
                     oracle_name: oracle_name.to_string(),
                     src_pkg_inst_name: src_pkg_inst.name.to_string(),
+                    src_pkg_ty: src_oracle_sig.to_oracle_type(),
                     dst_pkg_inst_name: dst_pkg_inst_name.to_string(),
+                    dst_pkg_ty: dst_oracle_sig.to_oracle_type(),
                 },
             ));
         }

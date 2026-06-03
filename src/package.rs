@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 
+use itertools::Itertools;
 use miette::SourceSpan;
 
 use crate::statement::CodeBlock;
@@ -23,7 +26,31 @@ pub struct OracleSig {
     pub ty: Type,
 }
 
+#[derive(Debug)]
+pub struct OracleSigType {
+    args: Vec<Type>,
+    ret: Type,
+}
+
+impl Display for OracleSigType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "oracle ({}) -> {}",
+            self.args.iter().map(|t| format!("{t}")).join(", "),
+            self.ret
+        )
+    }
+}
+
 impl OracleSig {
+    pub(crate) fn to_oracle_type(&self) -> OracleSigType {
+        OracleSigType {
+            args: self.args.iter().map(|(_, t)| t.clone()).collect(),
+            ret: self.ty.clone(),
+        }
+    }
+
     pub(crate) fn types_match(&self, other: &Self) -> bool {
         self.ty.types_match(&other.ty)
             && self.args.len() == other.args.len()
