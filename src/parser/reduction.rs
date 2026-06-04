@@ -1175,17 +1175,18 @@ fn package_instances_diff(
                     named.game_inst_name = None;
                     named.theorem_name = None;
                     named.assigned_value = None;
-                    let assigned = ident
+                    // TODO: do we need to also do something for integer literals here?
+                    ident
                         .assigned_value
                         .clone()
                         .unwrap()
-                        .as_identifier()
-                        .unwrap()
-                        .clone();
-                    Some((
-                        Type::bits(CountSpec::Identifier(Box::new(named.into()))),
-                        Type::bits(CountSpec::Identifier(Box::new(assigned))),
-                    ))
+                        .as_identifier() // Could be a literal or an identifier
+                        .map(|assigned| {
+                            (
+                                Type::bits(CountSpec::Identifier(Box::new(named.into()))),
+                                Type::bits(CountSpec::Identifier(Box::new(assigned.clone()))),
+                            )
+                        })
                 } else {
                     None
                 }
@@ -1198,17 +1199,17 @@ fn package_instances_diff(
                     named.game_inst_name = None;
                     named.theorem_name = None;
                     named.assigned_value = None;
-                    let assigned = ident
+                    ident
                         .assigned_value
                         .clone()
                         .unwrap()
                         .as_identifier()
-                        .unwrap()
-                        .clone();
-                    Some((
-                        Type::bits(CountSpec::Identifier(Box::new(named.into()))),
-                        Type::bits(CountSpec::Identifier(Box::new(assigned))),
-                    ))
+                        .map(|assigned| {
+                            (
+                                Type::bits(CountSpec::Identifier(Box::new(named.into()))),
+                                Type::bits(CountSpec::Identifier(Box::new(assigned.clone()))),
+                            )
+                        })
                 } else {
                     None
                 }
