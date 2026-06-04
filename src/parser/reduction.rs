@@ -6,7 +6,7 @@ use std::ops::Range;
 use itertools::Itertools as _;
 use pest::iterators::Pair;
 
-use crate::packageinstance::{game_inst_type_mapping_vec,game_inst_type_mapping};
+use crate::packageinstance::{game_inst_type_mapping, game_inst_type_mapping_vec};
 use crate::parser::error::{
     AssumptionMappingTypeParameterMismatchError, ReductionPackageInstanceTypeParameterMismatchError,
 };
@@ -1123,36 +1123,53 @@ fn package_instances_diff(
             todo!("left has type that right hasn't");
         };
 
-        let left_rules: Vec<_> = game_inst_type_mapping(&left_game_inst.types).chain(
-            left_game_inst.consts.iter().filter_map(|(ident, _expr)|{
+        let left_rules: Vec<_> = game_inst_type_mapping(&left_game_inst.types)
+            .chain(left_game_inst.consts.iter().filter_map(|(ident, _expr)| {
                 if ident.ty.kind().is_integer() {
                     let mut named = ident.clone();
                     named.game_inst_name = None;
                     named.theorem_name = None;
                     named.assigned_value = None;
-                    let assigned = ident.assigned_value.clone().unwrap().as_identifier().unwrap().clone();
-                    Some((Type::bits(CountSpec::Identifier(Box::new(named.into()))),
-                          Type::bits(CountSpec::Identifier(Box::new(assigned)))))
+                    // TODO: do we need to also do something for integer literals here?
+                    ident
+                        .assigned_value
+                        .clone()
+                        .unwrap()
+                        .as_identifier() // Could be a literal or an identifier
+                        .map(|assigned| {
+                            (
+                                Type::bits(CountSpec::Identifier(Box::new(named.into()))),
+                                Type::bits(CountSpec::Identifier(Box::new(assigned.clone()))),
+                            )
+                        })
                 } else {
                     None
                 }
-            })
-        ).collect();
-        let right_rules: Vec<_> = game_inst_type_mapping(&right_game_inst.types).chain(
-            right_game_inst.consts.iter().filter_map(|(ident, _expr)|{
+            }))
+            .collect();
+        let right_rules: Vec<_> = game_inst_type_mapping(&right_game_inst.types)
+            .chain(right_game_inst.consts.iter().filter_map(|(ident, _expr)| {
                 if ident.ty.kind().is_integer() {
                     let mut named = ident.clone();
                     named.game_inst_name = None;
                     named.theorem_name = None;
                     named.assigned_value = None;
-                    let assigned = ident.assigned_value.clone().unwrap().as_identifier().unwrap().clone();
-                    Some((Type::bits(CountSpec::Identifier(Box::new(named.into()))),
-                          Type::bits(CountSpec::Identifier(Box::new(assigned)))))
+                    ident
+                        .assigned_value
+                        .clone()
+                        .unwrap()
+                        .as_identifier()
+                        .map(|assigned| {
+                            (
+                                Type::bits(CountSpec::Identifier(Box::new(named.into()))),
+                                Type::bits(CountSpec::Identifier(Box::new(assigned.clone()))),
+                            )
+                        })
                 } else {
                     None
                 }
-            })
-        ).collect();
+            }))
+            .collect();
         let left_thm_ty = left_game_ty.rewrite_type(&left_rules);
         let right_thm_ty = right_game_ty.rewrite_type(&right_rules);
 
