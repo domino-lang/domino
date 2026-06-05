@@ -1,7 +1,6 @@
 use crate::{
-    arena::{Arena, Ref},
+    arena::Ref,
     ast_nodes::{InArena, Indexable, NodeType, PaddedRef, Parsable, Slice, Trivia},
-    side_tables::LocationTable,
     source::SourceLocation,
     Rule,
 };
@@ -195,6 +194,32 @@ where
             items.push(parse_with_loc(file_id, state, item_pair));
 
             post_item_trivia_pair = inner.next().unwrap();
+        }
+    }
+}
+
+impl<Node, Delim> Indexable for List2<Node, Delim>
+where
+    Self: InArena,
+    Node: Parsable,
+{
+    fn index(reference: Ref<Self>, state: &mut crate::State) {
+        let node = Self::arena(&state.arenas).get(reference);
+        for item in node.items.refs() {
+            Node::index(item, state)
+        }
+    }
+}
+
+impl<Node> Indexable for ListNoDelim<Node>
+where
+    Self: InArena,
+    Node: Parsable,
+{
+    fn index(reference: Ref<Self>, state: &mut crate::State) {
+        let node = Self::arena(&state.arenas).get(reference);
+        for item in node.items.refs() {
+            Node::index(item, state)
         }
     }
 }
