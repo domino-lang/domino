@@ -71,6 +71,10 @@ pub struct UnOpExpression<IdentKind: IdentifierKind> {
 #[allow(type_alias_bounds)]
 pub type ExprList<IdentKind: IdentifierKind> = List<PureExpression<IdentKind>, Comma>;
 
+pub type PureConstPackageExpressionList = ExprList<PackageConstValueIdentifierKind>;
+
+pub type PureConstGameExpressionList = ExprList<GameConstValueIdentifierKind>;
+
 #[derive(Debug, Clone, Copy)]
 pub struct TableIndexExpression<IK: IdentifierKind> {
     pub table_name: Ref<Identifier<IK>>,
@@ -89,11 +93,6 @@ pub struct CallExpression<IdentKind: IdentifierKind> {
     pub trivia: Ref<Trivia>,
     pub args: Ref<ExprList<IdentKind>>,
 }
-
-pub type PureConstPackageExpressionList =
-    List<PureExpression<PackageConstValueIdentifierKind>, Comma>;
-
-pub type PureConstGameExpressionList = List<PureExpression<GameConstValueIdentifierKind>, Comma>;
 
 #[derive(Debug, Clone)]
 pub struct TupleExpression<IdentKind: IdentifierKind>(pub Ref<ExprList<IdentKind>>);
