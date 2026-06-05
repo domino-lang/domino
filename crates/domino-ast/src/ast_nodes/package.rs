@@ -5,7 +5,7 @@ use crate::{
             Identifier, IdentifierKind, PackageIdentifier, PackageTypeArgumentIdentifierKind,
             PackageTypeIdentifier, PackageTypeIdentifierKind,
         },
-        list::{Comma, List, Newlines, Semicolon},
+        list::{Comma, List, List2, Newlines, Semicolon},
         oracles::{OracleDefinition, OracleSignature, OracleValueDeclList},
         types, PaddedRef, Parsable, Trivia,
     },
@@ -54,7 +54,7 @@ pub struct ImportOraclesBlock {
 }
 
 pub type OracleDeclList = List<OracleSignature, Semicolon>;
-pub type TypeDeclList<IK: IdentifierKind> = List<Identifier<IK>, Comma>;
+pub type TypeDeclList<IK: IdentifierKind> = List2<Identifier<IK>, Comma>;
 pub type PackageTypeIdentifierList = List<PackageTypeIdentifier, Comma>;
 pub type PackageTypeDeclList = TypeDeclList<PackageTypeIdentifierKind>;
 pub type PackageItemList = List<PackageItem, Newlines>;
@@ -69,14 +69,6 @@ super::list::impl_list!(
     Rule::padded_oracle_sig,
     Semicolon,
     Rule::semicolon
-);
-
-super::list::impl_list!(
-    PackageTypeIdentifier,
-    Rule::padded_ident_list,
-    Rule::padded_ident,
-    Comma,
-    Rule::comma,
 );
 
 super::list::impl_list!(
@@ -174,7 +166,7 @@ impl Parsable for PackageTypeParamBlock {
         let decls_pair = inner.next().unwrap();
 
         let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let decls = List::<PackageTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
+        let decls = List2::<PackageTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
     }

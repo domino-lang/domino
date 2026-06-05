@@ -283,6 +283,11 @@ define_node_type_enum! {
     Trivium: Trivium,
     Trivia: Trivia,
 
+    // Delimiters
+
+    Comma: list::Comma,
+
+
     // Types
     //
     // ## In Packages
@@ -365,6 +370,7 @@ define_node_type_enum! {
     ImportOraclesBlock: package::ImportOraclesBlock,
     StateBlock: package::StateBlock,
     ConstParamBlock: package::ConstParamBlock,
+    PackageTypeDeclList:package::PackageTypeDeclList,
     PackageTypeList: package::PackageTypeIdentifierList,
     TypeParamBlock: package::PackageTypeParamBlock,
     PackageItem: package::PackageItem,
@@ -545,6 +551,7 @@ impl_noop_index! {
 
     // lists
     list::Colon,
+    list::Comma,
     Padded<list::Colon>,
 }
 

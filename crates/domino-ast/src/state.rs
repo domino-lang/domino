@@ -137,6 +137,7 @@ define_arenas! {
 
     state_block: package::StateBlock,
     const_block: package::ConstParamBlock,
+    package_type_param_list: package::PackageTypeDeclList,
     type_block: package::PackageTypeParamBlock,
     package_items: package::PackageItem,
     padded_package_items: PaddedRef<package::PackageItem>,
@@ -171,6 +172,8 @@ define_arenas! {
     padded_game_items: PaddedRef<game::GameItem>,
     game_item_lists: game::GameItemList,
     games: game::Game,
+
+    commas: list::Comma,
 }
 
 macro_rules! define_arenas {
