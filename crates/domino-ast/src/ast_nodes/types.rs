@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::{
             GameTypeArgumentIdentifierKind, GameTypeIdentifierKind, Identifier,
@@ -27,7 +27,7 @@ pub struct TupleType<IK: TypeIdentifierKind>(pub Ref<TypeList<IK>>);
 #[derive(Debug, Clone, Copy)]
 pub struct ArgumentedType<IK: TypeArgIdentifierKind> {
     pub name: Ref<Identifier<IK::ArgTypeIdentifierKind>>,
-    pub post_name: Slice<Trivia>,
+    pub post_name: Ref<Trivia>,
     pub args: Ref<TypeArgList<IK>>,
 }
 
@@ -118,7 +118,7 @@ where
 
         let mut inner = pair.into_inner();
         let name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
-        let post_name = Slice::from_pair(file_id, state, inner.next().unwrap());
+        let post_name = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let args = TypeArgList::parse_ref(file_id, state, inner.next().unwrap());
 
         ArgumentedType {

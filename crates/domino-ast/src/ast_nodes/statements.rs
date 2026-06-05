@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::OracleValueIdentifier,
         list::{impl_list, Comma, List, Semicolon},
@@ -21,8 +21,8 @@ pub enum Statement {
 #[derive(Debug, Clone, Copy)]
 pub struct AssignStatement {
     pub pat: Ref<Pattern>,
-    pub pre_arrow_trivia: Slice<Trivia>,
-    pub post_arrow_trivia: Slice<Trivia>,
+    pub pre_arrow_trivia: Ref<Trivia>,
+    pub post_arrow_trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
 }
 
@@ -35,14 +35,14 @@ pub struct IfThenElseStatement {
 
 #[derive(Debug, Clone, Copy)]
 pub struct ElseBlock {
-    pub pre_else_trivia: Slice<Trivia>,
-    pub post_else_trivia: Slice<Trivia>,
+    pub pre_else_trivia: Ref<Trivia>,
+    pub post_else_trivia: Ref<Trivia>,
     pub block: Ref<StatementList>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReturnStatement {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
 }
 
@@ -63,7 +63,7 @@ pub enum Pattern {
 #[derive(Debug, Clone, Copy)]
 pub struct TablePattern {
     pub table_name: Ref<OracleValueIdentifier>,
-    pub table_name_trivia: Slice<Trivia>,
+    pub table_name_trivia: Ref<Trivia>,
     pub index: PaddedRef<OracleExpression>,
 }
 
@@ -102,7 +102,7 @@ impl Parsable for TablePattern {
 
         Self {
             table_name: OracleValueIdentifier::parse_ref(file_id, state, ident_pair),
-            table_name_trivia: Slice::from_pair(file_id, state, trivia_pair),
+            table_name_trivia: Trivia::parse_ref(file_id, state, trivia_pair),
             index: PaddedRef::parse(file_id, state, index_pair),
         }
     }
@@ -151,8 +151,8 @@ impl Parsable for AssignStatement {
 
         Self {
             pat: Pattern::parse_ref(file_id, state, pattern_pair),
-            pre_arrow_trivia: Slice::from_pair(file_id, state, pre_arrow_trivia_pair),
-            post_arrow_trivia: Slice::from_pair(file_id, state, post_arrow_trivia_pair),
+            pre_arrow_trivia: Trivia::parse_ref(file_id, state, pre_arrow_trivia_pair),
+            post_arrow_trivia: Trivia::parse_ref(file_id, state, post_arrow_trivia_pair),
             expr: OracleExpression::parse_ref(file_id, state, expr_pair),
         }
     }
@@ -178,7 +178,7 @@ impl Parsable for ReturnStatement {
         let expr_pair = inner.next().unwrap();
 
         Self {
-            trivia: Slice::from_pair(file_id, state, trivia_pair),
+            trivia: Trivia::parse_ref(file_id, state, trivia_pair),
             expr: OracleExpression::parse_ref(file_id, state, expr_pair),
         }
     }
@@ -202,8 +202,8 @@ impl Parsable for IfThenElseStatement {
             let else_block_pair = inner.next().unwrap();
 
             ElseBlock {
-                pre_else_trivia: Slice::from_pair(file_id, state, pre_else_trivia_pair),
-                post_else_trivia: Slice::from_pair(file_id, state, post_else_trivia_pair),
+                pre_else_trivia: Trivia::parse_ref(file_id, state, pre_else_trivia_pair),
+                post_else_trivia: Trivia::parse_ref(file_id, state, post_else_trivia_pair),
                 block: StatementList::parse_ref(file_id, state, else_block_pair),
             }
         });

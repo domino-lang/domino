@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::{
             GameConstValueIdentifierKind, Identifier, IdentifierKind,
@@ -54,16 +54,16 @@ pub enum PureExpression<IdentKind: IdentifierKind> {
 #[derive(Debug, Clone)]
 pub struct BinOpExpression<IdentKind: IdentifierKind> {
     pub lhs: Ref<PureExpression<IdentKind>>,
-    pub pre_op_trivia: Slice<Trivia>,
+    pub pre_op_trivia: Ref<Trivia>,
     pub op: BinOp,
-    pub post_op_trivia: Slice<Trivia>,
+    pub post_op_trivia: Ref<Trivia>,
     pub rhs: Ref<PureExpression<IdentKind>>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UnOpExpression<IdentKind: IdentifierKind> {
     pub op: UnOp,
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub expr: Ref<PureExpression<IdentKind>>,
 }
 
@@ -75,7 +75,7 @@ pub type ExprList<IdentKind: IdentifierKind> = List<PureExpression<IdentKind>, C
 pub struct TableIndexExpression<IK: IdentifierKind> {
     pub table_name: Ref<Identifier<IK>>,
 
-    pub table_name_trivia: Slice<Trivia>,
+    pub table_name_trivia: Ref<Trivia>,
 
     pub index: PaddedRef<PureExpression<IK>>,
 }
@@ -86,7 +86,7 @@ pub struct ParenExpression<IdentKind: IdentifierKind>(pub PaddedRef<Identifier<I
 #[derive(Debug, Clone, Copy)]
 pub struct CallExpression<IdentKind: IdentifierKind> {
     pub name: Ref<PureExpression<IdentKind>>,
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub args: Ref<ExprList<IdentKind>>,
 }
 
@@ -163,8 +163,8 @@ where
         let op = binop_from_pair(&op_pair);
 
         let lhs = Ref::from_parsed(state, lhs_loc, lhs_raw);
-        let lhs_trailing = Slice::from_pair(file_id, state, lhs_trailing_pair);
-        let rhs_leading = Slice::from_pair(file_id, state, rhs_leading_pair);
+        let lhs_trailing = Trivia::parse_ref(file_id, state, lhs_trailing_pair);
+        let rhs_leading = Trivia::parse_ref(file_id, state, rhs_leading_pair);
         let rhs = PureExpression::parse_ref(file_id, state, rhs_pair);
 
         let binop_expr = BinOpExpression {
@@ -212,7 +212,7 @@ where
                 _ => unreachable!(),
             };
 
-            let trivia = Slice::from_pair(file_id, state, trivia_pair);
+            let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
 
             let inner_unary_loc = SourceLocation::from_file_and_pair(file_id, &inner_unary_pair);
             let inner_unary = parse_unary(file_id, state, inner_unary_pair);
@@ -255,7 +255,7 @@ where
         let args_pair = inner.next().unwrap();
         let end = args_pair.as_span().end() as u32;
 
-        let trivia = Slice::from_pair(file_id, state, trivia);
+        let trivia = Trivia::parse_ref(file_id, state, trivia);
         let args = ExprList::parse_ref(file_id, state, args_pair);
 
         let loc = SourceLocation {
@@ -344,7 +344,7 @@ where
         let index_pair = inner.next().unwrap();
 
         let ident = Identifier::parse_ref(file_id, state, ident_pair);
-        let trivia = Slice::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let index = PaddedRef::parse(file_id, state, index_pair);
 
         TableIndexExpression {

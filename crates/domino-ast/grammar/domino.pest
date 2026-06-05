@@ -11,7 +11,9 @@ block_comment = @{ "/*" ~ (!"*/"  ~ ANY)* ~ "*/" }
 
 // somehow pest hides the NEWLINE rule from rust, we have to wrap it
 newline = { NEWLINE }
-gap = { ( newline | block_comment| line_comment)* }
+
+trivium = { newline | block_comment| line_comment }
+gap = { trivium* }
 
 // ## Keywords
 // In pest, string literals don't enforce word boundaries, so "or" would also match "orifice".

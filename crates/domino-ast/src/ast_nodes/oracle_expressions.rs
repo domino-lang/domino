@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::{
             Identifier, OracleIdentifier, OracleValueIdentifier, PackageTypeIdentifierKind,
@@ -33,16 +33,16 @@ pub enum OracleExpression {
 #[derive(Debug, Clone)]
 pub struct BinOpExpression {
     pub lhs: Ref<OracleExpression>,
-    pub pre_op_trivia: Slice<Trivia>,
+    pub pre_op_trivia: Ref<Trivia>,
     pub op: BinOp,
-    pub post_op_trivia: Slice<Trivia>,
+    pub post_op_trivia: Ref<Trivia>,
     pub rhs: Ref<OracleExpression>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UnOpExpression {
     pub op: UnOp,
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
 }
 
@@ -52,7 +52,7 @@ pub struct OracleInvocationExpression {
     pub oracle_name: Ref<OracleIdentifier>,
 
     /// Trivia between name and (
-    pub oracle_name_trivia: Slice<Trivia>,
+    pub oracle_name_trivia: Ref<Trivia>,
 
     pub args: Ref<ExprList>,
 }
@@ -64,7 +64,7 @@ pub type ExprList = List<OracleExpression, Comma>;
 pub struct TableIndexExpression {
     pub table_name: Ref<OracleValueIdentifier>,
 
-    pub table_name_trivia: Slice<Trivia>,
+    pub table_name_trivia: Ref<Trivia>,
 
     pub index: PaddedRef<OracleExpression>,
 }
@@ -81,7 +81,7 @@ pub struct ParenExpression(pub PaddedRef<OracleExpression>);
 #[derive(Debug, Clone, Copy)]
 pub struct CallExpression {
     pub name: Ref<OracleExpression>,
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub args: Ref<ExprList>,
 }
 
@@ -112,8 +112,8 @@ fn parse_leftassoc(
         let op = binop_from_pair(&op_pair);
 
         let lhs = Ref::from_parsed(state, lhs_loc, lhs_raw);
-        let lhs_trailing = Slice::from_pair(file_id, state, lhs_trailing_pair);
-        let rhs_leading = Slice::from_pair(file_id, state, rhs_leading_pair);
+        let lhs_trailing = Trivia::parse_ref(file_id, state, lhs_trailing_pair);
+        let rhs_leading = Trivia::parse_ref(file_id, state, rhs_leading_pair);
         let rhs = OracleExpression::parse_ref(file_id, state, rhs_pair);
 
         let binop_expr = BinOpExpression {
@@ -157,7 +157,7 @@ fn parse_unary(
                 _ => unreachable!(),
             };
 
-            let trivia = Slice::from_pair(file_id, state, trivia_pair);
+            let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
 
             let inner_unary_loc = SourceLocation::from_file_and_pair(file_id, &inner_unary_pair);
             let inner_unary = parse_unary(file_id, state, inner_unary_pair);
@@ -184,7 +184,7 @@ impl Parsable for OracleInvocationExpression {
         let mut inner = pair.into_inner();
         let _invoke = inner.next().unwrap();
         let name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
-        let trivia = Slice::from_pair(file_id, state, inner.next().unwrap());
+        let trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let expr_list_pair = ExprList::parse_ref(file_id, state, inner.next().unwrap());
 
         OracleInvocationExpression {
@@ -214,7 +214,7 @@ impl Parsable for TableIndexExpression {
         let index_pair = inner.next().unwrap();
 
         let ident = Identifier::parse_ref(file_id, state, ident_pair);
-        let trivia = Slice::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let index = PaddedRef::parse(file_id, state, index_pair);
 
         TableIndexExpression {
@@ -280,7 +280,7 @@ fn parse_call(
         let args_pair = inner.next().unwrap();
         let end = args_pair.as_span().end() as u32;
 
-        let trivia = Slice::from_pair(file_id, state, trivia);
+        let trivia = Trivia::parse_ref(file_id, state, trivia);
         let args = ExprList::parse_ref(file_id, state, args_pair);
 
         let loc = SourceLocation {

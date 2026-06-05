@@ -2,7 +2,7 @@ use crate::ast_nodes::{
     game,
     identifier::{self, PackageTypeIdentifierKind},
     list, oracle_expressions, oracles, package, pure_expressions, statements, types, NodeTypeEnum,
-    Padded, PaddedRef, Trivia,
+    Padded, PaddedRef, Trivia, Trivium,
 };
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -28,6 +28,7 @@ pub struct TriviaParseContext {
 define_arenas! {
     source: crate::source::SourceFile,
 
+    trivium: Trivium,
     trivia: Trivia,
     colons: list::Colon,
     padded_colons: Padded<list::Colon>,
