@@ -286,6 +286,7 @@ define_node_type_enum! {
     // Delimiters
 
     Comma: list::Comma,
+    Semicolon: list::Semicolon,
 
 
     // Types
@@ -459,7 +460,6 @@ impl_noop_index! {
     pure_expressions::BinOpExpression<identifier::PackageConstValueIdentifierKind>,
     pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
     pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::PureConstPackageExpressionList,
 
     //// game const
     pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
@@ -469,24 +469,19 @@ impl_noop_index! {
     pure_expressions::BinOpExpression<identifier::GameConstValueIdentifierKind>,
     pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
     pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::PureConstGameExpressionList,
 
     // types
     //// in packages
     types::Type<PackageTypeIdentifierKind>,
-    types::TypeList<PackageTypeIdentifierKind>,
     types::TupleType<PackageTypeIdentifierKind>,
     types::ArgumentedType<PackageTypeArgumentIdentifierKind>,
     types::TypeArgument<PackageTypeArgumentIdentifierKind>,
-    types::TypeArgList<PackageTypeArgumentIdentifierKind>,
 
     //// in games
     types::Type<GameTypeIdentifierKind>,
-    types::TypeList<GameTypeIdentifierKind>,
     types::TupleType<GameTypeIdentifierKind>,
     types::ArgumentedType<GameTypeArgumentIdentifierKind>,
     types::TypeArgument<GameTypeArgumentIdentifierKind>,
-    types::TypeArgList<GameTypeArgumentIdentifierKind>,
 
     // oracle expressions
     oracle_expressions::OracleExpression,
@@ -498,7 +493,6 @@ impl_noop_index! {
     oracle_expressions::BinOpExpression,
     oracle_expressions::UnOpExpression,
     oracle_expressions::CallExpression,
-    oracle_expressions::ExprList,
 
     // statemnts
     statements::Statement,
@@ -506,11 +500,9 @@ impl_noop_index! {
     statements::IfThenElseStatement,
     statements::ReturnStatement,
     statements::ExpressionStatement,
-    statements::StatementList,
     statements::Pattern,
     statements::TablePattern,
     statements::TuplePattern,
-    statements::PatternList,
 
     // oracles
     oracles::OracleSignature,
@@ -524,12 +516,10 @@ impl_noop_index! {
     package::StateBlock,
     package::ConstParamBlock,
     //package::PackageTypeIdentifierList,
-    package::PackageTypeDeclList,
     package::PackageTypeParamBlock,
     package::PackageItem,
     package::Package,
     package::PackageItemList,
-
     // games
     game::InstanceConstAssignmentItem,
     game::InstanceConstAssignmentList,
@@ -546,12 +536,12 @@ impl_noop_index! {
     game::ComposePackageInstanceList,
     game::ComposeBlock,
     game::GameItem,
-    game::GameItemList,
     game::Game,
 
     // lists
     list::Colon,
     list::Comma,
+    list::Semicolon,
     Padded<list::Colon>,
 }
 

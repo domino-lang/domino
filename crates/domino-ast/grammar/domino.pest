@@ -77,14 +77,14 @@ unary  = { unary_op ~ gap ~unary | atom }
 
 // these have explicit parens
 atom   = { invoke | table_expr | sample | paren_expr | tuple_expr | string_literal | int_literal | call }
-call   = {             identifier ~ ( gap ~ "(" ~ arg_list_expr ~ ")" )* }
-invoke = { kw_invoke ~ identifier ~   gap ~ "(" ~ arg_list_expr ~ ")"    }
+call   = {             identifier ~ ( gap ~ "(" ~ expr_list ~ ")" )* }
+invoke = { kw_invoke ~ identifier ~   gap ~ "(" ~ expr_list ~ ")"    }
 sample = { "$" ~ ty }
 paren_expr = { "(" ~ padded_expr ~ ")" }
-tuple_expr = { "(" ~ arg_list_expr ~ ")" }
+tuple_expr = { "(" ~ expr_list ~ ")" }
 table_expr  = { identifier ~ gap ~ "[" ~ padded_expr ~ "]" }
 
-arg_list_expr = { ( padded_expr ~ ( ","  ~ padded_expr )* ~ comma? ) | gap }
+expr_list = { ( gap ~ expr ~ ( gap ~ comma ~ gap ~ expr )* ~ ( gap ~ comma )? )? ~ gap }
 padded_expr = { gap ~ expr ~ gap }
 
 // operator strings
@@ -108,17 +108,15 @@ appl_ty  = { identifier ~ gap ~ "(" ~ appl_ty_arg_list ~ ")" }
 // We can't distinguish everything at parse time: if there is no obvious tell that something is an expression (e.g. a +)
 // or a type (e.g. a function signature), we have to parse it as ambiguous and resolve it later.
 appl_ty_arg = { appl_ty | tuple_appl_ty_arg | identifier | ty | expr }
-appl_ty_arg_list = { (appl_ty_arg_padded ~ ( "," ~ appl_ty_arg_padded )* ~ comma? ) | gap  }
+appl_ty_arg_list = { ( gap ~ appl_ty_arg ~ ( gap ~ comma ~ gap ~ appl_ty_arg )* ~ (gap ~ comma)? )? ~ gap  }
 tuple_appl_ty_arg = { "(" ~ appl_ty_arg_list ~ ")"  }
-appl_ty_arg_padded = { gap ~ appl_ty_arg ~ gap  }
 
-ty_list = { ( padded_ty ~ ( "," ~ padded_ty )*  ~ comma? ) | gap }
+ty_list = { ( gap ~ ty ~ ( gap ~ comma ~ gap ~ ty )* ~ (gap ~ comma )? )? ~ gap }
 padded_ty = { gap ~ ty ~ gap }
 
 // ## Statements
 
-statements = { ( padded_statement ~ ( ";" ~ padded_statement )*  ~ semicolon? ) | gap }
-padded_statement = { gap ~ statement ~ gap }
+statements = { ( gap ~ statement ~ ( gap ~ semicolon ~ gap ~ statement )*  ~ (gap ~ semicolon)? )? ~ gap }
 
 statement = { ifthenelse | abort | assignment | return | expr }
 ifthenelse = { kw_if ~ padded_expr ~ "{" ~  statements  ~ "}" ~ ( gap ~ kw_else ~ gap ~ "{" ~  statements ~ "}" )? }
@@ -127,7 +125,7 @@ assignment = { pattern ~ gap ~ "<-" ~ gap ~ expr }
 return = { kw_return ~ gap ~ expr }
 
 // Patterns describe the left-hand side of an assignment
-patterns = { (padded_pattern ~ ( "," ~ padded_pattern )* ~ comma? ) | gap }
+patterns = { ( gap ~ pattern ~ ( gap ~ comma ~ gap ~ pattern )* ~ (gap ~ comma)? )? ~ gap }
 pattern     = { table_pat | identifier | tuple_pat }
 table_pat   = { identifier ~ gap ~ "[" ~ padded_expr ~ "]"}
 tuple_pat = { "(" ~ patterns ~ ")" }

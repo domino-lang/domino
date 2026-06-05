@@ -6,7 +6,7 @@ use crate::{
             PackageTypeArgumentIdentifier, PackageTypeArgumentIdentifierKind,
             PackageTypeIdentifierKind, TypeArgIdentifierKind, TypeIdentifierKind,
         },
-        list::{Comma, List},
+        list::{Comma, List2},
         pure_expressions::PureExpression,
         InArena, Indexable, NodeType, Parsable, Trivia,
     },
@@ -41,10 +41,11 @@ pub enum TypeArgument<IK: TypeArgIdentifierKind> {
 }
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeArgList<IK: TypeArgIdentifierKind> = List<TypeArgument<IK>, Comma>;
+pub type TypeArgList<IK: TypeArgIdentifierKind> = List2<TypeArgument<IK>, Comma>;
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeList<IK: TypeIdentifierKind> = List<Type<IK>, Comma>;
+pub type TypeList<IK: TypeIdentifierKind> = List2<Type<IK>, Comma>;
+//pub type TypeList2<IK: TypeIdentifierKind> = List2<Type<IK>, Comma>;
 
 fn parse_type<IK: TypeIdentifierKind>(
     file_id: FileId,
@@ -84,26 +85,46 @@ impl Parsable for Type<GameTypeIdentifierKind> {
     }
 }
 
-impl<IK: TypeArgIdentifierKind> Parsable for TypeArgument<IK>
+impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_type_arg(file_id, state, pair)
+    }
+}
+
+impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_type_arg(file_id, state, pair)
+    }
+}
+
+fn parse_type_arg<IK: TypeArgIdentifierKind>(
+    file_id: FileId,
+    state: &mut State,
+    pair: crate::Pair,
+) -> TypeArgument<IK>
 where
-    Self: Indexable + InArena + NodeType,
+    TypeArgument<IK>: Indexable + InArena + NodeType,
     ArgumentedType<IK>: Parsable,
     TypeArgList<IK>: Parsable,
     Type<IK::ArgTypeIdentifierKind>: Parsable,
     PureExpression<IK::ArgValueIdentifierKind>: Parsable,
 {
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::appl_ty_arg);
+    debug_assert_eq!(pair.as_rule(), Rule::appl_ty_arg);
 
-        let inner = pair.into_inner().next().unwrap();
-        match inner.as_rule() {
-            Rule::appl_ty => Self::Application(ArgumentedType::parse_ref(file_id, state, inner)),
-            Rule::tuple_appl_ty_arg => Self::Tuple(TypeArgList::parse_ref(file_id, state, inner)),
-            Rule::identifier => Self::Identifier(Identifier::parse_ref(file_id, state, inner)),
-            Rule::ty => Self::Type(Type::parse_ref(file_id, state, inner)),
-            Rule::expr => Self::Expr(PureExpression::parse_ref(file_id, state, inner)),
-            _ => unreachable!(),
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::appl_ty => {
+            TypeArgument::Application(ArgumentedType::parse_ref(file_id, state, inner))
         }
+        Rule::tuple_appl_ty_arg => TypeArgument::Tuple(TypeArgList::parse_ref(
+            file_id,
+            state,
+            inner.into_inner().next().unwrap(),
+        )),
+        Rule::identifier => TypeArgument::Identifier(Identifier::parse_ref(file_id, state, inner)),
+        Rule::ty => TypeArgument::Type(Type::parse_ref(file_id, state, inner)),
+        Rule::expr => TypeArgument::Expr(PureExpression::parse_ref(file_id, state, inner)),
+        _ => unreachable!(),
     }
 }
 
@@ -141,34 +162,37 @@ where
     }
 }
 
-crate::ast_nodes::list::impl_list!(
-    Type<PackageTypeIdentifierKind>,
-    Rule::ty_list,
-    Rule::padded_ty,
-    crate::ast_nodes::list::Comma,
-    Rule::comma,
-);
+// crate::ast_nodes::list::impl_list!(
+//     TypeArgument<PackageTypeArgumentIdentifierKind>,
+//     Rule::appl_ty_arg_list,
+//     Rule::appl_ty_arg_padded,
+//     crate::ast_nodes::list::Comma,
+//     Rule::comma,
+// );
+//
+// crate::ast_nodes::list::impl_list!(
+//     TypeArgument<GameTypeArgumentIdentifierKind>,
+//     Rule::appl_ty_arg_list,
+//     Rule::appl_ty_arg_padded,
+//     crate::ast_nodes::list::Comma,
+//     Rule::comma,
+// );
 
-crate::ast_nodes::list::impl_list!(
-    Type<GameTypeIdentifierKind>,
-    Rule::ty_list,
-    Rule::padded_ty,
-    crate::ast_nodes::list::Comma,
-    Rule::comma,
-);
+#[cfg(debug_assertions)]
+#[allow(dead_code)]
+mod static_checks {
+    use super::*;
+    use crate::ast_nodes::Parsable;
 
-crate::ast_nodes::list::impl_list!(
-    TypeArgument<PackageTypeArgumentIdentifierKind>,
-    Rule::appl_ty_arg_list,
-    Rule::appl_ty_arg_padded,
-    crate::ast_nodes::list::Comma,
-    Rule::comma,
-);
+    fn impls_parsable<T: Parsable>() {}
 
-crate::ast_nodes::list::impl_list!(
-    TypeArgument<GameTypeArgumentIdentifierKind>,
-    Rule::appl_ty_arg_list,
-    Rule::appl_ty_arg_padded,
-    crate::ast_nodes::list::Comma,
-    Rule::comma,
-);
+    fn check_impls_parsable() {
+        impls_parsable::<Type<PackageTypeIdentifierKind>>();
+        impls_parsable::<List2<Type<PackageTypeIdentifierKind>, Comma>>();
+        impls_parsable::<TypeArgList<PackageTypeArgumentIdentifierKind>>();
+        impls_parsable::<List2<TypeArgument<PackageTypeArgumentIdentifierKind>, Comma>>();
+        impls_parsable::<TypeArgument<PackageTypeArgumentIdentifierKind>>();
+
+        impls_parsable::<TupleType<PackageTypeIdentifierKind>>();
+    }
+}

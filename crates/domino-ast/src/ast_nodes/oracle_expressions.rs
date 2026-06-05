@@ -5,7 +5,7 @@ use crate::{
             Identifier, OracleIdentifier, OracleValueIdentifier, PackageTypeIdentifierKind,
             TypeIdentifierKind,
         },
-        list::{Comma, List},
+        list::{Comma, List2},
         pure_expressions::{binop_from_pair, BinOp, UnOp},
         types::Type,
         InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
@@ -58,7 +58,7 @@ pub struct OracleInvocationExpression {
 }
 
 /// A list of expressions, usually comma separated. Usually surrounded by parenthises
-pub type ExprList = List<OracleExpression, Comma>;
+pub type ExprList = List2<OracleExpression, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TableIndexExpression {
@@ -194,14 +194,6 @@ impl Parsable for OracleInvocationExpression {
         }
     }
 }
-
-crate::ast_nodes::list::impl_list!(
-    OracleExpression,
-    Rule::arg_list_expr,
-    Rule::padded_expr,
-    Comma,
-    Rule::comma
-);
 
 impl Parsable for TableIndexExpression {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {

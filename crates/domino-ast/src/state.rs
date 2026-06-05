@@ -1,7 +1,8 @@
 use crate::ast_nodes::{
     game,
     identifier::{self, PackageTypeIdentifierKind},
-    list, oracle_expressions, oracles, package, pure_expressions, statements, types, NodeTypeEnum,
+    list::{self, Semicolon},
+    oracle_expressions, oracles, package, pure_expressions, statements, types, NodeTypeEnum,
     Padded, PaddedRef, Trivia, Trivium,
 };
 
@@ -174,6 +175,7 @@ define_arenas! {
     games: game::Game,
 
     commas: list::Comma,
+    semicolons: list::Semicolon,
 }
 
 macro_rules! define_arenas {
