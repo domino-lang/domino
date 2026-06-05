@@ -5,7 +5,7 @@ use crate::{
             GameConstValueIdentifierKind, Identifier, IdentifierKind,
             PackageConstValueIdentifierKind,
         },
-        list::{Comma, List},
+        list::{Comma, List2},
         InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
@@ -69,7 +69,7 @@ pub struct UnOpExpression<IdentKind: IdentifierKind> {
 
 /// A list of expressions, usually comma separated. Usually surrounded by parenthises
 #[allow(type_alias_bounds)]
-pub type ExprList<IdentKind: IdentifierKind> = List<PureExpression<IdentKind>, Comma>;
+pub type ExprList<IdentKind: IdentifierKind> = List2<PureExpression<IdentKind>, Comma>;
 
 pub type PureConstPackageExpressionList = ExprList<PackageConstValueIdentifierKind>;
 
@@ -97,20 +97,20 @@ pub struct CallExpression<IdentKind: IdentifierKind> {
 #[derive(Debug, Clone)]
 pub struct TupleExpression<IdentKind: IdentifierKind>(pub Ref<ExprList<IdentKind>>);
 
-crate::ast_nodes::list::impl_list!(
-    PureExpression<PackageConstValueIdentifierKind>,
-    Rule::arg_list_expr,
-    Rule::padded_expr,
-    Comma,
-    Rule::comma
-);
-crate::ast_nodes::list::impl_list!(
-    PureExpression<GameConstValueIdentifierKind>,
-    Rule::arg_list_expr,
-    Rule::padded_expr,
-    Comma,
-    Rule::comma
-);
+// crate::ast_nodes::list::impl_list!(
+//     PureExpression<PackageConstValueIdentifierKind>,
+//     Rule::arg_list_expr,
+//     Rule::padded_expr,
+//     Comma,
+//     Rule::comma
+// );
+// crate::ast_nodes::list::impl_list!(
+//     PureExpression<GameConstValueIdentifierKind>,
+//     Rule::arg_list_expr,
+//     Rule::padded_expr,
+//     Comma,
+//     Rule::comma
+// );
 
 pub(crate) fn binop_from_pair(pair: &crate::Pair) -> BinOp {
     match pair.as_str() {
@@ -283,7 +283,7 @@ fn parse_pure_expression<IK: IdentifierKind>(
 ) -> PureExpression<IK>
 where
     PureExpression<IK>: Parsable,
-    List<PureExpression<IK>, Comma>: Parsable,
+    List2<PureExpression<IK>, Comma>: Parsable,
     Identifier<IK>: Parsable,
     TableIndexExpression<IK>: Parsable,
     TupleExpression<IK>: Parsable,
@@ -374,7 +374,7 @@ impl<IK: IdentifierKind> Parsable for TupleExpression<IK>
 where
     PaddedRef<Identifier<IK>>: Parsable,
     Self: Indexable + InArena + NodeType,
-    List<PureExpression<IK>, Comma>: Parsable,
+    List2<PureExpression<IK>, Comma>: Parsable,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);
@@ -389,13 +389,14 @@ where
 
 #[cfg(test)]
 mod static_checks {
+    use super::*;
     use crate::ast_nodes::{
         identifier::{PackageConstValueIdentifier, PackageConstValueIdentifierKind},
-        pure_expressions::{PureExpression, TableIndexExpression, TupleExpression},
         PaddedRef, Parsable,
     };
 
     fn impls_parsable<T: Parsable>() {}
+    fn impls_indexable<T: Indexable>() {}
 
     #[allow(dead_code)]
     fn ensure_traits_impld_for_oracle() {
@@ -403,6 +404,8 @@ mod static_checks {
         impls_parsable::<PaddedRef<PackageConstValueIdentifier>>();
         impls_parsable::<TableIndexExpression<PackageConstValueIdentifierKind>>();
         impls_parsable::<TupleExpression<PackageConstValueIdentifierKind>>();
+        impls_parsable::<ExprList<PackageConstValueIdentifierKind>>();
+        impls_indexable::<ExprList<PackageConstValueIdentifierKind>>();
         impls_parsable::<PureExpression<PackageConstValueIdentifierKind>>();
     }
 }
