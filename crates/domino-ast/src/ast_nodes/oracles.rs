@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::{
             Identifier, OracleIdentifier, OracleValueIdentifierKind, PackageTypeIdentifierKind,
@@ -17,23 +17,23 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct OracleSignature {
     pub name: Ref<OracleIdentifier>,
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub args: Ref<OracleValueDeclList>,
     pub ret_ty: Option<OracleReturnType>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct OracleReturnType {
-    pub pre_arrow_trivia: Slice<Trivia>,
-    pub post_arrow_trivia: Slice<Trivia>,
+    pub pre_arrow_trivia: Ref<Trivia>,
+    pub post_arrow_trivia: Ref<Trivia>,
     pub ty: Ref<Type<PackageTypeIdentifierKind>>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ArgDecl<IK: ValueIdentifierKind> {
     pub name: Ref<Identifier<IK>>,
-    pub pre_colon_trivia: Slice<Trivia>,
-    pub post_colon_trivia: Slice<Trivia>,
+    pub pre_colon_trivia: Ref<Trivia>,
+    pub post_colon_trivia: Ref<Trivia>,
     pub ty: Ref<Type<PackageTypeIdentifierKind>>,
 }
 
@@ -67,15 +67,15 @@ impl Parsable for OracleSignature {
         let args_pair = inner.next().unwrap();
 
         let name = Identifier::parse_ref(file_id, state, name_pair);
-        let trivia = Slice::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let args = OracleValueDeclList::parse_ref(file_id, state, args_pair);
 
         let ret_ty = inner.next().map(|pre_arrow_trivia_pair| {
             let post_arrow_trivia_pair = inner.next().unwrap();
             let ret_ty_pair = inner.next().unwrap();
 
-            let pre_arrow_trivia = Slice::from_pair(file_id, state, pre_arrow_trivia_pair);
-            let post_arrow_trivia = Slice::from_pair(file_id, state, post_arrow_trivia_pair);
+            let pre_arrow_trivia = Trivia::parse_ref(file_id, state, pre_arrow_trivia_pair);
+            let post_arrow_trivia = Trivia::parse_ref(file_id, state, post_arrow_trivia_pair);
             let ty = Type::parse_ref(file_id, state, ret_ty_pair);
 
             OracleReturnType {
@@ -105,8 +105,8 @@ impl Parsable for OracleValueArgDecl {
         let ty_pair = inner.next().unwrap();
 
         let name = Identifier::parse_ref(file_id, state, name_pair);
-        let pre_colon_trivia = Slice::from_pair(file_id, state, pre_colon_trivia_pair);
-        let post_colon_trivia = Slice::from_pair(file_id, state, post_colon_trivia_pair);
+        let pre_colon_trivia = Trivia::parse_ref(file_id, state, pre_colon_trivia_pair);
+        let post_colon_trivia = Trivia::parse_ref(file_id, state, post_colon_trivia_pair);
         let ty = Type::parse_ref(file_id, state, ty_pair);
 
         Self {

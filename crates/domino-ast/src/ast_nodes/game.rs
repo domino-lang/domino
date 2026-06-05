@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::{
             GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifierKind, Identifier,
@@ -24,7 +24,7 @@ pub type InstanceConstAssignmentList = List<InstanceConstAssignmentItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct InstanceConstBlock {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub list: Ref<InstanceConstAssignmentList>,
 }
 
@@ -39,7 +39,7 @@ pub type InstanceTypeAssignmentList = List<InstanceTypeAssignmentItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct InstanceTypeBlock {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub list: Ref<InstanceTypeAssignmentList>,
 }
 
@@ -77,7 +77,7 @@ pub type ComposePackageInstanceList = List<ComposePackageInstanceItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComposeBlock {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub items: Ref<ComposePackageInstanceList>,
 }
 
@@ -142,7 +142,7 @@ impl Parsable for InstanceConstBlock {
         let trivia_pair = inner.next().unwrap();
         let list_pair = inner.next().unwrap();
 
-        let trivia = Slice::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let list = List::parse_ref(file_id, state, list_pair);
 
         Self { trivia, list }
@@ -180,7 +180,7 @@ impl Parsable for InstanceTypeBlock {
         let trivia_pair = inner.next().unwrap();
         let list_pair = inner.next().unwrap();
 
-        let trivia = Slice::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let list = List::parse_ref(file_id, state, list_pair);
 
         Self { trivia, list }
@@ -287,7 +287,7 @@ impl Parsable for ComposeBlock {
         let mut inner = pair.into_inner();
 
         let _kw_compose = inner.next().unwrap();
-        let trivia = Slice::from_pair(file_id, state, inner.next().unwrap());
+        let trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let items = ComposePackageInstanceList::parse_ref(file_id, state, inner.next().unwrap());
 
         Self { trivia, items }

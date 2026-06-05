@@ -157,17 +157,22 @@ impl<T: Parsable> Slice<T> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Trivia {
+pub enum Trivium {
     BlockComment,
     LineComment,
-    BlankLine,
+    NewLine,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Trivia {
+    trivia: Slice<Trivium>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct Padded<T> {
-    pub leading: Slice<Trivia>,
+    pub leading: Ref<Trivia>,
     pub inner: T,
-    pub trailing: Slice<Trivia>,
+    pub trailing: Ref<Trivia>,
 }
 
 pub type PaddedRef<T> = Padded<Ref<T>>;
@@ -189,9 +194,9 @@ where
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut pairs = pair.into_inner();
 
-        let leading = Slice::from_pair(file_id, state, pairs.next().unwrap());
+        let leading = Trivia::parse_ref(file_id, state, pairs.next().unwrap());
         let inner = T::parse_ref(file_id, state, pairs.next().unwrap());
-        let trailing = Slice::from_pair(file_id, state, pairs.next().unwrap());
+        let trailing = Trivia::parse_ref(file_id, state, pairs.next().unwrap());
 
         PaddedRef {
             leading,
@@ -208,9 +213,9 @@ where
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut pairs = pair.into_inner();
 
-        let leading = Slice::from_pair(file_id, state, pairs.next().unwrap());
+        let leading = Trivia::parse_ref(file_id, state, pairs.next().unwrap());
         let inner = T::parse(file_id, state, pairs.next().unwrap());
-        let trailing = Slice::from_pair(file_id, state, pairs.next().unwrap());
+        let trailing = Trivia::parse_ref(file_id, state, pairs.next().unwrap());
 
         Padded {
             leading,
@@ -220,64 +225,35 @@ where
     }
 }
 
-impl Slice<Trivia> {
-    pub fn from_pair<'src>(
-        file_id: FileId,
-        state: &mut State,
-        pair: crate::Pair<'src>,
-    ) -> Slice<Trivia> {
-        debug_assert_eq!(pair.as_rule(), Rule::gap);
+impl Parsable for Trivium {
+    fn parse(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::trivium);
 
-        // set when finding the first newline in a sequence
-        let mut newlines_span_start = None;
-
-        let mut allocator = Trivia::arena_mut(&mut state.arenas).slice_allocator();
-
-        for pair in pair.into_inner() {
-            let loc = SourceLocation::from_file_and_pair(file_id, &pair);
-            match pair.as_rule() {
-                Rule::block_comment => {
-                    newlines_span_start = None;
-                    let comment = allocator.push(Trivia::BlockComment);
-                    state.tables.locations.insert(comment.global_ref_id(), loc);
-                }
-                Rule::line_comment => {
-                    newlines_span_start = None;
-                    let comment = allocator.push(Trivia::LineComment);
-                    state.tables.locations.insert(comment.global_ref_id(), loc);
-                }
-                Rule::newline => {
-                    if let Some(start) = newlines_span_start {
-                        let loc = SourceLocation { start, ..loc };
-                        let newline = allocator.push(Trivia::BlankLine);
-                        state.tables.locations.insert(newline.global_ref_id(), loc);
-                    } else {
-                        newlines_span_start = Some(loc.start);
-                    }
-                }
-
-                _ => unreachable!(),
-            }
+        match pair.into_inner().next().unwrap().as_rule() {
+            Rule::newline => Trivium::NewLine,
+            Rule::block_comment => Trivium::BlockComment,
+            Rule::line_comment => Trivium::LineComment,
+            _ => unreachable!(),
         }
-
-        allocator.finish()
     }
 }
 
-impl State {
-    pub fn compare_trivia(&self, lhs: Slice<Trivia>, rhs: Slice<Trivia>) -> bool {
-        lhs.len() == rhs.len()
-            && lhs.refs().zip(rhs.refs()).all(|(lhs, rhs)| {
-                let lhs = self.arenas.trivia.get(lhs);
-                let rhs = self.arenas.trivia.get(rhs);
+impl Parsable for Trivia {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::gap);
 
-                matches!(
-                    (lhs, rhs),
-                    (Trivia::BlockComment, Trivia::BlockComment)
-                        | (Trivia::LineComment, Trivia::LineComment)
-                        | (Trivia::BlankLine, Trivia::BlankLine)
-                )
-            })
+        let mut trivia = vec![];
+        trivia.extend(
+            pair.into_inner()
+                .map(|trivium_pair| Trivium::parse(file_id, state, trivium_pair)),
+        );
+
+        let mut allocator = state.arenas.trivium.slice_allocator();
+        allocator.extend(trivia);
+
+        Self {
+            trivia: allocator.finish(),
+        }
     }
 }
 
@@ -304,6 +280,7 @@ macro_rules! define_node_type_enum {
 }
 
 define_node_type_enum! {
+    Trivium: Trivium,
     Trivia: Trivia,
 
     // Types
@@ -463,6 +440,9 @@ macro_rules! impl_noop_index {
 }
 
 impl_noop_index! {
+    Trivium,
+    Trivia,
+
     // pure expressions
 
     //// package const

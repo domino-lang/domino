@@ -1,5 +1,5 @@
 use crate::{
-    arena::{Ref, Slice},
+    arena::Ref,
     ast_nodes::{
         identifier::{
             Identifier, IdentifierKind, PackageIdentifier, PackageTypeArgumentIdentifierKind,
@@ -29,7 +29,7 @@ pub enum PackageItem {
 
 #[derive(Debug, Clone, Copy)]
 pub struct TypeParamBlock<IK: IdentifierKind> {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub decls: Ref<TypeDeclList<IK>>,
 }
 
@@ -37,19 +37,19 @@ pub type PackageTypeParamBlock = TypeParamBlock<PackageTypeIdentifierKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ConstParamBlock {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub decls: Ref<OracleValueDeclList>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct StateBlock {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub decls: Ref<OracleValueDeclList>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ImportOraclesBlock {
-    pub trivia: Slice<Trivia>,
+    pub trivia: Ref<Trivia>,
     pub decls: Ref<OracleDeclList>,
 }
 
@@ -139,7 +139,7 @@ impl Parsable for StateBlock {
         let trivia_pair = inner.next().unwrap();
         let decls_pair = inner.next().unwrap();
 
-        let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let decls = OracleValueDeclList::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
@@ -156,7 +156,7 @@ impl Parsable for ImportOraclesBlock {
         let trivia_pair = inner.next().unwrap();
         let decls_pair = inner.next().unwrap();
 
-        let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let decls = OracleDeclList::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
@@ -173,7 +173,7 @@ impl Parsable for PackageTypeParamBlock {
         let trivia_pair = inner.next().unwrap();
         let decls_pair = inner.next().unwrap();
 
-        let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let decls = List::<PackageTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
@@ -190,7 +190,7 @@ impl Parsable for ConstParamBlock {
         let trivia_pair = inner.next().unwrap();
         let decls_pair = inner.next().unwrap();
 
-        let trivia = Slice::<Trivia>::from_pair(file_id, state, trivia_pair);
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
         let decls = OracleValueDeclList::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }

@@ -147,3 +147,11 @@ impl<'a, T> SliceAllocator<'a, T> {
         Slice(self.base, self.count, PhantomData)
     }
 }
+
+impl<'a, I> Extend<I> for SliceAllocator<'a, I> {
+    fn extend<T: IntoIterator<Item = I>>(&mut self, iter: T) {
+        for item in iter {
+            self.push(item);
+        }
+    }
+}

@@ -1,4 +1,7 @@
-use crate::ast_nodes::{PaddedRef, Slice, Trivia};
+use crate::{
+    arena::Ref,
+    ast_nodes::{PaddedRef, Slice, Trivia},
+};
 
 /// Denotes that the list is delimited with a comma
 #[derive(Debug, Clone, Copy, Default)]
@@ -20,7 +23,7 @@ pub struct Newlines;
 #[derive(Debug)]
 pub enum List<Item, Delimiter> {
     /// Just the trivia where a list could be
-    None(Slice<Trivia>),
+    None(Ref<Trivia>),
 
     /// An actual list.
     /// This variant should never be instantiated with an empty slice.
@@ -51,7 +54,7 @@ macro_rules! impl_list {
 
                 let mut inner = pair.into_inner();
                 match inner.peek().unwrap().as_rule() {
-                    Rule::gap => List::None(crate::arena::Slice::from_pair(
+                    Rule::gap => List::None(Trivia::parse_ref(
                         file_id,
                         state,
                         inner.next().unwrap(),
