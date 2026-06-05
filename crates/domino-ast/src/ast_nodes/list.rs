@@ -25,6 +25,7 @@ pub struct Newlines;
 trait Delimiter: Parsable {}
 
 impl Delimiter for Comma {}
+impl Delimiter for Semicolon {}
 
 impl Parsable for Comma {
     fn parse(
@@ -35,6 +36,18 @@ impl Parsable for Comma {
         debug_assert_eq!(pair.as_rule(), Rule::comma);
 
         Comma
+    }
+}
+
+impl Parsable for Semicolon {
+    fn parse(
+        _file_id: crate::source::FileId,
+        _state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::semicolon);
+
+        Semicolon
     }
 }
 
