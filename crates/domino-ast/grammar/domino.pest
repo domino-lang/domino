@@ -143,7 +143,7 @@ expr_ident_decl_list = { ( padded_expr_ident_decl ~ ( "," ~ padded_expr_ident_de
 padded_expr_ident_decl = { gap ~ expr_ident_decl ~ gap }
 expr_ident_decl = { identifier ~ gap ~ ":" ~ gap ~ ty }
 padded_ident = { gap ~ identifier ~ gap }
-padded_ident_list = { ( padded_ident ~ ( "," ~ padded_ident )* ~ comma? ) | gap }
+ident_list = { ( gap ~ identifier ~ ( gap ~ comma ~ gap ~ identifier )* ~ ( gap ~ comma )? )? ~ gap }
 
 // ## Package Definition
 
@@ -156,7 +156,7 @@ padded_package_item = { gap ~ package_item ~ gap }
 package_item = { types_param_block | state_block | consts_param_block | oracle_def | import_oracles_block }
 consts_param_block   = { kw_consts ~ gap ~ "{" ~  expr_ident_decl_list ~ "}" }
 state_block    = { kw_state  ~ gap ~ "{" ~  expr_ident_decl_list ~ "}" }
-types_param_block    = { kw_types  ~ gap ~ "{" ~     padded_ident_list ~ "}" }
+types_param_block    = { kw_types  ~ gap ~ "{" ~     ident_list ~ "}" }
 import_oracles_block = { kw_import ~ gap ~ "{" ~      oracle_decl_list ~ "}" }
 
 // ## Package Instance
@@ -194,10 +194,9 @@ compose_block = { kw_compose ~ gap ~ "{" ~ compose_package_assignment_list ~ "}"
 // ## Game
 
 game_item = { compose_block | types_param_block | consts_param_block | inst_block }
-padded_game_item = { gap ~ game_item ~ gap }
-padded_game_item_list = { padded_game_item+ | gap}
+game_item_list = { ( gap ~ game_item )* ~ gap }
 
-game = { kw_game ~ padded_ident ~ "{" ~ padded_game_item_list ~ "}" }
+game = { kw_game ~ padded_ident ~ "{" ~ game_item_list ~ "}" }
 
 // ##  Theorem files
 

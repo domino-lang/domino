@@ -5,7 +5,7 @@ use crate::{
             GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifierKind, Identifier,
             OracleIdentifier, PackageInstanceIdentifier,
         },
-        list::{impl_list, Colon, Comma, List, Newlines},
+        list::{impl_list, Colon, Comma, List, ListNoDelim},
         pure_expressions::PureExpression,
         types::Type,
         Padded, PaddedRef, Parsable, Trivia,
@@ -87,7 +87,7 @@ pub enum GameItem {
     Compose(Ref<ComposeBlock>),
 }
 
-pub type GameItemList = List<GameItem, Newlines>;
+pub type GameItemList = ListNoDelim<GameItem>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Game {
@@ -309,14 +309,6 @@ impl Parsable for GameItem {
         }
     }
 }
-
-impl_list!(
-    GameItem,
-    Rule::padded_game_item_list,
-    Rule::padded_game_item,
-    Newlines,
-    Rule::newline,
-);
 
 impl Parsable for Game {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
