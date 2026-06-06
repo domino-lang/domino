@@ -8,7 +8,7 @@ use crate::{
         list::{Colon, Comma, List, ListNoDelim},
         pure_expressions::PureExpression,
         types::Type,
-        Padded, PaddedRef, Parsable, Trivia,
+        ListItem, Padded, PaddedRef, Parsable, Trivia,
     },
     Rule,
 };
@@ -18,6 +18,10 @@ pub struct InstanceConstAssignmentItem {
     pub ident: Ref<Identifier<GameConstValueIdentifierKind>>,
     pub colon: Padded<Colon>,
     pub expr: Ref<PureExpression<GameConstValueIdentifierKind>>,
+}
+
+impl ListItem for InstanceConstAssignmentItem {
+    const LIST_RULE: Rule = Rule::inst_const_assignment_list;
 }
 
 pub type InstanceConstAssignmentList = List<InstanceConstAssignmentItem, Comma>;
@@ -35,6 +39,10 @@ pub struct InstanceTypeAssignmentItem {
     pub ty: Ref<Type<GameTypeIdentifierKind>>,
 }
 
+impl ListItem for InstanceTypeAssignmentItem {
+    const LIST_RULE: Rule = Rule::inst_type_assignment_list;
+}
+
 pub type InstanceTypeAssignmentList = List<InstanceTypeAssignmentItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
@@ -47,6 +55,10 @@ pub struct InstanceTypeBlock {
 pub enum InstanceItem {
     InstanceConst(Ref<InstanceConstBlock>),
     InstanceType(Ref<InstanceTypeBlock>),
+}
+
+impl ListItem for InstanceItem {
+    const LIST_RULE: Rule = Rule::inst_list;
 }
 
 pub type InstanceItemList = ListNoDelim<InstanceItem>;
@@ -64,6 +76,10 @@ pub struct ComposeOracleAssignmentItem {
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
 }
 
+impl ListItem for ComposeOracleAssignmentItem {
+    const LIST_RULE: Rule = Rule::cmps_oracle_assignment_list;
+}
+
 pub type ComposeOracleAssignmentList = List<ComposeOracleAssignmentItem, Comma>;
 
 #[derive(Debug, Clone, Copy)]
@@ -71,6 +87,10 @@ pub struct ComposePackageInstanceItem {
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
     pub padded_colon: Padded<Colon>,
     pub items: Ref<ComposeOracleAssignmentList>,
+}
+
+impl ListItem for ComposePackageInstanceItem {
+    const LIST_RULE: Rule = Rule::cmps_pkg_assign_list;
 }
 
 pub type ComposePackageInstanceList = List<ComposePackageInstanceItem, Comma>;
@@ -85,6 +105,10 @@ pub struct ComposeBlock {
 pub enum GameItem {
     Instance(Ref<InstanceBlock>),
     Compose(Ref<ComposeBlock>),
+}
+
+impl ListItem for GameItem {
+    const LIST_RULE: Rule = Rule::game_item_list;
 }
 
 pub type GameItemList = ListNoDelim<GameItem>;

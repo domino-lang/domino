@@ -4,7 +4,7 @@ use crate::{
         identifier::OracleValueIdentifier,
         list::{Comma, List, Semicolon},
         oracle_expressions::OracleExpression,
-        PaddedRef, Parsable, Trivia,
+        ListItem, PaddedRef, Parsable, Trivia,
     },
     Rule,
 };
@@ -16,6 +16,10 @@ pub enum Statement {
     Expression(Ref<ExpressionStatement>),
     IfThenElse(Ref<IfThenElseStatement>),
     Return(Ref<ReturnStatement>),
+}
+
+impl ListItem for Statement {
+    const LIST_RULE: Rule = Rule::statements;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -56,6 +60,10 @@ pub enum Pattern {
     Identifier(Ref<OracleValueIdentifier>),
     Table(Ref<TablePattern>),
     Tuple(Ref<TuplePattern>),
+}
+
+impl ListItem for Pattern {
+    const LIST_RULE: Rule = Rule::patterns;
 }
 
 /// Assignment to a table. The table must already be in scope. Since we require the identifier to

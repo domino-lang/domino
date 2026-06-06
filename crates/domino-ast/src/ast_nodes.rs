@@ -22,6 +22,10 @@ use crate::{
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct NodeTypeId(pub u8);
 
+pub trait ListItem {
+    const LIST_RULE: Rule;
+}
+
 pub trait NodeType {
     const NODE_TYPE: NodeTypeEnum;
 }
@@ -288,7 +292,6 @@ define_node_type_enum! {
     Comma: list::Comma,
     Semicolon: list::Semicolon,
 
-
     // Types
     //
     // ## In Packages
@@ -341,19 +344,16 @@ define_node_type_enum! {
     IfThenElseStatement: statements::IfThenElseStatement,
     ReturnStatement: statements::ReturnStatement,
     ExpressionStatement: statements::ExpressionStatement,
-    PaddedStatement: PaddedRef<statements::Statement>,
     StatementList: statements::StatementList,
     Pattern: statements::Pattern,
     TablePattern: statements::TablePattern,
     TuplePattern: statements::TuplePattern,
-    PaddedPattern: PaddedRef<statements::Pattern>,
     PatternList: statements::PatternList,
 
     OracleSignature: oracles::OracleSignature,
     OracleValueDeclList: oracles::OracleValueDeclList,
     OracleValueArgDecl: oracles::OracleValueArgDecl,
     OracleDefinition: oracles::OracleDefinition,
-    PaddedOracleValueArgDecl: PaddedRef<oracles::OracleValueArgDecl>,
     PaddedOracleSignature: PaddedRef<oracles::OracleSignature>,
 
     OracleExpression: oracle_expressions::OracleExpression,
@@ -374,7 +374,6 @@ define_node_type_enum! {
     PackageTypeDeclList:package::PackageTypeDeclList,
     TypeParamBlock: package::PackageTypeParamBlock,
     PackageItem: package::PackageItem,
-    PaddedPackageItem: PaddedRef<package::PackageItem>,
     Package: package::Package,
     PackageItemList: package::PackageItemList,
 
@@ -418,16 +417,13 @@ define_node_type_enum! {
     InstanceBlock: game::InstanceBlock,
 
     ComposeOracleAssignmentItem: game::ComposeOracleAssignmentItem,
-    PaddedComposeOracleAssignmentItem: PaddedRef<game::ComposeOracleAssignmentItem>,
     ComposeOracleAssignmentList: game::ComposeOracleAssignmentList,
 
     ComposePackageInstanceItem: game::ComposePackageInstanceItem,
-    PaddedComposePackageInstanceItem: PaddedRef<game::ComposePackageInstanceItem>,
     ComposePackageInstanceList: game::ComposePackageInstanceList,
 
     ComposeBlock: game::ComposeBlock,
     GameItem: game::GameItem,
-    PaddedGameItem: PaddedRef<game::GameItem>,
     GameItemList: game::GameItemList,
     Game: game::Game,
 

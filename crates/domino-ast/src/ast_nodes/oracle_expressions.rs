@@ -8,7 +8,7 @@ use crate::{
         list::{Comma, List},
         pure_expressions::{binop_from_pair, BinOp, UnOp},
         types::Type,
-        InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
+        InArena, Indexable, ListItem, NodeType, PaddedRef, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -28,6 +28,10 @@ pub enum OracleExpression {
 
     String,
     Int,
+}
+
+impl ListItem for OracleExpression {
+    const LIST_RULE: Rule = Rule::expr_list;
 }
 
 #[derive(Debug, Clone)]

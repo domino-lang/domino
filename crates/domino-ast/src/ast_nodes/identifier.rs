@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::ast_nodes::Parsable;
+use crate::{
+    ast_nodes::{ListItem, Parsable},
+    Rule,
+};
 
 pub trait IdentifierKind {}
 pub trait ValueIdentifierKind: IdentifierKind {}
@@ -141,6 +144,11 @@ define_type_ident_kind!(
     PackageTypeArgumentIdentifierKind,
     PackageConstValueIdentifierKind
 );
+
+impl ListItem for PackageTypeIdentifier {
+    const LIST_RULE: crate::Rule = Rule::ident_list;
+}
+
 define_type_ident_kind!(
     GameTypeIdentifierKind,
     GameTypeIdentifier,

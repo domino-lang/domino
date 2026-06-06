@@ -8,7 +8,7 @@ use crate::{
         },
         list::{Comma, List},
         pure_expressions::PureExpression,
-        InArena, Indexable, NodeType, Parsable, Trivia,
+        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -19,6 +19,10 @@ pub enum Type<IK: TypeIdentifierKind> {
     Identifier(Ref<PackageTypeArgumentIdentifier>),
     Tuple(Ref<TupleType<IK>>),
     Argumented(Ref<ArgumentedType<IK::ArgIdentifierKind>>),
+}
+
+impl<IK: TypeIdentifierKind> ListItem for Type<IK> {
+    const LIST_RULE: Rule = Rule::ty_list;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,6 +42,10 @@ pub enum TypeArgument<IK: TypeArgIdentifierKind> {
     Application(Ref<ArgumentedType<IK>>),
     Type(Ref<Type<IK::ArgTypeIdentifierKind>>),
     Expr(Ref<PureExpression<IK::ArgValueIdentifierKind>>),
+}
+
+impl<IK: TypeArgIdentifierKind> ListItem for TypeArgument<IK> {
+    const LIST_RULE: Rule = Rule::appl_ty_arg_list;
 }
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises

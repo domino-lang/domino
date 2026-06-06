@@ -8,7 +8,7 @@ use crate::{
         list::{Comma, List},
         statements::StatementList,
         types::Type,
-        PaddedRef, Parsable, Trivia,
+        ListItem, PaddedRef, Parsable, Trivia,
     },
     Rule,
 };
@@ -20,6 +20,10 @@ pub struct OracleSignature {
     pub trivia: Ref<Trivia>,
     pub args: Ref<OracleValueDeclList>,
     pub ret_ty: Option<OracleReturnType>,
+}
+
+impl ListItem for OracleSignature {
+    const LIST_RULE: Rule = Rule::oracle_decl_list;
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,6 +42,9 @@ pub struct ArgDecl<IK: ValueIdentifierKind> {
 }
 
 pub type OracleValueArgDecl = ArgDecl<OracleValueIdentifierKind>;
+impl ListItem for OracleValueArgDecl {
+    const LIST_RULE: Rule = Rule::expr_ident_decl_list;
+}
 
 /// A list of declarations, usually comma separated. Usually surrounded by parenthises
 pub type OracleValueDeclList = List<ArgDecl<OracleValueIdentifierKind>, Comma>;
