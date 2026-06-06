@@ -6,7 +6,7 @@ use crate::{
             PackageConstValueIdentifierKind,
         },
         list::{Comma, List},
-        InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
+        InArena, Indexable, ListItem, NodeType, PaddedRef, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -49,6 +49,10 @@ pub enum PureExpression<IdentKind: IdentifierKind> {
 
     String,
     Int,
+}
+
+impl<IK: IdentifierKind> ListItem for PureExpression<IK> {
+    const LIST_RULE: Rule = Rule::expr_list;
 }
 
 #[derive(Debug, Clone)]

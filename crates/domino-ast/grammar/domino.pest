@@ -112,7 +112,6 @@ appl_ty_arg_list = { ( gap ~ appl_ty_arg ~ ( gap ~ comma ~ gap ~ appl_ty_arg )* 
 tuple_appl_ty_arg = { "(" ~ appl_ty_arg_list ~ ")"  }
 
 ty_list = { ( gap ~ ty ~ ( gap ~ comma ~ gap ~ ty )* ~ (gap ~ comma )? )? ~ gap }
-padded_ty = { gap ~ ty ~ gap }
 
 // ## Statements
 
@@ -164,9 +163,8 @@ inst_const_assignment_list = { (gap ~ inst_const_assignment_item ~ ( gap ~ comma
 inst_const_block = { kw_consts ~ gap ~ "{" ~ inst_const_assignment_list ~ "}" }
 
 inst_type_assignment_item = { identifier ~ padded_colon ~ ty }
-padded_inst_type_assignment_item = { gap ~ inst_type_assignment_item ~ gap }
-padded_inst_type_assignment_list = { ( gap ~ inst_type_assignment_item ~ ( gap ~ comma ~ gap ~ inst_type_assignment_item )* ~ ( gap ~ comma )? )? ~ gap }
-inst_type_block = { kw_types ~ gap ~ "{" ~ padded_inst_type_assignment_list ~ "}" }
+inst_type_assignment_list = { ( gap ~ inst_type_assignment_item ~ ( gap ~ comma ~ gap ~ inst_type_assignment_item )* ~ ( gap ~ comma )? )? ~ gap }
+inst_type_block = { kw_types ~ gap ~ "{" ~ inst_type_assignment_list ~ "}" }
 
 inst_item = { inst_type_block | inst_const_block }
 padded_inst_item = { gap ~ inst_item ~ gap }

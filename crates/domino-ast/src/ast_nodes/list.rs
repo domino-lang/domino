@@ -1,6 +1,6 @@
 use crate::{
     arena::Ref,
-    ast_nodes::{InArena, Indexable, NodeType, Parsable, Slice, Trivia},
+    ast_nodes::{InArena, Indexable, ListItem, NodeType, Parsable, Slice, Trivia},
     source::SourceLocation,
     Rule,
 };
@@ -72,12 +72,12 @@ pub struct List<Node, Delim> {
 
 impl<Node, Delim> Parsable for List<Node, Delim>
 where
-    Node: Parsable,
+    Node: Parsable + ListItem,
     Delim: Delimiter + Default,
     Self: InArena + Indexable + NodeType,
 {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        //debug_assert_eq!(pair.as_rule(), Rule::game_item_list);
+        debug_assert_eq!(pair.as_rule(), Node::LIST_RULE);
 
         /// get source location and parsed node
         fn parse_with_loc<Node: Parsable>(
@@ -211,11 +211,11 @@ where
 
 impl<Node> Parsable for ListNoDelim<Node>
 where
-    Node: Parsable,
+    Node: Parsable + ListItem,
     Self: InArena + Indexable + NodeType,
 {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        //debug_assert_eq!(pair.as_rule(), Rule::game_item_list);
+        debug_assert_eq!(pair.as_rule(), Node::LIST_RULE);
 
         let mut trivias = vec![];
         let mut items = vec![];

@@ -7,7 +7,7 @@ use crate::{
         },
         list::{Comma, List, ListNoDelim, Semicolon},
         oracles::{OracleDefinition, OracleSignature, OracleValueDeclList},
-        types, PaddedRef, Parsable, Trivia,
+        types, ListItem, PaddedRef, Parsable, Trivia,
     },
     Rule,
 };
@@ -25,6 +25,10 @@ pub enum PackageItem {
     State(Ref<StateBlock>),
     ImportOracles(Ref<ImportOraclesBlock>),
     OracleDefinition(Ref<OracleDefinition>),
+}
+
+impl ListItem for PackageItem {
+    const LIST_RULE: Rule = Rule::package_item_list;
 }
 
 #[derive(Debug, Clone, Copy)]
