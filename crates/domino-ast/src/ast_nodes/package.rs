@@ -5,7 +5,7 @@ use crate::{
             Identifier, IdentifierKind, PackageIdentifier, PackageTypeArgumentIdentifierKind,
             PackageTypeIdentifier, PackageTypeIdentifierKind,
         },
-        list::{Comma, List, List2, Newlines, Semicolon},
+        list::{Comma, List, ListNoDelim, Semicolon},
         oracles::{OracleDefinition, OracleSignature, OracleValueDeclList},
         types, PaddedRef, Parsable, Trivia,
     },
@@ -15,7 +15,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub struct Package {
     pub name: PaddedRef<PackageIdentifier>,
-    pub items: Ref<List<PackageItem, Newlines>>,
+    pub items: Ref<PackageItemList>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -54,30 +54,13 @@ pub struct ImportOraclesBlock {
 }
 
 pub type OracleDeclList = List<OracleSignature, Semicolon>;
-pub type TypeDeclList<IK: IdentifierKind> = List2<Identifier<IK>, Comma>;
-pub type PackageTypeIdentifierList = List<PackageTypeIdentifier, Comma>;
+pub type TypeDeclList<IK: IdentifierKind> = List<Identifier<IK>, Comma>;
 pub type PackageTypeDeclList = TypeDeclList<PackageTypeIdentifierKind>;
-pub type PackageItemList = List<PackageItem, Newlines>;
+pub type PackageItemList = ListNoDelim<PackageItem>;
 
 pub type PackageType = types::Type<PackageTypeIdentifierKind>;
 pub type PackageArgumentedType = types::ArgumentedType<PackageTypeArgumentIdentifierKind>;
 pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifierKind>;
-
-super::list::impl_list!(
-    OracleSignature,
-    Rule::oracle_decl_list,
-    Rule::padded_oracle_sig,
-    Semicolon,
-    Rule::semicolon
-);
-
-super::list::impl_list!(
-    PackageItem,
-    Rule::package_item_list,
-    Rule::padded_package_item,
-    Newlines,
-    Rule::newline
-);
 
 impl Parsable for Package {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
@@ -166,7 +149,7 @@ impl Parsable for PackageTypeParamBlock {
         let decls_pair = inner.next().unwrap();
 
         let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let decls = List2::<PackageTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
+        let decls = List::<PackageTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
     }

@@ -5,7 +5,7 @@ use crate::{
             GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifierKind, Identifier,
             OracleIdentifier, PackageInstanceIdentifier,
         },
-        list::{impl_list, Colon, Comma, List, ListNoDelim},
+        list::{Colon, Comma, List, ListNoDelim},
         pure_expressions::PureExpression,
         types::Type,
         Padded, PaddedRef, Parsable, Trivia,
@@ -49,7 +49,7 @@ pub enum InstanceItem {
     InstanceType(Ref<InstanceTypeBlock>),
 }
 
-pub type InstanceItemList = List<InstanceItem, Comma>;
+pub type InstanceItemList = ListNoDelim<InstanceItem>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct InstanceBlock {
@@ -124,14 +124,6 @@ impl Parsable for InstanceConstAssignmentItem {
     }
 }
 
-impl_list! {
-    InstanceConstAssignmentItem,
-    Rule::padded_inst_const_assignment_list,
-    Rule::padded_inst_const_assignment_item,
-    Comma,
-    Rule::comma,
-}
-
 impl Parsable for InstanceConstBlock {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::inst_const_block);
@@ -143,7 +135,7 @@ impl Parsable for InstanceConstBlock {
         let list_pair = inner.next().unwrap();
 
         let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let list = List::parse_ref(file_id, state, list_pair);
+        let list = InstanceConstAssignmentList::parse_ref(file_id, state, list_pair);
 
         Self { trivia, list }
     }
@@ -162,14 +154,6 @@ impl Parsable for InstanceTypeAssignmentItem {
     }
 }
 
-impl_list! {
-    InstanceTypeAssignmentItem,
-    Rule::padded_inst_type_assignment_list,
-    Rule::padded_inst_type_assignment_item,
-    Comma,
-    Rule::comma,
-}
-
 impl Parsable for InstanceTypeBlock {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::inst_type_block);
@@ -181,7 +165,7 @@ impl Parsable for InstanceTypeBlock {
         let list_pair = inner.next().unwrap();
 
         let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let list = List::parse_ref(file_id, state, list_pair);
+        let list = InstanceTypeAssignmentList::parse_ref(file_id, state, list_pair);
 
         Self { trivia, list }
     }
@@ -205,14 +189,6 @@ impl Parsable for InstanceItem {
     }
 }
 
-impl_list! {
-    InstanceItem,
-    Rule::inst_list,
-    Rule::padded_inst_item,
-    Comma,
-    Rule::comma,
-}
-
 impl Parsable for InstanceBlock {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::inst_block);
@@ -228,7 +204,7 @@ impl Parsable for InstanceBlock {
 
 impl Parsable for ComposeOracleAssignmentItem {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::compose_oracle_assignment_item);
+        debug_assert_eq!(pair.as_rule(), Rule::cmps_oracle_assignment_item);
 
         let mut inner = pair.into_inner();
         let oracle_name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -244,17 +220,9 @@ impl Parsable for ComposeOracleAssignmentItem {
     }
 }
 
-impl_list! {
-    ComposeOracleAssignmentItem,
-    Rule::compose_oracle_assignment_list,
-    Rule::padded_compose_oracle_assignment_item,
-    Comma,
-    Rule::comma,
-}
-
 impl Parsable for ComposePackageInstanceItem {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::compose_package_assignment_item);
+        debug_assert_eq!(pair.as_rule(), Rule::cmps_pkg_assign_item);
 
         let mut inner = pair.into_inner();
 
@@ -270,14 +238,6 @@ impl Parsable for ComposePackageInstanceItem {
             items,
         }
     }
-}
-
-impl_list! {
-    ComposePackageInstanceItem,
-    Rule::compose_package_assignment_list,
-    Rule::padded_compose_package_assignment_item,
-    Comma,
-    Rule::comma,
 }
 
 impl Parsable for ComposeBlock {

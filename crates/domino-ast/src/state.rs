@@ -1,8 +1,7 @@
 use crate::ast_nodes::{
     game,
     identifier::{self, PackageTypeIdentifierKind},
-    list::{self, Semicolon},
-    oracle_expressions, oracles, package, pure_expressions, statements, types, NodeTypeEnum,
+    list, oracle_expressions, oracles, package, pure_expressions, statements, types, NodeTypeEnum,
     Padded, PaddedRef, Trivia, Trivium,
 };
 
@@ -63,7 +62,6 @@ define_arenas! {
     pure_const_game_expression_lists: pure_expressions::PureConstGameExpressionList,
     padded_pure_const_oracle_expression_lists: PaddedRef<pure_expressions::PureConstPackageExpressionList>,
 
-    pkg_type_ident_lists: package::PackageTypeIdentifierList,
     pkg_types: types::Type<identifier::PackageTypeIdentifierKind>,
     pkg_padded_types: PaddedRef<types::Type<identifier::PackageTypeIdentifierKind>>,
     pkg_argd_types: types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>,

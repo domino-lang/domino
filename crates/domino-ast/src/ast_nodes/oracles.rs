@@ -5,7 +5,7 @@ use crate::{
             Identifier, OracleIdentifier, OracleValueIdentifierKind, PackageTypeIdentifierKind,
             ValueIdentifierKind,
         },
-        list::{impl_list, Comma, List},
+        list::{Comma, List},
         statements::StatementList,
         types::Type,
         PaddedRef, Parsable, Trivia,
@@ -48,14 +48,6 @@ pub struct OracleDefinition {
     pub oracle_sig: PaddedRef<OracleSignature>,
     pub statements: Ref<StatementList>,
 }
-
-impl_list!(
-    OracleValueArgDecl,
-    Rule::expr_ident_decl_list,
-    Rule::padded_expr_ident_decl,
-    crate::ast_nodes::list::Comma,
-    Rule::comma,
-);
 
 impl Parsable for OracleSignature {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {

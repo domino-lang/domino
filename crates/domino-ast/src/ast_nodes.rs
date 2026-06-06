@@ -165,7 +165,7 @@ pub enum Trivium {
 
 #[derive(Debug, Clone, Copy)]
 pub struct Trivia {
-    trivia: Slice<Trivium>,
+    pub trivia: Slice<Trivium>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -372,7 +372,6 @@ define_node_type_enum! {
     StateBlock: package::StateBlock,
     ConstParamBlock: package::ConstParamBlock,
     PackageTypeDeclList:package::PackageTypeDeclList,
-    PackageTypeList: package::PackageTypeIdentifierList,
     TypeParamBlock: package::PackageTypeParamBlock,
     PackageItem: package::PackageItem,
     PaddedPackageItem: PaddedRef<package::PackageItem>,
@@ -406,17 +405,14 @@ define_node_type_enum! {
     PaddedGameConstValueIdentifier: PaddedRef<identifier::GameConstValueIdentifier>,
 
     InstanceConstAssignmentItem: game::InstanceConstAssignmentItem,
-    PaddedInstanceConstAssignmentItem: PaddedRef<game::InstanceConstAssignmentItem>,
     InstanceConstAssignmentList: game::InstanceConstAssignmentList,
     InstanceConstBlock: game::InstanceConstBlock,
 
     InstanceTypeAssignmentItem: game::InstanceTypeAssignmentItem,
-    PaddedInstanceTypeAssignmentItem: PaddedRef<game::InstanceTypeAssignmentItem>,
     InstanceTypeAssignmentList: game::InstanceTypeAssignmentList,
     InstanceTypeBlock: game::InstanceTypeBlock,
 
     InstanceItem: game::InstanceItem,
-    PaddedInstanceItem: PaddedRef<game::InstanceItem>,
     InstanceItemList: game::InstanceItemList,
 
     InstanceBlock: game::InstanceBlock,
@@ -507,11 +503,9 @@ impl_noop_index! {
     // oracles
     oracles::OracleSignature,
     oracles::OracleValueArgDecl,
-    oracles::OracleValueDeclList,
     oracles::OracleDefinition,
 
     // packages
-    package::OracleDeclList,
     package::ImportOraclesBlock,
     package::StateBlock,
     package::ConstParamBlock,
@@ -519,21 +513,15 @@ impl_noop_index! {
     package::PackageTypeParamBlock,
     package::PackageItem,
     package::Package,
-    package::PackageItemList,
     // games
     game::InstanceConstAssignmentItem,
-    game::InstanceConstAssignmentList,
     game::InstanceConstBlock,
     game::InstanceTypeAssignmentItem,
-    game::InstanceTypeAssignmentList,
     game::InstanceTypeBlock,
     game::InstanceItem,
-    game::InstanceItemList,
     game::InstanceBlock,
     game::ComposeOracleAssignmentItem,
-    game::ComposeOracleAssignmentList,
     game::ComposePackageInstanceItem,
-    game::ComposePackageInstanceList,
     game::ComposeBlock,
     game::GameItem,
     game::Game,

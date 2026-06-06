@@ -2,7 +2,7 @@ use crate::{
     arena::Ref,
     ast_nodes::{
         identifier::OracleValueIdentifier,
-        list::{impl_list, Comma, List, List2, Semicolon},
+        list::{Comma, List, Semicolon},
         oracle_expressions::OracleExpression,
         PaddedRef, Parsable, Trivia,
     },
@@ -72,9 +72,9 @@ pub struct TuplePattern {
     pub items: Ref<PatternList>,
 }
 
-pub type PatternList = List2<Pattern, Comma>;
+pub type PatternList = List<Pattern, Comma>;
 
-pub type StatementList = List2<Statement, Semicolon>;
+pub type StatementList = List<Statement, Semicolon>;
 
 impl Parsable for Pattern {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {

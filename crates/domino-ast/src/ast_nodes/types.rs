@@ -6,7 +6,7 @@ use crate::{
             PackageTypeArgumentIdentifier, PackageTypeArgumentIdentifierKind,
             PackageTypeIdentifierKind, TypeArgIdentifierKind, TypeIdentifierKind,
         },
-        list::{Comma, List2},
+        list::{Comma, List},
         pure_expressions::PureExpression,
         InArena, Indexable, NodeType, Parsable, Trivia,
     },
@@ -41,11 +41,11 @@ pub enum TypeArgument<IK: TypeArgIdentifierKind> {
 }
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeArgList<IK: TypeArgIdentifierKind> = List2<TypeArgument<IK>, Comma>;
+pub type TypeArgList<IK: TypeArgIdentifierKind> = List<TypeArgument<IK>, Comma>;
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeList<IK: TypeIdentifierKind> = List2<Type<IK>, Comma>;
-//pub type TypeList2<IK: TypeIdentifierKind> = List2<Type<IK>, Comma>;
+pub type TypeList<IK: TypeIdentifierKind> = List<Type<IK>, Comma>;
+//pub type TypeList<IK: TypeIdentifierKind> = List<Type<IK>, Comma>;
 
 fn parse_type<IK: TypeIdentifierKind>(
     file_id: FileId,
@@ -188,9 +188,9 @@ mod static_checks {
 
     fn check_impls_parsable() {
         impls_parsable::<Type<PackageTypeIdentifierKind>>();
-        impls_parsable::<List2<Type<PackageTypeIdentifierKind>, Comma>>();
+        impls_parsable::<List<Type<PackageTypeIdentifierKind>, Comma>>();
         impls_parsable::<TypeArgList<PackageTypeArgumentIdentifierKind>>();
-        impls_parsable::<List2<TypeArgument<PackageTypeArgumentIdentifierKind>, Comma>>();
+        impls_parsable::<List<TypeArgument<PackageTypeArgumentIdentifierKind>, Comma>>();
         impls_parsable::<TypeArgument<PackageTypeArgumentIdentifierKind>>();
 
         impls_parsable::<TupleType<PackageTypeIdentifierKind>>();
