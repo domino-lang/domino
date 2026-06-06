@@ -5,7 +5,7 @@ use crate::{
             GameConstValueIdentifierKind, Identifier, IdentifierKind,
             PackageConstValueIdentifierKind,
         },
-        list::{Comma, List2},
+        list::{Comma, List},
         InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
@@ -69,7 +69,7 @@ pub struct UnOpExpression<IdentKind: IdentifierKind> {
 
 /// A list of expressions, usually comma separated. Usually surrounded by parenthises
 #[allow(type_alias_bounds)]
-pub type ExprList<IdentKind: IdentifierKind> = List2<PureExpression<IdentKind>, Comma>;
+pub type ExprList<IdentKind: IdentifierKind> = List<PureExpression<IdentKind>, Comma>;
 
 pub type PureConstPackageExpressionList = ExprList<PackageConstValueIdentifierKind>;
 
@@ -283,7 +283,7 @@ fn parse_pure_expression<IK: IdentifierKind>(
 ) -> PureExpression<IK>
 where
     PureExpression<IK>: Parsable,
-    List2<PureExpression<IK>, Comma>: Parsable,
+    List<PureExpression<IK>, Comma>: Parsable,
     Identifier<IK>: Parsable,
     TableIndexExpression<IK>: Parsable,
     TupleExpression<IK>: Parsable,
@@ -374,7 +374,7 @@ impl<IK: IdentifierKind> Parsable for TupleExpression<IK>
 where
     PaddedRef<Identifier<IK>>: Parsable,
     Self: Indexable + InArena + NodeType,
-    List2<PureExpression<IK>, Comma>: Parsable,
+    List<PureExpression<IK>, Comma>: Parsable,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);

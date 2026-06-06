@@ -1,6 +1,6 @@
 use crate::{
     arena::Ref,
-    ast_nodes::{InArena, Indexable, NodeType, PaddedRef, Parsable, Slice, Trivia},
+    ast_nodes::{InArena, Indexable, NodeType, Parsable, Slice, Trivia},
     source::SourceLocation,
     Rule,
 };
@@ -50,21 +50,6 @@ impl Parsable for Semicolon {
     }
 }
 
-/// A list separated by `Delimiter`. Usually surrounded by parenthises
-#[derive(Debug)]
-pub enum List<Item, Delimiter> {
-    /// Just the trivia where a list could be
-    None(Ref<Trivia>),
-
-    /// An actual list.
-    /// This variant should never be instantiated with an empty slice.
-    Some {
-        items: Slice<PaddedRef<Item>>,
-        delim: Delimiter,
-        has_trailing_delim: bool,
-    },
-}
-
 #[derive(Debug)]
 pub struct ListNoDelim<Node> {
     pub item_leading_trivia: Slice<Trivia>,
@@ -73,7 +58,7 @@ pub struct ListNoDelim<Node> {
 }
 
 #[derive(Debug)]
-pub struct List2<Node, Delim> {
+pub struct List<Node, Delim> {
     // Length: n
     pub item_leading_trivia: Slice<Trivia>,
     // Length: n
@@ -85,7 +70,7 @@ pub struct List2<Node, Delim> {
     pub trailing_trivia: Ref<Trivia>,
 }
 
-impl<Node, Delim> Parsable for List2<Node, Delim>
+impl<Node, Delim> Parsable for List<Node, Delim>
 where
     Node: Parsable,
     Delim: Delimiter + Default,
@@ -198,7 +183,7 @@ where
     }
 }
 
-impl<Node, Delim> Indexable for List2<Node, Delim>
+impl<Node, Delim> Indexable for List<Node, Delim>
 where
     Self: InArena,
     Node: Parsable,
@@ -282,75 +267,3 @@ where
         }
     }
 }
-
-impl<T, Delimiter: Copy> Clone for List<T, Delimiter> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T, Delimiter: Clone + Copy> Copy for List<T, Delimiter> {}
-
-macro_rules! impl_list {
-    ($item:ty, $list_rule:expr, $item_rule:pat, $delim:ty, $delim_rule:pat $(,)?) => {
-        impl crate::ast_nodes::Parsable for List<$item, $delim> {
-            fn parse(
-                file_id: crate::source::FileId,
-                state: &mut crate::state::State,
-                pair: crate::Pair,
-            ) -> Self {
-                debug_assert_eq!(pair.as_rule(), $list_rule);
-
-                let mut inner = pair.into_inner();
-                match inner.peek().unwrap().as_rule() {
-                    Rule::gap => List::None(Trivia::parse_ref(
-                        file_id,
-                        state,
-                        inner.next().unwrap(),
-                    )),
-                    $item_rule => {
-                        let mut items = vec![];
-                        let mut has_trailing_delim = false;
-
-                        for pair in inner {
-                            match pair.as_rule() {
-                                $item_rule => items.push((
-                                    crate::source::SourceLocation::from_file_and_pair(
-                                        file_id, &pair,
-                                    ),
-                                    crate::ast_nodes::PaddedRef::parse(file_id, state, pair),
-                                )),
-                                $delim_rule => {
-                                    has_trailing_delim = true;
-                                }
-                                rule => {
-                                    unreachable!("unexpected rule while parsing list: {rule:?}")
-                                }
-                            }
-                        }
-
-                        let mut allocator =
-                            <crate::ast_nodes::PaddedRef<$item> as crate::ast_nodes::InArena>::arena_mut(
-                                &mut state.arenas,
-                            )
-                            .slice_allocator();
-
-                        for (loc, item) in items {
-                            let item_ref = allocator.push(item);
-                            state.tables.locations.insert(item_ref.global_ref_id(), loc);
-                        }
-
-                        List::Some {
-                            items: allocator.finish(),
-                            delim: <$delim as Default>::default(),
-                            has_trailing_delim,
-                        }
-                    }
-                    other => unreachable!("got {other:?}"),
-                }
-            }
-        }
-    };
-}
-
-pub(crate) use impl_list;

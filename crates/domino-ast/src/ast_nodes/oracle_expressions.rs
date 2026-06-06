@@ -5,7 +5,7 @@ use crate::{
             Identifier, OracleIdentifier, OracleValueIdentifier, PackageTypeIdentifierKind,
             TypeIdentifierKind,
         },
-        list::{Comma, List2},
+        list::{Comma, List},
         pure_expressions::{binop_from_pair, BinOp, UnOp},
         types::Type,
         InArena, Indexable, NodeType, PaddedRef, Parsable, Trivia,
@@ -58,7 +58,7 @@ pub struct OracleInvocationExpression {
 }
 
 /// A list of expressions, usually comma separated. Usually surrounded by parenthises
-pub type ExprList = List2<OracleExpression, Comma>;
+pub type ExprList = List<OracleExpression, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct TableIndexExpression {

@@ -137,19 +137,17 @@ padded_pattern = { gap ~ pattern ~ gap }
 oracle_def = { kw_oracle ~ padded_oracle_sig  ~ "{" ~ statements ~ "}" }
 padded_oracle_sig = { gap ~ oracle_sig ~ gap }
 oracle_sig = { identifier ~ gap ~ "(" ~ expr_ident_decl_list ~ ")" ~ ( gap ~ "->" ~ gap ~ ty)? }
-expr_ident_decl_list = { ( padded_expr_ident_decl ~ ( "," ~ padded_expr_ident_decl )* ~ comma? ) | gap }
-padded_expr_ident_decl = { gap ~ expr_ident_decl ~ gap }
+expr_ident_decl_list = { ( gap ~ expr_ident_decl ~ ( gap ~ comma ~ gap ~ expr_ident_decl )* ~ (gap ~ comma)? )? ~ gap }
 expr_ident_decl = { identifier ~ gap ~ ":" ~ gap ~ ty }
 padded_ident = { gap ~ identifier ~ gap }
 ident_list = { ( gap ~ identifier ~ ( gap ~ comma ~ gap ~ identifier )* ~ ( gap ~ comma )? )? ~ gap }
 
 // ## Package Definition
 
-oracle_decl_list = { ( padded_oracle_sig ~ ( ";" ~ padded_oracle_sig )* ~ semicolon? ) | gap }
+oracle_decl_list = { ( gap ~ oracle_sig ~ ( gap ~ semicolon ~ gap ~ oracle_sig )* ~ (gap ~ semicolon)? )? ~ gap }
 
 package = { kw_package ~ padded_ident ~ "{" ~ package_item_list ~ "}" }
-package_item_list   = { padded_package_item+ | gap }
-padded_package_item = { gap ~ package_item ~ gap }
+package_item_list   = { (gap ~ package_item)* ~ gap }
 
 package_item = { types_param_block | state_block | consts_param_block | oracle_def | import_oracles_block }
 consts_param_block   = { kw_consts ~ gap ~ "{" ~  expr_ident_decl_list ~ "}" }
@@ -162,32 +160,29 @@ import_oracles_block = { kw_import ~ gap ~ "{" ~      oracle_decl_list ~ "}" }
 padded_colon = { gap ~ colon ~ gap }
 
 inst_const_assignment_item = { identifier ~ padded_colon ~ expr }
-padded_inst_const_assignment_item = { gap ~ inst_const_assignment_item ~ gap }
-padded_inst_const_assignment_list = { padded_inst_const_assignment_item ~ ( "," ~ padded_inst_const_assignment_item )* | gap }
-inst_const_block = { kw_consts ~ gap ~ "{" ~ padded_inst_const_assignment_list ~ "}" }
+inst_const_assignment_list = { (gap ~ inst_const_assignment_item ~ ( gap ~ comma ~ gap ~ inst_const_assignment_item )* ~ ( gap ~ comma)? )? ~ gap }
+inst_const_block = { kw_consts ~ gap ~ "{" ~ inst_const_assignment_list ~ "}" }
 
 inst_type_assignment_item = { identifier ~ padded_colon ~ ty }
 padded_inst_type_assignment_item = { gap ~ inst_type_assignment_item ~ gap }
-padded_inst_type_assignment_list = { padded_inst_type_assignment_item ~ ( "," ~ padded_inst_type_assignment_item )* | gap }
+padded_inst_type_assignment_list = { ( gap ~ inst_type_assignment_item ~ ( gap ~ comma ~ gap ~ inst_type_assignment_item )* ~ ( gap ~ comma )? )? ~ gap }
 inst_type_block = { kw_types ~ gap ~ "{" ~ padded_inst_type_assignment_list ~ "}" }
 
 inst_item = { inst_type_block | inst_const_block }
 padded_inst_item = { gap ~ inst_item ~ gap }
-inst_list = { ( padded_inst_item ~ ( padded_inst_item )* ) | gap }
+inst_list = { ( gap ~ inst_item ~ ( gap ~ inst_item )* )? ~ gap }
 
 inst_block = { kw_instance ~ padded_ident ~ "{" ~ inst_list ~ "}" }
 
 // ## Composition
 
-compose_oracle_assignment_item = { identifier ~ padded_colon ~ identifier }
-padded_compose_oracle_assignment_item = { gap ~ compose_oracle_assignment_item ~ gap }
-compose_oracle_assignment_list = { ( padded_compose_oracle_assignment_item ~ ( "," ~ padded_compose_oracle_assignment_item )* ~ comma? ) | gap }
+cmps_oracle_assignment_item = { identifier ~ padded_colon ~ identifier }
+cmps_oracle_assignment_list = { ( gap ~ cmps_oracle_assignment_item ~ ( gap ~ comma ~ gap ~ cmps_oracle_assignment_item )* ~ ( gap ~ comma )? )? ~ gap }
 
-compose_package_assignment_item = { identifier ~ padded_colon ~ "{" ~ compose_oracle_assignment_list ~ "}" }
-padded_compose_package_assignment_item = { gap ~ compose_package_assignment_item ~ gap }
-compose_package_assignment_list = { ( padded_compose_package_assignment_item ~ ( "," ~ padded_compose_package_assignment_item )* ~ comma? ) | gap }
+cmps_pkg_assign_item = { identifier ~ padded_colon ~ "{" ~ cmps_oracle_assignment_list ~ "}" }
+cmps_pkg_assign_list = { ( gap ~ cmps_pkg_assign_item ~ ( gap ~ comma ~ gap ~ cmps_pkg_assign_item )* ~ (gap ~ comma )? )? ~ gap }
 
-compose_block = { kw_compose ~ gap ~ "{" ~ compose_package_assignment_list ~ "}" }
+compose_block = { kw_compose ~ gap ~ "{" ~ cmps_pkg_assign_list ~ "}" }
 
 // ## Game
 
