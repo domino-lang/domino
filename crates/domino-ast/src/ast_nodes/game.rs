@@ -3,8 +3,10 @@ use crate::{
     ast_nodes::{
         identifier::{
             GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifierKind, Identifier,
-            OracleIdentifier, PackageInstanceIdentifier,
+            OracleIdentifier, PackageConstValueIdentifierKind, PackageInstanceIdentifier,
+            PackageInstanceIdentifierKind, PackageTypeIdentifierKind,
         },
+        instances,
         list::{Colon, Comma, List, ListNoDelim},
         pure_expressions::PureExpression,
         types::Type,
@@ -13,61 +15,37 @@ use crate::{
     Rule,
 };
 
-#[derive(Debug, Clone, Copy)]
-pub struct InstanceConstAssignmentItem {
-    pub ident: Ref<Identifier<GameConstValueIdentifierKind>>,
-    pub colon: Padded<Colon>,
-    pub expr: Ref<PureExpression<GameConstValueIdentifierKind>>,
-}
+pub type InstanceConstAssignmentItem = instances::InstanceConstAssignmentItem<
+    PackageConstValueIdentifierKind,
+    GameConstValueIdentifierKind,
+>;
 
 impl ListItem for InstanceConstAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_const_assignment_list;
 }
 
 pub type InstanceConstAssignmentList = List<InstanceConstAssignmentItem, Comma>;
-
-#[derive(Debug, Clone, Copy)]
-pub struct InstanceConstBlock {
-    pub trivia: Ref<Trivia>,
-    pub list: Ref<InstanceConstAssignmentList>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct InstanceTypeAssignmentItem {
-    pub ident: Ref<Identifier<GameConstValueIdentifierKind>>,
-    pub colon: Padded<Colon>,
-    pub ty: Ref<Type<GameTypeIdentifierKind>>,
-}
+pub type InstanceConstBlock =
+    instances::InstanceConstBlock<PackageConstValueIdentifierKind, GameConstValueIdentifierKind>;
+pub type InstanceTypeAssignmentItem =
+    instances::InstanceTypeAssignmentItem<PackageTypeIdentifierKind, GameTypeIdentifierKind>;
 
 impl ListItem for InstanceTypeAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_type_assignment_list;
 }
 
-pub type InstanceTypeAssignmentList = List<InstanceTypeAssignmentItem, Comma>;
-
-#[derive(Debug, Clone, Copy)]
-pub struct InstanceTypeBlock {
-    pub trivia: Ref<Trivia>,
-    pub list: Ref<InstanceTypeAssignmentList>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum InstanceItem {
-    InstanceConst(Ref<InstanceConstBlock>),
-    InstanceType(Ref<InstanceTypeBlock>),
-}
+pub type InstanceTypeAssignmentList =
+    instances::InstanceTypeAssignmentList<PackageTypeIdentifierKind, GameTypeIdentifierKind>;
+pub type InstanceTypeBlock =
+    instances::InstanceTypeBlock<PackageTypeIdentifierKind, GameTypeIdentifierKind>;
+pub type InstanceItem = instances::InstanceItem<PackageInstanceIdentifierKind>;
 
 impl ListItem for InstanceItem {
     const LIST_RULE: Rule = Rule::inst_list;
 }
 
-pub type InstanceItemList = ListNoDelim<InstanceItem>;
-
-#[derive(Debug, Clone, Copy)]
-pub struct InstanceBlock {
-    pub name: PaddedRef<PackageInstanceIdentifier>,
-    pub items: Ref<InstanceItemList>,
-}
+pub type InstanceItemList = instances::InstanceItemList<PackageInstanceIdentifierKind>;
+pub type InstanceBlock = instances::InstanceBlock<PackageInstanceIdentifierKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComposeOracleAssignmentItem {

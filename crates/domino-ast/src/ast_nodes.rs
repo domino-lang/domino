@@ -1,5 +1,6 @@
 pub mod game;
 pub mod identifier;
+pub mod instances;
 pub mod list;
 pub mod oracle_expressions;
 pub mod oracles;

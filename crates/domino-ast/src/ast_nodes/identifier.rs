@@ -6,7 +6,9 @@ use crate::{
 };
 
 pub trait IdentifierKind {}
-pub trait ValueIdentifierKind: IdentifierKind {}
+pub trait ValueIdentifierKind: IdentifierKind {
+    type TypeIdentifierKind: TypeIdentifierKind;
+}
 
 pub trait TypeArgIdentifierKind: IdentifierKind {
     type ArgValueIdentifierKind: ValueIdentifierKind;
@@ -15,6 +17,20 @@ pub trait TypeArgIdentifierKind: IdentifierKind {
 pub trait TypeIdentifierKind: IdentifierKind {
     type ArgValueIdentifierKind: ValueIdentifierKind;
     type ArgIdentifierKind: TypeArgIdentifierKind<ArgTypeIdentifierKind = Self>;
+}
+
+pub trait InstanceIdentifierKind: IdentifierKind {
+    type LhsValueIdentifierKind: ValueIdentifierKind
+        + InstanceAssignmentLhsKind<RhsIdentifierKind = Self::RhsValueIdentifierKind>;
+    type RhsValueIdentifierKind: ValueIdentifierKind;
+
+    type LhsTypeIdentifierKind: TypeIdentifierKind
+        + InstanceAssignmentLhsKind<RhsIdentifierKind = Self::RhsTypeIdentifierKind>;
+    type RhsTypeIdentifierKind: TypeIdentifierKind;
+}
+
+pub trait InstanceAssignmentLhsKind: IdentifierKind {
+    type RhsIdentifierKind: IdentifierKind;
 }
 
 /// An identifier. The span is in the side table, and from there we can get the string.
@@ -42,11 +58,13 @@ impl<T: IdentifierKind> Default for Identifier<T> {
 }
 
 macro_rules! define_value_ident_kind {
-    ($kind_name:ident, $ident_name:ident $(,)?) => {
+    ($kind_name:ident, $ident_name:ident, $ty_ty:ty $(,)?) => {
         #[derive(Debug)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
-        impl ValueIdentifierKind for $kind_name {}
+        impl ValueIdentifierKind for $kind_name {
+            type TypeIdentifierKind = $ty_ty;
+        }
 
         pub type $ident_name = Identifier<$kind_name>;
 
@@ -116,6 +134,43 @@ macro_rules! define_type_arg_ident_kind {
     };
 }
 
+macro_rules! define_instance_ident_kind {
+    ($kind_name:ident, $ident_name:ident, $lhs_ty_ty:ty = $rhs_ty_ty:ty, $lhs_val_ty:ty = $rhs_val_ty:ty $(,)?) => {
+        #[derive(Debug)]
+        pub struct $kind_name;
+        impl IdentifierKind for $kind_name {}
+
+        pub type $ident_name = Identifier<$kind_name>;
+
+        impl InstanceIdentifierKind for $kind_name {
+            type LhsTypeIdentifierKind = $lhs_ty_ty;
+            type RhsTypeIdentifierKind = $rhs_ty_ty;
+            type LhsValueIdentifierKind = $lhs_val_ty;
+            type RhsValueIdentifierKind = $rhs_val_ty;
+        }
+
+        impl InstanceAssignmentLhsKind for $lhs_ty_ty {
+            type RhsIdentifierKind = $rhs_ty_ty;
+        }
+
+        impl InstanceAssignmentLhsKind for $lhs_val_ty {
+            type RhsIdentifierKind = $rhs_val_ty;
+        }
+
+        impl Parsable for $ident_name {
+            fn parse(
+                _file_id: crate::source::FileId,
+                _state: &mut crate::State,
+                _pair: crate::Pair,
+            ) -> Self {
+                Identifier::default()
+            }
+        }
+
+        impl crate::ast_nodes::Indexable for $ident_name {}
+    };
+}
+
 macro_rules! define_ident_kind {
     ($kind_name:ident, $ident_name:ident $(,)?) => {
         #[derive(Debug)]
@@ -168,12 +223,31 @@ define_type_arg_ident_kind!(
     GameConstValueIdentifierKind
 );
 
-define_value_ident_kind!(OracleValueIdentifierKind, OracleValueIdentifier);
-define_value_ident_kind!(PackageConstValueIdentifierKind, PackageConstValueIdentifier,);
-define_value_ident_kind!(GameConstValueIdentifierKind, GameConstValueIdentifier,);
+define_value_ident_kind!(
+    OracleValueIdentifierKind,
+    OracleValueIdentifier,
+    PackageTypeIdentifierKind,
+);
+define_value_ident_kind!(
+    PackageConstValueIdentifierKind,
+    PackageConstValueIdentifier,
+    PackageTypeIdentifierKind,
+);
+define_value_ident_kind!(
+    GameConstValueIdentifierKind,
+    GameConstValueIdentifier,
+    GameTypeIdentifierKind,
+);
+
+define_instance_ident_kind!(
+    PackageInstanceIdentifierKind,
+    PackageInstanceIdentifier,
+    PackageTypeIdentifierKind = GameTypeIdentifierKind,
+    PackageConstValueIdentifierKind = GameConstValueIdentifierKind,
+);
+define_ident_kind!(GameInstanceIdentifierKind, GameInstanceIdentifier);
 
 define_ident_kind!(OracleIdentifierKind, OracleIdentifier);
 define_ident_kind!(PackageIdentifierKind, PackageIdentifier);
 
 define_ident_kind!(GameIdentifierKind, GameIdentifier);
-define_ident_kind!(PackageInstanceIdentifierKind, PackageInstanceIdentifier);
