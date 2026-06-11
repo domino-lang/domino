@@ -22,24 +22,6 @@
                                  (mk-some (mk-tuple10 U u V (maybe-get ltk) acc ni nr kmac sid mess))))))))))))
 
 
-(define-fun LTK-table-empty-above-max
-    ((max-kid Int)
-     (Ltk (Array Int (Maybe Bits_n))))
-  Bool
-  (forall ((kid Int))
-          (=> (> kid max-kid)
-              (is-mk-none (select Ltk kid)))))
-
-
-(define-fun ltk-and-h-set-together
-    ((Ltk (Array Int (Maybe Bits_n)))
-     (H (Array Int (Maybe Bool))))
-  Bool
-  (forall ((kid Int))
-          (= (is-mk-none (select Ltk kid))
-             (is-mk-none (select H kid)))))
-
-
 (define-state-relation invariant
     ((left) (right))
   (and
@@ -49,7 +31,4 @@
    (= left.KX.H right.Prf.H)
    (= left.KX.Fresh right.KX.Fresh)
    (= left.KX.RevTested right.KX.RevTested)
-   (state= left right)
-
-   (LTK-table-empty-above-max right.Prf.kid_ right.Prf.LTK)
-   (ltk-and-h-set-together right.Prf.LTK right.Prf.H)))
+   (state= left right)))
