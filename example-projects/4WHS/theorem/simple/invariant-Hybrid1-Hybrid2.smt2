@@ -47,36 +47,18 @@
              (is-mk-none (select H kid)))))
 
 
-(define-fun invariant
-    ((left-game <GameState_Hybrid1_<$<!n!>$>>)
-     (right-game <GameState_Hybrid2_<$<!n!>$>>))
+(define-state-relation invariant
+    ((left <GameState_Hybrid1_<$<!n!>$>>)
+     (right <GameState_Hybrid2_<$<!n!>$>>))
   Bool
-  (let ((left-game-pkg (<game-Hybrid1-<$<!n!>$>-pkgstate-KX> left-game))
-        (right-prf-pkg (<game-Hybrid2-<$<!n!>$>-pkgstate-Prf> right-game))
-        (right-game-pkg (<game-Hybrid2-<$<!n!>$>-pkgstate-KX> right-game)))
-    (let ((left-LTK (<pkg-state-KX_NoKeys-<$<!n!>$>-LTK> left-game-pkg))
-          (left-State (<pkg-state-KX_NoKeys-<$<!n!>$>-State> left-game-pkg))
-          (left-Fresh (<pkg-state-KX_NoKeys-<$<!n!>$>-Fresh> left-game-pkg))
-          (left-RevTested (<pkg-state-KX_NoKeys-<$<!n!>$>-RevTested> left-game-pkg))
-          (left-H (<pkg-state-KX_NoKeys-<$<!n!>$>-H> left-game-pkg))
-          (left-kid (<pkg-state-KX_NoKeys-<$<!n!>$>-kid_> left-game-pkg))
-          (left-ctr (<pkg-state-KX_NoKeys-<$<!n!>$>-ctr_> left-game-pkg))
-          ;;
-          (right-LTK (<pkg-state-PRF-<$<!n!>$>-LTK> right-prf-pkg))
-          (right-State (<pkg-state-KX_NoPrf-<$<!n!>$>-State> right-game-pkg))
-          (right-Fresh (<pkg-state-KX_NoPrf-<$<!n!>$>-Fresh> right-game-pkg))
-          (right-RevTested (<pkg-state-KX_NoPrf-<$<!n!>$>-RevTested> right-game-pkg))
-          (right-H (<pkg-state-PRF-<$<!n!>$>-H> right-prf-pkg))
-          (right-kid (<pkg-state-PRF-<$<!n!>$>-kid_> right-prf-pkg))
-          (right-ctr (<pkg-state-KX_NoPrf-<$<!n!>$>-ctr_> right-game-pkg)))
       (and
-       (= left-kid right-kid)
-       (= left-ctr right-ctr)
-       (= left-LTK right-LTK)
-       (= left-H right-H)
-       (= left-Fresh right-Fresh)
-       (= left-RevTested right-RevTested)
-       (state= left-State right-State right-LTK)
+       (= left.KX.kid_ right.KX.kid_)
+       (= left.KX.ctr_ right.KX.ctr_)
+       (= left.KX.LTK right.KX.LTK)
+       (= left.KX.H right.KX.H)
+       (= left.KX.Fresh right.KX.Fresh)
+       (= left.KX.RevTested right.KX.RevTested)
+       (state= left.KX.State right.KX.State right.KX.LTK)
 
-       (LTK-table-empty-above-max right-kid right-LTK)
-       (ltk-and-h-set-together right-LTK right-H)))))
+       (LTK-table-empty-above-max right.KX.kid_ right.KX.LTK)
+       (ltk-and-h-set-together right.KX.LTK right.KX.H)))

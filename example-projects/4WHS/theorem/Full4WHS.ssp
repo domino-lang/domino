@@ -325,9 +325,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -337,9 +338,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -349,9 +351,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -361,9 +364,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -373,9 +377,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -385,9 +390,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -397,9 +403,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -409,9 +416,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -421,9 +429,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -433,9 +442,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-KX-H1_0.smt2
-                    ./theorem/full/randomness-KX-H1_0.smt2
                 ]
 
                 lemmas {
@@ -459,9 +469,10 @@ theorem Full4WHS {
         }
         equivalence H1_1 H2_0 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -471,9 +482,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -483,9 +495,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -495,9 +508,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -507,9 +521,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -519,9 +534,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -531,9 +547,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -543,9 +560,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -555,9 +573,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -567,9 +586,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -579,9 +599,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -591,9 +612,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H1_1-H2_0.smt2
-                    ./theorem/full/randomness-H1_1-H2_0.smt2
                 ]
 
                 lemmas {
@@ -617,9 +639,10 @@ theorem Full4WHS {
         }
         equivalence H2_1 H3_0 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -629,9 +652,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -641,33 +665,68 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
+                    equal-aborts:                    []
+                    same-output:                     [no-abort]
+                    relation-mac-table-wellformed:   [no-abort]
+                    relation-prf-table-wellformed:   [no-abort]
+                    relation-nonce-table-wellformed: [no-abort]
+                    relation-collision-resistance:   [no-abort]
+                    relation-keys-wellformed:        [no-abort]
+                    relation-time-of-initialization: [no-abort]
+                    relation-time-of-acceptance:     [no-abort]
+                    relation-sid-wellformed:         [no-abort]
+                    relation-own-nonce-unique:       [no-abort]
+                    relation-session-matching:       [no-abort]
+                    invariant:    [no-abort,
+                                   relation-mac-table-wellformed,relation-mac-table-wellformed,
+                                   relation-mac-table-wellformed,relation-collision-resistance,
+                                   relation-keys-wellformed,relation-time-of-initialization,
+                                   relation-time-of-acceptance,relation-sid-wellformed,
+                                   relation-own-nonce-unique,relation-session-matching
+                                   ]
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
+                    equal-aborts:                    []
+                    same-output:                     [no-abort]
+                    relation-mac-table-wellformed:   [no-abort]
+                    relation-prf-table-wellformed:   [no-abort]
+                    relation-nonce-table-wellformed: [no-abort]
+                    relation-collision-resistance:   [no-abort]
+                    relation-keys-wellformed:        [no-abort]
+                    relation-time-of-initialization: [no-abort]
+                    relation-time-of-acceptance:     [no-abort]
+                    relation-sid-wellformed:         [no-abort]
+                    relation-own-nonce-unique:       [no-abort]
+                    relation-session-matching:       [no-abort]
+                    invariant:    [no-abort,
+                                   relation-mac-table-wellformed,relation-mac-table-wellformed,
+                                   relation-mac-table-wellformed,relation-collision-resistance,
+                                   relation-keys-wellformed,relation-time-of-initialization,
+                                   relation-time-of-acceptance,relation-sid-wellformed,
+                                   relation-own-nonce-unique,relation-session-matching
+                                   ]
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -677,9 +736,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -689,9 +749,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -701,9 +762,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -713,9 +775,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -725,9 +788,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -737,9 +801,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -749,9 +814,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H2_1-H3_0.smt2
-                    ./theorem/full/randomness-H2_1-H3_0.smt2
                 ]
 
                 lemmas {
@@ -777,9 +843,10 @@ theorem Full4WHS {
 
         equivalence H3_1 H4 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -789,9 +856,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -801,9 +869,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -813,9 +882,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -825,9 +895,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -837,9 +908,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -849,9 +921,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -861,9 +934,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -873,9 +947,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -885,9 +960,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -897,9 +973,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -909,9 +986,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H3_1-H4.smt2
-                    ./theorem/full/randomness-H3_1-H4.smt2
                 ]
 
                 lemmas {
@@ -924,9 +1002,10 @@ theorem Full4WHS {
 
         equivalence H4 H5 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -936,9 +1015,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -948,9 +1028,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -960,9 +1041,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -972,9 +1054,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -984,9 +1067,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -996,9 +1080,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -1008,9 +1093,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -1020,9 +1106,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -1032,9 +1119,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -1044,9 +1132,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -1056,9 +1145,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H4-H5.smt2
-                    ./theorem/full/randomness-H4-H5.smt2
                 ]
 
                 lemmas {
@@ -1071,9 +1161,10 @@ theorem Full4WHS {
 
         equivalence H5 H6_0 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1083,9 +1174,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1095,9 +1187,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1107,9 +1200,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1119,9 +1213,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1143,9 +1238,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1155,9 +1251,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1167,9 +1264,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1179,9 +1277,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1191,9 +1290,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1203,9 +1303,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H5-H6_0.smt2
-                    ./theorem/full/randomness-H5-H6_0.smt2
                 ]
 
                 lemmas {
@@ -1231,9 +1332,10 @@ theorem Full4WHS {
 
         equivalence H6_1_0 H6_1_1 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1243,9 +1345,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1255,9 +1358,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1267,9 +1371,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1279,9 +1384,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1291,9 +1397,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1303,9 +1410,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1327,9 +1435,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1339,9 +1448,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1351,9 +1461,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1364,9 +1475,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
                 ]
 
                 lemmas {
@@ -1379,9 +1491,10 @@ theorem Full4WHS {
 
         equivalence H6_1_1 H7_0 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1400,7 +1513,6 @@ theorem Full4WHS {
                     invariant:    [no-abort, lemma-randomness]
                     same-output:  [no-abort, lemma-randomness]
                     equal-aborts: [lemma-randomness]
-                    lemma-randomness: admit []
                 }
             }
              Send3: {
@@ -1416,9 +1528,10 @@ theorem Full4WHS {
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1428,9 +1541,10 @@ theorem Full4WHS {
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1440,9 +1554,10 @@ theorem Full4WHS {
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1453,9 +1568,10 @@ theorem Full4WHS {
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1465,9 +1581,10 @@ theorem Full4WHS {
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1477,9 +1594,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1489,9 +1607,10 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1501,9 +1620,10 @@ theorem Full4WHS {
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1513,9 +1633,10 @@ theorem Full4WHS {
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H6_1-H7_0.smt2
-                    ./theorem/full/randomness-H6_1-H7_0.smt2
                 ]
 
                 lemmas {
@@ -1540,9 +1661,10 @@ theorem Full4WHS {
         }
         equivalence H7_1_1_0 H7_1_1_1 {
             Send1: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
@@ -1563,9 +1685,10 @@ theorem Full4WHS {
                 }
             }
              Send2: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
@@ -1586,10 +1709,10 @@ theorem Full4WHS {
                 }
             }
              Send3: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send3.smt2
                 ]
 
                 lemmas {
@@ -1607,23 +1730,16 @@ theorem Full4WHS {
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    not-in-first-second:          [no-abort]
-                    empty-second:                 [no-abort]
-                    empty-first:                  [no-abort]
-                    /*other-session: [no-abort]*/
                 }
             }
             Send4: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send4.smt2
                 ]
 
                 lemmas {
-                    empty-second:                 [no-abort]
-                    not-in-first-second:          [no-abort]
-                    first-exists:                 [no-abort]
                     equal-aborts:                 []
                     same-output:                  [no-abort]
                     relation-mac-implies-message: [no-abort]
@@ -1638,14 +1754,13 @@ theorem Full4WHS {
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    /*other-session: [no-abort]*/
                 }
             }
             Send5: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/lemma-H7_1_1_0-H7_1_1_1-Send5.smt2
                 ]
 
                 lemmas {
@@ -1663,16 +1778,13 @@ theorem Full4WHS {
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    first-exists:                 [no-abort]
-                    second-exists:                [no-abort]
-                    in-first-or-second:           [no-abort]
-                    in-first:                     [no-abort]
                 }
             }
             NewKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
@@ -1689,20 +1801,19 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
-                    lemma-aux:                    [no-abort]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             NewSession: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1714,13 +1825,14 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             Test: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
@@ -1741,9 +1853,10 @@ theorem Full4WHS {
                 }
             }
             Reveal: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
@@ -1764,15 +1877,15 @@ theorem Full4WHS {
                 }
             }
             SameKey: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1784,19 +1897,19 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             AtLeast: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1808,19 +1921,19 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
             AtMost: {
+                randomness: simple
+
                 invariant: [
                     ./theorem/full/invariant-H7_1_1_0-H7_1_1_1.smt2
-                    ./theorem/full/randomness-H7_1_1_0-H7_1_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts:                 []
                     same-output:                  [no-abort]
-                    lemma-aux:                    [no-abort]
                     relation-mac-implies-message: [no-abort]
                     relation-trivial-equalities:  [no-abort]
                     relation-no-overwriting:      [no-abort]
@@ -1832,7 +1945,7 @@ theorem Full4WHS {
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac,lemma-aux]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
                 }
             }
         }
