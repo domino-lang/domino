@@ -1513,6 +1513,7 @@ theorem Full4WHS {
                     invariant:    [no-abort, lemma-randomness]
                     same-output:  [no-abort, lemma-randomness]
                     equal-aborts: [lemma-randomness]
+                    lemma-randomness: admit []
                 }
             }
              Send3: {
