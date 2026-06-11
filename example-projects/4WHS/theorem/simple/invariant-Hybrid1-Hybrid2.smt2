@@ -1,17 +1,11 @@
-
-(define-fun state=
-    ((left-State (Array Int (Maybe (Tuple10 Int Bool Int Bits_n (Maybe Bool)
-                                            (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                            (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (right-State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
-                                             (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                             (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (right-Ltk (Array Int (Maybe Bits_n))))
-  Bool
+(define-state-relation state=
+    ((left <GameState_Hybrid1_<$<!n!>$>>)
+     (right <GameState_Hybrid2_<$<!n!>$>>))
+  (and
   (forall ((ctr Int))
-          (and (= (is-mk-none (select left-State ctr))
-                  (is-mk-none (select right-State ctr)))
-               (let ((state (select right-State ctr)))
+          (and (= (is-mk-none (select left.KX.State ctr))
+                  (is-mk-none (select right.KX.State ctr)))
+               (let ((state (select right.KX.State ctr)))
                  (=> (not (is-mk-none state))
                      (let  ((U    (el10-1  (maybe-get state)))
                             (u    (el10-2  (maybe-get state)))
@@ -23,10 +17,10 @@
                             (kmac (el10-8  (maybe-get state)))
                             (sid  (el10-9  (maybe-get state)))
                             (mess (el10-10 (maybe-get state))))
-                       (let ((ltk (select right-Ltk kid)))
+                       (let ((ltk (select right.Prf.LTK kid)))
                          (and (not (is-mk-none ltk))
-                              (= (select left-State ctr)
-                                 (mk-some (mk-tuple10 U u V (maybe-get ltk) acc ni nr kmac sid mess)))))))))))
+                              (= (select left.KX.State ctr)
+                                 (mk-some (mk-tuple10 U u V (maybe-get ltk) acc ni nr kmac sid mess))))))))))))
 
 
 (define-fun LTK-table-empty-above-max
@@ -57,7 +51,7 @@
    (= left.KX.H right.Prf.H)
    (= left.KX.Fresh right.KX.Fresh)
    (= left.KX.RevTested right.KX.RevTested)
-   (state= left.KX.State right.KX.State right.Prf.LTK)
+   (state= left right)
 
    (LTK-table-empty-above-max right.Prf.kid_ right.Prf.LTK)
    (ltk-and-h-set-together right.Prf.LTK right.Prf.H)))
