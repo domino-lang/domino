@@ -26,17 +26,6 @@
              (is-mk-none (select State ctr)))))
 
 
-(define-fun H-LTK-tables-empty-above-max
-    ((max-kid Int)
-     (H (Array Int (Maybe Bool)))
-     (Ltk (Array Int (Maybe Bits_n))))
-  Bool
-  (forall ((kid Int))
-          (= (> kid max-kid)
-             (and (is-mk-none (select H kid))
-                  (is-mk-none (select Ltk kid))))))
-
-
 (define-fun kmac-before-sid
     ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -68,15 +57,6 @@
              (=> (not (is-mk-none state))
                  (let  ((kid  (el10-4  (maybe-get state))))
                    (not (is-mk-none (select Ltk kid)))))))))
-
-
-(define-fun ltk-and-h-set-together
-    ((Ltk (Array Int (Maybe Bits_n)))
-     (H (Array Int (Maybe Bool))))
-  Bool
-  (forall ((kid Int))
-          (= (is-mk-none (select Ltk kid))
-             (is-mk-none (select H kid)))))
 
 
 (define-fun k-prf-implies-rev-tested-sid
@@ -280,8 +260,6 @@
    (= left.KX.State right.KX.State)
 
    (no-overwriting-state left.KX.ctr_ left.KX.State)
-   (H-LTK-tables-empty-above-max left.Prf.kid_ left.Prf.H left.Prf.LTK)
-   (H-LTK-tables-empty-above-max right.Prf.kid_ right.Prf.H right.Prf.LTK)
 
    (kmac-requires-nonces left.KX.State)
    (kmac-is-wellformed left.KX.State left.KX.Fresh left.Prf.LTK left.Prf.PRF)
@@ -297,7 +275,6 @@
 
    (referenced-kid-exist left.KX.State left.Prf.PRF left.Prf.LTK)
 
-   (ltk-and-h-set-together left.Prf.LTK left.Prf.H)
    (h-and-fresh-match left.KX.State left.KX.Fresh left.Prf.H)
    (k-prf-implies-rev-tested-sid left.Prf.PRF left.KX.RevTested)
 
