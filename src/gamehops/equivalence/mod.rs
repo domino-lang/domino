@@ -161,7 +161,48 @@ impl<'a> EquivalenceContext<'a> {
             let oracle_name = export.name();
             let mut out = Vec::new();
             //let mut linter = lint::Linter::new(self, oracle_name);
+            let left_gctx = self.left_game_inst_ctx();
+            let right_gctx = self.right_game_inst_ctx();
 
+            // Emit package invariants
+            for pkg in &left_gctx.game().pkgs {
+                for file_name in &pkg.pkg.invariants {
+                    let file_contents = project.read_input_file(file_name).map_err(|err| {
+                        let file_name = file_name.to_string();
+                        error::new_invariant_file_read_error(
+                            oracle_name.to_string(),
+                            file_name,
+                            err,
+                        )
+                    })?;
+                    out.append(&mut smtrewrite::rewrite_package(
+                        self,
+                        left_gctx.game_inst(),
+                        pkg,
+                        &file_contents,
+                    )?);
+                }
+            }
+            for pkg in &right_gctx.game().pkgs {
+                for file_name in &pkg.pkg.invariants {
+                    let file_contents = project.read_input_file(file_name).map_err(|err| {
+                        let file_name = file_name.to_string();
+                        error::new_invariant_file_read_error(
+                            oracle_name.to_string(),
+                            file_name,
+                            err,
+                        )
+                    })?;
+                    out.append(&mut smtrewrite::rewrite_package(
+                        self,
+                        right_gctx.game_inst(),
+                        pkg,
+                        &file_contents,
+                    )?);
+                }
+            }
+
+            // Load the main Invariant
             for file_name in &self.equivalence().invariants_by_oracle_name(oracle_name) {
                 log::info!("reading file {file_name}");
                 let file_contents = project.read_input_file(file_name).map_err(|err| {

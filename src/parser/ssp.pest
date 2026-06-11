@@ -380,7 +380,7 @@ package_spec_list = { package_spec* }
 
 /// A package specification (internal rule).
 package_spec = _{
-  types | params | state | import_oracles | oracle_def
+  types | params | state | import_oracles | oracle_def | invariant_spec
 }
 
 // -- package parameters and types (for package declarations) --
