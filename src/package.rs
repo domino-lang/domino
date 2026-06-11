@@ -78,6 +78,8 @@ pub struct Package {
     pub oracles: Vec<OracleDef>,
     pub imports: Vec<(OracleSig, SourceSpan)>,
 
+    pub invariants: Vec<String>,
+
     pub file_name: String,
     pub file_contents: String,
 }
