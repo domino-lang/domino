@@ -44,11 +44,11 @@
   Bool
   (forall ((ctr Int))
           (let ((state (select State ctr)))
-                 (=> (not (is-mk-none state))
-                  (let  ((kmac (el10-8  (maybe-get state)))
-                         (sid  (el10-9  (maybe-get state))))
-                    (=> (is-mk-none kmac)
-                        (is-mk-none sid)))))))
+            (=> (not (is-mk-none state))
+                (let  ((kmac (el10-8  (maybe-get state)))
+                       (sid  (el10-9  (maybe-get state))))
+                  (=> (is-mk-none kmac)
+                      (is-mk-none sid)))))))
 
 
 (define-fun referenced-kid-exist
@@ -63,11 +63,11 @@
            (=> (is-mk-none (select Ltk kid))
                (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr flag))))))
 
-  (forall ((ctr Int))
-          (let ((state (select State ctr)))
-                 (=> (not (is-mk-none state))
-                  (let  ((kid  (el10-4  (maybe-get state))))
-                    (not (is-mk-none (select Ltk kid)))))))))
+   (forall ((ctr Int))
+           (let ((state (select State ctr)))
+             (=> (not (is-mk-none state))
+                 (let  ((kid  (el10-4  (maybe-get state))))
+                   (not (is-mk-none (select Ltk kid)))))))))
 
 
 (define-fun ltk-and-h-set-together
@@ -215,15 +215,15 @@
                       (= (maybe-get kmac)
                          (ite (= (select Fresh ctr) (mk-some true))
                               (maybe-get (select Prf (mk-tuple2 kid (mk-tuple5
-                                                                U V
-                                                                (maybe-get ni)
-                                                                (maybe-get nr)
-                                                                false))))
+                                                                     U V
+                                                                     (maybe-get ni)
+                                                                     (maybe-get nr)
+                                                                     false))))
                               (<<func-prf>> (maybe-get (select Ltk kid))
                                             (mk-tuple5 U V
-                                            (maybe-get ni)
-                                            (maybe-get nr)
-                                            false))))))))))
+                                                       (maybe-get ni)
+                                                       (maybe-get nr)
+                                                       false))))))))))
 
 
 (define-fun honest-kmac
@@ -253,13 +253,12 @@
                        (= (select H kid) (mk-some true))
                        (=> (not (is-mk-none kmac))
                            (not (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V
-                                                                   (maybe-get ni) (maybe-get nr)
- 
-                                                                   false)))))))))))))
+                                                                                  (maybe-get ni) (maybe-get nr)
+                                                                                  false)))))))))))))
 
 
 (define-fun kmac-before-k
-    ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) 
+    ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool))
                  (Maybe Bits_n))))
   Bool
   (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
@@ -267,61 +266,39 @@
               (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true)))))))
 
 
-(define-fun invariant
-    ((left-game <GameState_Hybrid2_<$<!n!>$>>)
-     (right-game <GameState_Hybrid2_<$<!n!>$>>))
-  Bool
-  (let ((left-prf-pkg (<game-Hybrid2-<$<!n!>$>-pkgstate-Prf> left-game))
-        (left-game-pkg (<game-Hybrid2-<$<!n!>$>-pkgstate-KX> left-game))
-        (right-prf-pkg (<game-Hybrid2-<$<!n!>$>-pkgstate-Prf> right-game))
-        (right-game-pkg (<game-Hybrid2-<$<!n!>$>-pkgstate-KX> right-game)))
-    (let ((left-LTK (<pkg-state-PRF-<$<!n!>$>-LTK> left-prf-pkg))
-          (left-PRF (<pkg-state-PRF-<$<!n!>$>-PRF> left-prf-pkg))
-          (left-State (<pkg-state-KX_NoPrf-<$<!n!>$>-State> left-game-pkg))
-          (left-Fresh (<pkg-state-KX_NoPrf-<$<!n!>$>-Fresh> left-game-pkg))
-          (left-RevTested (<pkg-state-KX_NoPrf-<$<!n!>$>-RevTested> left-game-pkg))
-          (left-H (<pkg-state-PRF-<$<!n!>$>-H> left-prf-pkg))
-          (left-kid (<pkg-state-PRF-<$<!n!>$>-kid_> left-prf-pkg))
-          (left-ctr (<pkg-state-KX_NoPrf-<$<!n!>$>-ctr_> left-game-pkg))
-          ;;
-          (right-LTK (<pkg-state-PRF-<$<!n!>$>-LTK> right-prf-pkg))
-          (right-PRF (<pkg-state-PRF-<$<!n!>$>-PRF> right-prf-pkg))
-          (right-State (<pkg-state-KX_NoPrf-<$<!n!>$>-State> right-game-pkg))
-          (right-Fresh (<pkg-state-KX_NoPrf-<$<!n!>$>-Fresh> right-game-pkg))
-          (right-RevTested (<pkg-state-KX_NoPrf-<$<!n!>$>-RevTested> right-game-pkg))
-          (right-H (<pkg-state-PRF-<$<!n!>$>-H> right-prf-pkg))
-          (right-kid (<pkg-state-PRF-<$<!n!>$>-kid_> right-prf-pkg))
-          (right-ctr (<pkg-state-KX_NoPrf-<$<!n!>$>-ctr_> right-game-pkg)))
-      (and
-       (= left-kid right-kid)
-       (= left-ctr right-ctr)
-       (= left-LTK right-LTK)
-       (=prf left-PRF right-PRF left-H)
-       (= left-H right-H)
-       (= left-Fresh right-Fresh)
-       (= left-RevTested right-RevTested)
-       (= left-State right-State)
+(define-state-relation invariant
+    ((left <GameState_Hybrid2_<$<!n!>$>>)
+     (right <GameState_Hybrid2_<$<!n!>$>>))
+  (and
+   (= left.Prf.kid_ right.Prf.kid_)
+   (= left.KX.ctr_ right.KX.ctr_)
+   (= left.Prf.LTK right.Prf.LTK)
+   (=prf left.Prf.PRF right.Prf.PRF left.Prf.H)
+   (= left.Prf.H right.Prf.H)
+   (= left.KX.Fresh right.KX.Fresh)
+   (= left.KX.RevTested right.KX.RevTested)
+   (= left.KX.State right.KX.State)
 
-       (no-overwriting-state left-ctr left-State)
-       (H-LTK-tables-empty-above-max left-kid left-H left-LTK)
-       (H-LTK-tables-empty-above-max right-kid right-H right-LTK)
+   (no-overwriting-state left.KX.ctr_ left.KX.State)
+   (H-LTK-tables-empty-above-max left.Prf.kid_ left.Prf.H left.Prf.LTK)
+   (H-LTK-tables-empty-above-max right.Prf.kid_ right.Prf.H right.Prf.LTK)
 
-       (kmac-requires-nonces left-State)
-       (kmac-is-wellformed left-State left-Fresh left-LTK left-PRF)
-       (no-kmac-in-send1 left-State)
+   (kmac-requires-nonces left.KX.State)
+   (kmac-is-wellformed left.KX.State left.KX.Fresh left.Prf.LTK left.Prf.PRF)
+   (no-kmac-in-send1 left.KX.State)
 
-       (sid-requires-nonces left-State)
-       (sid-is-wellformed left-State left-H left-LTK left-PRF)
-       (no-sid-in-send1 left-State)
+   (sid-requires-nonces left.KX.State)
+   (sid-is-wellformed left.KX.State left.Prf.H left.Prf.LTK left.Prf.PRF)
+   (no-sid-in-send1 left.KX.State)
 
-       (kmac-before-sid left-State)
-       (kmac-before-k left-PRF)
-       (kmac-before-k right-PRF)
+   (kmac-before-sid left.KX.State)
+   (kmac-before-k left.Prf.PRF)
+   (kmac-before-k right.Prf.PRF)
 
-       (referenced-kid-exist left-State left-PRF left-LTK)
+   (referenced-kid-exist left.KX.State left.Prf.PRF left.Prf.LTK)
 
-       (ltk-and-h-set-together left-LTK left-H)
-       (h-and-fresh-match left-State left-Fresh left-H)
-       (k-prf-implies-rev-tested-sid left-PRF left-RevTested)
+   (ltk-and-h-set-together left.Prf.LTK left.Prf.H)
+   (h-and-fresh-match left.KX.State left.KX.Fresh left.Prf.H)
+   (k-prf-implies-rev-tested-sid left.Prf.PRF left.KX.RevTested)
 
-       (honest-kmac left-State left-PRF left-Fresh left-H)))))
+   (honest-kmac left.KX.State left.Prf.PRF left.KX.Fresh left.Prf.H)))
