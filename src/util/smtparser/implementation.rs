@@ -30,6 +30,11 @@ where
         self.handle_atom(&format!("\"{content}\""))
     }
 
+    fn handle_define_package_invariant(&mut self, body: T) -> Result<T, E> {
+        let defun = self.handle_atom("define-package-invariant")?;
+        self.handle_list(vec![defun, body])
+    }
+
     fn handle_define_state_relation(
         &mut self,
         funname: &str,
@@ -134,6 +139,12 @@ where
                 let body = self.rule_sexp(&inner.next().unwrap())?;
 
                 self.handle_definefun(funname, args, ty, body)
+            }
+            Rule::define_package_invariant => {
+                let mut inner = inner.into_inner();
+                let body = self.rule_sexp(&inner.next().unwrap())?;
+
+                self.handle_define_package_invariant(body)
             }
             Rule::define_state_relation => {
                 let mut inner = inner.into_inner();
