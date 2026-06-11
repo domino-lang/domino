@@ -164,6 +164,8 @@ pub struct Composition {
     pub exports: Vec<Export>,
     pub name: String,
     pub consts: Vec<(String, Type)>,
+
+    pub invariants: Vec<String>,
 }
 
 impl Composition {
