@@ -30,6 +30,15 @@ impl<'a> SmtRewrite<'a> {
         }
     }
 
+    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance) -> Self {
+        Self {
+            context,
+            package: None,
+            game: Some(game),
+            content: Vec::new(),
+        }
+    }
+
     fn new_with_package(
         context: &'a EquivalenceContext,
         game: &'a GameInstance,
@@ -133,6 +142,45 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     fn handle_sexp(&mut self, parsed: SmtExpr) -> Result<()> {
         self.content.push(parsed);
         Ok(())
+    }
+
+    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+        assert!(self.game.is_some());
+
+        let gamestate_context = GameInstanceContext::new(self.game.unwrap());
+        let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
+        let gamestate_sort = gamestate_pattern.sort_name();
+
+        let pkgbindings = gen_pkgbinding(self.game.unwrap(), "game");
+        let varbindings: Vec<_> = self
+            .game
+            .unwrap()
+            .game
+            .pkgs
+            .iter()
+            .flat_map(|pkg| gen_varbinding(pkg, &format!("game.{}", pkg.name)))
+            .collect();
+
+        let bindvars = SmtLet {
+            bindings: varbindings,
+            body,
+        };
+
+        let bindpackages = SmtLet {
+            bindings: pkgbindings,
+            body: bindvars,
+        };
+
+        self.handle_definefun(
+            &format!("game-invariant<{}>", self.game.unwrap().name()),
+            vec![(
+                SmtExpr::Atom("game".to_string()),
+                SmtExpr::Atom(gamestate_sort),
+            )
+                .into()],
+            "Bool",
+            bindpackages.into(),
+        )
     }
 
     fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
@@ -417,6 +465,15 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
 pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtExpr>> {
     let mut rewriter: SmtRewrite = SmtRewrite::new(context);
+    rewriter.parse_sexps(content)?;
+    Ok(rewriter.content)
+}
+pub fn rewrite_game(
+    context: &EquivalenceContext,
+    game: &GameInstance,
+    content: &str,
+) -> Result<Vec<SmtExpr>> {
+    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }

@@ -204,6 +204,34 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     }
                 }),
         );
+        if !self.eqctx.left_game_inst_ctx().game().invariants.is_empty() {
+            claims.push(Claim {
+                admitted: false,
+                dependencies: vec!["no-abort".to_string()],
+                ty: ClaimType::LeftGameInvariant,
+                name: format!(
+                    "game-invariant<{}>",
+                    self.eqctx.left_game_inst_ctx().game_inst().name(),
+                ),
+            })
+        }
+        if !self
+            .eqctx
+            .right_game_inst_ctx()
+            .game()
+            .invariants
+            .is_empty()
+        {
+            claims.push(Claim {
+                admitted: false,
+                dependencies: vec!["no-abort".to_string()],
+                ty: ClaimType::RightGameInvariant,
+                name: format!(
+                    "game-invariant<{}>",
+                    self.eqctx.right_game_inst_ctx().game_inst().name(),
+                ),
+            })
+        }
 
         ui.lock().unwrap().start_oracle(
             &self.eqctx.theorem().name,

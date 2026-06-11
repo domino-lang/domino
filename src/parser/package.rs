@@ -236,6 +236,7 @@ pub fn handle_pkg_spec<'src>(
                     .map(|ast| ast.as_str().to_string())
                     .collect(),
             ),
+
             _ => unreachable!("unhandled ast node in package: {}", spec),
         }
     }

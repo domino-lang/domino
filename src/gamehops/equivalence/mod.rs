@@ -202,6 +202,30 @@ impl<'a> EquivalenceContext<'a> {
                 }
             }
 
+            // Load Game Invariants
+            for file_name in &left_gctx.game().invariants {
+                let file_contents = project.read_input_file(file_name).map_err(|err| {
+                    let file_name = file_name.to_string();
+                    error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
+                })?;
+                out.append(&mut smtrewrite::rewrite_game(
+                    self,
+                    left_gctx.game_inst(),
+                    &file_contents,
+                )?);
+            }
+            for file_name in &right_gctx.game().invariants {
+                let file_contents = project.read_input_file(file_name).map_err(|err| {
+                    let file_name = file_name.to_string();
+                    error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
+                })?;
+                out.append(&mut smtrewrite::rewrite_game(
+                    self,
+                    right_gctx.game_inst(),
+                    &file_contents,
+                )?);
+            }
+
             // Load the main Invariant
             for file_name in &self.equivalence().invariants_by_oracle_name(oracle_name) {
                 log::info!("reading file {file_name}");
