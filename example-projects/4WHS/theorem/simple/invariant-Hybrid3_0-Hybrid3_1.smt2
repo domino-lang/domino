@@ -22,8 +22,8 @@
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
-          (=> (> ctr max-ctr)
-              (is-mk-none (select State ctr)))))
+          (= (> ctr max-ctr)
+             (is-mk-none (select State ctr)))))
 
 
 (define-fun H-LTK-tables-empty-above-max
@@ -32,9 +32,9 @@
      (Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((kid Int))
-          (=> (> kid max-kid)
-              (and (is-mk-none (select H kid))
-                   (is-mk-none (select Ltk kid))))))
+          (= (> kid max-kid)
+             (and (is-mk-none (select H kid))
+                  (is-mk-none (select Ltk kid))))))
 
 
 (define-fun kmac-before-sid
