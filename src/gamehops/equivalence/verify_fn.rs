@@ -10,7 +10,7 @@ use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
     project::Project,
-    theorem::Claim,
+    theorem::{Claim, ClaimType},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
@@ -153,10 +153,58 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claims = self
+        let mut claims = self
             .eqctx
             .equivalence()
             .proof_tree_by_oracle_name(oracle.name());
+
+        claims.extend(
+            self.eqctx
+                .left_game_inst_ctx()
+                .game()
+                .pkgs
+                .iter()
+                .filter_map(|pkg| {
+                    if pkg.pkg.invariants.is_empty() {
+                        None
+                    } else {
+                        Some(Claim {
+                            admitted: false,
+                            dependencies: vec!["no-abort".to_string()],
+                            ty: ClaimType::LeftPackageInvariant,
+                            name: format!(
+                                "package-invariant<{}-{}>",
+                                self.eqctx.left_game_inst_ctx().game_inst().name(),
+                                pkg.name()
+                            ),
+                        })
+                    }
+                }),
+        );
+        claims.extend(
+            self.eqctx
+                .right_game_inst_ctx()
+                .game()
+                .pkgs
+                .iter()
+                .filter_map(|pkg| {
+                    if pkg.pkg.invariants.is_empty() {
+                        None
+                    } else {
+                        Some(Claim {
+                            admitted: false,
+                            dependencies: vec!["no-abort".to_string()],
+                            ty: ClaimType::RightPackageInvariant,
+                            name: format!(
+                                "package-invariant<{}-{}>",
+                                self.eqctx.right_game_inst_ctx().game_inst().name(),
+                                pkg.name()
+                            ),
+                        })
+                    }
+                }),
+        );
+
         ui.lock().unwrap().start_oracle(
             &self.eqctx.theorem().name,
             &proofstep_name,
