@@ -6,6 +6,7 @@ defun = { "(" ~ "define-fun" ~ atom ~ list ~ ty ~ sexp ~ ")" }
 sampleid = { "(" ~ "sample-id" ~ stringlit ~ stringlit ~ stringlit ~ ")" }
 
 define_package_invariant = { "(" ~ "define-package-invariant" ~ sexp ~ ")" }
+define_game_invariant = { "(" ~ "define-game-invariant" ~ sexp ~ ")" }
 define_state_relation = { "(" ~ "define-state-relation" ~ atom ~ list ~ sexp ~ ")" }
 define_lemma =          { "(" ~ "define-lemma" ~ atom ~ list ~ sexp ~ ")" }
 
@@ -20,7 +21,7 @@ ty = { "Int" | "Bool" | sexp }
 list = { "(" ~ sexp*~ ")" }
 
 // Big Or, Fallback Entries last!
-sexp = { sampleid | defun | define_package_invariant | define_state_relation | define_lemma | list | integer | boolean | stringlit | atom }
+sexp = { sampleid | defun | define_game_invariant | define_package_invariant | define_state_relation | define_lemma | list | integer | boolean | stringlit | atom }
 sexps = { SOI ~ sexp+ ~ EOI }
 
 
