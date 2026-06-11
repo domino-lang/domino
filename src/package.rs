@@ -165,6 +165,8 @@ pub struct Composition {
     pub name: String,
     pub consts: Vec<(String, Type)>,
     pub type_params: Vec<String>,
+
+    pub invariants: Vec<String>,
 }
 
 impl Composition {

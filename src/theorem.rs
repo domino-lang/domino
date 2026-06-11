@@ -172,6 +172,8 @@ impl GameInstance {
 
             // XXX: This probably needs rewriting
             type_params: game.type_params,
+
+            invariants: game.invariants.clone(),
         };
 
         GameInstance {
