@@ -70,22 +70,6 @@
                   (not (is-mk-none (select RevTested (mk-tuple5 U V ni nr tau)))))))))
 
 
-(define-fun h-and-fresh-match
-    ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool)))
-     (H (Array Int (Maybe Bool))))
-  Bool
-  (forall ((ctr Int))
-          (let ((state (select State ctr)))
-            (=> (not (is-mk-none state))
-                (let  ((kid  (el10-4  (maybe-get state))))
-                  (and (not (is-mk-none (select Fresh ctr)))
-                       (not (is-mk-none (select H kid)))
-                       (= (select Fresh ctr) (select H kid))))))))
-
-
 (define-fun sid-is-wellformed
     ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -274,7 +258,6 @@
 
    (referenced-kid-exist left.KX.State left.Prf.PRF left.Prf.LTK)
 
-   (h-and-fresh-match left.KX.State left.KX.Fresh left.Prf.H)
    (k-prf-implies-rev-tested-sid left.Prf.PRF left.KX.RevTested)
 
    (honest-kmac left.KX.State left.Prf.PRF left.KX.Fresh left.Prf.H)))
