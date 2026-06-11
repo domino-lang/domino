@@ -180,11 +180,11 @@ impl<'a> EquivalenceContext<'a> {
                 match claim_type {
                     ClaimType::Lemma => build_lemma_call.clone()(dep_name),
                     ClaimType::Relation => build_relation_call(dep_name),
-                    ClaimType::Invariant => unreachable!(),
-                    ClaimType::LeftPackageInvariant
+                    ClaimType::Invariant
+                    | ClaimType::LeftPackageInvariant
                     | ClaimType::RightPackageInvariant
                     | ClaimType::LeftGameInvariant
-                    | ClaimType::RightGameInvariant => todo!(),
+                    | ClaimType::RightGameInvariant => unreachable!(),
                 }
             })
             .collect();
@@ -195,8 +195,8 @@ impl<'a> EquivalenceContext<'a> {
             ClaimType::Invariant => build_invariant_new_call(&claim.name),
             ClaimType::LeftPackageInvariant => build_left_invariant_new_call(&claim.name),
             ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
-            ClaimType::LeftGameInvariant => todo!(),
-            ClaimType::RightGameInvariant => todo!(),
+            ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
+            ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
         };
 
         let randomness_mapping = SmtForall {
@@ -255,6 +255,19 @@ impl<'a> EquivalenceContext<'a> {
                     pkg.name()
                 )));
             }
+        }
+
+        if !gctx_left.game().invariants.is_empty() {
+            dependencies_code.push(build_left_invariant_old_call(&format!(
+                "game-invariant<{}>",
+                game_inst_name_left,
+            )));
+        }
+        if !gctx_right.game().invariants.is_empty() {
+            dependencies_code.push(build_right_invariant_old_call(&format!(
+                "game-invariant<{}>",
+                game_inst_name_right,
+            )));
         }
 
         for dep in dep_calls {
