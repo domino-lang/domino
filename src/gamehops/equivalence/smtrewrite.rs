@@ -145,7 +145,11 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     }
 
     fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
-        assert!(self.game.is_some());
+        if self.game.is_none() {
+            return Err(Error::RewriteNeedsGameContext {
+                defn: format!("(define-game-invariant {body})"),
+            });
+        }
 
         let gamestate_context = GameInstanceContext::new(self.game.unwrap());
         let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
@@ -184,8 +188,11 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     }
 
     fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
-        assert!(self.game.is_some());
-        assert!(self.package.is_some());
+        if self.game.is_none() || self.package.is_none() {
+            return Err(Error::RewriteNeedsPackageContext {
+                defn: format!("(define-package-invariant {body})"),
+            });
+        }
 
         let gamestate_context = GameInstanceContext::new(self.game.unwrap());
         let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
