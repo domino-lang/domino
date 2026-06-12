@@ -84,6 +84,10 @@ pub enum Error {
     IncorrectArgument { argument: String },
     #[error("expected {expected} arguments but found {argument}")]
     IncorrectNumberOfArguments { argument: String, expected: String },
+    #[error("define-game-invariant only valid in game contexts: {defn}")]
+    RewriteNeedsGameContext { defn: String },
+    #[error("define-package-invariant only valid in package contexts: {defn}")]
+    RewriteNeedsPackageContext { defn: String },
     #[error(transparent)]
     ParserError(#[from] crate::util::smtparser::Error),
     #[error("SMT Solver failed in oracle {oracle_name}, claim {claim_name}")]
