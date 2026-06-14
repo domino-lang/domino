@@ -2,11 +2,9 @@
 
 use itertools::Itertools;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use std::fmt::Write;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
-use crate::ui::TheoremUI;
 use crate::{
     gamehops::equivalence::{
         error::{Error, Result},
@@ -16,6 +14,7 @@ use crate::{
     project::Project,
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
+    ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::exprs::SmtExpr,
 };
@@ -32,58 +31,45 @@ fn verify_oracle<UI: TheoremUI>(
 ) -> Result<()> {
     let eq = eqctx.equivalence();
     let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+    let mut smt = Vec::new();
 
-    let mut solver = {
-        let oracle = if req_oracles.len() == 1 {
-            Some(req_oracles[0].name())
-        } else {
-            None
-        };
-
-        if transcript {
-            let transcript_file: std::fs::File = project
-                .get_joined_smt_file(eq.left_name(), eq.right_name(), oracle)
-                .unwrap();
-
-            backend.new_smtsolver_with_transcript(transcript_file)?
-        } else {
-            backend.new_smtsolver()?
-        }
-    };
-    std::thread::sleep(std::time::Duration::from_millis(20));
+    //std::thread::sleep(std::time::Duration::from_millis(20));
 
     log::debug!(
         "emitting base declarations for {}-{}",
         eq.left_name,
         eq.right_name
     );
-    solver.write_smt(SmtExpr::Comment("\n".to_string()))?;
-    solver.write_smt(SmtExpr::Comment("base declarations:\n".to_string()))?;
-    eqctx.emit_base_declarations(&mut solver)?;
+    smt.push(SmtExpr::Comment("\n".to_string()));
+    smt.push(SmtExpr::Comment("base declarations:\n".to_string()));
+    smt.append(&mut eqctx.emit_base_declarations());
     log::debug!(
         "emitting theorem paramfuncs for {}-{}",
         eq.left_name,
         eq.right_name
     );
-    solver.write_smt(SmtExpr::Comment("\n".to_string()))?;
-    solver.write_smt(SmtExpr::Comment("theorem param funcs:\n".to_string()))?;
-    eqctx.emit_theorem_paramfuncs(&mut solver)?;
+    smt.push(SmtExpr::Comment("\n".to_string()));
+    smt.push(SmtExpr::Comment("theorem param funcs:\n".to_string()));
+    smt.append(&mut eqctx.emit_theorem_paramfuncs());
     log::debug!(
         "emitting game definitions for {}-{}",
         eq.left_name,
         eq.right_name
     );
-    solver.write_smt(SmtExpr::Comment("\n".to_string()))?;
-    solver.write_smt(SmtExpr::Comment("game definitions:\n".to_string()))?;
-    eqctx.emit_game_definitions(&mut solver)?;
+    smt.push(SmtExpr::Comment("\n".to_string()));
+    smt.push(SmtExpr::Comment("game definitions:\n".to_string()));
+    smt.append(&mut eqctx.emit_game_definitions());
+
     log::debug!(
         "emitting const declarations for {}-{}",
         eq.left_name,
         eq.right_name
     );
-    eqctx.emit_constant_declarations(&mut solver)?;
+    smt.append(&mut eqctx.emit_constant_declarations());
 
     for export in req_oracles {
+        let mut smt = smt.clone();
+
         let claims = eqctx.equivalence.proof_tree_by_oracle_name(export.name());
         ui.lock().unwrap().start_oracle(
             &eqctx.theorem().name,
@@ -93,10 +79,9 @@ fn verify_oracle<UI: TheoremUI>(
         );
 
         log::info!("verify: oracle:{export:?}");
-        writeln!(solver, "(push 1)").unwrap();
-        eqctx.emit_return_value_helpers(&mut solver, export.name())?;
-        eqctx.emit_auto_randomness(&mut solver, export.name())?;
-        eqctx.emit_invariant(project, &mut solver, export.name())?;
+        smt.append(&mut eqctx.emit_return_value_helpers(export.name()));
+        smt.append(&mut eqctx.emit_auto_randomness(export.name()));
+        smt.append(&mut eqctx.emit_invariant(project, export.name())?);
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
@@ -107,8 +92,30 @@ fn verify_oracle<UI: TheoremUI>(
             );
 
             if !claim.is_admitted() {
-                writeln!(solver, "(push 1)").unwrap();
-                eqctx.emit_claim_assert(&mut solver, export.name(), &claim)?;
+                let mut smt = smt.clone();
+                let mut solver = {
+                    if transcript {
+                        let transcript_file: std::fs::File = project
+                            .get_joined_smt_file(
+                                eq.left_name(),
+                                eq.right_name(),
+                                export.name(),
+                                claim.name(),
+                            )
+                            .unwrap();
+
+                        backend.new_smtsolver_with_transcript(transcript_file)?
+                    } else {
+                        backend.new_smtsolver()?
+                    }
+                };
+                std::thread::sleep(std::time::Duration::from_millis(20));
+
+                smt.append(&mut eqctx.emit_claim_assert(export.name(), &claim));
+                for entry in smt {
+                    solver.write_smt(entry)?;
+                }
+
                 match solver.check_sat()? {
                     SmtSolverResponse::Unsat => {}
                     response => {
@@ -128,7 +135,6 @@ fn verify_oracle<UI: TheoremUI>(
                         });
                     }
                 }
-                writeln!(solver, "(pop 1)").unwrap();
             }
             ui.lock().unwrap().finish_lemma(
                 &eqctx.theorem().name,
@@ -137,8 +143,6 @@ fn verify_oracle<UI: TheoremUI>(
                 claim.name(),
             );
         }
-
-        writeln!(solver, "(pop 1)").unwrap();
         ui.lock()
             .unwrap()
             .finish_oracle(&eqctx.theorem().name, &proofstep_name, export.name());

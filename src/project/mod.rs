@@ -234,20 +234,17 @@ pub trait Project {
         &self,
         left_game_name: &str,
         right_game_name: &str,
-        oracle_name: Option<&str>,
+        oracle_name: &str,
+        claim_name: &str,
     ) -> Result<std::fs::File> {
         let mut path = self.get_root_dir();
 
         path.push("_build/code_eq/joined/");
         std::fs::create_dir_all(&path)?;
 
-        if let Some(oracle_name) = oracle_name {
-            path.push(format!(
-                "{left_game_name}_{right_game_name}_{oracle_name}.smt2"
-            ));
-        } else {
-            path.push(format!("{left_game_name}_{right_game_name}.smt2"));
-        }
+        path.push(format!(
+            "{left_game_name}-{right_game_name}-{oracle_name}-{claim_name}.smt2"
+        ));
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)

@@ -395,7 +395,6 @@ pub(crate) fn solve_composition_graph(
 
         let mut comm = backend.new_smtsolver().unwrap();
         write!(comm, "{constraints}").unwrap();
-        writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< width {width}))").unwrap();
 
         if comm.check_sat().unwrap() == SmtSolverResponse::Sat {
@@ -410,7 +409,6 @@ pub(crate) fn solve_composition_graph(
             log::debug!("Failure: width = {width}");
             min_width = width;
         }
-        //writeln!(comm, "(pop 1)").unwrap();
 
         if min_width + 1 == max_width {
             break;
@@ -423,7 +421,6 @@ pub(crate) fn solve_composition_graph(
 
         let mut comm = backend.new_smtsolver().unwrap();
         write!(comm, "{constraints}").unwrap();
-        writeln!(comm, "(push 1)").unwrap();
         writeln!(comm, "(assert (< height {height}))").unwrap();
         writeln!(comm, "(assert (< width {max_width}))").unwrap();
 
@@ -434,7 +431,6 @@ pub(crate) fn solve_composition_graph(
             log::debug!("Failure: height = {height} (width = {max_width})");
             min_height = height;
         }
-        //writeln!(comm, "(pop 1)").unwrap();
 
         if min_height + 1 == max_height {
             break;
