@@ -3,7 +3,7 @@
 use super::{
     common::*,
     error::{
-        ArgumentCountMismatchError, ExpectedExpressionIdentifierError,
+        ArgumentCountMismatchError, ElementCountMismatchError, ExpectedExpressionIdentifierError,
         IdentifierAlreadyDeclaredError, IllegalLiteralError, MissingReturnError,
         ParseNonTupleError, ParserScopeError, TypeMismatchError, UndefinedIdentifierError,
         UntypedNoneTypeInferenceError, WrongArgumentCountInInvocationError,
@@ -136,6 +136,10 @@ pub enum ParsePackageError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     ArgumentCountMismatch(#[from] ArgumentCountMismatchError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ElementCountMismatch(#[from] ElementCountMismatchError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -1049,8 +1053,8 @@ fn handle_pattern(
             })
         }
         Rule::pattern_tuple => {
+            let span = pattern_ast.as_span();
             let TypeKind::Tuple(tys) = value_type.clone().into_kind() else {
-                let span = pattern_ast.as_span();
                 return Err(ParseNonTupleError {
                     at: (span.start()..span.end()).into(),
                     got: value_type,
@@ -1059,8 +1063,19 @@ fn handle_pattern(
                 .into());
             };
 
+            let pattern_ast = pattern_ast.into_inner();
+
+            if tys.len() != pattern_ast.len() {
+                return Err(ElementCountMismatchError {
+                    at: (span.start()..span.end()).into(),
+                    got: tys.len(),
+                    expected: pattern_ast.len(),
+                    source_code: ctx.named_source(),
+                }
+                .into());
+            }
+
             let idents: Vec<Identifier> = pattern_ast
-                .into_inner()
                 .enumerate()
                 .map(|(i, pattern_ident)| {
                     handle_identifier_in_code_lhs(ctx, pattern_ident, oracle_name, tys[i].clone())
