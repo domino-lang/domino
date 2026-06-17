@@ -10,9 +10,9 @@ function fail() {
 DOMINO=$(realpath $DOMINO)
 
 if which gtar; then
-    TAR=gtar
+  TAR=gtar
 else
-    TAR=tar
+  TAR=tar
 fi
 
 echo "# Test sequential build (simple-KEM-example)"
