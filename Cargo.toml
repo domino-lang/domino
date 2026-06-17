@@ -51,7 +51,7 @@ walkdir = "2"
 
 # Feature: zipfile
 zip = { version = "8", features = [
-  "deflate"
+  "deflate",
 ], default-features = false, optional = true }
 
 # Feature: process solver
