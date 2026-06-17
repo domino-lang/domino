@@ -80,14 +80,14 @@ impl<'a> ZipProject<'a> {
 }
 
 impl Project for ZipProject<'_> {
-    fn packages(&self) -> impl Iterator<Item = &String> {
-        self.packages.keys()
+    fn packages(&self) -> impl Iterator<Item = &str> {
+        self.packages.keys().map(String::as_str)
     }
-    fn games(&self) -> impl Iterator<Item = &String> {
-        self.games.keys()
+    fn games(&self) -> impl Iterator<Item = &str> {
+        self.games.keys().map(String::as_str)
     }
-    fn theorems(&self) -> impl Iterator<Item = &String> {
-        self.theorems.keys()
+    fn theorems(&self) -> impl Iterator<Item = &str> {
+        self.theorems.keys().map(String::as_str)
     }
     fn get_package(&self, name: &str) -> Option<&Package> {
         self.packages.get(name)
