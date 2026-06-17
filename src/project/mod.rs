@@ -38,9 +38,9 @@ pub mod error;
 pub trait Project {
     fn get_root_dir(&self) -> PathBuf;
 
-    fn theorems(&self) -> impl Iterator<Item = &String>;
-    fn packages(&self) -> impl Iterator<Item = &String>;
-    fn games(&self) -> impl Iterator<Item = &String>;
+    fn theorems(&self) -> impl Iterator<Item = &str>;
+    fn packages(&self) -> impl Iterator<Item = &str>;
+    fn games(&self) -> impl Iterator<Item = &str>;
 
     fn get_theorem(&self, name: &str) -> Option<&Theorem<'_>>;
     fn get_game(&self, name: &str) -> Option<&Composition>;
