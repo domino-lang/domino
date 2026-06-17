@@ -124,7 +124,7 @@
        (= state-H4.KX.RevTested state-H5.KX.RevTested)
        (= state-H4.KX.H         state-H5.KX.H)
        (= state-H4.KX.ctr_      state-H5.KX.ctr_)
-       (= state-H4.KX.kid_      state-H5.KX.kid)
+       (= state-H4.KX.kid_      state-H5.KX.kid_)
 	   (state-equality state-H4.KX.State
                        state-H5.KX.State)
 	   (invariant-H4 state-H4.KX.State)
