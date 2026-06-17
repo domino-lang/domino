@@ -174,6 +174,17 @@ fn explain(_game_name: &str, _dst: &Option<String>) -> Result<(), project::error
     // Ok(())
 }
 
+fn html(h: &Html) -> Result<(), project::error::Error> {
+    let project_root = project::find_project_root()?;
+    let files = project::Files::load(&project_root)?;
+    let project = project::Project::load(&files)?;
+
+    let smtsolver = h
+        .smtsolver
+        .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
+    project.html(&smtsolver)
+}
+
 fn latex(l: &Latex) -> Result<(), project::error::Error> {
     let project_root = project::find_project_root()?;
     let files = project::Files::load(&project_root)?;
@@ -211,6 +222,7 @@ fn main() -> miette::Result<()> {
         Commands::Prove(p) => prove(p),
         Commands::Proofsteps => proofsteps(),
         Commands::Latex(l) => latex(l),
+        Commands::Html(h) => html(h),
         Commands::Explain(Explain { game_name, output }) => explain(game_name, output),
         Commands::WireCheck(args) => wire_check(&args.game_name, args.dst_idx),
         Commands::Format(f) => format(f),
