@@ -50,7 +50,9 @@ thiserror = "1.0.61"
 walkdir = "2"
 
 # Feature: zipfile
-zip = { version = "8", features = ["deflate"], default-features = false, optional = true }
+zip = { version = "8", features = [
+  "deflate"
+], default-features = false, optional = true }
 
 # Feature: process solver
 subprocess = { version = "0.2", optional = true }
