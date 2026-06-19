@@ -33,8 +33,10 @@ pub struct IncompatibleArgumentsError;
 #[derive(Debug, Error, Diagnostic)]
 enum Error {
     #[error(transparent)]
+    #[diagnostic(transparent)]
     ProjectError(#[from] project::error::Error),
     #[error(transparent)]
+    #[diagnostic(transparent)]
     IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
 }
 
