@@ -18,6 +18,7 @@ use crate::writers::tex::{
 };
 
 pub(crate) mod block;
+pub(super) mod util;
 
 use block::BlockWriter;
 
@@ -39,15 +40,15 @@ pub fn tex_write_oracle(
 
     writeln!(
         file,
-        "\\procedure{{$\\O{{{}}}({})$}}{{",
+        "\\procedure{{$\\O{{{}}}\\left({}\\right)$}}{{",
         oracle.sig.name.replace("_", "\\_"),
-        oracle
-            .sig
-            .args
-            .iter()
-            .map(|(a, _)| { format!("\\n{{{}}}", a.replace("_", "\\_")) })
-            .collect::<Vec<_>>()
-            .join(", ")
+        util::list_to_matrix(
+            oracle
+                .sig
+                .args
+                .iter()
+                .map(|(a, _)| { format!("\\n{{{}}}", a.replace("_", "\\_")) })
+        )
     )?;
 
     let mut writer = BlockWriter::new(&mut file, lossy, comp);
