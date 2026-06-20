@@ -1,8 +1,23 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::{HashMap, HashSet};
+
+mod emit;
+
 use crate::{
-    gamehops::equivalence::EquivalenceContext,
+    gamehops::equivalence::Equivalence,
+    identifier::{
+        theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
+        Identifier,
+    },
+    package::OracleSig,
+    theorem::Theorem,
+    transforms::{
+        samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
+    },
+    types::{CountSpec, Type, TypeKind},
     writers::smt::{
+        contexts,
         exprs::SmtExpr,
         patterns::{
             relation::Relation, relations::equal_aborts, theorem_consts::TheoremConstsPattern,
@@ -12,6 +27,72 @@ use crate::{
 };
 
 use super::{GameInstanceContext, GenericOracleContext, OracleContext};
+
+#[derive(Clone)]
+pub struct EquivalenceContext<'a> {
+    equivalence: &'a Equivalence,
+    theorem: &'a Theorem<'a>,
+    auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
+    invariants: HashMap<String, Vec<SmtExpr>>,
+}
+
+// simple getters
+impl<'a> EquivalenceContext<'a> {
+    pub(crate) fn new(
+        equivalence: &'a Equivalence,
+        theorem: &'a Theorem<'a>,
+        auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
+    ) -> Self {
+        Self {
+            equivalence,
+            theorem,
+            auxs,
+            invariants: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn theorem(&self) -> &'a Theorem<'a> {
+        self.theorem
+    }
+
+    pub(crate) fn equivalence(&self) -> &'a Equivalence {
+        self.equivalence
+    }
+
+    pub(crate) fn append_invariants(
+        &mut self,
+        oracle_name: &str,
+        mut new_invariants: Vec<SmtExpr>,
+    ) {
+        if let Some(current) = self.invariants.get_mut(oracle_name) {
+            current.append(&mut new_invariants);
+        } else {
+            self.invariants
+                .insert(oracle_name.to_string(), new_invariants);
+        }
+    }
+}
+
+// subcontexts
+impl<'a> EquivalenceContext<'a> {
+    pub(crate) fn left_game_inst_ctx(&self) -> contexts::GameInstanceContext<'a> {
+        let game_inst = self
+            .theorem()
+            .find_game_instance(self.equivalence().left_name())
+            .unwrap();
+
+        contexts::GameInstanceContext::new(game_inst)
+    }
+
+    pub(crate) fn right_game_inst_ctx(&self) -> contexts::GameInstanceContext<'a> {
+        let game_inst = self
+            .theorem()
+            .find_game_instance(self.equivalence().right_name())
+            .unwrap();
+
+        contexts::GameInstanceContext::new(game_inst)
+    }
+}
 
 // patterns
 impl<'a> EquivalenceContext<'a> {
@@ -86,9 +167,90 @@ impl<'a> EquivalenceContext<'a> {
             .build_same_output()
     }
 
-    pub(crate) fn datastructure_theorem_consts_pattern(self) -> TheoremConstsPattern<'a> {
+    pub(crate) fn datastructure_theorem_consts_pattern(&'a self) -> TheoremConstsPattern<'a> {
         let theorem_name = &self.theorem().name;
 
         TheoremConstsPattern { theorem_name }
+    }
+}
+
+impl<'a> EquivalenceContext<'a> {
+    fn types(&self) -> Vec<Type> {
+        let (_, (types_left, _)) = self
+            .auxs
+            .iter()
+            .find(|(name, _aux)| name == self.equivalence().left_name())
+            .unwrap();
+        let (_, (types_right, _)) = self
+            .auxs
+            .iter()
+            .find(|(name, _aux)| name == self.equivalence().right_name())
+            .unwrap();
+        let types_theorem: HashSet<Type> = self
+            .theorem()
+            .consts
+            .iter()
+            .filter_map(|(name, ty)| match ty.kind() {
+                TypeKind::Integer => {
+                    let id = TheoremConstIdentifier {
+                        theorem_name: self.theorem().name.clone(),
+                        name: name.clone(),
+                        ty: Type::integer(),
+                        inst_info: None,
+                    };
+
+                    Some(Type::bits(CountSpec::Identifier(Box::new(
+                        Identifier::TheoremIdentifier(TheoremIdentifier::Const(id)),
+                    ))))
+                }
+                _ => None,
+            })
+            .collect();
+
+        let mut types: Vec<_> = types_left
+            .union(types_right)
+            .cloned()
+            .collect::<HashSet<_>>()
+            .union(&types_theorem)
+            .cloned()
+            .collect();
+        types.sort();
+        types
+    }
+
+    pub(crate) fn sample_info_left(&self) -> &'a SampleInfo {
+        let (_, (_, sample_info)) = self
+            .auxs
+            .iter()
+            .find(|(name, _aux)| name == self.equivalence().left_name())
+            .unwrap();
+        sample_info
+    }
+
+    pub(crate) fn sample_info_right(&self) -> &'a SampleInfo {
+        let (_, (_, sample_info)) = self
+            .auxs
+            .iter()
+            .find(|(name, _aux)| name == self.equivalence().right_name())
+            .unwrap();
+        sample_info
+    }
+
+    fn oracle_sig_by_exported_name(&'a self, oracle_name: &str) -> Option<&'a OracleSig> {
+        let gctx_left = self.left_game_inst_ctx();
+
+        gctx_left
+            .game()
+            .exports
+            .iter()
+            .find(|export| export.name() == oracle_name)
+            .and_then(|export| {
+                gctx_left.game().pkgs[export.to()]
+                    .pkg
+                    .oracles
+                    .iter()
+                    .find(|odef| odef.sig.name == export.sig().name)
+                    .map(|odef| &odef.sig)
+            })
     }
 }
