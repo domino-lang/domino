@@ -1,27 +1,30 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
-    gamehops::equivalence::{error::Result, EquivalenceContext},
     hacks,
     identifier::{
         game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
         Identifier,
     },
-    project::Project,
     theorem::{Claim, ClaimType, GameInstance, RandomnessType},
     transforms::samplify::SampleInfo,
-    types::{Type, TypeKind},
+    types::{CountSpec, Type, TypeKind},
     writers::smt::{
-        contexts::{GameInstanceContext, GenericOracleContext},
+        contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
         declare::declare_const,
-        exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtForall, SmtImplies, SmtNot},
+        exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtForall, SmtImplies, SmtIte, SmtNot},
         patterns,
         patterns::{
-            const_mapping::GameConstMappingFunction, datastructures::DatastructurePattern,
-            functions::FunctionPattern, oracle_args::OldNewOracleArgPattern,
-            oracle_args::UnitOracleArgPattern, theorem_constants::ConstantPattern,
-            ReturnIsAbortConst, SmtDefineFun,
+            const_mapping::GameConstMappingFunction,
+            const_mapping::{define_game_const_mapping_fun, define_pkg_const_mapping_fun},
+            datastructures::DatastructurePattern,
+            declare_datatype,
+            functions::FunctionPattern,
+            oracle_args::OldNewOracleArgPattern,
+            oracle_args::UnitOracleArgPattern,
+            theorem_constants::ConstantPattern,
+            GameStateDeclareInfo, ReturnIsAbortConst, SmtDefineFun,
         },
         sorts::Sort,
         writer::CompositionSmtWriter,
@@ -29,39 +32,15 @@ use crate::{
 };
 
 impl<'a> EquivalenceContext<'a> {
-    pub(super) fn emit_invariant(
-        &self,
-        project: &impl Project,
-        oracle_name: &str,
-    ) -> Result<Vec<SmtExpr>> {
-        let mut out = Vec::new();
-        let mut linter = super::lint::Linter::new(self, oracle_name);
-
-        for file_name in &self.equivalence.invariants_by_oracle_name(oracle_name) {
-            log::info!("reading file {file_name}");
-            let file_contents = project.read_input_file(file_name).map_err(|err| {
-                let file_name = file_name.clone();
-                super::error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
-            })?;
-            log::info!("read file {file_name}");
-            linter.lint_file(file_name, &file_contents)?;
-            out.append(&mut super::smtrewrite::rewrite(self, &file_contents)?);
-
-            // log::info!("wrote contents of file {file_name}");
-
-            // if comm.check_sat()? != SmtSolverResponse::Sat {
-            //     return Err(Error::UnsatAfterInvariantRead {
-            //         equivalence: self.equivalence.clone(),
-            //         oracle_name: oracle_name.to_string(),
-            //     });
-            // }
+    pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
+        if let Some(invariants) = self.invariants.get(oracle_name) {
+            invariants.clone()
+        } else {
+            vec![]
         }
-        linter.lint_finish()?;
-
-        Ok(out)
     }
 
-    pub(super) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> Vec<SmtExpr> {
+    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> Vec<SmtExpr> {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -238,7 +217,7 @@ impl<'a> EquivalenceContext<'a> {
         .into()]
     }
 
-    pub(super) fn emit_game_definitions(&self) -> Vec<SmtExpr> {
+    pub(crate) fn emit_game_definitions(&self) -> Vec<SmtExpr> {
         let left = self
             .theorem
             .find_game_instance(self.equivalence.left_name())
@@ -329,7 +308,7 @@ impl<'a> EquivalenceContext<'a> {
         base_declarations
     }
 
-    pub(super) fn emit_auto_randomness(&self, oracle_name: &str) -> Vec<SmtExpr> {
+    pub(crate) fn emit_auto_randomness(&self, oracle_name: &str) -> Vec<SmtExpr> {
         let mut out = Vec::new();
         match self.equivalence.randomness_by_oracle_name(oracle_name) {
             RandomnessType::Custom => {}
@@ -399,7 +378,7 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
-    pub(super) fn emit_theorem_paramfuncs(&self) -> Vec<SmtExpr> {
+    pub(crate) fn emit_theorem_paramfuncs(&self) -> Vec<SmtExpr> {
         fn get_fn<T: Clone>(arg: &(T, Type)) -> Option<(T, Vec<Type>, Type)> {
             let (other, ty) = arg;
             match ty.kind() {
@@ -428,7 +407,7 @@ impl<'a> EquivalenceContext<'a> {
         }
         out
     }
-    pub(super) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {
+    pub(crate) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {
         let mut out = Vec::new();
 
         let left_gctx = self.left_game_inst_ctx();
@@ -503,7 +482,7 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
-    pub(super) fn emit_constant_declarations(&self) -> Vec<SmtExpr> {
+    pub(crate) fn emit_constant_declarations(&self) -> Vec<SmtExpr> {
         /*
          *
          * things being declared here:
@@ -787,6 +766,414 @@ impl<'a> EquivalenceContext<'a> {
         out.push(self.smt_define_randeq_function());
 
         out
+    }
+
+    /// Returns an iterator of all the package const datatypes that need to be defined for this
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
+    /// package is used more than once.
+    pub(crate) fn smt_package_const_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut already_defined = BTreeSet::new();
+
+        Some(self)
+            .into_iter()
+            .flat_map(|ectx| {
+                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
+            })
+            .flat_map(|gctx| gctx.pkg_inst_contexts())
+            .map(|pctx| {
+                let pattern = pctx.datastructure_pkg_consts_pattern();
+                let spec = pattern.datastructure_spec(pctx.pkg());
+
+                (pattern, spec)
+            })
+            .filter_map(move |(pattern, spec)| {
+                if already_defined.insert(pattern.sort_name()) {
+                    Some(declare_datatype(&pattern, &spec))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns an iterator of all the package state datatypes that need to be defined for this
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
+    /// package is used more than once.
+    pub(crate) fn smt_package_state_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut already_defined = BTreeSet::new();
+
+        Some(self)
+            .into_iter()
+            .flat_map(|ectx| {
+                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
+            })
+            .flat_map(|gctx| gctx.pkg_inst_contexts())
+            .filter_map(move |pctx| {
+                let pattern = pctx.pkg_state_pattern();
+                let spec = pattern.datastructure_spec(pctx.pkg());
+
+                if already_defined.insert(pattern.sort_name()) {
+                    Some(declare_datatype(&pattern, &spec))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns an iterator of all the package state datatypes that need to be defined for this
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
+    /// package is used more than once.
+    pub(crate) fn smt_package_return_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut already_defined = BTreeSet::new();
+
+        Some(self)
+            .into_iter()
+            .flat_map(|ectx| {
+                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
+            })
+            .flat_map(|gctx| gctx.pkg_inst_contexts())
+            .flat_map(|pctx| pctx.oracle_contexts())
+            .filter_map(move |octx| {
+                let pattern = octx.return_pattern();
+                let spec = pattern.datastructure_spec(&octx.oracle_sig().ty);
+
+                if already_defined.insert(pattern.sort_name()) {
+                    Some(declare_datatype(&pattern, &spec))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns an iterator of all the game state datatypes that need to be defined for this
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
+    /// package is used more than once.
+    pub(crate) fn smt_game_state_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut already_defined = BTreeSet::new();
+
+        Some(self)
+            .into_iter()
+            .flat_map(move |ectx| {
+                vec![
+                    (ectx.left_game_inst_ctx(), self.sample_info_left()),
+                    (ectx.right_game_inst_ctx(), self.sample_info_right()),
+                ]
+                .into_iter()
+            })
+            .filter_map(move |(gctx, sample_info)| {
+                let declare_info = GameStateDeclareInfo {
+                    game_inst: gctx.game_inst(),
+                    sample_info,
+                };
+
+                let pattern = gctx.datastructure_game_state_pattern();
+                let spec = pattern.datastructure_spec(&declare_info);
+
+                if already_defined.insert(pattern.sort_name()) {
+                    let datatype = declare_datatype(&pattern, &spec);
+                    Some(datatype)
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns an iterator cntaining the theorem const datatype.
+    pub(crate) fn smt_theorem_const_definition(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let pattern = self.datastructure_theorem_consts_pattern();
+        let spec = pattern.datastructure_spec(self.theorem());
+
+        Some(declare_datatype(&pattern, &spec)).into_iter()
+    }
+
+    /// Returns an iterator of all the game const datatypes that need to be defined for this
+    /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
+    /// package is used more than once.
+    pub(crate) fn smt_game_const_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut already_defined = BTreeSet::new();
+
+        Some(self)
+            .into_iter()
+            .flat_map(move |ectx| {
+                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
+            })
+            .filter_map(move |gctx| {
+                let pattern = gctx.datastructure_game_consts_pattern();
+                let spec = pattern.datastructure_spec(gctx.game());
+
+                if already_defined.insert(pattern.sort_name()) {
+                    Some(declare_datatype(&pattern, &spec))
+                } else {
+                    None
+                }
+            })
+    }
+
+    /// Returns an iterator over the functions that map the constant values of the theorem to that of a
+    /// game instance. Ranges over all game instances.
+    pub(crate) fn smt_theorem_game_const_mapping_definitions(
+        &'a self,
+    ) -> impl Iterator<Item = SmtExpr> + 'a {
+        Some(self)
+            .into_iter()
+            .flat_map(move |ectx| {
+                vec![
+                    ectx.left_game_inst_ctx().game_inst(),
+                    ectx.right_game_inst_ctx().game_inst(),
+                ]
+                .into_iter()
+            })
+            .flat_map(move |game_inst| {
+                define_game_const_mapping_fun(self.theorem(), game_inst.game(), game_inst.name())
+                    .map(SmtExpr::from)
+            })
+    }
+
+    /// Returns an iterator over the functions that map the constant values of a game to that of a
+    /// package instance. Ranges over all package instances in all games.
+    pub(crate) fn smt_game_pkg_const_mapping_definitions(
+        &'a self,
+    ) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut seen_game_names: HashSet<&str> = Default::default();
+
+        Some(self)
+            .into_iter()
+            .flat_map(move |ectx| {
+                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
+            })
+            .filter(move |gctx| seen_game_names.insert(gctx.game_name()))
+            .flat_map(|gctx| {
+                gctx.game().pkgs.iter().flat_map(move |pkg_inst| {
+                    define_pkg_const_mapping_fun(gctx.game(), &pkg_inst.pkg, &pkg_inst.name)
+                        .map(SmtExpr::from)
+                })
+            })
+    }
+
+    pub(crate) fn smt_oracle_function_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
+        let mut already_defined = BTreeSet::new();
+
+        Some(self)
+            .into_iter()
+            .flat_map(move |ectx| {
+                let left_gctx = ectx.left_game_inst_ctx();
+                let right_gctx = ectx.right_game_inst_ctx();
+
+                vec![
+                    (left_gctx, ectx.sample_info_left()),
+                    (right_gctx, ectx.sample_info_right()),
+                ]
+                .into_iter()
+            })
+            .flat_map(|(gctx, sample_info)| {
+                gctx.pkg_inst_contexts()
+                    .map(move |pctx| (pctx, sample_info))
+            })
+            .flat_map(|(pctx, sample_info)| {
+                pctx.oracle_contexts().map(move |octx| (octx, sample_info))
+            })
+            .filter_map(move |(octx, sample_info)| {
+                let gctx = octx.game_inst_ctx();
+                let pctx = octx.pkg_inst_ctx();
+                let pattern = octx.oracle_pattern();
+
+                let game_inst = gctx.game_inst();
+
+                let writer = CompositionSmtWriter::new(game_inst, sample_info);
+
+                if already_defined.insert(pattern.function_name()) {
+                    let fundef =
+                        writer.smt_define_nonsplit_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
+                    Some(fundef)
+                } else {
+                    None
+                }
+            })
+    }
+
+    pub fn smt_define_randctr_function(
+        &self,
+        game_inst: &GameInstance,
+        sample_info: &SampleInfo,
+    ) -> SmtExpr {
+        let gctx = GameInstanceContext::new(game_inst);
+        let game = game_inst.game();
+        let game_inst_name = game_inst.name();
+        let game_name = &game.name;
+        let params = &game_inst.consts;
+
+        let state_name = gctx
+            .oracle_arg_game_state_pattern()
+            .old_global_const_name(game_inst_name);
+
+        let pattern = patterns::GameStatePattern { game_name, params };
+        let info = patterns::GameStateDeclareInfo {
+            game_inst,
+            sample_info,
+        };
+
+        let spec = pattern.datastructure_spec(&info);
+        let (_, selectors) = &spec.0[0];
+
+        let mut body = SmtExpr::Atom("0".to_string());
+
+        for selector in selectors {
+            body = match selector {
+                patterns::GameStateSelector::Randomness { sample_pos } => SmtIte {
+                    cond: ("=", "sampleid", sample_pos.as_ref()),
+                    then: (pattern.selector_name(selector), state_name.clone()),
+                    els: body,
+                }
+                .into(),
+                _ => body,
+            };
+        }
+
+        (
+            "define-fun",
+            format!("get-rand-ctr-{game_inst_name}"),
+            (("sampleid", "SampleId"),),
+            "Int",
+            body,
+        )
+            .into()
+    }
+
+    pub fn smt_define_randeq_function(&self) -> SmtExpr {
+        let left_game_inst = self.left_game_inst_ctx().game_inst();
+        let right_game_inst = self.right_game_inst_ctx().game_inst();
+
+        let left_game_inst_name = &left_game_inst.name;
+        let right_game_inst_name = &right_game_inst.name;
+
+        /*
+         *
+         *
+         * (= (randfn_left left-id left-ctr) (randfn-right right-id right-ctr)))
+         *
+         * if ( = left-id 3) (randfn-Int id ctr) else if ( )
+         *
+         *
+         * if (or [cases left is type A and right is type A]) (= (fn left id ctr) fn right id ctr)
+         *
+         */
+
+        fn type_use_theorem_ident(ty: Type) -> Type {
+            match ty.into_kind() {
+                TypeKind::Bits(mut count_spec) => {
+                    if let CountSpec::Identifier(identifier) = &mut count_spec {
+                        let theorem_ident = identifier.as_theorem_identifier();
+                        assert!(
+                            theorem_ident.is_some(),
+                            "expected {identifier:?} to be completely resolved"
+                        );
+                        **identifier =
+                            Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
+                    }
+                    Type::bits(count_spec)
+                }
+                kind => Type::from_kind(kind),
+            }
+        }
+
+        let left_positions = &self.sample_info_left().positions;
+        let right_positions = &self.sample_info_right().positions;
+
+        let left_types: BTreeSet<Type> = BTreeSet::from_iter(
+            self.sample_info_left()
+                .tys
+                .iter()
+                .cloned()
+                .map(type_use_theorem_ident),
+        );
+        let right_types: BTreeSet<Type> = BTreeSet::from_iter(
+            self.sample_info_right()
+                .tys
+                .iter()
+                .cloned()
+                .map(type_use_theorem_ident),
+        );
+
+        let types: Vec<&Type> = left_types.intersection(&right_types).collect();
+
+        let mut left_positions_by_type: BTreeMap<_, Vec<_>> = BTreeMap::new();
+        let mut right_positions_by_type: BTreeMap<_, Vec<_>> = BTreeMap::new();
+
+        for pos in left_positions {
+            let pos_ty = pos.ty.clone();
+            let pos_theorem_ty = type_use_theorem_ident(pos_ty);
+            left_positions_by_type
+                .entry(pos_theorem_ty)
+                .or_default()
+                .push(pos);
+        }
+
+        for pos in right_positions {
+            let pos_ty = pos.ty.clone();
+            let pos_theorem_ty = type_use_theorem_ident(pos_ty);
+            right_positions_by_type
+                .entry(pos_theorem_ty)
+                .or_default()
+                .push(pos);
+        }
+
+        let mut body: SmtExpr = true.into();
+
+        for ty in types {
+            let sort: SmtExpr = ty.into();
+
+            let left_has_type = left_positions_by_type
+                .get(ty)
+                .expect("expected that left sample info has positions for type {ty:?}")
+                .iter()
+                .map(|sample_pos| ("=", *sample_pos, "sample-id-left").into());
+            let mut left_or_case: Vec<SmtExpr> = vec!["or".into()];
+            left_or_case.extend(left_has_type);
+
+            let right_has_type = right_positions_by_type
+                .get(ty)
+                .expect("expected that right sample info has positions for type {ty:?}")
+                .iter()
+                .map(|sample_pos| ("=", *sample_pos, "sample-id-right").into());
+
+            let mut right_or_case: Vec<SmtExpr> = vec!["or".into()];
+            right_or_case.extend(right_has_type);
+
+            body = SmtIte {
+                cond: SmtAnd(vec![
+                    SmtExpr::List(left_or_case),
+                    SmtExpr::List(right_or_case),
+                ]),
+                then: (
+                    "=",
+                    (
+                        format!("__sample-rand-{left_game_inst_name}-{sort}"),
+                        "sample-id-left",
+                        "sample-ctr-left",
+                    ),
+                    (
+                        format!("__sample-rand-{right_game_inst_name}-{sort}"),
+                        "sample-id-right",
+                        "sample-ctr-right",
+                    ),
+                ),
+                els: body,
+            }
+            .into()
+        }
+
+        (
+            "define-fun",
+            "rand-is-eq",
+            (
+                ("sample-id-left", "SampleId"),
+                ("sample-id-right", "SampleId"),
+                ("sample-ctr-left", Type::integer()),
+                ("sample-ctr-right", Type::integer()),
+            ),
+            "Bool",
+            body,
+        )
+            .into()
     }
 }
 

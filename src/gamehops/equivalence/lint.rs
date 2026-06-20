@@ -1,10 +1,10 @@
 use super::error::Result;
-use super::EquivalenceContext;
 use crate::transforms::samplify::Position as SamplePosition;
 use crate::util::smtparser::ExtractedFunction;
+use crate::writers::smt::contexts::EquivalenceContext;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 
-pub(super) struct Linter<'a> {
+pub(crate) struct Linter<'a> {
     context: &'a EquivalenceContext<'a>,
     oracle_name: &'a str,
     left_sample_pos: &'a Vec<SamplePosition>,
@@ -13,7 +13,7 @@ pub(super) struct Linter<'a> {
 }
 
 impl<'a> Linter<'a> {
-    pub(super) fn new(context: &'a EquivalenceContext<'a>, oracle_name: &'a str) -> Self {
+    pub(crate) fn new(context: &'a EquivalenceContext<'a>, oracle_name: &'a str) -> Self {
         let left_sample_pos = &context.sample_info_left().positions;
         let right_sample_pos = &context.sample_info_right().positions;
 
@@ -26,7 +26,7 @@ impl<'a> Linter<'a> {
         }
     }
 
-    pub(super) fn lint_file(&mut self, filename: &str, content: &str) -> Result<()> {
+    pub(crate) fn lint_file(&mut self, filename: &str, content: &str) -> Result<()> {
         let parsed_sampleids = crate::util::smtparser::extract_sampleid(content);
         self.functions
             .append(&mut crate::util::smtparser::extract_functions(content));
@@ -48,7 +48,7 @@ impl<'a> Linter<'a> {
         Ok(())
     }
 
-    pub(super) fn lint_finish(&self) -> Result<()> {
+    pub(crate) fn lint_finish(&self) -> Result<()> {
         let left_game_ctx = self.context.left_game_inst_ctx();
         let right_game_ctx = self.context.right_game_inst_ctx();
 

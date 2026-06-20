@@ -9,7 +9,7 @@ use crate::writers::smt::exprs::SmtLet;
 use crate::writers::smt::patterns;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 
-use super::error::{Error, Result};
+use crate::gamehops::equivalence::error::{Error, Result};
 use itertools::Itertools;
 
 struct SmtRewrite<'a> {
@@ -129,13 +129,13 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     ) -> Result<SmtExpr> {
         let left_game_inst = self
             .context
-            .theorem
-            .find_game_instance(&self.context.equivalence.left_name)
+            .theorem()
+            .find_game_instance(&self.context.equivalence().left_name)
             .unwrap();
         let right_game_inst = self
             .context
-            .theorem
-            .find_game_instance(&self.context.equivalence.right_name)
+            .theorem()
+            .find_game_instance(&self.context.equivalence().right_name)
             .unwrap();
 
         let [SmtExpr::List(left_arg), SmtExpr::List(right_arg)] = &args[..] else {
@@ -207,13 +207,13 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     ) -> Result<SmtExpr> {
         let left_game_inst = self
             .context
-            .theorem
-            .find_game_instance(&self.context.equivalence.left_name)
+            .theorem()
+            .find_game_instance(&self.context.equivalence().left_name)
             .unwrap();
         let right_game_inst = self
             .context
-            .theorem
-            .find_game_instance(&self.context.equivalence.right_name)
+            .theorem()
+            .find_game_instance(&self.context.equivalence().right_name)
             .unwrap();
 
         let Some(oracle_name) = funname

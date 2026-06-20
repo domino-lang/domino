@@ -16,10 +16,8 @@ use crate::{
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
-    writers::smt::exprs::SmtExpr,
+    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
-
-use super::EquivalenceContext;
 
 fn verify_oracle<UI: TheoremUI>(
     project: &impl Project,
@@ -70,7 +68,7 @@ fn verify_oracle<UI: TheoremUI>(
     for export in req_oracles {
         let mut smt = smt.clone();
 
-        let claims = eqctx.equivalence.proof_tree_by_oracle_name(export.name());
+        let claims = eqctx.equivalence().proof_tree_by_oracle_name(export.name());
         ui.lock().unwrap().start_oracle(
             &eqctx.theorem().name,
             &proofstep_name,
@@ -81,7 +79,7 @@ fn verify_oracle<UI: TheoremUI>(
         log::info!("verify: oracle:{export:?}");
         smt.append(&mut eqctx.emit_return_value_helpers(export.name()));
         smt.append(&mut eqctx.emit_auto_randomness(export.name()));
-        smt.append(&mut eqctx.emit_invariant(project, export.name())?);
+        smt.append(&mut eqctx.emit_invariant(export.name()));
 
         for claim in claims {
             ui.lock().unwrap().start_lemma(
@@ -163,11 +161,8 @@ pub fn verify<UI: TheoremUI>(
         .transform_theorem(orig_theorem)
         .unwrap();
 
-    let eqctx = EquivalenceContext {
-        equivalence: eq,
-        theorem: &theorem,
-        auxs: &auxs,
-    };
+    let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+    eqctx.load_invariants(project)?;
 
     let export_difference = eqctx.verify_exports_match();
     if !export_difference.0.is_empty() || !export_difference.1.is_empty() {
@@ -230,11 +225,8 @@ pub fn verify_parallel<UI: TheoremUI + std::marker::Send>(
         .transform_theorem(orig_theorem)
         .unwrap();
 
-    let eqctx = EquivalenceContext {
-        equivalence: eq,
-        theorem: &theorem,
-        auxs: &auxs,
-    };
+    let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+    eqctx.load_invariants(project)?;
 
     let export_difference = eqctx.verify_exports_match();
     if !export_difference.0.is_empty() || !export_difference.1.is_empty() {
