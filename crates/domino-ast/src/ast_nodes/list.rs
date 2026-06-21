@@ -50,14 +50,14 @@ impl Parsable for Semicolon {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct ListNoDelim<Node> {
     pub item_leading_trivia: Slice<Trivia>,
     pub items: Slice<Node>,
     pub trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct List<Node, Delim> {
     // Length: n
     pub item_leading_trivia: Slice<Trivia>,

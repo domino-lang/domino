@@ -1,19 +1,25 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
+        common,
         identifier::{
-            GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifierKind, Identifier,
-            OracleIdentifier, PackageConstValueIdentifierKind, PackageInstanceIdentifier,
-            PackageInstanceIdentifierKind, PackageTypeIdentifierKind,
+            GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifier,
+            GameTypeIdentifierKind, Identifier, OracleIdentifier, PackageConstValueIdentifierKind,
+            PackageInstanceIdentifier, PackageInstanceIdentifierKind, PackageTypeIdentifierKind,
         },
         instances,
         list::{Colon, Comma, List, ListNoDelim},
-        pure_expressions::PureExpression,
-        types::Type,
-        ListItem, Padded, PaddedRef, Parsable, Trivia,
+        params, ListItem, Parsable, Trivia,
     },
     Rule,
 };
+
+pub type GameTypeDeclList = common::TypeDeclList<GameTypeIdentifierKind>;
+pub type GameTypeParamBlock = params::TypeParamBlock<GameTypeIdentifierKind>;
+
+pub type GameConstDecl = common::ValueDecl<GameConstValueIdentifierKind>;
+pub type GameConstDeclList = common::ConstDeclList<GameConstValueIdentifierKind>;
+pub type GameConstParamBlock = params::ConstParamBlock<GameConstValueIdentifierKind>;
 
 pub type InstanceConstAssignmentItem = instances::InstanceConstAssignmentItem<
     PackageConstValueIdentifierKind,
@@ -24,7 +30,10 @@ impl ListItem for InstanceConstAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_const_assignment_list;
 }
 
-pub type InstanceConstAssignmentList = List<InstanceConstAssignmentItem, Comma>;
+pub type InstanceConstAssignmentList = instances::InstanceConstAssignmentList<
+    PackageConstValueIdentifierKind,
+    GameConstValueIdentifierKind,
+>;
 pub type InstanceConstBlock =
     instances::InstanceConstBlock<PackageConstValueIdentifierKind, GameConstValueIdentifierKind>;
 pub type InstanceTypeAssignmentItem =
@@ -50,7 +59,8 @@ pub type InstanceBlock = instances::InstanceBlock<PackageInstanceIdentifierKind>
 #[derive(Debug, Clone, Copy)]
 pub struct ComposeOracleAssignmentItem {
     pub oracle_name: Ref<OracleIdentifier>,
-    pub padded_colon: Padded<Colon>,
+    pub colon_trivia: Ref<Trivia>,
+    pub pkg_inst_name_trivia: Ref<Trivia>,
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
 }
 
@@ -63,7 +73,8 @@ pub type ComposeOracleAssignmentList = List<ComposeOracleAssignmentItem, Comma>;
 #[derive(Debug, Clone, Copy)]
 pub struct ComposePackageInstanceItem {
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
-    pub padded_colon: Padded<Colon>,
+    pub colon_trivia: Ref<Trivia>,
+    pub items_trivia: Ref<Trivia>,
     pub items: Ref<ComposeOracleAssignmentList>,
 }
 
@@ -81,6 +92,8 @@ pub struct ComposeBlock {
 
 #[derive(Debug, Clone, Copy)]
 pub enum GameItem {
+    TypeParams(Ref<GameTypeParamBlock>),
+    ConstParams(Ref<GameConstParamBlock>),
     Instance(Ref<InstanceBlock>),
     Compose(Ref<ComposeBlock>),
 }
@@ -93,7 +106,9 @@ pub type GameItemList = ListNoDelim<GameItem>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Game {
-    pub name: PaddedRef<GameIdentifier>,
+    pub name_trivia: Ref<Trivia>,
+    pub name: Ref<GameIdentifier>,
+    pub brace_trivia: Ref<Trivia>,
     pub items: Ref<GameItemList>,
 }
 
@@ -111,18 +126,7 @@ impl Parsable for Colon {
 
 impl Parsable for InstanceConstAssignmentItem {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::inst_const_assignment_item);
-
-        let mut inner = pair.into_inner();
-        let ident = Identifier::parse_ref(file_id, state, inner.next().unwrap());
-        let colon = Padded::parse(file_id, state, inner.next().unwrap());
-        let expr = PureExpression::<GameConstValueIdentifierKind>::parse_ref(
-            file_id,
-            state,
-            inner.next().unwrap(),
-        );
-
-        Self { ident, colon, expr }
+        super::instances::parse_instance_const_assignment_item(file_id, state, pair)
     }
 }
 
@@ -145,14 +149,7 @@ impl Parsable for InstanceConstBlock {
 
 impl Parsable for InstanceTypeAssignmentItem {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::inst_type_assignment_item);
-
-        let mut inner = pair.into_inner();
-        let ident = Identifier::parse_ref(file_id, state, inner.next().unwrap());
-        let colon = Padded::parse(file_id, state, inner.next().unwrap());
-        let ty = Type::parse_ref(file_id, state, inner.next().unwrap());
-
-        Self { ident, colon, ty }
+        instances::parse_instance_type_assignment_item(file_id, state, pair)
     }
 }
 
@@ -193,14 +190,7 @@ impl Parsable for InstanceItem {
 
 impl Parsable for InstanceBlock {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::inst_block);
-
-        let mut inner = pair.into_inner();
-        let _kw_instance = inner.next().unwrap();
-        let name = PaddedRef::parse(file_id, state, inner.next().unwrap());
-        let items = InstanceItemList::parse_ref(file_id, state, inner.next().unwrap());
-
-        Self { name, items }
+        super::instances::parse_instance_block(file_id, state, pair)
     }
 }
 
@@ -210,14 +200,17 @@ impl Parsable for ComposeOracleAssignmentItem {
 
         let mut inner = pair.into_inner();
         let oracle_name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
-        let padded_colon = Padded::<Colon>::parse(file_id, state, inner.next().unwrap());
+        let colon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let _colon = Colon::parse(file_id, state, inner.next().unwrap());
+        let pkg_inst_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let pkg_inst_name =
             PackageInstanceIdentifier::parse_ref(file_id, state, inner.next().unwrap());
 
         Self {
             oracle_name,
-            padded_colon,
             pkg_inst_name,
+            colon_trivia,
+            pkg_inst_name_trivia,
         }
     }
 }
@@ -230,14 +223,17 @@ impl Parsable for ComposePackageInstanceItem {
 
         let pkg_inst_name =
             PackageInstanceIdentifier::parse_ref(file_id, state, inner.next().unwrap());
-        let padded_colon = Padded::<Colon>::parse(file_id, state, inner.next().unwrap());
+        let colon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let _colon = Colon::parse(file_id, state, inner.next().unwrap());
+        let items_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
 
         let items = ComposeOracleAssignmentList::parse_ref(file_id, state, inner.next().unwrap());
 
         Self {
             pkg_inst_name,
-            padded_colon,
             items,
+            colon_trivia,
+            items_trivia,
         }
     }
 }
@@ -256,6 +252,46 @@ impl Parsable for ComposeBlock {
     }
 }
 
+impl Parsable for GameTypeParamBlock {
+    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::types_param_block);
+
+        let mut inner = pair.into_inner();
+
+        let _kw_pair = inner.next().unwrap();
+        let trivia_pair = inner.next().unwrap();
+        let decls_pair = inner.next().unwrap();
+
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
+        let decls = List::<GameTypeIdentifier, Comma>::parse_ref(file_id, state, decls_pair);
+
+        Self { trivia, decls }
+    }
+}
+
+impl Parsable for GameConstDecl {
+    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+        common::parse_value_decl(file_id, state, pair)
+    }
+}
+
+impl Parsable for GameConstParamBlock {
+    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Rule::consts_param_block);
+
+        let mut inner = pair.into_inner();
+
+        let _kw_pair = inner.next().unwrap();
+        let trivia_pair = inner.next().unwrap();
+        let decls_pair = inner.next().unwrap();
+
+        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
+        let decls = GameConstDeclList::parse_ref(file_id, state, decls_pair);
+
+        Self { trivia, decls }
+    }
+}
+
 impl Parsable for GameItem {
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::game_item);
@@ -265,8 +301,12 @@ impl Parsable for GameItem {
         match inner.as_rule() {
             Rule::compose_block => Self::Compose(ComposeBlock::parse_ref(file_id, state, inner)),
             Rule::inst_block => Self::Instance(InstanceBlock::parse_ref(file_id, state, inner)),
-            Rule::types_param_block => todo!(),
-            Rule::consts_param_block => todo!(),
+            Rule::types_param_block => {
+                Self::TypeParams(GameTypeParamBlock::parse_ref(file_id, state, inner))
+            }
+            Rule::consts_param_block => {
+                Self::ConstParams(GameConstParamBlock::parse_ref(file_id, state, inner))
+            }
             _other => unreachable!(),
         }
     }
@@ -279,10 +319,17 @@ impl Parsable for Game {
         let mut inner = pair.into_inner();
 
         let _kw_game = inner.next().unwrap();
-        let name = PaddedRef::parse(file_id, state, inner.next().unwrap());
+        let name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+        let brace_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let items = GameItemList::parse_ref(file_id, state, inner.next().unwrap());
 
-        Self { name, items }
+        Self {
+            name,
+            items,
+            name_trivia,
+            brace_trivia,
+        }
     }
 }
 

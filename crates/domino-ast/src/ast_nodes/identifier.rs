@@ -1,9 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{
-    ast_nodes::{ListItem, Parsable},
-    Rule,
-};
+use crate::{ast_nodes::Parsable, Rule};
 
 pub trait IdentifierKind {}
 pub trait ValueIdentifierKind: IdentifierKind {
@@ -59,7 +56,7 @@ impl<T: IdentifierKind> Default for Identifier<T> {
 
 macro_rules! define_value_ident_kind {
     ($kind_name:ident, $ident_name:ident, $ty_ty:ty $(,)?) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
         impl ValueIdentifierKind for $kind_name {
@@ -84,7 +81,7 @@ macro_rules! define_value_ident_kind {
 
 macro_rules! define_type_ident_kind {
     ($kind_name:ident, $ident_name:ident, $arg_kind:ty, $value_kind:ty $(,)?) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
         impl TypeIdentifierKind for $kind_name {
@@ -105,12 +102,16 @@ macro_rules! define_type_ident_kind {
         }
 
         impl crate::ast_nodes::Indexable for $ident_name {}
+
+        impl crate::ast_nodes::ListItem for $ident_name {
+            const LIST_RULE: Rule = Rule::ident_list;
+        }
     };
 }
 
 macro_rules! define_type_arg_ident_kind {
     ($kind_name:ident, $ident_name:ident, $type_kind:ty, $value_kind:ty $(,)?) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
         impl TypeArgIdentifierKind for $kind_name {
@@ -136,7 +137,7 @@ macro_rules! define_type_arg_ident_kind {
 
 macro_rules! define_instance_ident_kind {
     ($kind_name:ident, $ident_name:ident, $lhs_ty_ty:ty = $rhs_ty_ty:ty, $lhs_val_ty:ty = $rhs_val_ty:ty $(,)?) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
 
@@ -173,7 +174,7 @@ macro_rules! define_instance_ident_kind {
 
 macro_rules! define_ident_kind {
     ($kind_name:ident, $ident_name:ident $(,)?) => {
-        #[derive(Debug)]
+        #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
 
@@ -200,16 +201,19 @@ define_type_ident_kind!(
     PackageConstValueIdentifierKind
 );
 
-impl ListItem for PackageTypeIdentifier {
-    const LIST_RULE: crate::Rule = Rule::ident_list;
-}
-
 define_type_ident_kind!(
     GameTypeIdentifierKind,
     GameTypeIdentifier,
     GameTypeArgumentIdentifierKind,
     GameConstValueIdentifierKind
 );
+define_type_ident_kind!(
+    TheoremTypeIdentifierKind,
+    TheoremTypeIdentifier,
+    TheoremTypeArgumentIdentifierKind,
+    TheoremConstValueIdentifierKind
+);
+
 define_type_arg_ident_kind!(
     PackageTypeArgumentIdentifierKind,
     PackageTypeArgumentIdentifier,
@@ -221,6 +225,12 @@ define_type_arg_ident_kind!(
     GameTypeArgumentIdentifier,
     GameTypeIdentifierKind,
     GameConstValueIdentifierKind
+);
+define_type_arg_ident_kind!(
+    TheoremTypeArgumentIdentifierKind,
+    TheoremTypeArgumentIdentifier,
+    TheoremTypeIdentifierKind,
+    TheoremConstValueIdentifierKind
 );
 
 define_value_ident_kind!(
@@ -238,6 +248,11 @@ define_value_ident_kind!(
     GameConstValueIdentifier,
     GameTypeIdentifierKind,
 );
+define_value_ident_kind!(
+    TheoremConstValueIdentifierKind,
+    TheoremConstValueIdentifier,
+    TheoremTypeIdentifierKind,
+);
 
 define_instance_ident_kind!(
     PackageInstanceIdentifierKind,
@@ -245,9 +260,17 @@ define_instance_ident_kind!(
     PackageTypeIdentifierKind = GameTypeIdentifierKind,
     PackageConstValueIdentifierKind = GameConstValueIdentifierKind,
 );
-define_ident_kind!(GameInstanceIdentifierKind, GameInstanceIdentifier);
+define_instance_ident_kind!(
+    GameInstanceIdentifierKind,
+    GameInstanceIdentifier,
+    GameTypeIdentifierKind = TheoremTypeIdentifierKind,
+    GameConstValueIdentifierKind = TheoremConstValueIdentifierKind,
+);
 
 define_ident_kind!(OracleIdentifierKind, OracleIdentifier);
 define_ident_kind!(PackageIdentifierKind, PackageIdentifier);
 
 define_ident_kind!(GameIdentifierKind, GameIdentifier);
+define_ident_kind!(AssumptionIdentifierKind, AssumptionIdentifier);
+define_ident_kind!(LemmaIdentifierKind, LemmaIdentifier);
+define_ident_kind!(TheoremIdentifierKind, TheoremIdentifier);

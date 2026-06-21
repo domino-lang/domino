@@ -16,10 +16,10 @@
 // shown at the type use place instead of at the type alias definition.
 #![allow(type_alias_bounds)]
 
-mod arena;
+pub mod arena;
 pub mod ast_nodes;
 mod side_tables;
-mod source;
+pub mod source;
 mod state;
 
 // NOTE:
