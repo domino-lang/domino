@@ -89,6 +89,8 @@ pub type PatternList = List<Pattern, Comma>;
 pub type StatementList = List<Statement, Semicolon>;
 
 impl Parsable for Pattern {
+    const RULE: Rule = Rule::pattern;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::pattern);
         let pair = pair.into_inner().next().unwrap();
@@ -104,6 +106,8 @@ impl Parsable for Pattern {
 }
 
 impl Parsable for TablePattern {
+    const RULE: Rule = Rule::table_pat;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::table_pat);
 
@@ -125,6 +129,8 @@ impl Parsable for TablePattern {
 }
 
 impl Parsable for TuplePattern {
+    const RULE: Rule = Rule::tuple_pat;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_pat);
 
@@ -137,6 +143,8 @@ impl Parsable for TuplePattern {
 }
 
 impl Parsable for Statement {
+    const RULE: Rule = Rule::statement;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::statement);
 
@@ -156,6 +164,8 @@ impl Parsable for Statement {
 }
 
 impl Parsable for AssignStatement {
+    const RULE: Rule = Rule::assignment;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::assignment);
 
@@ -175,6 +185,8 @@ impl Parsable for AssignStatement {
 }
 
 impl Parsable for ExpressionStatement {
+    const RULE: Rule = Rule::expr;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::expr);
 
@@ -185,6 +197,8 @@ impl Parsable for ExpressionStatement {
 }
 
 impl Parsable for ReturnStatement {
+    const RULE: Rule = Rule::r#return;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::r#return);
 
@@ -201,6 +215,8 @@ impl Parsable for ReturnStatement {
 }
 
 impl Parsable for IfThenElseStatement {
+    const RULE: Rule = Rule::ifthenelse;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::ifthenelse);
 

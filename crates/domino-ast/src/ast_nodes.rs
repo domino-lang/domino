@@ -45,6 +45,8 @@ pub trait Indexable: Sized {
 }
 
 pub trait Parsable: NodeType + InArena + Indexable {
+    const RULE: Rule;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self;
 
     fn parse_ref(file_id: FileId, state: &mut State, pair: crate::Pair) -> Ref<Self> {
@@ -179,6 +181,8 @@ pub struct Trivia {
 }
 
 impl Parsable for Trivium {
+    const RULE: Rule = Rule::trivium;
+
     fn parse(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::trivium);
 
@@ -192,6 +196,8 @@ impl Parsable for Trivium {
 }
 
 impl Parsable for Trivia {
+    const RULE: Rule = Rule::gap;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::gap);
 

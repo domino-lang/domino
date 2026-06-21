@@ -113,6 +113,8 @@ pub struct Game {
 }
 
 impl Parsable for Colon {
+    const RULE: Rule = Rule::colon;
+
     fn parse(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
@@ -125,12 +127,16 @@ impl Parsable for Colon {
 }
 
 impl Parsable for InstanceConstAssignmentItem {
+    const RULE: Rule = Rule::inst_const_assignment_item;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         super::instances::parse_instance_const_assignment_item(file_id, state, pair)
     }
 }
 
 impl Parsable for InstanceConstBlock {
+    const RULE: Rule = Rule::inst_const_block;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::inst_const_block);
 
@@ -148,12 +154,16 @@ impl Parsable for InstanceConstBlock {
 }
 
 impl Parsable for InstanceTypeAssignmentItem {
+    const RULE: Rule = Rule::inst_type_assignment_item;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         instances::parse_instance_type_assignment_item(file_id, state, pair)
     }
 }
 
 impl Parsable for InstanceTypeBlock {
+    const RULE: Rule = Rule::inst_type_block;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::inst_type_block);
 
@@ -171,6 +181,8 @@ impl Parsable for InstanceTypeBlock {
 }
 
 impl Parsable for InstanceItem {
+    const RULE: Rule = Rule::inst_item;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::inst_item);
 
@@ -189,12 +201,16 @@ impl Parsable for InstanceItem {
 }
 
 impl Parsable for InstanceBlock {
+    const RULE: Rule = Rule::inst_block;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         super::instances::parse_instance_block(file_id, state, pair)
     }
 }
 
 impl Parsable for ComposeOracleAssignmentItem {
+    const RULE: Rule = Rule::cmps_oracle_assignment_item;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::cmps_oracle_assignment_item);
 
@@ -216,6 +232,8 @@ impl Parsable for ComposeOracleAssignmentItem {
 }
 
 impl Parsable for ComposePackageInstanceItem {
+    const RULE: Rule = Rule::cmps_pkg_assign_item;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::cmps_pkg_assign_item);
 
@@ -239,6 +257,8 @@ impl Parsable for ComposePackageInstanceItem {
 }
 
 impl Parsable for ComposeBlock {
+    const RULE: Rule = Rule::compose_block;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::compose_block);
 
@@ -253,6 +273,8 @@ impl Parsable for ComposeBlock {
 }
 
 impl Parsable for GameTypeParamBlock {
+    const RULE: Rule = Rule::types_param_block;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::types_param_block);
 
@@ -270,12 +292,16 @@ impl Parsable for GameTypeParamBlock {
 }
 
 impl Parsable for GameConstDecl {
+    const RULE: Rule = Rule::expr_ident_decl;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         common::parse_value_decl(file_id, state, pair)
     }
 }
 
 impl Parsable for GameConstParamBlock {
+    const RULE: Rule = Rule::consts_param_block;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::consts_param_block);
 
@@ -293,6 +319,8 @@ impl Parsable for GameConstParamBlock {
 }
 
 impl Parsable for GameItem {
+    const RULE: Rule = Rule::game_item;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::game_item);
 
@@ -313,6 +341,8 @@ impl Parsable for GameItem {
 }
 
 impl Parsable for Game {
+    const RULE: Rule = Rule::game;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::game);
 

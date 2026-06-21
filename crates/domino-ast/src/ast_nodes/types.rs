@@ -83,36 +83,48 @@ where
 }
 
 impl Parsable for Type<PackageTypeIdentifierKind> {
+    const RULE: Rule = Rule::ty;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type::<PackageTypeIdentifierKind>(file_id, state, pair)
     }
 }
 
 impl Parsable for Type<GameTypeIdentifierKind> {
+    const RULE: Rule = Rule::ty;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type::<GameTypeIdentifierKind>(file_id, state, pair)
     }
 }
 
 impl Parsable for Type<TheoremTypeIdentifierKind> {
+    const RULE: Rule = Rule::ty;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type::<TheoremTypeIdentifierKind>(file_id, state, pair)
     }
 }
 
 impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
+    const RULE: Rule = Rule::appl_ty_arg;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }
 }
 
 impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
+    const RULE: Rule = Rule::appl_ty_arg;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }
 }
 
 impl Parsable for TypeArgument<TheoremTypeArgumentIdentifierKind> {
+    const RULE: Rule = Rule::appl_ty_arg;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }
@@ -155,6 +167,8 @@ where
     TypeArgList<IK>: Parsable,
     Identifier<IK::ArgTypeIdentifierKind>: Parsable,
 {
+    const RULE: Rule = Rule::appl_ty;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::appl_ty);
 
@@ -176,6 +190,8 @@ where
     Self: Indexable + InArena + NodeType,
     TypeList<IK>: Parsable,
 {
+    const RULE: Rule = Rule::tuple_ty;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_ty);
         let pair = pair.into_inner().next().unwrap();
