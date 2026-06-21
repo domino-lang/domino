@@ -14,8 +14,10 @@ use crate::{
     },
     statement::Statement,
     theorem::{Claim, ClaimType},
+    transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     types::{CountSpec, Type, TypeKind},
     util::smtsolver::process::{ProcessSmtSolverBackend, SolverVariant},
+    writers::smt::contexts::EquivalenceContext,
 };
 use std::{
     collections::HashMap,
@@ -209,16 +211,19 @@ fn equivalence_gamehome_generates_code() {
     let backend = ProcessSmtSolverBackend::new(SolverVariant::Cvc5);
     let transcript = SharedVecWriter::default();
     let project = crate::project::DirectoryProject::empty();
-    equivalence::verify(
-        &project,
-        &mut MockTestTheoremUI::new(),
-        eq,
-        &theorem,
-        &backend,
-        false,
-        &None,
-    )
-    .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"))
+
+    let (theorem, auxs) = EquivalenceTransform.transform_theorem(&theorem).unwrap();
+
+    let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+    eqctx
+        .load_invariants(&project)
+        .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
+
+    let mut driver =
+        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &backend, false, None, 1);
+    driver
+        .verify(&mut MockTestTheoremUI::new())
+        .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
 }
 
 #[test]

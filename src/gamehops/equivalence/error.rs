@@ -4,7 +4,6 @@ use crate::{
     gamehops::equivalence::Equivalence,
     util::smtsolver::{Result as SmtSolverResponseResult, SmtSolverResponse},
 };
-use itertools::Itertools;
 use std::path::PathBuf;
 
 #[derive(Debug)]
@@ -38,7 +37,7 @@ pub enum Error {
     ParallelEquivalenceError {
         left_game_inst_name: String,
         right_game_inst_name: String,
-        failed_oracles: Vec<(String, Error)>,
+        failed_oracles: Vec<Error>,
     },
     IllegalLemmaName {
         lemma_name: String,
@@ -86,14 +85,11 @@ impl std::fmt::Display for Error {
             }
             Error::ProverProcessError(err) => write!(f, "error communicating with prover: {err}"),
             Error::ParallelEquivalenceError{left_game_inst_name, right_game_inst_name, failed_oracles} => {
-                let failed_oracles = failed_oracles.iter().map(|(name, err)| {
-                    if let Error::ClaimTheoremFailed {claim_name, ..} = err {
-                        format!("{name}(claim: {claim_name})")
-                    } else {
-                        name.to_string()
-                    }
-                }).join(", ");
-                write!(f, "oracles {failed_oracles} failed when showing equivalence {left_game_inst_name} == {right_game_inst_name}")
+                write!(f, "Failed invariant {left_game_inst_name}, {right_game_inst_name}")?;
+                for oracle in failed_oracles {
+                    write!(f, "{oracle}")?;
+                }
+                Ok(())
             },
             Error::InvariantFileReadError {
                 oracle_name,
