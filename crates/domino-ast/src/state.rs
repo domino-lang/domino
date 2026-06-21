@@ -2,7 +2,7 @@ use crate::ast_nodes::{
     game,
     identifier::{self, PackageTypeIdentifierKind},
     list, oracle_expressions, oracles, package, pure_expressions, statements, theorem, types,
-    NodeTypeEnum, PaddedRef, Trivia, Trivium,
+    NodeTypeEnum, Trivia, Trivium,
 };
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -54,13 +54,6 @@ define_arenas! {
     lemma_ident: identifier::LemmaIdentifier,
     theorem_ident: identifier::TheoremIdentifier,
 
-    padded_oracle_const_value_idents: PaddedRef<identifier::PackageConstValueIdentifier>,
-    padded_game_const_value_idents: PaddedRef<identifier::GameConstValueIdentifier>,
-    padded_theorem_const_value_idents: PaddedRef<identifier::TheoremConstValueIdentifier>,
-    padded_package_idents: PaddedRef<identifier::PackageIdentifier>,
-    padded_game_idents: PaddedRef<identifier::GameIdentifier>,
-    padded_package_instance_ident: PaddedRef<identifier::PackageInstanceIdentifier>,
-    padded_game_instance_ident: PaddedRef<identifier::GameInstanceIdentifier>,
 
     oracle_expression_arglist: oracle_expressions::ExprList,
     statement_lists: statements::StatementList,
@@ -69,32 +62,25 @@ define_arenas! {
     pure_const_package_expression_lists: pure_expressions::PureConstPackageExpressionList,
     pure_const_game_expression_lists: pure_expressions::PureConstGameExpressionList,
     pure_const_theorem_expression_lists: pure_expressions::PureConstTheoremExpressionList,
-    padded_pure_const_package_expression_lists: PaddedRef<pure_expressions::PureConstPackageExpressionList>,
 
     pkg_types: types::Type<identifier::PackageTypeIdentifierKind>,
-    pkg_padded_types: PaddedRef<types::Type<identifier::PackageTypeIdentifierKind>>,
     pkg_argd_types: types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>,
     pkg_tuple_types: types::TupleType<identifier::PackageTypeIdentifierKind>,
     pkg_type_arg: types::TypeArgument<identifier::PackageTypeArgumentIdentifierKind>,
-    pkg_padded_type_arg: PaddedRef<types::TypeArgument<identifier::PackageTypeArgumentIdentifierKind>>,
     pkg_type_arg_lists: types::TypeArgList<identifier::PackageTypeArgumentIdentifierKind>,
     pkg_type_lists: types::TypeList<identifier::PackageTypeIdentifierKind>,
 
     game_types: types::Type<identifier::GameTypeIdentifierKind>,
-    game_padded_types: PaddedRef<types::Type<identifier::GameTypeIdentifierKind>>,
     game_argd_types: types::ArgumentedType<identifier::GameTypeArgumentIdentifierKind>,
     game_tuple_types: types::TupleType<identifier::GameTypeIdentifierKind>,
     game_type_arg: types::TypeArgument<identifier::GameTypeArgumentIdentifierKind>,
-    game_padded_type_arg: PaddedRef<types::TypeArgument<identifier::GameTypeArgumentIdentifierKind>>,
     game_type_arg_lists: types::TypeArgList<identifier::GameTypeArgumentIdentifierKind>,
     game_type_lists: types::TypeList<identifier::GameTypeIdentifierKind>,
 
     theorem_types: types::Type<identifier::TheoremTypeIdentifierKind>,
-    theorem_padded_types: PaddedRef<types::Type<identifier::TheoremTypeIdentifierKind>>,
     theorem_argd_types: types::ArgumentedType<identifier::TheoremTypeArgumentIdentifierKind>,
     theorem_tuple_types: types::TupleType<identifier::TheoremTypeIdentifierKind>,
     theorem_type_arg: types::TypeArgument<identifier::TheoremTypeArgumentIdentifierKind>,
-    theorem_padded_type_arg: PaddedRef<types::TypeArgument<identifier::TheoremTypeArgumentIdentifierKind>>,
     theorem_type_arg_lists: types::TypeArgList<identifier::TheoremTypeArgumentIdentifierKind>,
     theorem_type_lists: types::TypeList<identifier::TheoremTypeIdentifierKind>,
 
@@ -108,7 +94,6 @@ define_arenas! {
     pure_expressions_package_unop: pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
     pure_expressions_package_call: pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
     pure_expressions_package_paren: pure_expressions::ParenExpression<identifier::PackageConstValueIdentifierKind>,
-    padded_pure_expressions_package: PaddedRef<pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>>,
 
     pure_expressions_game: pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
     pure_expressions_game_table_index: pure_expressions::TableIndexExpression<identifier::GameConstValueIdentifierKind>,
@@ -117,7 +102,6 @@ define_arenas! {
     pure_expressions_game_unop: pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
     pure_expressions_game_call: pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
     pure_expressions_game_paren: pure_expressions::ParenExpression<identifier::GameConstValueIdentifierKind>,
-    padded_pure_expressions_game: PaddedRef<pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>>,
 
     pure_expressions_theorem: pure_expressions::PureExpression<identifier::TheoremConstValueIdentifierKind>,
     pure_expressions_theorem_table_index: pure_expressions::TableIndexExpression<identifier::TheoremConstValueIdentifierKind>,
@@ -126,7 +110,6 @@ define_arenas! {
     pure_expressions_theorem_unop: pure_expressions::UnOpExpression<identifier::TheoremConstValueIdentifierKind>,
     pure_expressions_theorem_call: pure_expressions::CallExpression<identifier::TheoremConstValueIdentifierKind>,
     pure_expressions_theorem_paren: pure_expressions::ParenExpression<identifier::TheoremConstValueIdentifierKind>,
-    padded_pure_expressions_theorem: PaddedRef<pure_expressions::PureExpression<identifier::TheoremConstValueIdentifierKind>>,
 
     // expressions in oracles that can have side-effects
     oracle_expressions: oracle_expressions::OracleExpression,
@@ -138,25 +121,20 @@ define_arenas! {
     paren_expressions: oracle_expressions::ParenExpression,
     tuple_expressions: oracle_expressions::TupleExpression,
     call_expressions: oracle_expressions::CallExpression,
-    padded_oracle_expressions: PaddedRef<oracle_expressions::OracleExpression>,
 
     statements: statements::Statement,
     assign_statements: statements::AssignStatement,
     return_statements: statements::ReturnStatement,
     expression_statements: statements::ExpressionStatement,
     ifthenelse_statements: statements::IfThenElseStatement,
-    padded_statements: PaddedRef<statements::Statement>,
 
     patterns: statements::Pattern,
     tuple_patterns: statements::TuplePattern,
     table_patterns: statements::TablePattern,
-    padded_patterns: PaddedRef<statements::Pattern>,
 
     oracle_definitions: oracles::OracleDefinition,
     oracle_signatures: oracles::OracleSignature,
     arg_decls: oracles::OracleValueArgDecl,
-    padded_arg_decls: PaddedRef<oracles::OracleValueArgDecl>,
-    padded_oracle_sigs: PaddedRef<oracles::OracleSignature>,
 
     oracle_decl_lists: package::OracleDeclList,
     import_oracles_block: package::ImportOraclesBlock,
@@ -169,31 +147,25 @@ define_arenas! {
     package_type_param_list: package::PackageTypeDeclList,
     type_block: package::PackageTypeParamBlock,
     package_items: package::PackageItem,
-    padded_package_items: PaddedRef<package::PackageItem>,
     package_item_lists: package::PackageItemList,
     packages: package::Package,
 
     package_instance_const_assign_items: game::InstanceConstAssignmentItem,
-    padded_package_instance_const_assign_items: PaddedRef<game::InstanceConstAssignmentItem>,
     package_instance_const_assign_lists: game::InstanceConstAssignmentList,
     package_instance_const_blocks: game::InstanceConstBlock,
 
     package_instance_type_assign_items: game::InstanceTypeAssignmentItem,
-    padded_package_instance_type_assign_items: PaddedRef<game::InstanceTypeAssignmentItem>,
     package_instance_type_assign_lists: game::InstanceTypeAssignmentList,
     package_instance_type_blocks: game::InstanceTypeBlock,
 
     package_instance_item: game::InstanceItem,
-    padded_package_instance_item: PaddedRef<game::InstanceItem>,
     package_instance_item_list: game::InstanceItemList,
     package_instance_blocks: game::InstanceBlock,
 
     compose_oracle_assignment_item: game::ComposeOracleAssignmentItem,
-    padded_compose_oracle_assignment_item: PaddedRef<game::ComposeOracleAssignmentItem>,
     compose_oracle_assignment_list: game::ComposeOracleAssignmentList,
 
     compose_package_instance_item: game::ComposePackageInstanceItem,
-    padded_compose_package_instance_item: PaddedRef<game::ComposePackageInstanceItem>,
     compose_package_instance_list: game::ComposePackageInstanceList,
     compose_blocks: game::ComposeBlock,
 
@@ -205,7 +177,6 @@ define_arenas! {
     game_type_param_blocks: game::GameTypeParamBlock,
 
     game_items: game::GameItem,
-    padded_game_items: PaddedRef<game::GameItem>,
     game_item_lists: game::GameItemList,
     games: game::Game,
 
