@@ -105,7 +105,7 @@ fn parse_leftassoc(
     let first = pairs.next().unwrap();
 
     let mut lhs_loc = SourceLocation::from_file_and_pair(file_id, &first);
-    let mut lhs_raw = OracleExpression::parse(file_id, state, first);
+    let mut lhs_raw = parse_expression(file_id, state, first);
 
     if pairs.peek().is_none() {
         return lhs_raw;
@@ -186,6 +186,8 @@ fn parse_unary(
 }
 
 impl Parsable for OracleInvocationExpression {
+    const RULE: Rule = Rule::invoke;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::invoke);
 
@@ -204,6 +206,8 @@ impl Parsable for OracleInvocationExpression {
 }
 
 impl Parsable for TableIndexExpression {
+    const RULE: Rule = Rule::table_expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::table_expr);
 
@@ -229,6 +233,8 @@ where
     Self: Indexable + InArena + NodeType,
     Type<IK>: Parsable,
 {
+    const RULE: Rule = Rule::sample;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::sample);
 
@@ -239,6 +245,8 @@ where
 }
 
 impl Parsable for ParenExpression {
+    const RULE: Rule = Rule::paren_expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
 
@@ -253,6 +261,8 @@ impl Parsable for ParenExpression {
 }
 
 impl Parsable for TupleExpression {
+    const RULE: Rule = Rule::tuple_expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);
 
@@ -301,38 +311,48 @@ fn parse_call(
     fun
 }
 
-impl Parsable for OracleExpression {
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        match pair.as_rule() {
-            Rule::atom => Self::parse(file_id, state, pair.into_inner().next().unwrap()),
+fn parse_expression(
+    file_id: crate::source::FileId,
+    state: &mut crate::State,
+    pair: crate::Pair,
+) -> OracleExpression {
+    match pair.as_rule() {
+        Rule::atom => parse_expression(file_id, state, pair.into_inner().next().unwrap()),
 
-            Rule::expr | Rule::l_and | Rule::compn | Rule::addtn | Rule::multn => {
-                parse_leftassoc(file_id, state, pair)
-            }
-
-            Rule::unary => parse_unary(file_id, state, pair),
-            Rule::call => parse_call(file_id, state, pair),
-
-            Rule::invoke => OracleExpression::Invoke(OracleInvocationExpression::parse_ref(
-                file_id, state, pair,
-            )),
-            Rule::table_expr => {
-                OracleExpression::TableIndex(TableIndexExpression::parse_ref(file_id, state, pair))
-            }
-            Rule::sample => OracleExpression::Sample(
-                SampleExpression::<PackageTypeIdentifierKind>::parse_ref(file_id, state, pair),
-            ),
-            Rule::paren_expr => {
-                OracleExpression::Paren(ParenExpression::parse_ref(file_id, state, pair))
-            }
-            Rule::tuple_expr => {
-                OracleExpression::Tuple(TupleExpression::parse_ref(file_id, state, pair))
-            }
-
-            Rule::string_literal => OracleExpression::String,
-            Rule::int_literal => OracleExpression::Int,
-
-            _ => todo!(),
+        Rule::expr | Rule::l_and | Rule::compn | Rule::addtn | Rule::multn => {
+            parse_leftassoc(file_id, state, pair)
         }
+
+        Rule::unary => parse_unary(file_id, state, pair),
+        Rule::call => parse_call(file_id, state, pair),
+
+        Rule::invoke => {
+            OracleExpression::Invoke(OracleInvocationExpression::parse_ref(file_id, state, pair))
+        }
+        Rule::table_expr => {
+            OracleExpression::TableIndex(TableIndexExpression::parse_ref(file_id, state, pair))
+        }
+        Rule::sample => OracleExpression::Sample(
+            SampleExpression::<PackageTypeIdentifierKind>::parse_ref(file_id, state, pair),
+        ),
+        Rule::paren_expr => {
+            OracleExpression::Paren(ParenExpression::parse_ref(file_id, state, pair))
+        }
+        Rule::tuple_expr => {
+            OracleExpression::Tuple(TupleExpression::parse_ref(file_id, state, pair))
+        }
+
+        Rule::string_literal => OracleExpression::String,
+        Rule::int_literal => OracleExpression::Int,
+
+        _ => todo!(),
+    }
+}
+
+impl Parsable for OracleExpression {
+    const RULE: Rule = Rule::expr;
+
+    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+        parse_expression(file_id, state, pair)
     }
 }

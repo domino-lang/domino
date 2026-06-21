@@ -27,6 +27,8 @@ impl Delimiter for Comma {}
 impl Delimiter for Semicolon {}
 
 impl Parsable for Comma {
+    const RULE: Rule = Rule::comma;
+
     fn parse(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
@@ -39,6 +41,8 @@ impl Parsable for Comma {
 }
 
 impl Parsable for Semicolon {
+    const RULE: Rule = Rule::semicolon;
+
     fn parse(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
@@ -76,6 +80,8 @@ where
     Delim: Delimiter + Default,
     Self: InArena + Indexable + NodeType,
 {
+    const RULE: Rule = Node::LIST_RULE;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Node::LIST_RULE);
 
@@ -214,6 +220,8 @@ where
     Node: Parsable + ListItem,
     Self: InArena + Indexable + NodeType,
 {
+    const RULE: Rule = Node::LIST_RULE;
+
     fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Node::LIST_RULE);
 

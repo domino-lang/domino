@@ -328,18 +328,24 @@ where
 }
 
 impl Parsable for PureExpression<PackageConstValueIdentifierKind> {
+    const RULE: Rule = Rule::expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression(file_id, state, pair)
     }
 }
 
 impl Parsable for PureExpression<GameConstValueIdentifierKind> {
+    const RULE: Rule = Rule::expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression::<GameConstValueIdentifierKind>(file_id, state, pair)
     }
 }
 
 impl Parsable for PureExpression<TheoremConstValueIdentifierKind> {
+    const RULE: Rule = Rule::expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression::<TheoremConstValueIdentifierKind>(file_id, state, pair)
     }
@@ -351,6 +357,8 @@ where
     PureExpression<IK>: Parsable,
     Self: Indexable + InArena + NodeType,
 {
+    const RULE: Rule = Rule::table_expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::table_expr);
 
@@ -376,6 +384,8 @@ where
     PureExpression<IK>: Parsable,
     Self: Indexable + InArena + NodeType,
 {
+    const RULE: Rule = Rule::paren_expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
 
@@ -395,6 +405,8 @@ where
     Self: Indexable + InArena + NodeType,
     List<PureExpression<IK>, Comma>: Parsable,
 {
+    const RULE: Rule = Rule::table_expr;
+
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);
 

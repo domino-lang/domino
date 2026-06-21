@@ -66,6 +66,8 @@ macro_rules! define_value_ident_kind {
         pub type $ident_name = Identifier<$kind_name>;
 
         impl Parsable for $ident_name {
+            const RULE: Rule = Rule::identifier;
+
             fn parse(
                 _file_id: crate::source::FileId,
                 _state: &mut crate::State,
@@ -92,6 +94,8 @@ macro_rules! define_type_ident_kind {
         pub type $ident_name = Identifier<$kind_name>;
 
         impl Parsable for $ident_name {
+            const RULE: Rule = Rule::identifier;
+
             fn parse(
                 _file_id: crate::source::FileId,
                 _state: &mut crate::State,
@@ -122,6 +126,8 @@ macro_rules! define_type_arg_ident_kind {
         pub type $ident_name = Identifier<$kind_name>;
 
         impl Parsable for $ident_name {
+            const RULE: Rule = Rule::identifier;
+
             fn parse(
                 _file_id: crate::source::FileId,
                 _state: &mut crate::State,
@@ -159,6 +165,8 @@ macro_rules! define_instance_ident_kind {
         }
 
         impl Parsable for $ident_name {
+            const RULE: Rule = Rule::identifier;
+
             fn parse(
                 _file_id: crate::source::FileId,
                 _state: &mut crate::State,
@@ -181,6 +189,8 @@ macro_rules! define_ident_kind {
         pub type $ident_name = Identifier<$kind_name>;
 
         impl Parsable for $ident_name {
+            const RULE: Rule = Rule::identifier;
+
             fn parse(
                 _file_id: crate::source::FileId,
                 _state: &mut crate::State,
