@@ -8,7 +8,7 @@ use crate::{
         list::{Comma, List},
         pure_expressions::{binop_from_pair, BinOp, UnOp},
         types::Type,
-        InArena, Indexable, ListItem, NodeType, PaddedRef, Parsable, Trivia,
+        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -67,10 +67,10 @@ pub type ExprList = List<OracleExpression, Comma>;
 #[derive(Debug, Clone, Copy)]
 pub struct TableIndexExpression {
     pub table_name: Ref<OracleValueIdentifier>,
-
     pub table_name_trivia: Ref<Trivia>,
-
-    pub index: PaddedRef<OracleExpression>,
+    pub index_trivia: Ref<Trivia>,
+    pub index: Ref<OracleExpression>,
+    pub index_trailing_trivia: Ref<Trivia>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -80,7 +80,11 @@ pub struct SampleExpression<IK: TypeIdentifierKind> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ParenExpression(pub PaddedRef<OracleExpression>);
+pub struct ParenExpression {
+    pub expr_trivia: Ref<Trivia>,
+    pub expr: Ref<OracleExpression>,
+    pub trailing_trivia: Ref<Trivia>,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct CallExpression {
@@ -204,19 +208,18 @@ impl Parsable for TableIndexExpression {
         debug_assert_eq!(pair.as_rule(), Rule::table_expr);
 
         let mut inner = pair.into_inner();
-
-        let ident_pair = inner.next().unwrap();
-        let trivia_pair = inner.next().unwrap();
-        let index_pair = inner.next().unwrap();
-
-        let ident = Identifier::parse_ref(file_id, state, ident_pair);
-        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let index = PaddedRef::parse(file_id, state, index_pair);
+        let table_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+        let table_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let index_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let index = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let index_trailing_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
 
         TableIndexExpression {
-            table_name: ident,
-            table_name_trivia: trivia,
+            table_name,
+            table_name_trivia,
+            index_trivia,
             index,
+            index_trailing_trivia,
         }
     }
 }
@@ -239,11 +242,13 @@ impl Parsable for ParenExpression {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
 
-        ParenExpression(PaddedRef::parse(
-            file_id,
-            state,
-            pair.into_inner().next().unwrap(),
-        ))
+        let mut inner = pair.into_inner();
+
+        ParenExpression {
+            expr_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+            expr: OracleExpression::parse_ref(file_id, state, inner.next().unwrap()),
+            trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+        }
     }
 }
 

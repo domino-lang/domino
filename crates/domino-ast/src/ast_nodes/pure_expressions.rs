@@ -3,10 +3,10 @@ use crate::{
     ast_nodes::{
         identifier::{
             GameConstValueIdentifierKind, Identifier, IdentifierKind,
-            PackageConstValueIdentifierKind,
+            PackageConstValueIdentifierKind, TheoremConstValueIdentifierKind,
         },
         list::{Comma, List},
-        InArena, Indexable, ListItem, NodeType, PaddedRef, Parsable, Trivia,
+        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -79,17 +79,25 @@ pub type PureConstPackageExpressionList = ExprList<PackageConstValueIdentifierKi
 
 pub type PureConstGameExpressionList = ExprList<GameConstValueIdentifierKind>;
 
+pub type PureConstTheoremExpressionList = ExprList<TheoremConstValueIdentifierKind>;
+
 #[derive(Debug, Clone, Copy)]
 pub struct TableIndexExpression<IK: IdentifierKind> {
     pub table_name: Ref<Identifier<IK>>,
 
     pub table_name_trivia: Ref<Trivia>,
 
-    pub index: PaddedRef<PureExpression<IK>>,
+    pub index_trivia: Ref<Trivia>,
+    pub index: Ref<PureExpression<IK>>,
+    pub index_trailing_trivia: Ref<Trivia>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ParenExpression<IdentKind: IdentifierKind>(pub PaddedRef<Identifier<IdentKind>>);
+pub struct ParenExpression<IdentKind: IdentifierKind> {
+    pub expr_trivia: Ref<Trivia>,
+    pub expr: Ref<PureExpression<IdentKind>>,
+    pub trailing_trivia: Ref<Trivia>,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct CallExpression<IdentKind: IdentifierKind> {
@@ -331,52 +339,59 @@ impl Parsable for PureExpression<GameConstValueIdentifierKind> {
     }
 }
 
+impl Parsable for PureExpression<TheoremConstValueIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_pure_expression::<TheoremConstValueIdentifierKind>(file_id, state, pair)
+    }
+}
+
 impl<IK: IdentifierKind> Parsable for TableIndexExpression<IK>
 where
     Identifier<IK>: Parsable,
-    PaddedRef<PureExpression<IK>>: Parsable,
+    PureExpression<IK>: Parsable,
     Self: Indexable + InArena + NodeType,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::table_expr);
 
         let mut inner = pair.into_inner();
-
-        let ident_pair = inner.next().unwrap();
-        let trivia_pair = inner.next().unwrap();
-        let index_pair = inner.next().unwrap();
-
-        let ident = Identifier::parse_ref(file_id, state, ident_pair);
-        let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let index = PaddedRef::parse(file_id, state, index_pair);
+        let table_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+        let table_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let index_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let index = PureExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let index_trailing_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
 
         TableIndexExpression {
-            table_name: ident,
-            table_name_trivia: trivia,
+            table_name,
+            table_name_trivia,
+            index_trivia,
             index,
+            index_trailing_trivia,
         }
     }
 }
 
 impl<IK: IdentifierKind> Parsable for ParenExpression<IK>
 where
-    PaddedRef<Identifier<IK>>: Parsable,
+    PureExpression<IK>: Parsable,
     Self: Indexable + InArena + NodeType,
 {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
 
-        ParenExpression(PaddedRef::parse(
-            file_id,
-            state,
-            pair.into_inner().next().unwrap(),
-        ))
+        let mut inner = pair.into_inner();
+
+        ParenExpression {
+            expr_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+            expr: PureExpression::parse_ref(file_id, state, inner.next().unwrap()),
+            trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+        }
     }
 }
 
 impl<IK: IdentifierKind> Parsable for TupleExpression<IK>
 where
-    PaddedRef<Identifier<IK>>: Parsable,
+    Identifier<IK>: Parsable,
     Self: Indexable + InArena + NodeType,
     List<PureExpression<IK>, Comma>: Parsable,
 {
@@ -396,7 +411,7 @@ mod static_checks {
     use super::*;
     use crate::ast_nodes::{
         identifier::{PackageConstValueIdentifier, PackageConstValueIdentifierKind},
-        PaddedRef, Parsable,
+        Parsable,
     };
 
     fn impls_parsable<T: Parsable>() {}
@@ -405,7 +420,6 @@ mod static_checks {
     #[allow(dead_code)]
     fn ensure_traits_impld_for_oracle() {
         impls_parsable::<PackageConstValueIdentifier>();
-        impls_parsable::<PaddedRef<PackageConstValueIdentifier>>();
         impls_parsable::<TableIndexExpression<PackageConstValueIdentifierKind>>();
         impls_parsable::<TupleExpression<PackageConstValueIdentifierKind>>();
         impls_parsable::<ExprList<PackageConstValueIdentifierKind>>();

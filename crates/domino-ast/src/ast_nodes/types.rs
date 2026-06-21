@@ -4,7 +4,8 @@ use crate::{
         identifier::{
             GameTypeArgumentIdentifierKind, GameTypeIdentifierKind, Identifier,
             PackageTypeArgumentIdentifier, PackageTypeArgumentIdentifierKind,
-            PackageTypeIdentifierKind, TypeArgIdentifierKind, TypeIdentifierKind,
+            PackageTypeIdentifierKind, TheoremTypeArgumentIdentifierKind,
+            TheoremTypeIdentifierKind, TypeArgIdentifierKind, TypeIdentifierKind,
         },
         list::{Comma, List},
         pure_expressions::PureExpression,
@@ -93,6 +94,12 @@ impl Parsable for Type<GameTypeIdentifierKind> {
     }
 }
 
+impl Parsable for Type<TheoremTypeIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_type::<TheoremTypeIdentifierKind>(file_id, state, pair)
+    }
+}
+
 impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
@@ -100,6 +107,12 @@ impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
 }
 
 impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_type_arg(file_id, state, pair)
+    }
+}
+
+impl Parsable for TypeArgument<TheoremTypeArgumentIdentifierKind> {
     fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }

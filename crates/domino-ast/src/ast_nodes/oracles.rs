@@ -8,7 +8,7 @@ use crate::{
         list::{Comma, List},
         statements::StatementList,
         types::Type,
-        ListItem, PaddedRef, Parsable, Trivia,
+        ListItem, Parsable, Trivia,
     },
     Rule,
 };
@@ -48,11 +48,12 @@ impl ListItem for OracleValueArgDecl {
 
 /// A list of declarations, usually comma separated. Usually surrounded by parenthises
 pub type OracleValueDeclList = List<ArgDecl<OracleValueIdentifierKind>, Comma>;
-pub type PackageConstDeclList = List<ArgDecl<PackageTypeIdentifierKind>, Comma>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct OracleDefinition {
-    pub oracle_sig: PaddedRef<OracleSignature>,
+    pub sig_trivia: Ref<Trivia>,
+    pub oracle_sig: Ref<OracleSignature>,
+    pub brace_trivia: Ref<Trivia>,
     pub statements: Ref<StatementList>,
 }
 
@@ -123,14 +124,20 @@ impl Parsable for OracleDefinition {
 
         let mut inner = pair.into_inner();
         let _oracle_pair = inner.next().unwrap();
+        let sig_trivia_pair = inner.next().unwrap();
         let oracle_sig_pair = inner.next().unwrap();
+        let brace_trivia_pair = inner.next().unwrap();
         let statements_pair = inner.next().unwrap();
 
-        let oracle_sig = PaddedRef::parse(file_id, state, oracle_sig_pair);
+        let sig_trivia = Trivia::parse_ref(file_id, state, sig_trivia_pair);
+        let oracle_sig = OracleSignature::parse_ref(file_id, state, oracle_sig_pair);
+        let brace_trivia = Trivia::parse_ref(file_id, state, brace_trivia_pair);
         let statements = StatementList::parse_ref(file_id, state, statements_pair);
 
         Self {
+            sig_trivia,
             oracle_sig,
+            brace_trivia,
             statements,
         }
     }
