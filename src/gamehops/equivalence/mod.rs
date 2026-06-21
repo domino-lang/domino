@@ -11,6 +11,12 @@ use crate::{
 
 use error::Result;
 
+pub mod error;
+mod smtrewrite;
+mod verify_fn;
+
+pub(crate) use verify_fn::EquivalenceSmtDriver;
+
 // Equivalence contains the composisitions/games and the invariant data,
 // whereas the pure Equivalence just contains the names and file paths.
 // TODO: explore if we can keep references to the games in the project hashmap
@@ -93,12 +99,6 @@ impl Equivalence {
     }
 }
 
-pub mod error;
-mod smtrewrite;
-mod verify_fn;
-
-pub use verify_fn::{verify, verify_parallel};
-
 impl<'a> EquivalenceContext<'a> {
     fn verify_exports_match(&self) -> (Vec<OracleSig>, Vec<OracleSig>) {
         let left_game_inst = self
@@ -156,7 +156,7 @@ impl<'a> EquivalenceContext<'a> {
         game_inst.game().exports.iter().collect()
     }
 
-    fn load_invariants(&mut self, project: &impl Project) -> Result<()> {
+    pub(crate) fn load_invariants(&mut self, project: &impl Project) -> Result<()> {
         for export in self.oracle_sequence() {
             let oracle_name = export.name();
             let mut out = Vec::new();

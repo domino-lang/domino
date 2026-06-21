@@ -13,11 +13,12 @@ use error::Result;
 
 use crate::parser::ast::Identifier;
 use crate::{
-    gamehops::{equivalence, GameHop},
+    gamehops::{equivalence::EquivalenceSmtDriver, GameHop},
     package::{Composition, Package},
     theorem::Theorem,
-    transforms::Transformation,
+    transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform, Transformation},
     util::smtsolver::SmtSolverBackend,
+    writers::smt::contexts::EquivalenceContext,
 };
 
 use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
@@ -144,41 +145,38 @@ pub trait Project {
                         ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
                     }
                     GameHop::Equivalence(eq) => {
-                        if parallel > 1 {
-                            equivalence::verify_parallel(
-                                self, &mut ui, eq, theorem, backend, transcript, parallel,
-                                req_oracle,
-                            )?;
-                        } else {
-                            equivalence::verify(
-                                self, &mut ui, eq, theorem, backend, transcript, req_oracle,
-                            )?;
-                        }
+                        let (theorem, auxs) =
+                            EquivalenceTransform.transform_theorem(theorem).unwrap();
+
+                        let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+                        eqctx.load_invariants(self)?;
+
+                        let mut driver = EquivalenceSmtDriver::new(
+                            &eqctx,
+                            self,
+                            backend,
+                            transcript,
+                            req_oracle.as_deref(),
+                            parallel,
+                        );
+                        driver.verify(&mut ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
-                        if parallel > 1 {
-                            equivalence::verify_parallel(
-                                self,
-                                &mut ui,
-                                hyb.equivalence(),
-                                theorem,
-                                backend,
-                                transcript,
-                                parallel,
-                                req_oracle,
-                            )?;
-                        } else {
-                            equivalence::verify(
-                                self,
-                                &mut ui,
-                                hyb.equivalence(),
-                                theorem,
-                                backend,
-                                transcript,
-                                req_oracle,
-                            )?;
-                        }
-                        //unimplemented!()
+                        let (theorem, auxs) =
+                            EquivalenceTransform.transform_theorem(theorem).unwrap();
+
+                        let mut eqctx = EquivalenceContext::new(hyb.equivalence(), &theorem, &auxs);
+                        eqctx.load_invariants(self)?;
+
+                        let mut driver = EquivalenceSmtDriver::new(
+                            &eqctx,
+                            self,
+                            backend,
+                            transcript,
+                            req_oracle.as_deref(),
+                            parallel,
+                        );
+                        driver.verify(&mut ui)?;
                     }
                 }
                 ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
