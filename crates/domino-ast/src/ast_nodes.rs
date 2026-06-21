@@ -178,15 +178,6 @@ pub struct Trivia {
     pub trivia: Slice<Trivium>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Padded<T> {
-    pub leading: Ref<Trivia>,
-    pub inner: T,
-    pub trailing: Ref<Trivia>,
-}
-
-pub type PaddedRef<T> = Padded<Ref<T>>;
-
 impl Parsable for Trivium {
     fn parse(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::trivium);
@@ -254,37 +245,27 @@ define_node_type_enum! {
     //
     // ## In Packages
 
-    PaddedType: PaddedRef<types::Type<identifier::PackageTypeIdentifierKind>>,
-    PaddedOracleExpression: PaddedRef<oracle_expressions::OracleExpression>,
     Type: types::Type<identifier::PackageTypeIdentifierKind>,
     TupleType: types::TupleType<identifier::PackageTypeIdentifierKind>,
     ArgumentedType: types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>,
-    PaddedArgumentedType: PaddedRef<types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>>,
     TypeArgument: types::TypeArgument<PackageTypeArgumentIdentifierKind>,
-    PaddedTypeArgument: PaddedRef<types::TypeArgument<PackageTypeArgumentIdentifierKind>>,
     TypeArgList: types::TypeArgList<PackageTypeArgumentIdentifierKind>,
     TypeList: types::TypeList<PackageTypeIdentifierKind>,
 
     // ## In Games
 
-    GamePaddedType: PaddedRef<types::Type<identifier::GameTypeIdentifierKind>>,
     GameType: types::Type<identifier::GameTypeIdentifierKind>,
     GameTupleType: types::TupleType<identifier::GameTypeIdentifierKind>,
     GameArgumentedType: types::ArgumentedType<identifier::GameTypeArgumentIdentifierKind>,
-    PaddedGameArgumentedType: PaddedRef<types::ArgumentedType<identifier::GameTypeArgumentIdentifierKind>>,
-    GameTypeArgument: PaddedRef<types::TypeArgument<GameTypeArgumentIdentifierKind>>,
     PaddedGameTypeArgument: types::TypeArgument<GameTypeArgumentIdentifierKind>,
     GameTypeArgList: types::TypeArgList<GameTypeArgumentIdentifierKind>,
     GameTypeList: types::TypeList<GameTypeIdentifierKind>,
 
     // ## In Theorems
 
-    TheoremPaddedType: PaddedRef<types::Type<identifier::TheoremTypeIdentifierKind>>,
     TheoremType: types::Type<identifier::TheoremTypeIdentifierKind>,
     TheoremTupleType: types::TupleType<identifier::TheoremTypeIdentifierKind>,
     TheoremArgumentedType: types::ArgumentedType<identifier::TheoremTypeArgumentIdentifierKind>,
-    PaddedTheoremArgumentedType: PaddedRef<types::ArgumentedType<identifier::TheoremTypeArgumentIdentifierKind>>,
-    TheoremTypeArgument: PaddedRef<types::TypeArgument<TheoremTypeArgumentIdentifierKind>>,
     PaddedTheoremTypeArgument: types::TypeArgument<TheoremTypeArgumentIdentifierKind>,
     TheoremTypeArgList: types::TypeArgList<TheoremTypeArgumentIdentifierKind>,
     TheoremTypeList: types::TypeList<TheoremTypeIdentifierKind>,
@@ -298,7 +279,6 @@ define_node_type_enum! {
     PurePackageConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::PackageConstValueIdentifierKind>,
     PurePackageConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
     PurePackageConstValueCallExpression: pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
-    PaddedPurePackageConstValueExpression: PaddedRef<pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>>,
 
     PureGameConstValueExpression: pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
     PureGameConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::GameConstValueIdentifierKind>,
@@ -307,7 +287,6 @@ define_node_type_enum! {
     PureGameConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::GameConstValueIdentifierKind>,
     PureGameConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
     PureGameConstValueCallExpression: pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
-    PaddedPureGameConstValueExpression: PaddedRef<pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>>,
 
     PureTheoremConstValueExpression: pure_expressions::PureExpression<identifier::TheoremConstValueIdentifierKind>,
     PureTheoremConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::TheoremConstValueIdentifierKind>,
@@ -316,7 +295,6 @@ define_node_type_enum! {
     PureTheoremConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::TheoremConstValueIdentifierKind>,
     PureTheoremConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::TheoremConstValueIdentifierKind>,
     PureTheoremConstValueCallExpression: pure_expressions::CallExpression<identifier::TheoremConstValueIdentifierKind>,
-    PaddedPureTheoremConstValueExpression: PaddedRef<pure_expressions::PureExpression<identifier::TheoremConstValueIdentifierKind>>,
 
     PureConstPackageExpressionList: pure_expressions::PureConstPackageExpressionList,
     PureConstGameExpressionList: pure_expressions::PureConstGameExpressionList,
@@ -336,7 +314,6 @@ define_node_type_enum! {
     OracleValueDeclList: oracles::OracleValueDeclList,
     OracleValueArgDecl: oracles::OracleValueArgDecl,
     OracleDefinition: oracles::OracleDefinition,
-    PaddedOracleSignature: PaddedRef<oracles::OracleSignature>,
 
     OracleExpression: oracle_expressions::OracleExpression,
     OracleInvocationExpression: oracle_expressions::OracleInvocationExpression,
@@ -364,7 +341,6 @@ define_node_type_enum! {
     PackageItemList: package::PackageItemList,
 
     Colon: list::Colon,
-    PaddedColon: Padded<list::Colon>,
 
     PackageTypeIdentifier: identifier::PackageTypeIdentifier,
     GameTypeIdentifier: identifier::GameTypeIdentifier,
@@ -381,22 +357,10 @@ define_node_type_enum! {
     GameInstanceIdentifier: identifier::GameInstanceIdentifier,
     AssumptionIdentifier: identifier::AssumptionIdentifier,
 
-    PaddedPackageTypeIdentifier: PaddedRef<identifier::PackageTypeIdentifier>,
-    PaddedOracleIdentifier: PaddedRef<identifier::OracleIdentifier>,
-    PaddedPackageIdentifier: PaddedRef<identifier::PackageIdentifier>,
-    PaddedGameIdentifier: PaddedRef<identifier::GameIdentifier>,
-    PaddedPackageInstanceIdentifier: PaddedRef<identifier::PackageInstanceIdentifier>,
-    PaddedGameInstanceIdentifier: PaddedRef<identifier::GameInstanceIdentifier>,
-
     OracleValueIdentifier: identifier::OracleValueIdentifier,
     PackageConstValueIdentifier: identifier::PackageConstValueIdentifier,
     GameConstValueIdentifier: identifier::GameConstValueIdentifier,
     TheoremConstValueIdentifier: identifier::TheoremConstValueIdentifier,
-
-    PaddedOracleValueIdentifier: PaddedRef<identifier::OracleValueIdentifier>,
-    PaddedPackageConstValueIdentifier: PaddedRef<identifier::PackageConstValueIdentifier>,
-    PaddedGameConstValueIdentifier: PaddedRef<identifier::GameConstValueIdentifier>,
-    PaddedTheoremConstValueIdentifier: PaddedRef<identifier::TheoremConstValueIdentifier>,
 
     LemmaIdentifier: identifier::LemmaIdentifier,
     TheoremIdentifier: identifier::TheoremIdentifier,
@@ -667,7 +631,6 @@ impl_noop_index! {
     list::Colon,
     list::Comma,
     list::Semicolon,
-    Padded<list::Colon>,
 }
 
 // Trick for ensuring we don't reuse node type ids
