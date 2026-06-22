@@ -29,13 +29,11 @@ impl Delimiter for Semicolon {}
 impl Parsable for Comma {
     const RULE: Rule = Rule::comma;
 
-    fn parse(
+    fn parse_inner(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
-        pair: crate::Pair,
+        _pair: crate::Pair,
     ) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::comma);
-
         Comma
     }
 }
@@ -43,13 +41,11 @@ impl Parsable for Comma {
 impl Parsable for Semicolon {
     const RULE: Rule = Rule::semicolon;
 
-    fn parse(
+    fn parse_inner(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
-        pair: crate::Pair,
+        _pair: crate::Pair,
     ) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::semicolon);
-
         Semicolon
     }
 }
@@ -82,9 +78,11 @@ where
 {
     const RULE: Rule = Node::LIST_RULE;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Node::LIST_RULE);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         /// get source location and parsed node
         fn parse_with_loc<Node: Parsable>(
             file_id: crate::source::FileId,
@@ -222,9 +220,11 @@ where
 {
     const RULE: Rule = Node::LIST_RULE;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Node::LIST_RULE);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut trivias = vec![];
         let mut items = vec![];
         let mut latest_trivia: Trivia;

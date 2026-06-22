@@ -3,10 +3,10 @@ use crate::{
     ast_nodes::{
         identifier::{
             GameConstValueIdentifierKind, Identifier, IdentifierKind,
-            PackageConstValueIdentifierKind, TheoremConstValueIdentifierKind,
+            PackageConstValueIdentifierKind, TheoremConstValueIdentifierKind, ValueIdentifierKind,
         },
         list::{Comma, List},
-        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
+        parse_ref, InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -153,13 +153,20 @@ fn parse_leftassoc<IK: IdentifierKind>(
 ) -> PureExpression<IK>
 where
     PureExpression<IK>: Parsable,
+    List<PureExpression<IK>, Comma>: Parsable,
+    Identifier<IK>: Parsable,
+    TableIndexExpression<IK>: Parsable,
+    TupleExpression<IK>: Parsable,
+    ParenExpression<IK>: Parsable,
     BinOpExpression<IK>: NodeType + InArena + Indexable,
+    UnOpExpression<IK>: NodeType + InArena + Indexable,
+    CallExpression<IK>: NodeType + InArena + Indexable,
 {
     let mut pairs = pair.into_inner();
     let first = pairs.next().unwrap();
 
     let mut lhs_loc = SourceLocation::from_file_and_pair(file_id, &first);
-    let mut lhs_raw = PureExpression::<IK>::parse(file_id, state, first);
+    let mut lhs_raw = parse_pure_expression(file_id, state, first);
 
     if pairs.peek().is_none() {
         return lhs_raw;
@@ -176,7 +183,7 @@ where
         let lhs = Ref::from_parsed(state, lhs_loc, lhs_raw);
         let lhs_trailing = Trivia::parse_ref(file_id, state, lhs_trailing_pair);
         let rhs_leading = Trivia::parse_ref(file_id, state, rhs_leading_pair);
-        let rhs = PureExpression::parse_ref(file_id, state, rhs_pair);
+        let rhs = parse_ref(file_id, state, rhs_pair, parse_pure_expression);
 
         let binop_expr = BinOpExpression {
             lhs,
@@ -202,16 +209,21 @@ fn parse_unary<IK: IdentifierKind>(
 ) -> PureExpression<IK>
 where
     PureExpression<IK>: Parsable,
+    List<PureExpression<IK>, Comma>: Parsable,
+    Identifier<IK>: Parsable,
+    TableIndexExpression<IK>: Parsable,
+    TupleExpression<IK>: Parsable,
+    ParenExpression<IK>: Parsable,
+    BinOpExpression<IK>: NodeType + InArena + Indexable,
     UnOpExpression<IK>: NodeType + InArena + Indexable,
+    CallExpression<IK>: NodeType + InArena + Indexable,
 {
-    debug_assert_eq!(pair.as_rule(), Rule::unary);
-
     let loc = SourceLocation::from_file_and_pair(file_id, &pair);
 
     let mut inner = pair.into_inner();
 
     match inner.peek().unwrap().as_rule() {
-        Rule::atom => PureExpression::parse(file_id, state, inner.next().unwrap()),
+        Rule::atom => parse_pure_expression(file_id, state, inner.next().unwrap()),
         Rule::unary_op => {
             let unary_op_pair = inner.next().unwrap();
             let trivia_pair = inner.next().unwrap();
@@ -327,10 +339,121 @@ where
     }
 }
 
+fn parse_table_index_expr<IK>(
+    file_id: FileId,
+    state: &mut State,
+    pair: crate::Pair,
+) -> TableIndexExpression<IK>
+where
+    IK: ValueIdentifierKind,
+    Identifier<IK>: Parsable,
+    PureExpression<IK>: Parsable,
+    List<PureExpression<IK>, Comma>: Parsable,
+    Identifier<IK>: Parsable,
+    TableIndexExpression<IK>: Parsable,
+    TupleExpression<IK>: Parsable,
+    ParenExpression<IK>: Parsable,
+    UnOpExpression<IK>: NodeType + InArena + Indexable,
+    CallExpression<IK>: NodeType + InArena + Indexable,
+    TableIndexExpression<IK>: Indexable + InArena + NodeType,
+    BinOpExpression<IK>: Indexable + InArena + NodeType,
+    UnOpExpression<IK>: Indexable + InArena + NodeType,
+{
+    let mut inner = pair.into_inner();
+    let table_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+    let table_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+    let index_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+    let index = parse_ref(file_id, state, inner.next().unwrap(), parse_pure_expression);
+    let index_trailing_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+
+    TableIndexExpression {
+        table_name,
+        table_name_trivia,
+        index_trivia,
+        index,
+        index_trailing_trivia,
+    }
+}
+
+fn parse_paren_expression<IK>(
+    file_id: FileId,
+    state: &mut State,
+    pair: crate::Pair,
+) -> ParenExpression<IK>
+where
+    IK: ValueIdentifierKind,
+    PureExpression<IK>: Parsable,
+    List<PureExpression<IK>, Comma>: Parsable,
+    Identifier<IK>: Parsable,
+    TableIndexExpression<IK>: Parsable,
+    TupleExpression<IK>: Parsable,
+    ParenExpression<IK>: Parsable,
+    ParenExpression<IK>: Indexable + InArena + NodeType,
+    CallExpression<IK>: NodeType + InArena + Indexable,
+    BinOpExpression<IK>: NodeType + InArena + Indexable,
+    UnOpExpression<IK>: NodeType + InArena + Indexable,
+{
+    let mut inner = pair.into_inner();
+
+    ParenExpression {
+        expr_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+        expr: parse_ref(file_id, state, inner.next().unwrap(), parse_pure_expression),
+        trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+    }
+}
+
+impl Parsable for TableIndexExpression<PackageConstValueIdentifierKind> {
+    const RULE: Rule = Rule::table_expr;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_table_index_expr(file_id, state, pair)
+    }
+}
+
+impl Parsable for TableIndexExpression<GameConstValueIdentifierKind> {
+    const RULE: Rule = Rule::table_expr;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_table_index_expr(file_id, state, pair)
+    }
+}
+
+impl Parsable for TableIndexExpression<TheoremConstValueIdentifierKind> {
+    const RULE: Rule = Rule::table_expr;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_table_index_expr(file_id, state, pair)
+    }
+}
+
+impl Parsable for ParenExpression<PackageConstValueIdentifierKind> {
+    const RULE: Rule = Rule::paren_expr;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_paren_expression(file_id, state, pair)
+    }
+}
+
+impl Parsable for ParenExpression<GameConstValueIdentifierKind> {
+    const RULE: Rule = Rule::paren_expr;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_paren_expression(file_id, state, pair)
+    }
+}
+
+impl Parsable for ParenExpression<TheoremConstValueIdentifierKind> {
+    const RULE: Rule = Rule::paren_expr;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        parse_paren_expression(file_id, state, pair)
+    }
+}
+
 impl Parsable for PureExpression<PackageConstValueIdentifierKind> {
     const RULE: Rule = Rule::expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression(file_id, state, pair)
     }
 }
@@ -338,7 +461,7 @@ impl Parsable for PureExpression<PackageConstValueIdentifierKind> {
 impl Parsable for PureExpression<GameConstValueIdentifierKind> {
     const RULE: Rule = Rule::expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression::<GameConstValueIdentifierKind>(file_id, state, pair)
     }
 }
@@ -346,56 +469,8 @@ impl Parsable for PureExpression<GameConstValueIdentifierKind> {
 impl Parsable for PureExpression<TheoremConstValueIdentifierKind> {
     const RULE: Rule = Rule::expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_pure_expression::<TheoremConstValueIdentifierKind>(file_id, state, pair)
-    }
-}
-
-impl<IK: IdentifierKind> Parsable for TableIndexExpression<IK>
-where
-    Identifier<IK>: Parsable,
-    PureExpression<IK>: Parsable,
-    Self: Indexable + InArena + NodeType,
-{
-    const RULE: Rule = Rule::table_expr;
-
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::table_expr);
-
-        let mut inner = pair.into_inner();
-        let table_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
-        let table_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
-        let index_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
-        let index = PureExpression::parse_ref(file_id, state, inner.next().unwrap());
-        let index_trailing_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
-
-        TableIndexExpression {
-            table_name,
-            table_name_trivia,
-            index_trivia,
-            index,
-            index_trailing_trivia,
-        }
-    }
-}
-
-impl<IK: IdentifierKind> Parsable for ParenExpression<IK>
-where
-    PureExpression<IK>: Parsable,
-    Self: Indexable + InArena + NodeType,
-{
-    const RULE: Rule = Rule::paren_expr;
-
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
-
-        let mut inner = pair.into_inner();
-
-        ParenExpression {
-            expr_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
-            expr: PureExpression::parse_ref(file_id, state, inner.next().unwrap()),
-            trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
-        }
     }
 }
 
@@ -407,9 +482,7 @@ where
 {
     const RULE: Rule = Rule::table_expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);
-
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         TupleExpression(ExprList::parse_ref(
             file_id,
             state,

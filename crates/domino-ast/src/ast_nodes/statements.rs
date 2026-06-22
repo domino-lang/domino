@@ -91,8 +91,11 @@ pub type StatementList = List<Statement, Semicolon>;
 impl Parsable for Pattern {
     const RULE: Rule = Rule::pattern;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::pattern);
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let pair = pair.into_inner().next().unwrap();
         match pair.as_rule() {
             Rule::table_pat => Self::Table(TablePattern::parse_ref(file_id, state, pair)),
@@ -108,9 +111,11 @@ impl Parsable for Pattern {
 impl Parsable for TablePattern {
     const RULE: Rule = Rule::table_pat;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::table_pat);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let ident_pair = inner.next().unwrap();
         let trivia_pair = inner.next().unwrap();
@@ -131,9 +136,11 @@ impl Parsable for TablePattern {
 impl Parsable for TuplePattern {
     const RULE: Rule = Rule::tuple_pat;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::tuple_pat);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let items_pair = pair.into_inner().next().unwrap();
 
         Self {
@@ -145,9 +152,11 @@ impl Parsable for TuplePattern {
 impl Parsable for Statement {
     const RULE: Rule = Rule::statement;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::statement);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let pair = pair.into_inner().next().unwrap();
 
         match pair.as_rule() {
@@ -166,9 +175,11 @@ impl Parsable for Statement {
 impl Parsable for AssignStatement {
     const RULE: Rule = Rule::assignment;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::assignment);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let pattern_pair = inner.next().unwrap();
         let pre_arrow_trivia_pair = inner.next().unwrap();
@@ -187,9 +198,11 @@ impl Parsable for AssignStatement {
 impl Parsable for ExpressionStatement {
     const RULE: Rule = Rule::expr;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::expr);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         Self {
             expr: OracleExpression::parse_ref(file_id, state, pair),
         }
@@ -199,9 +212,11 @@ impl Parsable for ExpressionStatement {
 impl Parsable for ReturnStatement {
     const RULE: Rule = Rule::r#return;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::r#return);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let _return_pair = inner.next().unwrap();
         let trivia_pair = inner.next().unwrap();
@@ -217,9 +232,11 @@ impl Parsable for ReturnStatement {
 impl Parsable for IfThenElseStatement {
     const RULE: Rule = Rule::ifthenelse;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::ifthenelse);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let _if_pair = inner.next().unwrap();
         let cond_trivia_pair = inner.next().unwrap();

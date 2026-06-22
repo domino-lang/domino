@@ -11,7 +11,7 @@ use crate::{
         pure_expressions::PureExpression,
         InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
-    source::{FileId, SourceLocation},
+    source::FileId,
     Rule, State,
 };
 
@@ -67,17 +67,14 @@ where
     TupleType<IK>: Parsable,
     TypeArgList<IK::ArgIdentifierKind>: Parsable,
 {
-    let loc = SourceLocation::from_file_and_pair(file_id, &pair);
-    debug_assert_eq!(pair.as_rule(), Rule::ty, "at {loc:?}");
-
-    let pair = pair.into_inner().next().unwrap();
-    match pair.as_rule() {
-        Rule::identifier => Type::Identifier(Identifier::parse_ref(file_id, state, pair)),
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::identifier => Type::Identifier(Identifier::parse_ref(file_id, state, inner)),
         Rule::appl_ty => {
-            let argd_ty = ArgumentedType::parse_ref(file_id, state, pair);
+            let argd_ty = ArgumentedType::parse_ref(file_id, state, inner);
             Type::Argumented(argd_ty)
         }
-        Rule::tuple_ty => Type::Tuple(TupleType::parse_ref(file_id, state, pair)),
+        Rule::tuple_ty => Type::Tuple(TupleType::parse_ref(file_id, state, inner)),
         _ => unreachable!(),
     }
 }
@@ -85,7 +82,7 @@ where
 impl Parsable for Type<PackageTypeIdentifierKind> {
     const RULE: Rule = Rule::ty;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type::<PackageTypeIdentifierKind>(file_id, state, pair)
     }
 }
@@ -93,7 +90,7 @@ impl Parsable for Type<PackageTypeIdentifierKind> {
 impl Parsable for Type<GameTypeIdentifierKind> {
     const RULE: Rule = Rule::ty;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type::<GameTypeIdentifierKind>(file_id, state, pair)
     }
 }
@@ -101,7 +98,7 @@ impl Parsable for Type<GameTypeIdentifierKind> {
 impl Parsable for Type<TheoremTypeIdentifierKind> {
     const RULE: Rule = Rule::ty;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type::<TheoremTypeIdentifierKind>(file_id, state, pair)
     }
 }
@@ -109,7 +106,7 @@ impl Parsable for Type<TheoremTypeIdentifierKind> {
 impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
     const RULE: Rule = Rule::appl_ty_arg;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }
 }
@@ -117,7 +114,7 @@ impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
 impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
     const RULE: Rule = Rule::appl_ty_arg;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }
 }
@@ -125,7 +122,7 @@ impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
 impl Parsable for TypeArgument<TheoremTypeArgumentIdentifierKind> {
     const RULE: Rule = Rule::appl_ty_arg;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         parse_type_arg(file_id, state, pair)
     }
 }
@@ -142,8 +139,6 @@ where
     Type<IK::ArgTypeIdentifierKind>: Parsable,
     PureExpression<IK::ArgValueIdentifierKind>: Parsable,
 {
-    debug_assert_eq!(pair.as_rule(), Rule::appl_ty_arg);
-
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
         Rule::appl_ty => {
@@ -169,9 +164,7 @@ where
 {
     const RULE: Rule = Rule::appl_ty;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::appl_ty);
-
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut inner = pair.into_inner();
         let name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
         let post_name = Trivia::parse_ref(file_id, state, inner.next().unwrap());
@@ -192,8 +185,7 @@ where
 {
     const RULE: Rule = Rule::tuple_ty;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::tuple_ty);
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let pair = pair.into_inner().next().unwrap();
         TupleType(TypeList::parse_ref(file_id, state, pair))
     }

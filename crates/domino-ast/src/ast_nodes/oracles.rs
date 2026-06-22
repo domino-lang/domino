@@ -60,9 +60,11 @@ pub struct OracleDefinition {
 impl Parsable for OracleSignature {
     const RULE: Rule = Rule::oracle_sig;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::oracle_sig);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let name_pair = inner.next().unwrap();
         let trivia_pair = inner.next().unwrap();
@@ -99,9 +101,11 @@ impl Parsable for OracleSignature {
 impl Parsable for OracleValueArgDecl {
     const RULE: Rule = Rule::expr_ident_decl;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::expr_ident_decl);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let name_pair = inner.next().unwrap();
         let pre_colon_trivia_pair = inner.next().unwrap();
@@ -125,9 +129,11 @@ impl Parsable for OracleValueArgDecl {
 impl Parsable for OracleDefinition {
     const RULE: Rule = Rule::oracle_def;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::oracle_def);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let _oracle_pair = inner.next().unwrap();
         let sig_trivia_pair = inner.next().unwrap();
