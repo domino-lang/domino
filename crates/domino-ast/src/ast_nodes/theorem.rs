@@ -307,7 +307,11 @@ pub struct Theorem {
 impl Parsable for InstanceConstAssignmentItem {
     const RULE: Rule = Rule::inst_const_assignment_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         super::instances::parse_instance_const_assignment_item(file_id, state, pair)
     }
 }
@@ -315,9 +319,11 @@ impl Parsable for InstanceConstAssignmentItem {
 impl Parsable for InstanceConstBlock {
     const RULE: Rule = Rule::inst_const_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::inst_const_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_consts = inner.next().unwrap();
@@ -334,7 +340,11 @@ impl Parsable for InstanceConstBlock {
 impl Parsable for InstanceTypeAssignmentItem {
     const RULE: Rule = Rule::inst_type_assignment_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         instances::parse_instance_type_assignment_item(file_id, state, pair)
     }
 }
@@ -342,9 +352,11 @@ impl Parsable for InstanceTypeAssignmentItem {
 impl Parsable for InstanceTypeBlock {
     const RULE: Rule = Rule::inst_type_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::inst_type_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_consts = inner.next().unwrap();
@@ -360,9 +372,11 @@ impl Parsable for InstanceTypeBlock {
 impl Parsable for InstanceItem {
     const RULE: Rule = Rule::inst_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::inst_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let inner = pair.into_inner().next().unwrap();
 
         match inner.as_rule() {
@@ -380,7 +394,11 @@ impl Parsable for InstanceItem {
 impl Parsable for InstanceBlock {
     const RULE: Rule = Rule::inst_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         super::instances::parse_instance_block(file_id, state, pair)
     }
 }
@@ -388,13 +406,11 @@ impl Parsable for InstanceBlock {
 impl Parsable for Path {
     const RULE: Rule = Rule::path;
 
-    fn parse(
+    fn parse_inner(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
-        pair: crate::Pair,
+        _pair: crate::Pair,
     ) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::path);
-
         Path
     }
 }
@@ -402,9 +418,11 @@ impl Parsable for Path {
 impl Parsable for InvariantSpec {
     const RULE: Rule = Rule::invariant_spec;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::invariant_spec);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -423,13 +441,11 @@ impl Parsable for InvariantSpec {
 impl Parsable for SmtIdentifier {
     const RULE: Rule = Rule::smt_identifier;
 
-    fn parse(
+    fn parse_inner(
         _file_id: crate::source::FileId,
         _state: &mut crate::State,
-        pair: crate::Pair,
+        _pair: crate::Pair,
     ) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::smt_identifier);
-
         SmtIdentifier
     }
 }
@@ -437,9 +453,11 @@ impl Parsable for SmtIdentifier {
 impl Parsable for LemmaItem {
     const RULE: Rule = Rule::lemma_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::lemma_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let name = LemmaIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -459,9 +477,11 @@ impl Parsable for LemmaItem {
 impl Parsable for LemmaBlock {
     const RULE: Rule = Rule::lemmas_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::lemmas_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -475,9 +495,11 @@ impl Parsable for LemmaBlock {
 impl Parsable for EquivalenceOracleItem {
     const RULE: Rule = Rule::eqv_oracle_block_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::eqv_oracle_block_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let inner = pair.into_inner().next().unwrap();
 
         match inner.as_rule() {
@@ -493,9 +515,11 @@ impl Parsable for EquivalenceOracleItem {
 impl Parsable for EquivalenceOracleBlock {
     const RULE: Rule = Rule::eqv_oracle_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::eqv_oracle_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -515,9 +539,11 @@ impl Parsable for EquivalenceOracleBlock {
 impl Parsable for Equivalence {
     const RULE: Rule = Rule::equivalence;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::equivalence);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -542,9 +568,11 @@ impl Parsable for Equivalence {
 impl Parsable for Bound {
     const RULE: Rule = Rule::bound;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::bound);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let lhs = GameInstanceIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -564,9 +592,11 @@ impl Parsable for Bound {
 impl Parsable for AssumptionsItem {
     const RULE: Rule = Rule::assumptions_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::assumptions_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let name = AssumptionIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -586,9 +616,11 @@ impl Parsable for AssumptionsItem {
 impl Parsable for AssumptionsBlock {
     const RULE: Rule = Rule::assumptions_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::assumptions_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -602,9 +634,11 @@ impl Parsable for AssumptionsBlock {
 impl Parsable for Conjecture {
     const RULE: Rule = Rule::conjecture;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::conjecture);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -625,9 +659,11 @@ impl Parsable for Conjecture {
 impl Parsable for ReductionAssumptionLine {
     const RULE: Rule = Rule::red_assumption_line;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::red_assumption_line);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_assumption = inner.next().unwrap();
@@ -641,9 +677,11 @@ impl Parsable for ReductionAssumptionLine {
 impl Parsable for ReductionMapItem {
     const RULE: Rule = Rule::red_map_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::red_map_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let left_name = PackageInstanceIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -664,9 +702,11 @@ impl Parsable for ReductionMapItem {
 impl Parsable for ReductionMap {
     const RULE: Rule = Rule::red_map;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::red_map);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw = inner.next().unwrap();
@@ -693,9 +733,11 @@ impl Parsable for ReductionMap {
 impl Parsable for ReductionItem {
     const RULE: Rule = Rule::red_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::red_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let inner = pair.into_inner().next().unwrap();
 
         match inner.as_rule() {
@@ -711,9 +753,11 @@ impl Parsable for ReductionItem {
 impl Parsable for Reduction {
     const RULE: Rule = Rule::reduction;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::reduction);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw = inner.next().unwrap();
@@ -732,9 +776,11 @@ impl Parsable for Reduction {
 impl Parsable for GameHopItem {
     const RULE: Rule = Rule::gamehop_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::gamehop_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let inner = pair.into_inner().next().unwrap();
 
         match inner.as_rule() {
@@ -749,9 +795,11 @@ impl Parsable for GameHopItem {
 impl Parsable for GameHops {
     const RULE: Rule = Rule::gamehops;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::gamehops);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw = inner.next().unwrap();
@@ -766,7 +814,11 @@ impl Parsable for GameHops {
 impl Parsable for TheoremConstDecl {
     const RULE: Rule = Rule::expr_ident_decl;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         common::parse_value_decl(file_id, state, pair)
     }
 }
@@ -774,9 +826,11 @@ impl Parsable for TheoremConstDecl {
 impl Parsable for TheoremConstParamBlock {
     const RULE: Rule = Rule::consts_param_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::consts_param_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -793,9 +847,11 @@ impl Parsable for TheoremConstParamBlock {
 impl Parsable for TheoremItem {
     const RULE: Rule = Rule::theorem_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::theorem_item);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let inner = pair.into_inner().next().unwrap();
 
         match inner.as_rule() {
@@ -816,9 +872,11 @@ impl Parsable for TheoremItem {
 impl Parsable for Theorem {
     const RULE: Rule = Rule::theorem;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::theorem);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let _kw_pair = inner.next().unwrap();
         let name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());

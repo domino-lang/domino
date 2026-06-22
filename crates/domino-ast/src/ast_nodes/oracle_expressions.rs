@@ -6,6 +6,7 @@ use crate::{
             TypeIdentifierKind,
         },
         list::{Comma, List},
+        parse_ref,
         pure_expressions::{binop_from_pair, BinOp, UnOp},
         types::Type,
         InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
@@ -122,7 +123,7 @@ fn parse_leftassoc(
         let lhs = Ref::from_parsed(state, lhs_loc, lhs_raw);
         let lhs_trailing = Trivia::parse_ref(file_id, state, lhs_trailing_pair);
         let rhs_leading = Trivia::parse_ref(file_id, state, rhs_leading_pair);
-        let rhs = OracleExpression::parse_ref(file_id, state, rhs_pair);
+        let rhs = parse_ref(file_id, state, rhs_pair, parse_expression);
 
         let binop_expr = BinOpExpression {
             lhs,
@@ -146,14 +147,12 @@ fn parse_unary(
     state: &mut crate::State,
     pair: crate::Pair,
 ) -> OracleExpression {
-    debug_assert_eq!(pair.as_rule(), Rule::unary);
-
     let loc = SourceLocation::from_file_and_pair(file_id, &pair);
 
     let mut inner = pair.into_inner();
 
     match inner.peek().unwrap().as_rule() {
-        Rule::atom => OracleExpression::parse(file_id, state, inner.next().unwrap()),
+        Rule::atom => parse_expression(file_id, state, inner.next().unwrap()),
         Rule::unary_op => {
             let unary_op_pair = inner.next().unwrap();
             let trivia_pair = inner.next().unwrap();
@@ -188,9 +187,11 @@ fn parse_unary(
 impl Parsable for OracleInvocationExpression {
     const RULE: Rule = Rule::invoke;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::invoke);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
         let _invoke = inner.next().unwrap();
         let name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -208,14 +209,12 @@ impl Parsable for OracleInvocationExpression {
 impl Parsable for TableIndexExpression {
     const RULE: Rule = Rule::table_expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::table_expr);
-
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut inner = pair.into_inner();
         let table_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
         let table_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let index_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
-        let index = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let index = parse_ref(file_id, state, inner.next().unwrap(), parse_expression);
         let index_trailing_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
 
         TableIndexExpression {
@@ -235,9 +234,7 @@ where
 {
     const RULE: Rule = Rule::sample;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::sample);
-
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         SampleExpression {
             ty: Type::parse_ref(file_id, state, pair.into_inner().next().unwrap()),
         }
@@ -247,14 +244,12 @@ where
 impl Parsable for ParenExpression {
     const RULE: Rule = Rule::paren_expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::paren_expr);
-
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut inner = pair.into_inner();
 
         ParenExpression {
             expr_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
-            expr: OracleExpression::parse_ref(file_id, state, inner.next().unwrap()),
+            expr: parse_ref(file_id, state, inner.next().unwrap(), parse_expression),
             trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
         }
     }
@@ -263,9 +258,7 @@ impl Parsable for ParenExpression {
 impl Parsable for TupleExpression {
     const RULE: Rule = Rule::tuple_expr;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::tuple_expr);
-
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         TupleExpression(ExprList::parse_ref(
             file_id,
             state,
@@ -352,7 +345,11 @@ fn parse_expression(
 impl Parsable for OracleExpression {
     const RULE: Rule = Rule::expr;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         parse_expression(file_id, state, pair)
     }
 }

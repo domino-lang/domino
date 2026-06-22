@@ -47,7 +47,13 @@ pub trait Indexable: Sized {
 pub trait Parsable: NodeType + InArena + Indexable {
     const RULE: Rule;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self;
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self;
+
+    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        debug_assert_eq!(pair.as_rule(), Self::RULE);
+
+        Self::parse_inner(file_id, state, pair)
+    }
 
     fn parse_ref(file_id: FileId, state: &mut State, pair: crate::Pair) -> Ref<Self> {
         // NOTE: We need to trim trailing whitespace from the span here.
@@ -183,7 +189,7 @@ pub struct Trivia {
 impl Parsable for Trivium {
     const RULE: Rule = Rule::trivium;
 
-    fn parse(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::trivium);
 
         match pair.into_inner().next().unwrap().as_rule() {
@@ -198,7 +204,7 @@ impl Parsable for Trivium {
 impl Parsable for Trivia {
     const RULE: Rule = Rule::gap;
 
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         debug_assert_eq!(pair.as_rule(), Rule::gap);
 
         let mut trivia = vec![];
@@ -236,6 +242,18 @@ macro_rules! define_node_type_enum {
         }
         )*
     }
+}
+
+pub fn parse_ref<T: Parsable>(
+    file_id: crate::source::FileId,
+    state: &mut crate::State,
+    pair: crate::Pair,
+    f: fn(crate::source::FileId, &mut crate::State, crate::Pair) -> T,
+) -> Ref<T> {
+    // NOTE: We need to trim trailing whitespace from the span here.
+    let loc = trimmed_loc(file_id, &pair);
+    let node = f(file_id, state, pair);
+    Ref::<T>::from_parsed(state, loc, node)
 }
 
 define_node_type_enum! {

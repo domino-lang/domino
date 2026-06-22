@@ -11,7 +11,7 @@ use crate::{
         InArena, Indexable, NodeType, Parsable, Trivia,
     },
     source::FileId,
-    Pair, Rule, State,
+    Pair, State,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -96,8 +96,6 @@ where
     InstanceItemList<IK>: Parsable,
     Identifier<IK>: Parsable,
 {
-    debug_assert_eq!(pair.as_rule(), Rule::inst_block);
-
     let mut inner = pair.into_inner();
     let _kw_instance = inner.next().unwrap();
     let name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
@@ -124,8 +122,6 @@ where
     Identifier<LhsIK>: Parsable,
     PureExpression<RhsIK>: Parsable,
 {
-    debug_assert_eq!(pair.as_rule(), Rule::inst_const_assignment_item);
-
     let mut inner = pair.into_inner();
     let ident = Identifier::parse_ref(file_id, state, inner.next().unwrap());
     let colon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
@@ -152,8 +148,6 @@ where
     Identifier<LhsIK>: Parsable,
     Type<RhsIK>: Parsable,
 {
-    debug_assert_eq!(pair.as_rule(), Rule::inst_type_assignment_item);
-
     let mut inner = pair.into_inner();
     let ident = Identifier::parse_ref(file_id, state, inner.next().unwrap());
     let colon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());

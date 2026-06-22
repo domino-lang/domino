@@ -64,9 +64,11 @@ pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifier
 impl Parsable for Package {
     const RULE: Rule = Rule::package;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::package);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -92,7 +94,11 @@ impl Parsable for Package {
 impl Parsable for PackageItem {
     const RULE: Rule = Rule::package_item;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let inner_pair = pair.into_inner().next().unwrap();
         match inner_pair.as_rule() {
             Rule::types_param_block => PackageItem::TypeParams(PackageTypeParamBlock::parse_ref(
@@ -119,9 +125,11 @@ impl Parsable for PackageItem {
 impl Parsable for StateBlock {
     const RULE: Rule = Rule::state_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::state_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -138,9 +146,11 @@ impl Parsable for StateBlock {
 impl Parsable for ImportOraclesBlock {
     const RULE: Rule = Rule::import_oracles_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::import_oracles_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -157,9 +167,11 @@ impl Parsable for ImportOraclesBlock {
 impl Parsable for PackageTypeParamBlock {
     const RULE: Rule = Rule::types_param_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::types_param_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();
@@ -176,7 +188,11 @@ impl Parsable for PackageTypeParamBlock {
 impl Parsable for PackageConstDecl {
     const RULE: Rule = Rule::expr_ident_decl;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         common::parse_value_decl(file_id, state, pair)
     }
 }
@@ -184,9 +200,11 @@ impl Parsable for PackageConstDecl {
 impl Parsable for PackageConstParamBlock {
     const RULE: Rule = Rule::consts_param_block;
 
-    fn parse(file_id: crate::source::FileId, state: &mut crate::State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::consts_param_block);
-
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
         let mut inner = pair.into_inner();
 
         let _kw_pair = inner.next().unwrap();

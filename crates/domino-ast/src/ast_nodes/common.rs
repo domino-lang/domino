@@ -9,7 +9,7 @@ use crate::{
     Rule,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 // identifier ~ gap ~ ":" ~ gap ~ ty
 pub struct ValueDecl<IK: ValueIdentifierKind> {
     pub name: Ref<Identifier<IK>>,
@@ -36,8 +36,6 @@ where
     Type<IK::TypeIdentifierKind>: Parsable,
     ValueDecl<IK>: Indexable + InArena + NodeType,
 {
-    debug_assert_eq!(pair.as_rule(), Rule::expr_ident_decl);
-
     let mut inner = pair.into_inner();
 
     ValueDecl {
