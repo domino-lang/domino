@@ -7,8 +7,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum Error {
-    #[error("error showing equivalence")]
-    EquivalenceError(#[from] crate::gamehops::equivalence::error::Error),
     #[error("consistency check failed with {0}")]
     TheoremCheck(String),
     #[error("io error")]
@@ -46,6 +44,9 @@ pub enum Error {
         pest::error::LineColLocation,
     ),
 
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    EquivalenceError(#[from] crate::gamehops::equivalence::error::Error),
     #[diagnostic(transparent)]
     #[error(transparent)]
     ParsePackage(#[from] parser::package::ParsePackageError),

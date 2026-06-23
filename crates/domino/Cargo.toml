@@ -7,7 +7,7 @@ readme = { workspace = true }
 [dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
-miette = { version = "7.2.0", features = ["fancy"] }
+miette = { version = "7.6.0", features = ["fancy"] }
 env_logger = "0.11"
 shadow-rs = { version = "1.7", default-features = false }
 thiserror = "1.0.61"

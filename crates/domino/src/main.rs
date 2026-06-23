@@ -94,6 +94,15 @@ fn format(f: &Format) -> Result<(), Error> {
 }
 
 fn main() -> miette::Result<()> {
+    miette::set_hook(Box::new(|_| {
+        Box::new(
+            miette::MietteHandlerOpts::new()
+                .show_related_errors_as_nested()
+                .build(),
+        )
+    }))
+    .unwrap();
+
     let cli = Cli::parse();
 
     let result = match &cli.command {

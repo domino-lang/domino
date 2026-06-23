@@ -7,7 +7,7 @@ use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    gamehops::equivalence::error::{Error, Result},
+    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
     project::Project,
     theorem::Claim,
@@ -244,12 +244,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         fname
                     });
                     solver.close();
-                    return Err(Error::ClaimTheoremFailed {
+                    return Err(ClaimTheoremFailedError {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle.name().to_string(),
                         response,
                         modelfile,
-                    });
+                    }
+                    .into());
                 }
             }
         }

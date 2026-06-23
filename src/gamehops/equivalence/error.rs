@@ -4,150 +4,82 @@ use crate::{
     gamehops::equivalence::Equivalence,
     util::smtsolver::{Result as SmtSolverResponseResult, SmtSolverResponse},
 };
-use std::path::PathBuf;
 
-#[derive(Debug)]
+use miette::Diagnostic;
+use std::path::PathBuf;
+use thiserror::Error;
+
+#[derive(Debug, Error, Diagnostic)]
 pub enum Error {
+    // #[error(
+    //     "It seems the provided invariant file for the equivalence of \
+    //      game instances {left_game_inst_name} and {right_game_inst_name} \
+    //      contains unsatisfiable assert statements at oracle {oracle_name}. \
+    //      This is most likely an issue with the invariant file. \
+    //      Hint: Most invariant file should not contains assert statements at all."
+    // )]
+    #[error("It seems the provided invariant file for the equivalence {} = {} contains unsatisfiable assert statements at oracle {oracle_name}.", equivalence.left_name(), equivalence.right_name())]
     UnsatAfterInvariantRead {
         equivalence: Equivalence,
         oracle_name: String,
     },
-    ProverProcessError(crate::util::smtsolver::Error),
+    #[error("error reading invariant file {invariant_file_name} for oracle {oracle_name}: {err}")]
     InvariantFileReadError {
         oracle_name: String,
         invariant_file_name: String,
         err: std::io::Error,
     },
+    #[error("parameter {mismatching_param_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}")]
     CompositionParamMismatch {
         left_game_inst_name: String,
         right_game_inst_name: String,
         mismatching_param_name: String,
     },
+    #[error("export(s) {mismatching_export_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}")]
     CompositionExportsMismatch {
         left_game_inst_name: String,
         right_game_inst_name: String,
         mismatching_export_name: String,
     },
-    ClaimTheoremFailed {
-        claim_name: String,
-        oracle_name: String,
-        response: SmtSolverResponse,
-        modelfile: SmtSolverResponseResult<PathBuf>,
-    },
+    #[error(transparent)]
+    ClaimTheoremFailed(#[from] ClaimTheoremFailedError),
+    #[error("Failed invariant {left_game_inst_name} = {right_game_inst_name}")]
     ParallelEquivalenceError {
+        #[allow(unused_assignments)]
         left_game_inst_name: String,
         right_game_inst_name: String,
+
+        #[related]
         failed_oracles: Vec<Error>,
     },
-    IllegalLemmaName {
-        lemma_name: String,
-    },
+    #[error("found lemma named \"{lemma_name}\". Expected name ending in the name of the oracle. followed by a closing angle bracket")]
+    IllegalLemmaName { lemma_name: String },
+    #[error("found lemma named \"{lemma_name}\" for oracle \"{oracle_name}\" but couldn't find matching oracle")]
     UnknownLemmaName {
         lemma_name: String,
         oracle_name: String,
     },
-    IncorrectArgument {
-        argument: String,
-    },
-    IncorrectNumberOfArguments {
-        argument: String,
-        expected: String,
-    },
-    ParserError(crate::util::smtparser::Error),
+    #[error("Expected 2-tuple (name type) for argument but got {argument}")]
+    IncorrectArgument { argument: String },
+    #[error("expected {expected} arguments but found {argument}")]
+    IncorrectNumberOfArguments { argument: String, expected: String },
+    #[error(transparent)]
+    ParserError(#[from] crate::util::smtparser::Error),
+    #[error(transparent)]
+    ProverProcessError(#[from] crate::util::smtsolver::Error),
 }
 
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Error::ProverProcessError(err) => Some(err),
-            Error::InvariantFileReadError { err, .. } => Some(err),
-            _ => None,
-        }
-    }
-}
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::UnsatAfterInvariantRead {
-                equivalence,
-                oracle_name,
-            } => {
-                let left_game_inst_name = equivalence.left_name();
-                let right_game_inst_name = equivalence.right_name();
-                write!(
-                    f,
-                    "It seems the provided invariant file for the equivalence of \
-                       game instances {left_game_inst_name} and {right_game_inst_name} \
-                       contains unsatisfiable assert statements at oracle {oracle_name}. \
-                       This is most likely an issue with the invariant file. \
-                       Hint: Most invariant file should not contains assert statements at all."
-                )
-            }
-            Error::ProverProcessError(err) => write!(f, "error communicating with prover: {err}"),
-            Error::ParallelEquivalenceError{left_game_inst_name, right_game_inst_name, failed_oracles} => {
-                write!(f, "Failed invariant {left_game_inst_name}, {right_game_inst_name}")?;
-                for oracle in failed_oracles {
-                    write!(f, "{oracle}")?;
-                }
-                Ok(())
-            },
-            Error::InvariantFileReadError {
-                oracle_name,
-                invariant_file_name,
-                err,
-            } => write!(f, "error reading invariant file {invariant_file_name} for oracle {oracle_name}: {err}"),
-            Error::CompositionParamMismatch {
-                left_game_inst_name,
-                right_game_inst_name,
-                mismatching_param_name,
-            } => write!(f, "parameter {mismatching_param_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}"),
-            Error::CompositionExportsMismatch {
-                left_game_inst_name,
-                right_game_inst_name,
-                mismatching_export_name,
-            } => write!(f, "export(s) {mismatching_export_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}"),
-            Error::ClaimTheoremFailed {
-                claim_name,
-                oracle_name,
-                response,
-                modelfile,
-            } => {
-                match modelfile {
-                    Ok(model) => {
-                        let model = model.as_path().display();
-                        write!(f, "error proving claim {claim_name} oracle {oracle_name}. status: {response}. model file: {model}.")
-                    }
-                    Err(model_err) => write!(f, "error proving claim {claim_name} oracle {oracle_name}. status: {response}. \
-                                             Also, encountered the following error when trying to get the model: {model_err}"),
-                }
-            },
-            Error::IllegalLemmaName {lemma_name} => write!(f, "found lemma named \"{lemma_name}\". Expected name ending in the name of the oracle. followed by a closing angle bracket"),
-            Error::UnknownLemmaName {lemma_name, oracle_name} => write!(f, "found lemma named \"{lemma_name}\" for oracle \"{oracle_name}\" but couldn't find matching oracle"),
-            Error::IncorrectArgument {argument} => write!(f, "Expected 2-tuple (name type) for argument but got {argument}"),
-            Error::IncorrectNumberOfArguments {argument, expected} => write!(f, "expected {expected} arguments but found {argument}"),
-            Error::ParserError(err) => write!(f, "error communicating with prover: {err}"),
-
-        }
-    }
+#[derive(Debug, Error, Diagnostic)]
+#[error("{oracle_name}: error proving claim {claim_name}. status: {response}. modelfile {}",
+        if let Ok(modfile) = modelfile {modfile.to_str().unwrap()} else {""})]
+pub struct ClaimTheoremFailedError {
+    pub claim_name: String,
+    pub oracle_name: String,
+    pub response: SmtSolverResponse,
+    pub modelfile: SmtSolverResponseResult<PathBuf>,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
-
-impl From<crate::util::smtsolver::Error> for Error {
-    fn from(err: crate::util::smtsolver::Error) -> Self {
-        new_prover_process_error(err)
-    }
-}
-
-impl From<crate::util::smtparser::Error> for Error {
-    fn from(err: crate::util::smtparser::Error) -> Self {
-        Error::ParserError(err)
-    }
-}
-
-pub(crate) fn new_prover_process_error(err: crate::util::smtsolver::Error) -> Error {
-    Error::ProverProcessError(err)
-}
 
 pub(crate) fn new_invariant_file_read_error(
     oracle_name: String,
