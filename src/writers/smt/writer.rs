@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use itertools::Itertools;
+
 use crate::expressions::Expression;
 use crate::expressions::ExpressionKind;
 use crate::identifier::Identifier;
@@ -1130,7 +1132,7 @@ impl<'a> CompositionSmtWriter<'a> {
     //         .into()
     // }
 
-    pub(crate) fn smt_composition_randomness(&mut self) -> Vec<SmtExpr> {
+    pub(crate) fn smt_composition_randomness(&mut self) -> impl Iterator<Item = SmtExpr> {
         let game_inst_ctx = self.context();
         let game_inst = game_inst_ctx.game_inst();
 
@@ -1143,7 +1145,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .collect();
 
         // turn them to function declarations
-        let mut result: Vec<_> = smt_sorts
+        smt_sorts
             .into_iter()
             .map(|smt_sort| {
                 (
@@ -1160,11 +1162,7 @@ impl<'a> CompositionSmtWriter<'a> {
                 )
                     .into()
             })
-            .collect();
-
-        // sort them so the order is deterministic
-        result.sort();
-        result
+            .sorted()
     }
 
     // pub(crate) fn smt_composition_partial_stuff(&self) -> Vec<SmtExpr> {
