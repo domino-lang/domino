@@ -40,7 +40,7 @@ impl<'a> EquivalenceContext<'a> {
         }
     }
 
-    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> Vec<SmtExpr> {
+    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -210,14 +210,14 @@ impl<'a> EquivalenceContext<'a> {
             dependencies_code.push(dep)
         }
 
-        vec![crate::writers::smt::exprs::SmtAssert(SmtNot(SmtImplies(
+        crate::writers::smt::exprs::SmtAssert(SmtNot(SmtImplies(
             SmtAnd(dependencies_code),
             postcond_call,
         )))
-        .into()]
+        .into()
     }
 
-    pub(crate) fn emit_game_definitions(&self) -> Vec<SmtExpr> {
+    pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
         let left = self
             .theorem
             .find_game_instance(self.equivalence.left_name())
@@ -230,25 +230,18 @@ impl<'a> EquivalenceContext<'a> {
         let mut left_writer = CompositionSmtWriter::new(left, self.sample_info_left());
         let mut right_writer = CompositionSmtWriter::new(right, self.sample_info_right());
 
-        let mut out = vec![];
-
-        out.append(&mut left_writer.smt_composition_randomness());
-        out.append(&mut right_writer.smt_composition_randomness());
-
-        out.extend(self.smt_package_const_definitions());
-        out.extend(self.smt_package_state_definitions());
-
-        out.extend(self.smt_theorem_const_definition());
-        out.extend(self.smt_game_const_definitions());
-        out.extend(self.smt_game_state_definitions());
-
-        out.extend(self.smt_theorem_game_const_mapping_definitions());
-        out.extend(self.smt_game_pkg_const_mapping_definitions());
-
-        out.extend(self.smt_package_return_definitions());
-        out.extend(self.smt_oracle_function_definitions());
-
-        out
+        left_writer
+            .smt_composition_randomness()
+            .chain(right_writer.smt_composition_randomness())
+            .chain(self.smt_package_const_definitions())
+            .chain(self.smt_package_state_definitions())
+            .chain(self.smt_theorem_const_definition())
+            .chain(self.smt_game_const_definitions())
+            .chain(self.smt_game_state_definitions())
+            .chain(self.smt_theorem_game_const_mapping_definitions())
+            .chain(self.smt_game_pkg_const_mapping_definitions())
+            .chain(self.smt_package_return_definitions())
+            .chain(self.smt_oracle_function_definitions())
     }
 
     pub(crate) fn emit_base_declarations(&self) -> Vec<SmtExpr> {
@@ -309,9 +302,10 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_auto_randomness(&self, oracle_name: &str) -> Vec<SmtExpr> {
-        let mut out = Vec::new();
         match self.equivalence.randomness_by_oracle_name(oracle_name) {
-            RandomnessType::Custom => {}
+            RandomnessType::Custom => {
+                vec![]
+            }
             RandomnessType::Simple => {
                 let define = SmtDefineFun {
                     is_rec: false,
@@ -349,7 +343,7 @@ impl<'a> EquivalenceContext<'a> {
                         ("offset-1".to_string(), Type::integer().into()),
                     ],
                 };
-                out.push(define.into());
+                vec![define.into()]
             }
             RandomnessType::None => {
                 let define = SmtDefineFun {
@@ -372,13 +366,12 @@ impl<'a> EquivalenceContext<'a> {
                         ("offset-1".to_string(), Type::integer().into()),
                     ],
                 };
-                out.push(define.into());
+                vec![define.into()]
             }
         }
-        out
     }
 
-    pub(crate) fn emit_theorem_paramfuncs(&self) -> Vec<SmtExpr> {
+    pub(crate) fn emit_theorem_paramfuncs(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
         fn get_fn<T: Clone>(arg: &(T, Type)) -> Option<(T, Vec<Type>, Type)> {
             let (other, ty) = arg;
             match ty.kind() {
@@ -387,29 +380,31 @@ impl<'a> EquivalenceContext<'a> {
             }
         }
 
-        let mut out = Vec::new();
-        let funcs = self.theorem.consts.iter().filter_map(get_fn);
+        self.theorem
+            .consts
+            .iter()
+            .filter_map(get_fn)
+            .map(|(func_name, arg_types, ret_type)| {
+                let arg_types: SmtExpr = arg_types
+                    .into_iter()
+                    .map(|ty| ty.into())
+                    .collect::<Vec<SmtExpr>>()
+                    .into();
 
-        for (func_name, arg_types, ret_type) in funcs {
-            let arg_types: SmtExpr = arg_types
-                .into_iter()
-                .map(|ty| ty.into())
-                .collect::<Vec<SmtExpr>>()
-                .into();
-
-            let smt = (
-                "declare-fun",
-                format!("<<func-{func_name}>>"),
-                arg_types,
-                ret_type,
-            );
-            out.push(smt.into());
-        }
-        out
+                (
+                    "declare-fun",
+                    format!("<<func-{func_name}>>"),
+                    arg_types,
+                    ret_type,
+                )
+                    .into()
+            })
     }
-    pub(crate) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {
-        let mut out = Vec::new();
 
+    pub(crate) fn emit_return_value_helpers(
+        &'a self,
+        oracle_name: &str,
+    ) -> impl Iterator<Item = SmtExpr> + 'a {
         let left_gctx = self.left_game_inst_ctx();
         let left_octx = left_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
         let left_pctx = left_octx.pkg_inst_ctx();
@@ -462,24 +457,34 @@ impl<'a> EquivalenceContext<'a> {
             ),
         ];
 
-        for (name, value) in consts {
-            let declare = declare_const(name, Sort::Bool);
-            let constrain = SmtAssert(SmtEq2 {
-                lhs: name,
-                rhs: value,
-            });
+        consts
+            .into_iter()
+            .flat_map(|(name, value)| {
+                let declare = declare_const(name, Sort::Bool);
+                let constrain = SmtAssert(SmtEq2 {
+                    lhs: name,
+                    rhs: value,
+                });
 
-            out.push(declare);
-            out.push(constrain.into());
-        }
+                [declare, constrain.into()]
+            })
+            .chain(std::iter::once(
+                self.relation_definition_equal_aborts(oracle_name).into(),
+            ))
+            .chain(std::iter::once(
+                self.relation_definition_left_no_abort(oracle_name).into(),
+            ))
+            .chain(std::iter::once(
+                self.relation_definition_right_no_abort(oracle_name).into(),
+            ))
+            .chain(std::iter::once(
+                self.relation_definition_no_abort(oracle_name).into(),
+            ))
+            .chain(std::iter::once(
+                self.relation_definition_same_output(oracle_name).into(),
+            ))
 
-        out.push(self.relation_definition_equal_aborts(oracle_name).into());
-        out.push(self.relation_definition_left_no_abort(oracle_name).into());
-        out.push(self.relation_definition_right_no_abort(oracle_name).into());
-        out.push(self.relation_definition_no_abort(oracle_name).into());
-        out.push(self.relation_definition_same_output(oracle_name).into());
-
-        out
+        // out
     }
 
     pub(crate) fn emit_constant_declarations(&self) -> Vec<SmtExpr> {

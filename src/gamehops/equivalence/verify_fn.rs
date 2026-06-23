@@ -91,7 +91,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.push(SmtExpr::Comment("\n".to_string()));
         smt.push(SmtExpr::Comment("theorem param funcs:\n".to_string()));
-        smt.append(&mut self.eqctx.emit_theorem_paramfuncs());
+        smt.extend(&mut self.eqctx.emit_theorem_paramfuncs());
         log::debug!(
             "emitting game definitions for {}-{}",
             eq.left_name,
@@ -99,7 +99,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.push(SmtExpr::Comment("\n".to_string()));
         smt.push(SmtExpr::Comment("game definitions:\n".to_string()));
-        smt.append(&mut self.eqctx.emit_game_definitions());
+        smt.extend(&mut self.eqctx.emit_game_definitions());
 
         log::debug!(
             "emitting const declarations for {}-{}",
@@ -165,7 +165,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
 
         log::info!("verify: oracle:{oracle:?}");
-        smt.append(&mut self.eqctx.emit_return_value_helpers(oracle.name()));
+        smt.extend(&mut self.eqctx.emit_return_value_helpers(oracle.name()));
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
         smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
 
@@ -229,9 +229,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             for entry in oracle_smt {
                 solver.write_smt(entry.clone())?;
             }
-            for entry in self.eqctx.emit_claim_assert(oracle.name(), claim) {
-                solver.write_smt(entry)?;
-            }
+            solver.write_smt(self.eqctx.emit_claim_assert(oracle.name(), claim))?;
 
             match solver.check_sat()? {
                 SmtSolverResponse::Unsat => {}
