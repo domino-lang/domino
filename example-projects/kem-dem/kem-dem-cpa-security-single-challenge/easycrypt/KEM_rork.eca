@@ -1,0 +1,56 @@
+(** This is a specialised and cut-down version of the standard KEM
+    library. Understanding all the knobs provided by the KEM library
+    (which are not all the knobs we need it to provide) is well beyond
+    the scope of CAPS.
+**)
+require import AllCore Distr.
+
+(* Given sets of public keys, secret keys, session keys, and KEM
+   ciphertexts ... *)
+type pkey, skey, key, ctxt.
+
+(* ... and the uniform distribution over the session key space *)
+op [lossless full uniform] dkey : key distr.
+
+(** A KEM is a triple of (potentially probabilistic and stateful)
+    algorithms:
+**)
+module type KEM = {
+  proc keygen(): pkey * skey
+  proc encaps(pk : pkey): key * ctxt
+  proc decaps(sk : skey, k : ctxt): key option
+}.
+
+(** A CPA adversary against the KEM is an algorithm: **)
+module type KEM_CPA_Adv = {
+  proc distinguish(pk : pkey, k : key, c : ctxt): bool
+  (* distinguih that, on input a public key, a session key and a
+     ciphertext, outputs a boolean *)
+}.
+
+(** And we define the advantage of a CPA adversary A against a KEM E
+    in initial memory &m as:
+      `|   Pr[KEM_CPA_Exp(E, A).run(false) @ &m: res]
+         - Pr[KEM_CPA_Exp(E, A).run(true) @ &m: res]  |
+    where KEM_CPA_Exp is the experiment:
+**)
+module KEM_CPA_Exp (E : KEM) (A : KEM_CPA_Adv) = {
+  proc run(b : bool) = {
+    var pk, sk, k0, k1, c, b';
+
+    (pk, sk) <@ E.keygen();
+    (k0, c) <@ E.encaps(pk);
+    k1 <$ dkey;
+    b' <@ A.distinguish(pk, if b then k1 else k0, c);
+    return b';
+  }
+}.
+
+(** Why do we need the initial memory in probability expressions?
+    Because we can derive finer-grained properties of programs in
+    "non-standard" initial memories (that can then be applied in the
+    middle of an execution!) from probability expressions. So being
+    able to explicitly provide the memory is a good feature to have,
+    and being required to provide the memory has not yet proven to be
+    bad enough of an anti-feature.
+**)

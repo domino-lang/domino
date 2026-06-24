@@ -106,24 +106,6 @@ composition Hybrid1 {
             w: w,
         }
     }
-
-    instance GBL1 = GBL1 {
-        params {
-            p: p
-        }
-    }
-
-    instance GBL2 = GBL2 {
-        params {
-            p: p
-        }
-    }
-
-    instance GBL3 = GBL3 {
-        params {
-            p: p
-        }
-    }
     
     instance Mod = Mod3Layer {
         params {
@@ -140,13 +122,10 @@ composition Hybrid1 {
         Mod: {
             GETAOUT: keys0,
             SETBIT: keys0,
-            GBL1: GBL1,
-            GBL2: GBL2,
-            GBL3: GBL3,
+            GBL1: GBL of modgb1,
+            GBL2: GBL of modgb2,
+            GBL3: GBL of modgb3,
             GETKEYSIN: keys3,
-        }
-        GBL1: {
-            GBL: modgb1,
         }
         modgb1: {
             GBLG: simgate1,
@@ -161,10 +140,6 @@ composition Hybrid1 {
             GETBIT: keys0,
             SETBIT: keys1,
         }        
-
-        GBL2: {
-            GBL: modgb2,
-        }
         modgb2: {
             GBLG: gate2,
         }
@@ -175,10 +150,6 @@ composition Hybrid1 {
         }
         enc2: {
             GETKEYSIN: keys1,
-        }
-
-        GBL3: {
-            GBL: modgb3,
         }
         modgb3: {
             GBLG: gate3,

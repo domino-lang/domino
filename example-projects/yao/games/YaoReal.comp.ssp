@@ -36,14 +36,8 @@ composition YaoReal {
     instance LayerMap = LayerMap {
         params {
             n: n,
-            d: d
-        }
-    }
-
-    instance Proxy = LayeredGateProxy {
-        params {
-            p: p,
             d: d,
+            p: p
         }
     }
 
@@ -74,15 +68,13 @@ composition YaoReal {
             GETKEYSIN: LayerMap,
         }
         MODGB: {
-            GBLG: Proxy,
-        }
-        Proxy: {
-            LGATEGBLG: Gate,
+            GBLG: LayerMap,
         }
         LayerMap: {
             LSETBIT: Keys,
             LGETAOUT: Keys,
             LGETKEYSIN: Keys,
+            LGBLG: LGATEGBLG of Gate
         }
         Gate: {
             LENCN: Enc,

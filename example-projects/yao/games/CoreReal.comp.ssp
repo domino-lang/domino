@@ -3,7 +3,6 @@ composition CoreReal {
     const p: Integer;
     const m: Integer;
     const d: Integer;
-    const w: Integer;
     const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
@@ -36,14 +35,8 @@ composition CoreReal {
     instance LayerMap = LayerMap {
         params {
             n: n,
-            d: d
-        }
-    }
-
-    instance Proxy = LayeredGateProxy {
-        params {
-            p: p,
             d: d,
+            p: p
         }
     }
 
@@ -51,16 +44,14 @@ composition CoreReal {
         adversary: {
             GETAOUT: LayerMap,
             SETBIT: LayerMap,
-            GBLG: Proxy,
+            GBLG: LayerMap,
             GETKEYSIN: LayerMap,
-        }
-        Proxy: {
-            LGATEGBLG: Gate,
         }
         LayerMap: {
             LSETBIT: Keys,
             LGETAOUT: Keys,
             LGETKEYSIN: Keys,
+            LGBLG: LGATEGBLG of Gate,
         }
         Gate: {
             LENCN: Enc,
