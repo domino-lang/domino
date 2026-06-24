@@ -157,6 +157,7 @@ impl Expression {
             | ExpressionKind::StringLiteral(_)
             | ExpressionKind::IntegerLiteral(_)
             | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::BitsLiteral(..)
             | ExpressionKind::Identifier(_) => self.kind.clone(),
 
             ExpressionKind::Not(expr) => ExpressionKind::Not(Box::new(expr.borrow_map(f))),
@@ -237,6 +238,7 @@ impl Expression {
             | ExpressionKind::StringLiteral(_)
             | ExpressionKind::IntegerLiteral(_)
             | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::BitsLiteral(..)
             | ExpressionKind::Identifier(_) => (init, self.kind.clone()),
 
             ExpressionKind::Not(expr) => {
