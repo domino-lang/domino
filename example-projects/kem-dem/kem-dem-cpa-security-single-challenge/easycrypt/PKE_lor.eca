@@ -1,0 +1,39 @@
+require import AllCore Distr.
+
+(* Given sets of public keys, secret keys, plaintexts, and
+   ciphertexts... *)
+type pkey, skey, ptxt, ctxt.
+
+(** A public key encryption scheme (with structured ciphertexts!) is a
+    triple of algorithms:
+**)
+module type PKE = {
+  proc keygen(): pkey * skey
+  proc enc(pk : pkey, m : ptxt): ctxt
+  proc dec(sk : skey, c : ctxt): ptxt option
+}.
+
+(** A CPA adversary against a PKE is a pair of algorithms: **)
+module type PKE_CPA_Adv = {
+  proc choose(pk : pkey): ptxt * ptxt
+  proc distinguish(c : ctxt): bool
+}.
+
+(** The advantage of a CPA adversary A against a PKE E in initial
+    memory &m is
+      `|   Pr[PKE_CPA_Exp(E, A).run(false) @ &m: res]
+         - Pr[PKE_CPA_Exp(E, A).run(true) @ &m: res]  |
+    where PKE_CPA_Exp is the experiment:
+**)
+module PKE_CPA_Exp (E : PKE) (A : PKE_CPA_Adv) = {
+  proc run(b : bool) = {
+    var pk, sk, c, b', m0, m1;
+
+    (pk, sk) <@ E.keygen();
+    (m0, m1) <@ A.choose(pk);
+    c <@ E.enc(pk, if b then m1 else m0);
+    b' <@ A.distinguish(c);
+    return b';
+  }
+}.
+

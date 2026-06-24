@@ -1,0 +1,83 @@
+composition Hybrid0 {
+    const bCorrect: Bool;
+    const bDem: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const dctl: Integer;
+
+    const kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl)));
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+        }
+    }
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+        }
+    }
+
+    instance Correct_KEM = Correct_KEM {
+        params {
+            b: bCorrect,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+        }
+    }
+
+    instance Reduction_Correct_KEM = Reduction_Correct_KEM {
+        params {
+            b: bDem,
+            pkeyl: pkeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+        }
+    }
+
+    compose {
+        Correct_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+        }
+        Reduction_Correct_KEM: {
+            CORR_GEN: Correct_KEM,
+            CORR_ENCAPS: Correct_KEM,
+            CORR_DECAPS: Correct_KEM,
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
+        }
+        adversary: {
+            PKGEN: Reduction_Correct_KEM,
+            PKENC: Reduction_Correct_KEM,
+            PKDEC: Reduction_Correct_KEM,
+        }
+    }
+}

@@ -1,0 +1,49 @@
+package CCA_KEM {
+    params {
+        b: Bool,
+        pkeyl: Integer,
+        skeyl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        sk: Maybe(Bits(skeyl)),
+        c: Maybe(Bits(kctl)),
+    }
+
+    import oracles {
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
+        KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+    }
+
+    oracle KEMGEN() -> Bits(pkeyl) {
+        assert (pk == None);
+        (pk_, sk_) <- parse invoke KEM_GEN();
+        pk <- Some(pk_);
+        sk <- Some(sk_);
+        return pk_;
+    }
+
+    oracle ENCAPS() -> (Bits(kctl), Bits(dkeyl)) {
+        assert (pk != None);
+        assert (c == None);
+        (k_, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        c <- Some(c_);
+        if b {
+            k <-$ Bits(dkeyl) sample-name k;
+        } else {
+            k <- k_;
+        }
+        return (c_, k);
+    }
+
+    oracle DECAPS(c_: Bits(kctl)) -> Maybe(Bits(dkeyl)) {
+        assert (sk != None);
+        assert (c_ != Unwrap(c));
+        k <- parse invoke KEM_DECAPS(Unwrap(sk), c_);
+        return k;
+    }
+}

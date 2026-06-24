@@ -1,0 +1,81 @@
+require import AllCore Distr.
+
+(* Given sets of public keys, secret keys, plaintexts, and
+   ciphertexts... *)
+type pkey, skey, ptxt, ctxt.
+
+(** A public key encryption scheme (with structured ciphertexts!) is a
+    triple of algorithms:
+**)
+module type PKE = {
+  proc keygen(): pkey * skey
+  proc enc(pk : pkey, m : ptxt): ctxt
+  proc dec(sk : skey, c : ctxt): ptxt option
+}.
+
+module type PKE_CPA_Oracles = {
+  proc initialize(): unit
+  proc pk(): pkey
+  proc enc(mL : ptxt, mR : ptxt): ctxt
+}.
+
+module PKE_CPA_Left (E : PKE) = {
+  var pk : pkey
+  var sk : skey
+
+  proc initialize() = {
+    (pk, sk) <@ E.keygen();
+  }
+
+  proc pk() = {
+    return pk;
+  }
+
+  proc enc(mL : ptxt, mR : ptxt): ctxt = {
+    var c;
+
+    c <@ E.enc(pk, mL);
+    return c;
+  }
+}.
+
+module PKE_CPA_Right (E : PKE) = {
+  var pk : pkey
+  var sk : skey
+
+  proc initialize() = {
+    (pk, sk) <@ E.keygen();
+  }
+
+  proc pk() = {
+    return pk;
+  }
+
+  proc enc(mL : ptxt, mR : ptxt): ctxt = {
+    var c;
+
+    c <@ E.enc(pk, mR);
+    return c;
+  }
+}.
+
+(** A CPA adversary against a PKE is a pair of algorithms: **)
+module type PKE_CPA_Adv (O : PKE_CPA_Oracles) = {
+  proc distinguish(): bool
+}.
+
+(** The advantage of a CPA adversary A against a PKE E in initial
+    memory &m is
+      `|   Pr[A(PKE_CPA_Left(E)).distinguish() @ &m: res]
+         - Pr[A(PKE_CPA_Right(E)).distinguish() @ &m: res]  |
+    However, we need to initialize pk and sk to glue games together.
+**)
+module PKE_CPA_Exp (O : PKE_CPA_Oracles) (A : PKE_CPA_Adv) = {
+  proc run() = {
+    var b;
+
+    O.initialize();
+    b <@ A(O).distinguish();
+    return b;
+  }
+}.

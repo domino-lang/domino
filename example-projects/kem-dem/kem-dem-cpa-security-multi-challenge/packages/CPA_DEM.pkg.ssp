@@ -1,0 +1,22 @@
+package CPA_DEM {
+    params {
+        b: Bool,
+        dkeyl: Integer,
+        ptl: Integer,
+        dctl: Integer,
+    }
+
+    import oracles {
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+    }
+
+    oracle ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl) {
+        k <-$ Bits(dkeyl) sample-name k;
+        if b {
+            c <- invoke DEM_ENC(k, m1);
+        } else {
+            c <- invoke DEM_ENC(k, m0);
+        }
+        return c;
+    }
+}

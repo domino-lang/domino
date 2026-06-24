@@ -3,7 +3,6 @@ composition CoreIdeal {
     const p: Integer;
     const m: Integer;
     const d: Integer;
-    const w: Integer;
     const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
@@ -34,14 +33,8 @@ composition CoreIdeal {
     instance LayerMap = LayerMap {
         params {
             n: n,
-            d: d
-        }
-    }
-
-    instance Proxy = LayeredSimProxy {
-        params {
-            p: p,
-            d: d
+            d: d,
+            p: p
         }
     }
 
@@ -49,16 +42,14 @@ composition CoreIdeal {
         adversary: {
             GETAOUT: LayerMap,
             SETBIT: LayerMap,
-            GBLG: Proxy,
+            GBLG: LayerMap,
             GETKEYSIN: LayerMap,
-        }
-        Proxy: {
-            LSIMGBLG: Sim,
         }
         LayerMap: {
             LSETBIT: Keys,
             LGETAOUT: Keys,
             LGETKEYSIN: Keys,
+            LGBLG: LSIMGBLG of Sim
         }
         Sim: {
             LGETAOUT: Keys,

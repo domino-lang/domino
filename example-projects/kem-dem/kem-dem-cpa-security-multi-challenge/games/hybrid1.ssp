@@ -1,0 +1,76 @@
+composition Hybrid1 {
+    const b: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const dctl: Integer;
+
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+        }
+    }
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+        }
+    }
+
+    instance CPA_DEM = CPA_DEM {
+        params {
+            b: b,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+        }
+    }
+
+    instance Reduction_DEM = Reduction_DEM {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+        }
+    }
+
+    compose {
+        CPA_DEM: {
+            DEM_ENC: Scheme_DEM,
+        }
+        Reduction_DEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            ENC: CPA_DEM,
+        }
+        adversary: {
+            PKGEN: Reduction_DEM,
+            PKENC: Reduction_DEM,
+        }
+    }
+}
