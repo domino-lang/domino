@@ -1,7 +1,6 @@
 package ReductionCR {
     params {
         n: Integer,
-        zeron: Bits(n),
     }
 
     import oracles {
@@ -80,7 +79,7 @@ package ReductionCR {
 		   return ((U,u,V,ltk,None,Some(k),ni,Some(nr),Some(kmac),Some(sid),2),
 		           (Unwrap(ni),tau_));
 		} else {
-		   return (state, (zeron,zeron));
+		   return (state, (0_n,0_n));
 		}
 	}
 
@@ -104,14 +103,14 @@ package ReductionCR {
         if ((mac == tau) and
             (ni == Unwrap(ni_))) {
 		    acc        <- Some(true);
-			tau_       <- invoke MAC(Unwrap(kmac),zeron,4);
+			tau_       <- invoke MAC(Unwrap(kmac),0_n,4);
 			
 		   return ((U,v,V,ltk,acc,k,ni_,nr,kmac,sid,2),
 		           (tau_));
 		} else {
 		    acc <- Some(false);
 		    return ((U,v,V,ltk,acc,k,ni_,nr,kmac,sid,2),
-		            (zeron));
+		            (0_n));
 		}
 	}
 
@@ -130,7 +129,7 @@ package ReductionCR {
         assert (mess == 2);
         assert (u == false);
 
-		mac <- invoke MAC(Unwrap(kmac),zeron,4);
+		mac <- invoke MAC(Unwrap(kmac),0_n,4);
 
         if (mac == tau) {
 		   return ((U,u,V,ltk,Some(true),k,ni,nr,kmac,sid,3),

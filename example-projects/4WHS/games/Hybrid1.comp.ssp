@@ -1,6 +1,5 @@
 composition Hybrid1 {
         const n: Integer;
-        const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const b: Bool;
@@ -8,7 +7,6 @@ composition Hybrid1 {
     instance Prot = Prot_NoKey {
         params {
         n: n,
-        zeron: zeron,
         prf: prf,
         mac: mac,
         }
@@ -16,8 +14,7 @@ composition Hybrid1 {
     instance KX = KX_NoKeys {
         params {
         b: b,
-        n: n,
-        zeron: zeron,
+        n: n,        
         prf: prf,
         }
     }

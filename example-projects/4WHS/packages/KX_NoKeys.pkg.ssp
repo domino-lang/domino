@@ -2,7 +2,6 @@ package KX_NoKeys {
     params {
         b: Bool,
         n: Integer,
-        zeron: Bits(n),
         prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),
     }
     

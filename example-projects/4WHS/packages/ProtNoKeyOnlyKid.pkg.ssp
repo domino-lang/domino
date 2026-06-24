@@ -1,7 +1,6 @@
 package ProtNoKeyOnlyKid {
     params {
         n: Integer,
-        zeron: Bits(n),
         mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
 
@@ -76,7 +75,7 @@ package ProtNoKeyOnlyKid {
 		   return ((U,u,V,kid,None,None,ni,Some(nr),Some(kmac),Some(sid),2),
 		           (Unwrap(ni),tau_));
 		} else {
-		   return (state, (zeron,zeron));
+		   return (state, (0_n,0_n));
 		}
 	}
 
@@ -98,14 +97,14 @@ package ProtNoKeyOnlyKid {
         if ((mac(Unwrap(kmac),ni,3) == tau) and
             (ni == Unwrap(ni_))) {
 		    acc        <- Some(true);
-			tau_       <- mac(Unwrap(kmac),zeron,4);
+			tau_       <- mac(Unwrap(kmac),0_n,4);
 			
 		   return ((U,v,V,kid,acc,k,ni_,nr,kmac,sid,2),
 		           (tau_));
 		} else {
 		    acc <- Some(false);
 		    return ((U,v,V,kid,acc,k,ni_,nr,kmac,sid,2),
-		            (zeron));
+		            (0_n));
 		}
 	}
 
@@ -124,7 +123,7 @@ package ProtNoKeyOnlyKid {
         assert (mess == 2);
         assert (u == false);
 
-        if (mac(Unwrap(kmac),zeron,4) == tau) {
+        if (mac(Unwrap(kmac),0_n,4) == tau) {
 		   return ((U,u,V,kid,Some(true),k,ni,nr,kmac,sid,3),
 		           (true));
 		} else {

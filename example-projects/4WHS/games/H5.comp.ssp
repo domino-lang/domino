@@ -1,6 +1,5 @@
 composition H5 {
         const n: Integer;
-        const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const b: Bool;
@@ -14,7 +13,6 @@ composition H5 {
     instance Prot = ProtNoKey {
         params {
         n: n,
-        zeron: zeron,
         prf: prf,
         mac: mac,
         }
@@ -23,7 +21,6 @@ composition H5 {
         params {
         b: b,
         n: n,
-        zeron: zeron,
         prf: prf,
         mac: mac,
         }
