@@ -1,7 +1,6 @@
 theorem Simple4WHS {
     const b: Bool;
     const n: Integer;
-    const zeron: Bits(n);
     const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
     const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
 
@@ -9,7 +8,6 @@ theorem Simple4WHS {
         params {
             b       : false ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -19,7 +17,6 @@ theorem Simple4WHS {
         params {
             b       : true ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -29,7 +26,6 @@ theorem Simple4WHS {
         params {
             b       : b ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -39,7 +35,6 @@ theorem Simple4WHS {
         params {
             b       : b ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -51,7 +46,6 @@ theorem Simple4WHS {
             b       : b ,
             bprf    : false,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -62,7 +56,6 @@ theorem Simple4WHS {
             b       : b ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -73,7 +66,6 @@ theorem Simple4WHS {
             b       : false ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -84,7 +76,6 @@ theorem Simple4WHS {
             b       : true ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }

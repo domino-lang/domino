@@ -1,7 +1,6 @@
 package ReductionMac {
     params {
         n: Integer,
-        zeron: Bits(n),
         mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
 

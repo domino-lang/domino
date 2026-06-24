@@ -3,7 +3,6 @@ package KX_noprfkey {
         btest: Bool,
         bleast: Bool,
         n: Integer,
-        zeron: Bits(n),
         mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
 
@@ -176,7 +175,7 @@ oracle Send4(ctr: Integer, msg: (Bits(n),Bits(n))) -> (Bits(n))
                   Second[Unwrap(sid)] <- Some(ctr);
               }
             }
-            ReverseMac[((kid,U,V,Unwrap(ni),Unwrap(nr)), (zeron,4))] <- Some(ctr);
+            ReverseMac[((kid,U,V,Unwrap(ni),Unwrap(nr)), (0_n,4))] <- Some(ctr);
         }
 
         return msg_;

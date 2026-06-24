@@ -2,7 +2,6 @@ theorem Full4WHS {
     const b: Bool;
     const n: Integer;
     const m: Integer;
-    const zeron: Bits(n);
     const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
     const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
 
@@ -74,7 +73,6 @@ theorem Full4WHS {
         params {
             b       : false ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -84,7 +82,6 @@ theorem Full4WHS {
         params {
             b       : true ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -94,7 +91,6 @@ theorem Full4WHS {
         params {
             b       : b ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -105,7 +101,6 @@ theorem Full4WHS {
             b       : b ,
             bnonce  : false,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -115,7 +110,6 @@ theorem Full4WHS {
             b       : b ,
             bnonce  : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -126,7 +120,6 @@ theorem Full4WHS {
             b       : b ,
             bcr     : false,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -136,7 +129,6 @@ theorem Full4WHS {
             b       : b ,
             bcr     : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -148,7 +140,6 @@ theorem Full4WHS {
             b       : b ,
             bcr     : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -158,7 +149,6 @@ theorem Full4WHS {
             b       : b ,
             bcr     : false,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -168,7 +158,6 @@ theorem Full4WHS {
         params {
             b       : b ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -178,7 +167,6 @@ theorem Full4WHS {
         params {
             b       : b ,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -190,7 +178,6 @@ theorem Full4WHS {
             bleast  : b ,
             bprf    : false,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -201,7 +188,6 @@ theorem Full4WHS {
             bleast  : b ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -213,7 +199,6 @@ theorem Full4WHS {
             bleast  : b ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -225,7 +210,6 @@ theorem Full4WHS {
             bleast  : b ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -237,7 +221,6 @@ theorem Full4WHS {
             b       : b ,
             bprf    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -249,7 +232,6 @@ theorem Full4WHS {
             bleast  : b ,
             bmac    : false,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -260,7 +242,6 @@ theorem Full4WHS {
             bleast  : b ,
             bmac    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -272,7 +253,6 @@ theorem Full4WHS {
             bleast  : false ,
             bmac    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }
@@ -284,7 +264,6 @@ theorem Full4WHS {
             bleast  : true ,
             bmac    : true,
             n       : n    ,
-            zeron   : zeron,
             prf     : prf  ,
             mac     : mac  ,
         }

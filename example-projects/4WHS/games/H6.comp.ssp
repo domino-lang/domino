@@ -1,6 +1,5 @@
 composition H6 {
         const n: Integer;
-        const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const btest: Bool;
@@ -23,7 +22,6 @@ composition H6 {
     instance Prot = ProtNoKeyOnlyKid {
         params {
         n: n,
-        zeron: zeron,
         mac: mac,
         }
     }
@@ -32,7 +30,6 @@ composition H6 {
         btest: btest,
         bleast: bleast,
         n: n,
-        zeron: zeron,
         mac: mac,
         }
     }

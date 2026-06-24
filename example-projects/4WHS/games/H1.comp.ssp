@@ -1,6 +1,5 @@
 composition H1 {
         const n: Integer;
-        const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const b: Bool;
@@ -15,7 +14,6 @@ composition H1 {
     instance Prot = ReductionNonce {
         params {
         n: n,
-        zeron: zeron,
         prf: prf,
         mac: mac,
         }
@@ -24,7 +22,6 @@ composition H1 {
         params {
         b: b,
         n: n,
-        zeron: zeron,
         }
     }
 

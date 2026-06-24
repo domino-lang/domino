@@ -1,6 +1,5 @@
 composition H7 {
         const n: Integer;
-        const zeron: Bits(n);
         const prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n);
         const mac: fn Bits(n), Bits(n), Integer -> Bits(n);
         const btest: Bool;
@@ -30,7 +29,6 @@ composition H7 {
     instance Prot = ReductionMac {
         params {
         n: n,
-        zeron: zeron,
         mac: mac,
         }
     }
@@ -39,7 +37,6 @@ composition H7 {
         btest: btest,
         bleast: bleast,
         n: n,
-        zeron: zeron,
         mac: mac,
         }
     }

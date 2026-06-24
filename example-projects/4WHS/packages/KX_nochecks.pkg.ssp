@@ -2,7 +2,6 @@ package KX_nochecks {
     params {
         b: Bool,
         n: Integer,
-        zeron: Bits(n),
     }
     
     state {

@@ -1,7 +1,6 @@
 package ReductionNonce {
     params {
         n: Integer,
-        zeron: Bits(n),
         prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),
         mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
@@ -78,7 +77,7 @@ package ReductionNonce {
 		   return ((U,u,V,ltk,None,Some(k),ni,Some(nr),Some(kmac),Some(sid),2),
 		           (Unwrap(ni),tau_));
 		} else {
-		   return (state, (zeron,zeron));
+		   return (state, (0_n,0_n));
 		}
 	}
 
@@ -101,14 +100,14 @@ package ReductionNonce {
         if ((mac(Unwrap(kmac),ni,3) == tau) and
             (ni == Unwrap(ni_))) {
 		    acc        <- Some(true);
-			tau_       <- mac(Unwrap(kmac),zeron,4);
+			tau_       <- mac(Unwrap(kmac),0_n,4);
 			
 		   return ((U,v,V,ltk,acc,k,ni_,nr,kmac,sid,2),
 		           (tau_));
 		} else {
 		    acc <- Some(false);
 		    return ((U,v,V,ltk,acc,k,ni_,nr,kmac,sid,2),
-		            (zeron));
+		            (0_n));
 		}
 	}
 
@@ -127,7 +126,7 @@ package ReductionNonce {
         assert (mess == 2);
         assert (u == false);
 
-        if (mac(Unwrap(kmac),zeron,4) == tau) {
+        if (mac(Unwrap(kmac),0_n,4) == tau) {
 		   return ((U,u,V,ltk,Some(true),k,ni,nr,kmac,sid,3),
 		           (true));
 		} else {
