@@ -1,7 +1,7 @@
 # KEM-DEM
 
-This directory consists of four formalization of the well-known KEM-DEM paradigm 
-of hybrid public key encryption schemes. The following table summarizes the 
+This directory consists of four formalization of the KEM-DEM paradigm for constructing 
+hybrid public key encryption schemes. The following table summarizes the 
 assumptions, security notions, proof structure, as well as a corresponding proof
 in EasyCrypt for easier comparison. The corresponding EasyCrypt proof for each 
 formalization live in a subdirectory called `easycrypt`.
