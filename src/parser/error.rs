@@ -33,7 +33,10 @@ pub struct AdmittedClaimWarning {
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("could not prove claim {target}. provable claims: {provable}")]
-#[diagnostic(code(domino::code::theorem::inductionstep::unprovable))]
+#[diagnostic(
+    code(domino::code::theorem::inductionstep::unprovable),
+    help("claims are only provable if they are admited or all dependencies are provable")
+)]
 pub struct InductionStepUnprovableError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
