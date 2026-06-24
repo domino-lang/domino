@@ -192,7 +192,7 @@ pub struct ParseNonTupleError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("type mismatch: got {got}, expected {expected}")]
+#[error("type mismatch: got {got},\n  expected {expected}")]
 #[diagnostic(code(domino::code::type_mismatch))]
 pub struct TypeMismatchError {
     #[label("this expression has the wrong type")]
@@ -207,7 +207,7 @@ pub struct TypeMismatchError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("argument count mismatch: got {got}, expected {expected}")]
+#[error("argument count mismatch: got {got},\n  expected {expected}")]
 #[diagnostic(code(domino::code::argument_count_mismatch))]
 pub struct ArgumentCountMismatchError {
     #[label("this expression has the wrong number of arguments")]
@@ -222,7 +222,7 @@ pub struct ArgumentCountMismatchError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("element count mismatch: got {got}, expected {expected}")]
+#[error("element count mismatch: got {got},\n  expected {expected}")]
 #[diagnostic(code(domino::code::type_mismatch))]
 pub struct ElementCountMismatchError {
     #[label("this expression has the wrong number of elements")]
