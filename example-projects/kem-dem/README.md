@@ -1,10 +1,8 @@
 # KEM-DEM
 
-This directory consists of four formalization of the KEM-DEM paradigm for constructing 
-hybrid public key encryption schemes. The following table summarizes the 
-assumptions, security notions, proof structure, as well as a corresponding proof
-in EasyCrypt for easier comparison. The corresponding EasyCrypt proof for each 
-formalization live in a subdirectory called `easycrypt`.
+This directory contains 5 formalizations of the KEM-DEM paradigm for constructing hybrid public key encryption schemes. One proof is written in (https://eprint.iacr.org/2018/306)[state-separating proofs (SSP) style], and 4 proofs are written using the (https://eprint.iacr.org/2025/1569)[blended approach]. The 4 proofs in blended style were written to match analogous EasyCrypt proofs, and each of the 4 proof folders has a subdirectory called `easycrypt` which contains the analogous EasyCrypt proof. The following table summarizes the assumptions, security notions, proof structure, as well as the source of the corresponding EasyCrypt proof.
+
+In the table, multi-instance refers to multiple keys in the game, and multi-challenge refers to multiple encryption queries.
 
 | Project | Security Notion | Strategy | KEM Assumption | DEM Assumption | PKE Security | EasyCrypt Proof | EasyCrypt Source |
 | - | - | - | - | - | - | - | - |
