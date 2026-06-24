@@ -15,7 +15,7 @@ use crate::{
     Rule, State,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum OracleExpression {
     Invoke(Ref<OracleInvocationExpression>),
     TableIndex(Ref<TableIndexExpression>),
@@ -35,7 +35,7 @@ impl ListItem for OracleExpression {
     const LIST_RULE: Rule = Rule::expr_list;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct BinOpExpression {
     pub lhs: Ref<OracleExpression>,
     pub pre_op_trivia: Ref<Trivia>,
@@ -44,7 +44,7 @@ pub struct BinOpExpression {
     pub rhs: Ref<OracleExpression>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct UnOpExpression {
     pub op: UnOp,
     pub trivia: Ref<Trivia>,
@@ -94,7 +94,7 @@ pub struct CallExpression {
     pub args: Ref<ExprList>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TupleExpression(pub Ref<ExprList>);
 
 fn parse_leftassoc(

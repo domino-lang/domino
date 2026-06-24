@@ -37,7 +37,7 @@ pub enum BinOp {
     Or,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum PureExpression<IdentKind: IdentifierKind> {
     TableIndex(Ref<TableIndexExpression<IdentKind>>),
     Paren(Ref<ParenExpression<IdentKind>>),
@@ -55,7 +55,7 @@ impl<IK: IdentifierKind> ListItem for PureExpression<IK> {
     const LIST_RULE: Rule = Rule::expr_list;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct BinOpExpression<IdentKind: IdentifierKind> {
     pub lhs: Ref<PureExpression<IdentKind>>,
     pub pre_op_trivia: Ref<Trivia>,
@@ -64,7 +64,7 @@ pub struct BinOpExpression<IdentKind: IdentifierKind> {
     pub rhs: Ref<PureExpression<IdentKind>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct UnOpExpression<IdentKind: IdentifierKind> {
     pub op: UnOp,
     pub trivia: Ref<Trivia>,
@@ -106,7 +106,7 @@ pub struct CallExpression<IdentKind: IdentifierKind> {
     pub args: Ref<ExprList<IdentKind>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TupleExpression<IdentKind: IdentifierKind>(pub Ref<ExprList<IdentKind>>);
 
 // crate::ast_nodes::list::impl_list!(
