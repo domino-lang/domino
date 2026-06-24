@@ -77,7 +77,7 @@ num = { ASCII_DIGIT+ }
 // -- literals --
 
 /// A union of all the different literals.
-literal = _{ literal_boolean | literal_emptyset | literal_integer | literal_bits }
+literal = _{ literal_boolean | literal_emptyset | literal_bits | literal_integer }
 
 /// A boolean literal: true or false
 literal_boolean = { kw_true | kw_false }
