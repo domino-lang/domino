@@ -1,0 +1,25 @@
+composition MediumCompositionMoreOracles {
+    const n: Integer;
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+    }
+
+    instance fwd = Fwd {
+        params {
+            n:   n,
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: fwd,
+            UselessOracle: fwd,
+        },
+        fwd: {
+            UsefulOracle: rand,
+        },
+    }
+}
