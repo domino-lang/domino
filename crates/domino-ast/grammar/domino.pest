@@ -24,6 +24,7 @@ gap = { trivium* }
 kw_consts       = @{   "consts"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_types        = @{   "types"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_instance     = @{   "instance"       ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_fn           = @{   "fn"             ~ !(ASCII_ALPHANUMERIC | "_" ) }
 
 // theorem
 kw_theorem      = @{   "theorem"        ~ !(ASCII_ALPHANUMERIC | "_" ) }
@@ -101,10 +102,11 @@ identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 // ## Types
 
-ty = { appl_ty | identifier | tuple_ty }
+ty = { appl_ty | fn_ty | identifier | tuple_ty }
 
 tuple_ty = {                    "(" ~ ty_list ~ ")" }
 appl_ty  = { identifier ~ gap ~ "(" ~ appl_ty_arg_list ~ ")" }
+fn_ty    = { kw_fn ~ gap ~ ty_list ~ gap ~ "->" ~ gap ~ ty }
 
 // The arguments to an application on a type can either be other types (e.g. Table(Int, Int)) or constants (e.g. Bits(n)).
 // We can't distinguish everything at parse time: if there is no obvious tell that something is an expression (e.g. a +)

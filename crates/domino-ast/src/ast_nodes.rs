@@ -271,6 +271,7 @@ define_node_type_enum! {
 
     Type: types::Type<identifier::PackageTypeIdentifierKind>,
     TupleType: types::TupleType<identifier::PackageTypeIdentifierKind>,
+    FnType: types::FnType<PackageTypeIdentifierKind>,
     ArgumentedType: types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>,
     TypeArgument: types::TypeArgument<PackageTypeArgumentIdentifierKind>,
     TypeArgList: types::TypeArgList<PackageTypeArgumentIdentifierKind>,
@@ -280,6 +281,7 @@ define_node_type_enum! {
 
     GameType: types::Type<identifier::GameTypeIdentifierKind>,
     GameTupleType: types::TupleType<identifier::GameTypeIdentifierKind>,
+    GameFnType: types::FnType<GameTypeIdentifierKind>,
     GameArgumentedType: types::ArgumentedType<identifier::GameTypeArgumentIdentifierKind>,
     PaddedGameTypeArgument: types::TypeArgument<GameTypeArgumentIdentifierKind>,
     GameTypeArgList: types::TypeArgList<GameTypeArgumentIdentifierKind>,
@@ -289,6 +291,7 @@ define_node_type_enum! {
 
     TheoremType: types::Type<identifier::TheoremTypeIdentifierKind>,
     TheoremTupleType: types::TupleType<identifier::TheoremTypeIdentifierKind>,
+    TheoremFnType: types::FnType<TheoremTypeIdentifierKind>,
     TheoremArgumentedType: types::ArgumentedType<identifier::TheoremTypeArgumentIdentifierKind>,
     PaddedTheoremTypeArgument: types::TypeArgument<TheoremTypeArgumentIdentifierKind>,
     TheoremTypeArgList: types::TypeArgList<TheoremTypeArgumentIdentifierKind>,
@@ -534,18 +537,21 @@ impl_noop_index! {
     //// in packages
     types::Type<PackageTypeIdentifierKind>,
     types::TupleType<PackageTypeIdentifierKind>,
+    types::FnType<PackageTypeIdentifierKind>,
     types::ArgumentedType<PackageTypeArgumentIdentifierKind>,
     types::TypeArgument<PackageTypeArgumentIdentifierKind>,
 
     //// in games
     types::Type<GameTypeIdentifierKind>,
     types::TupleType<GameTypeIdentifierKind>,
+    types::FnType<GameTypeIdentifierKind>,
     types::ArgumentedType<GameTypeArgumentIdentifierKind>,
     types::TypeArgument<GameTypeArgumentIdentifierKind>,
 
     //// in theorems
     types::Type<TheoremTypeIdentifierKind>,
     types::TupleType<TheoremTypeIdentifierKind>,
+    types::FnType<TheoremTypeIdentifierKind>,
     types::ArgumentedType<TheoremTypeArgumentIdentifierKind>,
     types::TypeArgument<TheoremTypeArgumentIdentifierKind>,
 
