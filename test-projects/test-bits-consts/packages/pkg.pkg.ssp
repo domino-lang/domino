@@ -1,0 +1,6 @@
+package pkg {
+  params {n: Integer}
+  oracle Test() -> Bits(n) {
+    return 0_n;
+  }
+}
