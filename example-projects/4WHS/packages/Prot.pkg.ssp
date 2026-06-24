@@ -1,7 +1,6 @@
 package Prot {
     params {
         n: Integer,
-        0_n: Bits(n),
         prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),
         mac: fn Bits(n), Bits(n), Integer -> Bits(n),
     }
