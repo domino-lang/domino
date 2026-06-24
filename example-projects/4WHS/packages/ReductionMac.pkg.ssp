@@ -106,7 +106,7 @@ package ReductionMac {
            return ((U,u,V,kid,None,None,ni,Some(nr),kmac,Some(sid),2),
                    (Unwrap(ni),tau_new));
         } else {
-           return (state, (zeron,zeron));
+           return (state, (0_n,0_n));
         }
     }
 
@@ -128,18 +128,18 @@ package ReductionMac {
         hon           <- invoke Hon(kid);
         if hon {
             verified  <- invoke Verify( (kid,U,V,Unwrap(ni_),Unwrap(nr)), (ni,3), tau);
-            /*tau_new      <- invoke Mac(    (kid,U,V,Unwrap(ni_),Unwrap(nr)), (zeron,4));*/
+            /*tau_new      <- invoke Mac(    (kid,U,V,Unwrap(ni_),Unwrap(nr)), (0_n,4));*/
         } else {
             verified  <- (mac(Unwrap(kmac),ni,3) == tau);
-            /*tau_new      <-  mac(Unwrap(kmac),zeron,4);*/
+            /*tau_new      <-  mac(Unwrap(kmac),0_n,4);*/
         }
         if (verified and (ni == Unwrap(ni_))) {
            acc        <- Some(true);
 
            if hon {
-               tau_new      <- invoke Mac(    (kid,U,V,Unwrap(ni_),Unwrap(nr)), (zeron,4));
+               tau_new      <- invoke Mac(    (kid,U,V,Unwrap(ni_),Unwrap(nr)), (0_n,4));
            } else {
-               tau_new      <-  mac(Unwrap(kmac),zeron,4);
+               tau_new      <-  mac(Unwrap(kmac),0_n,4);
            }
 
            return ((U,v,V,kid,acc,k,ni_,nr,kmac,sid,2),
@@ -147,7 +147,7 @@ package ReductionMac {
         } else {
             acc       <- Some(false);
             return ((U,v,V,kid,acc,k,ni_,nr,kmac,sid,2),
-                    (zeron));
+                    (0_n));
         }
     }
 
@@ -168,9 +168,9 @@ package ReductionMac {
 
         hon        <- invoke Hon(kid);
         if hon {
-            verified <- invoke Verify( (kid,U,V,Unwrap(ni),Unwrap(nr)), (zeron,4), tau);
+            verified <- invoke Verify( (kid,U,V,Unwrap(ni),Unwrap(nr)), (0_n,4), tau);
         } else {
-            verified <- (mac(Unwrap(kmac),zeron,4) == tau);
+            verified <- (mac(Unwrap(kmac),0_n,4) == tau);
         }
         if verified {
            return ((U,u,V,kid,Some(true),k,ni,nr,kmac,sid,3),
