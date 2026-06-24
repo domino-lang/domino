@@ -16,7 +16,7 @@ use crate::{ast_nodes::NodeType, GlobalRefId};
 /// An arena for values of type T.
 ///
 /// In order for the lookup type safety to hold, there may only be one arena for any type.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Arena<T>(Vec<T>);
 
 impl<T> Default for Arena<T> {
@@ -28,11 +28,13 @@ impl<T> Default for Arena<T> {
 /// A reference to an arena entry of type T.
 ///
 /// The generic argument provides some type safety when looking up values in an arena.
-pub struct Ref<T>(u32, PhantomData<T>);
+// PhantomData<fn() -> T> tags us with T for type safety without acting like we own a T:
+// it keeps Ref covariant in T but stays Send + Sync regardless of whether T is.
+pub struct Ref<T>(u32, PhantomData<fn() -> T>);
 
 impl<T> core::fmt::Debug for Ref<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Ref").field(&self.0).field(&self.1).finish()
+        f.debug_tuple("Ref").field(&self.0).finish()
     }
 }
 
@@ -53,7 +55,9 @@ impl<T: NodeType> Ref<T> {
 /// A reference to an arena slice of type T.
 ///
 /// The generic argument provides some type safety when looking up values in an arena.
-pub struct Slice<T>(u32, u32, PhantomData<T>);
+// PhantomData<fn() -> T> tags us with T for type safety without acting like we own a T:
+// it keeps Slice covariant in T but stays Send + Sync regardless of whether T is.
+pub struct Slice<T>(u32, u32, PhantomData<fn() -> T>);
 
 impl<T> Clone for Slice<T> {
     fn clone(&self) -> Self {

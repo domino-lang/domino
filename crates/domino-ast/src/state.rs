@@ -82,7 +82,7 @@ define_arenas! {
     theorem_types: types::Type<identifier::TheoremTypeIdentifierKind>,
     theorem_argd_types: types::ArgumentedType<identifier::TheoremTypeArgumentIdentifierKind>,
     theorem_tuple_types: types::TupleType<identifier::TheoremTypeIdentifierKind>,
-    theore_types: types::FnType<identifier::TheoremTypeIdentifierKind>,
+    theorem_fn_types: types::FnType<identifier::TheoremTypeIdentifierKind>,
     theorem_type_arg: types::TypeArgument<identifier::TheoremTypeArgumentIdentifierKind>,
     theorem_type_arg_lists: types::TypeArgList<identifier::TheoremTypeArgumentIdentifierKind>,
     theorem_type_lists: types::TypeList<identifier::TheoremTypeIdentifierKind>,

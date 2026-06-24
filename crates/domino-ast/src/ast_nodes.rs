@@ -70,7 +70,13 @@ pub trait ParsableArenaNode: Parsable + InArena + Indexable {}
 /// This predicate checks that the char is neither tab nor space, i.e. the characters we defined as
 /// WHITESPACE in our grammar.
 fn is_neither_tab_nor_space(c: char) -> bool {
-    !matches!(c, ' ' | '\t')
+    !is_tab_or_space(c)
+}
+
+/// This predicate checks that the char is either tab or space, i.e. the characters we defined as
+/// WHITESPACE in our grammar.
+fn is_tab_or_space(c: char) -> bool {
+    matches!(c, ' ' | '\t')
 }
 
 /// A helper for trimming trailing whitespace
@@ -78,14 +84,12 @@ pub fn trimmed_loc(file_id: FileId, pair: &crate::Pair) -> SourceLocation {
     let span = pair.as_span();
     let text = pair.as_str();
 
-    // TODO: This function probable doesn't handle multibyte characters very well
-
     // (requires)
     // if the span is not empty, it doesn't only consist of Rule::WHITESPACE.
     // This should be guaranteed by pest.
     debug_assert!(
         text.is_empty() || text.contains(is_neither_tab_nor_space),
-        "expected pest to guearantee that if span is not empty, it doesn't only consist of Rule::WHITESPACE: {text}"
+        "expected pest to guarantee that if span is not empty, it doesn't only consist of Rule::WHITESPACE: {text}"
     );
 
     // index logic below requires non-empty spans, so we need to handle that case first
@@ -98,15 +102,7 @@ pub fn trimmed_loc(file_id: FileId, pair: &crate::Pair) -> SourceLocation {
     }
 
     // find the length, i.e. first trailing whitespace char.
-    // rfind finds the last non-whitespace char, then we add 1.
-    //
-    // example:
-    // "foo "
-    //    ^     rfind returns Some(2)
-    //     ^    len = 3
-    //
-    // The unwrap follows from our debug_assert above.
-    let len = 1 + text.rfind(is_neither_tab_nor_space).unwrap();
+    let len = text.trim_end_matches(is_tab_or_space).len();
     let end = len + span.start();
 
     // (ensures)
