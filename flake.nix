@@ -60,13 +60,15 @@
           cargoLock.lockFile = ./Cargo.lock;
           buildAndTestSubdir = "crates/domino/";
           cargoBuildFlags = [ "--workspace" ];
+          # TODO: The allow unused_assignments is there because of miette:
+          #       https://github.com/zkat/miette/issues/458
           checkPhase = ''
             echo "==== BEGIN TOOL VERSIONS ===="
             rustc --version
             cargo --version
             cargo clippy -- --version
             echo "==== END TOOL VERSIONS ===="
-            export RUSTFLAGS="-D warnings"
+            export RUSTFLAGS="-D warnings -A unused_assignments"
             cargo test --verbose --workspace --all-targets
             cargo test --verbose --workspace --doc
             cargo check --verbose --workspace --all-targets
