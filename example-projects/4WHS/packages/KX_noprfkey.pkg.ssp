@@ -8,7 +8,7 @@ package KX_noprfkey {
 
     state {
           /* H:     Table(Integer, Bool),*/          /* administrative kid, honesty */
-          ctr_:  Integer,                       /* administrative sid  */
+          ctr_:  Integer,                            /* administrative sid  */
           /* kid_:  Integer, */                      /* administrative kid  */
           /* session key table, reveal -> (.,false) ; test -> (.,true) */
           RevTested:  Table((Integer,Integer,Bits(n),Bits(n),Bits(n)),
