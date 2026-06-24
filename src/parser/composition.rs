@@ -44,6 +44,8 @@ pub struct ParseGameContext<'a> {
 
     pub edges: Vec<Edge>,
     pub exports: Vec<Export>,
+
+    pub invariants: Vec<String>,
 }
 
 impl<'a> ParseContext<'a> {
@@ -75,6 +77,8 @@ impl<'a> ParseContext<'a> {
 
             edges: vec![],
             exports: vec![],
+
+            invariants: vec![],
         }
     }
 }
@@ -105,6 +109,7 @@ impl<'a> ParseGameContext<'a> {
             pkgs: self.instances.into_iter().map(|(inst, _)| inst).collect(),
             edges: self.edges,
             exports: self.exports,
+            invariants: self.invariants,
         }
     }
 
@@ -248,9 +253,13 @@ pub(crate) fn handle_comp_spec_list<'a>(
                 )
                 .unwrap();
             }
-            Rule::instance_decl => {
-                handle_instance_decl(&mut ctx, comp_spec)?;
-            }
+            Rule::invariant_spec => ctx.invariants.append(
+                &mut comp_spec
+                    .into_inner()
+                    .map(|ast| ast.as_str().to_string())
+                    .collect(),
+            ),
+            Rule::instance_decl => handle_instance_decl(&mut ctx, comp_spec)?,
             Rule::compose_decl => handle_compose_assign_body_list(&mut ctx, comp_spec)?,
             _ => {
                 unreachable!();
