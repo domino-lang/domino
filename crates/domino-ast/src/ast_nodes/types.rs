@@ -20,6 +20,7 @@ pub enum Type<IK: TypeIdentifierKind> {
     Identifier(Ref<PackageTypeArgumentIdentifier>),
     Tuple(Ref<TupleType<IK>>),
     Argumented(Ref<ArgumentedType<IK::ArgIdentifierKind>>),
+    Fn(Ref<FnType<IK>>),
 }
 
 impl<IK: TypeIdentifierKind> ListItem for Type<IK> {
@@ -45,6 +46,15 @@ pub enum TypeArgument<IK: TypeArgIdentifierKind> {
     Expr(Ref<PureExpression<IK::ArgValueIdentifierKind>>),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct FnType<IK: TypeIdentifierKind> {
+    pub args_trivia: Ref<Trivia>,
+    pub args: Ref<TypeList<IK>>,
+    pub arrow_trivia: Ref<Trivia>,
+    pub ret_trivia: Ref<Trivia>,
+    pub ret_ty: Ref<Type<IK>>,
+}
+
 impl<IK: TypeArgIdentifierKind> ListItem for TypeArgument<IK> {
     const LIST_RULE: Rule = Rule::appl_ty_arg_list;
 }
@@ -65,6 +75,7 @@ where
     Type<IK>: Indexable + InArena,
     ArgumentedType<IK::ArgIdentifierKind>: Parsable,
     TupleType<IK>: Parsable,
+    FnType<IK>: Parsable,
     TypeArgList<IK::ArgIdentifierKind>: Parsable,
 {
     let inner = pair.into_inner().next().unwrap();
@@ -75,6 +86,7 @@ where
             Type::Argumented(argd_ty)
         }
         Rule::tuple_ty => Type::Tuple(TupleType::parse_ref(file_id, state, inner)),
+        Rule::fn_ty => Type::Fn(FnType::parse_ref(file_id, state, inner)),
         _ => unreachable!(),
     }
 }
@@ -174,6 +186,33 @@ where
             name,
             post_name,
             args,
+        }
+    }
+}
+
+impl<IK: TypeIdentifierKind> Parsable for FnType<IK>
+where
+    Self: Indexable + InArena + NodeType,
+    TypeList<IK>: Parsable,
+    Type<IK>: Parsable,
+{
+    const RULE: Rule = Rule::fn_ty;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        let mut inner = pair.into_inner();
+        let _fn_kw = inner.next().unwrap();
+        let args_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let args = TypeList::parse_ref(file_id, state, inner.next().unwrap());
+        let arrow_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let ret_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let ret_ty = Type::parse_ref(file_id, state, inner.next().unwrap());
+
+        Self {
+            args_trivia,
+            args,
+            arrow_trivia,
+            ret_trivia,
+            ret_ty,
         }
     }
 }
