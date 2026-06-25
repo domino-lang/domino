@@ -2,7 +2,7 @@ package KEM {
     state {
         pk: Maybe(Bits(100)),
         sk: Maybe(Bits(1000)),
-        ek: Maybe(Bits(400)),
+        c: Maybe(Bits(400)),
         encaps_randomness: Maybe(Bits(3000))
     }
 
@@ -15,26 +15,26 @@ package KEM {
 
     oracle KEMGEN() -> Bits(100) {
         assert (sk == None);
-        (pk1, sk1) <- parse invoke KEM_GEN();
-        pk <- Some(pk1);
-        sk <- Some(sk1);
-        return pk1;
+        (pk_, sk_) <- parse invoke KEM_GEN();
+        pk <- Some(pk_);
+        sk <- Some(sk_);
+        return pk_;
     }
 
     oracle ENCAPS() -> Bits(400) {
         assert (pk != None as Bits(100));
-        assert (ek == None);
-        (k, ek1, r) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        assert (c == None);
+        (k, c_, r) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         encaps_randomness <- Some(r);
-        ek <- Some(ek1);
-        _ <- invoke SET(k);
-        return ek1;
+        c <- Some(c_);
+        invoke SET(k);
+        return c_;
     }
 
-    oracle DECAPS(encapsk: Bits(400)) -> Bits(256) {
+    oracle DECAPS(c_: Bits(400)) -> Bits(256) {
         assert (sk != None as Bits(1000));
-        assert (encapsk != Unwrap(ek));
-        k <- invoke KEM_DECAPS(Unwrap(sk), encapsk);
+        assert (c_ != Unwrap(c));
+        k <- invoke KEM_DECAPS(Unwrap(sk), c_);
         return k;
     }
 }
