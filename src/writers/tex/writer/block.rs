@@ -40,22 +40,9 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
         BlockWriter { file, lossy, comp }
     }
 
-    fn ident_to_tex(&self, ident: &Identifier) -> String {
-        let ident = ident.ident();
-        if let Some((first, second)) = ident.split_once("_") {
-            if second.is_empty() {
-                format!("\\n{{{first}}}^\\prime")
-            } else {
-                format!("\\n{{{first}}}_\\n{{{}}}", second.replace("_", "\\_"))
-            }
-        } else {
-            format!("\\n{{{ident}}}")
-        }
-    }
-
     fn countspec_to_tex(&self, count_spec: &CountSpec) -> String {
         match count_spec {
-            CountSpec::Identifier(identifier) => self.ident_to_tex(identifier),
+            CountSpec::Identifier(identifier) => util::ident_to_tex(identifier),
             CountSpec::Literal(num) => format!("{num}"),
             CountSpec::Any => "*".to_string(),
         }
@@ -98,7 +85,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ExpressionKind::Bot => "\\bot".to_string(),
             ExpressionKind::IntegerLiteral(val) => format!("{val}"),
             ExpressionKind::BooleanLiteral(val) => format!("\\lit{{{val}}}"),
-            ExpressionKind::Identifier(ident) => self.ident_to_tex(ident),
+            ExpressionKind::Identifier(ident) => util::ident_to_tex(ident),
             ExpressionKind::Not(expr) if matches!(expr.kind(), ExpressionKind::Equals(exprs) if exprs.len() == 2) => {
                 if let ExpressionKind::Equals(exprs) = expr.kind() {
                     format!(
@@ -142,7 +129,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ),
             ExpressionKind::TableAccess(ident, expr) => format!(
                 "{}[{}]",
-                self.ident_to_tex(ident),
+                util::ident_to_tex(ident),
                 self.expression_to_tex(expr)
             ),
             ExpressionKind::Equals(exprs) => exprs
@@ -173,17 +160,13 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ExpressionKind::Tuple(exprs) => {
                 format!(
                     "\\left({}\\right)",
-                    util::list_to_matrix(
-                        exprs
-                            .iter()
-                            .map(|expr| self.expression_to_tex(expr))
-                    )
+                    util::list_to_matrix(exprs.iter().map(|expr| self.expression_to_tex(expr)))
                 )
             }
             ExpressionKind::FnCall(name, args) => {
                 format!(
                     "\\O{{{}}}({})",
-                    self.ident_to_tex(name),
+                    util::ident_to_tex(name),
                     args.iter()
                         .map(|expr| self.expression_to_tex(expr))
                         .collect::<Vec<_>>()
@@ -201,19 +184,15 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
 
     fn pattern_to_tex(&self, pat: &Pattern) -> String {
         match pat {
-            Pattern::Ident(identifier) => self.ident_to_tex(identifier),
+            Pattern::Ident(identifier) => util::ident_to_tex(identifier),
             Pattern::Table { ident, index } => format!(
                 r"{ident}\left[{index}\right]",
-                ident = self.ident_to_tex(ident),
+                ident = util::ident_to_tex(ident),
                 index = self.expression_to_tex(index)
             ),
             Pattern::Tuple(identifiers) => format!(
                 r"\left({identifiers}\right)",
-                identifiers = util::list_to_matrix(
-                    identifiers
-                        .iter()
-                        .map(|ident| self.ident_to_tex(ident))
-                ),
+                identifiers = util::list_to_matrix(identifiers.iter().map(util::ident_to_tex)),
             ),
         }
     }
@@ -248,9 +227,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                         r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}\left({args}\right) \pccomment{{Pkg: {target_inst_name}, Oracle: {target_oracle_name}}}",
                         name = oracle_name.replace("_", "\\_"),
                         args = util::list_to_matrix(
-                            args
-                                .iter()
-                                .map(|expr| self.expression_to_tex(expr))
+                            args.iter().map(|expr| self.expression_to_tex(expr))
                         ),
                         target_inst_name = target_inst.name.replace('_', r"\_"),
                         target_oracle_name = target_oracle.name.replace('_', "\\_")
@@ -260,9 +237,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                         r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}\left({args}\right) \pccomment{{Pkg: {target_inst_name}}}",
                         name = oracle_name.replace("_", "\\_"),
                         args = util::list_to_matrix(
-                            args
-                                .iter()
-                                .map(|expr| self.expression_to_tex(expr))
+                            args.iter().map(|expr| self.expression_to_tex(expr))
                         ),
                         target_inst_name = target_inst.name.replace('_', r"\_"),
                     )
@@ -380,7 +355,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                         genindentation(indentation),
                         self.expression_to_tex(from),
                         self.forcomp_to_tex(start_comp),
-                        self.ident_to_tex(var),
+                        util::ident_to_tex(var),
                         self.forcomp_to_tex(end_comp),
                         self.expression_to_tex(to)
                     )
