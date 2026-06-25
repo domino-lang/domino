@@ -71,9 +71,9 @@
             (right_pk_kem (<pkg-state-KEM-pk> (<game-ModularPkeCcaGame-pkgstate-pkg_KEM> state-right)))
             (left_c (<pkg-state-MON_CCA-c> (<game-MonolithicPkeCcaGame-pkgstate-pkg_MON_CCA> state-left)))
             (right_c (<pkg-state-MOD_CCA-c> (<game-ModularPkeCcaGame-pkgstate-pkg_MOD_CCA> state-right)))
-            (right_kem_ek (<pkg-state-KEM-ek> (<game-ModularPkeCcaGame-pkgstate-pkg_KEM> state-right)))
-            (right_mod_cca_ek (<pkg-state-MOD_CCA-ek> (<game-ModularPkeCcaGame-pkgstate-pkg_MOD_CCA> state-right)))
-            (right_dem_c (<pkg-state-MOD_CCA-em> (<game-ModularPkeCcaGame-pkgstate-pkg_MOD_CCA> state-right)))
+            (right_kem_c_kem (<pkg-state-KEM-c> (<game-ModularPkeCcaGame-pkgstate-pkg_KEM> state-right)))
+            (right_mod_cca_c_kem (<pkg-state-MOD_CCA-c_kem> (<game-ModularPkeCcaGame-pkgstate-pkg_MOD_CCA> state-right)))
+            (right_dem_c (<pkg-state-MOD_CCA-c_dem> (<game-ModularPkeCcaGame-pkgstate-pkg_MOD_CCA> state-right)))
             (right_key_k (<pkg-state-Key-k> (<game-ModularPkeCcaGame-pkgstate-pkg_Key> state-right)))
             (right_sk (<pkg-state-KEM-sk> (<game-ModularPkeCcaGame-pkgstate-pkg_KEM> state-right)))
             (right_encaps_randomness (<pkg-state-KEM-encaps_randomness> (<game-ModularPkeCcaGame-pkgstate-pkg_KEM> state-right)))
@@ -83,19 +83,19 @@
             (= left_pk right_pk_mod_cca right_pk_kem) ; left_pk = right_pk
             (= ((_ is mk-none) left_pk) ((_ is mk-none) left_sk) ((_ is mk-none) right_pk_mod_cca) ((_ is mk-none) right_pk_kem) ((_ is mk-none) right_sk)) ; left_pk = None iff right_pk = None
             (= left_c right_c) ; left_challenge_ciphertext = right_challenge_ciphertext
-            (= ((_ is mk-none) right_encaps_randomness) ((_ is mk-none) left_c) ((_ is mk-none) right_c) ((_ is mk-none) right_kem_ek) ((_ is mk-none) right_mod_cca_ek) ((_ is mk-none) right_dem_c) ((_ is mk-none) right_key_k)) ; left_challenge_ciphertext = None iff right_challenge_ciphertext = None iff right_encapsulation_challenge = None iff right_dem_challenge = None iff right_key_k = None
+            (= ((_ is mk-none) right_encaps_randomness) ((_ is mk-none) left_c) ((_ is mk-none) right_c) ((_ is mk-none) right_kem_c_kem) ((_ is mk-none) right_mod_cca_c_kem) ((_ is mk-none) right_dem_c) ((_ is mk-none) right_key_k)) ; left_challenge_ciphertext = None iff right_challenge_ciphertext = None iff right_encapsulation_challenge = None iff right_dem_challenge = None iff right_key_k = None
             (= left_sk right_sk) ; left_sk = right_sk
-            (= right_mod_cca_ek right_kem_ek) ; right encapsulated keys
+            (= right_mod_cca_c_kem right_kem_c_kem) ; right encapsulated keys
             (=> ((_ is mk-none) right_pk_kem) ((_ is mk-none) right_c)) ; if PKGEN is not called, PKENC can not be called
             (=>
                 (not ((_ is mk-none) right_c))
-                (= (maybe-get right_c) (mk-tuple2 (maybe-get right_mod_cca_ek) (maybe-get right_dem_c)))
+                (= (maybe-get right_c) (mk-tuple2 (maybe-get right_mod_cca_c_kem) (maybe-get right_dem_c)))
             )
             (=>
                 (not ((_ is mk-none) right_key_k))
                 (and
                     (= (maybe-get right_key_k) (el2-1 (<<func-kem_encaps>> (maybe-get right_encaps_randomness) (maybe-get right_pk_kem))))
-                    (= (maybe-get right_kem_ek) (el2-2 (<<func-kem_encaps>> (maybe-get right_encaps_randomness) (maybe-get right_pk_kem))))
+                    (= (maybe-get right_kem_c_kem) (el2-2 (<<func-kem_encaps>> (maybe-get right_encaps_randomness) (maybe-get right_pk_kem))))
                 )
             )
             (forall 
@@ -124,7 +124,7 @@
         (old-state-right <GameState_ModularPkeCcaGame>)
         (return-left <OracleReturn_MonolithicPkeCcaGame_MON_CCA_PKDEC>)
         (return-right <OracleReturn_ModularPkeCcaGame_MOD_CCA_PKDEC>)
-        (ek_ctxt (Tuple2 Bits_400 Bits_*))
+        (c_kem_ (Tuple2 Bits_400 Bits_*))
     )
     Bool
     (let
@@ -141,9 +141,9 @@
                 (let
                     (
                         (k (el2-1 (<<func-kem_encaps>> r (maybe-get pk))))
-                        (ek (el2-2 (<<func-kem_encaps>> r (maybe-get pk))))
+                        (c_kem (el2-2 (<<func-kem_encaps>> r (maybe-get pk))))
                     )
-                    (= k (<<func-kem_decaps>> (maybe-get sk) ek))
+                    (= k (<<func-kem_decaps>> (maybe-get sk) c_kem))
                 )
             )
         )

@@ -19,22 +19,22 @@ package MON_CCA {
 
     oracle PKGEN() -> Bits(100) {
         assert (sk == None);
-        (pk1, sk1) <- invoke GEN();
-        pk <- Some(pk1);
-        sk <- Some(sk1);
-        return pk1;
+        (pk_, sk_) <- invoke GEN();
+        pk <- Some(pk_);
+        sk <- Some(sk_);
+        return pk_;
     }
 
     oracle PKENC(m: Bits(*)) -> (Bits(400),Bits(*)) {
         assert (pk != None as Bits(100));
         assert (c == None);
         if b {
-            (ek, c2, r) <- parse invoke ENC(Unwrap(pk), zeros(len(m)));
+            (c_kem, c_dem, r) <- parse invoke ENC(Unwrap(pk), zeros(len(m)));
         } else {
-            (ek, c2, r) <- parse invoke ENC(Unwrap(pk), m);
+            (c_kem, c_dem, r) <- parse invoke ENC(Unwrap(pk), m);
         }
-        c <- Some((ek, c2));
-        return (ek, c2);
+        c <- Some((c_kem, c_dem));
+        return (c_kem, c_dem);
     }
 
     oracle PKDEC(c_: (Bits(400),Bits(*))) -> Bits(*) {
