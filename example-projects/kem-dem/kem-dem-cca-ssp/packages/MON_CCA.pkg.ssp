@@ -19,8 +19,7 @@ package MON_CCA {
 
     oracle PKGEN() -> Bits(100) {
         assert (sk == None);
-        pk_sk <- invoke GEN();
-        (pk1, sk1) <- parse pk_sk;
+        (pk1, sk1) <- invoke GEN();
         pk <- Some(pk1);
         sk <- Some(sk1);
         return pk1;

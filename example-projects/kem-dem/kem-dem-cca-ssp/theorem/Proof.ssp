@@ -1,4 +1,4 @@
-theorem Proof {
+theorem kem_dem_cca_ssp {
     const b: Bool;
 
     /*

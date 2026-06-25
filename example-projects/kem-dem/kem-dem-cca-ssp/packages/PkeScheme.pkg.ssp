@@ -14,8 +14,7 @@ package PkeScheme {
     }
 
     oracle ENC(pk: Bits(100), m: Bits(*)) -> (Bits(400), Bits(*), Bits(3000)) {
-        k_ek_r <- invoke KEM_ENCAPS(pk);
-        (k, ek, r) <- parse k_ek_r;
+        (k, ek, r) <- parse invoke KEM_ENCAPS(pk);
         c <- invoke DEM_ENC(k, m);
         return (ek, c, r);
     }
