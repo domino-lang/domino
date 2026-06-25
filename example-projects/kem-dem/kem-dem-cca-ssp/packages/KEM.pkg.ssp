@@ -15,8 +15,7 @@ package KEM {
 
     oracle KEMGEN() -> Bits(100) {
         assert (sk == None);
-        pk_sk <- invoke KEM_GEN();
-        (pk1, sk1) <- parse pk_sk;
+        (pk1, sk1) <- parse invoke KEM_GEN();
         pk <- Some(pk1);
         sk <- Some(sk1);
         return pk1;
@@ -25,8 +24,7 @@ package KEM {
     oracle ENCAPS() -> Bits(400) {
         assert (pk != None as Bits(100));
         assert (ek == None);
-        k_ek_r <- invoke KEM_ENCAPS(Unwrap(pk));
-        (k, ek1, r) <- parse k_ek_r;
+        (k, ek1, r) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         encaps_randomness <- Some(r);
         ek <- Some(ek1);
         _ <- invoke SET(k);
