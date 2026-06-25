@@ -29,11 +29,10 @@ package MON_CCA {
         assert (pk != None as Bits(100));
         assert (c == None);
         if b {
-            c1 <- invoke ENC(Unwrap(pk), zeros(len(m)));
+            (ek, c2, r) <- parse invoke ENC(Unwrap(pk), zeros(len(m)));
         } else {
-            c1 <- invoke ENC(Unwrap(pk), m);
+            (ek, c2, r) <- parse invoke ENC(Unwrap(pk), m);
         }
-        (ek, c2, r) <- parse c1;
         c <- Some((ek, c2));
         return (ek, c2);
     }
