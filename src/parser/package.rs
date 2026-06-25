@@ -11,6 +11,7 @@ use super::{
     ParseContext, Rule,
 };
 use crate::{
+    block,
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
@@ -1175,6 +1176,53 @@ fn handle_assign_rhs(
     }
 }
 
+pub fn handle_ite(
+    ctx: &mut ParsePackageContext,
+    stmt: Pair<Rule>,
+    oracle_sig: &OracleSig,
+    full_span: SourceSpan,
+) -> Result<Statement, ParsePackageError> {
+    let mut inner = stmt.into_inner();
+    let cond = handle_expression(
+        &ctx.parse_ctx(),
+        inner.next().unwrap(),
+        Some(&Type::boolean()),
+    )?;
+    let then_ast = inner.next().unwrap();
+    let then_span = then_ast.as_span();
+    let then_block = handle_code(ctx, then_ast, oracle_sig)?;
+    let maybe_elsecode = inner.next();
+    let (else_span, else_block) = match maybe_elsecode {
+        None => (None, CodeBlock(vec![])),
+        Some(c) if c.as_rule() == Rule::code => {
+            (Some(c.as_span()), handle_code(ctx, c, oracle_sig)?)
+        }
+        Some(c) if c.as_rule() == Rule::ite => (
+            Some(c.as_span()),
+            block! {handle_ite(ctx, c, oracle_sig, full_span)?},
+        ),
+        Some(_) => unreachable!(),
+    };
+
+    let else_span = if let Some(else_span) = else_span {
+        (else_span.start()..else_span.end()).into()
+    } else {
+        (then_span.end()..then_span.end()).into()
+    };
+    let then_span = (then_span.start()..then_span.end()).into();
+
+    let ite = IfThenElse {
+        cond,
+        then_block,
+        else_block,
+        then_span,
+        else_span,
+        full_span,
+    };
+
+    Ok(Statement::IfThenElse(ite))
+}
+
 pub fn handle_code(
     ctx: &mut ParsePackageContext,
     code: Pair<Rule>,
@@ -1191,41 +1239,7 @@ pub fn handle_code(
 
             let stmt = match stmt.as_rule() {
                 // assign | return_stmt | abort | ite
-                Rule::ite => {
-                    let mut inner = stmt.into_inner();
-                    let cond = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&Type::boolean()))?;
-                    let then_ast = inner.next().unwrap();
-                    let then_span = then_ast.as_span();
-                    let then_block = handle_code(
-                        ctx,
-                        then_ast,
-                        oracle_sig,
-                    )?;
-                    let maybe_elsecode = inner.next();
-                    let (else_span, else_block) = match maybe_elsecode {
-                        None => (None, CodeBlock(vec![])),
-                        Some(c) => (Some(c.as_span()), handle_code(ctx, c, oracle_sig)?),
-                    };
-
-                    let else_span = if let Some(else_span) = else_span {
-                        (else_span.start()..else_span.end()).into()
-                    } else {
-                        (then_span.end()..then_span.end()).into()
-                    };
-                    let then_span = (then_span.start()..then_span.end()).into();
-
-                    let ite = IfThenElse{
-                        cond,
-                        then_block,
-                        else_block,
-                        then_span,
-                        else_span,
-                        full_span,
-                    };
-
-
-                    Statement::IfThenElse(ite)
-                }
+                Rule::ite => handle_ite(ctx, stmt, oracle_sig, full_span)?,
                 Rule::return_stmt => {
                     let mut inner = stmt.into_inner();
                     let maybe_expr = inner.next();
