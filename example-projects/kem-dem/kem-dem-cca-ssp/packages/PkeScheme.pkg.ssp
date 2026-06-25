@@ -9,8 +9,8 @@ package PkeScheme {
     }
 
     oracle GEN() -> (Bits(100), Bits(1000)) {
-        pk_sk <- invoke KEM_GEN();
-        return pk_sk;
+        (pk, sk) <- parse invoke KEM_GEN();
+        return (pk, sk);
     }
 
     oracle ENC(pk: Bits(100), m: Bits(*)) -> (Bits(400), Bits(*), Bits(3000)) {
