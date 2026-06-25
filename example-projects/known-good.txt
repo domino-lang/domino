@@ -2,7 +2,11 @@
 simple-KEM-example
 
 # the KEM-DEM security proof
-kem-dem-cca-security
+kem-dem/kem-dem-cca-ssp
+kem-dem/kem-dem-cca-blended-parallel
+kem-dem/kem-dem-cca-blended-redundant
+kem-dem/kem-dem-cpa-blended-parallel-multi-challenge
+kem-dem/kem-dem-cpa-blended-parallel-single-challenge
 
 # the helloworld projects
 hello-world
