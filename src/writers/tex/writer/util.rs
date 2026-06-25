@@ -1,3 +1,15 @@
+pub(super) fn ident_to_tex(ident: &crate::identifier::Identifier) -> String {
+    let ident = ident.ident();
+    if let Some((first, second)) = ident.split_once("_") {
+        if second.is_empty() {
+            format!("\\n{{{first}}}^\\prime")
+        } else {
+            format!("\\n{{{first}}}_\\n{{{}}}", second.replace("_", "\\_"))
+        }
+    } else {
+        format!("\\n{{{ident}}}")
+    }
+}
 
 pub(super) fn logic_to_matrix(join: &str, list: &[String]) -> String {
     assert!(list.len() > 1);
@@ -16,7 +28,7 @@ pub(super) fn logic_to_matrix(join: &str, list: &[String]) -> String {
     }
 }
 
-pub(super) fn list_to_matrix(mut it: impl Iterator<Item=String>) -> String {
+pub(super) fn list_to_matrix(mut it: impl Iterator<Item = String>) -> String {
     let mut lines = Vec::new();
     let mut line = Vec::new();
     let mut len = 0;

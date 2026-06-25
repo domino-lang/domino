@@ -7,6 +7,7 @@ use std::path::Path;
 use itertools::MultiUnzip;
 
 use crate::gamehops::GameHop;
+use crate::identifier::Identifier;
 use crate::package::{Composition, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
 use crate::theorem::Theorem;
@@ -42,13 +43,9 @@ pub fn tex_write_oracle(
         file,
         "\\procedure{{$\\O{{{}}}\\left({}\\right)$}}{{",
         oracle.sig.name.replace("_", "\\_"),
-        util::list_to_matrix(
-            oracle
-                .sig
-                .args
-                .iter()
-                .map(|(a, _)| { format!("\\n{{{}}}", a.replace("_", "\\_")) })
-        )
+        util::list_to_matrix(oracle.sig.args.iter().map(|(name, ty)| {
+            util::ident_to_tex(&Identifier::Generated(name.to_string(), ty.clone()))
+        }))
     )?;
 
     let mut writer = BlockWriter::new(&mut file, lossy, comp);
