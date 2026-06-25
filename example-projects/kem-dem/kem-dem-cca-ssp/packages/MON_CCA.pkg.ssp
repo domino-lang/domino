@@ -37,10 +37,10 @@ package MON_CCA {
         return (ek, c2);
     }
 
-    oracle PKDEC(ek_ctxt: (Bits(400),Bits(*))) -> Bits(*) {
+    oracle PKDEC(c_: (Bits(400),Bits(*))) -> Bits(*) {
         assert (sk != None as Bits(1000));
-        assert (Unwrap(c) != ek_ctxt);
-        m <- invoke DEC(Unwrap(sk), ek_ctxt);
+        assert (c_ != Unwrap(c));
+        m <- invoke DEC(Unwrap(sk), c_);
         return m;
     }
 }
