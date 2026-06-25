@@ -39,6 +39,13 @@ jobs:
           name: Project PDFs
           path: ./example-projects/**/_build/latex/Theorem_*.pdf
           retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: smt-output-${{ matrix.os }}
+          path: example-projects/simple-KEM-example/_build/code_eq/
+          retention-days: 2
+
   check-proofs-windows:
     runs-on: ${{ matrix.os }}
     name: Check Proofs (${{ matrix.os }})
@@ -61,7 +68,7 @@ jobs:
       - name: Install Enough TexLive
         shell: bash
         run: |
-          choco install texlive
+          choco install texlive || choco install texlive
           C:/texlive/*/bin/windows/tlmgr.bat install cryptocode mathtools xcolor pgf xargs xkeyval forloop pbox varwidth environ bigfoot environ trimspaces
           echo C:/texlive/*/bin/windows >> $GITHUB_PATH
 
@@ -90,6 +97,13 @@ jobs:
           name: Project PDFs
           path: ./example-projects/**/_build/latex/Theorem_*.pdf
           retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: smt-output-${{ matrix.os }}
+          path: example-projects/simple-KEM-example/_build/code_eq/
+          retention-days: 2
+
   check-proofs-macos:
     runs-on: ${{ matrix.os }}
     name: Check Proofs (${{ matrix.os }})
@@ -123,3 +137,21 @@ jobs:
           name: Project PDFs
           path: ./example-projects/**/_build/latex/Theorem_*.pdf
           retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: smt-output-${{ matrix.os }}
+          path: example-projects/simple-KEM-example/_build/code_eq/
+          retention-days: 2
+
+  check-cross-stability:
+    runs-on: ubuntu-latest
+    name: Check SMT Stability over different OS Choices
+    needs: [check-proofs-macos, check-proofs-windows, check-proofs-linux]
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: smt-output-*
+          merge-multiple: false
+      - run: for i in smt-output-* ; do echo $i ; diff -ur smt-output-ubuntu-latest $i || touch fail-$i ; done
+      - run: if test -f fail-* ; then exit 1 ; fi
