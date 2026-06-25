@@ -1,3 +1,4 @@
+prover debug verbose selected  ["Z3@4.13.4"].
 require import AllCore Distr.
 
 (* Given sets of public keys, secret keys, plaintexts, DEM keys, KEM

@@ -2,6 +2,7 @@
      https://toc.cryptobook.us/
    (Exercise 11.9 of version 0.6.)
 *)
+prover debug verbose selected  ["Z3@4.13.4"].
 require import AllCore Distr.
 (* We prepare to instantiate our assumptions (those files need to be
    inspected to understand what we prove!) *)

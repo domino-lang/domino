@@ -1,3 +1,4 @@
+prover debug verbose selected  ["Z3@4.13.4"].
 require import AllCore Distr.
 
 (** A more mature proof would rely on libraries of definitions-generic
