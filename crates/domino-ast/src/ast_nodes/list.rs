@@ -16,11 +16,6 @@ pub struct Semicolon;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Colon;
 
-/// Denotes that the list is delimited with newlines
-// NOTE: observe whether the interplay with the trivia makes sense here
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Newlines;
-
 trait Delimiter: Parsable {}
 
 impl Delimiter for Comma {}

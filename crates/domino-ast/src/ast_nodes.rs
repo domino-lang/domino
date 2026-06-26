@@ -22,10 +22,6 @@ use crate::{
     Arenas, Rule, State,
 };
 
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct NodeTypeId(pub u8);
-
 pub trait ListItem {
     const LIST_RULE: Rule;
 }
