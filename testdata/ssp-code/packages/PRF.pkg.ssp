@@ -21,7 +21,7 @@ package PRF {
         ltk_ <- Unwrap(ltk);
         
         k <- prf(ltk_, h);
-        _ <- invoke Set(k, h);
+        invoke Set(k, h);
     } 
 
     oracle Get(h: Bits(n)) -> Bits(n) {

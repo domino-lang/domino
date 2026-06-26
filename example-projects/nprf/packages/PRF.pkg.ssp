@@ -24,6 +24,6 @@ package PRF {
         k_out <- f(k, msg);
         hdl_out <- (hdl, msg);
 
-        _ <- invoke Set(hdl_out, k_out, pr);
+        invoke Set(hdl_out, k_out, pr);
     }
 }

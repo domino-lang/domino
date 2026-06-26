@@ -30,7 +30,7 @@ package Simgate {
         Sl <- new Table(Bool, Bits(n));
         Sr <- new Table(Bool, Bits(n));
         Sj <- new Table(Bool, Bits(n));
-        _ <- invoke EVAL(j, l, r, op);
+        invoke EVAL(j, l, r, op);
         temp <- invoke GETAIN(l);
         Sl[false] <- Some(temp);
         temp <- invoke GETINAIN(l);

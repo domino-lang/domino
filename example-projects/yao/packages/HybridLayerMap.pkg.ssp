@@ -23,9 +23,9 @@ package HybridLayerMap {
     oracle SETBIT(j: Integer, b: Bool) {
         assert (d > 0); /* for CoreIdeal = LastHybrid */
         if (h == 1) {
-            _ <- invoke SETBIT(j, b);
+            invoke SETBIT(j, b);
         } else {
-            _ <- invoke LSETBIT(1, j, b);
+            invoke LSETBIT(1, j, b);
         }
     }
 

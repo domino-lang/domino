@@ -33,7 +33,7 @@ package HybridLayeredSim {
         Sl <- new Table(Bool, Bits(n));
         Sr <- new Table(Bool, Bits(n));
         Sj <- new Table(Bool, Bits(n));
-        _ <- invoke LEVAL(i, j, l, r, op);
+        invoke LEVAL(i, j, l, r, op);
         temp <- invoke LGETAIN(i, l);
         Sl[false] <- Some(temp);
         temp <- invoke LGETINAIN(i, l);
