@@ -6,12 +6,11 @@ package PkeScheme {
         dkeyl: Integer,
         kctl: Integer,
         dctl: Integer,
-        kencr: Integer,
     }
 
     import oracles {
         KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
-        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl), Bits(kencr)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
         KEM_DECAPS(sk: Bits(skeyl), ek: Bits(kctl)) -> Bits(dkeyl),
         DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
         DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
@@ -23,7 +22,7 @@ package PkeScheme {
     }
 
     oracle ENC(pk: Bits(pkeyl), m: Bits(ptl)) -> (Bits(kctl), Bits(dctl)) {
-        (k, c_kem, r) <- parse invoke KEM_ENCAPS(pk);
+        (k, c_kem) <- parse invoke KEM_ENCAPS(pk);
         c_dem <- invoke DEM_ENC(k, m);
         return (c_kem, c_dem);
     }
