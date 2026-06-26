@@ -14,7 +14,7 @@ theorem kem_dem_cca_ssp {
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance monolithic_pke_cca_game = Game_MON_CCA_PKE {
+    instance Game_MON_CCA_PKE = Game_MON_CCA_PKE {
         params {
             b: b,
             pkeyl: pkeyl,
@@ -33,7 +33,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_real_kem = Game_MOD_CCA_PKE {
+    instance Game_MOD_CCA_PKE_Real_KEM = Game_MOD_CCA_PKE {
         params {
             key_idealization: false,
             dem_idealization: b,
@@ -53,7 +53,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance monolithic_pke_cca_real_game = Game_MON_CCA_PKE {
+    instance Game_MON_CCA_PKE_Real = Game_MON_CCA_PKE {
         params {
             b: false,
             pkeyl: pkeyl,
@@ -72,7 +72,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance monolithic_pke_cca_ideal_game = Game_MON_CCA_PKE {
+    instance Game_MON_CCA_PKE_Ideal = Game_MON_CCA_PKE {
         params {
             b: true,
             pkeyl: pkeyl,
@@ -91,7 +91,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_real_kem_and_real_dem = Game_MOD_CCA_PKE {
+    instance Game_MOD_CCA_PKE_Real_KEM_Real_DEM = Game_MOD_CCA_PKE {
         params {
             key_idealization: false,
             dem_idealization: false,
@@ -111,7 +111,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_ideal_kem_and_real_dem = Game_MOD_CCA_PKE {
+    instance Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM = Game_MOD_CCA_PKE {
         params {
             key_idealization: true,
             dem_idealization: false,
@@ -131,7 +131,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_real_kem_and_ideal_dem = Game_MOD_CCA_PKE {
+    instance Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM = Game_MOD_CCA_PKE {
         params {
             key_idealization: false,
             dem_idealization: true,
@@ -151,7 +151,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_ideal_kem_and_ideal_dem = Game_MOD_CCA_PKE {
+    instance Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM = Game_MOD_CCA_PKE {
         params {
             key_idealization: true,
             dem_idealization: true,
@@ -171,7 +171,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance dem_cca_game_real = Game_CCA_DEM {
+    instance Game_CCA_DEM_Real = Game_CCA_DEM {
         params {
             b: false,
             dkeyl: dkeyl,
@@ -182,7 +182,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance dem_cca_game_ideal = Game_CCA_DEM {
+    instance Game_CCA_DEM_Ideal = Game_CCA_DEM {
         params {
             b: true,
             dkeyl: dkeyl,
@@ -193,7 +193,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance kem_cca_game_real = Game_CCA_KEM {
+    instance Game_CCA_KEM_Real = Game_CCA_KEM {
         params {
             b: false,
             pkeyl: pkeyl,
@@ -208,7 +208,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance kem_cca_game_ideal = Game_CCA_KEM {
+    instance Game_CCA_KEM_Ideal = Game_CCA_KEM {
         params {
             b: true,
             pkeyl: pkeyl,
@@ -224,17 +224,17 @@ theorem kem_dem_cca_ssp {
     }
 
     assumptions {
-        KEM_CCA_Security: kem_cca_game_real ~ kem_cca_game_ideal
-        DEM_CCA_Security: dem_cca_game_real ~ dem_cca_game_ideal
+        KEM_CCA_Security: Game_CCA_KEM_Real ~ Game_CCA_KEM_Ideal
+        DEM_CCA_Security: Game_CCA_DEM_Real ~ Game_CCA_DEM_Ideal
     }
 
     gamehops {
         /* 
-        Goal: monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game
+        Goal: Game_MON_CCA_PKE_Real ~ Game_MON_CCA_PKE_Ideal
         */
         /* We first prove real/ideal PKE-CCA game is equivalent to the modular 
-        version (i.e. modular_pke_cca_game_with_real_kem) */
-        equivalence monolithic_pke_cca_game modular_pke_cca_game_with_real_kem {
+        version (i.e. Game_MOD_CCA_PKE_Real_KEM) */
+        equivalence Game_MON_CCA_PKE Game_MOD_CCA_PKE_Real_KEM {
             PKGEN: {
                 randomness: simple
                 invariant: [
@@ -277,18 +277,18 @@ theorem kem_dem_cca_ssp {
             }
         }
 
-        /* Now we hop three times to reach modular_pke_cca_game_with_real_kem_and_ideal_dem */
+        /* Now we hop three times to reach Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM */
         /* First hop idealizes KEM and reduces to KEM-CCA security */
-        reduction modular_pke_cca_game_with_real_kem_and_real_dem modular_pke_cca_game_with_ideal_kem_and_real_dem {
+        reduction Game_MOD_CCA_PKE_Real_KEM_Real_DEM Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM {
             assumption KEM_CCA_Security
 
-            map kem_cca_game_real modular_pke_cca_game_with_real_kem_and_real_dem {
+            map Game_CCA_KEM_Real Game_MOD_CCA_PKE_Real_KEM_Real_DEM {
                 Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
             }
 
-            map kem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_real_dem {
+            map Game_CCA_KEM_Ideal Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM {
                 Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
@@ -296,16 +296,16 @@ theorem kem_dem_cca_ssp {
         }
 
         /* Second hop idealizes DEM and reduces to DEM-CCA security */
-        reduction modular_pke_cca_game_with_ideal_kem_and_real_dem modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
+        reduction Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM {
             assumption DEM_CCA_Security
 
-            map dem_cca_game_real modular_pke_cca_game_with_ideal_kem_and_real_dem {
+            map Game_CCA_DEM_Real Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM {
                 Scheme_DEM: Scheme_DEM
                 Key: Key
                 DEM: DEM
             }
 
-            map dem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
+            map Game_CCA_DEM_Ideal Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM {
                 Scheme_DEM: Scheme_DEM
                 Key: Key
                 DEM: DEM
@@ -313,16 +313,16 @@ theorem kem_dem_cca_ssp {
         }
 
         /* Third hop deidealizes KEM and reduces to KEM-CCA security again */
-        reduction modular_pke_cca_game_with_ideal_kem_and_ideal_dem modular_pke_cca_game_with_real_kem_and_ideal_dem {
+        reduction Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM {
             assumption KEM_CCA_Security
 
-            map kem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
+            map Game_CCA_KEM_Ideal Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM {
                 Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
             }
 
-            map kem_cca_game_real modular_pke_cca_game_with_real_kem_and_ideal_dem {
+            map Game_CCA_KEM_Real Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM {
                 Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
@@ -330,6 +330,6 @@ theorem kem_dem_cca_ssp {
         }
     }
     propositions {
-        Main: monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game
+        Main: Game_MON_CCA_PKE_Real ~ Game_MON_CCA_PKE_Ideal
     }
 }
