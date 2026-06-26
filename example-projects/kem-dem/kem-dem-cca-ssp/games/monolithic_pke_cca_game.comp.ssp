@@ -46,7 +46,6 @@ composition MonolithicPkeCcaGame {
             dkeyl: dkeyl,
             kctl: kctl,
             dctl: dctl,
-            kencr: kencr,
         }
     }
 

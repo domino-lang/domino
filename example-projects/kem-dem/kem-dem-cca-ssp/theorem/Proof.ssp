@@ -255,7 +255,8 @@ theorem kem_dem_cca_ssp {
                 ]
 
                 lemmas {
-                    invariant: [no-abort]
+                    lemma-kem-correctness: admit []
+                    invariant: [no-abort, lemma-kem-correctness]
                     same-output: [no-abort]
                     equal-aborts: []
                 }

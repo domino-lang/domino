@@ -4,20 +4,18 @@ package KEM {
         skeyl: Integer,
         dkeyl: Integer,
         kctl: Integer,
-        kencr: Integer,
     }
 
     state {
         pk: Maybe(Bits(pkeyl)),
         sk: Maybe(Bits(skeyl)),
-        c: Maybe(Bits(kctl)),
-        encaps_randomness: Maybe(Bits(kencr))
+        c: Maybe(Bits(kctl))
     }
 
     import oracles {
         SET(k: Bits(dkeyl)),
         KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
-        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl), Bits(kencr)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
         KEM_DECAPS(sk: Bits(skeyl), ek: Bits(kctl)) -> Bits(dkeyl),
     }
 
@@ -32,8 +30,7 @@ package KEM {
     oracle ENCAPS() -> Bits(kctl) {
         assert (pk != None as Bits(pkeyl));
         assert (c == None);
-        (k, c_, r) <- parse invoke KEM_ENCAPS(Unwrap(pk));
-        encaps_randomness <- Some(r);
+        (k, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         c <- Some(c_);
         invoke SET(k);
         return c_;

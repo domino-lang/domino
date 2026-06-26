@@ -37,7 +37,6 @@ composition KemCcaGame {
             skeyl: skeyl,
             dkeyl: dkeyl,
             kctl: kctl,
-            kencr: kencr,
         }
     }
 

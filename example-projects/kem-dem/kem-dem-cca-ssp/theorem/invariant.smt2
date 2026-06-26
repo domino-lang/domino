@@ -34,10 +34,7 @@
         )
         (=>
             (not (is-mk-none right.Key.k))
-            (and
-                (= (maybe-get right.Key.k) (el2-1 (<<func-kem_encaps>> (maybe-get right.KEM.encaps_randomness) (maybe-get right.KEM.pk))))
-                (= (maybe-get right.KEM.c) (el2-2 (<<func-kem_encaps>> (maybe-get right.KEM.encaps_randomness) (maybe-get right.KEM.pk))))
-            )
+            (= (maybe-get right.Key.k) (<<func-kem_decaps>> (maybe-get right.KEM.sk) (maybe-get right.KEM.c)))
         )
     )
 )
@@ -65,7 +62,33 @@
 ;    )
 ;)
 
-(define-fun <relation-lemma-kem-correctness-monolithic_pke_cca_game-modular_pke_cca_game_with_real_kem-PKDEC>
+(define-lemma <relation-lemma-kem-correctness-monolithic_pke_cca_game-modular_pke_cca_game_with_real_kem-PKENC>
+    (
+        (old-state-left <GameState_MonolithicPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
+        (old-state-right <GameState_ModularPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
+        (return-left <OracleReturn_MonolithicPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>_MON_CCA_<$<!dctl!><!kctl!><!pkeyl!><!ptl!><!skeyl!>$>_PKENC>)
+        (return-right <OracleReturn_ModularPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>_MOD_CCA_<$<!dctl!><!dkeyl!><!kctl!><!pkeyl!><!ptl!>$>_PKENC>)
+        (m0 Bits_ptl)
+        (m1 Bits_ptl)
+    )
+    (=>
+        (not (is-mk-none old-state-right.KEM.pk))
+        (forall 
+            (
+                (r Bits_kencr)
+            )
+            (let
+                (
+                    (k (el2-1 (<<func-kem_encaps>> r (maybe-get old-state-right.KEM.pk))))
+                    (ek (el2-2 (<<func-kem_encaps>> r (maybe-get old-state-right.KEM.pk))))
+                )
+                (= k (<<func-kem_decaps>> (maybe-get old-state-right.KEM.sk) ek))
+            )
+        )
+    )
+)
+
+(define-lemma <relation-lemma-kem-correctness-monolithic_pke_cca_game-modular_pke_cca_game_with_real_kem-PKDEC>
     (
         (old-state-left <GameState_MonolithicPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
         (old-state-right <GameState_ModularPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
@@ -73,25 +96,18 @@
         (return-right <OracleReturn_ModularPkeCcaGame_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>_MOD_CCA_<$<!dctl!><!dkeyl!><!kctl!><!pkeyl!><!ptl!>$>_PKDEC>)
         (ek_ctxt (Tuple2 Bits_kctl Bits_dctl))
     )
-    Bool
-    (let
-        (
-            (pk (<pkg-state-KEM-<$<!dkeyl!><!kctl!><!kencr!><!pkeyl!><!skeyl!>$>-pk> (<game-ModularPkeCcaGame-<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>-pkgstate-KEM> old-state-right)))
-            (sk (<pkg-state-KEM-<$<!dkeyl!><!kctl!><!kencr!><!pkeyl!><!skeyl!>$>-sk> (<game-ModularPkeCcaGame-<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>-pkgstate-KEM> old-state-right)))
-        )
-        (=>
-            (not (is-mk-none pk))
-            (forall 
+    (=>
+        (not (is-mk-none old-state-right.KEM.pk))
+        (forall 
+            (
+                (r Bits_kencr)
+            )
+            (let
                 (
-                    (r Bits_kencr)
+                    (k (el2-1 (<<func-kem_encaps>> r (maybe-get old-state-right.KEM.pk))))
+                    (ek (el2-2 (<<func-kem_encaps>> r (maybe-get old-state-right.KEM.pk))))
                 )
-                (let
-                    (
-                        (k (el2-1 (<<func-kem_encaps>> r (maybe-get pk))))
-                        (ek (el2-2 (<<func-kem_encaps>> r (maybe-get pk))))
-                    )
-                    (= k (<<func-kem_decaps>> (maybe-get sk) ek))
-                )
+                (= k (<<func-kem_decaps>> (maybe-get old-state-right.KEM.sk) ek))
             )
         )
     )

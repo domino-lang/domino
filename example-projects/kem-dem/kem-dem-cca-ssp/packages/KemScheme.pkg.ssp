@@ -16,10 +16,10 @@ package KemScheme {
         return kem_gen(r);
     }
 
-    oracle KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl), Bits(kencr)) {
+    oracle KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)) {
         r <-$ Bits(kencr) sample-name kem_encaps;
         (k, c) <- kem_encaps(r, pk);
-        return (k, c, r);
+        return (k, c);
     }
 
     oracle KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Bits(dkeyl) {
