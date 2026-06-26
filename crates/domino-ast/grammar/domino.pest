@@ -54,6 +54,7 @@ kw_import       = @{   "import"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_oracle       = @{   "oracle"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_invoke       = @{   "invoke"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_abort        = @{   "abort"          ~ !(ASCII_ALPHANUMERIC | "_" ) }
+kw_assert       = @{   "assert"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_return       = @{   "return"         ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_if           = @{   "if"             ~ !(ASCII_ALPHANUMERIC | "_" ) }
 kw_else         = @{   "else"           ~ !(ASCII_ALPHANUMERIC | "_" ) }
@@ -124,6 +125,7 @@ statements = { ( gap ~ statement ~ ( gap ~ semicolon ~ gap ~ statement )*  ~ (ga
 statement = { ifthenelse | abort | assignment | return | expr }
 ifthenelse = { kw_if ~ gap ~ expr ~ gap ~ "{" ~  statements  ~ "}" ~ ( gap ~ kw_else ~ gap ~ "{" ~  statements ~ "}" )? }
 abort = { kw_abort }
+assert = { kw_assert ~ gap ~ expr }
 assignment = { pattern ~ gap ~ "<-" ~ gap ~ expr }
 return = { kw_return ~ gap ~ expr }
 
@@ -132,7 +134,6 @@ patterns = { ( gap ~ pattern ~ ( gap ~ comma ~ gap ~ pattern )* ~ (gap ~ comma)?
 pattern     = { table_pat | identifier | tuple_pat }
 table_pat   = { identifier ~ gap ~ "[" ~ gap ~ expr ~ gap ~ "]"}
 tuple_pat = { "(" ~ patterns ~ ")" }
-
 
 // ## Oracle Definitions
 

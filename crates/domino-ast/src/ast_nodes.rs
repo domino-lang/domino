@@ -322,8 +322,10 @@ define_node_type_enum! {
     PureConstPackageExpressionList: pure_expressions::PureConstPackageExpressionList,
     PureConstGameExpressionList: pure_expressions::PureConstGameExpressionList,
     PureConstTheoremExpressionList: pure_expressions::PureConstTheoremExpressionList,
+
     Statement: statements::Statement,
     AssignStatement: statements::AssignStatement,
+    AssertStatement: statements::AssertStatement,
     IfThenElseStatement: statements::IfThenElseStatement,
     ReturnStatement: statements::ReturnStatement,
     ExpressionStatement: statements::ExpressionStatement,
@@ -564,6 +566,7 @@ impl_noop_index! {
 
     // statemnts
     statements::Statement,
+    statements::AssertStatement,
     statements::AssignStatement,
     statements::IfThenElseStatement,
     statements::ReturnStatement,
