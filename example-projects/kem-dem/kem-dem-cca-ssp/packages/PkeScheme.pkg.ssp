@@ -1,25 +1,34 @@
 package PkeScheme {
-
-    import oracles {
-        KEM_GEN() -> (Bits(100), Bits(1000)),
-        KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400), Bits(3000)),
-        KEM_DECAPS(sk: Bits(1000), ek: Bits(400)) -> Bits(256),
-        DEM_ENC(k: Bits(256), m: Bits(*)) -> Bits(*) /* ciphertext length */,
-        DEM_DEC(k: Bits(256), c: Bits(*) /* ciphertext length */) -> Bits(*),
+    params {
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+        kencr: Integer,
     }
 
-    oracle GEN() -> (Bits(100), Bits(1000)) {
+    import oracles {
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl), Bits(kencr)),
+        KEM_DECAPS(sk: Bits(skeyl), ek: Bits(kctl)) -> Bits(dkeyl),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+    }
+
+    oracle GEN() -> (Bits(pkeyl), Bits(skeyl)) {
         (pk, sk) <- parse invoke KEM_GEN();
         return (pk, sk);
     }
 
-    oracle ENC(pk: Bits(100), m: Bits(*)) -> (Bits(400), Bits(*), Bits(3000)) {
+    oracle ENC(pk: Bits(pkeyl), m: Bits(ptl)) -> (Bits(kctl), Bits(dctl)) {
         (k, c_kem, r) <- parse invoke KEM_ENCAPS(pk);
         c_dem <- invoke DEM_ENC(k, m);
-        return (c_kem, c_dem, r);
+        return (c_kem, c_dem);
     }
 
-    oracle DEC(sk: Bits(1000), c: (Bits(400), Bits(*))) -> Bits(*) {
+    oracle DEC(sk: Bits(skeyl), c: (Bits(kctl), Bits(dctl))) -> Bits(ptl) {
         (c_kem, c_dem) <- parse c;
         k <- invoke KEM_DECAPS(sk, c_kem);
         m <- invoke DEM_DEC(k, c_dem);

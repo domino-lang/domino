@@ -1,19 +1,27 @@
 package KEM {
+    params {
+        pkeyl: Integer,
+        skeyl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        kencr: Integer,
+    }
+
     state {
-        pk: Maybe(Bits(100)),
-        sk: Maybe(Bits(1000)),
-        c: Maybe(Bits(400)),
-        encaps_randomness: Maybe(Bits(3000))
+        pk: Maybe(Bits(pkeyl)),
+        sk: Maybe(Bits(skeyl)),
+        c: Maybe(Bits(kctl)),
+        encaps_randomness: Maybe(Bits(kencr))
     }
 
     import oracles {
-        SET(k: Bits(256)),
-        KEM_GEN() -> (Bits(100), Bits(1000)),
-        KEM_ENCAPS(pk: Bits(100)) -> (Bits(256), Bits(400), Bits(3000)),
-        KEM_DECAPS(sk: Bits(1000), ek: Bits(400)) -> Bits(256),
+        SET(k: Bits(dkeyl)),
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl), Bits(kencr)),
+        KEM_DECAPS(sk: Bits(skeyl), ek: Bits(kctl)) -> Bits(dkeyl),
     }
 
-    oracle KEMGEN() -> Bits(100) {
+    oracle KEMGEN() -> Bits(pkeyl) {
         assert (sk == None);
         (pk_, sk_) <- parse invoke KEM_GEN();
         pk <- Some(pk_);
@@ -21,8 +29,8 @@ package KEM {
         return pk_;
     }
 
-    oracle ENCAPS() -> Bits(400) {
-        assert (pk != None as Bits(100));
+    oracle ENCAPS() -> Bits(kctl) {
+        assert (pk != None as Bits(pkeyl));
         assert (c == None);
         (k, c_, r) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         encaps_randomness <- Some(r);
@@ -31,8 +39,8 @@ package KEM {
         return c_;
     }
 
-    oracle DECAPS(c_: Bits(400)) -> Bits(256) {
-        assert (sk != None as Bits(1000));
+    oracle DECAPS(c_: Bits(kctl)) -> Bits(dkeyl) {
+        assert (sk != None as Bits(skeyl));
         assert (c_ != Unwrap(c));
         k <- invoke KEM_DECAPS(Unwrap(sk), c_);
         return k;

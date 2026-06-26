@@ -1,56 +1,83 @@
 composition MonolithicPkeCcaGame {
     const b: Bool;
-    const len: fn Bits(*) -> Integer;
-    const zeros: fn Integer -> Bits(*);
-    const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
-    const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
-    const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
-    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
-    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const dctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance pkg_KemScheme = KemScheme {
+    instance KemScheme = KemScheme {
         params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
         }
     }
 
-    instance pkg_DemScheme = DemScheme {
+    instance DemScheme = DemScheme {
         params {
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec
         }
     }
 
-    instance pkg_PkeScheme = PkeScheme {
+    instance PkeScheme = PkeScheme {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kencr: kencr,
+        }
     }
 
-    instance pkg_MON_CCA = MON_CCA {
+    instance MON_CCA = MON_CCA {
         params {
             b: b,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            kctl: kctl,
+            dctl: dctl,
         }
     }
 
     compose {
-        pkg_PkeScheme: {
-            KEM_GEN: pkg_KemScheme,
-            KEM_ENCAPS: pkg_KemScheme,
-            KEM_DECAPS: pkg_KemScheme,
-            DEM_ENC: pkg_DemScheme,
-            DEM_DEC: pkg_DemScheme
+        PkeScheme: {
+            KEM_GEN: KemScheme,
+            KEM_ENCAPS: KemScheme,
+            KEM_DECAPS: KemScheme,
+            DEM_ENC: DemScheme,
+            DEM_DEC: DemScheme
         }
-        pkg_MON_CCA: {
-            GEN: pkg_PkeScheme,
-            ENC: pkg_PkeScheme,
-            DEC: pkg_PkeScheme
+        MON_CCA: {
+            GEN: PkeScheme,
+            ENC: PkeScheme,
+            DEC: PkeScheme
         }
         adversary: {
-            PKGEN: pkg_MON_CCA,
-            PKENC: pkg_MON_CCA,
-            PKDEC: pkg_MON_CCA
+            PKGEN: MON_CCA,
+            PKENC: MON_CCA,
+            PKDEC: MON_CCA
         }
     }
 

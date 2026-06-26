@@ -1,29 +1,30 @@
 theorem kem_dem_cca_ssp {
     const b: Bool;
-
-    /*
-    const secret_key_length: 1000;
-    const public_key_length: 100;
-    const output_key_length: 256;
-    const encapsulation_length: 400;
-    const gen_randomness_length: 2000;
-    const enc_randomness_length: 500; should depend on message length
-    const encaps_randomness_length: 3000;
-    */
-
-    const len: fn Bits(*) -> Integer;
-    const zeros: fn Integer -> Bits(*);
-    const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
-    const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
-    const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
-    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
-    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const dctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
     instance monolithic_pke_cca_game = MonolithicPkeCcaGame {
         params {
             b: b,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -36,8 +37,14 @@ theorem kem_dem_cca_ssp {
         params {
             key_idealization: false,
             dem_idealization: b,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -49,8 +56,14 @@ theorem kem_dem_cca_ssp {
     instance monolithic_pke_cca_real_game = MonolithicPkeCcaGame {
         params {
             b: false,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -62,8 +75,14 @@ theorem kem_dem_cca_ssp {
     instance monolithic_pke_cca_ideal_game = MonolithicPkeCcaGame {
         params {
             b: true,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -76,8 +95,14 @@ theorem kem_dem_cca_ssp {
         params {
             key_idealization: false,
             dem_idealization: false,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -90,8 +115,14 @@ theorem kem_dem_cca_ssp {
         params {
             key_idealization: true,
             dem_idealization: false,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -104,8 +135,14 @@ theorem kem_dem_cca_ssp {
         params {
             key_idealization: false,
             dem_idealization: true,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -118,8 +155,14 @@ theorem kem_dem_cca_ssp {
         params {
             key_idealization: true,
             dem_idealization: true,
-            len: len,
-            zeros: zeros,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -131,8 +174,9 @@ theorem kem_dem_cca_ssp {
     instance dem_cca_game_real = DemCcaGame {
         params {
             b: false,
-            len: len,
-            zeros: zeros,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
@@ -141,8 +185,9 @@ theorem kem_dem_cca_ssp {
     instance dem_cca_game_ideal = DemCcaGame {
         params {
             b: true,
-            len: len,
-            zeros: zeros,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec,
         }
@@ -151,6 +196,12 @@ theorem kem_dem_cca_ssp {
     instance kem_cca_game_real = KemCcaGame {
         params {
             b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -160,6 +211,12 @@ theorem kem_dem_cca_ssp {
     instance kem_cca_game_ideal = KemCcaGame {
         params {
             b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
@@ -174,26 +231,14 @@ theorem kem_dem_cca_ssp {
     gamehops {
         /* 
         Goal: monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game
-        We want to prove PKE-CCA security of the KEM-DEM construction described in the packages and
-        reduce to KEM-CCA and DEM-CCA security of underlying KEM and DEM schemes.
-        Therefore, we want to bound distinguishing advantage of an arbitrary adversary between real and ideal monolithic PKE-CCA games.
-        We do 5 game hops to reach monolithic_pke_cca_game_ideal from monolithic_pke_cca_game_real.
-        These 5 game hops are aligned in order below.
-        The first and last hops are each between perfectly indistinguishable games.
-        They are proved as code equivalence steps or game hops on pen and paper proofs.
-        SSBee helps to automate checking the equivalence of games by "inlining" oracles and translating their code to SMT-LIB language and uses an SMT solver to automate the check.
-        The three middle hops are each between computationally indistinguishable games.
-        We reduce the indistinguishability of these games by graph cuts to the indistinguishability stated in our assumptions. (either KEM-CCA or DEM-CCA games) 
-        Graph cuts demonstarte intuitive and visual reductions possible in SSP framework.
-        SSBee helps to communicate graph cuts more formally and precisely throught mapping.
-        The core idea is that we need to identify which instances should be put together to form the reduction package. The rest of instances of the game should constitute the assumption games.
-        SSBee algorithimically verifies this using the annotated call/dependecy graph of the compostion by matching the types of the mapped packages and their parameters as well as verifying a single reduction package can be used to split the left and right games to those of the assumption.
         */
-        /* We first prove real PKE-CCA game is equivalent to the modular version (i.e. modular_pke_cca_game_with_real_kem_and_real_dem) */
-        equivalence monolithic_pke_cca_real_game modular_pke_cca_game_with_real_kem_and_real_dem {
+        /* We first prove real/ideal PKE-CCA game is equivalent to the modular 
+        version (i.e. modular_pke_cca_game_with_real_kem) */
+        equivalence monolithic_pke_cca_game modular_pke_cca_game_with_real_kem {
             PKGEN: {
+                randomness: simple
                 invariant: [
-                    ./theorem/invariant-real-kem-real-dem.smt2
+                    ./theorem/invariant.smt2
                 ]
 
                 lemmas {
@@ -204,22 +249,22 @@ theorem kem_dem_cca_ssp {
             }
 
             PKENC: {
+                randomness: simple
                 invariant: [
-                    ./theorem/invariant-real-kem-real-dem.smt2
+                    ./theorem/invariant.smt2
                 ]
 
                 lemmas {
-                    lemma-rand-is-eq: admit []
-                    invariant: [no-abort, lemma-rand-is-eq]
-                    same-output: [no-abort, lemma-rand-is-eq]
+                    invariant: [no-abort]
+                    same-output: [no-abort]
                     equal-aborts: []
-                    
                 }
             }
 
             PKDEC: {
+                randomness: simple
                 invariant: [
-                    ./theorem/invariant-real-kem-real-dem.smt2
+                    ./theorem/invariant.smt2
                 ]
 
                 lemmas {
@@ -227,7 +272,6 @@ theorem kem_dem_cca_ssp {
                     invariant: [no-abort]
                     same-output: [no-abort, lemma-kem-correctness]
                     equal-aborts: []
-                    
                 }
             }
         }
@@ -238,15 +282,15 @@ theorem kem_dem_cca_ssp {
             assumption KEM_CCA_Security
 
             map kem_cca_game_real modular_pke_cca_game_with_real_kem_and_real_dem {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_Key: pkg_Key
-                pkg_KEM: pkg_KEM
+                KemScheme: KemScheme
+                Key: Key
+                KEM: KEM
             }
 
             map kem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_real_dem {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_Key: pkg_Key
-                pkg_KEM: pkg_KEM
+                KemScheme: KemScheme
+                Key: Key
+                KEM: KEM
             }
         }
 
@@ -255,15 +299,15 @@ theorem kem_dem_cca_ssp {
             assumption DEM_CCA_Security
 
             map dem_cca_game_real modular_pke_cca_game_with_ideal_kem_and_real_dem {
-                pkg_DemScheme: pkg_DemScheme
-                pkg_Key: pkg_Key
-                pkg_DEM: pkg_DEM
+                DemScheme: DemScheme
+                Key: Key
+                DEM: DEM
             }
 
             map dem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
-                pkg_DemScheme: pkg_DemScheme
-                pkg_Key: pkg_Key
-                pkg_DEM: pkg_DEM
+                DemScheme: DemScheme
+                Key: Key
+                DEM: DEM
             }
         }
 
@@ -272,102 +316,19 @@ theorem kem_dem_cca_ssp {
             assumption KEM_CCA_Security
 
             map kem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_Key: pkg_Key
-                pkg_KEM: pkg_KEM
+                KemScheme: KemScheme
+                Key: Key
+                KEM: KEM
             }
 
             map kem_cca_game_real modular_pke_cca_game_with_real_kem_and_ideal_dem {
-                pkg_KemScheme: pkg_KemScheme
-                pkg_Key: pkg_Key
-                pkg_KEM: pkg_KEM
+                KemScheme: KemScheme
+                Key: Key
+                KEM: KEM
             }
         }
-
-        /* We have finally reached our destination (namely modular_pke_cca_game_with_real_kem_and_ideal_dem) */
-        /* We now prove the ideal PKE-CCA game  */
-        equivalence monolithic_pke_cca_ideal_game modular_pke_cca_game_with_real_kem_and_ideal_dem {
-            PKGEN: {
-                invariant: [
-                    ./theorem/invariant-real-kem-ideal-dem.smt2
-                ]
-
-                lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
-                }
-            }
-
-            PKENC: {
-                invariant: [
-                    ./theorem/invariant-real-kem-ideal-dem.smt2
-                ]
-
-                lemmas {
-                    lemma-rand-is-eq: admit []
-                    invariant: [no-abort, lemma-rand-is-eq]
-                    same-output: [no-abort, lemma-rand-is-eq]
-                    equal-aborts: []
-                }
-            }
-
-            PKDEC: {
-                invariant: [
-                    ./theorem/invariant-real-kem-ideal-dem.smt2
-                ]
-
-                lemmas {
-                    lemma-kem-correctness: admit []
-                    invariant: [no-abort]
-                    same-output: [no-abort, lemma-kem-correctness]
-                    equal-aborts: []
-                }
-            }
-        }
-
-        /* 
-        Instead of previous equivalence goals, we can concisely prove the following equivalence in one go.
-        Note that both games are initialized using the same idealization bit "b" (i.e. left_b = right_dem_idealization).
-        */
-        equivalence monolithic_pke_cca_game modular_pke_cca_game_with_real_kem {
-            PKGEN: {
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
-                lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
-                }
-            }
-
-            PKENC: {
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
-                lemmas {
-                    lemma-rand-is-eq: admit []
-                    invariant: [no-abort, lemma-rand-is-eq]
-                    same-output: [no-abort, lemma-rand-is-eq]
-                    equal-aborts: []
-                }
-            }
-
-            PKDEC: {
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
-                lemmas {
-                    lemma-kem-correctness: admit []
-                    invariant: [no-abort]
-                    same-output: [no-abort, lemma-kem-correctness]
-                    equal-aborts: []
-                }
-            }
-        }
+    }
+    propositions {
+        Main: monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game
     }
 }

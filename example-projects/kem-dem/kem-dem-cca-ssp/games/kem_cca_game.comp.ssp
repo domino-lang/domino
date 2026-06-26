@@ -1,38 +1,58 @@
 composition KemCcaGame {
     const b: Bool;
-    const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
-    const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
-    const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
 
-    instance pkg_KemScheme = KemScheme {
+    instance KemScheme = KemScheme {
         params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
         }
     }
 
-    instance pkg_Key = Key {
+    instance Key = Key {
         params {
-            b: b
+            b: b,
+            dkeyl: dkeyl,
         }
     }
 
-    instance pkg_KEM = KEM {
+    instance KEM = KEM {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kencr: kencr,
+        }
     }
 
     compose {
-        pkg_KEM: {
-            SET: pkg_Key,
-            KEM_GEN: pkg_KemScheme,
-            KEM_ENCAPS: pkg_KemScheme,
-            KEM_DECAPS: pkg_KemScheme
+        KEM: {
+            SET: Key,
+            KEM_GEN: KemScheme,
+            KEM_ENCAPS: KemScheme,
+            KEM_DECAPS: KemScheme
         }
         adversary: {
-            KEMGEN: pkg_KEM,
-            ENCAPS: pkg_KEM,
-            DECAPS: pkg_KEM,
-            GET: pkg_Key
+            KEMGEN: KEM,
+            ENCAPS: KEM,
+            DECAPS: KEM,
+            GET: Key
         }
     }
 }
