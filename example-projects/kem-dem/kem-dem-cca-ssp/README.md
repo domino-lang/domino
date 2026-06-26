@@ -47,10 +47,10 @@ security games as package compositions.
 - `MON_CCA_PKE.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
 
 **games/**
-- `modular_pke_cca_game.comp.ssp` - Composition defining the modular PKE-CCA security game by combining KEM, DEM, and Key packages
-- `monolithic_pke_cca_game.comp.ssp` - Composition defining the monolithic PKE-CCA security game as a direct implementation
-- `kem_cca_game.comp.ssp` - KEM-specific CCA security game composition
-- `dem_cca_game.comp.ssp` - DEM-specific CCA security game composition
+- `Game_MOD_CCA_PKE.comp.ssp` - Composition defining the modular PKE-CCA security game by combining KEM, DEM, and Key packages
+- `Game_MON_CCA_PKE.comp.ssp` - Composition defining the monolithic PKE-CCA security game as a direct implementation
+- `Game_CCA_KEM.comp.ssp` - KEM-specific CCA security game composition
+- `Game_CCA_DEM.comp.ssp` - DEM-specific CCA security game composition
 
 ## Proof Structure and Game Hops
 
@@ -60,28 +60,28 @@ We use five game hops to show indistinguishability of the real and ideal games b
 
 **Assumptions**:
 
-- KEM-CCA Security: The underlying KEM scheme is CCA-secure (`kem_cca_game_real ~ kem_cca_game_ideal`)
-- DEM-CCA Security: The underlying DEM scheme is CCA-secure (`dem_cca_game_real ~ dem_cca_game_ideal`)
+- KEM-CCA Security: The underlying KEM scheme is CCA-secure (`Game_CCA_KEM_real ~ Game_CCA_KEM_ideal`)
+- DEM-CCA Security: The underlying DEM scheme is CCA-secure (`Game_CCA_DEM_real ~ Game_CCA_DEM_ideal`)
 
 **Game Hops**:
 
 1. **Code Equivalence (Real/Ideal → Modular Real/Ideal)**
-   - `monolithic_pke_cca_game ≡ modular_pke_cca_game_with_real_kem`
+   - `Game_MON_CCA_PKE ≡ Game_MOD_CCA_PKE_with_real_kem`
    - Shows the monolithic implementation is equivalent to the modular composition
    - Verified through SMT-based code equivalence checking with invariants
 
 2. **KEM Idealization (First Reduction)**
-   - `modular_pke_cca_game_with_real_kem_and_real_dem ~ modular_pke_cca_game_with_ideal_kem_and_real_dem`
+   - `Game_MOD_CCA_PKE_with_real_kem_and_real_dem ~ Game_MOD_CCA_PKE_with_ideal_kem_and_real_dem`
    - Reduces to KEM-CCA security assumption
    - Uses graph cuts to map KEM-related packages to the KEM-CCA game
 
 3. **DEM Idealization (Second Reduction)**
-   - `modular_pke_cca_game_with_ideal_kem_and_real_dem ~ modular_pke_cca_game_with_ideal_kem_and_ideal_dem`
+   - `Game_MOD_CCA_PKE_with_ideal_kem_and_real_dem ~ Game_MOD_CCA_PKE_with_ideal_kem_and_ideal_dem`
    - Reduces to DEM-CCA security assumption
    - Maps DEM-related packages to the DEM-CCA game
 
 4. **KEM De-idealization (Third Reduction)**
-   - `modular_pke_cca_game_with_ideal_kem_and_ideal_dem ~ modular_pke_cca_game_with_real_kem_and_ideal_dem`
+   - `Game_MOD_CCA_PKE_with_ideal_kem_and_ideal_dem ~ Game_MOD_CCA_PKE_with_real_kem_and_ideal_dem`
    - Second reduction to KEM-CCA security (reverse direction)
    - Demonstrates that KEM can be de-idealized when DEM is ideal
 
