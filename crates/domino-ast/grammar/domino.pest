@@ -120,14 +120,15 @@ ty_list = { ( gap ~ ty ~ ( gap ~ comma ~ gap ~ ty )* ~ (gap ~ comma )? )? ~ gap 
 
 // ## Statements
 
-statements = { ( gap ~ statement ~ ( gap ~ semicolon ~ gap ~ statement )*  ~ (gap ~ semicolon)? )? ~ gap }
+statements = { ( gap ~ statement )* ~ gap }
 
-statement = { ifthenelse | abort | assignment | return | expr }
+statement = { ifthenelse | abort | assignment | return | expr_stmt }
 ifthenelse = { kw_if ~ gap ~ expr ~ gap ~ "{" ~  statements  ~ "}" ~ ( gap ~ kw_else ~ gap ~ "{" ~  statements ~ "}" )? }
-abort = { kw_abort }
-assert = { kw_assert ~ gap ~ expr }
-assignment = { pattern ~ gap ~ "<-" ~ gap ~ expr }
-return = { kw_return ~ gap ~ expr }
+abort = { kw_abort ~ gap ~ semicolon }
+assert = { kw_assert ~ gap ~ expr ~ gap ~ semicolon }
+assignment = { pattern ~ gap ~ "<-" ~ gap ~ expr ~ gap ~ semicolon}
+expr_stmt = { expr ~ gap ~ semicolon }
+return = { kw_return ~ gap ~ expr ~ gap ~ semicolon }
 
 // Patterns describe the left-hand side of an assignment
 patterns = { ( gap ~ pattern ~ ( gap ~ comma ~ gap ~ pattern )* ~ (gap ~ comma)? )? ~ gap }
