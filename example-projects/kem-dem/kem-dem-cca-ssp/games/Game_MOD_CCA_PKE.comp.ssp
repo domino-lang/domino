@@ -1,5 +1,7 @@
-composition MonolithicPkeCcaGame {
-    const b: Bool;
+composition Game_MOD_CCA_PKE {
+    const key_idealization: Bool;
+    const dem_idealization: Bool;
+
     const pkeyl: Integer;
     const skeyl: Integer;
     const ptl: Integer;
@@ -13,6 +15,23 @@ composition MonolithicPkeCcaGame {
     const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance Key = Key {
+        params {
+            b: key_idealization,
+            dkeyl: dkeyl,
+        }
+    }
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec
+        }
+    }
 
     instance Scheme_KEM = Scheme_KEM {
         params {
@@ -28,55 +47,58 @@ composition MonolithicPkeCcaGame {
         }
     }
 
-    instance Scheme_DEM = Scheme_DEM {
+    instance DEM = DEM {
         params {
+            b: dem_idealization,
             dkeyl: dkeyl,
             ptl: ptl,
             dctl: dctl,
-            dem_enc: dem_enc,
-            dem_dec: dem_dec
         }
     }
 
-    instance Scheme_PKE = Scheme_PKE {
+    instance KEM = KEM {
         params {
             pkeyl: pkeyl,
             skeyl: skeyl,
-            ptl: ptl,
             dkeyl: dkeyl,
             kctl: kctl,
-            dctl: dctl,
         }
     }
 
-    instance MON_CCA = MON_CCA {
+    instance MOD_CCA_PKE = MOD_CCA_PKE {
         params {
-            b: b,
             pkeyl: pkeyl,
-            skeyl: skeyl,
             ptl: ptl,
+            dkeyl: dkeyl,
             kctl: kctl,
             dctl: dctl,
         }
     }
 
     compose {
-        Scheme_PKE: {
+        KEM: {
             KEM_GEN: Scheme_KEM,
             KEM_ENCAPS: Scheme_KEM,
             KEM_DECAPS: Scheme_KEM,
+            SET: Key
+        }
+        DEM: {
             DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
+            GET: Key
+        }
+        MOD_CCA_PKE: {
+            KEMGEN: KEM,
+            ENCAPS: KEM,
+            DECAPS: KEM,
+            ENC: DEM,
+            DEC: DEM,
             DEM_DEC: Scheme_DEM
         }
-        MON_CCA: {
-            GEN: Scheme_PKE,
-            ENC: Scheme_PKE,
-            DEC: Scheme_PKE
-        }
         adversary: {
-            PKGEN: MON_CCA,
-            PKENC: MON_CCA,
-            PKDEC: MON_CCA
+            PKGEN: MOD_CCA_PKE,
+            PKENC: MOD_CCA_PKE,
+            PKDEC: MOD_CCA_PKE
         }
     }
 

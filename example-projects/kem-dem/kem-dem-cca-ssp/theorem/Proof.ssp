@@ -14,7 +14,7 @@ theorem kem_dem_cca_ssp {
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance monolithic_pke_cca_game = MonolithicPkeCcaGame {
+    instance monolithic_pke_cca_game = Game_MON_CCA_PKE {
         params {
             b: b,
             pkeyl: pkeyl,
@@ -33,7 +33,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_real_kem = ModularPkeCcaGame {
+    instance modular_pke_cca_game_with_real_kem = Game_MOD_CCA_PKE {
         params {
             key_idealization: false,
             dem_idealization: b,
@@ -53,7 +53,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance monolithic_pke_cca_real_game = MonolithicPkeCcaGame {
+    instance monolithic_pke_cca_real_game = Game_MON_CCA_PKE {
         params {
             b: false,
             pkeyl: pkeyl,
@@ -72,7 +72,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance monolithic_pke_cca_ideal_game = MonolithicPkeCcaGame {
+    instance monolithic_pke_cca_ideal_game = Game_MON_CCA_PKE {
         params {
             b: true,
             pkeyl: pkeyl,
@@ -91,7 +91,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_real_kem_and_real_dem = ModularPkeCcaGame {
+    instance modular_pke_cca_game_with_real_kem_and_real_dem = Game_MOD_CCA_PKE {
         params {
             key_idealization: false,
             dem_idealization: false,
@@ -111,7 +111,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_ideal_kem_and_real_dem = ModularPkeCcaGame {
+    instance modular_pke_cca_game_with_ideal_kem_and_real_dem = Game_MOD_CCA_PKE {
         params {
             key_idealization: true,
             dem_idealization: false,
@@ -131,7 +131,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_real_kem_and_ideal_dem = ModularPkeCcaGame {
+    instance modular_pke_cca_game_with_real_kem_and_ideal_dem = Game_MOD_CCA_PKE {
         params {
             key_idealization: false,
             dem_idealization: true,
@@ -151,7 +151,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance modular_pke_cca_game_with_ideal_kem_and_ideal_dem = ModularPkeCcaGame {
+    instance modular_pke_cca_game_with_ideal_kem_and_ideal_dem = Game_MOD_CCA_PKE {
         params {
             key_idealization: true,
             dem_idealization: true,
@@ -171,7 +171,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance dem_cca_game_real = DemCcaGame {
+    instance dem_cca_game_real = Game_CCA_DEM {
         params {
             b: false,
             dkeyl: dkeyl,
@@ -182,7 +182,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance dem_cca_game_ideal = DemCcaGame {
+    instance dem_cca_game_ideal = Game_CCA_DEM {
         params {
             b: true,
             dkeyl: dkeyl,
@@ -193,7 +193,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance kem_cca_game_real = KemCcaGame {
+    instance kem_cca_game_real = Game_CCA_KEM {
         params {
             b: false,
             pkeyl: pkeyl,
@@ -208,7 +208,7 @@ theorem kem_dem_cca_ssp {
         }
     }
 
-    instance kem_cca_game_ideal = KemCcaGame {
+    instance kem_cca_game_ideal = Game_CCA_KEM {
         params {
             b: true,
             pkeyl: pkeyl,

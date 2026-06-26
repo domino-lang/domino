@@ -1,4 +1,4 @@
-composition DemCcaGame {
+composition Game_CCA_DEM {
     const b: Bool;
 
     const dkeyl: Integer;

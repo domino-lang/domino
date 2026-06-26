@@ -1,4 +1,4 @@
-composition KemCcaGame {
+composition Game_CCA_KEM {
     const b: Bool;
     const pkeyl: Integer;
     const skeyl: Integer;
