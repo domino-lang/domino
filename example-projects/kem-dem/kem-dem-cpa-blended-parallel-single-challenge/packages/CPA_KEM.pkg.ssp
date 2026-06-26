@@ -27,12 +27,10 @@ package CPA_KEM {
     oracle ENCAPS() -> (Bits(kctl), Bits(dkeyl)) {
         assert (pk != None);
         assert (c == None);
-        (k_, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        (k, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
         c <- Some(c_);
         if b {
             k <-$ Bits(dkeyl) sample-name k;
-        } else {
-            k <- k_;
         }
         return (c_, k);
     }
