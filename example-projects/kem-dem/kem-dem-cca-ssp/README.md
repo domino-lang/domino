@@ -65,8 +65,8 @@ We use five game hops to show indistinguishability of the real and ideal games b
 
 **Game Hops**:
 
-1. **Code Equivalence (Real → Modular Real)**
-   - `monolithic_pke_cca_real_game ≡ modular_pke_cca_game_with_real_kem_and_real_dem`
+1. **Code Equivalence (Real/Ideal → Modular Real/Ideal)**
+   - `monolithic_pke_cca_game ≡ modular_pke_cca_game_with_real_kem`
    - Shows the monolithic implementation is equivalent to the modular composition
    - Verified through SMT-based code equivalence checking with invariants
 
@@ -84,10 +84,6 @@ We use five game hops to show indistinguishability of the real and ideal games b
    - `modular_pke_cca_game_with_ideal_kem_and_ideal_dem ~ modular_pke_cca_game_with_real_kem_and_ideal_dem`
    - Second reduction to KEM-CCA security (reverse direction)
    - Demonstrates that KEM can be de-idealized when DEM is ideal
-
-5. **Code Equivalence (Modular Ideal → Ideal)**
-   - `monolithic_pke_cca_ideal_game ≡ modular_pke_cca_game_with_real_kem_and_ideal_dem`
-   - Final equivalence showing the modular construction matches the ideal monolithic game
 
 ## How to run the verification?
 
