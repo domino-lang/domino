@@ -12,6 +12,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum Statement {
     Abort,
+    Assert(Ref<AssertStatement>),
     Assign(Ref<AssignStatement>),
     Expression(Ref<ExpressionStatement>),
     IfThenElse(Ref<IfThenElseStatement>),
@@ -20,6 +21,12 @@ pub enum Statement {
 
 impl ListItem for Statement {
     const LIST_RULE: Rule = Rule::statements;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct AssertStatement {
+    pub trivia: Ref<Trivia>,
+    pub expr: Ref<OracleExpression>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -164,11 +171,29 @@ impl Parsable for Statement {
                 Self::IfThenElse(IfThenElseStatement::parse_ref(file_id, state, pair))
             }
             Rule::abort => Self::Abort,
+            Rule::assert => Self::Assert(AssertStatement::parse_ref(file_id, state, pair)),
             Rule::assignment => Self::Assign(AssignStatement::parse_ref(file_id, state, pair)),
             Rule::r#return => Self::Return(ReturnStatement::parse_ref(file_id, state, pair)),
             Rule::expr => Self::Expression(ExpressionStatement::parse_ref(file_id, state, pair)),
             _ => unreachable!(),
         }
+    }
+}
+
+impl Parsable for AssertStatement {
+    const RULE: Rule = Rule::assert;
+
+    fn parse_inner(
+        file_id: crate::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
+        let mut inner = pair.into_inner();
+        let _kw_assert = inner.next().unwrap();
+        let trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let expr = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+
+        Self { trivia, expr }
     }
 }
 

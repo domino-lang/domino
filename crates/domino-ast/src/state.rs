@@ -127,6 +127,7 @@ define_arenas! {
 
     statements: statements::Statement,
     assign_statements: statements::AssignStatement,
+    assert_statements: statements::AssertStatement,
     return_statements: statements::ReturnStatement,
     expression_statements: statements::ExpressionStatement,
     ifthenelse_statements: statements::IfThenElseStatement,
