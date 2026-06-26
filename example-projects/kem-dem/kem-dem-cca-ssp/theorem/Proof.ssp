@@ -283,13 +283,13 @@ theorem kem_dem_cca_ssp {
             assumption KEM_CCA_Security
 
             map kem_cca_game_real modular_pke_cca_game_with_real_kem_and_real_dem {
-                KemScheme: KemScheme
+                Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
             }
 
             map kem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_real_dem {
-                KemScheme: KemScheme
+                Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
             }
@@ -300,13 +300,13 @@ theorem kem_dem_cca_ssp {
             assumption DEM_CCA_Security
 
             map dem_cca_game_real modular_pke_cca_game_with_ideal_kem_and_real_dem {
-                DemScheme: DemScheme
+                Scheme_DEM: Scheme_DEM
                 Key: Key
                 DEM: DEM
             }
 
             map dem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
-                DemScheme: DemScheme
+                Scheme_DEM: Scheme_DEM
                 Key: Key
                 DEM: DEM
             }
@@ -317,13 +317,13 @@ theorem kem_dem_cca_ssp {
             assumption KEM_CCA_Security
 
             map kem_cca_game_ideal modular_pke_cca_game_with_ideal_kem_and_ideal_dem {
-                KemScheme: KemScheme
+                Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
             }
 
             map kem_cca_game_real modular_pke_cca_game_with_real_kem_and_ideal_dem {
-                KemScheme: KemScheme
+                Scheme_KEM: Scheme_KEM
                 Key: Key
                 KEM: KEM
             }

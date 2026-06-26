@@ -40,9 +40,9 @@ security games as package compositions.
 - `KEM.pkg.ssp` - Key Encapsulation Mechanism package with KEMGEN, ENCAPS, and DECAPS oracles
 - `DEM.pkg.ssp` - Data Encapsulation Mechanism package with ENC and DEC oracles, supporting idealization parameter
 - `Key.pkg.ssp` - Key management package handling key generation and storage
-- `KemScheme.pkg.ssp` - Concrete KEM scheme implementation
-- `DemScheme.pkg.ssp` - Concrete DEM scheme implementation
-- `PkeScheme.pkg.ssp` - Public key encryption scheme package
+- `Scheme_KEM.pkg.ssp` - Concrete KEM scheme implementation
+- `Scheme_DEM.pkg.ssp` - Concrete DEM scheme implementation
+- `Scheme_PKE.pkg.ssp` - Public key encryption scheme package
 - `MOD_CCA.pkg.ssp` - Modular PKE-CCA security game package (composition-based approach)
 - `MON_CCA.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
 

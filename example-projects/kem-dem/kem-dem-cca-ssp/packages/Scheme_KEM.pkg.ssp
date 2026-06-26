@@ -1,4 +1,4 @@
-package KemScheme {
+package Scheme_KEM {
     params {
         pkeyl: Integer,
         skeyl: Integer,

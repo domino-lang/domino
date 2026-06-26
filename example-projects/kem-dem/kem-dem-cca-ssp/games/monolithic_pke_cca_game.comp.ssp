@@ -14,7 +14,7 @@ composition MonolithicPkeCcaGame {
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance KemScheme = KemScheme {
+    instance Scheme_KEM = Scheme_KEM {
         params {
             pkeyl: pkeyl,
             skeyl: skeyl,
@@ -28,7 +28,7 @@ composition MonolithicPkeCcaGame {
         }
     }
 
-    instance DemScheme = DemScheme {
+    instance Scheme_DEM = Scheme_DEM {
         params {
             dkeyl: dkeyl,
             ptl: ptl,
@@ -38,7 +38,7 @@ composition MonolithicPkeCcaGame {
         }
     }
 
-    instance PkeScheme = PkeScheme {
+    instance Scheme_PKE = Scheme_PKE {
         params {
             pkeyl: pkeyl,
             skeyl: skeyl,
@@ -61,17 +61,17 @@ composition MonolithicPkeCcaGame {
     }
 
     compose {
-        PkeScheme: {
-            KEM_GEN: KemScheme,
-            KEM_ENCAPS: KemScheme,
-            KEM_DECAPS: KemScheme,
-            DEM_ENC: DemScheme,
-            DEM_DEC: DemScheme
+        Scheme_PKE: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM
         }
         MON_CCA: {
-            GEN: PkeScheme,
-            ENC: PkeScheme,
-            DEC: PkeScheme
+            GEN: Scheme_PKE,
+            ENC: Scheme_PKE,
+            DEC: Scheme_PKE
         }
         adversary: {
             PKGEN: MON_CCA,
