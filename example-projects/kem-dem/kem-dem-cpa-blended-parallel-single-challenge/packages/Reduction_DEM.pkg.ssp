@@ -1,0 +1,37 @@
+package Reduction_DEM {
+    params {
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
+
+    import oracles {
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
+        ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl),
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        c: Maybe(Bits(kctl)),
+    }
+
+    oracle PKGEN() -> Bits(pkeyl) {
+        assert (pk == None);
+        (pk1, sk1) <- parse invoke KEM_GEN();
+        pk <- Some(pk1);
+        return pk1;
+    }
+
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None);
+        assert (c == None);
+        (_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        c <- Some(c_kem);
+        c_dem <- invoke ENC(m0, m1);
+        return (c_kem, c_dem);
+    }
+}

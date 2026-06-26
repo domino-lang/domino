@@ -1,0 +1,50 @@
+composition Composition_CCA_KEM {
+    const b: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+
+    const kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl)));
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+        }
+    }
+
+    instance CCA_KEM = CCA_KEM {
+        params {
+            b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+        }
+    }
+
+    compose {
+        CCA_KEM: {
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
+        }
+        adversary: {
+            KEMGEN: CCA_KEM,
+            ENCAPS: CCA_KEM,
+            DECAPS: CCA_KEM,
+        }
+    }
+}

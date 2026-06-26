@@ -35,6 +35,6 @@ package NXOR {
         
         hdl_out <- sortnhdl(handles);
 
-        _ <- invoke Set(hdl_out, k, pr);
+        invoke Set(hdl_out, k, pr);
     }
 }

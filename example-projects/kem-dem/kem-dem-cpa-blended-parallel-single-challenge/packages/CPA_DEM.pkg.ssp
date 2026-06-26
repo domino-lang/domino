@@ -1,0 +1,28 @@
+package CPA_DEM {
+    params {
+        b: Bool,
+        dkeyl: Integer,
+        ptl: Integer,
+        dctl: Integer,
+    }
+
+    state {
+        k: Maybe(Bits(dkeyl))
+    }
+
+    import oracles {
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+    }
+
+    oracle ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl) {
+        assert (k == None);
+        k_ <-$ Bits(dkeyl) sample-name k;
+        k <- Some(k_);
+        if b {
+            c <- invoke DEM_ENC(k_, m1);
+        } else {
+            c <- invoke DEM_ENC(k_, m0);
+        }
+        return c;
+    }
+}

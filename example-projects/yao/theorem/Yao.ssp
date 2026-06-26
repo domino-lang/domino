@@ -13,7 +13,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             zeron: zeron,
             encm: encm,
@@ -26,7 +25,6 @@ theorem Yao {
             n: n,
             m: m,
             p: p,
-            w: w,
             d: d,
             zeron: zeron,
             encm: encm,
@@ -61,19 +59,18 @@ theorem Yao {
     }
 
     assumptions {
-        Core: CoreReal ~ CoreIdeal
+        HybridCircuitSecurity: CoreReal ~ CoreIdeal
     }
 
     gamehops {
         reduction YaoReal YaoIdeal {
-            assumption Core
+            assumption HybridCircuitSecurity
 
             map CoreReal YaoReal {
                 Keys: Keys
                 Enc: Enc
                 Gate: Gate
                 LayerMap: LayerMap
-                Proxy: Proxy
             }
 
             map CoreIdeal YaoIdeal {
@@ -81,7 +78,6 @@ theorem Yao {
                 Lev: Lev
                 Sim: Sim
                 LayerMap: LayerMap
-                Proxy: Proxy
             }
         }
     }

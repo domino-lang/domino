@@ -1,0 +1,49 @@
+package MON_CCA_PKE {
+    params {
+        b: Bool,
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
+
+    import oracles {
+        GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        ENC(pk: Bits(pkeyl), m: Bits(ptl)) -> (Bits(kctl),Bits(dctl)),
+        DEC(sk: Bits(skeyl), c: (Bits(kctl),Bits(dctl))) -> Bits(ptl),
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        sk: Maybe(Bits(skeyl)),
+        c: Maybe((Bits(kctl),Bits(dctl)))
+    }
+
+    oracle PKGEN() -> Bits(pkeyl) {
+        assert (sk == None);
+        (pk_, sk_) <- invoke GEN();
+        pk <- Some(pk_);
+        sk <- Some(sk_);
+        return pk_;
+    }
+
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None as Bits(pkeyl));
+        assert (c == None);
+        if b {
+            (c_kem, c_dem) <- parse invoke ENC(Unwrap(pk), m1);
+        } else {
+            (c_kem, c_dem) <- parse invoke ENC(Unwrap(pk), m0);
+        }
+        c <- Some((c_kem, c_dem));
+        return (c_kem, c_dem);
+    }
+
+    oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Bits(ptl) {
+        assert (sk != None as Bits(skeyl));
+        assert (c_ != Unwrap(c));
+        m <- invoke DEC(Unwrap(sk), c_);
+        return m;
+    }
+}

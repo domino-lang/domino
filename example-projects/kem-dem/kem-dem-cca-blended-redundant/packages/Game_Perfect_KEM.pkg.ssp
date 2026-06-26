@@ -1,0 +1,66 @@
+package Perfect_KEM {
+    params {
+        b: Bool,
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
+
+    import oracles {
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
+        KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        sk: Maybe(Bits(skeyl)),
+        k: Maybe(Bits(dkeyl)),
+        c: Maybe((Bits(kctl), Bits(dctl))),
+    }
+
+    oracle PKGEN() -> Bits(pkeyl) {
+        assert (pk == None);
+        (pk_, sk_) <- parse invoke KEM_GEN();
+        sk <- Some(sk_);
+        pk <- Some(pk_);
+        return pk_;
+    }
+
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None);
+        assert (c == None);
+        (k_, c_kem) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        k <- Some(k_);
+        if b {
+            c_dem <- invoke DEM_ENC(k_, m1);
+        } else {
+            c_dem <- invoke DEM_ENC(k_, m0);
+        }
+        c <- Some((c_kem, c_dem));
+        return (c_kem, c_dem);
+    }
+
+    oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Maybe(Bits(ptl)) {
+        assert (pk != None);
+        assert (c_ != Unwrap(c));
+        (c_kem_, c_dem) <- parse c_;
+        (c_kem, _) <- parse Unwrap(c);
+        if (c_kem_ == c_kem) {
+            k_ <- k;
+        } else {
+            k_ <- invoke KEM_DECAPS(Unwrap(sk), c_kem_);
+        }
+        if (k_ == None) {
+            return None;
+        }
+        m <- invoke DEM_DEC(Unwrap(k_), c_dem);
+        return Some(m);
+    }
+
+}

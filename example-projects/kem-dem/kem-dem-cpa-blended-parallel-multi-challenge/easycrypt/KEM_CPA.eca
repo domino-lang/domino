@@ -1,0 +1,99 @@
+(** This is a specialised and cut-down version of the standard KEM
+    library. Understanding all the knobs provided by the KEM library
+    (which are not all the knobs we need it to provide) is well beyond
+    the scope of CAPS.
+**)
+require import AllCore Distr.
+
+(* Given sets of public keys, secret keys, session keys, and KEM
+   ciphertexts ... *)
+type pkey, skey, shared_secret, ctxt.
+
+(* ... and the uniform distribution over the session key space *)
+op [lossless full uniform] dkey : shared_secret distr.
+
+(** A KEM is a triple of (potentially probabilistic and stateful)
+    algorithms:
+**)
+module type KEM = {
+  proc keygen(): pkey * skey
+  proc encaps(pk : pkey): ctxt * shared_secret
+  proc decaps(sk : skey, m : ctxt): shared_secret option
+}.
+
+module type KEM_CPA_Oracles = {
+  proc initialize(): unit
+  proc pk(): pkey
+  proc enc(): ctxt * shared_secret
+}.
+
+module KEM_CPA_Real (K : KEM) = {
+  var pk : pkey
+  var sk : skey
+
+  proc initialize() = {
+    (pk, sk) <@ K.keygen();
+  }
+
+  proc pk() = {
+    return pk;
+  }
+
+  proc enc() = {
+    var r, ss;
+
+    (r, ss) <@ K.encaps(pk);
+    return (r, ss);
+  }
+}.
+
+module KEM_CPA_Ideal (K : KEM) = {
+  var pk : pkey
+  var sk : skey
+
+  proc initialize() = {
+    (pk, sk) <@ K.keygen();
+  }
+
+  proc pk() = {
+    return pk;
+  }
+
+  proc enc() = {
+    var r, ss;
+
+    (r, ss) <@ K.encaps(pk);
+    ss <$ dkey;
+    return (r, ss);
+  }
+}.
+
+(** A CPA adversary against the KEM is an algorithm: **)
+module type KEM_CPA_Adv (O : KEM_CPA_Oracles) = {
+  proc distinguish(): bool
+}.
+
+(** And we define the advantage of a CPA adversary A against a KEM E
+    in initial memory &m as:
+      `|   Pr[A(KEM_CPA_Real(E)).distinguish() @ &m: res]
+         - Pr[A(KEM_CPA_Ideal(E)).distinguish() @ &m: res]  |
+    However, we need to initialize pk and sk to glue games together
+**)
+module KEM_CPA_Exp (O : KEM_CPA_Oracles) (A : KEM_CPA_Adv) = {
+  proc run() = {
+    var b;
+
+    O.initialize();
+    b <@ A(O).distinguish();
+    return b;
+  }
+}.
+
+(** Why do we need the initial memory in probability expressions?
+    Because we can derive finer-grained properties of programs in
+    "non-standard" initial memories (that can then be applied in the
+    middle of an execution!) from probability expressions. So being
+    able to explicitly provide the memory is a good feature to have,
+    and being required to provide the memory has not yet proven to be
+    bad enough of an anti-feature.
+**)

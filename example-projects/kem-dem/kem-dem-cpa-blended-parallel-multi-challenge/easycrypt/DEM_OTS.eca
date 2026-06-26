@@ -1,0 +1,56 @@
+require import AllCore Distr.
+
+(* Given sets of keys, plaintexts, and ciphertexts... *)
+type key, ptxt, ctxt.
+
+(* ... and the uniform distribution over the key space *)
+op [lossless full uniform] dkey : key distr.
+
+(** A DEM is a pair of algorithms: **)
+module type DEM = {
+  (* Keygen is sampling in dkey *)
+  proc enc(k : key, m : ptxt): ctxt
+  proc dec(k : key, c : ctxt): ptxt
+}.
+
+(** Security **)
+module type DEM_OTS_Oracles = {
+  proc enc(mL : ptxt, mR : ptxt): ctxt
+}.
+
+module DEM_OTS_Left (E : DEM) = {
+  proc enc(mL : ptxt, mR : ptxt): ctxt = {
+    var k, c;
+
+    k <$ dkey;
+    c <@ E.enc(k, mL);
+    return c;
+  }
+}.
+
+module DEM_OTS_Right (E : DEM) = {
+  proc enc(mL : ptxt, mR : ptxt): ctxt = {
+    var k, c;
+
+    k <$ dkey;
+    c <@ E.enc(k, mR);
+    return c;
+  }
+}.
+
+module type DEM_OTS_Adv (O : DEM_OTS_Oracles) = {
+  proc distinguish(): bool
+}.
+
+(** And we define the advantage of an OTS adversary A against a DEM in
+    initial memory &m as
+      `|   Pr[A(DEM_OTS_Left(E)).distinguish() @ &m: res]
+         - Pr[A(DEM_OTS_Right(E)).distinguish() @ &m: res]  |
+**)
+lemma typecheck
+  (E <: DEM {-DEM_OTS_Left, -DEM_OTS_Right}) (* for all DEM schemes *)
+  (A <: DEM_OTS_Adv {-DEM_OTS_Left, -DEM_OTS_Right, -E}) (* for all adversaries *)
+  &m (* and for all initial memories *):
+    `|  Pr[A(DEM_OTS_Left(E)).distinguish() @ &m: res]
+      - Pr[A(DEM_OTS_Right(E)).distinguish() @ &m: res] | <= 1%r.
+abort.

@@ -1,0 +1,335 @@
+theorem kem_dem_cca_ssp {
+    const b: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const dctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance Game_MON_CCA_PKE = Game_MON_CCA_PKE {
+        params {
+            b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MOD_CCA_PKE_Real_KEM = Game_MOD_CCA_PKE {
+        params {
+            key_idealization: false,
+            dem_idealization: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MON_CCA_PKE_Real = Game_MON_CCA_PKE {
+        params {
+            b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MON_CCA_PKE_Ideal = Game_MON_CCA_PKE {
+        params {
+            b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MOD_CCA_PKE_Real_KEM_Real_DEM = Game_MOD_CCA_PKE {
+        params {
+            key_idealization: false,
+            dem_idealization: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM = Game_MOD_CCA_PKE {
+        params {
+            key_idealization: true,
+            dem_idealization: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM = Game_MOD_CCA_PKE {
+        params {
+            key_idealization: false,
+            dem_idealization: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM = Game_MOD_CCA_PKE {
+        params {
+            key_idealization: true,
+            dem_idealization: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_CCA_DEM_Real = Game_CCA_DEM {
+        params {
+            b: false,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_CCA_DEM_Ideal = Game_CCA_DEM {
+        params {
+            b: true,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Game_CCA_KEM_Real = Game_CCA_KEM {
+        params {
+            b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance Game_CCA_KEM_Ideal = Game_CCA_KEM {
+        params {
+            b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    assumptions {
+        KEM_CCA_Security: Game_CCA_KEM_Real ~ Game_CCA_KEM_Ideal
+        DEM_CCA_Security: Game_CCA_DEM_Real ~ Game_CCA_DEM_Ideal
+    }
+
+    gamehops {
+        /* 
+        Goal: Game_MON_CCA_PKE_Real ~ Game_MON_CCA_PKE_Ideal
+        */
+        /* We first prove real/ideal PKE-CCA game is equivalent to the modular 
+        version (i.e. Game_MOD_CCA_PKE_Real_KEM) */
+        equivalence Game_MON_CCA_PKE Game_MOD_CCA_PKE_Real_KEM {
+            PKGEN: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant.smt2
+                ]
+
+                lemmas {
+                    lemma-kem-correctness: admit []
+                    invariant: [no-abort, lemma-kem-correctness]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKDEC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant.smt2
+                ]
+
+                lemmas {
+                    lemma-kem-correctness: admit []
+                    invariant: [no-abort]
+                    same-output: [no-abort, lemma-kem-correctness]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        /* Now we hop three times to reach Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM */
+        /* First hop idealizes KEM and reduces to KEM-CCA security */
+        reduction Game_MOD_CCA_PKE_Real_KEM_Real_DEM Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM {
+            assumption KEM_CCA_Security
+
+            map Game_CCA_KEM_Real Game_MOD_CCA_PKE_Real_KEM_Real_DEM {
+                Scheme_KEM: Scheme_KEM
+                Key: Key
+                KEM: KEM
+            }
+
+            map Game_CCA_KEM_Ideal Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM {
+                Scheme_KEM: Scheme_KEM
+                Key: Key
+                KEM: KEM
+            }
+        }
+
+        /* Second hop idealizes DEM and reduces to DEM-CCA security */
+        reduction Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM {
+            assumption DEM_CCA_Security
+
+            map Game_CCA_DEM_Real Game_MOD_CCA_PKE_Ideal_KEM_Real_DEM {
+                Scheme_DEM: Scheme_DEM
+                Key: Key
+                DEM: DEM
+            }
+
+            map Game_CCA_DEM_Ideal Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM {
+                Scheme_DEM: Scheme_DEM
+                Key: Key
+                DEM: DEM
+            }
+        }
+
+        /* Third hop deidealizes KEM and reduces to KEM-CCA security again */
+        reduction Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM {
+            assumption KEM_CCA_Security
+
+            map Game_CCA_KEM_Ideal Game_MOD_CCA_PKE_Ideal_KEM_Ideal_DEM {
+                Scheme_KEM: Scheme_KEM
+                Key: Key
+                KEM: KEM
+            }
+
+            map Game_CCA_KEM_Real Game_MOD_CCA_PKE_Real_KEM_Ideal_DEM {
+                Scheme_KEM: Scheme_KEM
+                Key: Key
+                KEM: KEM
+            }
+        }
+    }
+    propositions {
+        Main: Game_MON_CCA_PKE_Real ~ Game_MON_CCA_PKE_Ideal
+    }
+}

@@ -17,7 +17,7 @@ package Lev {
         zl <- invoke GETBIT(l);
         zr <- invoke GETBIT(r);
         z <- Unwrap(op[(zl, zr)]);
-        _ <- invoke SETBIT(j, z);
+        invoke SETBIT(j, z);
         /* for lemma aborts when proving GBLG in equiv LayerHybrid = LayerIdeal */
         /* Essentially in LayerHybrid, Gate evaluates the gate on each possible pair 
         of inputs and the uses the corresponding output wire key while the simulator 

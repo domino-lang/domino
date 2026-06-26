@@ -5,7 +5,7 @@ package B {
     }
 
     oracle S() {
-        _ <- invoke O();
-        _ <- invoke Q();
+        invoke O();
+        invoke Q();
     }
 }

@@ -1,0 +1,28 @@
+package Scheme_KEM {
+    params {
+        pkeyl: Integer,
+        skeyl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        kgenr: Integer,
+        kencr: Integer,
+        kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl)),
+        kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl)),
+        kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl),
+    }
+
+    oracle KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)) {
+        r <-$ Bits(kgenr) sample-name kem_gen;
+        return kem_gen(r);
+    }
+
+    oracle KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)) {
+        r <-$ Bits(kencr) sample-name kem_encaps;
+        (k, c) <- kem_encaps(r, pk);
+        return (k, c);
+    }
+
+    oracle KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Bits(dkeyl) {
+        return kem_decaps(sk, c);
+    }
+}

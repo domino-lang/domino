@@ -1,0 +1,57 @@
+composition Game_CCA_KEM {
+    const b: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+
+    instance Scheme_KEM = Scheme_KEM {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance Key = Key {
+        params {
+            b: b,
+            dkeyl: dkeyl,
+        }
+    }
+
+    instance KEM = KEM {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+        }
+    }
+
+    compose {
+        KEM: {
+            SET: Key,
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM
+        }
+        adversary: {
+            KEMGEN: KEM,
+            ENCAPS: KEM,
+            DECAPS: KEM,
+            GET: Key
+        }
+    }
+}
