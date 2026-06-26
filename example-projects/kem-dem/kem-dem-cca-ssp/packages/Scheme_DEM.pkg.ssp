@@ -1,4 +1,4 @@
-package DemScheme {
+package Scheme_DEM {
     params {
         dkeyl: Integer,
         ptl: Integer,

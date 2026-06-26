@@ -7,7 +7,7 @@ composition DemCcaGame {
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance DemScheme = DemScheme {
+    instance Scheme_DEM = Scheme_DEM {
         params {
             dkeyl: dkeyl,
             ptl: ptl,
@@ -35,15 +35,15 @@ composition DemCcaGame {
 
     compose {
         DEM: {
-            DEM_ENC: DemScheme,
-            DEM_DEC: DemScheme,
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
             GET: Key
         }
         adversary: {
             ENC: DEM,
             DEC: DEM,
             SET: Key,
-            DEM_DEC: DemScheme
+            DEM_DEC: Scheme_DEM
         }
     }
 }

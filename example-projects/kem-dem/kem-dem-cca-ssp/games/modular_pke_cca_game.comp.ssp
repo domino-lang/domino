@@ -23,7 +23,7 @@ composition ModularPkeCcaGame {
         }
     }
 
-    instance DemScheme = DemScheme {
+    instance Scheme_DEM = Scheme_DEM {
         params {
             dkeyl: dkeyl,
             ptl: ptl,
@@ -33,7 +33,7 @@ composition ModularPkeCcaGame {
         }
     }
 
-    instance KemScheme = KemScheme {
+    instance Scheme_KEM = Scheme_KEM {
         params {
             pkeyl: pkeyl,
             skeyl: skeyl,
@@ -77,14 +77,14 @@ composition ModularPkeCcaGame {
 
     compose {
         KEM: {
-            KEM_GEN: KemScheme,
-            KEM_ENCAPS: KemScheme,
-            KEM_DECAPS: KemScheme,
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM,
             SET: Key
         }
         DEM: {
-            DEM_ENC: DemScheme,
-            DEM_DEC: DemScheme,
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
             GET: Key
         }
         MOD_CCA: {
@@ -93,7 +93,7 @@ composition ModularPkeCcaGame {
             DECAPS: KEM,
             ENC: DEM,
             DEC: DEM,
-            DEM_DEC: DemScheme
+            DEM_DEC: Scheme_DEM
         }
         adversary: {
             PKGEN: MOD_CCA,

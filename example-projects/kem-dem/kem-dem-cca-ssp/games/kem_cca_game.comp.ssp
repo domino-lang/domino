@@ -10,7 +10,7 @@ composition KemCcaGame {
     const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
     const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
 
-    instance KemScheme = KemScheme {
+    instance Scheme_KEM = Scheme_KEM {
         params {
             pkeyl: pkeyl,
             skeyl: skeyl,
@@ -43,9 +43,9 @@ composition KemCcaGame {
     compose {
         KEM: {
             SET: Key,
-            KEM_GEN: KemScheme,
-            KEM_ENCAPS: KemScheme,
-            KEM_DECAPS: KemScheme
+            KEM_GEN: Scheme_KEM,
+            KEM_ENCAPS: Scheme_KEM,
+            KEM_DECAPS: Scheme_KEM
         }
         adversary: {
             KEMGEN: KEM,
