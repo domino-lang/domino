@@ -1,24 +1,25 @@
 package Key {
     params {
-        b: Bool
+        b: Bool,
+        dkeyl: Integer,
     }
 
     state {
-        k: Maybe(Bits(256))
+        k: Maybe(Bits(dkeyl))
     }
 
-    oracle SET(k_: Bits(256)) {
+    oracle SET(k_: Bits(dkeyl)) {
         assert (k == None);
         if b {
-            k__ <-$ Bits(256);
+            k__ <-$ Bits(dkeyl);
             k <- Some(k__);
         } else {
             k <- Some(k_);
         }
     }
 
-    oracle GET() -> Bits(256) {
-        assert (k != None as Bits(256));
+    oracle GET() -> Bits(dkeyl) {
+        assert (k != None as Bits(dkeyl));
         return Unwrap(k);
     }
 }

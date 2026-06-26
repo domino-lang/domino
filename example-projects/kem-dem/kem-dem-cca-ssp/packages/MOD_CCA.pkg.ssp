@@ -1,45 +1,49 @@
 package MOD_CCA {
+    params {
+        pkeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
 
     import oracles {
-        KEMGEN() -> Bits(100),
-        ENCAPS() -> Bits(400),
-        DECAPS(c_kem: Bits(400)) -> Bits(256),
-        ENC(m: Bits(*)) -> Bits(*),
-        DEC(c: Bits(*)) -> Bits(*),
-        DEM_DEC(k: Bits(256), c: Bits(*) /* ciphertext length */) -> Bits(*),
+        KEMGEN() -> Bits(pkeyl),
+        ENCAPS() -> Bits(kctl),
+        DECAPS(c_kem: Bits(kctl)) -> Bits(dkeyl),
+        ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl),
+        DEC(c: Bits(dctl)) -> Bits(ptl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
     }
 
     state {
-        pk: Maybe(Bits(100)),
-        c: Maybe((Bits(400),Bits(*))),
-        c_kem: Maybe(Bits(400)),
-        c_dem: Maybe(Bits(*))
+        pk: Maybe(Bits(pkeyl)),
+        c: Maybe((Bits(kctl),Bits(dctl)))
     }
 
-    oracle PKGEN() -> Bits(100) {
+    oracle PKGEN() -> Bits(pkeyl) {
         assert (pk == None);
         pk_ <- invoke KEMGEN();
         pk <- Some(pk_);
         return pk_;
     }
 
-    oracle PKENC(m: Bits(*)) -> (Bits(400),Bits(*)) {
-        assert (pk != None as Bits(100));
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None as Bits(pkeyl));
         assert (c == None);
-        c_kem_ <- invoke ENCAPS();
-        c_kem <- Some(c_kem_);
-        c_dem_ <- invoke ENC(m);
-        c_dem <- Some(c_dem_);
-        c_ <- (c_kem_, c_dem_);
+        c_kem <- invoke ENCAPS();
+        c_dem <- invoke ENC(m0, m1);
+        c_ <- (c_kem, c_dem);
         c <- Some(c_);
         return c_;
     }
 
-    oracle PKDEC(c_: (Bits(400),Bits(*))) -> Bits(*) {
-        assert (pk != None as Bits(100));
+    oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Bits(ptl) {
+        assert (pk != None as Bits(pkeyl));
         assert (Unwrap(c) != c_);
         (c_kem_, c_dem_) <- parse c_;
-        if (c_kem_ == Unwrap(c_kem)) {
+        (c_kem, _) <- parse Unwrap(c);
+        if (c_kem_ == c_kem) {
             m <- invoke DEC(c_dem_);
         } else {
             k <- invoke DECAPS(c_kem_);

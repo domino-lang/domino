@@ -1,23 +1,26 @@
 package MON_CCA {
     params {
         b: Bool,
-        len: fn Bits(*) -> Integer,
-        zeros: fn Integer -> Bits(*),
+        pkeyl: Integer,
+        skeyl: Integer,
+        ptl: Integer,
+        kctl: Integer,
+        dctl: Integer,
     }
 
     import oracles {
-        GEN() -> (Bits(100), Bits(1000)),
-        ENC(pk: Bits(100), m: Bits(*)) -> (Bits(400),Bits(*),Bits(3000)) /* ciphertext type */,
-        DEC(sk: Bits(1000), c: (Bits(400),Bits(*)) /* ciphertext type */) -> Bits(*),
+        GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        ENC(pk: Bits(pkeyl), m: Bits(ptl)) -> (Bits(kctl),Bits(dctl)),
+        DEC(sk: Bits(skeyl), c: (Bits(kctl),Bits(dctl))) -> Bits(ptl),
     }
 
     state {
-        pk: Maybe(Bits(100)),
-        sk: Maybe(Bits(1000)),
-        c: Maybe((Bits(400),Bits(*)))
+        pk: Maybe(Bits(pkeyl)),
+        sk: Maybe(Bits(skeyl)),
+        c: Maybe((Bits(kctl),Bits(dctl)))
     }
 
-    oracle PKGEN() -> Bits(100) {
+    oracle PKGEN() -> Bits(pkeyl) {
         assert (sk == None);
         (pk_, sk_) <- invoke GEN();
         pk <- Some(pk_);
@@ -25,20 +28,20 @@ package MON_CCA {
         return pk_;
     }
 
-    oracle PKENC(m: Bits(*)) -> (Bits(400),Bits(*)) {
-        assert (pk != None as Bits(100));
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None as Bits(pkeyl));
         assert (c == None);
         if b {
-            (c_kem, c_dem, r) <- parse invoke ENC(Unwrap(pk), zeros(len(m)));
+            (c_kem, c_dem) <- parse invoke ENC(Unwrap(pk), m1);
         } else {
-            (c_kem, c_dem, r) <- parse invoke ENC(Unwrap(pk), m);
+            (c_kem, c_dem) <- parse invoke ENC(Unwrap(pk), m0);
         }
         c <- Some((c_kem, c_dem));
         return (c_kem, c_dem);
     }
 
-    oracle PKDEC(c_: (Bits(400),Bits(*))) -> Bits(*) {
-        assert (sk != None as Bits(1000));
+    oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Bits(ptl) {
+        assert (sk != None as Bits(skeyl));
         assert (c_ != Unwrap(c));
         m <- invoke DEC(Unwrap(sk), c_);
         return m;

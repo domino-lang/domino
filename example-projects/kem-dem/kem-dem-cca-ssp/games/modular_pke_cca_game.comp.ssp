@@ -2,73 +2,104 @@ composition ModularPkeCcaGame {
     const key_idealization: Bool;
     const dem_idealization: Bool;
 
-    const len: fn Bits(*) -> Integer;
-    const zeros: fn Integer -> Bits(*);
-    const kem_gen: fn Bits(2000) -> (Bits(100), Bits(1000));
-    const kem_encaps: fn Bits(3000), Bits(100) -> (Bits(256), Bits(400));
-    const kem_decaps: fn Bits(1000), Bits(400) -> Bits(256);
-    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
-    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const dctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const kem_gen: fn Bits(kgenr) -> (Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(kencr), Bits(pkeyl) -> (Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl);
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance pkg_Key = Key {
+    instance Key = Key {
         params {
             b: key_idealization,
+            dkeyl: dkeyl,
         }
     }
 
-    instance pkg_DemScheme = DemScheme {
+    instance DemScheme = DemScheme {
         params {
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec
         }
     }
 
-    instance pkg_KemScheme = KemScheme {
+    instance KemScheme = KemScheme {
         params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
         }
     }
 
-    instance pkg_DEM = DEM {
+    instance DEM = DEM {
         params {
             b: dem_idealization,
-            len: len,
-            zeros: zeros,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
         }
     }
 
-    instance pkg_KEM = KEM {
+    instance KEM = KEM {
+        params {
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kencr: kencr,
+        }
     }
 
-    instance pkg_MOD_CCA = MOD_CCA {
+    instance MOD_CCA = MOD_CCA {
+        params {
+            pkeyl: pkeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+        }
     }
 
     compose {
-        pkg_KEM: {
-            KEM_GEN: pkg_KemScheme,
-            KEM_ENCAPS: pkg_KemScheme,
-            KEM_DECAPS: pkg_KemScheme,
-            SET: pkg_Key
+        KEM: {
+            KEM_GEN: KemScheme,
+            KEM_ENCAPS: KemScheme,
+            KEM_DECAPS: KemScheme,
+            SET: Key
         }
-        pkg_DEM: {
-            DEM_ENC: pkg_DemScheme,
-            DEM_DEC: pkg_DemScheme,
-            GET: pkg_Key
+        DEM: {
+            DEM_ENC: DemScheme,
+            DEM_DEC: DemScheme,
+            GET: Key
         }
-        pkg_MOD_CCA: {
-            KEMGEN: pkg_KEM,
-            ENCAPS: pkg_KEM,
-            DECAPS: pkg_KEM,
-            ENC: pkg_DEM,
-            DEC: pkg_DEM,
-            DEM_DEC: pkg_DemScheme
+        MOD_CCA: {
+            KEMGEN: KEM,
+            ENCAPS: KEM,
+            DECAPS: KEM,
+            ENC: DEM,
+            DEC: DEM,
+            DEM_DEC: DemScheme
         }
         adversary: {
-            PKGEN: pkg_MOD_CCA,
-            PKENC: pkg_MOD_CCA,
-            PKDEC: pkg_MOD_CCA
+            PKGEN: MOD_CCA,
+            PKENC: MOD_CCA,
+            PKDEC: MOD_CCA
         }
     }
 

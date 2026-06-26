@@ -1,43 +1,49 @@
 composition DemCcaGame {
     const b: Bool;
 
-    const len: fn Bits(*) -> Integer;
-    const zeros: fn Integer -> Bits(*);
-    const dem_enc: fn Bits(500), Bits(256), Bits(*) -> Bits(*);
-    const dem_dec: fn Bits(256), Bits(*) -> Bits(*);
+    const dkeyl: Integer;
+    const ptl: Integer;
+    const dctl: Integer;
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
-    instance pkg_DemScheme = DemScheme {
+    instance DemScheme = DemScheme {
         params {
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
             dem_enc: dem_enc,
             dem_dec: dem_dec
         }
     }
 
-    instance pkg_Key = Key {
+    instance Key = Key {
         params {
-            b: true
+            b: true,
+            dkeyl: dkeyl,
         }
     }
 
-    instance pkg_DEM = DEM {
+    instance DEM = DEM {
         params {
             b: b,
-            len: len,
-            zeros: zeros,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
         }
     }
 
     compose {
-        pkg_DEM: {
-            DEM_ENC: pkg_DemScheme,
-            DEM_DEC: pkg_DemScheme,
-            GET: pkg_Key
+        DEM: {
+            DEM_ENC: DemScheme,
+            DEM_DEC: DemScheme,
+            GET: Key
         }
         adversary: {
-            ENC: pkg_DEM,
-            DEC: pkg_DEM,
-            SET: pkg_Key,
-            DEM_DEC: pkg_DemScheme
+            ENC: DEM,
+            DEC: DEM,
+            SET: Key,
+            DEM_DEC: DemScheme
         }
     }
 }

@@ -1,38 +1,37 @@
 package DEM {
     params {
         b: Bool,
-        len: fn Bits(*) -> Integer,
-        zeros: fn Integer -> Bits(*),
+        dkeyl: Integer,
+        ptl: Integer,
+        dctl: Integer,
     }
 
     state {
-        T: Table(Bits(*), Bool)
+        c: Maybe(Bits(dctl))
     }
 
     import oracles {
-        GET() -> Bits(256),
-        DEM_ENC(k: Bits(256), m: Bits(*)) -> Bits(*),
-        DEM_DEC(k: Bits(256), c: Bits(*)) -> Bits(*),
+        GET() -> Bits(dkeyl),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
     }
 
-    oracle ENC(m: Bits(*)) -> Bits(*) {
+    oracle ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl) {
+        assert (c == None);
         k <- invoke GET();
         if b {
-            c <- invoke DEM_ENC(k, zeros(len(m)));
-            
+            c_ <- invoke DEM_ENC(k, m1);
         } else {
-            c <- invoke DEM_ENC(k, m);
+            c_ <- invoke DEM_ENC(k, m0);
         }
-        T[c] <- Some(true);
-        return c;
+        c <- Some(c_);
+        return c_;
     }
 
-    oracle DEC(c: Bits(*)) -> Bits(*) {
-        if (T[c] != None as Bool) {
-            abort;
-        }
+    oracle DEC(c_: Bits(dctl)) -> Bits(ptl) {
+        assert (c != Some(c_));
         k <- invoke GET();
-        m <- invoke DEM_DEC(k, c);
+        m <- invoke DEM_DEC(k, c_);
         return m;
     }
 }
