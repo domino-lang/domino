@@ -312,7 +312,7 @@ impl Parsable for InstanceConstAssignmentItem {
         state: &mut crate::State,
         pair: crate::Pair,
     ) -> Self {
-        super::instances::parse_instance_const_assignment_item(file_id, state, pair)
+        instances::parse_instance_const_assignment_item(file_id, state, pair)
     }
 }
 
@@ -399,7 +399,7 @@ impl Parsable for InstanceBlock {
         state: &mut crate::State,
         pair: crate::Pair,
     ) -> Self {
-        super::instances::parse_instance_block(file_id, state, pair)
+        instances::parse_instance_block(file_id, state, pair)
     }
 }
 
