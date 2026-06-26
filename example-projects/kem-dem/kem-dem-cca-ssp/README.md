@@ -43,8 +43,8 @@ security games as package compositions.
 - `Scheme_KEM.pkg.ssp` - Concrete KEM scheme implementation
 - `Scheme_DEM.pkg.ssp` - Concrete DEM scheme implementation
 - `Scheme_PKE.pkg.ssp` - Public key encryption scheme package
-- `MOD_CCA.pkg.ssp` - Modular PKE-CCA security game package (composition-based approach)
-- `MON_CCA.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
+- `MOD_CCA_PKE.pkg.ssp` - Modular PKE-CCA security game package (composition-based approach)
+- `MON_CCA_PKE.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
 
 **games/**
 - `modular_pke_cca_game.comp.ssp` - Composition defining the modular PKE-CCA security game by combining KEM, DEM, and Key packages

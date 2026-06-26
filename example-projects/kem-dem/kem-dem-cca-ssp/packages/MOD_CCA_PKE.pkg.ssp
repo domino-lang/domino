@@ -1,4 +1,4 @@
-package MOD_CCA {
+package MOD_CCA_PKE {
     params {
         pkeyl: Integer,
         ptl: Integer,
