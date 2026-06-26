@@ -174,7 +174,11 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 )
             }
             ExpressionKind::EmptyTable(ty) => {
-                format!("\\O{{EmptyTable}}({})", self.type_to_tex(ty))
+                if self.lossy {
+                    format!("\\O{{EmptyTable}}")
+                } else {
+                    format!("\\O{{EmptyTable}}({})", self.type_to_tex(ty))
+                }
             }
             _ => {
                 format!("{expr:?}")
