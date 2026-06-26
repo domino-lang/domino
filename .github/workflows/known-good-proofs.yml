@@ -17,8 +17,8 @@ jobs:
           - ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v2
-      - name: Install CVC5
-        run: sudo apt install cvc5
+      - name: Install CVC5 and Z3
+        run: sudo apt install cvc5 z3
 
       - name: Install Enough TexLive
         run: sudo apt install --no-install-recommends texlive-base texlive-science texlive-latex-extra
@@ -50,10 +50,10 @@ jobs:
           - windows-11-arm
     steps:
       - uses: actions/checkout@v2
-      - name: Install CVC5
+      - name: Install CVC5 and Z3
         shell: bash
         run: |
-          choco install wget
+          choco install wget z3
           wget https://github.com/cvc5/cvc5/releases/download/cvc5-1.3.3/cvc5-Win64-x86_64-static.zip
           7z e cvc5-Win64-x86_64-static.zip cvc5-Win64-x86_64-static/bin/cvc5.exe
           echo "${{ github.workspace }}" >> $GITHUB_PATH
@@ -103,6 +103,9 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install CVC5
         run: brew install --cask cvc5/cvc5/cvc5
+
+      - name: Install Z3
+        run: brew install z3
 
       - name: Install Enough TexLive
         run: brew install texlive
