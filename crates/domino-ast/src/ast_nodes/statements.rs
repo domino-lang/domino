@@ -2,7 +2,7 @@ use crate::{
     arena::Ref,
     ast_nodes::{
         identifier::OracleValueIdentifier,
-        list::{Comma, List, Semicolon},
+        list::{Comma, List, ListNoDelim, Semicolon},
         oracle_expressions::OracleExpression,
         ListItem, Parsable, Trivia,
     },
@@ -23,10 +23,13 @@ impl ListItem for Statement {
     const LIST_RULE: Rule = Rule::statements;
 }
 
+pub type StatementList = ListNoDelim<Statement>;
+
 #[derive(Debug, Clone, Copy)]
 pub struct AssertStatement {
-    pub trivia: Ref<Trivia>,
+    pub expr_trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
+    pub semicolon_trivia: Ref<Trivia>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -35,6 +38,7 @@ pub struct AssignStatement {
     pub pre_arrow_trivia: Ref<Trivia>,
     pub post_arrow_trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
+    pub semicolon_trivia: Ref<Trivia>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -57,11 +61,13 @@ pub struct ElseBlock {
 pub struct ReturnStatement {
     pub trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
+    pub semicolon_trivia: Ref<Trivia>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct ExpressionStatement {
     pub expr: Ref<OracleExpression>,
+    pub semicolon_trivia: Ref<Trivia>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -92,8 +98,6 @@ pub struct TuplePattern {
 }
 
 pub type PatternList = List<Pattern, Comma>;
-
-pub type StatementList = List<Statement, Semicolon>;
 
 impl Parsable for Pattern {
     const RULE: Rule = Rule::pattern;
@@ -174,7 +178,9 @@ impl Parsable for Statement {
             Rule::assert => Self::Assert(AssertStatement::parse_ref(file_id, state, pair)),
             Rule::assignment => Self::Assign(AssignStatement::parse_ref(file_id, state, pair)),
             Rule::r#return => Self::Return(ReturnStatement::parse_ref(file_id, state, pair)),
-            Rule::expr => Self::Expression(ExpressionStatement::parse_ref(file_id, state, pair)),
+            Rule::expr_stmt => {
+                Self::Expression(ExpressionStatement::parse_ref(file_id, state, pair))
+            }
             _ => unreachable!(),
         }
     }
@@ -190,10 +196,16 @@ impl Parsable for AssertStatement {
     ) -> Self {
         let mut inner = pair.into_inner();
         let _kw_assert = inner.next().unwrap();
-        let trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let expr_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let expr = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let semicolon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let _semicolon = Semicolon::parse(file_id, state, inner.next().unwrap());
 
-        Self { trivia, expr }
+        Self {
+            expr_trivia,
+            expr,
+            semicolon_trivia,
+        }
     }
 }
 
@@ -206,30 +218,40 @@ impl Parsable for AssignStatement {
         pair: crate::Pair,
     ) -> Self {
         let mut inner = pair.into_inner();
-        let pattern_pair = inner.next().unwrap();
-        let pre_arrow_trivia_pair = inner.next().unwrap();
-        let post_arrow_trivia_pair = inner.next().unwrap();
-        let expr_pair = inner.next().unwrap();
+        let pat = Pattern::parse_ref(file_id, state, inner.next().unwrap());
+        let pre_arrow_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let post_arrow_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let expr = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let semicolon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let _semicolon = Semicolon::parse(file_id, state, inner.next().unwrap());
 
         Self {
-            pat: Pattern::parse_ref(file_id, state, pattern_pair),
-            pre_arrow_trivia: Trivia::parse_ref(file_id, state, pre_arrow_trivia_pair),
-            post_arrow_trivia: Trivia::parse_ref(file_id, state, post_arrow_trivia_pair),
-            expr: OracleExpression::parse_ref(file_id, state, expr_pair),
+            pat,
+            pre_arrow_trivia,
+            post_arrow_trivia,
+            expr,
+            semicolon_trivia,
         }
     }
 }
 
 impl Parsable for ExpressionStatement {
-    const RULE: Rule = Rule::expr;
+    const RULE: Rule = Rule::expr_stmt;
 
     fn parse_inner(
         file_id: crate::source::FileId,
         state: &mut crate::State,
         pair: crate::Pair,
     ) -> Self {
+        let mut inner = pair.into_inner();
+
+        let expr = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let semicolon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let _semicolon = Semicolon::parse(file_id, state, inner.next().unwrap());
+
         Self {
-            expr: OracleExpression::parse_ref(file_id, state, pair),
+            expr,
+            semicolon_trivia,
         }
     }
 }
@@ -244,12 +266,15 @@ impl Parsable for ReturnStatement {
     ) -> Self {
         let mut inner = pair.into_inner();
         let _return_pair = inner.next().unwrap();
-        let trivia_pair = inner.next().unwrap();
-        let expr_pair = inner.next().unwrap();
+        let trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let expr = OracleExpression::parse_ref(file_id, state, inner.next().unwrap());
+        let semicolon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+        let _semicolon = Semicolon::parse(file_id, state, inner.next().unwrap());
 
         Self {
-            trivia: Trivia::parse_ref(file_id, state, trivia_pair),
-            expr: OracleExpression::parse_ref(file_id, state, expr_pair),
+            trivia,
+            expr,
+            semicolon_trivia,
         }
     }
 }
