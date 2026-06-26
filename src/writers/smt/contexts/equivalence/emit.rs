@@ -69,6 +69,7 @@ impl<'a> EquivalenceContext<'a> {
             .iter()
             .map(|(arg_name, arg_type)| patterns::OracleArgs {
                 oracle_name,
+                game_name: game_name_left, // left/right doesn't matter as both exist and are asserted to be equal
                 arg_name,
                 arg_type,
             })
@@ -721,13 +722,45 @@ impl<'a> EquivalenceContext<'a> {
 
         /////// arguments for non-split and split oracles
 
-        for export in &left.game().exports {
-            if let Some(orcl_ctx) = gctx_left.exported_oracle_ctx_by_name(&export.sig().name) {
-                for (arg_name, arg_type) in &export.sig().args {
-                    out.push(declare_const(
-                        orcl_ctx.smt_arg_name(arg_name),
-                        arg_type.clone().into(),
-                    ));
+        for left_export in &left.game().exports {
+            let right_export = right
+                .game
+                .exports
+                .iter()
+                .find(|exp| exp.name() == left_export.name())
+                .unwrap();
+            if let (Some(left_orcl_ctx), Some(right_orcl_ctx)) = (
+                gctx_left.exported_oracle_ctx_by_name(&left_export.sig().name),
+                gctx_right.exported_oracle_ctx_by_name(&right_export.sig().name),
+            ) {
+                for ((arg_name_left, arg_type), (arg_name_right, _)) in left_export
+                    .sig()
+                    .args
+                    .iter()
+                    .zip(right_export.sig().args.iter())
+                {
+                    if gctx_left.game_inst().game.name() == gctx_right.game_inst().game.name() {
+                        out.push(declare_const(
+                            left_orcl_ctx.smt_arg_name(arg_name_left),
+                            arg_type.clone().into(),
+                        ));
+                    } else {
+                        out.push(declare_const(
+                            left_orcl_ctx.smt_arg_name(arg_name_left),
+                            arg_type.clone().into(),
+                        ));
+                        out.push(declare_const(
+                            right_orcl_ctx.smt_arg_name(arg_name_right),
+                            arg_type.clone().into(),
+                        ));
+                        out.push(
+                            SmtAssert(SmtEq2 {
+                                lhs: left_orcl_ctx.smt_arg_name(arg_name_left),
+                                rhs: right_orcl_ctx.smt_arg_name(arg_name_right),
+                            })
+                            .into(),
+                        );
+                    }
                 }
             }
         }
