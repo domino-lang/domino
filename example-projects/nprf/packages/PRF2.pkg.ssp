@@ -9,6 +9,6 @@ package PRF2 {
     }
 
     oracle Eval2(hdl: HandleIn, msg: Message) {
-        _ <- invoke Eval(hdl, msg);
+        invoke Eval(hdl, msg);
     }
 }

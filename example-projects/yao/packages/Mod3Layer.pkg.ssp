@@ -28,7 +28,7 @@ package Mod3Layer {
         for j: 1 <= j <= w {
             assert (x[j] != None);
             z <- Unwrap(x[j]);
-            _ <- invoke SETBIT(j,z);
+            invoke SETBIT(j,z);
             k <- invoke GETAOUT(j);
             xtilde[j] <- Some(k);
         }

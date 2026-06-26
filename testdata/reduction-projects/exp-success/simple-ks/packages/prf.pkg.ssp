@@ -15,7 +15,7 @@ package Prf {
         hon <- invoke HON(h);
         y <- f(k,m);
         hh <- (h, m);
-        _ <- invoke SET(hh, y, hon);
+        invoke SET(hh, y, hon);
         return hh;
     }
 }
