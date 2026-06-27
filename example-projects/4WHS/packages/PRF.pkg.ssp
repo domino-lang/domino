@@ -1,4 +1,6 @@
 package PRF {
+    invariant: [ ./packages/PRF.smt2 ]
+
     params {
         n: Integer,
       prf: fn Bits(n), (Integer, Integer, Bits(n), Bits(n), Bool) ->  Bits(n),

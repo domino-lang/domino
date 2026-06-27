@@ -5,6 +5,10 @@ composition Hybrid2 {
         const b: Bool;
         const bprf: Bool;
 
+    invariant: [
+      ./games/Hybrid2.smt2
+    ]
+
     instance Prf = PRF {
 	    params {
             b: bprf,
