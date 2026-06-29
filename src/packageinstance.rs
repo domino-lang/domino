@@ -598,6 +598,15 @@ pub(crate) mod instantiate {
                     self.rewrite_oracle_code(code),
                     pos,
                 ),
+                Statement::ForEach(pattern, values, code, pos) => Statement::ForEach(
+                    pattern,
+                    values
+                        .iter()
+                        .map(|expr| self.rewrite_expression(expr))
+                        .collect(),
+                    self.rewrite_oracle_code(code),
+                    pos,
+                ),
             }
         }
     }

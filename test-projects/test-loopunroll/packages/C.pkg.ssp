@@ -1,0 +1,5 @@
+package C {
+    oracle Test() -> Bool {
+        return false;
+    }
+}

@@ -1,0 +1,7 @@
+package A {
+    oracle Test() {
+        for (a, b): [(true, false), (false, 12)] {
+
+        }
+    }
+}

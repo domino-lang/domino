@@ -71,6 +71,7 @@ pub enum Statement {
     InvokeOracle(InvokeOracle),
     IfThenElse(IfThenElse),
     For(Identifier, Expression, Expression, CodeBlock, SourceSpan),
+    ForEach(Pattern, Vec<Expression>, CodeBlock, SourceSpan),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -89,7 +90,8 @@ impl Statement {
             Statement::Abort(file_pos)
             | Statement::Return(_, file_pos)
             | Statement::Assignment(_, file_pos)
-            | Statement::For(_, _, _, _, file_pos) => *file_pos,
+            | Statement::For(_, _, _, _, file_pos)
+            | Statement::ForEach(_, _, _, file_pos) => *file_pos,
             Statement::InvokeOracle(InvokeOracle { file_pos, .. }) => *file_pos,
             Statement::IfThenElse(IfThenElse { full_span, .. }) => *full_span,
         }

@@ -154,6 +154,12 @@ fn extract_types_from_codeblock(set: &mut HashSet<Type>, cb: CodeBlock) {
                 record_type(set, upper_bound.get_type());
                 extract_types_from_codeblock(set, body)
             }
+            Statement::ForEach(_, exprs, body, _) => {
+                for expr in exprs {
+                    record_type(set, expr.get_type());
+                }
+                extract_types_from_codeblock(set, body)
+            }
         }
     }
 }

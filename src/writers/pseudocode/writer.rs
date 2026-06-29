@@ -305,6 +305,7 @@ impl<'comp, W: Write> Writer<'comp, W> {
                 }
             }
             Statement::For(_, _, _, _, _) => todo!(),
+            Statement::ForEach(_, _, _, _) => todo!(),
             Statement::Abort(_) => {
                 self.write_string("abort;\n")?;
             }

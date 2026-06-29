@@ -105,7 +105,7 @@ impl<'a> CompositionSmtWriter<'a> {
                     // mk-abort-{name}
                     self.smt_build_abort(oracle_ctx)
                 }
-                Statement::For(_, _, _, _, _) => {
+                Statement::For(_, _, _, _, _) | Statement::ForEach(_, _, _, _) => {
                     let game_inst_name = game_inst.name();
                     let _game_name = game.name();
                     let pkg_inst_name = &oracle_ctx.pkg_inst_ctx().pkg_inst().name;

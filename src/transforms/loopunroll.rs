@@ -52,6 +52,19 @@ fn unroll(cb: &CodeBlock, subst: &Vec<(&Identifier, &Identifier)>) -> CodeBlock 
 
     for stmt in &cb.0 {
         match stmt {
+            Statement::ForEach(pattern, args, code, span) => {
+                let loopcode = unroll(code, subst);
+                for arg in args {
+                    newcode.push(Statement::Assignment(
+                        Assignment {
+                            pattern: pattern.clone(),
+                            rhs: AssignmentRhs::Expression(arg.clone()),
+                        },
+                        *span,
+                    ));
+                    newcode.extend(loopcode.0.iter().cloned());
+                }
+            }
             Statement::For(ident, lower, upper, code, span) => {
                 if let (
                     ExpressionKind::IntegerLiteral(lower),
