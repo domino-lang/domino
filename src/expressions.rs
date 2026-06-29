@@ -571,8 +571,8 @@ impl ExpressionKind {
             | ExpressionKind::IntegerLiteral(_)
             | ExpressionKind::EmptyTable(_)
             | ExpressionKind::None(_)
-            | ExpressionKind::BooleanLiteral(_) => true,
-            ExpressionKind::BitsLiteral(_, _) => true,
+            | ExpressionKind::BooleanLiteral(_)
+            | ExpressionKind::BitsLiteral(_, _) => true,
 
             ExpressionKind::TableAccess(_, _)
             | ExpressionKind::FnCall(_, _)

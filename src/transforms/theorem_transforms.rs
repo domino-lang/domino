@@ -5,7 +5,7 @@ use std::{collections::HashSet, convert::Infallible};
 use crate::{theorem::GameInstance, types::Type};
 
 use super::{
-    deconstructinvoke,
+    deconstructinvoke, loopunroll,
     resolveoracles::{self, ResolutionError},
     returnify, samplify, tableinitialize, treeify, type_extract, unwrapify, GameTransform,
     Transformation,
@@ -67,6 +67,9 @@ fn transform_game_inst(
     let (comp, _) = returnify::TransformNg
         .transform_game(&comp)
         .expect("returnify transformation failed unexpectedly");
+    let (comp, _) = loopunroll::Transformation(&comp)
+        .transform()
+        .expect("unroll transformation failed unexpectedly");
     let (comp, _) = treeify::Transformation(&comp)
         .transform()
         .expect("treeify transformation failed unexpectedly");
