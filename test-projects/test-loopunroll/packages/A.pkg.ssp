@@ -1,0 +1,5 @@
+package A {
+    oracle Test() -> Integer {
+        return 45;
+    }
+}
