@@ -537,8 +537,10 @@ fn handle_edges_compose_assign_list(
             return Err(ParseGameError::ConnectedOraclesDontMatch(
                 OracleSigMismatchError {
                     source_code: ctx.named_source(),
-                    at: (assignment_span.start()..assignment_span.end()).into(),
+                    src_at: (import_span.start()..import_span.end()).into(),
+                    dst_at: (dst_pkg_inst_name_span.start()..dst_pkg_inst_name_span.end()).into(),
                     oracle_name: oracle_name.to_string(),
+                    import_name: import_name.to_string(),
                     src_pkg_inst_name: src_pkg_inst.name.to_string(),
                     src_pkg_ty: src_oracle_sig.to_oracle_type(),
                     dst_pkg_inst_name: dst_pkg_inst_name.to_string(),
