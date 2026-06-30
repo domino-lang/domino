@@ -202,7 +202,7 @@ impl<'a> EquivalenceContext<'a> {
                             format!("get-rand-ctr-{game_inst_name_right}"),
                             "randmap-sample-id-right",
                         ),
-                    )
+                    ),
                 ),
             ),
         };
