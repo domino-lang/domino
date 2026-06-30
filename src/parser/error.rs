@@ -805,17 +805,21 @@ pub struct DuplicateExportError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("oracle {oracle_name} wired to incompatible\n  oracle signature {src_pkg_ty}\n  vs {dst_pkg_ty}")]
+#[error("oracle {oracle_name} wired to incompatible\n  oracle signature {src_pkg_inst_name}: {src_pkg_ty}\n  vs {dst_pkg_inst_name}: {dst_pkg_ty}")]
 #[diagnostic(code(domino::code::game::signature_mismatch))]
 pub struct OracleSigMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
 
     // this should be the package instance definition
-    #[label("signature of oracle {oracle_name} imported by {src_pkg_inst_name} does not match the one exposed by {dst_pkg_inst_name}")]
-    pub at: SourceSpan,
+    #[label("signature of oracle {oracle_name} imported by {src_pkg_inst_name}: {src_pkg_ty}")]
+    pub src_at: SourceSpan,
+
+    #[label("does not match the oracle {import_name} by {dst_pkg_inst_name}: {dst_pkg_ty}")]
+    pub dst_at: SourceSpan,
 
     pub oracle_name: String,
+    pub import_name: String,
     pub src_pkg_inst_name: String,
     pub src_pkg_ty: OracleSigType,
     pub dst_pkg_inst_name: String,
