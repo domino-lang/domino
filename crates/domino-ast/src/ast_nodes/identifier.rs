@@ -1,6 +1,9 @@
 use std::marker::PhantomData;
 
-use crate::{ast_nodes::Parsable, Rule};
+use crate::{
+    ast_nodes::{InArena, NodeType, Parsable},
+    Rule,
+};
 
 pub trait IdentifierKind {}
 pub trait ValueIdentifierKind: IdentifierKind {
@@ -64,20 +67,6 @@ macro_rules! define_value_ident_kind {
         }
 
         pub type $ident_name = Identifier<$kind_name>;
-
-        impl Parsable for $ident_name {
-            const RULE: Rule = Rule::identifier;
-
-            fn parse_inner(
-                _file_id: crate::source::FileId,
-                _state: &mut crate::State,
-                _pair: crate::Pair,
-            ) -> Self {
-                Identifier::default()
-            }
-        }
-
-        impl crate::ast_nodes::Indexable for $ident_name {}
     };
 }
 
@@ -92,20 +81,6 @@ macro_rules! define_type_ident_kind {
         }
 
         pub type $ident_name = Identifier<$kind_name>;
-
-        impl Parsable for $ident_name {
-            const RULE: Rule = Rule::identifier;
-
-            fn parse_inner(
-                _file_id: crate::source::FileId,
-                _state: &mut crate::State,
-                _pair: crate::Pair,
-            ) -> Self {
-                Identifier::default()
-            }
-        }
-
-        impl crate::ast_nodes::Indexable for $ident_name {}
 
         impl crate::ast_nodes::ListItem for $ident_name {
             const LIST_RULE: Rule = Rule::ident_list;
@@ -124,20 +99,6 @@ macro_rules! define_type_arg_ident_kind {
         }
 
         pub type $ident_name = Identifier<$kind_name>;
-
-        impl Parsable for $ident_name {
-            const RULE: Rule = Rule::identifier;
-
-            fn parse_inner(
-                _file_id: crate::source::FileId,
-                _state: &mut crate::State,
-                _pair: crate::Pair,
-            ) -> Self {
-                Identifier::default()
-            }
-        }
-
-        impl crate::ast_nodes::Indexable for $ident_name {}
     };
 }
 
@@ -163,20 +124,6 @@ macro_rules! define_instance_ident_kind {
         impl InstanceAssignmentLhsKind for $lhs_val_ty {
             type RhsIdentifierKind = $rhs_val_ty;
         }
-
-        impl Parsable for $ident_name {
-            const RULE: Rule = Rule::identifier;
-
-            fn parse_inner(
-                _file_id: crate::source::FileId,
-                _state: &mut crate::State,
-                _pair: crate::Pair,
-            ) -> Self {
-                Identifier::default()
-            }
-        }
-
-        impl crate::ast_nodes::Indexable for $ident_name {}
     };
 }
 
@@ -187,22 +134,24 @@ macro_rules! define_ident_kind {
         impl IdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
-
-        impl Parsable for $ident_name {
-            const RULE: Rule = Rule::identifier;
-
-            fn parse_inner(
-                _file_id: crate::source::FileId,
-                _state: &mut crate::State,
-                _pair: crate::Pair,
-            ) -> Self {
-                Identifier::default()
-            }
-        }
-
-        impl crate::ast_nodes::Indexable for $ident_name {}
     };
 }
+
+impl<IK: IdentifierKind> Parsable for Identifier<IK>
+where
+    Identifier<IK>: NodeType + InArena,
+{
+    const RULE: Rule = Rule::identifier;
+
+    fn parse_inner(
+        _file_id: crate::source::FileId,
+        _state: &mut crate::State,
+        _pair: crate::Pair,
+    ) -> Self {
+        Identifier::default()
+    }
+}
+impl<IK: IdentifierKind> crate::ast_nodes::Indexable for Identifier<IK> {}
 
 define_type_ident_kind!(
     PackageTypeIdentifierKind,
