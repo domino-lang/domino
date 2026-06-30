@@ -1,0 +1,25 @@
+package Key {
+    params {
+        b: Bool,
+        dkeyl: Integer,
+    }
+
+    state {
+        k: Maybe(Bits(dkeyl))
+    }
+
+    oracle SET(k_: Bits(dkeyl)) {
+        assert (k == None);
+        if b {
+            k__ <-$ Bits(dkeyl);
+            k <- Some(k__);
+        } else {
+            k <- Some(k_);
+        }
+    }
+
+    oracle GET() -> Bits(dkeyl) {
+        assert (k != None as Bits(dkeyl));
+        return Unwrap(k);
+    }
+}

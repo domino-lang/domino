@@ -1,0 +1,54 @@
+package MOD_CCA_PKE {
+    params {
+        pkeyl: Integer,
+        ptl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+        dctl: Integer,
+    }
+
+    import oracles {
+        KEMGEN() -> Bits(pkeyl),
+        ENCAPS() -> Bits(kctl),
+        DECAPS(c_kem: Bits(kctl)) -> Bits(dkeyl),
+        ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl),
+        DEC(c: Bits(dctl)) -> Bits(ptl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        c: Maybe((Bits(kctl),Bits(dctl)))
+    }
+
+    oracle PKGEN() -> Bits(pkeyl) {
+        assert (pk == None);
+        pk_ <- invoke KEMGEN();
+        pk <- Some(pk_);
+        return pk_;
+    }
+
+    oracle PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl),Bits(dctl)) {
+        assert (pk != None as Bits(pkeyl));
+        assert (c == None);
+        c_kem <- invoke ENCAPS();
+        c_dem <- invoke ENC(m0, m1);
+        c_ <- (c_kem, c_dem);
+        c <- Some(c_);
+        return c_;
+    }
+
+    oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Bits(ptl) {
+        assert (pk != None as Bits(pkeyl));
+        assert (Unwrap(c) != c_);
+        (c_kem_, c_dem_) <- parse c_;
+        (c_kem, _) <- parse Unwrap(c);
+        if (c_kem_ == c_kem) {
+            m <- invoke DEC(c_dem_);
+        } else {
+            k <- invoke DECAPS(c_kem_);
+            m <- invoke DEM_DEC(k, c_dem_);
+        }
+        return m;
+    }
+}

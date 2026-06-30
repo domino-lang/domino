@@ -1,0 +1,102 @@
+# KEM-DEM
+
+This project formalizes a result by Cramer and Shoup in
+Domino which states that the composition of a CCA-secure Key Encapsulation
+Mechanism (KEM) with a CCA-secure Data Encapsulation Mechanism (DEM) yields a
+CCA-secure public key encryption (PKE) scheme. This formalization uses the
+State Separating Proofs (SSP) framework and closely resembles the proof of the
+same result in Section 4 of the work by Bruzska, Delignat-Lavaud Fournet,
+Kohbrok, and Kohlweiss [[1]]. Full breakdown and explanation of this
+formalization along with a general tutorial of Domino exists in the
+Master's thesis of Amirhosein Rajabi at Aalto University [[2]].
+
+There are two key differences with the proof introduced in [[1]]:
+
+1. Stateless packages are used for the KEM and DEM schemes as well as the
+   candidate PKE scheme.
+2. Only DEM and key packages have the idealization bit while the original paper
+   uses the idealization parameter for KEM and DEM packages.
+
+[1]: https://eprint.iacr.org/2018/306
+[2]: https://aaltodoc.aalto.fi/items/d68b77e6-3396-4728-9c05-88a9ca90398f
+
+## Project structure
+
+A Domino project contains an empty file `ssp.toml` at the root of the project
+along with three subdirectories `proofs`, `packages`, and `games`, which
+respectively contain the proofs to be verified, SSP package definitions, and
+security games as package compositions.
+
+### Files Overview
+
+**Root:**
+- `ssp.toml` - Empty configuration file marking this as a Domino project
+
+**proofs/**
+- `proof.ssp` - Main proof file containing instances of security games and game hops to be verified by Domino. Defines the proof structure showing equivalence between monolithic and modular PKE implementations through a sequence of game hops
+- `invariant*.smt2` - SMT2 files containing invariant conditions used in the formal verification process
+
+**packages/**
+- `KEM.pkg.ssp` - Key Encapsulation Mechanism package with KEMGEN, ENCAPS, and DECAPS oracles
+- `DEM.pkg.ssp` - Data Encapsulation Mechanism package with ENC and DEC oracles, supporting idealization parameter
+- `Key.pkg.ssp` - Key management package handling key generation and storage
+- `Scheme_KEM.pkg.ssp` - Concrete KEM scheme implementation
+- `Scheme_DEM.pkg.ssp` - Concrete DEM scheme implementation
+- `Scheme_PKE.pkg.ssp` - Public key encryption scheme package
+- `MOD_CCA_PKE.pkg.ssp` - Modular PKE-CCA security game package (composition-based approach)
+- `MON_CCA_PKE.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
+
+**games/**
+- `Game_MOD_CCA_PKE.comp.ssp` - Composition defining the modular PKE-CCA security game by combining KEM, DEM, and Key packages
+- `Game_MON_CCA_PKE.comp.ssp` - Composition defining the monolithic PKE-CCA security game as a direct implementation
+- `Game_CCA_KEM.comp.ssp` - KEM-specific CCA security game composition
+- `Game_CCA_DEM.comp.ssp` - DEM-specific CCA security game composition
+
+## Proof Structure and Game Hops
+
+We use five game hops to show indistinguishability of the real and ideal games based on the KEM-CCA and DEM-CCA assumptions.
+
+**Goal:** `monolithic_pke_cca_real_game ~ monolithic_pke_cca_ideal_game`
+
+**Assumptions**:
+
+- KEM-CCA Security: The underlying KEM scheme is CCA-secure (`Game_CCA_KEM_real ~ Game_CCA_KEM_ideal`)
+- DEM-CCA Security: The underlying DEM scheme is CCA-secure (`Game_CCA_DEM_real ~ Game_CCA_DEM_ideal`)
+
+**Game Hops**:
+
+1. **Code Equivalence (Real/Ideal → Modular Real/Ideal)**
+   - `Game_MON_CCA_PKE ≡ Game_MOD_CCA_PKE_with_real_kem`
+   - Shows the monolithic implementation is equivalent to the modular composition
+   - Verified through SMT-based code equivalence checking with invariants
+
+2. **KEM Idealization (First Reduction)**
+   - `Game_MOD_CCA_PKE_with_real_kem_and_real_dem ~ Game_MOD_CCA_PKE_with_ideal_kem_and_real_dem`
+   - Reduces to KEM-CCA security assumption
+   - Uses graph cuts to map KEM-related packages to the KEM-CCA game
+
+3. **DEM Idealization (Second Reduction)**
+   - `Game_MOD_CCA_PKE_with_ideal_kem_and_real_dem ~ Game_MOD_CCA_PKE_with_ideal_kem_and_ideal_dem`
+   - Reduces to DEM-CCA security assumption
+   - Maps DEM-related packages to the DEM-CCA game
+
+4. **KEM De-idealization (Third Reduction)**
+   - `Game_MOD_CCA_PKE_with_ideal_kem_and_ideal_dem ~ Game_MOD_CCA_PKE_with_real_kem_and_ideal_dem`
+   - Second reduction to KEM-CCA security (reverse direction)
+   - Demonstrates that KEM can be de-idealized when DEM is ideal
+
+## How to run the verification?
+
+You need a working Rust installation as well as having cvc5 installed and in the `PATH`.
+Install Domino using `cargo install --git https://github.com/domino-lang/domino domino`.
+Ensure that it is in your `PATH`. Then, run `domino prove` inside the Domino project (i.e. this directory).
+You will see 5 game hops are verified. (3 reductions and 2 code equivalences)
+
+Use `--transcript` or `-t` option to generate the proof obligations in SMT-LIB language.
+This option saves the SMT2 code that is fed into the SMT solver (cvc5) as files.
+Domino stores an SMT2 file for each code equivalence game hop in `_build/code_eq`
+(relative to the project root).
+
+You can also generate a LaTeX export of the composition diagrams and pseudocode of
+the packages by running `domino latex`. LaTeX files are generated in `_build/latex`
+(again relative to the project root).

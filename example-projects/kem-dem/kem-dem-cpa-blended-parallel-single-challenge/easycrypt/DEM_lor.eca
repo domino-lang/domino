@@ -1,0 +1,38 @@
+require import AllCore Distr.
+
+(* Given sets of keys, plaintexts, and ciphertexts... *)
+type key, ptxt, ctxt.
+
+(* ... and the uniform distribution over the key space *)
+op [lossless full uniform] dkey : key distr.
+
+(** A DEM is a pair of algorithms: **)
+module type DEM = {
+  (* We force key generation to be sampling in `dkey` *)
+  proc enc(k : key, m : ptxt): ctxt
+  proc dec(k : key, c : ctxt): ptxt
+}.
+
+(** A one-time CPA DEM adversary is a pair of algorithms: **)
+module type DEM_1CPA_Adv = {
+  proc choose(): ptxt * ptxt
+  proc distinguish(c : ctxt): bool
+}.
+
+(** And we define the advantage of a one-time CPA adversary A against
+    a DEM in initial memory &m as
+      `|   Pr[DEM_1CPA_Exp(E, A).run(false) @ &m: res]
+         - Pr[DEM_1CPA_Exp(E, A).run(true) @ &m: res]  |
+    where DEM_1CPA_Exp is the experiment:
+**)
+module DEM_1CPA_Exp (E : DEM) (A : DEM_1CPA_Adv) = {
+  proc run(b : bool) = {
+    var k, m0, m1, c, b';
+
+    k <$ dkey;
+    (m0, m1) <@ A.choose();
+    c <@ E.enc(k, if b then m1 else m0);
+    b' <@ A.distinguish(c);
+    return b';
+  }
+}.

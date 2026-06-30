@@ -1,0 +1,591 @@
+theorem kem_dem_cca_blended_redundant {
+    const b: Bool;
+    const pkeyl: Integer;
+    const skeyl: Integer;
+    const ptl: Integer;
+    const dkeyl: Integer;
+    const kctl: Integer;
+    const kgenr: Integer;
+    const kencr: Integer;
+    const dctl: Integer;
+    const kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl));
+    const kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl));
+    const kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl)));
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance CCA_PKE = Composition_CCA_PKE {
+        params {
+            b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance CCA_PKE_0 = Composition_CCA_PKE {
+        params {
+            b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance CCA_PKE_1 = Composition_CCA_PKE {
+        params {
+            b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H0 = Hybrid0 {
+        params {
+            bDem: b,
+            bCorrect: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H1 = Hybrid0 {
+        params {
+            bDem: b,
+            bCorrect: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H2 = Hybrid1 {
+        params {
+            bDem: b,
+            bKem: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H3 = Hybrid1 {
+        params {
+            bDem: b,
+            bKem: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H4 = Hybrid2 {
+        params {
+            b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H4_0 = Hybrid2 {
+        params {
+            b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance H4_1 = Hybrid2 {
+        params {
+            b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    /* Assumption game instances */
+    instance CCA_KEM_0 = Composition_CCA_KEM {
+        params {
+            b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance CCA_KEM_1 = Composition_CCA_KEM {
+        params {
+            b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance CCA_DEM_0 = Composition_CCA_DEM {
+        params {
+            b: false,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance CCA_DEM_1 = Composition_CCA_DEM {
+        params {
+            b: true,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Correct_KEM_0 = Composition_Correct_KEM {
+        params {
+            b: false,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance Correct_KEM_1 = Composition_Correct_KEM {
+        params {
+            b: true,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+        }
+    }
+
+    instance Perfect_KEM = Composition_Perfect_KEM {
+        params {
+            b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    instance Ideal_KEM = Composition_Ideal_KEM {
+        params {
+            b: b,
+            pkeyl: pkeyl,
+            skeyl: skeyl,
+            ptl: ptl,
+            dkeyl: dkeyl,
+            kctl: kctl,
+            dctl: dctl,
+            kgenr: kgenr,
+            kencr: kencr,
+            kem_gen: kem_gen,
+            kem_encaps: kem_encaps,
+            kem_decaps: kem_decaps,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+        }
+    }
+
+    assumptions {
+        Correct_KEM: Correct_KEM_0 ~ Correct_KEM_1
+        CCA_KEM: CCA_KEM_0 ~ CCA_KEM_1
+        CCA_DEM: CCA_DEM_0 ~ CCA_DEM_1
+    }
+
+    gamehops {
+        equivalence CCA_PKE H0 {
+            PKGEN: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-CCA_PKE-H0.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-CCA_PKE-H0.smt2
+                ]
+
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+
+            PKDEC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-CCA_PKE-H0.smt2
+                ]
+
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+
+        reduction H0 H1 {
+            assumption Correct_KEM
+
+            map Correct_KEM_0 H0 {
+                Scheme_KEM: Scheme_KEM
+                Correct_KEM: Correct_KEM
+            }
+
+            map Correct_KEM_1 H1 {
+                Scheme_KEM: Scheme_KEM
+                Correct_KEM: Correct_KEM
+            }
+        }
+
+        equivalence H1 Perfect_KEM {
+            PKGEN: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-H1-Perfect_KEM.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-H1-Perfect_KEM.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKDEC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-H1-Perfect_KEM.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        equivalence Perfect_KEM H2 {
+            PKGEN: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-Perfect_KEM-H2.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-Perfect_KEM-H2.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKDEC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-Perfect_KEM-H2.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        reduction H2 H3 {
+            assumption CCA_KEM
+
+            map CCA_KEM_0 H2 {
+                Scheme_KEM: Scheme_KEM
+                CCA_KEM: CCA_KEM
+            }
+
+            map CCA_KEM_1 H3 {
+                Scheme_KEM: Scheme_KEM
+                CCA_KEM: CCA_KEM
+            }
+        }
+
+        equivalence H3 Ideal_KEM {
+            PKGEN: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-H3-Ideal_KEM.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/randomness-H3-Ideal_KEM.smt2
+                    ./theorem/invariant-H3-Ideal_KEM.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort, relation-randomness]
+                    same-output: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
+                    relation-randomness: admit []
+                }
+            }
+
+            PKDEC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-H3-Ideal_KEM.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        equivalence Ideal_KEM H4 {
+            PKGEN: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-Ideal_KEM-H4.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+
+            PKENC: {
+                invariant: [
+                    ./theorem/randomness-Ideal_KEM-H4.smt2
+                    ./theorem/invariant-Ideal_KEM-H4.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort, relation-randomness]
+                    same-output: [no-abort, relation-randomness]
+                    equal-aborts: [relation-randomness]
+                    relation-randomness: admit []
+                }
+            }
+
+            PKDEC: {
+                randomness: simple
+                invariant: [
+                    ./theorem/invariant-Ideal_KEM-H4.smt2
+                ]
+
+                lemmas {
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
+                }
+            }
+        }
+
+        reduction H4_0 H4_1 {
+            assumption CCA_DEM
+
+            map CCA_DEM_0 H4_0 {
+                Scheme_DEM: Scheme_DEM
+                CCA_DEM: CCA_DEM
+            }
+
+            map CCA_DEM_1 H4_1 {
+                Scheme_DEM: Scheme_DEM
+                CCA_DEM: CCA_DEM
+            }
+        }
+    }
+    propositions {
+        main: CCA_PKE_0 ~ CCA_PKE_1
+    }
+}

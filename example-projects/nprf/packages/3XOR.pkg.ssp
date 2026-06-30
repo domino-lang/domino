@@ -29,6 +29,6 @@ package XOR3 {
         pr_out <- (pr1  or (pr2  or pr3));
         hdl_out <- sort3hdl(hdl1, hdl2, hdl3);
 
-        _ <- invoke Set(hdl_out, k_out, pr_out);
+        invoke Set(hdl_out, k_out, pr_out);
     }
 }

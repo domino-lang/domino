@@ -1,0 +1,37 @@
+package DEM {
+    params {
+        b: Bool,
+        dkeyl: Integer,
+        ptl: Integer,
+        dctl: Integer,
+    }
+
+    state {
+        c: Maybe(Bits(dctl))
+    }
+
+    import oracles {
+        GET() -> Bits(dkeyl),
+        DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
+        DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
+    }
+
+    oracle ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl) {
+        assert (c == None);
+        k <- invoke GET();
+        if b {
+            c_ <- invoke DEM_ENC(k, m1);
+        } else {
+            c_ <- invoke DEM_ENC(k, m0);
+        }
+        c <- Some(c_);
+        return c_;
+    }
+
+    oracle DEC(c_: Bits(dctl)) -> Bits(ptl) {
+        assert (c != Some(c_));
+        k <- invoke GET();
+        m <- invoke DEM_DEC(k, c_);
+        return m;
+    }
+}

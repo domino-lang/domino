@@ -1,0 +1,37 @@
+composition Composition_CPA_DEM {
+    const b: Bool;
+    const dkeyl: Integer;
+    const ptl: Integer;
+    const dctl: Integer;
+
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dem_enc: dem_enc,
+            dem_dec: dem_dec,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+        }
+    }
+
+    instance CPA_DEM = CPA_DEM {
+        params {
+            b: b,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+        }
+    }
+
+    compose {
+        CPA_DEM: {
+            DEM_ENC: Scheme_DEM,
+        }
+        adversary: {
+            ENC: CPA_DEM,
+        }
+    }
+}

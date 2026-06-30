@@ -25,9 +25,9 @@ package HybridLayeredLev {
         zr <- invoke LGETBIT(i, r);
         z <- Unwrap(op[(zl, zr)]);
         if (i == (h - 1)) {
-            _ <- invoke SETBIT(j, z);
+            invoke SETBIT(j, z);
         } else {
-            _ <- invoke LSETBIT((i + 1), j, z);
+            invoke LSETBIT((i + 1), j, z);
         }
         /* what are the following lines for? */
         _op <- Unwrap(op[(false, false)]);

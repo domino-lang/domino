@@ -1,0 +1,49 @@
+composition Game_CCA_DEM {
+    const b: Bool;
+
+    const dkeyl: Integer;
+    const ptl: Integer;
+    const dctl: Integer;
+    const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
+    const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
+
+    instance Scheme_DEM = Scheme_DEM {
+        params {
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+            dem_enc: dem_enc,
+            dem_dec: dem_dec
+        }
+    }
+
+    instance Key = Key {
+        params {
+            b: true,
+            dkeyl: dkeyl,
+        }
+    }
+
+    instance DEM = DEM {
+        params {
+            b: b,
+            dkeyl: dkeyl,
+            ptl: ptl,
+            dctl: dctl,
+        }
+    }
+
+    compose {
+        DEM: {
+            DEM_ENC: Scheme_DEM,
+            DEM_DEC: Scheme_DEM,
+            GET: Key
+        }
+        adversary: {
+            ENC: DEM,
+            DEC: DEM,
+            SET: Key,
+            DEM_DEC: Scheme_DEM
+        }
+    }
+}

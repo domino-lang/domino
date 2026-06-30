@@ -1,0 +1,17 @@
+package Scheme_DEM {
+    params {
+        dkeyl: Integer,
+        ptl: Integer,
+        dctl: Integer,
+        dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl),
+        dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl)
+    }
+
+    oracle DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl) {
+        return dem_enc(k, m);
+    }
+
+    oracle DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl) {
+        return dem_dec(k, c);
+    }
+}

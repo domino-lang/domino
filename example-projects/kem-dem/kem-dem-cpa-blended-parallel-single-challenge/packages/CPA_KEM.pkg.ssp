@@ -1,0 +1,37 @@
+package CPA_KEM {
+    params {
+        b: Bool,
+        pkeyl: Integer,
+        skeyl: Integer,
+        dkeyl: Integer,
+        kctl: Integer,
+    }
+
+    state {
+        pk: Maybe(Bits(pkeyl)),
+        c: Maybe(Bits(kctl)),
+    }
+
+    import oracles {
+        KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
+        KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
+    }
+
+    oracle KEMGEN() -> Bits(pkeyl) {
+        assert (pk == None);
+        (pk1, sk1) <- parse invoke KEM_GEN();
+        pk <- Some(pk1);
+        return pk1;
+    }
+
+    oracle ENCAPS() -> (Bits(kctl), Bits(dkeyl)) {
+        assert (pk != None);
+        assert (c == None);
+        (k, c_) <- parse invoke KEM_ENCAPS(Unwrap(pk));
+        c <- Some(c_);
+        if b {
+            k <-$ Bits(dkeyl) sample-name k;
+        }
+        return (c_, k);
+    }
+}
