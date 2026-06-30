@@ -170,33 +170,39 @@ impl<'a> EquivalenceContext<'a> {
         let randomness_mapping = SmtForall {
             bindings: vec![
                 ("randmap-sample-id-left".into(), "SampleId".into()),
-                ("randmap-sample-ctr-left".into(), Type::integer().into()),
+                ("randmap-sample-offset-left".into(), Type::integer().into()),
                 ("randmap-sample-id-right".into(), "SampleId".into()),
-                ("randmap-sample-ctr-right".into(), Type::integer().into()),
+                ("randmap-sample-offset-right".into(), Type::integer().into()),
             ],
             body: (
                 "=>",
                 (
                     format!("randomness-mapping-{oracle_name}"),
-                    (
-                        format!("get-rand-ctr-{game_inst_name_left}"),
-                        "randmap-sample-id-left",
-                    ),
-                    (
-                        format!("get-rand-ctr-{game_inst_name_right}"),
-                        "randmap-sample-id-right",
-                    ),
                     "randmap-sample-id-left",
                     "randmap-sample-id-right",
-                    "randmap-sample-ctr-left",
-                    "randmap-sample-ctr-right",
+                    "randmap-sample-offset-left",
+                    "randmap-sample-offset-right",
                 ),
                 (
                     "rand-is-eq",
                     "randmap-sample-id-left",
                     "randmap-sample-id-right",
-                    "randmap-sample-ctr-left",
-                    "randmap-sample-ctr-right",
+                    (
+                        "+",
+                        "randmap-sample-offset-left",
+                        (
+                            format!("get-rand-ctr-{game_inst_name_left}"),
+                            "randmap-sample-id-left",
+                        ),
+                    ),
+                    (
+                        "+",
+                        "randmap-sample-offset-right",
+                        (
+                            format!("get-rand-ctr-{game_inst_name_right}"),
+                            "randmap-sample-id-right",
+                        ),
+                    )
                 ),
             ),
         };
@@ -318,19 +324,17 @@ impl<'a> EquivalenceContext<'a> {
                         }
                         .into(),
                         SmtEq2 {
-                            lhs: "base-ctr-0",
-                            rhs: "offset-0",
+                            lhs: "offset-0",
+                            rhs: "0",
                         }
                         .into(),
                         SmtEq2 {
-                            lhs: "base-ctr-1",
-                            rhs: "offset-1",
+                            lhs: "offset-1",
+                            rhs: "0",
                         }
                         .into(),
                     ]),
                     args: vec![
-                        ("base-ctr-0".to_string(), Type::integer().into()),
-                        ("base-ctr-1".to_string(), Type::integer().into()),
                         (
                             "sample-id-0".to_string(),
                             Sort::Other("SampleId".to_string(), vec![]),
@@ -352,8 +356,6 @@ impl<'a> EquivalenceContext<'a> {
                     name: format!("randomness-mapping-{oracle_name}"),
                     body: "false",
                     args: vec![
-                        ("base-ctr-0".to_string(), Type::integer().into()),
-                        ("base-ctr-1".to_string(), Type::integer().into()),
                         (
                             "sample-id-0".to_string(),
                             Sort::Other("SampleId".to_string(), vec![]),
