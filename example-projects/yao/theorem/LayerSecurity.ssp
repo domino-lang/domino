@@ -82,6 +82,7 @@ theorem LayerSecurity {
 
         equivalence LayerHybrid LayerIdeal {
             GETAOUT: {
+                randomness: simple
                 invariant: [
                     ./theorem/LayerSecurity/invariant-Layer.smt2
                     ./theorem/LayerSecurity/randomness-Layer.smt2
@@ -94,6 +95,7 @@ theorem LayerSecurity {
                 }
             }
             SETBIT: {
+                randomness: none
                 invariant: [
                     ./theorem/LayerSecurity/invariant-Layer.smt2
                     ./theorem/LayerSecurity/randomness-Layer.smt2
@@ -106,6 +108,7 @@ theorem LayerSecurity {
                 }
             }
             GETKEYSIN: {
+                randomness: none
                 invariant: [
                     ./theorem/LayerSecurity/invariant-Layer.smt2
                     ./theorem/LayerSecurity/randomness-Layer.smt2
