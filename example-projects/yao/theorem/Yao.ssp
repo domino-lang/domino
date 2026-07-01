@@ -4,7 +4,6 @@ theorem Yao {
     const p: Integer;
     const d: Integer;
     const w: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -14,7 +13,6 @@ theorem Yao {
             m: m,
             p: p,
             d: d,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -26,7 +24,6 @@ theorem Yao {
             m: m,
             p: p,
             d: d,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -39,7 +36,6 @@ theorem Yao {
             p: p,
             d: d,
             w: w,
-            zeron: zeron,
             encm: encm,
             encn: encn
         }
@@ -52,7 +48,6 @@ theorem Yao {
             p: p,
             d: d,
             w: w,
-            zeron: zeron,
             encm: encm,
             encn: encn
         }

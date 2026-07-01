@@ -4,7 +4,6 @@ composition YaoReal {
     const m: Integer;
     const d: Integer;
     const w: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -29,7 +28,6 @@ composition YaoReal {
             p: p,
             n: n,
             m: m,
-            zeron: zeron
         }
     }
 

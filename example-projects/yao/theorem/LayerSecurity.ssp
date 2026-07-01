@@ -2,7 +2,6 @@ theorem LayerSecurity {
     const n: Integer;
     const m: Integer;
     const p: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -11,7 +10,6 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -22,7 +20,6 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -33,7 +30,6 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -44,7 +40,6 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -55,7 +50,6 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }

@@ -5,7 +5,6 @@ package HybridLayeredSim {
         p: Integer,
         encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
         encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
-        zeron: Bits(n),
         h: Integer, /* hybrid parameter */
     }
 
@@ -52,7 +51,7 @@ package HybridLayeredSim {
         dr <- false;
         kl <- Unwrap(Sl[dl]);
         kr <- Unwrap(Sr[dr]);
-        kj <- zeron;
+        kj <- 0_n;
         if (not dl and not dr) {
             kj <- Unwrap(Sj[true]);
         }
@@ -65,7 +64,7 @@ package HybridLayeredSim {
         dr <- false;
         kl <- Unwrap(Sl[dl]);
         kr <- Unwrap(Sr[dr]);
-        kj <- zeron;
+        kj <- 0_n;
         if (not dl and not dr) {
             kj <- Unwrap(Sj[true]);
         }
@@ -78,7 +77,7 @@ package HybridLayeredSim {
         dr <- true;
         kl <- Unwrap(Sl[dl]);
         kr <- Unwrap(Sr[dr]);
-        kj <- zeron;
+        kj <- 0_n;
         if (not dl and not dr) {
             kj <- Unwrap(Sj[true]);
         }
@@ -91,7 +90,7 @@ package HybridLayeredSim {
         dr <- true;
         kl <- Unwrap(Sl[dl]);
         kr <- Unwrap(Sr[dr]);
-        kj <- zeron;
+        kj <- 0_n;
         if (not dl and not dr) {
             kj <- Unwrap(Sj[true]);
         }
