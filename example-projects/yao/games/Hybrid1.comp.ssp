@@ -3,7 +3,6 @@ composition Hybrid1 {
     const m: Integer;
     const p: Integer;
     const w: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -44,7 +43,6 @@ composition Hybrid1 {
             p: p,
             encn: encn,
             encm: encm,
-            zeron: zeron,
         }
     }
 
@@ -53,7 +51,6 @@ composition Hybrid1 {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
         }
     }
 
@@ -72,7 +69,6 @@ composition Hybrid1 {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
         }
     }
 
