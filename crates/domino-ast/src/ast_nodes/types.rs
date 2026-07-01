@@ -1,86 +1,118 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
-        identifier::{
-            GameTypeArgumentIdentifierKind, GameTypeIdentifierKind, Identifier,
-            PackageTypeArgumentIdentifier, PackageTypeArgumentIdentifierKind,
-            PackageTypeIdentifierKind, TheoremTypeArgumentIdentifierKind,
-            TheoremTypeIdentifierKind, TypeArgIdentifierKind, TypeIdentifierKind,
-        },
+        expressions, game, identifier,
         list::{Comma, List},
-        pure_expressions::PureExpression,
-        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
+        package, theorem, InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
     source::FileId,
     Rule, State,
 };
 
-#[derive(Debug, Clone, Copy)]
-pub enum Type<IK: TypeIdentifierKind> {
-    Identifier(Ref<PackageTypeArgumentIdentifier>),
-    Tuple(Ref<TupleType<IK>>),
-    Argumented(Ref<ArgumentedType<IK::ArgIdentifierKind>>),
-    Fn(Ref<FnType<IK>>),
+pub trait TypeKind {
+    type ExpressionKind: expressions::ExpressionKind<TypeKind = Self>;
+
+    type TypeArgIdentifierKind: identifier::TypeArgIdentifierKind;
+    type TypeIdentifierKind: identifier::TypeIdentifierKind;
 }
 
-impl<IK: TypeIdentifierKind> ListItem for Type<IK> {
+#[derive(Debug, Clone, Copy)]
+pub struct PackageTypeKind;
+
+impl TypeKind for PackageTypeKind {
+    type ExpressionKind = package::PurePackageExpressionKind;
+
+    type TypeArgIdentifierKind = identifier::PackageTypeArgumentIdentifierKind;
+
+    type TypeIdentifierKind = identifier::PackageTypeIdentifierKind;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct GameTypeKind;
+
+impl TypeKind for GameTypeKind {
+    type ExpressionKind = game::PureGameExpressionKind;
+
+    type TypeArgIdentifierKind = identifier::GameTypeArgumentIdentifierKind;
+
+    type TypeIdentifierKind = identifier::GameTypeIdentifierKind;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct TheoremTypeKind;
+
+impl TypeKind for TheoremTypeKind {
+    type ExpressionKind = theorem::PureTheoremExpressionKind;
+
+    type TypeArgIdentifierKind = identifier::TheoremTypeArgumentIdentifierKind;
+
+    type TypeIdentifierKind = identifier::TheoremTypeIdentifierKind;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Type<TK: TypeKind> {
+    Identifier(Ref<identifier::PackageTypeArgumentIdentifier>),
+    Tuple(Ref<TupleType<TK>>),
+    Argumented(Ref<ArgumentedType<TK>>),
+    Fn(Ref<FnType<TK>>),
+}
+
+impl<TK: TypeKind> ListItem for Type<TK> {
     const LIST_RULE: Rule = Rule::ty_list;
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct TupleType<IK: TypeIdentifierKind>(pub Ref<TypeList<IK>>);
+pub struct TupleType<TK: TypeKind>(pub Ref<TypeList<TK>>);
 
 #[derive(Debug, Clone, Copy)]
-pub struct ArgumentedType<IK: TypeArgIdentifierKind> {
-    pub name: Ref<Identifier<IK::ArgTypeIdentifierKind>>,
+pub struct ArgumentedType<TK: TypeKind> {
+    pub name: Ref<identifier::Identifier<TK::TypeIdentifierKind>>,
     pub post_name: Ref<Trivia>,
-    pub args: Ref<TypeArgList<IK>>,
+    pub args: Ref<TypeArgList<TK>>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum TypeArgument<IK: TypeArgIdentifierKind> {
-    Identifier(Ref<PackageTypeArgumentIdentifier>),
-    Tuple(Ref<TypeArgList<IK>>),
-    Application(Ref<ArgumentedType<IK>>),
-    Type(Ref<Type<IK::ArgTypeIdentifierKind>>),
-    Expr(Ref<PureExpression<IK::ArgValueIdentifierKind>>),
+pub enum TypeArgument<TK: TypeKind> {
+    Identifier(Ref<identifier::PackageTypeArgumentIdentifier>),
+    Tuple(Ref<TypeArgList<TK>>),
+    Application(Ref<ArgumentedType<TK>>),
+    Type(Ref<Type<TK>>),
+    Expr(Ref<expressions::Expression<TK::ExpressionKind>>),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FnType<IK: TypeIdentifierKind> {
+pub struct FnType<TK: TypeKind> {
     pub args_trivia: Ref<Trivia>,
-    pub args: Ref<TypeList<IK>>,
+    pub args: Ref<TypeList<TK>>,
     pub arrow_trivia: Ref<Trivia>,
     pub ret_trivia: Ref<Trivia>,
-    pub ret_ty: Ref<Type<IK>>,
+    pub ret_ty: Ref<Type<TK>>,
 }
 
-impl<IK: TypeArgIdentifierKind> ListItem for TypeArgument<IK> {
+impl<TK: TypeKind> ListItem for TypeArgument<TK> {
     const LIST_RULE: Rule = Rule::appl_ty_arg_list;
 }
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeArgList<IK: TypeArgIdentifierKind> = List<TypeArgument<IK>, Comma>;
+pub type TypeArgList<TK: TypeKind> = List<TypeArgument<TK>, Comma>;
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises
-pub type TypeList<IK: TypeIdentifierKind> = List<Type<IK>, Comma>;
-//pub type TypeList<IK: TypeIdentifierKind> = List<Type<IK>, Comma>;
+pub type TypeList<TK: TypeKind> = List<Type<TK>, Comma>;
+//pub type TypeList<TK: TypeKind> = List<Type<TK>, Comma>;
 
-fn parse_type<IK: TypeIdentifierKind>(
-    file_id: FileId,
-    state: &mut State,
-    pair: crate::Pair,
-) -> Type<IK>
+fn parse_type<TK: TypeKind>(file_id: FileId, state: &mut State, pair: crate::Pair) -> Type<TK>
 where
-    Type<IK>: Indexable + InArena,
-    ArgumentedType<IK::ArgIdentifierKind>: Parsable,
-    TupleType<IK>: Parsable,
-    FnType<IK>: Parsable,
-    TypeArgList<IK::ArgIdentifierKind>: Parsable,
+    Type<TK>: Indexable + InArena,
+    ArgumentedType<TK>: Parsable,
+    TupleType<TK>: Parsable,
+    FnType<TK>: Parsable,
+    TypeArgList<TK>: Parsable,
 {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::identifier => Type::Identifier(Identifier::parse_ref(file_id, state, inner)),
+        Rule::identifier => {
+            Type::Identifier(identifier::Identifier::parse_ref(file_id, state, inner))
+        }
         Rule::appl_ty => {
             let argd_ty = ArgumentedType::parse_ref(file_id, state, inner);
             Type::Argumented(argd_ty)
@@ -91,31 +123,31 @@ where
     }
 }
 
-impl Parsable for Type<PackageTypeIdentifierKind> {
+impl Parsable for Type<PackageTypeKind> {
     const RULE: Rule = Rule::ty;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        parse_type::<PackageTypeIdentifierKind>(file_id, state, pair)
+        parse_type::<PackageTypeKind>(file_id, state, pair)
     }
 }
 
-impl Parsable for Type<GameTypeIdentifierKind> {
+impl Parsable for Type<GameTypeKind> {
     const RULE: Rule = Rule::ty;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        parse_type::<GameTypeIdentifierKind>(file_id, state, pair)
+        parse_type::<GameTypeKind>(file_id, state, pair)
     }
 }
 
-impl Parsable for Type<TheoremTypeIdentifierKind> {
+impl Parsable for Type<TheoremTypeKind> {
     const RULE: Rule = Rule::ty;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        parse_type::<TheoremTypeIdentifierKind>(file_id, state, pair)
+        parse_type::<TheoremTypeKind>(file_id, state, pair)
     }
 }
 
-impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
+impl Parsable for TypeArgument<PackageTypeKind> {
     const RULE: Rule = Rule::appl_ty_arg;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
@@ -123,7 +155,7 @@ impl Parsable for TypeArgument<PackageTypeArgumentIdentifierKind> {
     }
 }
 
-impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
+impl Parsable for TypeArgument<GameTypeKind> {
     const RULE: Rule = Rule::appl_ty_arg;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
@@ -131,7 +163,7 @@ impl Parsable for TypeArgument<GameTypeArgumentIdentifierKind> {
     }
 }
 
-impl Parsable for TypeArgument<TheoremTypeArgumentIdentifierKind> {
+impl Parsable for TypeArgument<TheoremTypeKind> {
     const RULE: Rule = Rule::appl_ty_arg;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
@@ -139,17 +171,17 @@ impl Parsable for TypeArgument<TheoremTypeArgumentIdentifierKind> {
     }
 }
 
-fn parse_type_arg<IK: TypeArgIdentifierKind>(
+fn parse_type_arg<TK: TypeKind>(
     file_id: FileId,
     state: &mut State,
     pair: crate::Pair,
-) -> TypeArgument<IK>
+) -> TypeArgument<TK>
 where
-    TypeArgument<IK>: Indexable + InArena + NodeType,
-    ArgumentedType<IK>: Parsable,
-    TypeArgList<IK>: Parsable,
-    Type<IK::ArgTypeIdentifierKind>: Parsable,
-    PureExpression<IK::ArgValueIdentifierKind>: Parsable,
+    TypeArgument<TK>: Indexable + InArena + NodeType,
+    ArgumentedType<TK>: Parsable,
+    TypeArgList<TK>: Parsable,
+    Type<TK>: Parsable,
+    expressions::Expression<TK::ExpressionKind>: Parsable,
 {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
@@ -161,24 +193,31 @@ where
             state,
             inner.into_inner().next().unwrap(),
         )),
-        Rule::identifier => TypeArgument::Identifier(Identifier::parse_ref(file_id, state, inner)),
+        Rule::identifier => {
+            TypeArgument::Identifier(identifier::Identifier::parse_ref(file_id, state, inner))
+        }
         Rule::ty => TypeArgument::Type(Type::parse_ref(file_id, state, inner)),
-        Rule::expr => TypeArgument::Expr(PureExpression::parse_ref(file_id, state, inner)),
+        Rule::expr => TypeArgument::Expr(expressions::Expression::parse_ref(file_id, state, inner)),
         _ => unreachable!(),
     }
 }
 
-impl<IK: TypeArgIdentifierKind> Parsable for ArgumentedType<IK>
+impl<TK: TypeKind> Parsable for ArgumentedType<TK>
 where
     Self: Indexable + InArena + NodeType,
-    TypeArgList<IK>: Parsable,
-    Identifier<IK::ArgTypeIdentifierKind>: Parsable,
+    TypeArgList<TK>: Parsable,
+    identifier::Identifier<TK::TypeIdentifierKind>: Parsable,
+    identifier::Identifier<TK::TypeArgIdentifierKind>: Parsable,
 {
     const RULE: Rule = Rule::appl_ty;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
         let mut inner = pair.into_inner();
-        let name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+        let name = identifier::Identifier::<TK::TypeIdentifierKind>::parse_ref(
+            file_id,
+            state,
+            inner.next().unwrap(),
+        );
         let post_name = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let args = TypeArgList::parse_ref(file_id, state, inner.next().unwrap());
 
@@ -190,11 +229,11 @@ where
     }
 }
 
-impl<IK: TypeIdentifierKind> Parsable for FnType<IK>
+impl<TK: TypeKind> Parsable for FnType<TK>
 where
     Self: Indexable + InArena + NodeType,
-    TypeList<IK>: Parsable,
-    Type<IK>: Parsable,
+    TypeList<TK>: Parsable,
+    Type<TK>: Parsable,
 {
     const RULE: Rule = Rule::fn_ty;
 
@@ -217,10 +256,10 @@ where
     }
 }
 
-impl<IK: TypeIdentifierKind> Parsable for TupleType<IK>
+impl<TK: TypeKind> Parsable for TupleType<TK>
 where
     Self: Indexable + InArena + NodeType,
-    TypeList<IK>: Parsable,
+    TypeList<TK>: Parsable,
 {
     const RULE: Rule = Rule::tuple_ty;
 
@@ -255,12 +294,12 @@ mod static_checks {
     fn impls_parsable<T: Parsable>() {}
 
     fn check_impls_parsable() {
-        impls_parsable::<Type<PackageTypeIdentifierKind>>();
-        impls_parsable::<List<Type<PackageTypeIdentifierKind>, Comma>>();
-        impls_parsable::<TypeArgList<PackageTypeArgumentIdentifierKind>>();
-        impls_parsable::<List<TypeArgument<PackageTypeArgumentIdentifierKind>, Comma>>();
-        impls_parsable::<TypeArgument<PackageTypeArgumentIdentifierKind>>();
+        impls_parsable::<Type<PackageTypeKind>>();
+        impls_parsable::<List<Type<PackageTypeKind>, Comma>>();
+        impls_parsable::<TypeArgList<PackageTypeKind>>();
+        impls_parsable::<List<TypeArgument<PackageTypeKind>, Comma>>();
+        impls_parsable::<TypeArgument<PackageTypeKind>>();
 
-        impls_parsable::<TupleType<PackageTypeIdentifierKind>>();
+        impls_parsable::<TupleType<PackageTypeKind>>();
     }
 }

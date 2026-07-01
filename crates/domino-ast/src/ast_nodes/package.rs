@@ -1,18 +1,68 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
-        common,
+        common, expressions,
         identifier::{
             Identifier, PackageConstValueIdentifierKind, PackageIdentifier,
             PackageTypeArgumentIdentifierKind, PackageTypeIdentifier, PackageTypeIdentifierKind,
         },
         list::{Comma, List, ListNoDelim, Semicolon},
         oracles::{OracleDefinition, OracleSignature},
+        package,
         params::{self, ConstParamBlock},
         types, ListItem, Parsable, Trivia,
     },
     Rule,
 };
+
+#[derive(Debug, Clone, Copy)]
+pub struct PurePackageExpressionKind;
+
+impl expressions::ExpressionKind for PurePackageExpressionKind {
+    type TypeKind = types::PackageTypeKind;
+    type ValueIdentifierKind = PackageConstValueIdentifierKind;
+}
+
+expressions::impl_expr!(PurePackageExpressionKind);
+
+pub type Expression = expressions::Expression<PurePackageExpressionKind>;
+pub type BinOpExpression = expressions::BinOpExpression<PurePackageExpressionKind>;
+pub type UnOpExpression = expressions::UnOpExpression<PurePackageExpressionKind>;
+pub type TableIndexExpression = expressions::TableIndexExpression<PurePackageExpressionKind>;
+pub type ParenExpression = expressions::ParenExpression<PurePackageExpressionKind>;
+pub type CallExpression = expressions::CallExpression<PurePackageExpressionKind>;
+pub type TupleExpression = expressions::TupleExpression<PurePackageExpressionKind>;
+pub type ExprList = expressions::ExprList<PurePackageExpressionKind>;
+
+pub type SampleExpression = expressions::SampleExpression<PurePackageExpressionKind>;
+pub type OracleInvocationExpression =
+    expressions::OracleInvocationExpression<PurePackageExpressionKind>;
+
+pub type PackageTypeDeclList = common::TypeDeclList<PackageTypeIdentifierKind>;
+pub type PackageTypeParamBlock = params::TypeParamBlock<PackageTypeIdentifierKind>;
+
+pub type PackageConstDecl = common::ValueDecl<package::PurePackageExpressionKind>;
+pub type PackageConstDeclList = common::ConstDeclList<package::PurePackageExpressionKind>;
+pub type PackageConstParamBlock = params::ConstParamBlock<package::PurePackageExpressionKind>;
+
+#[derive(Debug, Clone, Copy)]
+pub struct StateBlock {
+    pub trivia: Ref<Trivia>,
+    pub decls: Ref<PackageConstDeclList>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ImportOraclesBlock {
+    pub trivia: Ref<Trivia>,
+    pub decls: Ref<OracleDeclList>,
+}
+
+pub type OracleDeclList = List<OracleSignature, Semicolon>;
+pub type PackageItemList = ListNoDelim<PackageItem>;
+
+pub type PackageType = types::Type<PackageTypeIdentifierKind>;
+pub type PackageArgumentedType = types::ArgumentedType<PackageTypeArgumentIdentifierKind>;
+pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifierKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Package {
@@ -34,32 +84,6 @@ pub enum PackageItem {
 impl ListItem for PackageItem {
     const LIST_RULE: Rule = Rule::package_item_list;
 }
-
-pub type PackageTypeDeclList = common::TypeDeclList<PackageTypeIdentifierKind>;
-pub type PackageTypeParamBlock = params::TypeParamBlock<PackageTypeIdentifierKind>;
-
-pub type PackageConstDecl = common::ValueDecl<PackageConstValueIdentifierKind>;
-pub type PackageConstDeclList = common::ConstDeclList<PackageConstValueIdentifierKind>;
-pub type PackageConstParamBlock = params::ConstParamBlock<PackageConstValueIdentifierKind>;
-
-#[derive(Debug, Clone, Copy)]
-pub struct StateBlock {
-    pub trivia: Ref<Trivia>,
-    pub decls: Ref<PackageConstDeclList>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ImportOraclesBlock {
-    pub trivia: Ref<Trivia>,
-    pub decls: Ref<OracleDeclList>,
-}
-
-pub type OracleDeclList = List<OracleSignature, Semicolon>;
-pub type PackageItemList = ListNoDelim<PackageItem>;
-
-pub type PackageType = types::Type<PackageTypeIdentifierKind>;
-pub type PackageArgumentedType = types::ArgumentedType<PackageTypeArgumentIdentifierKind>;
-pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifierKind>;
 
 impl Parsable for Package {
     const RULE: Rule = Rule::package;

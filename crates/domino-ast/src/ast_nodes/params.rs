@@ -2,7 +2,8 @@ use crate::{
     arena::Ref,
     ast_nodes::{
         common::{ConstDeclList, TypeDeclList},
-        identifier::{IdentifierKind, ValueIdentifierKind},
+        expressions,
+        identifier::IdentifierKind,
         Trivia,
     },
 };
@@ -14,7 +15,7 @@ pub struct TypeParamBlock<IK: IdentifierKind> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ConstParamBlock<IK: ValueIdentifierKind> {
+pub struct ConstParamBlock<EK: expressions::ExpressionKind> {
     pub trivia: Ref<Trivia>,
-    pub decls: Ref<ConstDeclList<IK>>,
+    pub decls: Ref<ConstDeclList<EK>>,
 }

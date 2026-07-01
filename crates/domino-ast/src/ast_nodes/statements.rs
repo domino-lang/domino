@@ -3,7 +3,7 @@ use crate::{
     ast_nodes::{
         identifier::OracleValueIdentifier,
         list::{Comma, List, ListNoDelim, Semicolon},
-        oracle_expressions::OracleExpression,
+        oracles::OracleExpression,
         ListItem, Parsable, Trivia,
     },
     Rule,

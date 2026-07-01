@@ -1,17 +1,47 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
+        expressions,
         identifier::{
-            Identifier, OracleIdentifier, OracleValueIdentifierKind, PackageTypeIdentifierKind,
-            ValueIdentifierKind,
+            Identifier, OracleIdentifier, OracleValueIdentifierKind, ValueIdentifierKind,
         },
         list::{Comma, List},
         statements::StatementList,
-        types::Type,
+        types::{self, Type},
         ListItem, Parsable, Trivia,
     },
     Rule,
 };
+
+#[derive(Debug, Clone, Copy)]
+pub struct OracleExpressionKind;
+
+impl expressions::ExpressionKind for OracleExpressionKind {
+    type TypeKind = types::PackageTypeKind;
+    type ValueIdentifierKind = OracleValueIdentifierKind;
+}
+
+pub type OracleExpression = expressions::Expression<OracleExpressionKind>;
+
+pub type BinOpExpression = expressions::BinOpExpression<OracleExpressionKind>;
+
+pub type UnOpExpression = expressions::UnOpExpression<OracleExpressionKind>;
+
+pub type OracleInvocationExpression = expressions::OracleInvocationExpression<OracleExpressionKind>;
+
+pub type ExprList = expressions::ExprList<OracleExpressionKind>;
+
+pub type TableIndexExpression = expressions::TableIndexExpression<OracleExpressionKind>;
+
+pub type SampleExpression = expressions::SampleExpression<OracleExpressionKind>;
+
+pub type ParenExpression = expressions::ParenExpression<OracleExpressionKind>;
+
+pub type CallExpression = expressions::CallExpression<OracleExpressionKind>;
+
+pub type TupleExpression = expressions::TupleExpression<OracleExpressionKind>;
+
+expressions::impl_expr!(OracleExpressionKind);
 
 /// oracle <gap> <name> <gap> ( <decl_list> )
 #[derive(Debug, Clone, Copy)]
@@ -30,7 +60,7 @@ impl ListItem for OracleSignature {
 pub struct OracleReturnType {
     pub pre_arrow_trivia: Ref<Trivia>,
     pub post_arrow_trivia: Ref<Trivia>,
-    pub ty: Ref<Type<PackageTypeIdentifierKind>>,
+    pub ty: Ref<Type<types::PackageTypeKind>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,7 +68,7 @@ pub struct ArgDecl<IK: ValueIdentifierKind> {
     pub name: Ref<Identifier<IK>>,
     pub pre_colon_trivia: Ref<Trivia>,
     pub post_colon_trivia: Ref<Trivia>,
-    pub ty: Ref<Type<PackageTypeIdentifierKind>>,
+    pub ty: Ref<Type<types::PackageTypeKind>>,
 }
 
 pub type OracleValueArgDecl = ArgDecl<OracleValueIdentifierKind>;

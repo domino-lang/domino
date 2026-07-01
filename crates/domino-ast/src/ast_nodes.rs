@@ -1,23 +1,18 @@
 pub mod common;
+pub mod expressions;
 pub mod game;
 pub mod identifier;
 pub mod instances;
 pub mod list;
-pub mod oracle_expressions;
 pub mod oracles;
 pub mod package;
 pub mod params;
-pub mod pure_expressions;
 pub mod statements;
 pub mod theorem;
 pub mod types;
 
 use crate::{
     arena::{Ref, Slice},
-    ast_nodes::identifier::{
-        GameTypeArgumentIdentifierKind, GameTypeIdentifierKind, PackageTypeArgumentIdentifierKind,
-        PackageTypeIdentifierKind, TheoremTypeArgumentIdentifierKind, TheoremTypeIdentifierKind,
-    },
     source::{FileId, SourceLocation},
     Arenas, Rule, State,
 };
@@ -261,16 +256,42 @@ define_node_type_enum! {
     //
     // ## In Packages
 
+    /*
     Type: types::Type<identifier::PackageTypeIdentifierKind>,
     TupleType: types::TupleType<identifier::PackageTypeIdentifierKind>,
     FnType: types::FnType<PackageTypeIdentifierKind>,
     ArgumentedType: types::ArgumentedType<identifier::PackageTypeArgumentIdentifierKind>,
     TypeArgument: types::TypeArgument<PackageTypeArgumentIdentifierKind>,
     TypeArgList: types::TypeArgList<PackageTypeArgumentIdentifierKind>,
-    TypeList: types::TypeList<PackageTypeIdentifierKind>,
+*/
+
+    Type2: types::Type<types::PackageTypeKind>,
+    TupleType2:types::TupleType<types::PackageTypeKind>,
+    FnType2:types::FnType<types::PackageTypeKind>,
+    ApplicationType: types::ArgumentedType<types::PackageTypeKind>,
+    TypeArg2:types::TypeArgument<types::PackageTypeKind>,
+    TypeArgList: types::TypeArgList<types::PackageTypeKind>,
+    TypeList: types::TypeList<types::PackageTypeKind>,
+
+    GameType2: types::Type<types::GameTypeKind>,
+    GameTupleType2:types::TupleType<types::GameTypeKind>,
+    GameFnType2:types::FnType<types::GameTypeKind>,
+    GameApplicationType: types::ArgumentedType<types::GameTypeKind>,
+    GameTypeArg2:types::TypeArgument<types::GameTypeKind>,
+    GameTypeArgList: types::TypeArgList<types::GameTypeKind>,
+    GameTypeList: types::TypeList<types::GameTypeKind>,
+
+    TheoremType2: types::Type<types::TheoremTypeKind>,
+    TheoremTupleType2:types::TupleType<types::TheoremTypeKind>,
+    TheoremFnType2:types::FnType<types::TheoremTypeKind>,
+    TheoremApplicationType: types::ArgumentedType<types::TheoremTypeKind>,
+    TheoremTypeArg2:types::TypeArgument<types::TheoremTypeKind>,
+    TheoremTypeArgList: types::TypeArgList<types::TheoremTypeKind>,
+    TheoremTypeList: types::TypeList<types::TheoremTypeKind>,
 
     // ## In Games
 
+    /*
     GameType: types::Type<identifier::GameTypeIdentifierKind>,
     GameTupleType: types::TupleType<identifier::GameTypeIdentifierKind>,
     GameFnType: types::FnType<GameTypeIdentifierKind>,
@@ -288,36 +309,43 @@ define_node_type_enum! {
     PaddedTheoremTypeArgument: types::TypeArgument<TheoremTypeArgumentIdentifierKind>,
     TheoremTypeArgList: types::TypeArgList<TheoremTypeArgumentIdentifierKind>,
     TheoremTypeList: types::TypeList<TheoremTypeIdentifierKind>,
+*/
 
     // Pure Expressions
 
-    PurePackageConstValueExpression: pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>,
-    PurePackageConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::PackageConstValueIdentifierKind>,
-    PurePackageConstValueTupleExpression: pure_expressions::TupleExpression<identifier::PackageConstValueIdentifierKind>,
-    PurePackageConstValueParenExpression: pure_expressions::ParenExpression<identifier::PackageConstValueIdentifierKind>,
-    PurePackageConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::PackageConstValueIdentifierKind>,
-    PurePackageConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
-    PurePackageConstValueCallExpression: pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
+    PurePackageConstValueExpression:                 package::Expression,
+    PurePackageConstValueTableIndexExpression:       package::TableIndexExpression,
+    PurePackageConstValueTupleExpression:            package::TupleExpression,
+    PurePackageConstValueParenExpression:            package::ParenExpression,
+    PurePackageConstValueBinOnExpression:            package::BinOpExpression,
+    PurePackageConstValueUnOnExpression:             package::UnOpExpression,
+    PurePackageConstValueCallExpression:             package::CallExpression,
+    PurePackageConstValueOracleInvocationExpression: package::OracleInvocationExpression,
+    PurePackageConstValueSampleExpression:           package::SampleExpression,
 
-    PureGameConstValueExpression: pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
-    PureGameConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::GameConstValueIdentifierKind>,
-    PureGameConstValueTupleExpression: pure_expressions::TupleExpression<identifier::GameConstValueIdentifierKind>,
-    PureGameConstValueParenExpression: pure_expressions::ParenExpression<identifier::GameConstValueIdentifierKind>,
-    PureGameConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::GameConstValueIdentifierKind>,
-    PureGameConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
-    PureGameConstValueCallExpression: pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
+    PureGameConstValueExpression: game::Expression,
+    PureGameConstValueTableIndexExpression: game::TableIndexExpression,
+    PureGameConstValueTupleExpression: game::TupleExpression,
+    PureGameConstValueParenExpression: game::ParenExpression,
+    PureGameConstValueBinOnExpression:game::BinOpExpression,
+    PureGameConstValueUnOnExpression:game::UnOpExpression,
+    PureGameConstValueCallExpression:game::CallExpression,
+    PureGameConstValueOracleInvocationExpression:game::OracleInvocationExpression,
+    PureGameConstValueSampleExpression:game::SampleExpression,
 
-    PureTheoremConstValueExpression: pure_expressions::PureExpression<identifier::TheoremConstValueIdentifierKind>,
-    PureTheoremConstValueTableIndexExpression: pure_expressions::TableIndexExpression<identifier::TheoremConstValueIdentifierKind>,
-    PureTheoremConstValueTupleExpression: pure_expressions::TupleExpression<identifier::TheoremConstValueIdentifierKind>,
-    PureTheoremConstValueParenExpression: pure_expressions::ParenExpression<identifier::TheoremConstValueIdentifierKind>,
-    PureTheoremConstValueBinOpExpression: pure_expressions::BinOpExpression<identifier::TheoremConstValueIdentifierKind>,
-    PureTheoremConstValueUnOpExpression: pure_expressions::UnOpExpression<identifier::TheoremConstValueIdentifierKind>,
-    PureTheoremConstValueCallExpression: pure_expressions::CallExpression<identifier::TheoremConstValueIdentifierKind>,
+    PureTheoremConstValueExpression: theorem::Expression,
+    PureTheoremConstValueTableIndexExpression: theorem::TableIndexExpression,
+    PureTheoremConstValueTupleExpression: theorem::TupleExpression,
+    PureTheoremConstValueParenExpression: theorem::ParenExpression,
+    PureTheoremConstValueBinOnExpression:theorem::BinOpExpression,
+    PureTheoremConstValueUnOnExpression:theorem::UnOpExpression,
+    PureTheoremConstValueCallExpression:theorem::CallExpression,
+    PureTheoremConstValueOracleInvocationExpression:theorem::OracleInvocationExpression,
+    PureTheoremConstValueSampleExpression:theorem::SampleExpression,
 
-    PureConstPackageExpressionList: pure_expressions::PureConstPackageExpressionList,
-    PureConstGameExpressionList: pure_expressions::PureConstGameExpressionList,
-    PureConstTheoremExpressionList: pure_expressions::PureConstTheoremExpressionList,
+    PureConstPackageExpressionList: package::ExprList,
+    PureConstGameExpressionList: game::ExprList,
+    PureConstTheoremExpressionList: theorem::ExprList,
 
     Statement: statements::Statement,
     AssignStatement: statements::AssignStatement,
@@ -336,16 +364,16 @@ define_node_type_enum! {
     OracleValueArgDecl: oracles::OracleValueArgDecl,
     OracleDefinition: oracles::OracleDefinition,
 
-    OracleExpression: oracle_expressions::OracleExpression,
-    OracleInvocationExpression: oracle_expressions::OracleInvocationExpression,
-    ExprList: oracle_expressions::ExprList,
-    TableIndexExpression: oracle_expressions::TableIndexExpression,
-    SampleExpression: oracle_expressions::SampleExpression<PackageTypeIdentifierKind>,
-    ParenExpression: oracle_expressions::ParenExpression,
-    CallExpression: oracle_expressions::CallExpression,
-    TupleExpression: oracle_expressions::TupleExpression,
-    BinOpExpression: oracle_expressions::BinOpExpression,
-    UnOpExpression: oracle_expressions::UnOpExpression,
+    OracleExpression: oracles::OracleExpression,
+    OracleInvocationExpression: oracles::OracleInvocationExpression,
+    ExprList: oracles::ExprList,
+    TableIndexExpression: oracles::TableIndexExpression,
+    SampleExpression: oracles::SampleExpression,
+    ParenExpression: oracles::ParenExpression,
+    CallExpression: oracles::CallExpression,
+    TupleExpression: oracles::TupleExpression,
+    BinOpExpression: oracles::BinOpExpression,
+    UnOpExpression: oracles::UnOpExpression,
 
     OracleDeclList: package::OracleDeclList,
     ImportOraclesBlock: package::ImportOraclesBlock,
@@ -501,64 +529,71 @@ impl_noop_index! {
     // pure expressions
 
     //// package const
-    pure_expressions::PureExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::TableIndexExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::TupleExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::ParenExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::BinOpExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::UnOpExpression<identifier::PackageConstValueIdentifierKind>,
-    pure_expressions::CallExpression<identifier::PackageConstValueIdentifierKind>,
+    package::Expression,
+    package::TupleExpression,
+    package::TableIndexExpression,
+    package::ParenExpression,
+    package::BinOpExpression,
+    package::UnOpExpression,
+    package::CallExpression,
+    package::OracleInvocationExpression,
+    package::SampleExpression,
 
     //// game const
-    pure_expressions::PureExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::TableIndexExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::TupleExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::ParenExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::BinOpExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::UnOpExpression<identifier::GameConstValueIdentifierKind>,
-    pure_expressions::CallExpression<identifier::GameConstValueIdentifierKind>,
+    game::Expression,
+    game::TupleExpression,
+    game::TableIndexExpression,
+    game::ParenExpression,
+    game::BinOpExpression,
+    game::UnOpExpression,
+    game::CallExpression,
+    game::OracleInvocationExpression,
+    game::SampleExpression,
 
     //// theorem const
-    pure_expressions::PureExpression<identifier::TheoremConstValueIdentifierKind>,
-    pure_expressions::TableIndexExpression<identifier::TheoremConstValueIdentifierKind>,
-    pure_expressions::TupleExpression<identifier::TheoremConstValueIdentifierKind>,
-    pure_expressions::ParenExpression<identifier::TheoremConstValueIdentifierKind>,
-    pure_expressions::BinOpExpression<identifier::TheoremConstValueIdentifierKind>,
-    pure_expressions::UnOpExpression<identifier::TheoremConstValueIdentifierKind>,
-    pure_expressions::CallExpression<identifier::TheoremConstValueIdentifierKind>,
+    theorem::Expression,
+    theorem::TupleExpression,
+    theorem::TableIndexExpression,
+    theorem::ParenExpression,
+    theorem::BinOpExpression,
+    theorem::UnOpExpression,
+    theorem::CallExpression,
+    theorem::OracleInvocationExpression,
+    theorem::SampleExpression,
 
     // types
     //// in packages
-    types::Type<PackageTypeIdentifierKind>,
-    types::TupleType<PackageTypeIdentifierKind>,
-    types::FnType<PackageTypeIdentifierKind>,
-    types::ArgumentedType<PackageTypeArgumentIdentifierKind>,
-    types::TypeArgument<PackageTypeArgumentIdentifierKind>,
+    types::Type<types::PackageTypeKind>,
+    types::TupleType<types::PackageTypeKind>,
+    types::FnType<types::PackageTypeKind>,
+    types::ArgumentedType<types::PackageTypeKind>,
+    types::TypeArgument<types::PackageTypeKind>,
+
 
     //// in games
-    types::Type<GameTypeIdentifierKind>,
-    types::TupleType<GameTypeIdentifierKind>,
-    types::FnType<GameTypeIdentifierKind>,
-    types::ArgumentedType<GameTypeArgumentIdentifierKind>,
-    types::TypeArgument<GameTypeArgumentIdentifierKind>,
+    types::Type<types::GameTypeKind>,
+    types::TupleType<types::GameTypeKind>,
+    types::FnType<types::GameTypeKind>,
+    types::ArgumentedType<types::GameTypeKind>,
+    types::TypeArgument<types::GameTypeKind>,
 
     //// in theorems
-    types::Type<TheoremTypeIdentifierKind>,
-    types::TupleType<TheoremTypeIdentifierKind>,
-    types::FnType<TheoremTypeIdentifierKind>,
-    types::ArgumentedType<TheoremTypeArgumentIdentifierKind>,
-    types::TypeArgument<TheoremTypeArgumentIdentifierKind>,
+    types::Type<types::TheoremTypeKind>,
+    types::TupleType<types::TheoremTypeKind>,
+    types::FnType<types::TheoremTypeKind>,
+    types::ArgumentedType<types::TheoremTypeKind>,
+    types::TypeArgument<types::TheoremTypeKind>,
 
     // oracle expressions
-    oracle_expressions::OracleExpression,
-    oracle_expressions::OracleInvocationExpression,
-    oracle_expressions::SampleExpression<PackageTypeIdentifierKind>,
-    oracle_expressions::TableIndexExpression,
-    oracle_expressions::TupleExpression,
-    oracle_expressions::ParenExpression,
-    oracle_expressions::BinOpExpression,
-    oracle_expressions::UnOpExpression,
-    oracle_expressions::CallExpression,
+    oracles::OracleExpression,
+    oracles::TableIndexExpression,
+    oracles::TupleExpression,
+    oracles::ParenExpression,
+    oracles::BinOpExpression,
+    oracles::UnOpExpression,
+    oracles::CallExpression,
+    oracles::OracleInvocationExpression,
+    oracles::SampleExpression,
 
     // statemnts
     statements::Statement,
@@ -582,7 +617,6 @@ impl_noop_index! {
 
     package::ImportOraclesBlock,
     package::StateBlock,
-    //package::PackageTypeIdentifierList,
     package::PackageTypeParamBlock,
     package::PackageItem,
     package::Package,

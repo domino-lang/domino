@@ -1,7 +1,7 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
-        common,
+        common, expressions,
         identifier::{
             GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifier,
             GameTypeIdentifierKind, Identifier, OracleIdentifier, PackageConstValueIdentifierKind,
@@ -9,44 +9,63 @@ use crate::{
         },
         instances,
         list::{Colon, Comma, List, ListNoDelim},
-        params, ListItem, Parsable, Trivia,
+        params, types, ListItem, Parsable, Trivia,
     },
     Rule,
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct PureGameExpressionKind;
+
+impl expressions::ExpressionKind for PureGameExpressionKind {
+    type TypeKind = types::GameTypeKind;
+    type ValueIdentifierKind = GameConstValueIdentifierKind;
+}
+
+expressions::impl_expr!(PureGameExpressionKind);
+
+pub type Expression = expressions::Expression<PureGameExpressionKind>;
+pub type BinOpExpression = expressions::BinOpExpression<PureGameExpressionKind>;
+pub type UnOpExpression = expressions::UnOpExpression<PureGameExpressionKind>;
+pub type TableIndexExpression = expressions::TableIndexExpression<PureGameExpressionKind>;
+pub type ParenExpression = expressions::ParenExpression<PureGameExpressionKind>;
+pub type CallExpression = expressions::CallExpression<PureGameExpressionKind>;
+pub type TupleExpression = expressions::TupleExpression<PureGameExpressionKind>;
+pub type ExprList = expressions::ExprList<PureGameExpressionKind>;
+
+pub type SampleExpression = expressions::SampleExpression<PureGameExpressionKind>;
+pub type OracleInvocationExpression =
+    expressions::OracleInvocationExpression<PureGameExpressionKind>;
+
 pub type GameTypeDeclList = common::TypeDeclList<GameTypeIdentifierKind>;
 pub type GameTypeParamBlock = params::TypeParamBlock<GameTypeIdentifierKind>;
 
-pub type GameConstDecl = common::ValueDecl<GameConstValueIdentifierKind>;
-pub type GameConstDeclList = common::ConstDeclList<GameConstValueIdentifierKind>;
-pub type GameConstParamBlock = params::ConstParamBlock<GameConstValueIdentifierKind>;
+pub type GameConstDecl = common::ValueDecl<PureGameExpressionKind>;
+pub type GameConstDeclList = common::ConstDeclList<PureGameExpressionKind>;
+pub type GameConstParamBlock = params::ConstParamBlock<PureGameExpressionKind>;
 
-pub type InstanceConstAssignmentItem = instances::InstanceConstAssignmentItem<
-    PackageConstValueIdentifierKind,
-    GameConstValueIdentifierKind,
->;
+pub type InstanceConstAssignmentItem =
+    instances::InstanceConstAssignmentItem<PackageConstValueIdentifierKind, PureGameExpressionKind>;
 
 impl ListItem for InstanceConstAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_const_assignment_list;
 }
 
-pub type InstanceConstAssignmentList = instances::InstanceConstAssignmentList<
-    PackageConstValueIdentifierKind,
-    GameConstValueIdentifierKind,
->;
+pub type InstanceConstAssignmentList =
+    instances::InstanceConstAssignmentList<PackageConstValueIdentifierKind, PureGameExpressionKind>;
 pub type InstanceConstBlock =
-    instances::InstanceConstBlock<PackageConstValueIdentifierKind, GameConstValueIdentifierKind>;
+    instances::InstanceConstBlock<PackageConstValueIdentifierKind, PureGameExpressionKind>;
 pub type InstanceTypeAssignmentItem =
-    instances::InstanceTypeAssignmentItem<PackageTypeIdentifierKind, GameTypeIdentifierKind>;
+    instances::InstanceTypeAssignmentItem<PackageTypeIdentifierKind, types::GameTypeKind>;
 
 impl ListItem for InstanceTypeAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_type_assignment_list;
 }
 
 pub type InstanceTypeAssignmentList =
-    instances::InstanceTypeAssignmentList<PackageTypeIdentifierKind, GameTypeIdentifierKind>;
+    instances::InstanceTypeAssignmentList<PackageTypeIdentifierKind, types::GameTypeKind>;
 pub type InstanceTypeBlock =
-    instances::InstanceTypeBlock<PackageTypeIdentifierKind, GameTypeIdentifierKind>;
+    instances::InstanceTypeBlock<PackageTypeIdentifierKind, types::GameTypeKind>;
 pub type InstanceItem = instances::InstanceItem<PackageInstanceIdentifierKind>;
 
 impl ListItem for InstanceItem {
