@@ -131,7 +131,7 @@ theorem Simple4WHS {
                 }
             }
              Send3: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
@@ -144,7 +144,7 @@ theorem Simple4WHS {
                 }
             }
             Send4: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
@@ -157,7 +157,7 @@ theorem Simple4WHS {
                 }
             }
             Send5: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
@@ -183,7 +183,7 @@ theorem Simple4WHS {
                 }
             }
             NewSession: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
@@ -209,7 +209,7 @@ theorem Simple4WHS {
                 }
             }
             Reveal: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
@@ -251,7 +251,7 @@ theorem Simple4WHS {
                 }
             }
              Send3: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
@@ -264,7 +264,7 @@ theorem Simple4WHS {
                 }
             }
             Send4: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
@@ -277,7 +277,7 @@ theorem Simple4WHS {
                 }
             }
             Send5: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
@@ -302,7 +302,7 @@ theorem Simple4WHS {
                 }
             }
             NewSession: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
@@ -328,7 +328,7 @@ theorem Simple4WHS {
                 }
             }
             Reveal: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
@@ -396,7 +396,7 @@ theorem Simple4WHS {
                 }
             }
             Send4: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
@@ -409,7 +409,7 @@ theorem Simple4WHS {
                 }
             }
             Send5: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
@@ -435,7 +435,7 @@ theorem Simple4WHS {
                 }
             }
             NewSession: {
-                randomness: simple
+                randomness: none
 
                 invariant: [
                     ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2

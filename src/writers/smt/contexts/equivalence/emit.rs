@@ -170,33 +170,25 @@ impl<'a> EquivalenceContext<'a> {
         let randomness_mapping = SmtForall {
             bindings: vec![
                 ("randmap-sample-id-left".into(), "SampleId".into()),
-                ("randmap-sample-ctr-left".into(), Type::integer().into()),
+                ("randmap-sample-offset-left".into(), Type::integer().into()),
                 ("randmap-sample-id-right".into(), "SampleId".into()),
-                ("randmap-sample-ctr-right".into(), Type::integer().into()),
+                ("randmap-sample-offset-right".into(), Type::integer().into()),
             ],
             body: (
                 "=>",
                 (
                     format!("randomness-mapping-{oracle_name}"),
-                    (
-                        format!("get-rand-ctr-{game_inst_name_left}"),
-                        "randmap-sample-id-left",
-                    ),
-                    (
-                        format!("get-rand-ctr-{game_inst_name_right}"),
-                        "randmap-sample-id-right",
-                    ),
                     "randmap-sample-id-left",
                     "randmap-sample-id-right",
-                    "randmap-sample-ctr-left",
-                    "randmap-sample-ctr-right",
+                    "randmap-sample-offset-left",
+                    "randmap-sample-offset-right",
                 ),
                 (
                     "rand-is-eq",
                     "randmap-sample-id-left",
                     "randmap-sample-id-right",
-                    "randmap-sample-ctr-left",
-                    "randmap-sample-ctr-right",
+                    "randmap-sample-offset-left",
+                    "randmap-sample-offset-right",
                 ),
             ),
         };
@@ -318,19 +310,17 @@ impl<'a> EquivalenceContext<'a> {
                         }
                         .into(),
                         SmtEq2 {
-                            lhs: "base-ctr-0",
-                            rhs: "offset-0",
+                            lhs: "offset-0",
+                            rhs: "0",
                         }
                         .into(),
                         SmtEq2 {
-                            lhs: "base-ctr-1",
-                            rhs: "offset-1",
+                            lhs: "offset-1",
+                            rhs: "0",
                         }
                         .into(),
                     ]),
                     args: vec![
-                        ("base-ctr-0".to_string(), Type::integer().into()),
-                        ("base-ctr-1".to_string(), Type::integer().into()),
                         (
                             "sample-id-0".to_string(),
                             Sort::Other("SampleId".to_string(), vec![]),
@@ -352,8 +342,6 @@ impl<'a> EquivalenceContext<'a> {
                     name: format!("randomness-mapping-{oracle_name}"),
                     body: "false",
                     args: vec![
-                        ("base-ctr-0".to_string(), Type::integer().into()),
-                        ("base-ctr-1".to_string(), Type::integer().into()),
                         (
                             "sample-id-0".to_string(),
                             Sort::Other("SampleId".to_string(), vec![]),
@@ -746,20 +734,22 @@ impl<'a> EquivalenceContext<'a> {
 
         /////// randomess counters
 
-        for (decl_ctr, assert_ctr, decl_val, assert_val) in
+        for (decl_ctr, assert_ctr, assert_zero_ctr, decl_val, assert_val) in
             build_rands(self.sample_info_left(), left)
         {
             out.push(decl_ctr);
             out.push(assert_ctr);
+            out.push(assert_zero_ctr);
             out.push(decl_val);
             out.push(assert_val);
         }
 
-        for (decl_ctr, assert_ctr, decl_val, assert_val) in
+        for (decl_ctr, assert_ctr, assert_zero_ctr, decl_val, assert_val) in
             build_rands(self.sample_info_right(), right)
         {
             out.push(decl_ctr);
             out.push(assert_ctr);
+            out.push(assert_zero_ctr);
             out.push(decl_val);
             out.push(assert_val);
         }
@@ -1306,7 +1296,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 fn build_rands(
     sample_info: &SampleInfo,
     game_inst: &GameInstance,
-) -> Vec<(SmtExpr, SmtExpr, SmtExpr, SmtExpr)> {
+) -> Vec<(SmtExpr, SmtExpr, SmtExpr, SmtExpr, SmtExpr)> {
     let gctx = GameInstanceContext::new(game_inst);
 
     sample_info
@@ -1338,6 +1328,12 @@ fn build_rands(
             })
             .into();
 
+            let zero_constrain_randctr: SmtExpr = SmtAssert(SmtEq2 {
+                lhs: randctr_name.as_str(),
+                rhs: 0,
+            })
+            .into();
+
             // apply respective randomness function (based on type) to the given counter
             let randval = gctx.smt_eval_randfn(sample_item, ("+", 0, randctr_name.as_str()), ty);
 
@@ -1350,6 +1346,7 @@ fn build_rands(
             (
                 decl_randctr,
                 constrain_randctr,
+                zero_constrain_randctr,
                 decl_randval,
                 constrain_randval,
             )

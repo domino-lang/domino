@@ -366,7 +366,7 @@
 (define-fun four-mac-implies-three-mac
     ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
   Bool
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
             (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                                            (mk-tuple2 zeron 4)))))
@@ -381,7 +381,7 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall ((ctr Int))
             (let ((state (select State ctr)))
               (=> (and (not (is-mk-none state))
@@ -477,7 +477,7 @@
 (define-state-relation relation-mac-implies-message
     ((left <GameState_H7_<$<!n!>$>>)
      (right <GameState_H7_<$<!n!>$>>))
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall
      ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
      (let ((handle (mk-tuple5 kid U V ni nr)))
@@ -523,7 +523,7 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall
      ((ctr Int))
      (let ((state (select State ctr)))
@@ -563,7 +563,7 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall
      ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
      (let ((first (select First (mk-tuple5 U V ni nr tau))))
@@ -583,7 +583,7 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall
      ((ctr Int))
      (let ((state (select State ctr)))
@@ -661,7 +661,7 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((zeron (<theorem-consts-Full4WHS-zeron> <<theorem-consts>>)))
+  (let ((zeron <0_n>))
     (forall
      ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
      (and

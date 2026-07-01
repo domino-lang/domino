@@ -1,4 +1,4 @@
-theorem HybridCircuitSecurity {
+theorem HybridSecurity {
     const n: Integer;
     const m: Integer;
     const p: Integer;
@@ -127,10 +127,9 @@ theorem HybridCircuitSecurity {
     gamehops {
         equivalence CoreReal FirstHybrid {
             SETBIT: {
+                randomness: none
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
                 ]
 
                 lemmas {
@@ -143,7 +142,6 @@ theorem HybridCircuitSecurity {
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
                     ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
                 ]
 
                 lemmas {
@@ -176,10 +174,9 @@ theorem HybridCircuitSecurity {
             }
 
             GETKEYSIN: {
+                randomness: none
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
                 ]
 
                 lemmas {
@@ -192,12 +189,11 @@ theorem HybridCircuitSecurity {
 
         equivalence HybridIdeal HybridReal1 {
             SETBIT: {
+                randomness: none
                 invariant: [
                     /* the following order matters during concatenation */
                     ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
                     ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
                 ]
 
                 lemmas {
@@ -212,7 +208,6 @@ theorem HybridCircuitSecurity {
                     ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
                     ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
                     ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
                 ]
 
                 lemmas {
@@ -278,12 +273,11 @@ theorem HybridCircuitSecurity {
             }
 
             GETKEYSIN: {
+                randomness: none
                 invariant: [
                     /* the following order matters during concatenation */
                     ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
                     ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
                 ]
 
                 lemmas {
@@ -296,10 +290,9 @@ theorem HybridCircuitSecurity {
 
         equivalence CoreIdeal LastHybrid {
             SETBIT: {
+                randomness: none
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
                 ]
 
                 lemmas {
@@ -313,7 +306,6 @@ theorem HybridCircuitSecurity {
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
                     ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
                 ]
 
                 lemmas {
@@ -342,10 +334,9 @@ theorem HybridCircuitSecurity {
             }
 
             GETKEYSIN: {
+                randomness: none
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
                 ]
 
                 lemmas {

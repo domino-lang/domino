@@ -1,12 +1,12 @@
 (define-fun randomness-mapping-Send2 
-    ((base-ctr-0 Int) (base-ctr-1 Int)
-     (id-0 SampleId) (id-1 SampleId)
-     (scr-0 Int) (scr-1 Int))
+    ((id-0 SampleId) (id-1 SampleId)
+     (offset-0 Int) (offset-1 Int))
   Bool
   (and
-   (= scr-1 base-ctr-1)
-   (= scr-0 base-ctr-0)
-   (or (= id-0 id-1 (sample-id "Nonces" "Sample" "1"))
+   (= offset-0 0)
+   (= offset-1 0)
+   (or (and (= id-0 (sample-id "Nonces" "Sample" "1"))
+            (= id-1 (sample-id "Nonces" "Sample" "1")))
        (and (= id-0 (sample-id "PRF" "Eval" "1"))
             (= id-1 (sample-id "MAC" "Init" "1"))))))
 
@@ -29,12 +29,11 @@
                                        (<game-H7-<$<!n!>$>-rand-MAC-Init-1> H70-old)))))
 
 (define-fun randomness-mapping-Send3
-    ((base-ctr-0 Int) (base-ctr-1 Int)
-     (id-0 SampleId) (id-1 SampleId)
-     (scr-0 Int) (scr-1 Int))
+    ((id-0 SampleId) (id-1 SampleId)
+     (offset-0 Int) (offset-1 Int))
   Bool
   (and
-   (= scr-1 base-ctr-1)
-   (= scr-0 base-ctr-0)
+   (= offset-0 0)
+   (= offset-1 0)
    (and (= id-0 (sample-id "PRF" "Eval" "1"))
         (= id-1 (sample-id "MAC" "Init" "1")))))

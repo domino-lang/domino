@@ -5,7 +5,7 @@
     )
     (let 
         (
-            (d (<theorem-consts-HybridCircuitSecurity-d> <<theorem-consts>>))
+            (d (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
         )
         (forall 
             (

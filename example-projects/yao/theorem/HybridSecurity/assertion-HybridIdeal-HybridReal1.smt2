@@ -4,21 +4,21 @@
 
 (assert 
     (=
-        (<theorem-consts-HybridCircuitSecurity-h> <<theorem-consts>>)
+        (<theorem-consts-HybridSecurity-h> <<theorem-consts>>)
         h
     )
 )
 
 (assert 
     (=
-        (<theorem-consts-HybridCircuitSecurity-d> <<theorem-consts>>)
+        (<theorem-consts-HybridSecurity-d> <<theorem-consts>>)
         d
     )
 )
 
 (assert 
     (=
-        (<theorem-consts-HybridCircuitSecurity-hplusone> <<theorem-consts>>)
+        (<theorem-consts-HybridSecurity-hplusone> <<theorem-consts>>)
         hplusone
     )
 )

@@ -263,7 +263,7 @@ theorem kem_dem_cca_ssp {
             }
 
             PKDEC: {
-                randomness: simple
+                randomness: none
                 invariant: [
                     ./theorem/invariant.smt2
                 ]

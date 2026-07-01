@@ -302,6 +302,7 @@ theorem kem_dem_cpa_blended_parallel_single_challenge {
             }
 
             PKENC: {
+                randomness: none
                 invariant: [
                     ./theorem/randomness-H1-H2.smt2,
                     ./theorem/invariant-H1-H2.smt2

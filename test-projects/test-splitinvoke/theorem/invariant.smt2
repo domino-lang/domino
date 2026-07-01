@@ -1,7 +1,5 @@
 (define-fun randomness-mapping-Query
-  ((rand-ctr-left Int)
-   (rand-ctr-right Int)
-   (sample-id-left SampleId)
+  ((sample-id-left SampleId)
    (sample-id-right SampleId)
    (sample-ctr-left Int)
    (sample-ctr-right Int))

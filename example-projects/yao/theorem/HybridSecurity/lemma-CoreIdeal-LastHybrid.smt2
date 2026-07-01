@@ -11,7 +11,7 @@
         (j Int)
     )
     (=>
-        (< i (- (<theorem-consts-HybridCircuitSecurity-d> <<theorem-consts>>) 1))
+        (< i (- (<theorem-consts-HybridSecurity-d> <<theorem-consts>>) 1))
         (= return-left.value return-right.value)
     )
 )
@@ -29,7 +29,7 @@
         (j Int)
     )
     (=>
-        (= i (- (<theorem-consts-HybridCircuitSecurity-d> <<theorem-consts>>) 1))
+        (= i (- (<theorem-consts-HybridSecurity-d> <<theorem-consts>>) 1))
         (= return-left.value return-right.value)
     )
 )
@@ -47,7 +47,7 @@
         (j Int)
     )
     (=>
-        (= i (<theorem-consts-HybridCircuitSecurity-d> <<theorem-consts>>))
+        (= i (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
         (= return-left.value return-right.value)
     )
 )
