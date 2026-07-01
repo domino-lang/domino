@@ -165,6 +165,7 @@ impl OracleContext<'_> {
 
         FunctionNameBuilder::new()
             .push("arg")
+            .push(game.name())
             .push(&odef.sig.name)
             .push(arg_name)
             .build()
