@@ -111,6 +111,7 @@
         devShellPackages = devShellBasePackages ++ [
           domino
           pkgs.cvc5
+          pkgs.z3
           texlive
         ];
 
@@ -140,6 +141,7 @@
           buildInputs = [ domino ];
           nativeCheckInputs = [
             pkgs.cvc5
+            pkgs.z3
             texlive
           ];
           doCheck = true;
