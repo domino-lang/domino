@@ -5,7 +5,7 @@ use std::borrow::Borrow;
 use crate::{
     expressions::Expression,
     identifier::{game_ident::GameIdentifier, pkg_ident::PackageIdentifier, Identifier},
-    types::TypeKind,
+    types::{Type, TypeKind},
     writers::smt::exprs::SmtExpr,
 };
 
@@ -66,6 +66,17 @@ fn resolve_assignments(expr: &Expression) -> Expression {
 
         assignment.map(resolve_assignments).unwrap_or(expr)
     })
+}
+
+pub fn encode_types<'a, I>(types_iter: I) -> Option<String>
+where
+    I: IntoIterator<Item = &'a Type>,
+{
+    encode_smt_exprs(
+        types_iter
+            .into_iter()
+            .map(|ty: &Type| -> SmtExpr { ty.into() }),
+    )
 }
 
 pub fn encode_smt_exprs<Ref: Borrow<SmtExpr>, Iter: IntoIterator<Item = Ref>>(

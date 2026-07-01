@@ -485,6 +485,7 @@ impl<'a> GameInstanceContext<'a> {
 
         let pkg_inst_name = &pkg_inst.name;
         let pkg_params = &pkg_inst.params;
+        let pkg_types = &pkg_inst.types;
         let pkg_name = &pkg_inst.pkg.name;
         let oracle_name = &sig.name;
         let oracle_import_name = export.name();
@@ -505,6 +506,7 @@ impl<'a> GameInstanceContext<'a> {
             game_params,
             pkg_name,
             pkg_params,
+            pkg_types,
             oracle_name,
             oracle_import_name,
         };
