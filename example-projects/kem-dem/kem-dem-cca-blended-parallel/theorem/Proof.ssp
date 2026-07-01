@@ -423,6 +423,7 @@ theorem kem_dem_cca_blended_parallel {
             }
 
             PKENC: {
+                randomness: none
                 invariant: [
                     ./theorem/randomness-H3-H4.smt2
                     ./theorem/invariant-H3-H4.smt2

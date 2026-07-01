@@ -1,24 +1,23 @@
 (define-fun randomness-mapping-PKENC
     (
-        (sample-ctr-old-left Int)
-        (sample-ctr-old-right Int)
         (sample-id-left SampleId)
         (sample-id-right SampleId)
-        (sample-ctr-left Int)
-        (sample-ctr-right Int)
+        (sample-offset-left Int)
+        (sample-offset-right Int)
     )
     Bool
     (or
         (and
             (= sample-id-left (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
             (= sample-id-right (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right))
+            (= sample-offset-left 0)
+            (= sample-offset-right 0))
         (and
             (= sample-id-left (sample-id "CCA_KEM" "ENCAPS" "k"))
             (= sample-id-right (sample-id "Ideal_KEM" "PKENC" "k"))
-            (= sample-ctr-left sample-ctr-old-left)
-            (= sample-ctr-right sample-ctr-old-right)))
+            (= sample-offset-left 0)
+            (= sample-offset-right 0))
+    )
 )
 
 (define-state-relation relation-randomness

@@ -1,16 +1,3 @@
-(define-fun randomness-mapping-PKENC
-    ( 
-        (sample-ctr-old-left Int)
-        (sample-ctr-old-right Int)
-        (sample-id-left SampleId)
-        (sample-id-right SampleId)
-        (sample-ctr-left Int)
-        (sample-ctr-right Int)
-    )
-    Bool
-    false
-)
-
 (define-state-relation relation-randomness
     (
         (left-game <GameState_Hybrid0_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
