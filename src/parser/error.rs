@@ -35,7 +35,7 @@ pub struct AdmittedClaimWarning {
 #[error("could not prove claim {target}. provable claims: {provable}")]
 #[diagnostic(
     code(domino::code::theorem::inductionstep::unprovable),
-    help("claims are only provable if they are admited or all dependencies are provable")
+    help("claims are only provable if they are admitted or all dependencies are provable")
 )]
 pub struct InductionStepUnprovableError {
     #[source_code]
