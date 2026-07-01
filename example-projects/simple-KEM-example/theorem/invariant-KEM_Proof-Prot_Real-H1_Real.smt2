@@ -38,72 +38,64 @@
 ;
 ; These indices are given for both games; the game on the left and the game on the right.
 (define-fun randomness-mapping-GetPK (
-  (base-ctr-left Int) 
-  (base-ctr-right Int)
   (stmt-left  SampleId) 
   (stmt-right  SampleId)
-  (ctr-left Int)
-  (ctr-right Int)
+  (offset-left Int)
+  (offset-right Int)
 ) Bool
 ; BEGIN FUNCTION BODY
   (and
     (= stmt-left (sample-id "Prot" "GetPK" "secret_key"))
     (= stmt-right (sample-id "Corr_KEM" "GetPK" "secret_key"))
-    (= (- ctr-left base-ctr-left) (- ctr-right base-ctr-right))
+    (= offset-left offset-right)
   )
 )
 
 (define-fun randomness-mapping-Run (
-  (base-ctr-left Int) 
-  (base-ctr-right Int)
   (stmt-left  SampleId) 
   (stmt-right  SampleId)
-  (ctr-left Int)
-  (ctr-right Int)
+  (offset-left Int)
+  (offset-right Int)
 ) Bool
 ; BEGIN FUNCTION BODY
   (or 
     (and
       (= stmt-left (sample-id "Prot" "Run" "secret_key"))
       (= stmt-right (sample-id "Corr_KEM" "ENC_and_DEC" "secret_key"))
-      (= (- ctr-left base-ctr-left) (- ctr-right base-ctr-right))
+      (= offset-left offset-right)
     )
     (and
       (= stmt-left (sample-id "Prot" "Run" "encaps_rand"))
       (= stmt-right (sample-id "Corr_KEM" "ENC_and_DEC" "encaps_rand"))
-      (= (- ctr-left base-ctr-left) (- ctr-right base-ctr-right))
+      (= offset-left offset-right)
     )
   )
 )
 
 (define-fun randomness-mapping-TestSender (
-  (base-ctr-left Int) 
-  (base-ctr-right Int)
   (stmt-left  SampleId) 
   (stmt-right  SampleId)
-  (ctr-left Int)
-  (ctr-right Int)
+  (offset-left Int)
+  (offset-right Int)
 ) Bool
 ; BEGIN FUNCTION BODY
   (and
     (= stmt-left (sample-id "Prot" "TestSender" "encapsulated_key"))
     (= stmt-right (sample-id "Corr_reduction" "TestSender" "encapsulated_key"))
-    (= (- ctr-left base-ctr-left) (- ctr-right base-ctr-right))
+    (= offset-left offset-right)
   )
 )
 
 (define-fun randomness-mapping-TestReceiver (
-  (base-ctr-left Int) 
-  (base-ctr-right Int)
   (stmt-left  SampleId) 
   (stmt-right  SampleId)
-  (ctr-left Int)
-  (ctr-right Int)
+  (offset-left Int)
+  (offset-right Int)
 ) Bool
 ; BEGIN FUNCTION BODY
   (and
     (= stmt-left (sample-id "Prot" "TestReceiver" "encapsulated_key"))
     (= stmt-right (sample-id "Corr_reduction" "TestReceiver" "encapsulated_key"))
-    (= (- ctr-left base-ctr-left) (- ctr-right base-ctr-right))
+    (= offset-left offset-right)
   )
 )
