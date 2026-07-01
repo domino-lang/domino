@@ -122,7 +122,7 @@ ty_list = { ( gap ~ ty ~ ( gap ~ comma ~ gap ~ ty )* ~ (gap ~ comma )? )? ~ gap 
 
 statements = { ( gap ~ statement )* ~ gap }
 
-statement = { ifthenelse | abort | assignment | return | expr_stmt }
+statement = { ifthenelse | abort | assert | assignment | return | expr_stmt }
 ifthenelse = { kw_if ~ gap ~ expr ~ gap ~ "{" ~  statements  ~ "}" ~ ( gap ~ kw_else ~ gap ~ "{" ~  statements ~ "}" )? }
 abort = { kw_abort ~ gap ~ semicolon }
 assert = { kw_assert ~ gap ~ expr ~ gap ~ semicolon }
