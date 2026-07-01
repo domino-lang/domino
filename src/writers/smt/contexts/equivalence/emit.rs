@@ -62,6 +62,9 @@ impl<'a> EquivalenceContext<'a> {
         let pkg_params_left = &octx_left.pkg_inst_ctx().pkg_inst().params;
         let pkg_params_right = &octx_right.pkg_inst_ctx().pkg_inst().params;
 
+        let pkg_types_left = &octx_left.pkg_inst_ctx().pkg_inst().types;
+        let pkg_types_right = &octx_right.pkg_inst_ctx().pkg_inst().types;
+
         let args: Vec<_> = self
             .oracle_sig_by_exported_name(oracle_name)
             .unwrap()
@@ -82,6 +85,7 @@ impl<'a> EquivalenceContext<'a> {
             game_params: game_params_left,
             pkg_name: pkg_name_left,
             pkg_params: pkg_params_left,
+            pkg_types: pkg_types_left,
             oracle_name,
             oracle_import_name: oracle_name,
         };
@@ -92,6 +96,7 @@ impl<'a> EquivalenceContext<'a> {
             game_params: game_params_right,
             pkg_name: pkg_name_right,
             pkg_params: pkg_params_right,
+            pkg_types: pkg_types_right,
             oracle_name,
             oracle_import_name: oracle_name,
         };
@@ -1260,6 +1265,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 
         let pkg_inst_name = &pkg_inst.name;
         let pkg_params = &pkg_inst.params;
+        let pkg_types = &pkg_inst.types;
         let pkg_name = &pkg_inst.pkg.name;
         let oracle_name = &sig.name;
         let oracle_import_name = export.name();
@@ -1279,6 +1285,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
             game_params,
             pkg_name,
             pkg_params,
+            pkg_types,
             oracle_name,
             oracle_import_name,
         };

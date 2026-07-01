@@ -367,6 +367,7 @@ impl From<&Type> for SmtExpr {
                 els
             }),
             TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
+            TypeKind::UserDefined(udefty) => SmtExpr::Atom(format!("{udefty}")),
             _ => {
                 panic!("not implemented: {t:?}")
             }

@@ -2,7 +2,7 @@
 
 use std::borrow::Borrow;
 
-use crate::{expressions::Expression, types::TypeKind, writers::smt::exprs::SmtExpr};
+use crate::{expressions::Expression, types::{Type, TypeKind}, writers::smt::exprs::SmtExpr};
 
 pub fn only_ints<'a, T: 'a, I: IntoIterator<Item = &'a (T, Expression)>>(
     iter: I,
@@ -42,6 +42,17 @@ where
         params_iter
             .into_iter()
             .map(|expr: &Expression| -> SmtExpr { expr.into() }),
+    )
+}
+
+pub fn encode_types<'a, I>(types_iter: I) -> Option<String>
+where
+    I: IntoIterator<Item = &'a Type>,
+{
+    encode_smt_exprs(
+        types_iter
+            .into_iter()
+            .map(|ty: &Type| -> SmtExpr { ty.into() }),
     )
 }
 

@@ -114,9 +114,10 @@ impl<'a> DatastructurePattern<'a> for GameStatePattern<'a> {
 
         let pkgstate_selectors = info.game_inst.game().pkgs.iter().map(|inst| {
             let params = &inst.params;
+            let types = &inst.types;
             let pkg_name = &inst.pkg.name;
 
-            let sort = PackageStatePattern { pkg_name, params }.sort(vec![]);
+            let sort = PackageStatePattern { pkg_name, params, types }.sort(vec![]);
 
             GameStateSelector::PackageInstance {
                 pkg_inst_name: &inst.name,

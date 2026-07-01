@@ -64,6 +64,7 @@ fn gen_returnbinding(
         game_params: &game.consts,
         pkg_name: &pkginst.pkg.name,
         pkg_params: &pkginst.params,
+        pkg_types: &pkginst.types,
         oracle_name: &export.sig().name,
     };
     let spec = pattern.datastructure_spec(&export.sig().ty);
@@ -113,6 +114,7 @@ fn gen_varbinding(package: &PackageInstance, package_state: &str) -> Vec<(String
     let pattern = patterns::PackageStatePattern {
         pkg_name: package.pkg_name(),
         params: &package.params,
+        types: &package.types,
     };
 
     let spec = pattern.datastructure_spec(&package.pkg);
