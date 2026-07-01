@@ -5,9 +5,7 @@
   true)
 
 (define-fun randomness-mapping-Sample
-  ( (base-ctr-left Int) 
-    (base-ctr-right Int)
-    (stmt-left  Int) 
+  ( (stmt-left  Int) 
     (stmt-right  Int)
     (ctr-left Int)
     (ctr-right Int))
