@@ -240,6 +240,7 @@ fn gen_returnbinding(
         game_params: &game.consts,
         pkg_name: &pkginst.pkg.name,
         pkg_params: &pkginst.params,
+        pkg_types: &pkginst.types,
         oracle_name: &export.sig().name,
     };
     let spec = pattern.datastructure_spec(&export.sig().ty);
@@ -320,6 +321,7 @@ fn gen_varbinding(
     let state_pattern = patterns::PackageStatePattern {
         pkg_name: package.pkg_name(),
         params: &package.params,
+        types: &package.types,
     };
 
     let state_spec = state_pattern.datastructure_spec(&package.pkg);
@@ -753,6 +755,7 @@ impl SmtParser<Error> for SmtRewriteEquivalence<'_> {
             game_params: &left_game_inst.consts,
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
+            pkg_types: &left_game_inst.game.pkgs[left_oracle_export.to()].types,
             oracle_name: &left_oracle_export.sig().name,
         };
 
@@ -772,6 +775,7 @@ impl SmtParser<Error> for SmtRewriteEquivalence<'_> {
             game_params: &right_game_inst.consts,
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
+            pkg_types: &right_game_inst.game.pkgs[right_oracle_export.to()].types,
             oracle_name: &right_oracle_export.sig().name,
         };
 

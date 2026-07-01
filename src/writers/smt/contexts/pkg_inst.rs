@@ -7,6 +7,7 @@ use crate::{
     identifier::pkg_ident::PackageConstIdentifier,
     package::{Composition, Package, PackageInstance},
     theorem::GameInstance,
+    types::Type,
     writers::smt::{
         contexts::{GameInstanceContext, OracleContext},
         patterns::{self, PackageConstsPattern, PackageStatePattern, PackageStateSelector},
@@ -97,6 +98,10 @@ impl<'a> PackageInstanceContext<'a> {
         &self.pkg_inst().params
     }
 
+    pub(crate) fn pkg_types(&self) -> &'a [(String, Type)] {
+        &self.pkg_inst().types
+    }
+
     pub(crate) fn datastructure_pkg_consts_pattern(&self) -> PackageConstsPattern<'a> {
         PackageConstsPattern {
             pkg_name: &self.pkg_inst().pkg.name,
@@ -116,12 +121,17 @@ impl<'a> PackageInstanceContext<'a> {
         }
     }
 
-    pub(crate) fn pkg_state_pattern(&self) -> PackageStatePattern<'a> {
+    pub(crate) fn pkg_state_pattern(&'a self) -> PackageStatePattern<'a> {
         let pkg_name = &self.pkg_inst().pkg.name;
 
         let params = &self.pkg_inst().params;
+        let types = &self.pkg_inst().types;
 
-        PackageStatePattern { pkg_name, params }
+        PackageStatePattern {
+            pkg_name,
+            params,
+            types,
+        }
     }
 
     fn field_selector(&self, field_name: &'a str) -> Option<PackageStateSelector<'a>> {
