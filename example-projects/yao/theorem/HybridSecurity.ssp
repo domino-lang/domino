@@ -5,7 +5,6 @@ theorem HybridSecurity {
     const d: Integer;
     const h: Integer;
     const hplusone: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -14,7 +13,6 @@ theorem HybridSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -25,7 +23,6 @@ theorem HybridSecurity {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -37,7 +34,6 @@ theorem HybridSecurity {
             m: m,
             p: p,
             d: d,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -49,7 +45,6 @@ theorem HybridSecurity {
             m: m,
             p: p,
             d: d,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -62,7 +57,6 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: 1,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -75,7 +69,6 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: d,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -88,7 +81,6 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: h,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -101,7 +93,6 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: h,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -114,7 +105,6 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: hplusone,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }

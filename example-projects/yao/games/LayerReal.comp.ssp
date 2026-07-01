@@ -2,7 +2,6 @@ composition LayerReal {
     const n: Integer;
     const m: Integer;
     const p: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -23,7 +22,6 @@ composition LayerReal {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
         }
     }
 

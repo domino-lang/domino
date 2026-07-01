@@ -3,7 +3,6 @@ package Gate {
         n: Integer,
         m: Integer,
         p: Integer,
-        zeron: Bits(n),
     }
 
     import oracles {
@@ -24,32 +23,32 @@ package Gate {
         br <- false;
         bj <- Unwrap(op[(bl, br)]);
         kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, zeron);
-        conein <- invoke ENCN(l, bl, zeron, zeron);
+        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
+        conein <- invoke ENCN(l, bl, 0_n, 0_n);
         cout <- invoke ENCM(r, br, czeroin, conein);
         C[cout] <- Some(true);
         bl <- true;
         br <- false;
         bj <- Unwrap(op[(bl, br)]);
         kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, zeron);
-        conein <- invoke ENCN(l, bl, zeron, zeron);
+        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
+        conein <- invoke ENCN(l, bl, 0_n, 0_n);
         cout <- invoke ENCM(r, br, czeroin, conein);
         C[cout] <- Some(true);
         bl <- false;
         br <- true;
         bj <- Unwrap(op[(bl, br)]);
         kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, zeron);
-        conein <- invoke ENCN(l, bl, zeron, zeron);
+        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
+        conein <- invoke ENCN(l, bl, 0_n, 0_n);
         cout <- invoke ENCM(r, br, czeroin, conein);
         C[cout] <- Some(true);
         bl <- true;
         br <- true;
         bj <- Unwrap(op[(bl, br)]);
         kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, zeron);
-        conein <- invoke ENCN(l, bl, zeron, zeron);
+        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
+        conein <- invoke ENCN(l, bl, 0_n, 0_n);
         cout <- invoke ENCM(r, br, czeroin, conein);
         C[cout] <- Some(true);
         return C;

@@ -4,7 +4,6 @@ composition HybridIdeal {
     const p: Integer;
     const m: Integer;
     const d: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -45,7 +44,6 @@ composition HybridIdeal {
             p: p,
             encn: encn,
             encm: encm,
-            zeron: zeron
         }
     }
 
@@ -74,7 +72,6 @@ composition HybridIdeal {
             p: p,
             encn: encn,
             encm: encm,
-            zeron: zeron,
             h: h
         }
     }
@@ -84,7 +81,6 @@ composition HybridIdeal {
             p: p,
             n: n,
             m: m,
-            zeron: zeron
         }
     }
 

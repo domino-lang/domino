@@ -4,7 +4,6 @@ theorem Yao3Layer {
     const m: Integer;
     const p: Integer;
     const d: Integer;
-    const zeron: Bits(n);
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
@@ -13,7 +12,6 @@ theorem Yao3Layer {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -24,7 +22,6 @@ theorem Yao3Layer {
             n: n,
             m: m,
             p: p,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -36,7 +33,6 @@ theorem Yao3Layer {
             m: m,
             p: p,
             w: w,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -48,7 +44,6 @@ theorem Yao3Layer {
             m: m,
             p: p,
             w: w,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -60,7 +55,6 @@ theorem Yao3Layer {
             m: m,
             p: p,
             w: w,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
@@ -72,7 +66,6 @@ theorem Yao3Layer {
             m: m,
             p: p,
             w: w,
-            zeron: zeron,
             encm: encm,
             encn: encn,
         }
