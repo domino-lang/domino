@@ -51,6 +51,7 @@ impl<'a> OracleContext<'a> {
         let oracle_args: &'a _ = self.oracle_args();
         let game_params: &'a _ = gctx.game_params();
         let pkg_params: &'a _ = pctx.pkg_params();
+        let pkg_types: &'a _ = pctx.pkg_types();
 
         OraclePattern {
             game_name,
@@ -61,6 +62,7 @@ impl<'a> OracleContext<'a> {
             oracle_args,
             game_params,
             pkg_params,
+            pkg_types,
         }
     }
 
@@ -92,6 +94,7 @@ impl<'a> OracleContext<'a> {
         let oracle_name: &'a _ = self.oracle_name();
         let game_params: &'a _ = gctx.game_params();
         let pkg_params: &'a _ = pctx.pkg_params();
+        let pkg_types: &'a _ = pctx.pkg_types();
 
         ReturnPattern {
             game_name,
@@ -99,6 +102,7 @@ impl<'a> OracleContext<'a> {
             oracle_name,
             game_params,
             pkg_params,
+            pkg_types,
         }
     }
 
