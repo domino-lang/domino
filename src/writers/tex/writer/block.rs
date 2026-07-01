@@ -410,6 +410,20 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 }
             }
 
+            Statement::ForEach(pattern, exprs, _, _) => {
+                format!(
+                    "{}\\pcfor {} \\pcin {} \\pcdo\\\\",
+                    genindentation(indentation),
+                    self.pattern_to_tex(pattern),
+                    self.list_to_matrix(
+                        &exprs
+                            .iter()
+                            .map(|expr| self.expression_to_tex(expr))
+                            .collect::<Vec<_>>()
+                    ),
+                )
+            }
+
             Statement::For(var, from, to, _, _) => {
                 println!("{var:?}");
                 if let Identifier::PackageIdentifier(PackageIdentifier::CodeLoopVar(
@@ -457,6 +471,9 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 }
             }
             if let Statement::For(_, _, _, code, _) = stmt {
+                self.write_codeblock(code, indentation + 1)?;
+            }
+            if let Statement::ForEach(_, _, code, _) = stmt {
                 self.write_codeblock(code, indentation + 1)?;
             }
         }

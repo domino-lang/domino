@@ -1,0 +1,10 @@
+package D {
+    oracle Test() -> Bool {
+        for (a, b): [(false, false), (false, true), (true, false)] {
+            if (a and b) {
+                return true;
+            }
+        }
+        return false;
+    }
+}

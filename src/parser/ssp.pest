@@ -483,7 +483,7 @@ pattern_table = { identifier ~ "[" ~ expression ~ "]" }
 pattern_tuple = { "(" ~ pattern ~ ("," ~ pattern )+ ~ ")" }
 
 /// A statement (internal rule).
-stmt = _{ assign | invoke_stmt | return_stmt | assert | abort | ite | for_ }
+stmt = _{ assign | invoke_stmt | return_stmt | assert | abort | ite | for_range | for_each }
 
 /// A standalone oracle invocation (return value discarded).
 invoke_stmt = { kw_invoke ~ oracle_call ~ ";" }
@@ -504,7 +504,9 @@ assert = { kw_assert ~ expression ~ ";" }
 abort = { kw_abort ~ ";" }
 
 /// A for loop statement.
-for_ = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ code ~ "}" }
+for_range = { kw_for ~ identifier ~ ":" ~ expression ~ for_comp ~ identifier ~ for_comp ~ expression ~ "{" ~ code ~ "}" }
 
 /// Comparison operator in for loops (< or <=).
 for_comp = { ( "<=" | "<" ) }
+
+for_each = { kw_for ~ (pattern_ident | pattern_tuple) ~ ":" ~ "[" ~ expression ~ ("," ~ expression)* ~ "]"  ~ "{" ~ code ~ "}" }

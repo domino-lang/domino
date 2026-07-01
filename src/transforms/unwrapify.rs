@@ -201,6 +201,21 @@ impl Unwrapifier {
                         file_pos,
                     ))
                 }
+                Statement::ForEach(pattern, exprs, body, file_pos) => {
+                    let (new_exprs, unwraps): (Vec<_>, Vec<_>) =
+                        exprs.iter().map(|expr| self.replace_unwrap(expr)).unzip();
+                    newcode.extend(
+                        unwraps
+                            .into_iter()
+                            .flat_map(|unwrap| create_unwrap_stmts(unwrap, file_pos)),
+                    );
+                    newcode.push(Statement::ForEach(
+                        pattern,
+                        new_exprs,
+                        self.unwrapify(&body)?,
+                        file_pos,
+                    ));
+                }
             }
         }
         Ok(CodeBlock(newcode))

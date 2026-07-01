@@ -592,9 +592,18 @@ pub(crate) mod instantiate {
                     ..ite
                 }),
                 Statement::For(ident, start, end, code, pos) => Statement::For(
-                    ident.clone(),
+                    self.rewrite_identifier(ident),
                     self.rewrite_expression(&start),
                     self.rewrite_expression(&end),
+                    self.rewrite_oracle_code(code),
+                    pos,
+                ),
+                Statement::ForEach(pattern, values, code, pos) => Statement::ForEach(
+                    pattern,
+                    values
+                        .iter()
+                        .map(|expr| self.rewrite_expression(expr))
+                        .collect(),
                     self.rewrite_oracle_code(code),
                     pos,
                 ),

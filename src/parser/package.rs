@@ -1384,7 +1384,45 @@ pub fn handle_code(
 
                     Statement::Assignment(Assignment { pattern, rhs }, full_span)
                 }
-                Rule::for_ => {
+                Rule::for_each => {
+                    let mut inner = stmt.into_inner();
+                    let pattern_ast = inner.next().unwrap();
+
+                    // First, try to infer expected type from the pattern if it's an existing identifier
+                    let mut expected_type = match pattern_ast.as_rule() {
+                        Rule::pattern_ident => {
+                            let name = pattern_ast.as_str();
+                            match ctx.scope.lookup(name) {
+                                Some(Declaration::Identifier(ident)) => Some(ident.get_type()),
+                                _ => None,
+                            }
+                        }
+                        Rule::pattern_tuple => None,
+                        _ => unreachable!()
+                    };
+
+                    let mut args = Vec::new();
+                    while ! matches!(inner.peek().unwrap().as_rule(), Rule::code) {
+                        args.push(handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), expected_type.as_ref())?);
+                        if expected_type.is_none() {
+                            expected_type = Some(args[0].get_type());
+                        }
+                    }
+
+                    ctx.scope.enter();
+                    let pattern = handle_pattern(
+                        ctx,
+                        pattern_ast,
+                        oracle_name,
+                        args[0].get_type(),
+                    )?;
+                    let body =
+                        handle_code(ctx, inner.next().unwrap(), oracle_sig)?;
+                    ctx.scope.leave();
+
+                    Statement::ForEach(pattern, args, body, full_span)
+                }
+                Rule::for_range => {
                     let mut parsed: Vec<Pair<Rule>> = stmt.into_inner().collect();
                     let decl_var_name = parsed[0].as_str();
                     let lower_bound = handle_expression(&ctx.parse_ctx(), parsed.remove(1), Some(&Type::integer()))?;

@@ -1,0 +1,9 @@
+package B {
+    oracle Test() -> Integer {
+        result <- 0;
+        for i: 0 <= i < 10 {
+            result <- (result + i);
+        }
+        return result;
+    }
+}

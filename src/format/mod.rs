@@ -337,7 +337,7 @@ fn format_code(ctx: &mut FormatContext, code_ast: Pair<Rule>) -> Result<(), proj
 
                 ctx.push_line(&format!("{lhs} <- {rhs};"));
             }
-            Rule::for_ => {
+            Rule::for_range => {
                 let mut parsed: Vec<Pair<Rule>> = stmt.into_inner().collect();
                 let decl_var_name = parsed[0].as_str();
                 let lower_bound = format_expr(parsed.remove(1))?;
