@@ -8,7 +8,7 @@ use crate::{
     writers::smt::{
         contexts::PackageInstanceContext,
         names::{FunctionNameBuilder, SortNameBuilder},
-        patterns::instance_names::{encode_params, only_ints},
+        patterns::instance_names::{encode_params, encode_types, only_ints},
     },
 };
 
@@ -17,6 +17,7 @@ use super::{DatastructurePattern, DatastructureSpec, Datatype};
 pub struct PackageStatePattern<'a> {
     pub pkg_name: &'a str,
     pub params: &'a [(PackageConstIdentifier, Expression)],
+    pub types: &'a [(String, Type)],
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -44,11 +45,14 @@ impl Datatype for PackageStateDatatype<'_> {
 
     fn sort_symbol(&self) -> sspverif_smtlib::syntax::tokens::Symbol {
         let encoded_params = encode_params(only_ints(self.0.pkg_params()));
+        let encoded_types = encode_types(self.0.pkg_types().iter().map(|(_,ty)| ty));
+        log::warn!("{encoded_types:?}");
 
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
             .push(self.0.pkg_name())
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
             .into()
     }
@@ -70,24 +74,28 @@ impl Datatype for PackageStateDatatype<'_> {
         _cons: &Self::Constructor,
     ) -> sspverif_smtlib::syntax::tokens::Symbol {
         let encoded_params = encode_params(only_ints(self.0.pkg_params()));
+        let encoded_types = encode_types(self.0.pkg_types().iter().map(|(_,ty)| ty));
 
         FunctionNameBuilder::new()
             .push("mk")
             .push(Self::KEBAB_CASE)
             .push(self.0.pkg_name())
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
             .into()
     }
 
     fn selector_symbol(&self, sel: &Self::Selector) -> sspverif_smtlib::syntax::tokens::Symbol {
         let encoded_params = encode_params(only_ints(self.0.pkg_params()));
+        let encoded_types = encode_types(self.0.pkg_types().iter().map(|(_,ty)| ty));
         let (param_name, _, _) = &self.0.pkg().state[*sel];
 
         FunctionNameBuilder::new()
             .push(Self::KEBAB_CASE)
             .push(self.0.pkg_name())
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .push(param_name)
             .build()
             .into()
@@ -110,32 +118,38 @@ impl<'a> DatastructurePattern<'a> for PackageStatePattern<'a> {
 
     fn sort_name(&self) -> String {
         let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_,ty)| ty));
 
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
             .push(self.pkg_name)
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
     }
 
     fn constructor_name(&self, _cons: &Self::Constructor) -> String {
         let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_,ty)| ty));
 
         FunctionNameBuilder::new()
             .push("mk")
             .push(Self::KEBAB_CASE)
             .push(self.pkg_name)
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
     }
 
     fn selector_name(&self, sel: &Self::Selector) -> String {
         let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_,ty)| ty));
 
         FunctionNameBuilder::new()
             .push(Self::KEBAB_CASE)
             .push(self.pkg_name)
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .push(sel.name)
             .build()
     }

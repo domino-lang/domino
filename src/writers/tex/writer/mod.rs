@@ -7,6 +7,7 @@ use std::path::Path;
 use itertools::MultiUnzip;
 
 use crate::gamehops::GameHop;
+use crate::identifier::Identifier;
 use crate::package::{Composition, OracleDef, PackageInstance};
 use crate::parser::ast::Identifier as _;
 use crate::theorem::Theorem;
@@ -18,6 +19,7 @@ use crate::writers::tex::{
 };
 
 pub(crate) mod block;
+pub(super) mod util;
 
 use block::BlockWriter;
 
@@ -39,15 +41,11 @@ pub fn tex_write_oracle(
 
     writeln!(
         file,
-        "\\procedure{{$\\O{{{}}}({})$}}{{",
+        "\\procedure{{$\\O{{{}}}\\left({}\\right)$}}{{",
         oracle.sig.name.replace("_", "\\_"),
-        oracle
-            .sig
-            .args
-            .iter()
-            .map(|(a, _)| { format!("\\n{{{}}}", a.replace("_", "\\_")) })
-            .collect::<Vec<_>>()
-            .join(", ")
+        util::list_to_matrix(oracle.sig.args.iter().map(|(name, ty)| {
+            util::ident_to_tex(&Identifier::Generated(name.to_string(), ty.clone()))
+        }))
     )?;
 
     let mut writer = BlockWriter::new(&mut file, lossy, comp);
@@ -140,7 +138,7 @@ fn tex_write_composition_graph_file(
     write!(
         file,
         "{}",
-        composition.tikz_graph(backend.as_ref().unwrap())
+        composition.tikz_graph(backend.as_ref().unwrap(), &target.join("../graph"))
     )?;
 
     Ok(fname.to_str().unwrap().to_string())
@@ -434,7 +432,7 @@ pub fn tex_write_theorem(
                 composition: left_game.game(),
                 mapping: reduction.left()
             }
-            .tikz_graph(backend.as_ref().unwrap())
+            .tikz_graph(backend.as_ref().unwrap(), &target.join("../graph"))
         )?;
         write!(
             file,
@@ -443,7 +441,7 @@ pub fn tex_write_theorem(
                 composition: right_game.game(),
                 mapping: reduction.right()
             }
-            .tikz_graph(backend.as_ref().unwrap())
+            .tikz_graph(backend.as_ref().unwrap(), &target.join("../graph"))
         )?;
         writeln!(
             file,
@@ -514,7 +512,7 @@ pub fn tex_write_theorem(
                             composition: left_game_instance.game(),
                             mapping: red.left()
                         }
-                        .tikz_graph(backend.as_ref().unwrap())
+                        .tikz_graph(backend.as_ref().unwrap(), &target.join("../graph"))
                     )?;
 
                     writeln!(file, "\\end{{center}}")?;
@@ -547,7 +545,7 @@ pub fn tex_write_theorem(
                             composition: right_game_instance.game(),
                             mapping: red.right()
                         }
-                        .tikz_graph(backend.as_ref().unwrap())
+                        .tikz_graph(backend.as_ref().unwrap(), &target.join("../graph"))
                     )?;
                     writeln!(file, "\\end{{center}}")?;
                 }

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use itertools::Itertools;
 use std::{fs::File, io::Write};
 
 use crate::{
@@ -15,6 +14,7 @@ use crate::{
         Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
     },
     types::{CountSpec, Type, TypeKind},
+    writers::tex::writer::util,
 };
 
 fn genindentation(cnt: u8) -> String {
@@ -40,22 +40,9 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
         BlockWriter { file, lossy, comp }
     }
 
-    fn ident_to_tex(&self, ident: &Identifier) -> String {
-        let ident = ident.ident();
-        if let Some((first, second)) = ident.split_once("_") {
-            if second.is_empty() {
-                format!("\\n{{{first}}}^\\prime")
-            } else {
-                format!("\\n{{{first}}}_\\n{{{}}}", second.replace("_", "\\_"))
-            }
-        } else {
-            format!("\\n{{{ident}}}")
-        }
-    }
-
     fn countspec_to_tex(&self, count_spec: &CountSpec) -> String {
         match count_spec {
-            CountSpec::Identifier(identifier) => self.ident_to_tex(identifier),
+            CountSpec::Identifier(identifier) => util::ident_to_tex(identifier),
             CountSpec::Literal(num) => format!("{num}"),
             CountSpec::Any => "*".to_string(),
         }
@@ -64,12 +51,16 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
     fn type_to_tex(&self, ty: &Type) -> String {
         match ty.kind() {
             TypeKind::Bits(n) => format!("\\bin^{{{}}}", self.countspec_to_tex(n)),
+            TypeKind::Tuple(tys) => format!(
+                "\\left({}\\right)",
+                util::list_to_matrix(tys.iter().map(|t| self.type_to_tex(t)))
+            ),
             TypeKind::Table(from, to) => format!(
                 "\\O{{Table}}[{} \\rightarrow {}]",
                 self.type_to_tex(from),
                 self.type_to_tex(to)
             ),
-            _ => format!("\\O{{{:?}}}", ty.kind()),
+            _ => format!("\\O{{{}}}", ty),
         }
     }
 
@@ -89,61 +80,12 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
         .to_string()
     }
 
-    fn logic_to_matrix(&self, join: &str, list: &[String]) -> String {
-        assert!(list.len() > 1);
-        let trivial = list.join(join);
-        if trivial.len() < 50 {
-            trivial
-        } else {
-            let mut it = list.iter();
-            let mut lines = vec![format!("\\phantom{{{}}}{}", join, it.next().unwrap())];
-            let mut rest: Vec<_> = it.map(|s| format!("{join}{s}")).collect();
-            lines.append(&mut rest);
-            format!(
-                "\\begin{{array}}{{c}}{}\\end{{array}}",
-                lines.join("\\pclb")
-            )
-        }
-    }
-
-    fn list_to_matrix(&self, list: &[String]) -> String {
-        let mut it = list.iter();
-        let mut lines = Vec::new();
-        let mut line = Vec::new();
-        let mut len = 0;
-        loop {
-            // maybe this should be a minipage and latex figures linesbreaking ...
-            match it.next() {
-                None => {
-                    if !line.is_empty() {
-                        lines.push(line.join(", "));
-                    }
-                    break;
-                }
-                Some(s) => {
-                    if len + s.len() > 20 {
-                        line.push(String::new());
-                        lines.push(line.join(", "));
-                        line = Vec::new();
-                        len = 0;
-                    }
-                    line.push(s.clone());
-                    len = len + std::cmp::max(6, s.len()) - 4 // latex makes string length and text length quite different
-                }
-            }
-        }
-        format!(
-            "\\begin{{array}}{{c}}{}\\end{{array}}",
-            lines.join("\\pclb")
-        )
-    }
-
     fn expression_to_tex(&self, expr: &Expression) -> String {
         match expr.kind() {
             ExpressionKind::Bot => "\\bot".to_string(),
             ExpressionKind::IntegerLiteral(val) => format!("{val}"),
             ExpressionKind::BooleanLiteral(val) => format!("\\lit{{{val}}}"),
-            ExpressionKind::Identifier(ident) => self.ident_to_tex(ident),
+            ExpressionKind::Identifier(ident) => util::ident_to_tex(ident),
             ExpressionKind::Not(expr) if matches!(expr.kind(), ExpressionKind::Equals(exprs) if exprs.len() == 2) => {
                 if let ExpressionKind::Equals(exprs) = expr.kind() {
                     format!(
@@ -187,7 +129,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ),
             ExpressionKind::TableAccess(ident, expr) => format!(
                 "{}[{}]",
-                self.ident_to_tex(ident),
+                util::ident_to_tex(ident),
                 self.expression_to_tex(expr)
             ),
             ExpressionKind::Equals(exprs) => exprs
@@ -197,7 +139,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 .join(" = "),
             ExpressionKind::Or(exprs) => format!(
                 "\\left({}\\right)",
-                self.logic_to_matrix(
+                util::logic_to_matrix(
                     " \\vee ",
                     &exprs
                         .iter()
@@ -207,7 +149,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ),
             ExpressionKind::And(exprs) => format!(
                 "\\left({}\\right)",
-                self.logic_to_matrix(
+                util::logic_to_matrix(
                     " \\wedge ",
                     &exprs
                         .iter()
@@ -218,18 +160,13 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ExpressionKind::Tuple(exprs) => {
                 format!(
                     "\\left({}\\right)",
-                    self.list_to_matrix(
-                        &exprs
-                            .iter()
-                            .map(|expr| self.expression_to_tex(expr))
-                            .collect::<Vec<_>>()
-                    )
+                    util::list_to_matrix(exprs.iter().map(|expr| self.expression_to_tex(expr)))
                 )
             }
             ExpressionKind::FnCall(name, args) => {
                 format!(
                     "\\O{{{}}}({})",
-                    self.ident_to_tex(name),
+                    util::ident_to_tex(name),
                     args.iter()
                         .map(|expr| self.expression_to_tex(expr))
                         .collect::<Vec<_>>()
@@ -237,7 +174,11 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 )
             }
             ExpressionKind::EmptyTable(ty) => {
-                format!("\\O{{EmptyTable}}({})", self.type_to_tex(ty))
+                if self.lossy {
+                    format!("\\O{{EmptyTable}}")
+                } else {
+                    format!("\\O{{EmptyTable}}({})", self.type_to_tex(ty))
+                }
             }
             _ => {
                 format!("{expr:?}")
@@ -247,18 +188,15 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
 
     fn pattern_to_tex(&self, pat: &Pattern) -> String {
         match pat {
-            Pattern::Ident(identifier) => self.ident_to_tex(identifier),
+            Pattern::Ident(identifier) => util::ident_to_tex(identifier),
             Pattern::Table { ident, index } => format!(
                 r"{ident}\left[{index}\right]",
-                ident = self.ident_to_tex(ident),
+                ident = util::ident_to_tex(ident),
                 index = self.expression_to_tex(index)
             ),
             Pattern::Tuple(identifiers) => format!(
                 r"\left({identifiers}\right)",
-                identifiers = identifiers
-                    .iter()
-                    .map(|ident| self.ident_to_tex(ident))
-                    .join(", "),
+                identifiers = util::list_to_matrix(identifiers.iter().map(util::ident_to_tex)),
             ),
         }
     }
@@ -290,25 +228,21 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 if edge.alias().is_some() {
                     let target_oracle = &edge.sig();
                     format!(
-                        r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}({args}) \pccomment{{Pkg: {target_inst_name}, Oracle: {target_oracle_name}}}",
+                        r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}\left({args}\right) \pccomment{{Pkg: {target_inst_name}, Oracle: {target_oracle_name}}}",
                         name = oracle_name.replace("_", "\\_"),
-                        args = args
-                            .iter()
-                            .map(|expr| self.expression_to_tex(expr))
-                            .collect::<Vec<_>>()
-                            .join(", "),
+                        args = util::list_to_matrix(
+                            args.iter().map(|expr| self.expression_to_tex(expr))
+                        ),
                         target_inst_name = target_inst.name.replace('_', r"\_"),
                         target_oracle_name = target_oracle.name.replace('_', "\\_")
                     )
                 } else {
                     format!(
-                        r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}({args}) \pccomment{{Pkg: {target_inst_name}}}",
+                        r"\stackrel{{\mathsf{{\tiny invoke}}}}{{\gets}} \O{{{name}}}\left({args}\right) \pccomment{{Pkg: {target_inst_name}}}",
                         name = oracle_name.replace("_", "\\_"),
-                        args = args
-                            .iter()
-                            .map(|expr| self.expression_to_tex(expr))
-                            .collect::<Vec<_>>()
-                            .join(", "),
+                        args = util::list_to_matrix(
+                            args.iter().map(|expr| self.expression_to_tex(expr))
+                        ),
                         target_inst_name = target_inst.name.replace('_', r"\_"),
                     )
                 }
@@ -425,7 +359,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                         genindentation(indentation),
                         self.expression_to_tex(from),
                         self.forcomp_to_tex(start_comp),
-                        self.ident_to_tex(var),
+                        util::ident_to_tex(var),
                         self.forcomp_to_tex(end_comp),
                         self.expression_to_tex(to)
                     )

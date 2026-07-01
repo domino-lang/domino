@@ -1,0 +1,25 @@
+package Fwd {
+
+    types {
+        Domain,
+    }
+
+    state {
+        ctr: Integer,
+    }
+
+    import oracles {
+        UsefulOracle() -> (Integer,Domain),
+    }
+
+    oracle UsefulOracle() -> (Integer,Domain)  {
+        y  <- invoke UsefulOracle();
+        return y;
+    }
+
+    oracle UselessOracle(x: Integer, y: Domain) -> Integer  {
+        assert (x == 1);
+        return 1;
+    }
+}
+

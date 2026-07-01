@@ -4,6 +4,7 @@ use crate::expressions::Expression;
 use crate::identifier::pkg_ident::{
     PackageConstIdentifier, PackageIdentifier, PackageStateIdentifier,
 };
+use crate::types::Type;
 use crate::identifier::Identifier;
 use crate::package::{Composition, Package, PackageInstance};
 use crate::theorem::GameInstance;
@@ -141,6 +142,10 @@ impl<'a> PackageInstanceContext<'a> {
         &self.pkg_inst().params
     }
 
+    pub(crate) fn pkg_types(&self) -> &'a [(String, Type)] {
+        &self.pkg_inst().types
+    }
+
     pub(crate) fn datastructure_pkg_consts_pattern(&self) -> PackageConstsPattern<'a> {
         PackageConstsPattern {
             pkg_name: &self.pkg_inst().pkg.name,
@@ -157,12 +162,13 @@ impl<'a> PackageInstanceContext<'a> {
         }
     }
 
-    pub(crate) fn pkg_state_pattern(&self) -> PackageStatePattern<'a> {
+    pub(crate) fn pkg_state_pattern(&'a self) -> PackageStatePattern<'a> {
         let pkg_name = &self.pkg_inst().pkg.name;
 
         let params = &self.pkg_inst().params;
-
-        PackageStatePattern { pkg_name, params }
+        let types = &self.pkg_inst().types;
+        
+        PackageStatePattern { pkg_name, params, types }
     }
 
     pub(crate) fn smt_access_pkgstate<S: Into<SmtExpr>>(
