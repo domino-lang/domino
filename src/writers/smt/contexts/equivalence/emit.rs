@@ -187,22 +187,8 @@ impl<'a> EquivalenceContext<'a> {
                     "rand-is-eq",
                     "randmap-sample-id-left",
                     "randmap-sample-id-right",
-                    (
-                        "+",
-                        "randmap-sample-offset-left",
-                        (
-                            format!("get-rand-ctr-{game_inst_name_left}"),
-                            "randmap-sample-id-left",
-                        ),
-                    ),
-                    (
-                        "+",
-                        "randmap-sample-offset-right",
-                        (
-                            format!("get-rand-ctr-{game_inst_name_right}"),
-                            "randmap-sample-id-right",
-                        ),
-                    ),
+                    "randmap-sample-offset-left",
+                    "randmap-sample-offset-right",
                 ),
             ),
         };
@@ -748,20 +734,22 @@ impl<'a> EquivalenceContext<'a> {
 
         /////// randomess counters
 
-        for (decl_ctr, assert_ctr, decl_val, assert_val) in
+        for (decl_ctr, assert_ctr, assert_zero_ctr, decl_val, assert_val) in
             build_rands(self.sample_info_left(), left)
         {
             out.push(decl_ctr);
             out.push(assert_ctr);
+            out.push(assert_zero_ctr);
             out.push(decl_val);
             out.push(assert_val);
         }
 
-        for (decl_ctr, assert_ctr, decl_val, assert_val) in
+        for (decl_ctr, assert_ctr, assert_zero_ctr, decl_val, assert_val) in
             build_rands(self.sample_info_right(), right)
         {
             out.push(decl_ctr);
             out.push(assert_ctr);
+            out.push(assert_zero_ctr);
             out.push(decl_val);
             out.push(assert_val);
         }
@@ -1308,7 +1296,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 fn build_rands(
     sample_info: &SampleInfo,
     game_inst: &GameInstance,
-) -> Vec<(SmtExpr, SmtExpr, SmtExpr, SmtExpr)> {
+) -> Vec<(SmtExpr, SmtExpr, SmtExpr, SmtExpr, SmtExpr)> {
     let gctx = GameInstanceContext::new(game_inst);
 
     sample_info
@@ -1340,6 +1328,12 @@ fn build_rands(
             })
             .into();
 
+            let zero_constrain_randctr: SmtExpr = SmtAssert(SmtEq2 {
+                lhs: randctr_name.as_str(),
+                rhs: 0,
+            })
+            .into();
+
             // apply respective randomness function (based on type) to the given counter
             let randval = gctx.smt_eval_randfn(sample_item, ("+", 0, randctr_name.as_str()), ty);
 
@@ -1352,6 +1346,7 @@ fn build_rands(
             (
                 decl_randctr,
                 constrain_randctr,
+                zero_constrain_randctr,
                 decl_randval,
                 constrain_randval,
             )
