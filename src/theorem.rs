@@ -168,6 +168,7 @@ impl GameInstance {
             consts: resolved_params,
             edges: new_edges,
             exports: new_exports,
+            invariants: game.invariants.clone(),
         };
 
         GameInstance {
@@ -203,6 +204,10 @@ pub enum ClaimType {
     Lemma,
     Relation,
     Invariant,
+    LeftPackageInvariant,
+    RightPackageInvariant,
+    LeftGameInvariant,
+    RightGameInvariant,
 }
 
 impl ClaimType {

@@ -47,6 +47,7 @@ pub struct ParsePackageContext<'a> {
     pub params: Vec<(String, Type, SourceSpan)>,
     pub types: Vec<String>,
     pub imported_oracles: HashMap<String, (OracleSig, SourceSpan)>,
+    pub invariants: Vec<String>,
 }
 
 impl<'a> ParseContext<'a> {
@@ -65,6 +66,7 @@ impl<'a> ParseContext<'a> {
             params: vec![],
             types: vec![],
             imported_oracles: HashMap::new(),
+            invariants: vec![],
         }
     }
 }
@@ -224,6 +226,13 @@ pub fn handle_pkg_spec(
             Rule::oracle_def => {
                 handle_oracle_def(&mut ctx, spec)?;
             }
+            Rule::invariant_spec => ctx.invariants.append(
+                &mut spec
+                    .into_inner()
+                    .map(|ast| ast.as_str().to_string())
+                    .collect(),
+            ),
+
             _ => unreachable!("unhandled ast node in package: {}", spec),
         }
     }
@@ -239,6 +248,7 @@ pub fn handle_pkg_spec(
             .map(|(_k, (v, loc))| (v.clone(), *loc))
             .collect(),
         state: ctx.state,
+        invariants: ctx.invariants,
         //split_oracles: vec![],
         file_name: ctx.file_name.to_string(),
         file_contents: ctx.file_content.to_string(),

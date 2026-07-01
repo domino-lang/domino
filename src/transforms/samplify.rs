@@ -27,7 +27,7 @@ pub struct Position {
     pub sample_name: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SampleInfo {
     pub tys: Vec<Type>,
     pub count: usize,
