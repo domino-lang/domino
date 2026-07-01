@@ -5,33 +5,18 @@ use crate::{
     Rule,
 };
 
+/// Describes what the identifier refers to. We do this along two axes:
+///
+/// 1. Are you referring to a type? a value? a package?
+/// 2. For types and values: is the thing you refer to defined in a package? a game? a theorem?
+///
+/// Doing (2) on the type level allows us to use per-kind side tables to store resolved types, which
+/// then allows us to have infallible looksups (by checking first that all are set).
 pub trait IdentifierKind {}
-pub trait ValueIdentifierKind: IdentifierKind {
-    type TypeIdentifierKind: TypeIdentifierKind;
-}
 
-pub trait TypeArgIdentifierKind: IdentifierKind {
-    type ArgValueIdentifierKind: ValueIdentifierKind;
-    type ArgTypeIdentifierKind: TypeIdentifierKind<ArgIdentifierKind = Self>;
-}
-pub trait TypeIdentifierKind: IdentifierKind {
-    type ArgValueIdentifierKind: ValueIdentifierKind;
-    type ArgIdentifierKind: TypeArgIdentifierKind<ArgTypeIdentifierKind = Self>;
-}
-
-pub trait InstanceIdentifierKind: IdentifierKind {
-    type LhsValueIdentifierKind: ValueIdentifierKind
-        + InstanceAssignmentLhsKind<RhsIdentifierKind = Self::RhsValueIdentifierKind>;
-    type RhsValueIdentifierKind: ValueIdentifierKind;
-
-    type LhsTypeIdentifierKind: TypeIdentifierKind
-        + InstanceAssignmentLhsKind<RhsIdentifierKind = Self::RhsTypeIdentifierKind>;
-    type RhsTypeIdentifierKind: TypeIdentifierKind;
-}
-
-pub trait InstanceAssignmentLhsKind: IdentifierKind {
-    type RhsIdentifierKind: IdentifierKind;
-}
+pub trait ValueIdentifierKind: IdentifierKind {}
+pub trait TypeArgIdentifierKind: IdentifierKind {}
+pub trait TypeIdentifierKind: IdentifierKind {}
 
 /// An identifier. The span is in the side table, and from there we can get the string.
 /// Once we intern we might hve that in here (or in another side table).
@@ -62,9 +47,7 @@ macro_rules! define_value_ident_kind {
         #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
-        impl ValueIdentifierKind for $kind_name {
-            type TypeIdentifierKind = $ty_ty;
-        }
+        impl ValueIdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
     };
@@ -75,10 +58,7 @@ macro_rules! define_type_ident_kind {
         #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
-        impl TypeIdentifierKind for $kind_name {
-            type ArgIdentifierKind = $arg_kind;
-            type ArgValueIdentifierKind = $value_kind;
-        }
+        impl TypeIdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
 
@@ -93,10 +73,7 @@ macro_rules! define_type_arg_ident_kind {
         #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
-        impl TypeArgIdentifierKind for $kind_name {
-            type ArgValueIdentifierKind = $value_kind;
-            type ArgTypeIdentifierKind = $type_kind;
-        }
+        impl TypeArgIdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
     };
@@ -109,21 +86,6 @@ macro_rules! define_instance_ident_kind {
         impl IdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
-
-        impl InstanceIdentifierKind for $kind_name {
-            type LhsTypeIdentifierKind = $lhs_ty_ty;
-            type RhsTypeIdentifierKind = $rhs_ty_ty;
-            type LhsValueIdentifierKind = $lhs_val_ty;
-            type RhsValueIdentifierKind = $rhs_val_ty;
-        }
-
-        impl InstanceAssignmentLhsKind for $lhs_ty_ty {
-            type RhsIdentifierKind = $rhs_ty_ty;
-        }
-
-        impl InstanceAssignmentLhsKind for $lhs_val_ty {
-            type RhsIdentifierKind = $rhs_val_ty;
-        }
     };
 }
 

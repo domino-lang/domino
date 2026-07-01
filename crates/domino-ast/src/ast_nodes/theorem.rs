@@ -1,50 +1,68 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
-        common,
+        common, expressions,
         identifier::{
             AssumptionIdentifier, GameConstValueIdentifierKind, GameInstanceIdentifier,
             GameInstanceIdentifierKind, GameTypeIdentifierKind, LemmaIdentifier, OracleIdentifier,
             PackageInstanceIdentifier, TheoremConstValueIdentifierKind, TheoremIdentifier,
-            TheoremTypeIdentifierKind,
         },
         instances,
         list::{Comma, List, ListNoDelim},
-        params, ListItem, Parsable, Trivia,
+        params, types, ListItem, Parsable, Trivia,
     },
     Rule,
 };
 
-pub type TheoremConstDecl = common::ValueDecl<TheoremConstValueIdentifierKind>;
-pub type TheoremConstDeclList = common::ConstDeclList<TheoremConstValueIdentifierKind>;
-pub type TheoremConstParamBlock = params::ConstParamBlock<TheoremConstValueIdentifierKind>;
+#[derive(Debug, Clone, Copy)]
+pub struct PureTheoremExpressionKind;
 
-pub type InstanceConstAssignmentItem = instances::InstanceConstAssignmentItem<
-    GameConstValueIdentifierKind,
-    TheoremConstValueIdentifierKind,
->;
+impl expressions::ExpressionKind for PureTheoremExpressionKind {
+    type TypeKind = types::TheoremTypeKind;
+    type ValueIdentifierKind = TheoremConstValueIdentifierKind;
+}
+
+expressions::impl_expr!(PureTheoremExpressionKind);
+
+pub type Expression = expressions::Expression<PureTheoremExpressionKind>;
+pub type BinOpExpression = expressions::BinOpExpression<PureTheoremExpressionKind>;
+pub type UnOpExpression = expressions::UnOpExpression<PureTheoremExpressionKind>;
+pub type TableIndexExpression = expressions::TableIndexExpression<PureTheoremExpressionKind>;
+pub type ParenExpression = expressions::ParenExpression<PureTheoremExpressionKind>;
+pub type CallExpression = expressions::CallExpression<PureTheoremExpressionKind>;
+pub type TupleExpression = expressions::TupleExpression<PureTheoremExpressionKind>;
+pub type ExprList = expressions::ExprList<PureTheoremExpressionKind>;
+
+pub type SampleExpression = expressions::SampleExpression<PureTheoremExpressionKind>;
+pub type OracleInvocationExpression =
+    expressions::OracleInvocationExpression<PureTheoremExpressionKind>;
+
+pub type TheoremConstDecl = common::ValueDecl<PureTheoremExpressionKind>;
+pub type TheoremConstDeclList = common::ConstDeclList<PureTheoremExpressionKind>;
+pub type TheoremConstParamBlock = params::ConstParamBlock<PureTheoremExpressionKind>;
+
+pub type InstanceConstAssignmentItem =
+    instances::InstanceConstAssignmentItem<GameConstValueIdentifierKind, PureTheoremExpressionKind>;
 
 impl ListItem for InstanceConstAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_const_assignment_list;
 }
 
-pub type InstanceConstAssignmentList = instances::InstanceConstAssignmentList<
-    GameConstValueIdentifierKind,
-    TheoremConstValueIdentifierKind,
->;
+pub type InstanceConstAssignmentList =
+    instances::InstanceConstAssignmentList<GameConstValueIdentifierKind, PureTheoremExpressionKind>;
 pub type InstanceConstBlock =
-    instances::InstanceConstBlock<GameConstValueIdentifierKind, TheoremConstValueIdentifierKind>;
+    instances::InstanceConstBlock<GameConstValueIdentifierKind, PureTheoremExpressionKind>;
 pub type InstanceTypeAssignmentItem =
-    instances::InstanceTypeAssignmentItem<GameTypeIdentifierKind, TheoremTypeIdentifierKind>;
+    instances::InstanceTypeAssignmentItem<GameTypeIdentifierKind, types::TheoremTypeKind>;
 
 impl ListItem for InstanceTypeAssignmentItem {
     const LIST_RULE: Rule = Rule::inst_type_assignment_list;
 }
 
 pub type InstanceTypeAssignmentList =
-    instances::InstanceTypeAssignmentList<GameTypeIdentifierKind, TheoremTypeIdentifierKind>;
+    instances::InstanceTypeAssignmentList<GameTypeIdentifierKind, types::TheoremTypeKind>;
 pub type InstanceTypeBlock =
-    instances::InstanceTypeBlock<GameTypeIdentifierKind, TheoremTypeIdentifierKind>;
+    instances::InstanceTypeBlock<GameTypeIdentifierKind, types::TheoremTypeKind>;
 pub type InstanceItem = instances::InstanceItem<GameInstanceIdentifierKind>;
 
 impl ListItem for InstanceItem {
