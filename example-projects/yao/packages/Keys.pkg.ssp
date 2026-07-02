@@ -1,4 +1,7 @@
 package Keys {
+
+    invariant: [ ./packages/Keys.smt2 ]
+
     params {
         n: Integer,
     }
