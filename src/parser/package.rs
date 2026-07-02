@@ -249,7 +249,6 @@ pub fn handle_pkg_spec(
             .collect(),
         state: ctx.state,
         invariants: ctx.invariants,
-        //split_oracles: vec![],
         file_name: ctx.file_name.to_string(),
         file_contents: ctx.file_content.to_string(),
     })

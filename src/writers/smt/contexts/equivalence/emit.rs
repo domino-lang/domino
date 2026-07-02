@@ -234,7 +234,7 @@ impl<'a> EquivalenceContext<'a> {
         for pkg in &gctx_left.game().pkgs {
             if !pkg.pkg.invariants.is_empty() {
                 dependencies_code.push(build_left_invariant_old_call(&format!(
-                    "package-invariant<{}-{}>",
+                    "package-invariant!{}-{}!",
                     game_inst_name_left,
                     pkg.name()
                 )));
@@ -243,7 +243,7 @@ impl<'a> EquivalenceContext<'a> {
         for pkg in &gctx_right.game().pkgs {
             if !pkg.pkg.invariants.is_empty() {
                 dependencies_code.push(build_right_invariant_old_call(&format!(
-                    "package-invariant<{}-{}>",
+                    "package-invariant!{}-{}!",
                     game_inst_name_right,
                     pkg.name()
                 )));
@@ -252,13 +252,13 @@ impl<'a> EquivalenceContext<'a> {
 
         if !gctx_left.game().invariants.is_empty() {
             dependencies_code.push(build_left_invariant_old_call(&format!(
-                "game-invariant<{}>",
+                "game-invariant!{}!",
                 game_inst_name_left,
             )));
         }
         if !gctx_right.game().invariants.is_empty() {
             dependencies_code.push(build_right_invariant_old_call(&format!(
-                "game-invariant<{}>",
+                "game-invariant!{}!",
                 game_inst_name_right,
             )));
         }

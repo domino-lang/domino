@@ -176,7 +176,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         };
 
         self.handle_definefun(
-            &format!("game-invariant<{}>", self.game.unwrap().name()),
+            &format!("game-invariant!{}!", self.game.unwrap().name()),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -215,7 +215,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
         self.handle_definefun(
             &format!(
-                "package-invariant<{}-{}>",
+                "package-invariant!{}-{}!",
                 self.game.unwrap().name(),
                 self.package.unwrap().name()
             ),
