@@ -152,7 +152,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                             dependencies: vec!["no-abort".to_string()],
                             ty: ClaimType::LeftPackageInvariant,
                             name: format!(
-                                "package-invariant<{}-{}>",
+                                "package-invariant({}-{})",
                                 self.eqctx.left_game_inst_ctx().game_inst().name(),
                                 pkg.name()
                             ),
@@ -175,7 +175,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                             dependencies: vec!["no-abort".to_string()],
                             ty: ClaimType::RightPackageInvariant,
                             name: format!(
-                                "package-invariant<{}-{}>",
+                                "package-invariant({}-{})",
                                 self.eqctx.right_game_inst_ctx().game_inst().name(),
                                 pkg.name()
                             ),
@@ -189,7 +189,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 dependencies: vec!["no-abort".to_string()],
                 ty: ClaimType::LeftGameInvariant,
                 name: format!(
-                    "game-invariant<{}>",
+                    "game-invariant({})",
                     self.eqctx.left_game_inst_ctx().game_inst().name(),
                 ),
             })
