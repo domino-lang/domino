@@ -5,6 +5,9 @@ use super::EquivalenceContext;
 use crate::expressions::ExpressionKind;
 use crate::package::Export;
 use crate::packageinstance::PackageInstance;
+use crate::packageinstance::{
+    full_inst_type_mapping, game_inst_type_mapping_vec, pkg_inst_type_mapping_vec,
+};
 use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
 use crate::types::TypeKind;
@@ -127,6 +130,7 @@ struct SmtRewriteGame<'a> {
     context: &'a GameInstanceContext<'a>,
     package: Option<&'a PackageInstance>,
     content: Vec<SmtStmt>,
+    type_mapping: Vec<(SmtExpr, SmtExpr)>,
 }
 
 impl<'a> SmtRewriteEquivalence<'a> {
@@ -144,14 +148,24 @@ impl<'a> SmtRewriteGame<'a> {
             context,
             package: None,
             content: Vec::new(),
+            type_mapping: Vec::new(),
         }
     }
 
     fn new_with_package(context: &'a GameInstanceContext, package: &'a PackageInstance) -> Self {
+        let game_mapping = game_inst_type_mapping_vec(&context.game_inst().types);
+        let package_mapping = pkg_inst_type_mapping_vec(&package.types);
+        let full_mapping = full_inst_type_mapping(&package_mapping, &game_mapping)
+            .map(|(ty1, ty2)| (ty1.into(), ty2.into()))
+            .collect();
+
+        log::warn!("{full_mapping:?}");
+
         Self {
             context,
             package: Some(package),
             content: Vec::new(),
+            type_mapping: full_mapping,
         }
     }
 }
@@ -441,6 +455,36 @@ impl SmtParser<Error> for SmtRewriteGame<'_> {
     }
 
     fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
+        if content.len() > 2 && (content[0] == "forall".into() || content[0] == "exist".into()) {
+            if let SmtExpr::List(quantified) = &content[1] {
+                let quantified = quantified
+                    .iter()
+                    .map(|smtexpr| {
+                        if let SmtExpr::List(binding) = &smtexpr {
+                            if let [name, ty] = &binding[..] {
+                                return SmtExpr::List(vec![
+                                    name.clone(),
+                                    self.type_mapping
+                                        .iter()
+                                        .find_map(|(orig, repl)| {
+                                            if orig == ty {
+                                                Some(repl.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or(ty.clone()),
+                                ]);
+                            }
+                        }
+                        smtexpr.clone()
+                    })
+                    .collect();
+                let mut new_content = vec![content[0].clone(), SmtExpr::List(quantified)];
+                new_content.extend(content[2..].iter().cloned());
+                return Ok(SmtExpr::List(new_content));
+            }
+        }
         Ok(SmtExpr::List(content))
     }
 
