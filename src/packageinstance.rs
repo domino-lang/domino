@@ -795,6 +795,15 @@ pub(crate) mod instantiate {
     }
 }
 
+pub(crate) fn full_inst_type_mapping<'a>(
+    pkg_mapping: &'a [(Type, Type)],
+    game_mapping: &'a [(Type, Type)],
+) -> impl Iterator<Item = (Type, Type)> + 'a {
+    pkg_mapping
+        .iter()
+        .map(|(old, new)| (old.clone(), new.rewrite_type(game_mapping)))
+}
+
 pub(crate) fn game_inst_type_mapping<'a>(
     mapping: &'a [(String, Type)],
 ) -> impl Iterator<Item = (Type, Type)> + 'a {
@@ -809,7 +818,7 @@ pub(crate) fn game_inst_type_mapping_vec(mapping: &[(String, Type)]) -> Vec<(Typ
     game_inst_type_mapping(mapping).collect()
 }
 
-fn pkg_inst_type_mapping_vec(mapping: &[(String, Type)]) -> Vec<(Type, Type)> {
+pub(crate) fn pkg_inst_type_mapping_vec(mapping: &[(String, Type)]) -> Vec<(Type, Type)> {
     pkg_inst_type_mapping(mapping).collect()
 }
 
