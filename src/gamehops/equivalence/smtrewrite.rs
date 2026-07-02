@@ -5,6 +5,9 @@ use super::EquivalenceContext;
 use crate::expressions::ExpressionKind;
 use crate::package::Export;
 use crate::packageinstance::PackageInstance;
+use crate::packageinstance::{
+    full_inst_type_mapping, game_inst_type_mapping_vec, pkg_inst_type_mapping_vec,
+};
 use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
 use crate::types::TypeKind;
@@ -110,6 +113,7 @@ struct SmtRewrite<'a> {
     package: Option<&'a PackageInstance>,
     game: Option<&'a GameInstance>,
     content: Vec<SmtStmt>,
+    type_mapping: Vec<(SmtExpr, SmtExpr)>,
 }
 
 impl<'a> SmtRewrite<'a> {
@@ -119,6 +123,7 @@ impl<'a> SmtRewrite<'a> {
             package: None,
             game: None,
             content: Vec::new(),
+            type_mapping: Vec::new(),
         }
     }
 
@@ -128,6 +133,7 @@ impl<'a> SmtRewrite<'a> {
             package: None,
             game: Some(game),
             content: Vec::new(),
+            type_mapping: Vec::new(),
         }
     }
 
@@ -136,11 +142,20 @@ impl<'a> SmtRewrite<'a> {
         game: &'a GameInstance,
         package: &'a PackageInstance,
     ) -> Self {
+        let game_mapping = game_inst_type_mapping_vec(&game.types);
+        let package_mapping = pkg_inst_type_mapping_vec(&package.types);
+        let full_mapping = full_inst_type_mapping(&package_mapping, &game_mapping)
+            .map(|(ty1, ty2)| (ty1.into(), ty2.into()))
+            .collect();
+
+        log::warn!("{full_mapping:?}");
+
         Self {
             context,
             package: Some(package),
             game: Some(game),
             content: Vec::new(),
+            type_mapping: full_mapping,
         }
     }
 }
@@ -357,6 +372,36 @@ impl SmtParser<Error> for SmtRewrite<'_> {
     }
 
     fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
+        if content.len() > 2 && (content[0] == "forall".into() || content[0] == "exist".into()) {
+            if let SmtExpr::List(quantified) = &content[1] {
+                let quantified = quantified
+                    .iter()
+                    .map(|smtexpr| {
+                        if let SmtExpr::List(binding) = &smtexpr {
+                            if let [name, ty] = &binding[..] {
+                                return SmtExpr::List(vec![
+                                    name.clone(),
+                                    self.type_mapping
+                                        .iter()
+                                        .find_map(|(orig, repl)| {
+                                            if orig == ty {
+                                                Some(repl.clone())
+                                            } else {
+                                                None
+                                            }
+                                        })
+                                        .unwrap_or(ty.clone()),
+                                ]);
+                            }
+                        }
+                        smtexpr.clone()
+                    })
+                    .collect();
+                let mut new_content = vec![content[0].clone(), SmtExpr::List(quantified)];
+                new_content.extend(content[2..].iter().cloned());
+                return Ok(SmtExpr::List(new_content));
+            }
+        }
         Ok(SmtExpr::List(content))
     }
 
@@ -635,6 +680,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             game_params: &left_game_inst.consts,
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
+            pkg_types: &left_game_inst.game.pkgs[left_oracle_export.to()].types,
             oracle_name: &left_oracle_export.sig().name,
         };
 
@@ -654,6 +700,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             game_params: &right_game_inst.consts,
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
+            pkg_types: &right_game_inst.game.pkgs[right_oracle_export.to()].types,
             oracle_name: &right_oracle_export.sig().name,
         };
 
