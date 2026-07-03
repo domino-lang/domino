@@ -45,7 +45,7 @@ impl SourceFile {
 
 impl SourceLocation {
     pub fn from_file_and_pair(file_id: FileId, pair: &crate::Pair) -> Self {
-        crate::ast_nodes::trimmed_loc(file_id, pair)
+        crate::util::trimmed_loc(file_id, pair)
     }
     /// Returns the SourceFile for the location
     pub fn source_file<'a>(&self, arena: &'a Arena<SourceFile>) -> &'a SourceFile {

@@ -18,9 +18,9 @@
 
 pub mod arena;
 pub mod ast_nodes;
-mod side_tables;
 pub mod source;
 mod state;
+mod util;
 
 // NOTE:
 //   - This derive creates an enum `Rule`, which describes the grammar rules.
@@ -32,4 +32,5 @@ pub struct Domino;
 type Pair<'i> = pest::iterators::Pair<'i, Rule>;
 type Pairs<'i> = pest::iterators::Pairs<'i, Rule>;
 
-pub use state::{Arenas, GlobalRefId, State};
+pub use ast_nodes::Arenas;
+pub use state::{GlobalRefId, State};
