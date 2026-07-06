@@ -11,7 +11,10 @@ use crate::{
     theorem::Claim,
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
-    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
+    writers::smt::{
+        contexts::{EquivalenceContext, RandomnessMappingCondition},
+        exprs::{SmtAssert, SmtExpr, SmtNot},
+    },
 };
 
 pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
@@ -147,7 +150,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         smt.extend(&mut self.eqctx.emit_return_value_helpers(oracle.name()));
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
         smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
-        smt.extend(self.eqctx.emit_randomness_mapping(oracle.name()));
+        smt.extend(self.eqctx.emit_randomness_mapping_declarations(oracle.name()));
+        let randomness_mapping_condition =
+            self.randomness_mapping_condition(equivalence_smt, &smt, oracle.name());
+        smt.push(
+            self.eqctx
+                .emit_randomness_mapping_condition_assert(randomness_mapping_condition),
+        );
 
         let result: Vec<_> = claims
             .par_iter()
@@ -161,6 +170,80 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             &proofstep_name,
             oracle.name(),
         );
+
+        result
+    }
+
+    fn randomness_mapping_condition(
+        &self,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
+        oracle_name: &str,
+    ) -> RandomnessMappingCondition {
+        let mut condition = RandomnessMappingCondition::default();
+
+        for entry in self.eqctx.randomness_mapping_candidates(oracle_name) {
+            let mapping_call = self
+                .eqctx
+                .randomness_mapping_entry_call(oracle_name, &entry);
+
+            match self.check_randomness_mapping_query(
+                equivalence_smt,
+                oracle_smt,
+                SmtNot(mapping_call.clone()),
+            ) {
+                Ok(SmtSolverResponse::Unsat) => {
+                    condition.true_mappings.push(entry);
+                }
+                Err(err) => {
+                    log::warn!(
+                        "failed to prove randomness mapping true for oracle {oracle_name}: {err}"
+                    );
+                    condition.indeterminate_mappings.push(entry);
+                }
+                Ok(_) => match self.check_randomness_mapping_query(
+                    equivalence_smt,
+                    oracle_smt,
+                    mapping_call,
+                ) {
+                    Ok(SmtSolverResponse::Unsat) => {}
+                    Ok(response) => {
+                        log::debug!(
+                            "could not statically decide randomness mapping for oracle {oracle_name}; solver returned {response}"
+                        );
+                        condition.indeterminate_mappings.push(entry);
+                    }
+                    Err(err) => {
+                        log::warn!(
+                            "failed to prove randomness mapping false for oracle {oracle_name}: {err}"
+                        );
+                        condition.indeterminate_mappings.push(entry);
+                    }
+                },
+            }
+        }
+
+        condition
+    }
+
+    fn check_randomness_mapping_query(
+        &self,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
+        query: impl Into<SmtExpr>,
+    ) -> crate::util::smtsolver::Result<SmtSolverResponse> {
+        let mut solver = self.backend.new_smtsolver()?;
+        let result: crate::util::smtsolver::Result<SmtSolverResponse> = (|| {
+            for entry in equivalence_smt {
+                solver.write_smt(entry.clone())?;
+            }
+            for entry in oracle_smt {
+                solver.write_smt(entry.clone())?;
+            }
+            solver.write_smt(SmtAssert(query))?;
+            solver.check_sat()
+        })();
+        solver.close();
 
         result
     }

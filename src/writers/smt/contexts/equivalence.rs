@@ -4,6 +4,8 @@ use std::collections::{HashMap, HashSet};
 
 mod emit;
 
+pub(crate) use emit::RandomnessMappingCondition;
+
 use crate::{
     gamehops::equivalence::Equivalence,
     identifier::{

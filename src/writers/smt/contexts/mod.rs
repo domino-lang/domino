@@ -30,6 +30,7 @@ mod pkg_inst;
 // }
 
 pub use equivalence::EquivalenceContext;
+pub(crate) use equivalence::RandomnessMappingCondition;
 pub use game_inst::GameInstanceContext;
 pub use oracle::OracleContext;
 pub use pkg_inst::PackageInstanceContext;
