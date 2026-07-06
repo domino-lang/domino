@@ -19,21 +19,21 @@ pub trait TheoremUI {
 
     fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
 
-    fn start_oracle(
+    fn start_scope(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        oracle_name: &str,
+        scope_name: &str,
         num_lemmata: u64,
     );
 
-    fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
+    fn finish_scope(&mut self, theorem_name: &str, proofstep_name: &str, scope_name: &str);
 
     fn start_lemma(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        oracle_name: &str,
+        scope_name: &str,
         lemma_name: &str,
     );
 
@@ -41,7 +41,7 @@ pub trait TheoremUI {
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        oracle_name: &str,
+        scope_name: &str,
         lemma_name: &str,
     );
 }
