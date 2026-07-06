@@ -32,6 +32,10 @@ use crate::{
 };
 
 impl<'a> EquivalenceContext<'a> {
+    pub(crate) fn emit_randomness_mapping(&self, oracle_name: &str) -> Vec<SmtExpr> {
+        vec![]
+    }
+
     pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
         if let Some(invariants) = self.invariants.get(oracle_name) {
             invariants.clone()

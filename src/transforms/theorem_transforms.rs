@@ -5,7 +5,7 @@ use std::{collections::HashSet, convert::Infallible};
 use crate::{theorem::GameInstance, types::Type};
 
 use super::{
-    deconstructinvoke, loopunroll,
+    deconstructinvoke, loopunroll, max_offset_extractor,
     resolveoracles::{self, ResolutionError},
     returnify, samplify, tableinitialize, treeify, type_extract, unwrapify, GameTransform,
     Transformation,
@@ -53,7 +53,7 @@ fn transform_game_inst(
     let (comp, _) = deconstructinvoke::Transformation(&comp)
         .transform()
         .expect("splitinvoke failed unexpectedly");
-    let (comp, samplinginfo) = samplify::Transformation(&comp)
+    let (comp, mut samplinginfo) = samplify::Transformation(&comp)
         .transform()
         .expect("samplify transformation failed unexpectedly");
     let (comp, _) = unwrapify::Transformation(&comp)
@@ -64,6 +64,7 @@ fn transform_game_inst(
         .unwrap_or_else(|ResolutionError(failed_oracle_stmts)| {
             panic!("error resolving oracles: {failed_oracle_stmts:?}")
         });
+    max_offset_extractor::Transformation(&comp, &mut samplinginfo).transform();
     let (comp, _) = returnify::TransformNg
         .transform_game(&comp)
         .expect("returnify transformation failed unexpectedly");

@@ -68,6 +68,7 @@ fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr
             tys: Vec::new(),
             count: 0,
             positions: Vec::new(),
+            max_offset: None,
         },
     };
 
