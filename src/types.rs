@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
+use crate::{identifier::{Identifier, pkg_ident::PackageIdentifier}, writers::smt::exprs::SmtExpr};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Type {
@@ -100,6 +100,49 @@ impl Type {
 
     pub fn kind_mut(&mut self) -> &mut TypeKind {
         &mut self.kind
+    }
+
+    pub fn default_smt_value(&self) -> SmtExpr {
+        match self.kind() {
+            TypeKind::Integer => 0.into(),
+            TypeKind::Boolean => false.into(),
+            TypeKind::Empty => "mk-empty".into(),
+            TypeKind::Bits(count_spec) => match count_spec {
+                CountSpec::Literal(len) => format!("<0_{len}>").into(),
+                CountSpec::Identifier(id) => {
+                    let suffix = id
+                        .as_theorem_identifier()
+                        .map(|theorem_ident| theorem_ident.ident())
+                        .unwrap_or_else(|| id.ident());
+                    format!("<0_{suffix}>").into()
+                }
+                CountSpec::Any => {
+                    panic!("cannot build a default value for Bits(*)")
+                }
+            },
+            TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
+            TypeKind::Table(_index_ty, value_ty) => (
+                ("as", "const", self.clone()),
+                ("as", "mk-none", Type::maybe(*value_ty.clone())),
+            )
+                .into(),
+            TypeKind::Tuple(types) => {
+                let mut call = Vec::with_capacity(types.len() + 1);
+                call.push(format!("mk-tuple{}", types.len()).into());
+                call.extend(types.iter().map(|x| x.default_smt_value()));
+                call.into()
+            }
+            TypeKind::Unknown
+            | TypeKind::String
+            | TypeKind::AddiGroupEl(_)
+            | TypeKind::MultGroupEl(_)
+            | TypeKind::List(_)
+            | TypeKind::Set(_)
+            | TypeKind::Fn(_, _)
+            | TypeKind::UserDefined(_) => {
+                panic!("cannot build a default value for type {self}")
+            }
+        }
     }
 }
 

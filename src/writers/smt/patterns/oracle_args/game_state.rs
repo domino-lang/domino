@@ -16,9 +16,13 @@ pub struct GameStatePattern<'a> {
 }
 
 impl OracleArgPattern for GameStatePattern<'_> {
-    type Variant = OldNewVariant;
+    type Variant = GameStateOracleArgVariant;
 
-    fn global_const_name(&self, game_inst_name: &str, variant: &OldNewVariant) -> String {
+    fn global_const_name(
+        &self,
+        game_inst_name: &str,
+        variant: &GameStateOracleArgVariant,
+    ) -> String {
         format!("<<game-state-{game_inst_name}-{variant}>>")
     }
 

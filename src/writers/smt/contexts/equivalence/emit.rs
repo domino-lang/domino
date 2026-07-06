@@ -21,7 +21,8 @@ use crate::{
             datastructures::DatastructurePattern,
             declare_datatype,
             functions::FunctionPattern,
-            oracle_args::OldNewOracleArgPattern,
+            oracle_args::GameStateOracleArgPattern,
+            oracle_args::OracleArgPattern,
             oracle_args::UnitOracleArgPattern,
             theorem_constants::ConstantPattern,
             GameStateDeclareInfo, ReturnIsAbortConst, SmtDefineFun,
@@ -38,6 +39,75 @@ impl<'a> EquivalenceContext<'a> {
         } else {
             vec![]
         }
+    }
+
+    pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
+        let mut out = Vec::new();
+
+        out.extend(self.emit_game_initial_state_values(
+            self.left_game_inst_ctx()
+        ));
+        out.extend(self.emit_game_initial_state_values(
+            self.right_game_inst_ctx()
+        ));
+
+        out
+    }
+
+    pub(crate) fn emit_initial_invariant_claim(&self) -> SmtExpr {
+        let gctx_left = self.left_game_inst_ctx();
+        let gctx_right = self.right_game_inst_ctx();
+
+        let state_left = gctx_left.oracle_arg_game_state_pattern();
+        let state_right = gctx_right.oracle_arg_game_state_pattern();
+
+        SmtAssert(SmtNot((
+            "invariant",
+            state_left.global_const_name(
+                self.equivalence.left_name(),
+                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+            ),
+            state_right.global_const_name(
+                self.equivalence.right_name(),
+                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+            ),
+        )))
+        .into()
+    }
+
+    fn emit_game_initial_state_values(
+        &self,
+        gctx: GameInstanceContext<'a>
+    ) -> Vec<SmtExpr> {
+        let game_inst_name = gctx.game_inst_name();
+        let initial_state = gctx.oracle_arg_game_state_pattern().global_const_name(
+            game_inst_name,
+            &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+        );
+
+        let mut out = Vec::new();
+
+        for pctx in gctx.pkg_inst_contexts() {
+            let pkg_state = gctx
+                .smt_access_gamestate_pkgstate(&initial_state, pctx.pkg_inst_name())
+                .unwrap();
+
+            for (field_name, field_ty, _) in &pctx.pkg().state {
+                let field = pctx
+                    .smt_access_pkgstate(pkg_state.clone(), field_name)
+                    .unwrap();
+
+                out.push(
+                    SmtAssert(SmtEq2 {
+                        lhs: field,
+                        rhs: field_ty.default_smt_value(),
+                    })
+                    .into(),
+                );
+            }
+        }
+
+        out
     }
 
     pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
@@ -646,8 +716,10 @@ impl<'a> EquivalenceContext<'a> {
         // the new ones are declared in the declare-then-assert loop below
 
         out.push(game_state_left.declare_old(left_game_inst_name));
+        out.push(game_state_left.declare_initial(left_game_inst_name));
         //out.push(game_state_left.declare_new(left_game_inst_name));
         out.push(game_state_right.declare_old(right_game_inst_name));
+        out.push(game_state_right.declare_initial(right_game_inst_name));
         //out.push(game_state_right.declare_new(right_game_inst_name));
 
         ////// consts constants
