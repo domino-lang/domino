@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashSet},
+    fmt::Display,
+};
 
 use crate::{
     hacks,
@@ -9,7 +12,7 @@ use crate::{
     writers::smt::{
         contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
         declare::declare_const,
-        exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtForall, SmtImplies, SmtIte, SmtNot},
+        exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtIte, SmtNot},
         patterns,
         patterns::{
             const_mapping::GameConstMappingFunction,
@@ -101,7 +104,68 @@ impl RandomnessMappingInjectivityCheck {
     }
 }
 
+pub(crate) const RANDOMNESS_MAPPING_CONDITION_NAME: &str = "<randomness-mapping>";
+pub(crate) const RAND_IS_EQ_IF_MAPPED_NAME: &str = "<rand-is-eq-if-mapped>";
+
+#[derive(Clone, Debug)]
+pub(crate) struct RandomnessMappingEntry {
+    pub(crate) sample_id_left: SmtExpr,
+    pub(crate) sample_id_right: SmtExpr,
+    pub(crate) offset_left: usize,
+    pub(crate) offset_right: usize,
+}
+
+impl Display for RandomnessMappingEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "left id: {}, right id: {}, left offset: {}, right offset: {}",
+            self.sample_id_left, self.sample_id_right, self.offset_left, self.offset_right
+        )
+    }
+}
+
 impl<'a> EquivalenceContext<'a> {
+    pub(crate) fn emit_randomness_mapping_declarations(&self, oracle_name: &str) -> Vec<SmtExpr> {
+        vec![
+            declare_const(RANDOMNESS_MAPPING_CONDITION_NAME, Type::boolean().into()),
+            SmtDefineFun {
+                is_rec: false,
+                sort: Type::boolean().into(),
+                name: RAND_IS_EQ_IF_MAPPED_NAME.to_string(),
+                body: SmtImplies(
+                    (
+                        format!("randomness-mapping-{oracle_name}"),
+                        "sample-id-left",
+                        "sample-id-right",
+                        "sample-offset-left",
+                        "sample-offset-right",
+                    ),
+                    (
+                        "rand-is-eq",
+                        "sample-id-left",
+                        "sample-id-right",
+                        "sample-offset-left",
+                        "sample-offset-right",
+                    ),
+                ),
+                args: vec![
+                    (
+                        "sample-id-left".to_string(),
+                        Sort::Other("SampleId".to_string(), vec![]),
+                    ),
+                    (
+                        "sample-id-right".to_string(),
+                        Sort::Other("SampleId".to_string(), vec![]),
+                    ),
+                    ("sample-offset-left".to_string(), Type::integer().into()),
+                    ("sample-offset-right".to_string(), Type::integer().into()),
+                ],
+            }
+            .into(),
+        ]
+    }
+
     pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
         if let Some(invariants) = self.invariants.get(oracle_name) {
             invariants.clone()
@@ -352,34 +416,8 @@ impl<'a> EquivalenceContext<'a> {
             ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
         };
 
-        let randomness_mapping = SmtForall {
-            bindings: vec![
-                ("randmap-sample-id-left".into(), "SampleId".into()),
-                ("randmap-sample-offset-left".into(), Type::integer().into()),
-                ("randmap-sample-id-right".into(), "SampleId".into()),
-                ("randmap-sample-offset-right".into(), Type::integer().into()),
-            ],
-            body: (
-                "=>",
-                (
-                    format!("randomness-mapping-{oracle_name}"),
-                    "randmap-sample-id-left",
-                    "randmap-sample-id-right",
-                    "randmap-sample-offset-left",
-                    "randmap-sample-offset-right",
-                ),
-                (
-                    "rand-is-eq",
-                    "randmap-sample-id-left",
-                    "randmap-sample-id-right",
-                    "randmap-sample-offset-left",
-                    "randmap-sample-offset-right",
-                ),
-            ),
-        };
-
         let mut dependencies_code: Vec<SmtExpr> = vec![
-            randomness_mapping.into(),
+            RANDOMNESS_MAPPING_CONDITION_NAME.into(),
             build_invariant_old_call("invariant"),
         ];
 
@@ -423,6 +461,97 @@ impl<'a> EquivalenceContext<'a> {
             SmtAnd(dependencies_code),
             postcond_call,
         )))
+        .into()
+    }
+
+    fn randomness_mapping_candidates(&self, oracle_name: &str) -> Vec<RandomnessMappingEntry> {
+        let left_export = self
+            .left_game_inst_ctx()
+            .game()
+            .exports
+            .iter()
+            .find(|export| export.name() == oracle_name)
+            .unwrap_or_else(|| panic!("could not find left export {oracle_name}"));
+        let right_export = self
+            .right_game_inst_ctx()
+            .game()
+            .exports
+            .iter()
+            .find(|export| export.name() == oracle_name)
+            .unwrap_or_else(|| panic!("could not find right export {oracle_name}"));
+
+        let left_offsets = self
+            .sample_info_left()
+            .max_offset
+            .get(left_export)
+            .unwrap_or_else(|| panic!("could not find max offsets for left export {oracle_name}"));
+        let right_offsets = self
+            .sample_info_right()
+            .max_offset
+            .get(right_export)
+            .unwrap_or_else(|| panic!("could not find max offsets for right export {oracle_name}"));
+
+        let mut left_entries: Vec<_> = left_offsets
+            .iter()
+            .flat_map(|(position, max_offset)| {
+                (0..*max_offset)
+                    .map(move |offset| (position.sample_id, SmtExpr::from(position), offset))
+            })
+            .collect();
+        let mut right_entries: Vec<_> = right_offsets
+            .iter()
+            .flat_map(|(position, max_offset)| {
+                (0..*max_offset)
+                    .map(move |offset| (position.sample_id, SmtExpr::from(position), offset))
+            })
+            .collect();
+
+        left_entries.sort_by_key(|(sample_id, _expr, offset)| (*sample_id, *offset));
+        right_entries.sort_by_key(|(sample_id, _expr, offset)| (*sample_id, *offset));
+
+        left_entries
+            .iter()
+            .flat_map(|(_left_sample_id, sample_id_left, offset_left)| {
+                right_entries.iter().map(
+                    move |(_right_sample_id, sample_id_right, offset_right)| {
+                        RandomnessMappingEntry {
+                            sample_id_left: sample_id_left.clone(),
+                            sample_id_right: sample_id_right.clone(),
+                            offset_left: *offset_left,
+                            offset_right: *offset_right,
+                        }
+                    },
+                )
+            })
+            .collect()
+    }
+
+    pub(crate) fn emit_randomness_mapping_condition(&self, oracle_name: &str) -> SmtExpr {
+        let conjuncts: Vec<SmtExpr> = self
+            .randomness_mapping_candidates(oracle_name)
+            .iter()
+            .map(|entry| {
+                (
+                    RAND_IS_EQ_IF_MAPPED_NAME,
+                    entry.sample_id_left.clone(),
+                    entry.sample_id_right.clone(),
+                    entry.offset_left,
+                    entry.offset_right,
+                )
+                    .into()
+            })
+            .collect();
+
+        let rhs: SmtExpr = if conjuncts.is_empty() {
+            true.into()
+        } else {
+            SmtAnd(conjuncts).into()
+        };
+
+        SmtAssert(SmtEq2 {
+            lhs: RANDOMNESS_MAPPING_CONDITION_NAME,
+            rhs,
+        })
         .into()
     }
 
