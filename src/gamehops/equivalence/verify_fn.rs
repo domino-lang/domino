@@ -7,7 +7,10 @@ use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
+    gamehops::equivalence::{
+        error::{ClaimTheoremFailedError, Error, Result},
+        ClaimScope,
+    },
     package::Export,
     project::Project,
     theorem::{Claim, ClaimType},
@@ -99,33 +102,77 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().proofstep_set_oracles(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle_sequence.len().try_into().unwrap(),
+            (oracle_sequence.len() + 1) // 1 is for checking invariants in the initial state
+                .try_into()
+                .unwrap(),
         );
 
-        let failed_oracles: Vec<_> = rayon::ThreadPoolBuilder::new()
+        let claims = rayon::ThreadPoolBuilder::new()
             .num_threads(self.parallel + 1) // one process is reserved for the "main" method
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
-                oracle_sequence
-                    .par_iter()
-                    .map(|oracle| -> Vec<Result<()>> {
+                rayon::iter::once(())
+                    .map(|_| vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)])
+                    .chain(oracle_sequence.par_iter().map(|oracle| -> Vec<Result<()>> {
                         self.verify_oracle(ui.clone(), &smt, oracle)
-                    })
+                    }))
                     .flatten()
                     .collect()
-            })
-            .into_iter()
-            .filter_map(Result::err)
-            .collect();
-        if !failed_oracles.is_empty() {
+            });
+
+        let failed_claims: Vec<_> = claims.into_iter().filter_map(Result::err).collect();
+        if !failed_claims.is_empty() {
             return Err(Error::ParallelEquivalenceError {
                 left_game_inst_name: eq.left_name.clone(),
                 right_game_inst_name: eq.right_name.clone(),
-                failed_oracles,
+                failed_claims,
             });
         }
         Ok(())
+    }
+
+    fn verify_invariants_in_initial_state<UI: TheoremUI + Send>(
+        &self,
+        ui: Arc<Mutex<&mut UI>>,
+        equivalence_smt: &[SmtExpr],
+    ) -> Result<()> {
+        let mut smt = vec![];
+        let eq = self.eqctx.equivalence();
+        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+
+        let claim = Claim {
+            name: "!initial-state!".to_string(),
+            dependencies: vec![],
+            ty: ClaimType::InitialState,
+            admitted: false,
+        };
+
+        let claim_scope = ClaimScope::InitialState;
+
+        ui.lock().unwrap().start_scope(
+            &self.eqctx.theorem().name,
+            &proofstep_name,
+            claim_scope.name(),
+            1,
+        );
+
+        log::info!("verify: invariants in initial state");
+        // TODO: this is temporary workaround until we make the invariants equivalence-wide.
+        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
+        let oracle_name = self.oracle_sequence().first().unwrap().name();
+        smt.append(&mut self.eqctx.emit_invariant(oracle_name));
+        smt.append(&mut self.eqctx.emit_initial_state_values());
+
+        let result = self.verify_claim(ui.clone(), equivalence_smt, &smt, &claim, &claim_scope);
+
+        ui.lock().unwrap().finish_scope(
+            &self.eqctx.theorem().name,
+            &proofstep_name,
+            claim_scope.name(),
+        );
+
+        result
     }
 
     fn verify_oracle<UI: TheoremUI + Send>(
@@ -218,10 +265,12 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             })
         }
 
-        ui.lock().unwrap().start_oracle(
+        let claim_scope = ClaimScope::Oracle(oracle.name().to_string());
+
+        ui.lock().unwrap().start_scope(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
             claims.len().try_into().unwrap(),
         );
 
@@ -240,14 +289,14 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 }
             })
             .map(|claim| -> Result<()> {
-                self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle, claim)
+                self.verify_claim(ui.clone(), equivalence_smt, &smt, claim, &claim_scope)
             })
             .collect();
 
-        ui.lock().unwrap().finish_oracle(
+        ui.lock().unwrap().finish_scope(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
         );
 
         result
@@ -257,16 +306,16 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         &self,
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
-        oracle_smt: &[SmtExpr],
-        oracle: &Export,
+        scope_smt: &[SmtExpr],
         claim: &Claim,
+        claim_scope: &ClaimScope,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         ui.lock().unwrap().start_lemma(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
             claim.name(),
         );
 
@@ -279,7 +328,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                             eq.theorem_name(),
                             eq.left_name(),
                             eq.right_name(),
-                            oracle.name(),
+                            claim_scope.name(),
                             claim.name(),
                         )
                         .unwrap();
@@ -289,24 +338,24 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     self.backend.new_smtsolver()
                 }
             }
-            .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
+            .map_err(|err| Error::prover_process_error(claim.name(), claim_scope.name(), err))?;
             std::thread::sleep(std::time::Duration::from_millis(20));
 
             for entry in equivalence_smt
                 .iter()
-                .chain(oracle_smt)
+                .chain(scope_smt)
                 .chain(std::iter::once(
-                    &self.eqctx.emit_claim_assert(oracle.name(), claim),
+                    &self.eqctx.emit_claim_assert(claim, claim_scope),
                 ))
             {
                 solver
                     .write_smt(entry.clone())
-                    .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
+                    .map_err(|err| Error::prover_process_error(claim.name(), claim_scope.name(), err))?;
             }
 
             match solver
                 .check_sat()
-                .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?
+                .map_err(|err| Error::prover_process_error(claim.name(), claim_scope.name(), err))?
             {
                 SmtSolverResponse::Unsat => {}
                 response => {
@@ -320,7 +369,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     solver.close();
                     return Err(ClaimTheoremFailedError {
                         claim_name: claim.name().to_string(),
-                        oracle_name: oracle.name().to_string(),
+                        scope_name: claim_scope.name().to_string(),
                         response,
                         modelfile,
                     }
@@ -331,7 +380,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().finish_lemma(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
             claim.name(),
         );
 
