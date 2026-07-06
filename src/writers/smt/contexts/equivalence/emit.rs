@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::{collections::{BTreeMap, BTreeSet, HashSet}, fmt::Display};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
@@ -40,6 +40,15 @@ pub(crate) struct RandomnessMappingEntry {
     pub(crate) sample_id_right: SmtExpr,
     pub(crate) offset_left: usize,
     pub(crate) offset_right: usize,
+}
+
+impl Display for RandomnessMappingEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, 
+            "left id: {}, right id: {}, left offset: {}, right offset: {}", 
+            self.sample_id_left, self.sample_id_right, 
+            self.offset_left, self.offset_right)
+    }
 }
 
 #[derive(Clone, Debug, Default)]

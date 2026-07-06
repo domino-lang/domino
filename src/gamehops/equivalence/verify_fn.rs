@@ -183,44 +183,29 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut condition = RandomnessMappingCondition::default();
 
         for entry in self.eqctx.randomness_mapping_candidates(oracle_name) {
+            condition.indeterminate_mappings.push(entry);
+            /*
             let mapping_call = self
                 .eqctx
                 .randomness_mapping_entry_call(oracle_name, &entry);
-
+            log::info!("checking randomness mapping {entry} for oracle {oracle_name}");
             match self.check_randomness_mapping_query(
                 equivalence_smt,
                 oracle_smt,
+                oracle_name,
                 SmtNot(mapping_call.clone()),
             ) {
-                Ok(SmtSolverResponse::Unsat) => {
-                    condition.true_mappings.push(entry);
-                }
+                Ok(SmtSolverResponse::Unsat) => condition.true_mappings.push(entry),
+                Ok(SmtSolverResponse::Sat) => (),
+                Ok(SmtSolverResponse::Unknown) => condition.indeterminate_mappings.push(entry),
                 Err(err) => {
                     log::warn!(
-                        "failed to prove randomness mapping true for oracle {oracle_name}: {err}"
+                        "failed to check randomness mapping for oracle {oracle_name}: {err}"
                     );
                     condition.indeterminate_mappings.push(entry);
-                }
-                Ok(_) => match self.check_randomness_mapping_query(
-                    equivalence_smt,
-                    oracle_smt,
-                    mapping_call,
-                ) {
-                    Ok(SmtSolverResponse::Unsat) => {}
-                    Ok(response) => {
-                        log::debug!(
-                            "could not statically decide randomness mapping for oracle {oracle_name}; solver returned {response}"
-                        );
-                        condition.indeterminate_mappings.push(entry);
-                    }
-                    Err(err) => {
-                        log::warn!(
-                            "failed to prove randomness mapping false for oracle {oracle_name}: {err}"
-                        );
-                        condition.indeterminate_mappings.push(entry);
-                    }
                 },
             }
+            */
         }
 
         condition
@@ -230,19 +215,39 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         &self,
         equivalence_smt: &[SmtExpr],
         oracle_smt: &[SmtExpr],
+        oracle_name: &str,
         query: impl Into<SmtExpr>,
     ) -> crate::util::smtsolver::Result<SmtSolverResponse> {
-        let mut solver = self.backend.new_smtsolver()?;
-        let result: crate::util::smtsolver::Result<SmtSolverResponse> = (|| {
-            for entry in equivalence_smt {
-                solver.write_smt(entry.clone())?;
+        let eq = self.eqctx.equivalence();
+        let mut solver = {
+            if self.transcript {
+                let transcript_file: std::fs::File = self
+                    .project
+                    .get_joined_smt_file(
+                        eq.left_name(),
+                        eq.right_name(),
+                        oracle_name,
+                        "randomness-mapping",
+                    )
+                    .unwrap();
+
+                self.backend
+                    .new_smtsolver_with_transcript(transcript_file)?
+            } else {
+                self.backend.new_smtsolver()?
             }
-            for entry in oracle_smt {
-                solver.write_smt(entry.clone())?;
-            }
-            solver.write_smt(SmtAssert(query))?;
-            solver.check_sat()
-        })();
+        };
+        /* We only need the sample-id definition and user-provided randomness 
+        mapping but because randomness mapping is mixed with invariants which 
+        depend on game state definition */
+        for entry in equivalence_smt {
+            solver.write_smt(entry.clone())?;
+        }
+        for entry in oracle_smt {
+            solver.write_smt(entry.clone())?;
+        }
+        solver.write_smt(SmtAssert(query))?;
+        let result = solver.check_sat();
         solver.close();
 
         result
