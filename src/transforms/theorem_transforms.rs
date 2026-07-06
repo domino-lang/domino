@@ -45,17 +45,18 @@ fn transform_game_inst(
         .transform()
         .expect("type extraction transformation failed unexpectedly");
     /*
-     * Note: we currently do samplify early so a `if foo { stuff }
+     * Note 1: we currently do samplify early so a `if foo { stuff }
      * else { other stuff } ... x <- Integer` gets the same sample
      * counter for the x sampling after returnify (instead of
      * different ones depending on which branch was taken)
+     * Note 2: In addition to compiling all sampling points and assigning
+     * identifiers to them, samplify computes the maximum possible counter/offset
+     * each sampling operation can be sampled from and this computation depends on
+     * oracle resolution.
      */
     let (comp, _) = deconstructinvoke::Transformation(&comp)
         .transform()
         .expect("splitinvoke failed unexpectedly");
-    let (comp, samplinginfo) = samplify::Transformation(&comp)
-        .transform()
-        .expect("samplify transformation failed unexpectedly");
     let (comp, _) = unwrapify::Transformation(&comp)
         .transform()
         .expect("unwrapify transformation failed unexpectedly");
@@ -64,6 +65,9 @@ fn transform_game_inst(
         .unwrap_or_else(|ResolutionError(failed_oracle_stmts)| {
             panic!("error resolving oracles: {failed_oracle_stmts:?}")
         });
+    let (comp, samplinginfo) = samplify::Transformation(&comp)
+        .transform()
+        .expect("samplify transformation failed unexpectedly");
     let (comp, _) = returnify::TransformNg
         .transform_game(&comp)
         .expect("returnify transformation failed unexpectedly");

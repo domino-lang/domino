@@ -436,6 +436,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let return_value_helpers = self.eqctx.emit_return_value_helpers(oracle.name());
         let mut oracle_claim_smt = oracle_smt.to_owned();
         oracle_claim_smt.push(return_value_helpers.as_slice());
+        let randomness_mapping_declarations = self
+            .eqctx
+            .emit_randomness_mapping_declarations(oracle.name());
+        oracle_claim_smt.push(randomness_mapping_declarations.as_slice());
+        let randomness_mapping_condition =
+            [self.eqctx.emit_randomness_mapping_condition(oracle.name())];
+        oracle_claim_smt.push(&randomness_mapping_condition);
 
         let verify_oracle_claims = claims
             .par_iter()
