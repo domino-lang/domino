@@ -1,7 +1,8 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
-        expressions, game, identifier,
+        expressions, game,
+        identifier::{self, Identifier},
         list::{Comma, List},
         package, theorem, InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
@@ -51,7 +52,7 @@ impl TypeKind for TheoremTypeKind {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Type<TK: TypeKind> {
-    Identifier(Ref<identifier::PackageTypeArgumentIdentifier>),
+    Identifier(Ref<Identifier<TK::TypeIdentifierKind>>),
     Tuple(Ref<TupleType<TK>>),
     Argumented(Ref<ArgumentedType<TK>>),
     Fn(Ref<FnType<TK>>),
@@ -107,6 +108,7 @@ where
     TupleType<TK>: Parsable,
     FnType<TK>: Parsable,
     TypeArgList<TK>: Parsable,
+    Identifier<TK::TypeIdentifierKind>: Parsable,
 {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {

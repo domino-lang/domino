@@ -18,6 +18,7 @@
 
 pub mod arena;
 pub mod ast_nodes;
+pub mod diag;
 pub mod source;
 mod state;
 mod util;
@@ -32,5 +33,5 @@ pub struct Domino;
 type Pair<'i> = pest::iterators::Pair<'i, Rule>;
 type Pairs<'i> = pest::iterators::Pairs<'i, Rule>;
 
-pub use ast_nodes::Arenas;
-pub use state::{GlobalRefId, State};
+pub use ast_nodes::{Arenas, Parsable, Visitor};
+pub use state::{DenseTable, GlobalRefId, GlobalTable, LocationTable, State, Tables};

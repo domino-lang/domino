@@ -182,6 +182,20 @@ macro_rules! define_arenas {
     };
 }
 
+macro_rules! define_visitor_trait {
+  ($( fn $fn_name:ident( ... , node: $node_type:ty) );*) => {
+    /// A helper trait for browsing the AST.
+    ///
+    /// Methods have the form `fn {ast_node_field_name}(&mut self, arenas: &Arenas, node: Ref<{ast_node_ty}>)`.
+    pub trait Visitor {
+      $(
+        #[allow(unused_variables)]
+        fn $fn_name(&mut self, arenas: &$crate::Arenas, node: $crate::arena::Ref<$node_type>) {}
+      )*
+    }
+  }
+}
+
 macro_rules! define_node_type_enum {
     ($($variant_name:ident : $node_type:ty),* $(,)?) => {
         #[repr(u8)]
@@ -214,6 +228,10 @@ macro_rules! define_node_types {
           $(
             $field_name: $node_type,
           )*
+        }
+
+        define_visitor_trait! {
+          $( fn $field_name( ... , node: $node_type) );*
         }
     };
 }
@@ -329,7 +347,7 @@ define_node_types! {
     ImportOraclesBlock { import_oracle_block: package::ImportOraclesBlock }
     StateBlock { state_block: package::StateBlock }
 
-    PackageConstDecl { pkg_const_block: package::PackageConstDecl }
+    PackageConstDecl { pkg_const_decl: package::PackageConstDecl }
     PackageConstDeclList { pkg_const_decl_list: package::PackageConstDeclList }
     PackageConstParamBlock { pkg_const_param_block: package::PackageConstParamBlock }
 
@@ -337,7 +355,7 @@ define_node_types! {
     PackageTypeParamBlock { pkg_type_param_block: package::PackageTypeParamBlock }
     PackageItem { pkg_item: package::PackageItem }
     PackageItemList { pkg_item_list: package::PackageItemList }
-    Package { pkg: package::Package }
+    Package { package: package::Package }
 
     PackageTypeIdentifier { pkg_type_ident: identifier::PackageTypeIdentifier }
     GameTypeIdentifier { game_type_ident: identifier::GameTypeIdentifier }
