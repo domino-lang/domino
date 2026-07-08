@@ -1,16 +1,65 @@
 use domino_ast::{
     arena::{Arena, Ref},
-    ast_nodes::{
-        expressions, identifier, oracles, package,
-        statements::{self, AssignStatement},
-        types, NodeType, Visitor,
-    },
+    ast_nodes::{expressions, identifier, oracles, package, statements, types, NodeType, Visitor},
     source::{SourceFile, SourceLocation},
     Arenas, DenseTable, GlobalTable,
 };
 use domino_diagnostic::Resolver;
 
-use crate::{diag, scope::*, BuiltinType, BuiltinValue, Declaration};
+use crate::{diag, scope::*, BuiltinType, BuiltinValue, DeclarationType};
+
+#[derive(Debug, Clone, Copy)]
+pub enum PackageDeclaration {
+    OracleImport(Ref<oracles::OracleSignature>),
+
+    BuiltinType(BuiltinType),
+    TypeParam(Ref<identifier::PackageTypeIdentifier>),
+
+    Const(Ref<package::PackageConstDecl>),
+    State(Ref<package::PackageConstDecl>),
+
+    OracleArg(Ref<oracles::OracleValueArgDecl>),
+    OracleLocal(Ref<statements::AssignStatement>),
+    BuiltinValue(BuiltinValue),
+}
+
+impl PackageDeclaration {}
+
+impl From<BuiltinType> for PackageDeclaration {
+    fn from(value: BuiltinType) -> Self {
+        Self::BuiltinType(value)
+    }
+}
+
+impl From<BuiltinValue> for PackageDeclaration {
+    fn from(value: BuiltinValue) -> Self {
+        Self::BuiltinValue(value)
+    }
+}
+
+impl crate::Declaration for PackageDeclaration {
+    fn decl_type(&self) -> DeclarationType {
+        match self {
+            PackageDeclaration::OracleImport(_) => DeclarationType::OracleImport,
+
+            PackageDeclaration::TypeParam(_) => DeclarationType::Type,
+            PackageDeclaration::BuiltinType(_) => DeclarationType::Type,
+
+            PackageDeclaration::BuiltinValue(BuiltinValue::True) => DeclarationType::PureValue,
+            PackageDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
+            PackageDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
+            PackageDeclaration::Const(_) => DeclarationType::PureValue,
+            PackageDeclaration::State(_) => DeclarationType::Value,
+
+            PackageDeclaration::OracleArg(_) => DeclarationType::Value,
+            PackageDeclaration::OracleLocal(_) => DeclarationType::Value,
+
+            // TODO: Actually, whether this is pure or not depends on whether the inner expression
+            //       is pure, but we can't tell that at this point, so we are conservative.
+            PackageDeclaration::BuiltinValue(BuiltinValue::Some) => DeclarationType::Value,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum OracleDeclaration {
@@ -40,10 +89,8 @@ pub enum TypeArgDeclaration {
     Builtin(BuiltinType),
 }
 
-pub struct PackageVisitor<'a> {
-    locations: &'a GlobalTable<SourceLocation>,
-    scope: Scope,
-
+#[derive(Debug, Clone)]
+pub struct PackageVisitorTables {
     pub package_names: DenseTable<identifier::PackageIdentifier, Option<Ref<package::Package>>>,
     pub oracle_names: DenseTable<identifier::OracleIdentifier, Option<OracleDeclaration>>,
     pub const_value_names:
@@ -53,48 +100,64 @@ pub struct PackageVisitor<'a> {
     pub type_names: DenseTable<identifier::PackageTypeIdentifier, Option<TypeDeclaration>>,
     pub type_arg_names:
         DenseTable<identifier::PackageTypeArgumentIdentifier, Option<TypeArgDeclaration>>,
-
-    pub diagnostics: Vec<diag::Diagnostic>,
-
     pub is_state: DenseTable<package::PackageConstDecl, Option<bool>>,
+}
+
+impl PackageVisitorTables {
+    pub fn new(arenas: &Arenas) -> Self {
+        Self {
+            package_names: DenseTable::with_entries(arenas.pkg_ident.len()),
+            oracle_names: DenseTable::with_entries(arenas.oracle_ident.len()),
+            const_value_names: DenseTable::with_entries(arenas.pkg_const_value_ident.len()),
+            oracle_value_names: DenseTable::with_entries(arenas.oracle_value_ident.len()),
+            type_names: DenseTable::with_entries(arenas.pkg_type_ident.len()),
+            type_arg_names: DenseTable::with_entries(arenas.pkg_type_arg_ident.len()),
+            is_state: DenseTable::with_entries(arenas.pkg_const_decl.len()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PackageInfo {
+    pub name: Option<Ref<identifier::PackageIdentifier>>,
+    pub const_params: Vec<Ref<package::PackageConstDecl>>,
+    pub type_params: Vec<Ref<identifier::PackageTypeIdentifier>>,
+    pub state: Vec<Ref<package::PackageConstDecl>>,
+    pub oracle_imports: Vec<Ref<oracles::OracleSignature>>,
+    pub oracle_definitions: Vec<Ref<oracles::OracleDefinition>>,
+}
+
+pub struct PackageVisitor<'a> {
+    locations: &'a GlobalTable<SourceLocation>,
+    scope: Scope<PackageDeclaration>,
 
     /// This is a bit of a hack. When in a visitor function of a constant/state declaration block, we can't distinguish between the two. so we set a flag when entering state an immediate clear it. we then tag all state declaration with a flag, so we know they are mutable.
     ///
     /// actually maybe the other way around makes more sense? we'll see.
-    pub inside_state: bool,
+    inside_state: bool,
+
+    pub info: PackageInfo,
+    pub tables: PackageVisitorTables,
+    pub diagnostics: Vec<diag::Diagnostic>,
 }
 
 impl<'a> PackageVisitor<'a> {
     pub fn new(arenas: &Arenas, locations: &'a GlobalTable<SourceLocation>) -> Self {
         let scope = Scope::new();
-
-        let package_names = DenseTable::with_entries(arenas.pkg_ident.len());
-        let oracle_names = DenseTable::with_entries(arenas.oracle_ident.len());
-        let const_value_names = DenseTable::with_entries(arenas.pkg_const_value_ident.len());
-        let oracle_value_names = DenseTable::with_entries(arenas.oracle_value_ident.len());
-        let type_names = DenseTable::with_entries(arenas.pkg_type_ident.len());
-        let type_arg_names = DenseTable::with_entries(arenas.pkg_type_arg_ident.len());
-
-        let is_state = DenseTable::with_entries(arenas.pkg_const_decl.len());
-        let diagnostics = vec![];
-
         let inside_state = false;
+
+        let info = PackageInfo::default();
+        let tables = PackageVisitorTables::new(arenas);
+        let diagnostics = vec![];
 
         Self {
             locations,
             scope,
-
-            package_names,
-            oracle_names,
-            const_value_names,
-            oracle_value_names,
-            type_names,
-            type_arg_names,
-
-            diagnostics,
-            is_state,
-
             inside_state,
+
+            info,
+            tables,
+            diagnostics,
         }
     }
 }
@@ -111,10 +174,9 @@ fn get_text<'a, T: NodeType>(
 impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn package(&mut self, arenas: &Arenas, node: Ref<package::Package>) {
         let package = arenas.package.get(node);
-        let package_name = get_text(package.name, self.locations, &arenas.source);
 
-        self.scope.declare(package_name, Declaration::Package(node));
-        self.package_names.set(package.name, node);
+        self.info.name = Some(package.name);
+        self.tables.package_names.set(package.name, node);
 
         self.scope.enter();
         self.pkg_item_list(arenas, package.items);
@@ -172,8 +234,11 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             .refs()
             .for_each(|type_name| {
                 let name = get_text(type_name, self.locations, &arenas.source);
-                self.scope.declare(name, Declaration::TypeParam(type_name));
-                self.type_names
+                self.info.type_params.push(type_name);
+                self.scope
+                    .declare(name, PackageDeclaration::TypeParam(type_name));
+                self.tables
+                    .type_names
                     .set(type_name, TypeDeclaration::TypeParam(type_name));
             })
     }
@@ -298,13 +363,15 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.package_type(arenas, decl.ty);
 
         if self.inside_state {
-            self.scope.declare(name, Declaration::State(node));
+            self.info.state.push(node);
+            self.scope.declare(name, PackageDeclaration::State(node));
         } else {
-            self.scope.declare(name, Declaration::Const(node));
+            self.info.const_params.push(node);
+            self.scope.declare(name, PackageDeclaration::Const(node));
         }
 
-        self.const_value_names.set(decl.name, node);
-        self.is_state.set(node, self.inside_state);
+        self.tables.const_value_names.set(decl.name, node);
+        self.tables.is_state.set(node, self.inside_state);
     }
 
     fn import_oracle_block(&mut self, arenas: &Arenas, node: Ref<package::ImportOraclesBlock>) {
@@ -320,8 +387,11 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
                 let sig = arenas.oracle_sig.get(node);
                 let name = get_text(sig.name, self.locations, &arenas.source);
 
-                self.scope.declare(name, Declaration::OracleImport(node));
-                self.oracle_names
+                self.info.oracle_imports.push(node);
+                self.scope
+                    .declare(name, PackageDeclaration::OracleImport(node));
+                self.tables
+                    .oracle_names
                     .set(sig.name, OracleDeclaration::Import(node));
             });
     }
@@ -354,8 +424,10 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         let oracle_sig = arenas.oracle_sig.get(oracle_def.oracle_sig);
         let args = arenas.oracle_value_decl_list.get(oracle_sig.args);
 
+        self.info.oracle_definitions.push(node);
         self.oracle_sig(arenas, oracle_def.oracle_sig);
-        self.oracle_names
+        self.tables
+            .oracle_names
             .set(oracle_sig.name, OracleDeclaration::Definition(node));
 
         // enter before declaring oracle args
@@ -512,10 +584,11 @@ impl<'a> PackageVisitor<'a> {
         let decl = arenas.oracle_value_arg_decl.get(decl_ref);
         let ident_name = get_text(decl.name, &self.locations, &arenas.source);
 
-        self.oracle_value_names
+        self.tables
+            .oracle_value_names
             .set(decl.name, OracleValueDeclaration::Arg(decl_ref));
         self.scope
-            .declare(ident_name, Declaration::OracleArg(decl_ref));
+            .declare(ident_name, PackageDeclaration::OracleArg(decl_ref));
     }
 
     fn resolve_oracle_ident(&mut self, arenas: &Arenas, ident: Ref<identifier::OracleIdentifier>) {
@@ -527,8 +600,9 @@ impl<'a> PackageVisitor<'a> {
         let ident_name = get_text(ident, self.locations, &arenas.source);
         if let Some(decl) = self.scope.lookup(ident_name) {
             match *decl {
-                Declaration::OracleImport(import) => {
-                    self.oracle_names
+                PackageDeclaration::OracleImport(import) => {
+                    self.tables
+                        .oracle_names
                         .set(ident, OracleDeclaration::Import(import));
                 }
 
@@ -557,22 +631,27 @@ impl<'a> PackageVisitor<'a> {
         let ident_name = get_text(ident, self.locations, &arenas.source);
         if let Some(decl) = self.scope.lookup(ident_name) {
             match *decl {
-                Declaration::Const(decl) => {
-                    self.oracle_value_names
+                PackageDeclaration::Const(decl) => {
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::Consts(decl));
                 }
-                Declaration::State(decl) => {
-                    self.oracle_value_names
+                PackageDeclaration::State(decl) => {
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::State(decl));
                 }
-                Declaration::OracleArg(decl) => {
-                    self.oracle_value_names
+                PackageDeclaration::OracleArg(decl) => {
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::Arg(decl));
                 }
-                Declaration::OracleLocal(assign) => self
+                PackageDeclaration::OracleLocal(assign) => self
+                    .tables
                     .oracle_value_names
                     .set(ident, OracleValueDeclaration::Local(assign)),
-                Declaration::BuiltinValue(builtin) => self
+                PackageDeclaration::BuiltinValue(builtin) => self
+                    .tables
                     .oracle_value_names
                     .set(ident, OracleValueDeclaration::Builtin(builtin)),
                 other_decl => {
@@ -599,11 +678,14 @@ impl<'a> PackageVisitor<'a> {
         let ident_name = get_text(ident, self.locations, &arenas.source);
         if let Some(decl) = self.scope.lookup(ident_name) {
             match *decl {
-                Declaration::TypeParam(decl) => {
-                    self.type_names.set(ident, TypeDeclaration::TypeParam(decl));
+                PackageDeclaration::TypeParam(decl) => {
+                    self.tables
+                        .type_names
+                        .set(ident, TypeDeclaration::TypeParam(decl));
                 }
-                Declaration::BuiltinType(builtin) => {
-                    self.type_names
+                PackageDeclaration::BuiltinType(builtin) => {
+                    self.tables
+                        .type_names
                         .set(ident, TypeDeclaration::Builtin(builtin));
                 }
 
@@ -631,16 +713,19 @@ impl<'a> PackageVisitor<'a> {
         let ident_name = get_text(ident, self.locations, &arenas.source);
         if let Some(decl) = self.scope.lookup(ident_name) {
             match *decl {
-                Declaration::TypeParam(decl) => {
-                    self.type_arg_names
+                PackageDeclaration::TypeParam(decl) => {
+                    self.tables
+                        .type_arg_names
                         .set(ident, TypeArgDeclaration::TypeParam(decl));
                 }
-                Declaration::BuiltinType(builtin) => {
-                    self.type_arg_names
+                PackageDeclaration::BuiltinType(builtin) => {
+                    self.tables
+                        .type_arg_names
                         .set(ident, TypeArgDeclaration::Builtin(builtin));
                 }
-                Declaration::Const(decl) => {
-                    self.type_arg_names
+                PackageDeclaration::Const(decl) => {
+                    self.tables
+                        .type_arg_names
                         .set(ident, TypeArgDeclaration::Consts(decl));
                 }
                 other_decl => {
@@ -660,7 +745,7 @@ impl<'a> PackageVisitor<'a> {
         &mut self,
         arenas: &Arenas,
         ident: Ref<identifier::OracleValueIdentifier>,
-        assign: Ref<AssignStatement>,
+        assign: Ref<statements::AssignStatement>,
     ) {
         let dx = Resolver {
             arenas,
@@ -669,27 +754,32 @@ impl<'a> PackageVisitor<'a> {
         let ident_name = get_text(ident, self.locations, &arenas.source);
         if let Some(decl) = self.scope.lookup(ident_name) {
             match *decl {
-                Declaration::Const(decl) => {
+                PackageDeclaration::Const(decl) => {
                     self.diagnostics
                         .push(diag::AssignToConst::new(dx, ident).into());
-                    self.oracle_value_names
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::Consts(decl));
                 }
-                Declaration::State(decl) => {
-                    self.oracle_value_names
+                PackageDeclaration::State(decl) => {
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::State(decl));
                 }
-                Declaration::OracleArg(decl) => {
-                    self.oracle_value_names
+                PackageDeclaration::OracleArg(decl) => {
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::Arg(decl));
                 }
-                Declaration::OracleLocal(assign) => self
+                PackageDeclaration::OracleLocal(assign) => self
+                    .tables
                     .oracle_value_names
                     .set(ident, OracleValueDeclaration::Local(assign)),
-                Declaration::BuiltinValue(builtin) => {
+                PackageDeclaration::BuiltinValue(builtin) => {
                     self.diagnostics
                         .push(diag::AssignToConst::new(dx, ident).into());
-                    self.oracle_value_names
+                    self.tables
+                        .oracle_value_names
                         .set(ident, OracleValueDeclaration::Builtin(builtin))
                 }
                 other_decl => {
@@ -698,10 +788,11 @@ impl<'a> PackageVisitor<'a> {
                 }
             }
         } else {
-            self.oracle_value_names
+            self.tables
+                .oracle_value_names
                 .set(ident, OracleValueDeclaration::Local(assign));
             self.scope
-                .declare(ident_name, Declaration::OracleLocal(assign));
+                .declare(ident_name, PackageDeclaration::OracleLocal(assign));
         }
     }
 

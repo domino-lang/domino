@@ -1,5 +1,3 @@
-use std::backtrace::Backtrace;
-
 use domino_ast::{
     arena::Ref,
     ast_nodes::{
@@ -10,7 +8,7 @@ use domino_ast::{
 use domino_diagnostic::{NamedSource, Resolver};
 use miette::SourceSpan;
 
-use crate::Declaration;
+use crate::DeclarationType;
 
 #[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
 pub enum Diagnostic {
@@ -91,13 +89,13 @@ impl UndefinedIdentifier {
 }
 
 #[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected a value identifier, got a {decl_type}", decl_type = decl.decl_type())]
+#[error("expected a value identifier, got a {decl_type}")]
 #[diagnostic(code(domino::resolve::idents::expected_value))]
 pub struct ExpectedValueIdentifier {
     #[label("this identifier")]
     pub at: SourceSpan,
 
-    pub decl: Declaration,
+    pub decl_type: DeclarationType,
 
     #[source_code]
     pub source_code: NamedSource,
@@ -107,7 +105,7 @@ impl ExpectedValueIdentifier {
     pub fn new<IK: IdentifierKind>(
         dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
-        decl: Declaration,
+        decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
@@ -117,7 +115,7 @@ impl ExpectedValueIdentifier {
         Self {
             at,
             source_code,
-            decl,
+            decl_type: decl.decl_type(),
         }
     }
 }
@@ -145,13 +143,13 @@ impl AssignToConst {
 }
 
 #[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an type identifier, got a {decl_type}", decl_type = decl.decl_type())]
+#[error("expected an type identifier, got a {decl_type}")]
 #[diagnostic(code(domino::resolve::idents::expected_type))]
 pub struct ExpectedTypeIdentifier {
     #[label("this identifier")]
     pub at: SourceSpan,
 
-    pub decl: Declaration,
+    pub decl_type: DeclarationType,
 
     #[source_code]
     pub source_code: NamedSource,
@@ -161,31 +159,29 @@ impl ExpectedTypeIdentifier {
     pub fn new<IK: IdentifierKind>(
         dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
-        decl: Declaration,
+        decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        dbg!(Backtrace::capture());
-        dbg!(decl);
         let at = dx.span(ident);
         let source_code = dx.named_source(ident);
         Self {
             at,
             source_code,
-            decl,
+            decl_type: decl.decl_type(),
         }
     }
 }
 
 #[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an type arg identifier, got a {decl_type}", decl_type = decl.decl_type())]
+#[error("expected an type arg identifier, got a {decl_type}")]
 #[diagnostic(code(domino::resolve::idents::expected_type_arg))]
 pub struct ExpectedTypeArgIdentifier {
     #[label("this identifier")]
     pub at: SourceSpan,
 
-    pub decl: Declaration,
+    pub decl_type: DeclarationType,
 
     #[source_code]
     pub source_code: NamedSource,
@@ -195,7 +191,7 @@ impl ExpectedTypeArgIdentifier {
     pub fn new<IK: IdentifierKind>(
         dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
-        decl: Declaration,
+        decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
@@ -205,19 +201,19 @@ impl ExpectedTypeArgIdentifier {
         Self {
             at,
             source_code,
-            decl,
+            decl_type: decl.decl_type(),
         }
     }
 }
 
 #[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an oracle identifier, got a {decl_type}", decl_type = decl.decl_type())]
+#[error("expected an oracle identifier, got a {decl_type}")]
 #[diagnostic(code(domino::resolve::idents::expected_oracle))]
 pub struct ExpectedOracleIdentifier {
     #[label("this identifier")]
     pub at: SourceSpan,
 
-    pub decl: Declaration,
+    pub decl_type: DeclarationType,
 
     #[source_code]
     pub source_code: NamedSource,
@@ -227,7 +223,7 @@ impl ExpectedOracleIdentifier {
     pub fn new<IK: IdentifierKind>(
         dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
-        decl: Declaration,
+        decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
@@ -237,7 +233,7 @@ impl ExpectedOracleIdentifier {
         Self {
             at,
             source_code,
-            decl,
+            decl_type: decl.decl_type(),
         }
     }
 }
