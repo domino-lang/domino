@@ -170,7 +170,7 @@ impl std::fmt::Write for Communicator {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         if self.child_is_finished() {
             if let Err(e) = self.join() {
-                eprintln!("client finished with a error {e}. last output:");
+                log::error!("client finished with a error {e}. last output:");
                 std::io::copy(&mut self.stdout, &mut std::io::stderr()).unwrap();
                 std::io::stderr().flush().expect("error flushing stderr");
 
@@ -187,8 +187,8 @@ impl std::fmt::Write for Communicator {
             let thread_result = self.join();
             let rest = self.read_until_end().unwrap();
 
-            eprintln!("result from prover communication thread:\n  {thread_result:?}");
-            eprintln!("rest of data from prover:\n  {rest}");
+            log::error!("result from prover communication thread:\n  {thread_result:?}");
+            log::error!("rest of data from prover:\n  {rest}");
             std::io::stderr().flush().expect("error flushing stderr");
 
             Err(std::fmt::Error)
