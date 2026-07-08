@@ -34,6 +34,7 @@ pub type LocationTable = GlobalTable<SourceLocation>;
 /// Uses the number in the [`Ref`] as an offset in a [`Vec`].
 ///
 /// [`Ref`]: crate::arena::Ref
+#[derive(Debug, Clone)]
 pub struct DenseTable<NodeType, Data>(Vec<Data>, PhantomData<NodeType>);
 
 impl<K, V: Clone> DenseTable<K, Option<V>> {
