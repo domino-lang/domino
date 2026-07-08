@@ -808,7 +808,7 @@ pub struct DuplicateExportError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("oracle {oracle_name} wired to incompatible\n  oracle signature {src_pkg_inst_name}: {src_pkg_ty}\n  vs {dst_pkg_inst_name}: {dst_pkg_ty}")]
+#[error("oracle {oracle_name} wired to incompatible\n  oracle signature {src_pkg_inst_name}:\n{src_pkg_ty}\n  vs {dst_pkg_inst_name}:\n{dst_pkg_ty}")]
 #[diagnostic(code(domino::code::game::signature_mismatch))]
 pub struct OracleSigMismatchError {
     #[source_code]
