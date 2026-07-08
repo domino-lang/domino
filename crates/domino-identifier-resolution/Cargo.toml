@@ -1,0 +1,16 @@
+[package]
+name = "domino-identifier-resolution"
+version.workspace = true
+edition.workspace = true
+readme.workspace = true
+license.workspace = true
+
+[dependencies]
+domino-ast.workspace = true
+miette.workspace = true
+thiserror.workspace = true
+domino-diagnostic.workspace = true
+
+[dev-dependencies]
+pest.workspace = true
+miette = { workspace = true, features = ["fancy"] }

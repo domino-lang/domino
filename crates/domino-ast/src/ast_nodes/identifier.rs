@@ -14,6 +14,8 @@ use crate::{
 /// then allows us to have infallible looksups (by checking first that all are set).
 pub trait IdentifierKind {}
 
+impl<IK: IdentifierKind + ?Sized> IdentifierKind for Box<IK> {}
+
 pub trait ValueIdentifierKind: IdentifierKind {}
 pub trait TypeArgIdentifierKind: IdentifierKind {}
 pub trait TypeIdentifierKind: IdentifierKind {}

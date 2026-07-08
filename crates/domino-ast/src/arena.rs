@@ -11,7 +11,11 @@
 
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{ast_nodes::NodeType, GlobalRefId};
+use crate::{
+    ast_nodes::NodeType,
+    source::{SourceFile, SourceLocation},
+    GlobalRefId,
+};
 
 /// An arena for values of type T.
 ///
@@ -45,6 +49,11 @@ impl<T> Clone for Ref<T> {
 }
 
 impl<T> Copy for Ref<T> {}
+impl<T> Ref<T> {
+    pub fn offset(&self) -> usize {
+        self.0 as usize
+    }
+}
 
 impl<T: NodeType> Ref<T> {
     pub const fn global_ref_id(self) -> GlobalRefId {
@@ -120,6 +129,10 @@ impl<T> Arena<T> {
         &self.0[slice.0 as usize..(slice.0 + slice.1) as usize]
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     fn current_offset(&self) -> u32 {
         self.0
             .len()
@@ -157,5 +170,11 @@ impl<'a, I> Extend<I> for SliceAllocator<'a, I> {
         for item in iter {
             self.push(item);
         }
+    }
+}
+
+impl Arena<SourceFile> {
+    pub fn text(&self, loc: SourceLocation) -> &str {
+        &self.get(loc.file_id).contents[(loc.start as usize)..(loc.end as usize)]
     }
 }

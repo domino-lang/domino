@@ -1,11 +1,10 @@
 [package]
-name = "domino-ast"
+name = "domino-diagnostic"
 version.workspace = true
 edition.workspace = true
 readme.workspace = true
 license.workspace = true
 
 [dependencies]
-pest.workspace = true
-pest_derive.workspace = true
 miette.workspace = true
+domino-ast.workspace = true

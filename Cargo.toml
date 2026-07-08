@@ -1,5 +1,12 @@
 [workspace]
-members = [".", "crates/smtlib", "crates/domino", "crates/domino-ast"]
+members = [
+    ".",
+    "crates/smtlib",
+    "crates/domino",
+    "crates/domino-ast",
+    "crates/domino-identifier-resolution",
+    "crates/domino-diagnostic",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,10 +15,15 @@ readme = "Readme.md"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
+domino-ast = { path = "crates/domino-ast" }
+domino-diagnostic = { path = "crates/domino-diagnostic" }
 sspverif-smtlib = { path = "crates/smtlib" }
 sspverif = { path = "" }
-pest = { version = "2.7" }
+thiserror = "1.0.61"
+
+pest = "2.7"
 pest_derive = "2.7"
+miette = "7.2.0"
 
 [package]
 name = "sspverif"
@@ -37,7 +49,7 @@ indicatif-log-bridge = "0.2"
 # indoc = "2.0"
 itertools = "0.10"
 log = "0.4.22 "
-miette = { version = "7.2.0", features = ["fancy"] }
+miette = { workspace = true, features = ["fancy"] }
 pest = { workspace = true, features = ["miette-error"] }
 pest_derive.workspace = true
 rayon = "1.10"
