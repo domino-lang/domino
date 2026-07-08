@@ -140,8 +140,11 @@ pub type InstanceItemList<IK: ValueIdentifierKind> = ListNoDelim<InstanceItem<IK
 
 #[derive(Debug, Clone, Copy)]
 pub struct InstanceBlock<IK: InstanceIdentifierKind> {
-    pub name_trivia: Ref<Trivia>,
-    pub name: Ref<Identifier<IK>>,
+    pub instance_name_trivia: Ref<Trivia>,
+    pub instance_name: Ref<Identifier<IK>>,
+    pub eq_trivia: Ref<Trivia>,
+    pub instantiated_name_trivia: Ref<Trivia>,
+    pub instantiated_name: Ref<Identifier<IK>>,
     pub brace_trivia: Ref<Trivia>,
     pub items: Ref<InstanceItemList<IK>>,
 }
@@ -158,14 +161,20 @@ where
 {
     let mut inner = pair.into_inner();
     let _kw_instance = inner.next().unwrap();
-    let name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
-    let name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+    let instance_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+    let instance_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
+    let eq_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+    let instantiated_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
+    let instantiated_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
     let brace_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
     let items = InstanceItemList::parse_ref(file_id, state, inner.next().unwrap());
 
     InstanceBlock {
-        name_trivia,
-        name,
+        instance_name_trivia,
+        instance_name,
+        eq_trivia,
+        instantiated_name_trivia,
+        instantiated_name,
         brace_trivia,
         items,
     }

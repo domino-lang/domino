@@ -170,7 +170,7 @@ inst_type_block = { kw_types ~ gap ~ "{" ~ inst_type_assignment_list ~ "}" }
 inst_item = { inst_type_block | inst_const_block }
 inst_list = { ( gap ~ inst_item ~ ( gap ~ inst_item )* )? ~ gap }
 
-inst_block = { kw_instance ~ gap ~ identifier ~ gap ~ "{" ~ inst_list ~ "}" }
+inst_block = { kw_instance ~ gap ~ identifier ~ gap ~ "=" ~ gap ~ identifier ~ gap ~ "{" ~ inst_list ~ "}" }
 
 // ## Composition
 
