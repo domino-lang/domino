@@ -358,7 +358,9 @@ right.state.new.PackageInstanceName.FieldName
 ## Predicates
 User can define equivalence-wide or oracle-specific predicates.
 
-*Predicates can be invoked in other predicates.*
+*Predicates can be invoked in other predicates, lemmata, invariants, and functions.*
+
+*Equivalence-wide Predicates that use new states can not be used in invariants.*
 
 ### Equivalence-wide
 Argument-free:
