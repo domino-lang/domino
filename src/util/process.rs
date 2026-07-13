@@ -63,7 +63,7 @@ impl Communicator {
             Ok(())
         });
 
-        let buf = vec![0u8; 1 << 20];
+        let buf = vec![0u8; 1 << 10];
 
         Ok(Communicator {
             stdout,
@@ -74,11 +74,18 @@ impl Communicator {
         })
     }
 
+    fn maybe_resize(&mut self) {
+        if self.buf.len() - self.pos < self.buf.len() / 10 {
+            self.buf.resize(self.buf.len() * 2, 0u8);
+        }
+    }
+
     pub fn read_until_pred<T, P: Fn(usize, &str) -> (usize, Option<T>)>(
         &mut self,
         p: P,
     ) -> Result<T> {
         loop {
+            self.maybe_resize();
             let read_cnt = self.stdout.read(&mut self.buf[self.pos..])?;
             self.pos += read_cnt;
 
@@ -97,6 +104,7 @@ impl Communicator {
 
     pub fn read_until(&mut self, pattern: &str) -> Result<(usize, String)> {
         loop {
+            self.maybe_resize();
             self.pos += self.stdout.read(&mut self.buf[self.pos..])?;
             let data = String::from_utf8(self.buf[..self.pos].to_vec())?;
 
@@ -117,6 +125,7 @@ impl Communicator {
 
     pub fn read_model(&mut self) -> Result<(usize, String, SmtModel)> {
         loop {
+            self.maybe_resize();
             self.pos += self.stdout.read(&mut self.buf[self.pos..])?;
             let data = String::from_utf8(self.buf[..self.pos].to_vec())?;
 
