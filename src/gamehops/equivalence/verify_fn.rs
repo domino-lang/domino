@@ -270,23 +270,30 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         )
                         .unwrap();
 
-                    self.backend
-                        .new_smtsolver_with_transcript(transcript_file)?
+                    self.backend.new_smtsolver_with_transcript(transcript_file)
                 } else {
-                    self.backend.new_smtsolver()?
+                    self.backend.new_smtsolver()
                 }
-            };
+            }
+            .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
             std::thread::sleep(std::time::Duration::from_millis(20));
 
-            for entry in equivalence_smt {
-                solver.write_smt(entry.clone())?;
+            for entry in equivalence_smt
+                .iter()
+                .chain(oracle_smt)
+                .chain(std::iter::once(
+                    &self.eqctx.emit_claim_assert(oracle.name(), claim),
+                ))
+            {
+                solver
+                    .write_smt(entry.clone())
+                    .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
             }
-            for entry in oracle_smt {
-                solver.write_smt(entry.clone())?;
-            }
-            solver.write_smt(self.eqctx.emit_claim_assert(oracle.name(), claim))?;
 
-            match solver.check_sat()? {
+            match solver
+                .check_sat()
+                .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?
+            {
                 SmtSolverResponse::Unsat => {}
                 response => {
                     let modelfile = solver.get_model().map(|(modelstring, _model)| {
