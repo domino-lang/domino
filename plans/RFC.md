@@ -79,8 +79,8 @@ verifying invariants. The first one is as follows which looks like the current
 syntax. However, when translating to SMT, we generate a function called `invariants`
 which ANDs all the user provided invariants (here Invariant1 and Invariant2) and 
 then in the claim we want to prove, for each of the invariants we check if 
-`(=> (invariants old-left old-right) (Invariant1 old-left old-right))` and 
-`(=> (invariants old-left old-right) (Invariant2 old-left old-right))`. Note that 
+`(=> (invariants old-left old-right) (Invariant1 new-left new-right))` and 
+`(=> (invariants old-left old-right) (Invariant2 new-left new-right))`. Note that 
 we assume randomness mappings and whatnot but they are not mentioned for simplicity.
 
 ```
@@ -129,9 +129,9 @@ equivalence Game1 Game2 {
     ...
     Oracle1: {
         claims: {
-            invariant {
-                Invariant1: [no-abort, ...]
-                Invariant2: [no-abort, ...]
+            invariant requires [no-abort, ...] by split {
+                Invariant1: [...]
+                Invariant2: [...]
             }
             ...
         }
