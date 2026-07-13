@@ -1,6 +1,7 @@
+use miette::Diagnostic;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Diagnostic)]
 pub enum Error {
     #[error("error writing to prover process: {0}")]
     WriteError(#[from] std::fmt::Error),
