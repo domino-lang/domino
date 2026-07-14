@@ -79,7 +79,7 @@ impl<'a> EquivalenceContext<'a> {
                 out.push(
                     SmtAssert(SmtEq2 {
                         lhs: field,
-                        rhs: field_ty.default_smt_value(),
+                        rhs: default_smt_value(field_ty),
                     })
                     .into(),
                 );
@@ -89,9 +89,37 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
+    fn emit_invariant_in_initial_state_assert(&self) -> SmtExpr {
+        let state_left = self.left_game_inst_ctx().oracle_arg_game_state_pattern();
+        let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
+
+        SmtAssert(SmtNot((
+            "invariant",
+            state_left.global_const_name(
+                self.equivalence.left_name(),
+                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+            ),
+            state_right.global_const_name(
+                self.equivalence.right_name(),
+                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+            ),
+        )))
+        .into()
+    }
+
     pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
+        if claim.ty == ClaimType::InvariantInInitialState {
+            return self.emit_invariant_in_initial_state_assert();
+        }
+
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
+
+        let octx_left = gctx_left.exported_oracle_ctx_by_name(oracle_name).unwrap();
+        let octx_right = gctx_right.exported_oracle_ctx_by_name(oracle_name).unwrap();
+
+        let state_left = octx_left.oracle_arg_game_state_pattern();
+        let state_right = octx_right.oracle_arg_game_state_pattern();
 
         let game_inst_name_left = self.equivalence.left_name();
         let game_inst_name_right = self.equivalence.right_name();
@@ -101,9 +129,6 @@ impl<'a> EquivalenceContext<'a> {
 
         let game_params_left = &gctx_left.game_inst().consts;
         let game_params_right = &gctx_right.game_inst().consts;
-
-        let octx_left = gctx_left.exported_oracle_ctx_by_name(oracle_name).unwrap();
-        let octx_right = gctx_right.exported_oracle_ctx_by_name(oracle_name).unwrap();
 
         let pkg_name_left = octx_left.pkg_inst_ctx().pkg_name();
         let pkg_name_right = octx_right.pkg_inst_ctx().pkg_name();
@@ -145,25 +170,6 @@ impl<'a> EquivalenceContext<'a> {
             oracle_name,
             oracle_import_name: oracle_name,
         };
-
-        let state_left = octx_left.oracle_arg_game_state_pattern();
-        let state_right = octx_right.oracle_arg_game_state_pattern();
-
-        // This is a bit ugly
-        if claim.ty == ClaimType::InvariantInInitialState {
-            return SmtAssert(SmtNot((
-                "invariant",
-                state_left.global_const_name(
-                    self.equivalence.left_name(),
-                    &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-                ),
-                state_right.global_const_name(
-                    self.equivalence.right_name(),
-                    &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-                ),
-            )))
-            .into();
-        }
 
         // this helper builds an smt expression that calls the
         // function with the given name with the old states,
@@ -1271,6 +1277,50 @@ impl<'a> EquivalenceContext<'a> {
             body,
         )
             .into()
+    }
+}
+
+/// The SMT value used to initialize a field of the given type in a game's initial state.
+fn default_smt_value(ty: &Type) -> SmtExpr {
+    match ty.kind() {
+        TypeKind::Integer => 0.into(),
+        TypeKind::Boolean => false.into(),
+        TypeKind::Empty => "mk-empty".into(),
+        TypeKind::Bits(count_spec) => match count_spec {
+            CountSpec::Literal(len) => format!("<0_{len}>").into(),
+            CountSpec::Identifier(id) => {
+                let suffix = id
+                    .as_theorem_identifier()
+                    .map(|theorem_ident| theorem_ident.ident())
+                    .unwrap_or_else(|| id.ident());
+                format!("<0_{suffix}>").into()
+            }
+            CountSpec::Any => {
+                panic!("cannot build a default value for Bits(*)")
+            }
+        },
+        TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
+        TypeKind::Table(_index_ty, value_ty) => (
+            ("as", "const", ty.clone()),
+            ("as", "mk-none", Type::maybe(*value_ty.clone())),
+        )
+            .into(),
+        TypeKind::Tuple(types) => {
+            let mut call = Vec::with_capacity(types.len() + 1);
+            call.push(format!("mk-tuple{}", types.len()).into());
+            call.extend(types.iter().map(default_smt_value));
+            call.into()
+        }
+        TypeKind::Unknown
+        | TypeKind::String
+        | TypeKind::AddiGroupEl(_)
+        | TypeKind::MultGroupEl(_)
+        | TypeKind::List(_)
+        | TypeKind::Set(_)
+        | TypeKind::Fn(_, _)
+        | TypeKind::UserDefined(_) => {
+            panic!("cannot build a default value for type {ty}")
+        }
     }
 }
 
