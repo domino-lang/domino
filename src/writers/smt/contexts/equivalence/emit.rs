@@ -54,27 +54,6 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
-    pub(crate) fn emit_initial_invariant_claim(&self) -> SmtExpr {
-        let gctx_left = self.left_game_inst_ctx();
-        let gctx_right = self.right_game_inst_ctx();
-
-        let state_left = gctx_left.oracle_arg_game_state_pattern();
-        let state_right = gctx_right.oracle_arg_game_state_pattern();
-
-        SmtAssert(SmtNot((
-            "invariant",
-            state_left.global_const_name(
-                self.equivalence.left_name(),
-                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-            ),
-            state_right.global_const_name(
-                self.equivalence.right_name(),
-                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-            ),
-        )))
-        .into()
-    }
-
     fn emit_game_initial_state_values(
         &self,
         gctx: GameInstanceContext<'a>
@@ -170,6 +149,22 @@ impl<'a> EquivalenceContext<'a> {
         let state_left = octx_left.oracle_arg_game_state_pattern();
         let state_right = octx_right.oracle_arg_game_state_pattern();
 
+        // This is a bit ugly
+        if claim.ty == ClaimType::InvariantInInitialState {
+            return SmtAssert(SmtNot((
+                "invariant",
+                state_left.global_const_name(
+                    self.equivalence.left_name(),
+                    &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+                ),
+                state_right.global_const_name(
+                    self.equivalence.right_name(),
+                    &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+                ),
+            )))
+            .into();
+        }
+
         // this helper builds an smt expression that calls the
         // function with the given name with the old states,
         // return values and the respective arguments.
@@ -228,6 +223,7 @@ impl<'a> EquivalenceContext<'a> {
                     ClaimType::Lemma => build_lemma_call.clone()(dep_name),
                     ClaimType::Relation => build_relation_call(dep_name),
                     ClaimType::Invariant => unreachable!(),
+                    ClaimType::InvariantInInitialState => unreachable!(),
                 }
             })
             .collect();
@@ -236,6 +232,7 @@ impl<'a> EquivalenceContext<'a> {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
             ClaimType::Invariant => build_invariant_new_call(&claim.name),
+            ClaimType::InvariantInInitialState => unreachable!(),
         };
 
         let randomness_mapping = SmtForall {

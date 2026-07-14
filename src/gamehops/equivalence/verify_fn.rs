@@ -8,15 +8,11 @@ use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
     project::Project,
-    theorem::Claim,
+    theorem::{Claim, ClaimType},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
-
-const INITIAL_STATE_UI_NAME: &str = "invariants in initial state";
-const INITIAL_STATE_TRANSCRIPT_NAME: &str = "initial-state";
-const INITIAL_INVARIANT_CLAIM_NAME: &str = "invariant";
 
 pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
     eqctx: &'a EquivalenceContext<'a>,
@@ -93,29 +89,20 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         let oracle_sequence = self.oracle_sequence();
-        /* We pick invariants of the first exported oracle but this needs to be changed 
-        so that only one set of invariants can be defined for an equivalence but 
-        each oracle can define its own randomness mappings. */
-        let initial_invariant_source_oracle = oracle_sequence.first().map(|oracle| oracle.name());
 
         ui.lock().unwrap().proofstep_set_oracles(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            (oracle_sequence.len() + usize::from(initial_invariant_source_oracle.is_some()))
+            (oracle_sequence.len() + 1) // 1 is for checking invariants in the initial state
                 .try_into()
                 .unwrap(),
         );
 
-        let mut failed_oracles: Vec<_> = match self.verify_initial_invariant(
-            ui.clone(),
-            &smt,
-            initial_invariant_source_oracle,
-        ) {
-            Ok(()) => vec![],
-            Err(err) => vec![err],
-        };
+        let mut claims: Vec<_> = vec![
+            self.verify_invariants_in_initial_state(ui.clone(), &smt)
+        ];
 
-        failed_oracles.extend(
+        claims.extend(
             rayon::ThreadPoolBuilder::new()
                 .num_threads(self.parallel + 1) // one process is reserved for the "main" method
                 .build()
@@ -129,110 +116,64 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         .flatten()
                         .collect()
                 })
+        );
+
+        let failed_claims = claims
                 .into_iter()
                 .filter_map(Result::err)
-                .collect::<Vec<_>>(),
-        );
-        if !failed_oracles.is_empty() {
+                .collect::<Vec<_>>();
+        if !failed_claims.is_empty() {
             return Err(Error::ParallelEquivalenceError {
                 left_game_inst_name: eq.left_name.clone(),
                 right_game_inst_name: eq.right_name.clone(),
-                failed_oracles,
+                failed_claims,
             });
         }
         Ok(())
     }
 
-    fn verify_initial_invariant<UI: TheoremUI + Send>(
+    fn verify_invariants_in_initial_state<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
-        invariant_source_oracle: Option<&str>,
     ) -> Result<()> {
-        let Some(invariant_source_oracle) = invariant_source_oracle else {
-            return Ok(());
-        };
-
+        let mut smt = vec![];
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+        let invariant_in_initial_state_claim_name: &str = "invariants-in-initial-state";
 
         ui.lock().unwrap().start_oracle(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            INITIAL_STATE_UI_NAME,
-            1,
-        );
-        ui.lock().unwrap().start_lemma(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            INITIAL_STATE_UI_NAME,
-            INITIAL_INVARIANT_CLAIM_NAME,
+            invariant_in_initial_state_claim_name,
+            1
         );
 
-        let mut solver = {
-            if self.transcript {
-                let transcript_file: std::fs::File = self
-                    .project
-                    .get_joined_smt_file(
-                        eq.left_name(),
-                        eq.right_name(),
-                        INITIAL_STATE_TRANSCRIPT_NAME,
-                        INITIAL_INVARIANT_CLAIM_NAME,
-                    )
-                    .unwrap();
+        log::info!("verify: invariants in initial state");
+        // This is very nasty and we need to have only one set of 
+        // invariants for the entire equivalence
+        // TODO: give good error instead of unwrap: empty oracle sequence, do we check this before?
+        let oracle_name = self.oracle_sequence().first().unwrap().name();
+        smt.append(&mut self.eqctx.emit_invariant(oracle_name));
+        smt.append(&mut self.eqctx.emit_initial_state_values());
 
-                self.backend
-                    .new_smtsolver_with_transcript(transcript_file)?
-            } else {
-                self.backend.new_smtsolver()?
-            }
+        let claim = Claim {
+            name: String::from(invariant_in_initial_state_claim_name),
+            dependencies: vec![],
+            ty: ClaimType::InvariantInInitialState,
+            admitted: false
         };
 
-        for entry in equivalence_smt {
-            solver.write_smt(entry.clone())?;
-        }
-        for entry in self.eqctx.emit_invariant(invariant_source_oracle) {
-            solver.write_smt(entry)?;
-        }
-        for entry in self.eqctx.emit_initial_state_values() {
-            solver.write_smt(entry)?;
-        }
-        solver.write_smt(self.eqctx.emit_initial_invariant_claim())?;
+        let result = self.verify_claim(
+            ui.clone(), equivalence_smt, &smt, oracle_name, &claim);
 
-        match solver.check_sat()? {
-            SmtSolverResponse::Unsat => {}
-            response => {
-                let modelfile = solver.get_model().map(|(modelstring, _model)| {
-                    let mut modelfile =
-                        tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
-                    modelfile.write_all(modelstring.as_bytes()).unwrap();
-                    let (_, fname) = modelfile.keep().unwrap();
-                    fname
-                });
-                solver.close();
-                return Err(ClaimTheoremFailedError {
-                    claim_name: INITIAL_INVARIANT_CLAIM_NAME.to_string(),
-                    oracle_name: INITIAL_STATE_UI_NAME.to_string(),
-                    response,
-                    modelfile,
-                }
-                .into());
-            }
-        }
-
-        ui.lock().unwrap().finish_lemma(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            INITIAL_STATE_UI_NAME,
-            INITIAL_INVARIANT_CLAIM_NAME,
-        );
         ui.lock().unwrap().finish_oracle(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            INITIAL_STATE_UI_NAME,
+            invariant_in_initial_state_claim_name,
         );
 
-        Ok(())
+        result
     }
 
     fn verify_oracle<UI: TheoremUI + Send>(
@@ -264,7 +205,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let result: Vec<_> = claims
             .par_iter()
             .map(|claim| -> Result<()> {
-                self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle, claim)
+                self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle.name(), claim)
             })
             .collect();
 
@@ -282,7 +223,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
         oracle_smt: &[SmtExpr],
-        oracle: &Export,
+        oracle_name: &str,
         claim: &Claim,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
@@ -290,7 +231,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().start_lemma(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            oracle_name,
             claim.name(),
         );
 
@@ -302,7 +243,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         .get_joined_smt_file(
                             eq.left_name(),
                             eq.right_name(),
-                            oracle.name(),
+                            oracle_name,
                             claim.name(),
                         )
                         .unwrap();
@@ -321,7 +262,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             for entry in oracle_smt {
                 solver.write_smt(entry.clone())?;
             }
-            solver.write_smt(self.eqctx.emit_claim_assert(oracle.name(), claim))?;
+            solver.write_smt(self.eqctx.emit_claim_assert(oracle_name, claim))?;
 
             match solver.check_sat()? {
                 SmtSolverResponse::Unsat => {}
@@ -336,7 +277,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     solver.close();
                     return Err(ClaimTheoremFailedError {
                         claim_name: claim.name().to_string(),
-                        oracle_name: oracle.name().to_string(),
+                        oracle_name: oracle_name.to_string(),
                         response,
                         modelfile,
                     }
@@ -347,7 +288,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().finish_lemma(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            oracle_name,
             claim.name(),
         );
 

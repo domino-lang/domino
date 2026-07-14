@@ -71,7 +71,7 @@ pub enum Error {
         right_game_inst_name: String,
 
         #[related]
-        failed_oracles: Vec<Error>,
+        failed_claims: Vec<Error>,
     },
     #[error("found lemma named \"{lemma_name}\". Expected name ending in the name of the oracle. followed by a closing angle bracket")]
     IllegalLemmaName { lemma_name: String },
