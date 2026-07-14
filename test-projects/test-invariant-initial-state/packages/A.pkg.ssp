@@ -1,0 +1,11 @@
+package A {
+    state {
+        ctr: Integer,
+        opaque: Bits(*),
+    }
+
+    oracle Test() -> Integer {
+        ctr <- (ctr + 1);
+        return ctr;
+    }
+}
