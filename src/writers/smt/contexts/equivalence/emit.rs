@@ -314,6 +314,8 @@ impl<'a> EquivalenceContext<'a> {
         let mut base_declarations: Vec<SmtExpr> = vec![("set-logic", "ALL").into()];
 
         let mut bits_sort_suffixes = HashSet::new();
+        bits_sort_suffixes.insert("*".to_string());
+        base_declarations.extend(hacks::BitsDeclaration("*".to_string()));
 
         for ty in self.types() {
             if let TypeKind::Bits(count_spec) = &ty.kind() {
@@ -1281,6 +1283,10 @@ impl<'a> EquivalenceContext<'a> {
 }
 
 /// The SMT value used to initialize a field of the given type in a game's initial state.
+/// Name of the opaque constant used as the "zero" value for Bits(*) fields. Declared once, on
+/// demand, by `emit_initial_state_values`.
+const BITS_ANY_ZERO_CONST: &str = "<0_*>";
+
 fn default_smt_value(ty: &Type) -> SmtExpr {
     match ty.kind() {
         TypeKind::Integer => 0.into(),
@@ -1295,9 +1301,11 @@ fn default_smt_value(ty: &Type) -> SmtExpr {
                     .unwrap_or_else(|| id.ident());
                 format!("<0_{suffix}>").into()
             }
-            CountSpec::Any => {
-                panic!("cannot build a default value for Bits(*)")
-            }
+            // Bits(*) has no concrete width, so there's no zero literal to spell out. We instead
+            // rely on `<0_*>`, an opaque constant of sort Bits_* declared unconditionally in
+            // `emit_base_declarations`, just like the zero constants for concrete widths are
+            // declared there for every width in use.
+            CountSpec::Any => BITS_ANY_ZERO_CONST.into(),
         },
         TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
         TypeKind::Table(_index_ty, value_ty) => (
