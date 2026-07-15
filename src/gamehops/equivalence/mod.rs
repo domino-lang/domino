@@ -195,7 +195,7 @@ fn verify_exports_match(
 }
 
 impl<'a> EquivalenceContext<'a> {
-    pub(crate) fn verify_exports_match(&self) -> Result<()> {
+    fn verify_exports_match(&self) -> Result<()> {
         let equivalence = self.equivalence();
 
         let left_game_inst = self
