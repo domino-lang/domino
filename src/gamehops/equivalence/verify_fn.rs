@@ -98,23 +98,19 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 .unwrap(),
         );
 
-        let mut claims: Vec<_> = vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)];
-
-        claims.extend(
-            rayon::ThreadPoolBuilder::new()
-                .num_threads(self.parallel + 1) // one process is reserved for the "main" method
-                .build()
-                .unwrap()
-                .install(|| -> Vec<Result<()>> {
-                    oracle_sequence
-                        .par_iter()
-                        .map(|oracle| -> Vec<Result<()>> {
-                            self.verify_oracle(ui.clone(), &smt, oracle)
-                        })
-                        .flatten()
-                        .collect()
-                }),
-        );
+        let claims = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.parallel + 1) // one process is reserved for the "main" method
+            .build()
+            .unwrap()
+            .install(|| -> Vec<Result<()>> {
+                rayon::iter::once(())
+                    .map(|_| vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)])
+                    .chain(oracle_sequence.par_iter().map(|oracle| -> Vec<Result<()>> {
+                        self.verify_oracle(ui.clone(), &smt, oracle)
+                    }))
+                    .flatten()
+                    .collect()
+            });
 
         let failed_claims = claims
             .into_iter()
@@ -148,9 +144,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
 
         log::info!("verify: invariants in initial state");
-        // This is very nasty and we need to have only one set of
-        // invariants for the entire equivalence
-        // TODO: give good error instead of unwrap: empty oracle sequence, do we check this before?
+        // TODO: this is temporary workaround until we make the invariants equivalence-wide.
+        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
         let oracle_name = self.oracle_sequence().first().unwrap().name();
         smt.append(&mut self.eqctx.emit_invariant(oracle_name));
         smt.append(&mut self.eqctx.emit_initial_state_values());
