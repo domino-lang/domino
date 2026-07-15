@@ -3,6 +3,12 @@ and lemmata and other proof components directly in theorem files instead of in
 SMT-LIB language in a separate file. This document illustrates these new components 
 and suggested syntax.
 
+# Expressions
+
+Tuple accessor t.0
+forall (why3, easycrypt, dafny, viper, ...)
+negative integers
+
 # Assumptions over theorem constants
 It is very often needed to assume some relations over theorem constants. Therefore, 
 I want a new `constraints` spec among other theorem specs as follows:
@@ -11,7 +17,7 @@ const h: Int;
 const d: Int;
 ..
 constraints {
-    d > 0 and h > d
+    ((d > 0) and (h > d))
 }
 ```
 The whole block accepts one expression and it is the same as Domino expressions.
@@ -129,7 +135,7 @@ equivalence Game1 Game2 {
     ...
     Oracle1: {
         claims: {
-            invariant requires [no-abort, ...] by split {
+            invariant : [no-abort, ...] by split {
                 Invariant1: [...]
                 Invariant2: [...]
             }
@@ -183,7 +189,7 @@ equivalence Game1 Game2 {
 A new syntax allows to prove any claim (invariant, Invariant1, same-output, 
 equal-aborts, and user defined lemmata) by cases:
 ```
-Invariant1 requires [no-abort, ...] by cases {
+Invariant1 : [no-abort, ...] by cases {
     case1: [...]
     case2: [...]
     ...
@@ -194,7 +200,7 @@ and some shared lemmata can be required for all cases.
 
 Other examples:
 ```
-invariant requires [no-abort, ...] by cases {
+invariant : [no-abort, ...] by cases {
     case1: [...]
     case2: [...]
     ...
@@ -203,7 +209,7 @@ invariant requires [no-abort, ...] by cases {
 
 Other examples:
 ```
-same-output requires [no-abort, ...] by cases {
+same-output : [no-abort, ...] by cases {
     case1: [...]
     case2: [lemma1]
     ...
@@ -232,8 +238,8 @@ ORed cases. That is, we verify
 1. Should we have a block for each case if the user has some lemmata to be proved 
 for each case? For example,
 ```
-same-output requires [no-abort, ...] by cases {
-    case1 requires [lemma1, lemma2] {
+same-output : [no-abort, ...] by cases {
+    case1 : [lemma1, lemma2] {
         lemma1: [lemma2]
         lemma2: []
     }
@@ -256,7 +262,7 @@ Currently, the user can define only two randomness mappings in Domino lang:
 
 For each oracle, the user should define a randomness mapping predicate as follows:
 ```
-randomness {
+randomness: {
     Expr
 }
 ```
@@ -286,7 +292,7 @@ Syntax:
 ```
 equivalence Game1 Game2 {
     Oracle1: {
-        randomness {
+        randomness: {
             Expr
         }
         claims: {
