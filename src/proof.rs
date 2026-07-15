@@ -99,7 +99,7 @@ impl<'a> Proof<'a> {
             let current_inst_idx = workque.pop_front().unwrap();
             log::debug!(
                 "next up: {current_inst_idx} : {}",
-                &specialization[current_inst_idx].game_instance.name
+                specialization[current_inst_idx].game_instance.name
             );
 
             // Check whether we are done. This is the case if the current specialized game instance
