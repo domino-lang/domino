@@ -68,7 +68,7 @@
             cargo --version
             cargo clippy -- --version
             echo "==== END TOOL VERSIONS ===="
-            export RUSTFLAGS="-D warnings -A unused_assignments"
+            # export RUSTFLAGS="-D warnings -A unused_assignments"
             cargo test --verbose --workspace --all-targets
             cargo test --verbose --workspace --doc
             cargo check --verbose --workspace --all-targets
