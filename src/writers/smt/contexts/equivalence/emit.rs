@@ -101,7 +101,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
-        if claim.ty == ClaimType::InvariantInInitialState {
+        if claim.ty == ClaimType::InitialState {
             return self.emit_invariant_in_initial_state_assert();
         }
 
@@ -222,7 +222,7 @@ impl<'a> EquivalenceContext<'a> {
                     ClaimType::Lemma => build_lemma_call.clone()(dep_name),
                     ClaimType::Relation => build_relation_call(dep_name),
                     ClaimType::Invariant => unreachable!(),
-                    ClaimType::InvariantInInitialState => unreachable!(),
+                    ClaimType::InitialState => unreachable!(),
                 }
             })
             .collect();
@@ -231,7 +231,7 @@ impl<'a> EquivalenceContext<'a> {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
             ClaimType::Invariant => build_invariant_new_call(&claim.name),
-            ClaimType::InvariantInInitialState => unreachable!(),
+            ClaimType::InitialState => unreachable!(),
         };
 
         let randomness_mapping = SmtForall {

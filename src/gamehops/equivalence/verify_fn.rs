@@ -134,7 +134,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut smt = vec![];
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
-        let invariant_in_initial_state_claim_name: &str = "invariants-in-initial-state";
+        let invariant_in_initial_state_claim_name: &str = "<initial-state>";
 
         ui.lock().unwrap().start_oracle(
             &self.eqctx.theorem().name,
@@ -153,7 +153,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let claim = Claim {
             name: String::from(invariant_in_initial_state_claim_name),
             dependencies: vec![],
-            ty: ClaimType::InvariantInInitialState,
+            ty: ClaimType::InitialState,
             admitted: false,
         };
 
