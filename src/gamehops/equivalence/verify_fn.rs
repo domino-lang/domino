@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use itertools::Itertools;
-
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
@@ -47,26 +45,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     }
 
     pub(crate) fn verify<UI: TheoremUI + Send>(&mut self, ui: &mut UI) -> Result<()> {
-        let export_difference = self.eqctx.verify_exports_match();
-        if !export_difference.0.is_empty() || !export_difference.1.is_empty() {
-            return Err(Error::CompositionExportsMismatch {
-                left_game_inst_name: self.eqctx.equivalence().left_name.clone(),
-                right_game_inst_name: self.eqctx.equivalence().right_name.clone(),
-                mismatching_export_name: format!(
-                    "left: {}, right: {}",
-                    export_difference
-                        .0
-                        .into_iter()
-                        .map(|sig| format!("{sig}"))
-                        .join(", "),
-                    export_difference
-                        .1
-                        .into_iter()
-                        .map(|sig| format!("{sig}"))
-                        .join(", "),
-                ),
-            });
-        }
+        self.eqctx.verify_exports_match()?;
 
         let ui = Arc::new(Mutex::new(ui));
         self.verify_equivalence(ui)
