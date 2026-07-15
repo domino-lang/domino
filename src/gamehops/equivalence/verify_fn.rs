@@ -98,9 +98,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 .unwrap(),
         );
 
-        let mut claims: Vec<_> = vec![
-            self.verify_invariants_in_initial_state(ui.clone(), &smt)
-        ];
+        let mut claims: Vec<_> = vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)];
 
         claims.extend(
             rayon::ThreadPoolBuilder::new()
@@ -115,13 +113,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         })
                         .flatten()
                         .collect()
-                })
+                }),
         );
 
         let failed_claims = claims
-                .into_iter()
-                .filter_map(Result::err)
-                .collect::<Vec<_>>();
+            .into_iter()
+            .filter_map(Result::err)
+            .collect::<Vec<_>>();
         if !failed_claims.is_empty() {
             return Err(Error::ParallelEquivalenceError {
                 left_game_inst_name: eq.left_name.clone(),
@@ -146,11 +144,11 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             &self.eqctx.theorem().name,
             &proofstep_name,
             invariant_in_initial_state_claim_name,
-            1
+            1,
         );
 
         log::info!("verify: invariants in initial state");
-        // This is very nasty and we need to have only one set of 
+        // This is very nasty and we need to have only one set of
         // invariants for the entire equivalence
         // TODO: give good error instead of unwrap: empty oracle sequence, do we check this before?
         let oracle_name = self.oracle_sequence().first().unwrap().name();
@@ -161,11 +159,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             name: String::from(invariant_in_initial_state_claim_name),
             dependencies: vec![],
             ty: ClaimType::InvariantInInitialState,
-            admitted: false
+            admitted: false,
         };
 
-        let result = self.verify_claim(
-            ui.clone(), equivalence_smt, &smt, oracle_name, &claim);
+        let result = self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle_name, &claim);
 
         ui.lock().unwrap().finish_oracle(
             &self.eqctx.theorem().name,

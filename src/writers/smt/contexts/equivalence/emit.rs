@@ -44,20 +44,13 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
         let mut out = Vec::new();
 
-        out.extend(self.emit_game_initial_state_values(
-            self.left_game_inst_ctx()
-        ));
-        out.extend(self.emit_game_initial_state_values(
-            self.right_game_inst_ctx()
-        ));
+        out.extend(self.emit_game_initial_state_values(self.left_game_inst_ctx()));
+        out.extend(self.emit_game_initial_state_values(self.right_game_inst_ctx()));
 
         out
     }
 
-    fn emit_game_initial_state_values(
-        &self,
-        gctx: GameInstanceContext<'a>
-    ) -> Vec<SmtExpr> {
+    fn emit_game_initial_state_values(&self, gctx: GameInstanceContext<'a>) -> Vec<SmtExpr> {
         let game_inst_name = gctx.game_inst_name();
         let initial_state = gctx.oracle_arg_game_state_pattern().global_const_name(
             game_inst_name,

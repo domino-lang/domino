@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::identifier::{Identifier, pkg_ident::PackageIdentifier};
+use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Type {
@@ -101,7 +101,6 @@ impl Type {
     pub fn kind_mut(&mut self) -> &mut TypeKind {
         &mut self.kind
     }
-
 }
 
 #[allow(dead_code)]

@@ -203,7 +203,7 @@ pub enum ClaimType {
     Lemma,
     Relation,
     Invariant,
-    InvariantInInitialState
+    InvariantInInitialState,
 }
 
 impl ClaimType {
