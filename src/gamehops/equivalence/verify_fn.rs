@@ -139,14 +139,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
         let claim = Claim {
-            name: "<initial-state>".to_string(),
-            file_system_name: "!initial-state!".to_string(),
+            name: "!initial-state!".to_string(),
             dependencies: vec![],
             ty: ClaimType::InitialState,
             admitted: false,
         };
 
-        let claim_scope = ClaimScope::Equivalence;
+        let claim_scope = ClaimScope::InitialState;
 
         ui.lock().unwrap().start_scope(
             &self.eqctx.theorem().name,
@@ -243,8 +242,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         .get_joined_smt_file(
                             eq.left_name(),
                             eq.right_name(),
-                            claim_scope.file_system_name(),
-                            claim.file_system_name(),
+                            claim_scope.name(),
+                            claim.name(),
                         )
                         .unwrap();
 

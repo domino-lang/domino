@@ -100,22 +100,15 @@ impl Equivalence {
 }
 
 pub enum ClaimScope {
-    Equivalence,
-    Oracle(String),
+    InitialState,
+    Oracle(String), // oracle name is stored
 }
 
 impl ClaimScope {
     pub fn name(&self) -> &str {
         match self {
             // the only equivalence wide claim we have at the moment
-            ClaimScope::Equivalence => "Invariants in initial state",
-            ClaimScope::Oracle(oracle_name) => oracle_name,
-        }
-    }
-
-    pub fn file_system_name(&self) -> &str {
-        match self {
-            ClaimScope::Equivalence => "!INITIAL-STATE!",
+            ClaimScope::InitialState => "!INITIAL-STATE!",
             ClaimScope::Oracle(oracle_name) => oracle_name,
         }
     }

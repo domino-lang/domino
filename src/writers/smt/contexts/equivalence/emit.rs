@@ -282,7 +282,7 @@ impl<'a> EquivalenceContext<'a> {
 
     pub(crate) fn emit_claim_assert(&self, claim: &Claim, claim_scope: &ClaimScope) -> SmtExpr {
         match claim_scope {
-            ClaimScope::Equivalence => self.emit_equivalence_claim_assert(claim),
+            ClaimScope::InitialState => self.emit_equivalence_claim_assert(claim),
             ClaimScope::Oracle(oracle_name) => self.emit_oracle_claim_assert(claim, oracle_name),
         }
     }
