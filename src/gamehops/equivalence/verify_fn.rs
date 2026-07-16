@@ -5,7 +5,10 @@ use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    gamehops::equivalence::{ClaimScope, error::{ClaimTheoremFailedError, Error, Result}},
+    gamehops::equivalence::{
+        error::{ClaimTheoremFailedError, Error, Result},
+        ClaimScope,
+    },
     package::Export,
     project::Project,
     theorem::{Claim, ClaimType},
@@ -140,9 +143,9 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             file_system_name: "!initial-state!".to_string(),
             dependencies: vec![],
             ty: ClaimType::InitialState,
-            admitted: false
+            admitted: false,
         };
-        
+
         let claim_scope = ClaimScope::Equivalence;
 
         ui.lock().unwrap().start_scope(
@@ -221,7 +224,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         equivalence_smt: &[SmtExpr],
         scope_smt: &[SmtExpr],
         claim: &Claim,
-        claim_scope: &ClaimScope
+        claim_scope: &ClaimScope,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());

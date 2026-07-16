@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
-    gamehops::equivalence::ClaimScope,
     expressions::{Expression, ExpressionKind},
+    gamehops::equivalence::ClaimScope,
     hacks,
     identifier::{
         game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
@@ -104,7 +104,7 @@ impl<'a> EquivalenceContext<'a> {
     fn emit_equivalence_claim_assert(&self, claim: &Claim) -> SmtExpr {
         match claim.ty {
             ClaimType::InitialState => self.emit_invariant_in_initial_state_assert(),
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -283,10 +283,10 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_claim_assert(&self, claim: &Claim, claim_scope: &ClaimScope) -> SmtExpr {
         match claim_scope {
             ClaimScope::Equivalence => self.emit_equivalence_claim_assert(claim),
-            ClaimScope::Oracle(oracle_name) => self.emit_oracle_claim_assert(claim, oracle_name)
+            ClaimScope::Oracle(oracle_name) => self.emit_oracle_claim_assert(claim, oracle_name),
         }
     }
-    
+
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
         let left = self
             .theorem
