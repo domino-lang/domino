@@ -1187,10 +1187,14 @@ fn handle_lemma_line(
     let span = ast.as_span();
     let mut ast = ast.into_inner();
     let name = next_str(&mut ast).to_string();
-    let admit = if matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::lemma_modifier)) {
-        let modifier_ast = ast.next().unwrap();
-        let modifier = modifier_ast.as_str();
-        match modifier {
+
+    let mut admit = false;
+    let mut cumulative = false;
+    let modifier_ast = ast.next().unwrap().into_inner();
+
+    for modifier in modifier_ast {
+        let modifier_str = modifier.as_str();
+        match modifier_str {
             "admit" => {
                 eprintln!(
                     "{:?}",
@@ -1201,13 +1205,12 @@ fn handle_lemma_line(
                         source_code: ctx.named_source(),
                     })
                 );
-                true
+                admit = true;
             }
-            _ => todo!(),
+            _ => todo!("{modifier_str} is not a valid modifier"),
         }
-    } else {
-        false
-    };
+    }    
+    
     let deps = ast.map(|dep| dep.as_str().to_string()).collect();
 
     (name, deps, admit)
