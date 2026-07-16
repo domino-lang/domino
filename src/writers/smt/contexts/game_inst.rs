@@ -108,6 +108,7 @@ impl GameInstanceContext<'_> {
             tys: vec![],
             count: 0,
             positions: vec![],
+            max_offset: None,
         };
 
         let declare_info = self.game_state_declare_info(&sample_info);

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::expressions::Expression;
-use crate::package::Composition;
+use crate::package::{Composition, Export};
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
 use crate::types::Type;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::iter::FromIterator;
 
@@ -12,7 +12,7 @@ use std::iter::FromIterator;
 
 pub struct Transformation<'a>(pub &'a Composition);
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Position {
     pub game_name: String,
     pub inst_name: String,
@@ -32,6 +32,8 @@ pub struct SampleInfo {
     pub tys: Vec<Type>,
     pub count: usize,
     pub positions: Vec<Position>,
+    // maximum offset of each sampling operation for each exported oracle
+    pub max_offset: Option<HashMap<Export, HashMap<Position, usize>>>,
 }
 
 impl super::Transformation for Transformation<'_> {
@@ -45,7 +47,7 @@ impl super::Transformation for Transformation<'_> {
 
         let game_name = self.0.name.as_str();
 
-        let insts: Result<Vec<_>, Infallible> = self
+        let insts: Vec<_> = self
             .0
             .pkgs
             .iter()
@@ -70,16 +72,18 @@ impl super::Transformation for Transformation<'_> {
                 }
                 Ok(newinst)
             })
-            .collect();
+            .collect::<Result<Vec<_>, Infallible>>()?;
+
         Ok((
             Composition {
-                pkgs: insts?,
+                pkgs: insts,
                 ..self.0.clone()
             },
             SampleInfo {
                 tys: Vec::from_iter(samplings),
                 count: ctr,
                 positions,
+                max_offset: None,
             },
         ))
     }

@@ -7,6 +7,7 @@ use crate::{package::Composition, theorem::Theorem};
 
 pub mod deconstructinvoke;
 pub mod loopunroll;
+pub mod max_offset_extractor;
 pub mod resolveoracles;
 pub mod returnify;
 pub mod samplify;

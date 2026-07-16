@@ -11,7 +11,10 @@ use crate::{
     theorem::Claim,
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
-    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
+    writers::smt::{
+        contexts::{EquivalenceContext, RandomnessMappingCondition},
+        exprs::{SmtAssert, SmtExpr, SmtNot},
+    },
 };
 
 pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
@@ -147,6 +150,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         smt.extend(&mut self.eqctx.emit_return_value_helpers(oracle.name()));
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
         smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
+        smt.extend(self.eqctx.emit_randomness_mapping_declarations(oracle.name()));
+        let randomness_mapping_condition =
+            self.randomness_mapping_condition(equivalence_smt, &smt, oracle.name());
+        smt.push(
+            self.eqctx
+                .emit_randomness_mapping_condition_assert(randomness_mapping_condition),
+        );
 
         let result: Vec<_> = claims
             .par_iter()
@@ -160,6 +170,85 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             &proofstep_name,
             oracle.name(),
         );
+
+        result
+    }
+
+    fn randomness_mapping_condition(
+        &self,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
+        oracle_name: &str,
+    ) -> RandomnessMappingCondition {
+        let mut condition = RandomnessMappingCondition::default();
+
+        for entry in self.eqctx.randomness_mapping_candidates(oracle_name) {
+            condition.indeterminate_mappings.push(entry);
+            /*
+            let mapping_call = self
+                .eqctx
+                .randomness_mapping_entry_call(oracle_name, &entry);
+            log::info!("checking randomness mapping {entry} for oracle {oracle_name}");
+            match self.check_randomness_mapping_query(
+                equivalence_smt,
+                oracle_smt,
+                oracle_name,
+                SmtNot(mapping_call.clone()),
+            ) {
+                Ok(SmtSolverResponse::Unsat) => condition.true_mappings.push(entry),
+                Ok(SmtSolverResponse::Sat) => (),
+                Ok(SmtSolverResponse::Unknown) => condition.indeterminate_mappings.push(entry),
+                Err(err) => {
+                    log::warn!(
+                        "failed to check randomness mapping for oracle {oracle_name}: {err}"
+                    );
+                    condition.indeterminate_mappings.push(entry);
+                },
+            }
+            */
+        }
+
+        condition
+    }
+
+    fn check_randomness_mapping_query(
+        &self,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
+        oracle_name: &str,
+        query: impl Into<SmtExpr>,
+    ) -> crate::util::smtsolver::Result<SmtSolverResponse> {
+        let eq = self.eqctx.equivalence();
+        let mut solver = {
+            if self.transcript {
+                let transcript_file: std::fs::File = self
+                    .project
+                    .get_joined_smt_file(
+                        eq.left_name(),
+                        eq.right_name(),
+                        oracle_name,
+                        "randomness-mapping",
+                    )
+                    .unwrap();
+
+                self.backend
+                    .new_smtsolver_with_transcript(transcript_file)?
+            } else {
+                self.backend.new_smtsolver()?
+            }
+        };
+        /* We only need the sample-id definition and user-provided randomness 
+        mapping but because randomness mapping is mixed with invariants which 
+        depend on game state definition */
+        for entry in equivalence_smt {
+            solver.write_smt(entry.clone())?;
+        }
+        for entry in oracle_smt {
+            solver.write_smt(entry.clone())?;
+        }
+        solver.write_smt(SmtAssert(query))?;
+        let result = solver.check_sat();
+        solver.close();
 
         result
     }
