@@ -1287,11 +1287,7 @@ fn default_smt_value(ty: &Type) -> SmtExpr {
                     .unwrap_or_else(|| id.ident());
                 format!("<0_{suffix}>").into()
             }
-            // Bits(*) has no concrete width, so there's no zero literal to spell out. We instead
-            // rely on `<0_*>`, an opaque constant of sort Bits_* declared unconditionally in
-            // `emit_base_declarations`, just like the zero constants for concrete widths are
-            // declared there for every width in use.
-            CountSpec::Any => "<0_*>".into(),
+            CountSpec::Any => "<Bits_*_witness>".into(),
         },
         TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
         TypeKind::Table(_index_ty, value_ty) => (
