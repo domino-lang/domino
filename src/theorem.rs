@@ -223,11 +223,12 @@ pub struct Claim {
     pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
     pub(crate) admitted: bool,
+    pub(crate) cumulative: bool,
 }
 
 impl Claim {
-    pub fn from_tuple(data: (String, Vec<String>, bool)) -> Self {
-        let (name, dependencies, admitted) = data;
+    pub fn from_tuple(data: (String, Vec<String>, bool, bool)) -> Self {
+        let (name, dependencies, admitted, cumulative) = data;
         let ty = ClaimType::guess_from_name(&name);
 
         Self {
@@ -235,6 +236,7 @@ impl Claim {
             ty,
             dependencies,
             admitted,
+            cumulative
         }
     }
 
