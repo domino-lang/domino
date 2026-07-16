@@ -65,7 +65,7 @@ pub enum Error {
     },
     #[error(transparent)]
     ClaimTheoremFailed(#[from] ClaimTheoremFailedError),
-    #[error("Failed invariant {left_game_inst_name} = {right_game_inst_name}")]
+    #[error("Failed to prove equivalence {left_game_inst_name} = {right_game_inst_name}")]
     ParallelEquivalenceError {
         left_game_inst_name: String,
         right_game_inst_name: String,
