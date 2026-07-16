@@ -291,7 +291,7 @@ theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assu
     equivalence = { kw_equivalence ~ identifier ~ identifier ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
 
       /// Specification for proving a single oracle pair equivalent.
-      equivalence_oracle = { identifier ~ ":" ~ "{" ~ randomness_spec? ~ invariant_spec ~ lemmas_spec ~ "}"}
+      equivalence_oracle = { identifier ~ ":" ~ "{" ~ randomness_spec? ~ invariant_spec ~ lemmas_spec? ~ "}"}
 
         /// auto randomness mapping
         randomness_spec = {kw_randomness ~ ":" ~ identifier}
