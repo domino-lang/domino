@@ -1107,6 +1107,7 @@ fn handle_equivalence_oracle(
     ),
     ParseTheoremError,
 > {
+    let mut span = ast.as_span();
     let mut ast = ast.into_inner();
     let oracle_name = ast.next().unwrap().as_str();
     let mut invariant_paths = Vec::new();
@@ -1136,14 +1137,31 @@ fn handle_equivalence_oracle(
                 invariant_paths.extend(handle_invariant_spec(next.into_inner()));
             }
             Rule::lemmas_spec => {
-                let span = next.as_span();
+                span = next.as_span();
                 let new_lemmas = handle_lemmas_spec(ctx, oracle_name, next.into_inner());
-                verify_induction_step(ctx, &new_lemmas, (span.start()..span.end()).into())?;
                 lemmas.extend(new_lemmas);
             }
             _ => unimplemented!(),
         }
     }
+    for default_claim in [
+        ("equal-aborts", vec![]),
+        ("same-output", vec!["no-abort"]),
+        ("invariant", vec!["no-abort"]),
+    ] {
+        if !lemmas.iter().any(|claim| claim.0 == default_claim.0) {
+            lemmas.push((
+                default_claim.0.to_string(),
+                default_claim
+                    .1
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<BTreeSet<_>>(),
+                false,
+            ));
+        }
+    }
+    verify_induction_step(ctx, &lemmas, (span.start()..span.end()).into())?;
 
     Ok((oracle_name.to_string(), invariant_paths, lemmas, randomness))
 }
