@@ -1287,7 +1287,7 @@ fn default_smt_value(ty: &Type) -> SmtExpr {
                     .unwrap_or_else(|| id.ident());
                 format!("<0_{suffix}>").into()
             }
-            CountSpec::Any => "<Bits_*_witness>".into(),
+            CountSpec::Any => "<empty-bitstring>".into(),
         },
         TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
         TypeKind::Table(_index_ty, value_ty) => (

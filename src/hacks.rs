@@ -170,7 +170,7 @@ impl From<BitsDeclaration> for Vec<SmtExpr> {
 
         let sort = &format!("Bits_{id}");
         if id == "*" {
-            let zero_literal = &format!("<0_{id}>");
+            let zero_literal = &format!("<empty-bitstring>");
 
             vec![
                 ("declare-sort", sort, 0).into(),
