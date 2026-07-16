@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
+    gamehops::equivalence::ClaimScope,
     expressions::{Expression, ExpressionKind},
     hacks,
     identifier::{
@@ -100,11 +101,14 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
-        if claim.ty == ClaimType::InitialState {
-            return self.emit_invariant_in_initial_state_assert();
+    fn emit_equivalence_claim_assert(&self, claim: &Claim) -> SmtExpr {
+        match claim.ty {
+            ClaimType::InitialState => self.emit_invariant_in_initial_state_assert(),
+            _ => unreachable!()
         }
+    }
 
+    fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -276,6 +280,13 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
+    pub(crate) fn emit_claim_assert(&self, claim: &Claim, claim_scope: &ClaimScope) -> SmtExpr {
+        match claim_scope {
+            ClaimScope::Equivalence => self.emit_equivalence_claim_assert(claim),
+            ClaimScope::Oracle(oracle_name) => self.emit_oracle_claim_assert(claim, oracle_name)
+        }
+    }
+    
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
         let left = self
             .theorem

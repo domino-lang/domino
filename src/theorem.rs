@@ -221,6 +221,7 @@ impl ClaimType {
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
 pub struct Claim {
     pub(crate) name: String,
+    pub(crate) file_system_name: String,
     pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
     pub(crate) admitted: bool,
@@ -232,11 +233,16 @@ impl Claim {
         let ty = ClaimType::guess_from_name(&name);
 
         Self {
-            name,
+            name: name.clone(),
+            file_system_name: name,
             ty,
             dependencies,
             admitted,
         }
+    }
+
+    pub fn file_system_name(&self) -> &str {
+        &self.file_system_name
     }
 
     pub fn name(&self) -> &str {

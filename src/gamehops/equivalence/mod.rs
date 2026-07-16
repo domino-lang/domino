@@ -99,6 +99,28 @@ impl Equivalence {
     }
 }
 
+pub enum ClaimScope {
+    Equivalence,
+    Oracle(String)
+}
+
+impl ClaimScope {
+    pub fn name(&self) -> &str {
+        match self {
+            // the only equivalence wide claim we have at the moment
+            ClaimScope::Equivalence => "Invariants in initial state",
+            ClaimScope::Oracle(oracle_name) => oracle_name
+        }
+    }
+
+    pub fn file_system_name(&self) -> &str {
+        match self {
+            ClaimScope::Equivalence => "!INITIAL-STATE!",
+            ClaimScope::Oracle(oracle_name) => oracle_name
+        }
+    }
+}
+
 /// Checks that both game instances export the same oracles with the same signatures, and that the
 /// equivalence declares a proof tree for exactly those oracles.
 ///

@@ -91,11 +91,11 @@ pub enum Error {
 }
 
 #[derive(Debug, Error, Diagnostic)]
-#[error("{oracle_name}: error proving claim {claim_name}. status: {response}. modelfile {}",
+#[error("{scope_name}: error proving claim {claim_name}. status: {response}. modelfile {}",
         if let Ok(modfile) = modelfile {modfile.to_str().unwrap()} else {""})]
 pub struct ClaimTheoremFailedError {
     pub claim_name: String,
-    pub oracle_name: String,
+    pub scope_name: String,
     pub response: SmtSolverResponse,
     pub modelfile: SmtSolverResponseResult<PathBuf>,
 }
