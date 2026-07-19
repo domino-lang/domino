@@ -420,6 +420,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             game_params: &left_game_inst.consts,
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
+            pkg_types: &left_game_inst.game.pkgs[left_oracle_export.to()].types,
             oracle_name,
         };
 
@@ -439,6 +440,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             game_params: &right_game_inst.consts,
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
+            pkg_types: &right_game_inst.game.pkgs[right_oracle_export.to()].types,
             oracle_name,
         };
 
