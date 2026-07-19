@@ -1,6 +1,5 @@
 (define-state-relation state=
-    ((left <GameState_Hybrid1_<$<!n!>$>>)
-     (right <GameState_Hybrid2_<$<!n!>$>>))
+    ((left) (right))
   (and
   (forall ((ctr Int))
           (and (= (is-mk-none (select left.KX.State ctr))
@@ -42,8 +41,7 @@
 
 
 (define-state-relation invariant
-    ((left <GameState_Hybrid1_<$<!n!>$>>)
-     (right <GameState_Hybrid2_<$<!n!>$>>))
+    ((left) (right))
   (and
    (= left.KX.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)
