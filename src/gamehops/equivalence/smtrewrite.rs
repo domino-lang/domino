@@ -144,11 +144,15 @@ impl<'a> SmtRewriteEquivalence<'a> {
 
 impl<'a> SmtRewriteGame<'a> {
     fn new_with_game(context: &'a GameInstanceContext) -> Self {
+        let game_mapping = game_inst_type_mapping_vec(&context.game_inst().types);
         Self {
             context,
             package: None,
             content: Vec::new(),
-            type_mapping: Vec::new(),
+            type_mapping: game_mapping
+                .into_iter()
+                .map(|(ty1, ty2)| (ty1.into(), ty2.into()))
+                .collect(),
         }
     }
 
