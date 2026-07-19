@@ -1,6 +1,5 @@
 (define-state-relation state=
-    ((left <GameState_Hybrid0_<$<!n!>$>>)
-     (right <GameState_Hybrid1_<$<!n!>$>>))
+    ((left) (right))
   (forall ((ctr Int))
           (and (= (is-mk-none (select left.KX.State ctr))
                   (is-mk-none (select right.KX.State ctr)))
@@ -22,8 +21,7 @@
 
 
 (define-state-relation keys-computed-correctly
-    ((left <GameState_Hybrid0_<$<!n!>$>>)
-     (right <GameState_Hybrid1_<$<!n!>$>>))
+    ((left) (right))
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -45,8 +43,7 @@
 
 
 (define-state-relation time-of-acceptance
-    ((left <GameState_Hybrid0_<$<!n!>$>>)
-     (right <GameState_Hybrid1_<$<!n!>$>>))
+    ((left) (right))
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -58,8 +55,7 @@
 
 
 (define-state-relation time-of-nonces
-    ((left <GameState_Hybrid0_<$<!n!>$>>)
-     (right <GameState_Hybrid1_<$<!n!>$>>))
+    ((left) (right))
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -76,8 +72,7 @@
                        (not (is-mk-none nr)))))))))
 
 (define-state-relation time-of-sid
-    ((left <GameState_Hybrid0_<$<!n!>$>>)
-     (right <GameState_Hybrid1_<$<!n!>$>>))
+    ((left) (right))
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -90,8 +85,7 @@
 
 
 (define-state-relation invariant
-    ((left <GameState_Hybrid0_<$<!n!>$>>)
-     (right <GameState_Hybrid1_<$<!n!>$>>))
+    ((left) (right))
   (and
    (= left.KX.kid_ right.KX.kid_)
    (= left.KX.ctr_ right.KX.ctr_)
