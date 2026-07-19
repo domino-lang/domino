@@ -1,4 +1,3 @@
-
 (define-fun state-equality
 	((state-H4 (Array Int (Maybe (Tuple11 Int Bool Int Bits_n (Maybe Bool) (Maybe Bits_n)
 										  (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -114,8 +113,7 @@
 							(not (= nr (as mk-none (Maybe Bits_n))))))))))))
 
 (define-state-relation invariant
-	((state-H4  <GameState_H4_<$<!n!>$>>)
-	 (state-H5  <GameState_H5_<$<!n!>$>>))
+	((state-H4) (state-H5))
   (and (= state-H4.Nonces       state-H5.Nonces)
        (= state-H4.KX.LTK       state-H5.KX.LTK)
        (= state-H4.KX.Fresh     state-H5.KX.Fresh)
