@@ -245,6 +245,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             .theorem()
             .find_game_instance(&self.context.equivalence().right_name)
             .unwrap();
+        let left_game_state_pattern = patterns::GameStatePattern {
+            game_name: left_game_inst.game_name(),
+            params: &left_game_inst.consts,
+        };
+        let right_game_state_pattern = patterns::GameStatePattern {
+            game_name: right_game_inst.game_name(),
+            params: &right_game_inst.consts,
+        };
 
         let [SmtExpr::List(left_arg), SmtExpr::List(right_arg)] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
@@ -255,7 +263,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 expected: "2".to_string(),
             });
         };
-        let [left_arg_name, _left_arg_type] = &left_arg[..] else {
+        let [left_arg_name] = &left_arg[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
@@ -263,7 +271,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 ),
             });
         };
-        let [right_arg_name, _right_arg_type] = &right_arg[..] else {
+        let [right_arg_name] = &right_arg[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
@@ -304,7 +312,15 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             bindings: pkgbindings,
             body: bindvars,
         };
-        self.handle_definefun(funname, args, "Bool", bindpackages.into())
+        self.handle_definefun(
+            funname,
+            vec![
+                (left_arg_name.clone(), left_game_state_pattern.sort_name()).into(),
+                (right_arg_name.clone(), right_game_state_pattern.sort_name()).into(),
+            ],
+            "Bool",
+            bindpackages.into(),
+        )
     }
 
     fn handle_define_lemma(
@@ -323,6 +339,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             .theorem()
             .find_game_instance(&self.context.equivalence().right_name)
             .unwrap();
+        let left_game_state_pattern = patterns::GameStatePattern {
+            game_name: left_game_inst.game_name(),
+            params: &left_game_inst.consts,
+        };
+        let right_game_state_pattern = patterns::GameStatePattern {
+            game_name: right_game_inst.game_name(),
+            params: &right_game_inst.consts,
+        };
 
         let Some(oracle_name) = funname
             .rfind("-")
@@ -344,6 +368,13 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 oracle_name: oracle_name.to_string(),
             });
         };
+        let left_oracle_return_pattern = patterns::ReturnPattern {
+            game_name: left_game_inst.game_name(),
+            game_params: &left_game_inst.consts,
+            pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
+            pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
+            oracle_name,
+        };
 
         let Some(right_oracle_export) = right_game_inst
             .game()
@@ -355,6 +386,13 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 lemma_name: funname.to_string(),
                 oracle_name: oracle_name.to_string(),
             });
+        };
+        let right_oracle_return_pattern = patterns::ReturnPattern {
+            game_name: right_game_inst.game_name(),
+            game_params: &right_game_inst.consts,
+            pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
+            pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
+            oracle_name,
         };
 
         let [SmtExpr::List(left_old), SmtExpr::List(right_old), SmtExpr::List(left_return), SmtExpr::List(right_return), ..] =
@@ -368,7 +406,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 expected: "at least 4".to_string(),
             });
         };
-        let [left_old_name, _left_old_type] = &left_old[..] else {
+        let [left_old_name] = &left_old[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
@@ -376,7 +414,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 ),
             });
         };
-        let [right_old_name, _right_old_type] = &right_old[..] else {
+        let [right_old_name] = &right_old[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
@@ -384,7 +422,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 ),
             });
         };
-        let [left_return_name, _left_return_type] = &left_return[..] else {
+        let [left_return_name] = &left_return[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
@@ -392,7 +430,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 ),
             });
         };
-        let [right_return_name, _right_return_type] = &right_return[..] else {
+        let [right_return_name] = &right_return[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
@@ -466,7 +504,22 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             bindings: retbindings,
             body: bindpackages,
         };
-        self.handle_definefun(funname, args, "Bool", bindreturn.into())
+        let mut newargs = vec![
+            (left_old_name.clone(), left_game_state_pattern.sort_name()).into(),
+            (right_old_name.clone(), right_game_state_pattern.sort_name()).into(),
+            (
+                left_return_name.clone(),
+                left_oracle_return_pattern.sort_name(),
+            )
+                .into(),
+            (
+                right_return_name.clone(),
+                right_oracle_return_pattern.sort_name(),
+            )
+                .into(),
+        ];
+        newargs.extend(args.into_iter().skip(4));
+        self.handle_definefun(funname, newargs, "Bool", bindreturn.into())
     }
 }
 

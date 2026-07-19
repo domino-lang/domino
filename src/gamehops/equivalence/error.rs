@@ -80,7 +80,7 @@ pub enum Error {
         lemma_name: String,
         oracle_name: String,
     },
-    #[error("Expected 2-tuple (name type) for argument but got {argument}")]
+    #[error("Expected 1-tuple (name) for argument but got {argument}")]
     IncorrectArgument { argument: String },
     #[error("expected {expected} arguments but found {argument}")]
     IncorrectNumberOfArguments { argument: String, expected: String },
