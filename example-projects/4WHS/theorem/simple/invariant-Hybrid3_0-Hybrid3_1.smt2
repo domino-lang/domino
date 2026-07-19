@@ -231,8 +231,7 @@
 
 
 (define-state-relation invariant
-    ((left <GameState_Hybrid2_<$<!n!>$>>)
-     (right <GameState_Hybrid2_<$<!n!>$>>))
+    ((left) (right))
   (and
    (= left.Prf.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)
