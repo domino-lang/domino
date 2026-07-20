@@ -34,7 +34,9 @@ impl From<&Type> for SmtlibSort {
             TypeKind::Boolean => theories::core::bool_(),
             TypeKind::Bits(length) => {
                 let length = match length {
-                    crate::types::CountSpec::Identifier(identifier) => identifier.ident(),
+                    crate::types::CountSpec::Identifier(identifier) => {
+                        identifier.as_theorem_identifier().unwrap().ident()
+                    }
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
                 };
@@ -90,7 +92,9 @@ impl From<Type> for Sort {
         match value.into_kind() {
             TypeKind::Bits(length) => {
                 let length = match &length {
-                    crate::types::CountSpec::Identifier(identifier) => identifier.ident(),
+                    crate::types::CountSpec::Identifier(identifier) => {
+                        identifier.as_theorem_identifier().unwrap().ident()
+                    }
                     crate::types::CountSpec::Literal(num) => format!("{num}"),
                     crate::types::CountSpec::Any => "*".to_string(),
                 };
