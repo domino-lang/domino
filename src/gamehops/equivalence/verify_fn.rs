@@ -115,10 +115,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .collect()
             });
 
-        let failed_claims: Vec<_> = claims
-            .into_iter()
-            .filter_map(Result::err)
-            .collect();
+        let failed_claims: Vec<_> = claims.into_iter().filter_map(Result::err).collect();
         if !failed_claims.is_empty() {
             return Err(Error::ParallelEquivalenceError {
                 left_game_inst_name: eq.left_name.clone(),
