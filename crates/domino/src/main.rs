@@ -64,6 +64,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
             &p.proof,
             p.proofstep,
             &p.oracle,
+            &p.claim,
         )?;
     } else {
         return Err(IncompatibleArgumentsError.into());

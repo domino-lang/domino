@@ -8,9 +8,10 @@ use super::{
         ParseNonTupleError, ParserScopeError, TypeMismatchError, UndefinedIdentifierError,
         UntypedNoneTypeInferenceError, WrongArgumentCountInInvocationError,
     },
-    ParseContext, Rule,
+    FileType, ParseContext, Rule,
 };
 use crate::{
+    block,
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{
@@ -36,21 +37,22 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 #[derive(Clone, Debug)]
-pub struct ParsePackageContext<'a> {
-    pub file_name: &'a str,
-    pub file_content: &'a str,
+pub struct ParsePackageContext<'src> {
+    pub file_name: &'src str,
+    pub file_content: &'src str,
     pub scope: Scope,
 
-    pub pkg_name: &'a str,
+    pub pkg_name: &'src str,
     pub oracles: Vec<OracleDef>,
     pub state: Vec<(String, Type, SourceSpan)>,
     pub params: Vec<(String, Type, SourceSpan)>,
-    pub types: Vec<String>,
+    pub types: Vec<(&'src str, pest::Span<'src>)>,
     pub imported_oracles: HashMap<String, (OracleSig, SourceSpan)>,
+    pub invariants: Vec<String>,
 }
 
-impl<'a> ParseContext<'a> {
-    fn pkg_parse_context(self, pkg_name: &'a str) -> ParsePackageContext<'a> {
+impl<'src> ParseContext<'src> {
+    fn pkg_parse_context(self, pkg_name: &'src str) -> ParsePackageContext<'src> {
         let mut scope = Scope::new();
         scope.enter();
 
@@ -65,17 +67,19 @@ impl<'a> ParseContext<'a> {
             params: vec![],
             types: vec![],
             imported_oracles: HashMap::new(),
+            invariants: vec![],
         }
     }
 }
 
-impl<'a> ParsePackageContext<'a> {
+impl<'src> ParsePackageContext<'src> {
     pub(crate) fn named_source(&self) -> NamedSource<String> {
         NamedSource::new(self.file_name, self.file_content.to_string())
     }
 
-    pub(crate) fn parse_ctx(&self) -> ParseContext<'a> {
+    pub(crate) fn parse_ctx(&self) -> ParseContext<'src> {
         ParseContext {
+            file_type: crate::parser::FileType::Package,
             file_name: self.file_name,
             file_content: self.file_content,
             scope: self.scope.clone(),
@@ -84,9 +88,10 @@ impl<'a> ParsePackageContext<'a> {
     }
 }
 
-impl<'a> From<ParsePackageContext<'a>> for ParseContext<'a> {
-    fn from(value: ParsePackageContext<'a>) -> Self {
+impl<'src> From<ParsePackageContext<'src>> for ParseContext<'src> {
+    fn from(value: ParsePackageContext<'src>) -> Self {
         Self {
+            file_type: crate::parser::FileType::Package,
             file_name: value.file_name,
             file_content: value.file_content,
             scope: value.scope,
@@ -178,7 +183,8 @@ pub fn handle_pkg(
     let pkg_name = inner.next().unwrap().as_str();
     let spec = inner.next().unwrap();
 
-    let ctx = ParseContext::new(file_name, file_content).pkg_parse_context(pkg_name);
+    let ctx =
+        ParseContext::new(file_name, file_content, FileType::Package).pkg_parse_context(pkg_name);
 
     let pkg = handle_pkg_spec(ctx, spec)?;
     Ok((pkg_name.to_owned(), pkg))
@@ -189,16 +195,16 @@ pub enum IdentType {
     Const,
 }
 
-pub fn handle_pkg_spec(
-    mut ctx: ParsePackageContext,
-    pkg_spec: Pair<Rule>,
+pub fn handle_pkg_spec<'src>(
+    mut ctx: ParsePackageContext<'src>,
+    pkg_spec: Pair<'src, Rule>,
 ) -> Result<Package, ParsePackageError> {
     // TODO(2024-04-03): get rid of the unwraps in params, state, import_oracles
     for spec in pkg_spec.into_inner() {
         match spec.as_rule() {
             Rule::types => {
                 for types_list in spec.into_inner() {
-                    ctx.types.append(&mut handle_types_list(types_list))
+                    ctx.types.extend(&mut handle_types_list(types_list))
                 }
             }
             Rule::params => {
@@ -224,14 +230,27 @@ pub fn handle_pkg_spec(
             Rule::oracle_def => {
                 handle_oracle_def(&mut ctx, spec)?;
             }
+            Rule::invariant_spec => ctx.invariants.append(
+                &mut spec
+                    .into_inner()
+                    .map(|ast| ast.as_str().to_string())
+                    .collect(),
+            ),
+
             _ => unreachable!("unhandled ast node in package: {}", spec),
         }
     }
 
+    let types = ctx
+        .types
+        .into_iter()
+        .map(|(name, _span)| name.to_string())
+        .collect();
+
     Ok(Package {
         name: ctx.pkg_name.to_string(),
         oracles: ctx.oracles,
-        types: ctx.types,
+        types,
         params: ctx.params,
         imports: ctx
             .imported_oracles
@@ -239,6 +258,7 @@ pub fn handle_pkg_spec(
             .map(|(_k, (v, loc))| (v.clone(), *loc))
             .collect(),
         state: ctx.state,
+        invariants: ctx.invariants,
         //split_oracles: vec![],
         file_name: ctx.file_name.to_string(),
         file_contents: ctx.file_content.to_string(),
@@ -777,6 +797,7 @@ pub fn handle_expression(
                 .map(|expr| handle_expression(ctx, expr, None))
                 .collect::<Result<_, _>>()?,
         ),
+        Rule::expr_empty => ExpressionKind::Bot,
         Rule::expr_tuple => {
             if let Some(expected_type) = expected_type {
                 let TypeKind::Tuple(types) = expected_type.kind() else {
@@ -1175,6 +1196,52 @@ fn handle_assign_rhs(
     }
 }
 
+pub fn handle_ite(
+    ctx: &mut ParsePackageContext,
+    stmt: Pair<Rule>,
+    oracle_sig: &OracleSig,
+    full_span: SourceSpan,
+) -> Result<Statement, ParsePackageError> {
+    let mut inner = stmt.into_inner();
+    let cond = handle_expression(
+        &ctx.parse_ctx(),
+        inner.next().unwrap(),
+        Some(&Type::boolean()),
+    )?;
+    let then_ast = inner.next().unwrap();
+    let then_span = then_ast.as_span();
+    let then_block = handle_code(ctx, then_ast, oracle_sig)?;
+    let maybe_elsecode = inner.next();
+    let (else_span, else_block) = match maybe_elsecode {
+        None => (None, CodeBlock(vec![])),
+        Some(c) if c.as_rule() == Rule::code => {
+            (Some(c.as_span()), handle_code(ctx, c, oracle_sig)?)
+        }
+        Some(c) if c.as_rule() == Rule::ite => {
+            (Some(c.as_span()), block!{handle_ite(ctx, c, oracle_sig, full_span)?})
+        }
+        Some(_) => unreachable!(),
+    };
+
+    let else_span = if let Some(else_span) = else_span {
+        (else_span.start()..else_span.end()).into()
+    } else {
+        (then_span.end()..then_span.end()).into()
+    };
+    let then_span = (then_span.start()..then_span.end()).into();
+
+    let ite = IfThenElse {
+        cond,
+        then_block,
+        else_block,
+        then_span,
+        else_span,
+        full_span,
+    };
+
+    Ok(Statement::IfThenElse(ite))
+}
+
 pub fn handle_code(
     ctx: &mut ParsePackageContext,
     code: Pair<Rule>,
@@ -1191,41 +1258,7 @@ pub fn handle_code(
 
             let stmt = match stmt.as_rule() {
                 // assign | return_stmt | abort | ite
-                Rule::ite => {
-                    let mut inner = stmt.into_inner();
-                    let cond = handle_expression(&ctx.parse_ctx(), inner.next().unwrap(), Some(&Type::boolean()))?;
-                    let then_ast = inner.next().unwrap();
-                    let then_span = then_ast.as_span();
-                    let then_block = handle_code(
-                        ctx,
-                        then_ast,
-                        oracle_sig,
-                    )?;
-                    let maybe_elsecode = inner.next();
-                    let (else_span, else_block) = match maybe_elsecode {
-                        None => (None, CodeBlock(vec![])),
-                        Some(c) => (Some(c.as_span()), handle_code(ctx, c, oracle_sig)?),
-                    };
-
-                    let else_span = if let Some(else_span) = else_span {
-                        (else_span.start()..else_span.end()).into()
-                    } else {
-                        (then_span.end()..then_span.end()).into()
-                    };
-                    let then_span = (then_span.start()..then_span.end()).into();
-
-                    let ite = IfThenElse{
-                        cond,
-                        then_block,
-                        else_block,
-                        then_span,
-                        else_span,
-                        full_span,
-                    };
-
-
-                    Statement::IfThenElse(ite)
-                }
+                Rule::ite => handle_ite(ctx, stmt, oracle_sig, full_span)?,
                 Rule::return_stmt => {
                     let mut inner = stmt.into_inner();
                     let maybe_expr = inner.next();
@@ -1705,9 +1738,10 @@ pub fn handle_import_oracles_body(
     Ok(())
 }
 
-pub fn handle_types_list(types: Pair<Rule>) -> Vec<String> {
+pub fn handle_types_list<'src>(
+    types: Pair<'src, Rule>,
+) -> impl Iterator<Item = (&'src str, pest::Span<'src>)> {
     types
         .into_inner()
-        .map(|entry| entry.as_str().to_string())
-        .collect()
+        .map(|entry| (entry.as_str(), entry.as_span()))
 }

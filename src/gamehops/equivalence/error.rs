@@ -80,14 +80,37 @@ pub enum Error {
         lemma_name: String,
         oracle_name: String,
     },
-    #[error("Expected 2-tuple (name type) for argument but got {argument}")]
+    #[error("Expected 1-tuple (name) for argument but got {argument}")]
     IncorrectArgument { argument: String },
     #[error("expected {expected} arguments but found {argument}")]
     IncorrectNumberOfArguments { argument: String, expected: String },
+    #[error("define-game-invariant only valid in game contexts: {defn}")]
+    RewriteNeedsGameContext { defn: String },
+    #[error("define-package-invariant only valid in package contexts: {defn}")]
+    RewriteNeedsPackageContext { defn: String },
     #[error(transparent)]
     ParserError(#[from] crate::util::smtparser::Error),
-    #[error(transparent)]
-    ProverProcessError(#[from] crate::util::smtsolver::Error),
+    #[error("SMT Solver failed in oracle {oracle_name}, claim {claim_name}")]
+    ProverProcessError {
+        claim_name: String,
+        oracle_name: String,
+        #[related]
+        solver_errors: Vec<crate::util::smtsolver::Error>,
+    },
+}
+
+impl Error {
+    pub(super) fn prover_process_error(
+        claim_name: &str,
+        oracle_name: &str,
+        err: crate::util::smtsolver::Error,
+    ) -> Self {
+        Self::ProverProcessError {
+            claim_name: claim_name.to_string(),
+            oracle_name: oracle_name.to_string(),
+            solver_errors: vec![err],
+        }
+    }
 }
 
 #[derive(Debug, Error, Diagnostic)]

@@ -26,17 +26,6 @@
              (is-mk-none (select State ctr)))))
 
 
-(define-fun H-LTK-tables-empty-above-max
-    ((max-kid Int)
-     (H (Array Int (Maybe Bool)))
-     (Ltk (Array Int (Maybe Bits_n))))
-  Bool
-  (forall ((kid Int))
-          (= (> kid max-kid)
-             (and (is-mk-none (select H kid))
-                  (is-mk-none (select Ltk kid))))))
-
-
 (define-fun kmac-before-sid
     ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -70,15 +59,6 @@
                    (not (is-mk-none (select Ltk kid)))))))))
 
 
-(define-fun ltk-and-h-set-together
-    ((Ltk (Array Int (Maybe Bits_n)))
-     (H (Array Int (Maybe Bool))))
-  Bool
-  (forall ((kid Int))
-          (= (is-mk-none (select Ltk kid))
-             (is-mk-none (select H kid)))))
-
-
 (define-fun k-prf-implies-rev-tested-sid
     ((Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (RevTested (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Bool))))
@@ -88,22 +68,6 @@
               (let ((kmac (maybe-get (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))
                 (let ((tau (<<func-mac>> kmac nr 2)))
                   (not (is-mk-none (select RevTested (mk-tuple5 U V ni nr tau)))))))))
-
-
-(define-fun h-and-fresh-match
-    ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool)))
-     (H (Array Int (Maybe Bool))))
-  Bool
-  (forall ((ctr Int))
-          (let ((state (select State ctr)))
-            (=> (not (is-mk-none state))
-                (let  ((kid  (el10-4  (maybe-get state))))
-                  (and (not (is-mk-none (select Fresh ctr)))
-                       (not (is-mk-none (select H kid)))
-                       (= (select Fresh ctr) (select H kid))))))))
 
 
 (define-fun sid-is-wellformed
@@ -267,8 +231,7 @@
 
 
 (define-state-relation invariant
-    ((left <GameState_Hybrid2_<$<!n!>$>>)
-     (right <GameState_Hybrid2_<$<!n!>$>>))
+    ((left) (right))
   (and
    (= left.Prf.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)
@@ -280,8 +243,6 @@
    (= left.KX.State right.KX.State)
 
    (no-overwriting-state left.KX.ctr_ left.KX.State)
-   (H-LTK-tables-empty-above-max left.Prf.kid_ left.Prf.H left.Prf.LTK)
-   (H-LTK-tables-empty-above-max right.Prf.kid_ right.Prf.H right.Prf.LTK)
 
    (kmac-requires-nonces left.KX.State)
    (kmac-is-wellformed left.KX.State left.KX.Fresh left.Prf.LTK left.Prf.PRF)
@@ -297,8 +258,6 @@
 
    (referenced-kid-exist left.KX.State left.Prf.PRF left.Prf.LTK)
 
-   (ltk-and-h-set-together left.Prf.LTK left.Prf.H)
-   (h-and-fresh-match left.KX.State left.KX.Fresh left.Prf.H)
    (k-prf-implies-rev-tested-sid left.Prf.PRF left.KX.RevTested)
 
    (honest-kmac left.KX.State left.Prf.PRF left.KX.Fresh left.Prf.H)))

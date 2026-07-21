@@ -81,7 +81,10 @@ impl<'a> GameInstanceContext<'a> {
         GameConstsPattern { game_name }
     }
 
-    fn game_state_declare_info(&self, sample_info: &'a SampleInfo) -> GameStateDeclareInfo<'a> {
+    pub(crate) fn game_state_declare_info(
+        &self,
+        sample_info: &'a SampleInfo,
+    ) -> GameStateDeclareInfo<'a> {
         let game_inst = self.game_inst;
         GameStateDeclareInfo {
             game_inst,
@@ -104,11 +107,7 @@ impl GameInstanceContext<'_> {
         //            sample. while the spec is "wrong" in that it won't contain the data based
         //            for sample instuctions, it should still behave correctly when queried for
         //            package state.
-        let sample_info = SampleInfo {
-            tys: vec![],
-            count: 0,
-            positions: vec![],
-        };
+        let sample_info = SampleInfo::default();
 
         let declare_info = self.game_state_declare_info(&sample_info);
         let spec = self

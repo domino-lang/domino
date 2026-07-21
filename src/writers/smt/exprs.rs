@@ -316,7 +316,6 @@ impl From<Type> for SmtExpr {
             }
             TypeKind::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (*t).into()]),
             TypeKind::Boolean => SmtExpr::Atom("Bool".to_string()),
-            TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
             TypeKind::Integer => SmtExpr::Atom("Int".into()),
             TypeKind::Table(t_idx, t_val) => SmtExpr::List(vec![
                 SmtExpr::Atom("Array".into()),
@@ -330,6 +329,8 @@ impl From<Type> for SmtExpr {
                 }
                 els
             }),
+            TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
+            TypeKind::UserDefined(udefty) => SmtExpr::Atom(format!("{udefty}")),
             kind => {
                 panic!("not implemented: {kind:?}")
             }
@@ -367,6 +368,7 @@ impl From<&Type> for SmtExpr {
                 els
             }),
             TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
+            TypeKind::UserDefined(udefty) => SmtExpr::Atom(format!("{udefty}")),
             _ => {
                 panic!("not implemented: {t:?}")
             }

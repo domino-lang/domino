@@ -108,7 +108,13 @@ impl PackageInstance {
             })
             .collect_vec();
 
-        ty.rewrite_type(&int_params)
+        let all_rules: Vec<_> = int_params
+            .into_iter()
+            // Also include type parameter rewrites
+            .chain(pkg_inst_type_mapping_vec(&self.types))
+            .collect();
+
+        ty.rewrite_type(&all_rules)
     }
 }
 
@@ -120,12 +126,14 @@ impl PackageInstance {
         params: Vec<(PackageConstIdentifier, Expression)>,
         types: Vec<(String, Type)>,
     ) -> PackageInstance {
+        let rewrite_types = pkg_inst_type_mapping_vec(&types);
+
         let inst_ctx: InstantiationContext =
             InstantiationContext::new_package_instantiation_context(
                 pkg_inst_name,
                 game_name,
                 &params,
-                &types,
+                &rewrite_types,
             );
 
         let new_params = pkg
@@ -203,7 +211,7 @@ pub(crate) mod instantiate {
         inst_name: &'a str,
         parent_name: &'a str,
 
-        type_assignments: &'a [(String, Type)],
+        type_assignments: &'a [(Type, Type)],
     }
 
     impl<'a> InstantiationContext<'a> {
@@ -211,7 +219,7 @@ pub(crate) mod instantiate {
             inst_name: &'a str,
             parent_name: &'a str,
             consts: &'a [(PackageConstIdentifier, Expression)],
-            types: &'a [(String, Type)],
+            types: &'a [(Type, Type)],
         ) -> Self {
             Self {
                 src: InstantiationSource::Package {
@@ -227,7 +235,7 @@ pub(crate) mod instantiate {
             inst_name: &'a str,
             parent_name: &'a str,
             consts: &'a [(GameConstIdentifier, Expression)],
-            types: &'a [(String, Type)],
+            types: &'a [(Type, Type)],
         ) -> Self {
             Self {
                 src: InstantiationSource::Game {
@@ -339,15 +347,12 @@ pub(crate) mod instantiate {
         ///   - for package instantiation
         ///   - for game instatiantion
         pub(crate) fn base_rewrite_rules(&self) -> Vec<(Type, Type)> {
-            let mut type_rewrite_rules = self
-                .type_assignments
-                .iter()
-                .map(|(name, ty)| (Type::user_defined(name.to_string()), ty.clone()))
-                .collect_vec();
-
             match self.src {
-                InstantiationSource::Package { const_assignments } => {
-                    type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
+                InstantiationSource::Package { const_assignments } => self
+                    .type_assignments
+                    .iter()
+                    .cloned()
+                    .chain(const_assignments.iter().map(|(ident, expr)| {
                         (
                             Type::bits(CountSpec::Identifier(Box::new(
                                 Identifier::PackageIdentifier(PackageIdentifier::Const(
@@ -368,11 +373,14 @@ pub(crate) mod instantiate {
                                 })),
                             ))),
                         )
-                    }));
-                }
+                    }))
+                    .collect(),
 
-                InstantiationSource::Game { const_assignments } => {
-                    type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
+                InstantiationSource::Game { const_assignments } => self
+                    .type_assignments
+                    .iter()
+                    .cloned()
+                    .chain(const_assignments.iter().map(|(ident, expr)| {
                         (
                             Type::bits(CountSpec::Identifier(Box::new(
                                 Identifier::GameIdentifier(GameIdentifier::Const(ident.clone())),
@@ -392,14 +400,19 @@ pub(crate) mod instantiate {
                                 })),
                             ))),
                         )
-                    }));
-                }
+                    }))
+                    .collect(),
             }
-
-            type_rewrite_rules
         }
 
         pub(crate) fn rewrite_type(&self, ty: Type) -> Type {
+            if let Some((_old_ty, new_ty)) = self
+                .base_rewrite_rules()
+                .into_iter()
+                .find(|(old_ty, _new_ty)| ty == *old_ty)
+            {
+                return new_ty;
+            }
             let fix_vec = |tys: Vec<Type>| -> Vec<Type> {
                 tys.into_iter().map(|ty| self.rewrite_type(ty)).collect()
             };
@@ -508,7 +521,7 @@ pub(crate) mod instantiate {
 
         pub(crate) fn rewrite_statement(&self, stmt: Statement) -> Statement {
             use crate::statement::{Assignment, AssignmentRhs, Pattern};
-            let type_rewrite_rules = self.base_rewrite_rules();
+            let _type_rewrite_rules = self.base_rewrite_rules();
             match stmt {
                 Statement::Abort(_) => stmt.clone(),
                 Statement::Return(expr, pos) => {
@@ -557,7 +570,7 @@ pub(crate) mod instantiate {
                             edge,
                             return_type: return_type
                                 .as_ref()
-                                .map(|ty| ty.rewrite_type(&type_rewrite_rules)),
+                                .map(|ty| self.rewrite_type(ty.clone())),
                         },
                     };
 
@@ -711,8 +724,6 @@ pub(crate) mod instantiate {
         }
 
         pub(crate) fn rewrite_identifier(&self, ident: Identifier) -> Identifier {
-            let type_rewrite_rules = self.base_rewrite_rules();
-
             // extend the identifier with the instance and parent names
             let ident = match ident {
                 Identifier::PackageIdentifier(pkg_ident) => {
@@ -734,19 +745,19 @@ pub(crate) mod instantiate {
                     let pkg_ident = match pkg_ident {
                         PackageIdentifier::Const(const_ident) => {
                             PackageIdentifier::Const(PackageConstIdentifier {
-                                ty: const_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(const_ident.ty.clone()),
                                 ..const_ident
                             })
                         }
                         PackageIdentifier::State(state_ident) => {
                             PackageIdentifier::State(PackageStateIdentifier {
-                                ty: state_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(state_ident.ty),
                                 ..state_ident
                             })
                         }
                         PackageIdentifier::Local(local_ident) => {
                             PackageIdentifier::Local(PackageLocalIdentifier {
-                                ty: local_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(local_ident.ty),
                                 ..local_ident
                             })
                         }
@@ -757,7 +768,7 @@ pub(crate) mod instantiate {
 
                         PackageIdentifier::OracleArg(arg_ident) => {
                             PackageIdentifier::OracleArg(PackageOracleArgIdentifier {
-                                ty: arg_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(arg_ident.ty.clone()),
                                 ..arg_ident.clone()
                             })
                         }
@@ -782,4 +793,42 @@ pub(crate) mod instantiate {
             new_ident
         }
     }
+}
+
+pub(crate) fn full_inst_type_mapping<'a>(
+    pkg_mapping: &'a [(Type, Type)],
+    game_mapping: &'a [(Type, Type)],
+) -> impl Iterator<Item = (Type, Type)> + 'a {
+    pkg_mapping
+        .iter()
+        .map(|(old, new)| (old.clone(), new.rewrite_type(game_mapping)))
+}
+
+pub(crate) fn game_inst_type_mapping<'a>(
+    mapping: &'a [(String, Type)],
+) -> impl Iterator<Item = (Type, Type)> + 'a {
+    mapping.iter().map(|(name, ty)| {
+        (
+            Type::user_defined(crate::types::UserDefinedType::Game(name.to_string())),
+            ty.clone(),
+        )
+    })
+}
+pub(crate) fn game_inst_type_mapping_vec(mapping: &[(String, Type)]) -> Vec<(Type, Type)> {
+    game_inst_type_mapping(mapping).collect()
+}
+
+pub(crate) fn pkg_inst_type_mapping_vec(mapping: &[(String, Type)]) -> Vec<(Type, Type)> {
+    pkg_inst_type_mapping(mapping).collect()
+}
+
+fn pkg_inst_type_mapping<'a>(
+    mapping: &'a [(String, Type)],
+) -> impl Iterator<Item = (Type, Type)> + 'a {
+    mapping.iter().map(|(name, ty)| {
+        (
+            Type::user_defined(crate::types::UserDefinedType::Package(name.to_string())),
+            ty.clone(),
+        )
+    })
 }

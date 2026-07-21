@@ -78,6 +78,8 @@ pub struct Package {
     pub oracles: Vec<OracleDef>,
     pub imports: Vec<(OracleSig, SourceSpan)>,
 
+    pub invariants: Vec<String>,
+
     pub file_name: String,
     pub file_contents: String,
 }
@@ -162,6 +164,9 @@ pub struct Composition {
     pub exports: Vec<Export>,
     pub name: String,
     pub consts: Vec<(String, Type)>,
+    pub type_params: Vec<String>,
+
+    pub invariants: Vec<String>,
 }
 
 impl Composition {
