@@ -107,6 +107,7 @@ pub trait Project {
         req_theorem: &Option<String>,
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
+        req_claim: &Option<String>,
     ) -> Result<()>
     where
         Self: Sized + Sync,
@@ -157,6 +158,7 @@ pub trait Project {
                             backend,
                             transcript,
                             req_oracle.as_deref(),
+                            req_claim.as_deref(),
                             parallel,
                         );
                         driver.verify(&mut ui)?;
@@ -174,6 +176,7 @@ pub trait Project {
                             backend,
                             transcript,
                             req_oracle.as_deref(),
+                            req_claim.as_deref(),
                             parallel,
                         );
                         driver.verify(&mut ui)?;

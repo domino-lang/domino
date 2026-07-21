@@ -23,6 +23,7 @@ pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Pro
     backend: &'a Backend,
     transcript: bool,
     req_oracle: Option<&'a str>,
+    req_claim: Option<&'a str>,
     parallel: usize,
 }
 
@@ -35,6 +36,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         backend: &'a Backend,
         transcript: bool,
         req_oracle: Option<&'a str>,
+        req_claim: Option<&'a str>,
         parallel: usize,
     ) -> Self {
         Self {
@@ -43,6 +45,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             backend,
             transcript,
             req_oracle,
+            req_claim,
             parallel,
         }
     }
@@ -170,6 +173,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let result: Vec<_> = claims
             .par_iter()
+            .filter(|claim|{
+                if let Some(req_claim) = self.req_claim {
+                    claim.name == req_claim
+                } else {
+                    true
+                }
+            })
             .map(|claim| -> Result<()> {
                 self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle, claim)
             })
