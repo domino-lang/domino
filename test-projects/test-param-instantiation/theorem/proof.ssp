@@ -1,0 +1,33 @@
+theorem Proof {
+    const x: Integer;
+
+    instance G1 = Game {
+        params {
+            x: x,
+            b: false
+        }
+    }
+
+    instance G2 = Game {
+        params {
+            x: x,
+            b: true
+        }
+    }
+
+    gamehops {
+        equivalence G1 G2 {
+            Hello: {
+                randomness: none
+                invariant: [
+                    ./theorem/inv.smt2
+                ]
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+    }
+}

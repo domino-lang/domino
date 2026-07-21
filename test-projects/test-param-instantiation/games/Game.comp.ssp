@@ -1,0 +1,17 @@
+composition Game {
+    const b: Bool;
+    const x: Integer;
+
+    instance p = P {
+        params {
+            b: b,
+            y: x
+        }
+    }
+
+    compose {
+        adversary: {
+            Hello: p
+        }
+    }
+}
