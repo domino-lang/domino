@@ -1,0 +1,15 @@
+package P {
+    params {
+        b: Bool,
+        y: Integer
+    }
+
+    state {
+        tea: Maybe(Bits(y))
+    }
+
+    oracle Hello(k: Bits(y)) -> Bits(y) {
+        tea <- Some(k);
+        return Unwrap(tea);
+    }
+}
