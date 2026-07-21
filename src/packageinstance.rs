@@ -508,7 +508,7 @@ pub(crate) mod instantiate {
 
         pub(crate) fn rewrite_statement(&self, stmt: Statement) -> Statement {
             use crate::statement::{Assignment, AssignmentRhs, Pattern};
-            let type_rewrite_rules = self.base_rewrite_rules();
+            let _type_rewrite_rules = self.base_rewrite_rules();
             match stmt {
                 Statement::Abort(_) => stmt.clone(),
                 Statement::Return(expr, pos) => {
@@ -557,7 +557,7 @@ pub(crate) mod instantiate {
                             edge,
                             return_type: return_type
                                 .as_ref()
-                                .map(|ty| ty.rewrite_type(&type_rewrite_rules)),
+                                .map(|ty| self.rewrite_type(ty.clone())),
                         },
                     };
 
@@ -711,8 +711,6 @@ pub(crate) mod instantiate {
         }
 
         pub(crate) fn rewrite_identifier(&self, ident: Identifier) -> Identifier {
-            let type_rewrite_rules = self.base_rewrite_rules();
-
             // extend the identifier with the instance and parent names
             let ident = match ident {
                 Identifier::PackageIdentifier(pkg_ident) => {
@@ -734,19 +732,19 @@ pub(crate) mod instantiate {
                     let pkg_ident = match pkg_ident {
                         PackageIdentifier::Const(const_ident) => {
                             PackageIdentifier::Const(PackageConstIdentifier {
-                                ty: const_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(const_ident.ty.clone()),
                                 ..const_ident
                             })
                         }
                         PackageIdentifier::State(state_ident) => {
                             PackageIdentifier::State(PackageStateIdentifier {
-                                ty: state_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(state_ident.ty),
                                 ..state_ident
                             })
                         }
                         PackageIdentifier::Local(local_ident) => {
                             PackageIdentifier::Local(PackageLocalIdentifier {
-                                ty: local_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(local_ident.ty),
                                 ..local_ident
                             })
                         }
@@ -757,7 +755,7 @@ pub(crate) mod instantiate {
 
                         PackageIdentifier::OracleArg(arg_ident) => {
                             PackageIdentifier::OracleArg(PackageOracleArgIdentifier {
-                                ty: arg_ident.ty.rewrite_type(&type_rewrite_rules),
+                                ty: self.rewrite_type(arg_ident.ty.clone()),
                                 ..arg_ident.clone()
                             })
                         }
