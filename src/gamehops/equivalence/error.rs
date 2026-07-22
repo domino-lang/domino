@@ -80,7 +80,7 @@ pub enum Error {
         lemma_name: String,
         oracle_name: String,
     },
-    #[error("{equivalence}: Expected 1-tuple (name) for argument but got {argument}")]
+    #[error("{equivalence}: Expected symbol name for argument but got {argument}")]
     IncorrectArgument {
         argument: String,
         equivalence: String,
