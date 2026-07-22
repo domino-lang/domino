@@ -125,7 +125,6 @@ impl PackageInstance {
                 pkg_inst_name,
                 game_name,
                 &params,
-                &types,
             );
 
         let new_params = pkg
@@ -202,8 +201,6 @@ pub(crate) mod instantiate {
 
         inst_name: &'a str,
         parent_name: &'a str,
-
-        type_assignments: &'a [(String, Type)],
     }
 
     impl<'a> InstantiationContext<'a> {
@@ -211,7 +208,6 @@ pub(crate) mod instantiate {
             inst_name: &'a str,
             parent_name: &'a str,
             consts: &'a [(PackageConstIdentifier, Expression)],
-            types: &'a [(String, Type)],
         ) -> Self {
             Self {
                 src: InstantiationSource::Package {
@@ -219,7 +215,6 @@ pub(crate) mod instantiate {
                 },
                 inst_name,
                 parent_name,
-                type_assignments: types,
             }
         }
 
@@ -227,7 +222,6 @@ pub(crate) mod instantiate {
             inst_name: &'a str,
             parent_name: &'a str,
             consts: &'a [(GameConstIdentifier, Expression)],
-            types: &'a [(String, Type)],
         ) -> Self {
             Self {
                 src: InstantiationSource::Game {
@@ -235,7 +229,6 @@ pub(crate) mod instantiate {
                 },
                 inst_name,
                 parent_name,
-                type_assignments: types,
             }
         }
 
@@ -331,72 +324,6 @@ pub(crate) mod instantiate {
                 }
                 other @ (CountSpec::Any | CountSpec::Literal(_)) => other,
             }
-        }
-
-        /// Returns rewrite rules for three cases:
-        /// - Rewrites user-defined types to what they are assigned (which is currently not really supported)
-        /// - Rewrite Bits(some_ident) such that some_ident has the instantiation information set, both
-        ///   - for package instantiation
-        ///   - for game instatiantion
-        pub(crate) fn base_rewrite_rules(&self) -> Vec<(Type, Type)> {
-            let mut type_rewrite_rules = self
-                .type_assignments
-                .iter()
-                .map(|(name, ty)| (Type::user_defined(name.to_string()), ty.clone()))
-                .collect_vec();
-
-            match self.src {
-                InstantiationSource::Package { const_assignments } => {
-                    type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
-                        (
-                            Type::bits(CountSpec::Identifier(Box::new(
-                                Identifier::PackageIdentifier(PackageIdentifier::Const(
-                                    ident.clone(),
-                                )),
-                            ))),
-                            Type::bits(CountSpec::Identifier(Box::new(
-                                Identifier::PackageIdentifier(PackageIdentifier::Const({
-                                    let mut fixed_ident: PackageConstIdentifier = ident.clone();
-
-                                    fixed_ident.set_pkg_inst_info(
-                                        self.inst_name.to_string(),
-                                        self.parent_name.to_string(),
-                                    );
-                                    fixed_ident.game_assignment = Some(Box::new(expr.clone()));
-
-                                    fixed_ident
-                                })),
-                            ))),
-                        )
-                    }));
-                }
-
-                InstantiationSource::Game { const_assignments } => {
-                    type_rewrite_rules.extend(const_assignments.iter().map(|(ident, expr)| {
-                        (
-                            Type::bits(CountSpec::Identifier(Box::new(
-                                Identifier::GameIdentifier(GameIdentifier::Const(ident.clone())),
-                            ))),
-                            Type::bits(CountSpec::Identifier(Box::new(
-                                Identifier::GameIdentifier(GameIdentifier::Const({
-                                    let mut fixed_ident: GameConstIdentifier = ident.clone();
-
-                                    fixed_ident.set_game_inst_info(
-                                        self.inst_name.to_string(),
-                                        self.parent_name.to_string(),
-                                    );
-
-                                    fixed_ident.assigned_value = Some(Box::new(expr.clone()));
-
-                                    fixed_ident
-                                })),
-                            ))),
-                        )
-                    }));
-                }
-            }
-
-            type_rewrite_rules
         }
 
         pub(crate) fn rewrite_type(&self, ty: Type) -> Type {
@@ -508,7 +435,6 @@ pub(crate) mod instantiate {
 
         pub(crate) fn rewrite_statement(&self, stmt: Statement) -> Statement {
             use crate::statement::{Assignment, AssignmentRhs, Pattern};
-            let _type_rewrite_rules = self.base_rewrite_rules();
             match stmt {
                 Statement::Abort(_) => stmt.clone(),
                 Statement::Return(expr, pos) => {
