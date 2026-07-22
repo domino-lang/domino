@@ -240,7 +240,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             .game
             .pkgs
             .iter()
-            .flat_map(|pkg| gen_varbinding(pkg, &format!("game.{}", pkg.name)))
+            .flat_map(|pkg| gen_varbinding(pkg, self.game.unwrap(), &format!("game.{}", pkg.name)))
             .collect();
 
         let bindvars = SmtLet {
@@ -276,7 +276,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
         let gamestate_sort = gamestate_pattern.sort_name();
 
-        let varbindings = gen_varbinding(self.package.unwrap(), "pkg");
+        let varbindings = gen_varbinding(self.package.unwrap(), self.game.unwrap(), "pkg");
         let bindvars = SmtLet {
             bindings: varbindings,
             body,
