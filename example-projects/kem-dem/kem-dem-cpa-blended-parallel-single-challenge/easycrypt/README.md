@@ -47,7 +47,7 @@ and PKE scheme.
 
 You may have noticed that the above doesn't define some PKE-specific components
 that it does define (the analogs of) for KEMs and DEMs, e.g., a PKE ciphertext
-space. This is because our construction will *instantiate* those—specializing
+space. This is because our construction will _instantiate_ those—specializing
 the notion of PKE to its specific needs. We'll get back to this.
 
 ### Basics, EasyCrypt
@@ -113,12 +113,11 @@ That's it, this already suffices to start specifying the relevant schemes and
 their security properties, which is what we'll do next.
 
 Worthy of note: keeping those abstract here means that whatever we prove will
-hold for *every* instantiation of the above that is proved to meet the axioms.
+hold for _every_ instantiation of the above that is proved to meet the axioms.
 (Essentially, every instantiation of the types where the type `key` is finite
 and equipped with its uniform distribution.)
 
-[^1]:  In EasyCrypt, `(*` and `*)` delimit a (potentially multi-line) comment.
-
+[^1]: In EasyCrypt, `(*` and `*)` delimit a (potentially multi-line) comment.
 
 ## Schemes and Security Properties
 
@@ -130,7 +129,7 @@ way, but that would mean redefining PKE security every time we want to
 construct a PKE in a different way.
 
 Instead, we first define them generically—parameterizing them with their own
-sets, and distributions, and algorithms, and experiments; then *instantiating*
+sets, and distributions, and algorithms, and experiments; then _instantiating_
 them to the sets and distributions we just declared.
 
 ### KEMs, Pen-and-Paper
@@ -141,12 +140,12 @@ $\mathcal{C}$ is a triple of algorithms $\left(\mathsf{KeyGen},
 \mathsf{Encaps}, \mathsf{Decaps}\right)$ for which the following holds.
 
 - $\mathsf{KeyGen}$ takes no input, and outputs a public key (from $\mathcal{PK}$)
-and a secret key (from $\mathcal{SK}$).
+  and a secret key (from $\mathcal{SK}$).
 - $\mathsf{Encaps}$ takes a public key (from $\mathcal{PK}$) as input, and outputs
-a symmetric key (from $\mathcal{K}$) and a KEM ciphertext (from $\mathcal{C}$)  .
+  a symmetric key (from $\mathcal{K}$) and a KEM ciphertext (from $\mathcal{C}$) .
 - $\mathsf{Decaps}$ takes a secret key (from $\mathcal{SK}$) and a KEM ciphertext
-(from $\mathcal{C}$) as input, and outputs a symmetric key (from $\mathcal{K}$)
-or an explicit indication of failure ($\bot$).
+  (from $\mathcal{C}$) as input, and outputs a symmetric key (from $\mathcal{K}$)
+  or an explicit indication of failure ($\bot$).
 
 Depending on the book or lecture notes you are reading, you may encounter
 several additional requirements for what constitutes a KEM (e.g., a correctness
@@ -160,8 +159,8 @@ In our case, the security property of interest for KEMs is the so-called
 (ciphertext) INDistinguishability under Chosen-Plaintext Attacks (IND-CPA,
 shortened to simply CPA) property. Intuitively, this property captures that, if
 we produce a symmetric key and encapsulation using the considered KEM (in an
-honest way), then *no useful information about the symmetric key can be
-extracted from the encapsulation (or other public information)*. A bit more
+honest way), then _no useful information about the symmetric key can be
+extracted from the encapsulation (or other public information)_. A bit more
 concretely, this property requires that no (reasonable) adversary can
 meaningfully distinguish between a (uniformly) random symmetric key and one
 produced (honestly) using the considered KEM, even when given the corresponding
@@ -222,7 +221,7 @@ type pkey, skey, key, ctxt.
 op [lossless full uniform] dkey : key distr.
 ```
 
-We can then define the *syntax* of a KEM over these using a "module type". As
+We can then define the _syntax_ of a KEM over these using a "module type". As
 the name suggests, a module type denotes the type of a module, which is nothing
 more than a collection of procedures potentially sharing some state. Then,
 a module type merely specifies the procedures a module must (at least)
@@ -231,9 +230,10 @@ the module must take.[^3] Using module types, the formalization of KEMs in
 EasyCrypt is a rather simple, almost verbatim, translation from the
 pen-and-paper definition, as shown below.
 
-[^3]: For an analogy, a module type is comparable to a dumbed-down interface in
-your typical object-oriented programming language, while a module (satisfying
-a module type) would be an object implementing an interface.
+[^3]:
+    For an analogy, a module type is comparable to a dumbed-down interface in
+    your typical object-oriented programming language, while a module (satisfying
+    a module type) would be an object implementing an interface.
 
 ```
 module type KEM = {
@@ -274,7 +274,7 @@ security experiments and generic constructions, on adversaries and other
 constructions on pen-and-paper.
 That is, stating that the CPA experiment for KEMs
 $\mathsf{Exp}^{\mathrm{CPA}}_{\mathrm{E}, \mathcal{A}}$ is parameterized on
-a KEM $\mathrm{E}$ and an adversary  (against CPA security for KEMs)
+a KEM $\mathrm{E}$ and an adversary (against CPA security for KEMs)
 $\mathcal{A}$ can straightforwardly be formalized in EasyCrypt by means of
 a module parameterized on a module `E` of (module) type `KEM` and a module `A`
 of (module) type `KEM_CPA_Adv`. Knowing this, the formalization is rather
@@ -318,7 +318,7 @@ to EasyCrypt as follows.
 
 Indeed, ignoring (the technicality of) the memory specification `@ &m`, each element
 of the pen-and-paper expression has a direct counterpart
-in EasyCrypt: $\left| \right|$ becomes ``` `| |```; $\mathsf{Pr}[]$ becomes `Pr[]`;
+in EasyCrypt: $\left| \right|$ becomes `` `| |``; $\mathsf{Pr}[]$ becomes `Pr[]`;
 $\mathsf{Exp}^{\mathrm{CPA}}_{\mathrm{E}, \mathcal{A}}(0)$ becomes
 `KEM_CPA_Exp(E, A).run(false)`; $\mathsf{Exp}^{\mathrm{CPA}}_{\mathrm{E}, \mathcal{A}}(1)$ becomes
 `KEM_CPA_Exp(E, A).run(true)`; and $= 1$ becomes `: res`.
@@ -326,10 +326,11 @@ $\mathsf{Exp}^{\mathrm{CPA}}_{\mathrm{E}, \mathcal{A}}(0)$ becomes
 specified before the colon; in this case, this is a boolean, meaning that
 simply putting `res` is equivalent to checking for `true` or `1`.)
 
-[^5]: Here, a technicality is that EasyCrypt mandates (imperative) code to be
-contained in procedures that, in turn, have to be contained in modules. As
-such, we create an auxiliary procedure (arbitrarily named `run`) in which we
-actually put the experiment's code.
+[^5]:
+    Here, a technicality is that EasyCrypt mandates (imperative) code to be
+    contained in procedures that, in turn, have to be contained in modules. As
+    such, we create an auxiliary procedure (arbitrarily named `run`) in which we
+    actually put the experiment's code.
 
 ### DEMs, Pen-and-Paper
 
@@ -339,9 +340,9 @@ $\left(\mathsf{KeyGen}, \mathsf{Enc}, \mathsf{Dec}\right)$ for which the
 following holds.
 
 - $\mathsf{Enc}$ takes a symmetric key (from $\mathcal{K}$) and a plaintext (from $\mathcal{P}$)
-as input, and outputs DEM ciphertext (from $\mathcal{C}$)  .
+  as input, and outputs DEM ciphertext (from $\mathcal{C}$) .
 - $\mathsf{Dec}$ takes a symmetric key (from $\mathcal{K}$) and a DEM ciphertext
-(from $\mathcal{C}$) as input, and outputs a plaintext (from $\mathcal{P}$).
+  (from $\mathcal{C}$) as input, and outputs a plaintext (from $\mathcal{P}$).
 
 Key generation for our DEM will be done by sampling from
 $\mathcal{U}(\mathcal{K})$.
@@ -353,13 +354,13 @@ For the security of DEMs, we consider indistinguishability under one-time
 chosen plaintext attack (IND-1CPA). Conceptually, this property is quite alike
 the CPA property for KEMs. Namely, intuitively, passive security captures that,
 if we produce a single ciphertext using the considered DEM (in an honest way),
-then *no useful information about the plaintext can be extracted from the
-ciphertext*.[^6]
+then _no useful information about the plaintext can be extracted from the
+ciphertext_.[^6]
 Of course, since a DEM is a different primitive than a KEM, the concrete
 manifestation of this intuition is going to look a bit different.
 The notion requires that no (reasonable) adversary can meaningfully decide
 which plaintext underlies a particular ciphertext, even when allowed to choose
-the *only two* possible plaintexts.
+the _only two_ possible plaintexts.
 Similarly to before, we formalize the property by means of a well-defined
 program ("experiment") that matches this scenario, then defining
 a corresponding advantage to capture the "extent to which an adversary can
@@ -394,9 +395,9 @@ $$
      - \mathsf{Pr}\left[\mathsf{Exp}^{\mathrm{1CPA}}_{\mathrm{E}, \mathcal{A}}(1) = 1\right]\right|
 $$
 
-[^6]: Comparing this to the intuition for the CPA property of KEMs, you can see they
-are quite similar.
-
+[^6]:
+    Comparing this to the intuition for the CPA property of KEMs, you can see they
+    are quite similar.
 
 ### DEMs, EasyCrypt
 
@@ -471,7 +472,7 @@ $\mathcal{C}$ is a triple of algorithms $\left(\mathsf{KeyGen}, \mathsf{Enc},
 \mathsf{Dec}\right)$ for which the following holds.
 
 - $\mathsf{KeyGen}$ takes no input, and outputs a public key (from $\mathcal{PK}$)
-and a secret key (from $\mathcal{SK}$).
+  and a secret key (from $\mathcal{SK}$).
 - $\mathsf{Enc}$ takes a public key (from $\mathcal{PK}$) and a plaintext (from
   $\mathcal{P}$) as input, and outputs a ciphertext (from $\mathcal{C}$).
 - $\mathsf{Dec}$ takes a secret key (from $\mathcal{SK}$) and a ciphertext
@@ -484,8 +485,8 @@ a PKE scheme, but we refrain from doing so as it is unnecessary for our purposes
 For the security of PKE schemes, we consider simple indistinguishability under
 chosen plaintext attack.
 This could be described as follows: If we produce a ciphertext using the
-considered PKE scheme (in a honest way), then *no useful information about the
-plaintext can be extracted from the ciphertext (or other public information)*.
+considered PKE scheme (in a honest way), then _no useful information about the
+plaintext can be extracted from the ciphertext (or other public information)_.
 By now, you might already be able to imagine what the formalization of this
 property looks like. Indeed, we construct a well-defined program parameterized
 on a PKE scheme and an adversary (against CPA security for PKE schemes) in
@@ -545,7 +546,6 @@ Further, the class of adversaries is formalized in a similar fashion as well, i.
 as a module type with a procedure (signature) for each of the algorithms
 expected from the adversary. Concretely, this module type is the following.
 
-
 ```
 module type PKE_CPA_Adv = {
   proc choose(pk : pkey): ptxt * ptxt
@@ -573,7 +573,6 @@ module PKE_CPA_Exp (E : PKE) (A : PKE_CPA_Adv) = {
 
 Indeed, even the corresponding advantage would (typically) be written in
 a similar way as we've seen, and we'll leave it out here.
-
 
 ### KEM-DEM Construction, Pen-and-Paper
 
@@ -653,8 +652,9 @@ $$
 ### Interlude: Instantiating the assumptions and notion
 
 In the above, we defined the assumptions and our security notions abstractly.
-We can then *instantiate* them with the types we wish to use for our
+We can then _instantiate_ them with the types we wish to use for our
 construction. In particular, we want:
+
 - the types of the PKE public and secret keys to be the same as those of the
   underlying KEM's public and secret keys;
 - the type of the PKE's plaintext to be the same as that of the underlying
@@ -666,7 +666,7 @@ construction. In particular, we want:
 
 In EasyCrypt (back now to our main file `KEMDEM_lor.ec`), and given the
 top-level declarations we gave earlier for the types and distribution discussed
-above, we instantiate the generic definitions using *cloning*. When cloning, we
+above, we instantiate the generic definitions using _cloning_. When cloning, we
 can instantiate any type or operator left abstract in the generic theory, and
 we then also discharge (or prove) any axioms that may be expected to be met by
 those types and operators.
@@ -772,8 +772,9 @@ return variable (`r`) instead.
 
 With that, we can proceed to the proof.
 
-[^8]: Of course, we could've circumvented this by not using multiple return statements in the pen-and-paper version,
-but we tried to stick to what one (or we, at least) typically see in pen-and-paper proofs.
+[^8]:
+    Of course, we could've circumvented this by not using multiple return statements in the pen-and-paper version,
+    but we tried to stick to what one (or we, at least) typically see in pen-and-paper proofs.
 
 ## Proof
 
@@ -782,21 +783,21 @@ but we tried to stick to what one (or we, at least) typically see in pen-and-pap
 With the basics, schemes, and security properties defined, we are ready
 to actually prove our main security claim: the KEM-DEM
 construction creates a CPA-secure PKE scheme from a CPA-secure KEM
-and a 1CPA-secure DEM. That is, if we *are given* a CPA-secure KEM
-and a 1CPA-secure DEM, then *we know* that the KEM-DEM construction creates
+and a 1CPA-secure DEM. That is, if we _are given_ a CPA-secure KEM
+and a 1CPA-secure DEM, then _we know_ that the KEM-DEM construction creates
 a CPA secure PKE scheme. As is usual in cryptography, and precisely what EasyCrypt
-was built for, we demonstrate this claim by means of a *reductionist proof*.
+was built for, we demonstrate this claim by means of a _reductionist proof_.
 Specifically, we demonstrate that, given an adversary that breaks CPA security
 of the KEM-DEM construction, we can use this adversary to break the CPA security
 of the employed KEM or the security of the employed DEM. The way to formally do this
 is by explicitly constructing (reduction) adversaries that actually break the
 CPA or 1CPA security of the underlying KEM or DEM when given such an (hypothetical)
 adversary that breaks CPA security of the KEM-DEM construction.
-In the end, this is essentially the same as showing that *if the KEM-DEM construction
+In the end, this is essentially the same as showing that _if the KEM-DEM construction
 (with the given KEM and DEM) is not CPA secure then the given KEM is not
-CPA secure or the given DEM is not 1CPA secure*. (Then, by contraposition,
+CPA secure or the given DEM is not 1CPA secure_. (Then, by contraposition,
 the KEM-DEM construction has to be a CPA-secure PKE if the given KEM
-is CPA secure *and* the given DEM 1CPA secure.)
+is CPA secure _and_ the given DEM 1CPA secure.)
 
 In this exposition, we walk through the formalization of the
 proof artifacts and proof setup/structure, but only provide
@@ -828,8 +829,8 @@ encompasses the setup of the CPA experiment for the given KEM:
 honestly generating a key pair, followed by encapsulating with the generated public key.
 But then, intuitively,
 we can replace the symmetric key (generated by the encapsulation) by a uniformly
-random one, and *if the adversary starts behaving differently, it somehow
-managed to break the CPA security of the KEM*. This observation forms the basis
+random one, and _if the adversary starts behaving differently, it somehow
+managed to break the CPA security of the KEM_. This observation forms the basis
 of both KEM reductions (the second one applying it in reverse).
 With a uniformly random symmetric key (instead of a honestly computed one
 through encapsulation), the experiment effectively contains an entire instance of the
@@ -837,10 +838,9 @@ through encapsulation), the experiment effectively contains an entire instance o
 sampling a symmetric key uniformly at random, obtaining two plaintexts from the
 adversary, encrypting one of the plaintexts with the sampled key, and asking the
 adversary to decide which plaintext was encrypted. Even the check on the adversary's
-success is the same. So, intuitively, if the *if the adversary succeeds at this point,
-it somehow managed to break the 1CPA security of the DEM*. This observation forms the basis
+success is the same. So, intuitively, if the _if the adversary succeeds at this point,
+it somehow managed to break the 1CPA security of the DEM_. This observation forms the basis
 of the DEM reduction.
-
 
 ### Step 0: Declaring Objects
 
@@ -887,15 +887,15 @@ that upon receiving the values from its experiment, the reduction adversary asks
 given adversary to choose two plaintext, encrypts one of them using
 the symmetric key (provided by its experiment), asks the adversary to determine
 which one was encrypted based on the ciphertext (which consists of the DEM ciphertext
-resulting from the encryption *and* the KEM ciphertext provided by its
+resulting from the encryption _and_ the KEM ciphertext provided by its
 experiment), and finally directly returns the value output by the given adversary.
-Crucially, if the symmetric key the *reduction* adversary gets is the one
+Crucially, if the symmetric key the _reduction_ adversary gets is the one
 obtained via the KEM's encapsulation, i.e., the boolean
 parameter of the (KEM) CPA experiment is false, the perspective of the
-*given* adversary is exactly as it would be in a run of its own (PKE) CPA
+_given_ adversary is exactly as it would be in a run of its own (PKE) CPA
 experiment with the boolean parameter set to false. Further, if the symmetric
 key the reduction adversary receives is a uniformly random one, i.e., the boolean
-parameter of the (KEM) CPA experiment is true, any change the *given* adversary
+parameter of the (KEM) CPA experiment is true, any change the _given_ adversary
 "notices" (by behaving differently) must be due to this difference in the symmetric key (distribution).
 Since the reduction adversary directly returns whatever the given adversary outputs, any difference
 in behavior between these cases (by the given adversary) directly results in a distinguishing
@@ -905,11 +905,10 @@ In pen-and-paper proofs, a textual description like the above is usually all you
 will get (or less); if you're lucky, you'll get some additional algorithmic description.
 However, formally, a reduction adversary is, like any other object
 in our code-based formalism, a well-defined program. In EasyCrypt,
-you have to specify them *completely*, just as you need to
+you have to specify them _completely_, just as you need to
 for any other artifact. Fortunately, this does not require
 anything we haven't seen before. The actual formalization of the reduction adversary
 is shown below.
-
 
 ```
 module B_kem_0 (E_s : DEM) (A : PKE_CPA_Adv) : KEM_CPA_Adv = {
@@ -955,7 +954,6 @@ the meaning and purpose of which is really identical to that on pen-and-paper.
 In this case, the game essentially serves to simultaneously capture a slightly altered (PKE)
 CPA experiment where the used symmetric key is sampled uniformly at random.
 The resulting formalization is as follows.
-
 
 ```
 local module Game1 = {
@@ -1040,7 +1038,6 @@ local lemma GameHop2 &m:
      - Pr[DEM_1CPA_Exp(E_s, B_s(E_kem, A)).run(true) @ &m: res] |.
 ```
 
-
 ### Step 3: Second KEM Reduction
 
 The second KEM reduction adversary is almost identical to the first,
@@ -1074,7 +1071,6 @@ local lemma GameHop3 &m:
   `| Pr[KEM_CPA_Exp(E_kem, B_kem_1(E_s, A)).run(true) @ &m: res]
      - Pr[KEM_CPA_Exp(E_kem, B_kem_1(E_s, A)).run(false) @ &m: res] |.
 ```
-
 
 ### Final Result
 

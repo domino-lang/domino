@@ -30,13 +30,16 @@ security games as package compositions.
 ### Files Overview
 
 **Root:**
+
 - `ssp.toml` - Empty configuration file marking this as a Domino project
 
 **proofs/**
+
 - `proof.ssp` - Main proof file containing instances of security games and game hops to be verified by Domino. Defines the proof structure showing equivalence between monolithic and modular PKE implementations through a sequence of game hops
 - `invariant*.smt2` - SMT2 files containing invariant conditions used in the formal verification process
 
 **packages/**
+
 - `KEM.pkg.ssp` - Key Encapsulation Mechanism package with KEMGEN, ENCAPS, and DECAPS oracles
 - `DEM.pkg.ssp` - Data Encapsulation Mechanism package with ENC and DEC oracles, supporting idealization parameter
 - `Key.pkg.ssp` - Key management package handling key generation and storage
@@ -47,6 +50,7 @@ security games as package compositions.
 - `MON_CCA_PKE.pkg.ssp` - Monolithic PKE-CCA security game package (direct implementation)
 
 **games/**
+
 - `Game_MOD_CCA_PKE.comp.ssp` - Composition defining the modular PKE-CCA security game by combining KEM, DEM, and Key packages
 - `Game_MON_CCA_PKE.comp.ssp` - Composition defining the monolithic PKE-CCA security game as a direct implementation
 - `Game_CCA_KEM.comp.ssp` - KEM-specific CCA security game composition
