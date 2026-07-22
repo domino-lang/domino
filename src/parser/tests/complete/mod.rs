@@ -161,7 +161,7 @@ fn equivalence_parses() {
                     name: "invariant".into(),
                     ty: ClaimType::Invariant,
                     dependencies: vec![],
-                    admitted: false,
+                    admitted: false
                 },
                 Claim {
                     name: "equal-aborts".into(),

@@ -15,16 +15,18 @@ pub use game_state::*;
 pub use theorem_consts::*;
 
 #[derive(Debug, Clone)]
-pub enum OldNewVariant {
+pub enum GameStateOracleArgVariant {
     Old,
     New { oracle_name: String },
+    Initial,
 }
 
-impl Display for OldNewVariant {
+impl Display for GameStateOracleArgVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            OldNewVariant::Old => write!(f, "old"),
-            OldNewVariant::New { oracle_name } => write!(f, "new-{oracle_name}"),
+            GameStateOracleArgVariant::Old => write!(f, "old"),
+            GameStateOracleArgVariant::New { oracle_name } => write!(f, "new-{oracle_name}"),
+            GameStateOracleArgVariant::Initial => write!(f, "initial"),
         }
     }
 }
@@ -54,21 +56,31 @@ pub trait OracleArgPattern {
     }
 }
 
-pub trait OldNewOracleArgPattern: OracleArgPattern<Variant = OldNewVariant> {
+pub trait GameStateOracleArgPattern: OracleArgPattern<Variant = GameStateOracleArgVariant> {
     fn old_global_const_name(&self, game_inst_name: &str) -> String {
-        self.global_const_name(game_inst_name, &OldNewVariant::Old)
+        self.global_const_name(game_inst_name, &GameStateOracleArgVariant::Old)
     }
 
     fn new_global_const_name(&self, game_inst_name: &str, oracle_name: String) -> String {
-        self.global_const_name(game_inst_name, &OldNewVariant::New { oracle_name })
+        self.global_const_name(
+            game_inst_name,
+            &GameStateOracleArgVariant::New { oracle_name },
+        )
+    }
+
+    fn declare_initial(&self, game_inst_name: &str) -> SmtExpr {
+        self.declare(game_inst_name, &GameStateOracleArgVariant::Initial)
     }
 
     fn declare_old(&self, game_inst_name: &str) -> SmtExpr {
-        self.declare(game_inst_name, &OldNewVariant::Old)
+        self.declare(game_inst_name, &GameStateOracleArgVariant::Old)
     }
 
     fn declare_new(&self, game_inst_name: &str, oracle_name: String) -> SmtExpr {
-        self.declare(game_inst_name, &OldNewVariant::New { oracle_name })
+        self.declare(
+            game_inst_name,
+            &GameStateOracleArgVariant::New { oracle_name },
+        )
     }
 }
 
@@ -87,5 +99,5 @@ pub trait UnitOracleArgPattern: OracleArgPattern<Variant = ()> {
     }
 }
 
-impl<T: OracleArgPattern<Variant = OldNewVariant>> OldNewOracleArgPattern for T {}
+impl<T: OracleArgPattern<Variant = GameStateOracleArgVariant>> GameStateOracleArgPattern for T {}
 impl<T: OracleArgPattern<Variant = ()>> UnitOracleArgPattern for T {}

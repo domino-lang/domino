@@ -146,7 +146,7 @@ impl TheoremUI for IndicatifTheoremUI {
             .retain(|k, _v| !(k.0 == theorem_name && k.1 == proofstep_name))
     }
 
-    fn start_oracle(
+    fn start_scope(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
@@ -167,7 +167,7 @@ impl TheoremUI for IndicatifTheoremUI {
         );
     }
 
-    fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str) {
+    fn finish_scope(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str) {
         if let Some(proofstep_progress) = self
             .seq_proofstep_progress
             .get(&(theorem_name.to_string(), proofstep_name.to_string()))

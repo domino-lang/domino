@@ -22,7 +22,7 @@
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
-          (= (> ctr max-ctr)
+          (= (or (> ctr max-ctr) (<= ctr 0))
              (is-mk-none (select State ctr)))))
 
 
@@ -32,7 +32,7 @@
      (Ltk (Array Int (Maybe Bits_n))))
   Bool
   (forall ((kid Int))
-          (= (> kid max-kid)
+          (= (or (> kid max-kid) (<= kid 0))
              (and (is-mk-none (select H kid))
                   (is-mk-none (select Ltk kid))))))
 
@@ -270,6 +270,8 @@
     ((left <GameState_Hybrid2_<$<!n!>$>>)
      (right <GameState_Hybrid2_<$<!n!>$>>))
   (and
+   (>= left.Prf.kid_ 0)
+   (>= left.KX.ctr_ 0)
    (= left.Prf.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)
    (= left.Prf.LTK right.Prf.LTK)
