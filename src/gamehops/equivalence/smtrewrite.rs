@@ -130,6 +130,16 @@ fn gen_varbinding(package: &PackageInstance, package_state: &str) -> Vec<(String
         .collect()
 }
 
+impl SmtRewrite<'_> {
+    fn equivalence_name(&self) -> String {
+        format!(
+            "{} = {}",
+            self.context.equivalence().left_name,
+            self.context.equivalence().right_name
+        )
+    }
+}
+
 impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
         Ok(SmtExpr::Atom(content.to_string()))
@@ -261,6 +271,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
                 expected: "2".to_string(),
+                equivalence: self.equivalence_name(),
             });
         };
         let [left_arg_name] = &left_arg[..] else {
@@ -269,14 +280,16 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     "({})",
                     left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
+                equivalence: self.equivalence_name(),
             });
         };
         let [right_arg_name] = &right_arg[..] else {
             return Err(Error::IncorrectArgument {
                 argument: format!(
                     "({})",
-                    left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                    left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" "),
                 ),
+                equivalence: self.equivalence_name(),
             });
         };
 
@@ -404,6 +417,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
                 expected: "at least 4".to_string(),
+                equivalence: self.equivalence_name(),
             });
         };
         let [left_old_name] = &left_old[..] else {
@@ -412,6 +426,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     "({})",
                     left_old.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
+                equivalence: self.equivalence_name(),
             });
         };
         let [right_old_name] = &right_old[..] else {
@@ -420,6 +435,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     "({})",
                     right_old.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
+                equivalence: self.equivalence_name(),
             });
         };
         let [left_return_name] = &left_return[..] else {
@@ -428,6 +444,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     "({})",
                     left_return.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
+                equivalence: self.equivalence_name(),
             });
         };
         let [right_return_name] = &right_return[..] else {
@@ -439,6 +456,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                         .map(|sexpr| format!("{sexpr}"))
                         .join(" ")
                 ),
+                equivalence: self.equivalence_name(),
             });
         };
 
