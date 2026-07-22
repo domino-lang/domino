@@ -1,8 +1,5 @@
 (define-state-relation invariant
-    (
-        (left) ; left
-        (right) ; right
-    )
+    (left right)
     (and
         ; left_pk = right_pk
         (= left.MON_CCA_PKE.pk right.MOD_CCA_PKE.pk right.KEM.pk) 
@@ -64,10 +61,10 @@
 
 (define-lemma <relation-lemma-kem-correctness-Game_MON_CCA_PKE-Game_MOD_CCA_PKE_Real_KEM-PKENC>
     (
-        (old-state-left)
-        (old-state-right)
-        (return-left)
-        (return-right)
+        old-state-left
+        old-state-right
+        return-left
+        return-right
         (m0 Bits_ptl)
         (m1 Bits_ptl)
     )
@@ -76,10 +73,10 @@
 
 (define-lemma <relation-lemma-kem-correctness-Game_MON_CCA_PKE-Game_MOD_CCA_PKE_Real_KEM-PKDEC>
     (
-        (old-state-left)
-        (old-state-right)
-        (return-left)
-        (return-right)
+        old-state-left
+        old-state-right
+        return-left
+        return-right
         (ek_ctxt (Tuple2 Bits_kctl Bits_dctl))
     )
     (kem-correctness old-state-right.KEM.pk old-state-right.KEM.sk)

@@ -1,8 +1,5 @@
 (define-state-relation relation-randomness
-    (
-        (left-game)
-        (right-game)
-    )
+    (left-game right-game)
     (and
         (rand-is-eq
             (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")

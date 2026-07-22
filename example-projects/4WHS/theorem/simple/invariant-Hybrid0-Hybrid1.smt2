@@ -1,5 +1,5 @@
 (define-state-relation state=
-    ((left) (right))
+    (left right)
   (forall ((ctr Int))
           (and (= (is-mk-none (select left.KX.State ctr))
                   (is-mk-none (select right.KX.State ctr)))
@@ -21,7 +21,7 @@
 
 
 (define-state-relation keys-computed-correctly
-    ((left) (right))
+    (left right)
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -43,7 +43,7 @@
 
 
 (define-state-relation time-of-acceptance
-    ((left) (right))
+    (left right)
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -55,7 +55,7 @@
 
 
 (define-state-relation time-of-nonces
-    ((left) (right))
+    (left right)
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -72,7 +72,7 @@
                        (not (is-mk-none nr)))))))))
 
 (define-state-relation time-of-sid
-    ((left) (right))
+    (left right)
   (forall ((ctr Int))
           (let ((state (select left.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -85,7 +85,7 @@
 
 
 (define-state-relation invariant
-    ((left) (right))
+    (left right)
   (and
    (= left.KX.kid_ right.KX.kid_)
    (= left.KX.ctr_ right.KX.ctr_)

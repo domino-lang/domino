@@ -1,7 +1,5 @@
 (define-state-relation invariant
-     (
-          (left-game) (right-game)
-     )
+     (left-game right-game)
      (and
           (= left-game.keys_top.T right-game.keys_top.T)
           (= left-game.keys_top.z right-game.keys_top.z)

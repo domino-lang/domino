@@ -231,7 +231,7 @@
 
 
 (define-state-relation invariant
-    ((left) (right))
+    (left right)
   (and
    (= left.Prf.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)

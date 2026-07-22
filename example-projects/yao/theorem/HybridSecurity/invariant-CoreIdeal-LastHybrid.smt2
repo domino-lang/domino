@@ -1,7 +1,5 @@
 (define-state-relation invariant
-    (
-        (state-left) (state-right)
-    )
+    (state-left state-right)
     (let 
         (
             (d (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))

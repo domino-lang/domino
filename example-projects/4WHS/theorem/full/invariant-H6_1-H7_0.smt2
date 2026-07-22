@@ -1,5 +1,5 @@
 (define-state-relation relation-no-overwriting-prf
-    ((left) (right))
+    (left right)
   (forall ((i Int))
           (and
            (=> (= (select left.PRF.H i) (as mk-none (Maybe Bool)))
@@ -407,7 +407,7 @@
 
 
 (define-state-relation relation-trivial-equalities
-    ((left) (right))
+    (left right)
   (and (= left.Nonces.Nonces  right.Nonces.Nonces)
        (= left.PRF.LTK        right.PRF.LTK)
        (= left.PRF.H          right.PRF.H)
@@ -420,7 +420,7 @@
        (= left.KX.RevTestEval right.KX.RevTestEval)))
 
 (define-state-relation invariant
-    ((left) (right))
+    (left right)
   (and (relation-no-overwriting-prf left right)
        (relation-trivial-equalities left right)
 

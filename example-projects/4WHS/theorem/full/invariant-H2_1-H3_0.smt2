@@ -1,5 +1,5 @@
 (define-state-relation relation-mac-table-wellformed
-    ((H2) (H3))
+    (H2 H3)
   (forall ((mactag Bits_n))
           (let ((entry (select H2.CR.MACinverse mactag)))
             (=> (not (is-mk-none entry))
@@ -9,7 +9,7 @@
 
 
 (define-state-relation relation-prf-table-wellformed
-    ((H2) (H3))
+    (H2 H3)
   (forall ((prfval Bits_n))
           (let ((entry (select H2.CR.PRFinverse prfval)))
             (=> (not (is-mk-none entry))
@@ -18,7 +18,7 @@
 
 
 (define-state-relation relation-nonce-table-wellformed
-    ((H2) (H3))
+    (H2 H3)
   (forall ((ctr Int))
           (let ((state (select H2.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -34,7 +34,7 @@
 
 
 (define-state-relation relation-collision-resistance
-    ((H2) (H3))
+    (H2 H3)
   (and
    (forall ((mactag1 Bits_n) (mactag2 Bits_n))
            (let ((entry1 (select H2.CR.MACinverse mactag1))
@@ -53,7 +53,7 @@
 
 
 (define-state-relation relation-keys-wellformed
-    ((H2) (H3))
+    (H2 H3)
   (forall ((ctr Int))
           (let ((state (select H2.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -79,7 +79,7 @@
 
 
 (define-state-relation relation-time-of-initialization
-    ((H2) (H3))
+    (H2 H3)
   (forall ((ctr Int))
           (let ((state (select H2.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -119,7 +119,7 @@
 
 
 (define-state-relation relation-time-of-acceptance
-    ((H2) (H3))
+    (H2 H3)
   (forall ((ctr Int))
           (let ((state (select H2.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -131,7 +131,7 @@
 
 
 (define-state-relation relation-sid-wellformed
-    ((H2) (H3))
+    (H2 H3)
   (forall ((ctr Int))
           (let ((state (select H2.KX.State ctr)))
             (=> (not (is-mk-none state))
@@ -153,7 +153,7 @@
 
 
 (define-state-relation relation-own-nonce-unique
-    ((H2) (H3))
+    (H2 H3)
   (forall ((ctr1 Int) (ctr2 Int))
           (let ((state1 (select H2.KX.State ctr1))
                 (state2 (select H2.KX.State ctr2)))
@@ -173,7 +173,7 @@
 
 
 (define-state-relation relation-session-matching
-    ((H2) (H3))
+    (H2 H3)
     (forall ((ctr1 Int) (ctr2 Int))
           (let ((state1 (select H2.KX.State ctr1))
                 (state2 (select H2.KX.State ctr2)))
@@ -208,7 +208,7 @@
 
 
 (define-state-relation invariant
-    ((state-H2) (state-H3))
+    (state-H2 state-H3)
 
   (and (= state-H2.KX.LTK       state-H3.KX.LTK)
        (= state-H2.KX.H         state-H3.KX.H)
