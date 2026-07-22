@@ -60,26 +60,63 @@
           cargoLock.lockFile = ./Cargo.lock;
           buildAndTestSubdir = "crates/domino/";
           cargoBuildFlags = [ "--workspace" ];
-          # TODO: The allow unused_assignments is there because of miette:
-          #       https://github.com/zkat/miette/issues/458
+          # NOTE: cargo check / clippy / fmt used to live here too. They are
+          # now separate checks (checks.cargo-check, checks.clippy,
+          # checks.treefmt) so they can be run independently and don't run
+          # twice under `nix flake check`. This phase is now the full test
+          # suite only.
           checkPhase = ''
             echo "==== BEGIN TOOL VERSIONS ===="
             rustc --version
             cargo --version
             cargo clippy -- --version
             echo "==== END TOOL VERSIONS ===="
-            # export RUSTFLAGS="-D warnings -A unused_assignments"
             cargo test --verbose --workspace --all-targets
             cargo test --verbose --workspace --doc
-            cargo check --verbose --workspace --all-targets
-            cargo clippy --verbose --workspace --all-targets -- --deny warnings
-            cargo fmt --all --verbose --check
           '';
           meta.license = with pkgs.lib.licenses; [
             mit
             asl20
           ];
           meta.platforms = pkgs.lib.platforms.all;
+        };
+
+        # Lightweight, toolchain-exercising checks. They reuse domino's build
+        # setup (src, toolchain, vendored Cargo.lock) but skip the optimized
+        # build and the full test suite, so they're cheap enough to run
+        # against freshly-updated flake inputs. Build individually in CI with:
+        #   nix build .#checks.<system>.cargo-check
+        #   nix build .#checks.<system>.clippy
+        mkQuickCheck =
+          { name, command }:
+          domino.overrideAttrs (_: {
+            name = "domino-${name}";
+            doCheck = false;
+            buildPhase = ''
+              runHook preBuild
+              echo "==== BEGIN TOOL VERSIONS ===="
+              rustc --version
+              cargo --version
+              cargo clippy -- --version
+              echo "==== END TOOL VERSIONS ===="
+              ${command}
+              runHook postBuild
+            '';
+            installPhase = ''
+              runHook preInstall
+              touch "$out"
+              runHook postInstall
+            '';
+          });
+
+        cargoCheck = mkQuickCheck {
+          name = "cargo-check";
+          command = "cargo check --verbose --workspace --all-targets";
+        };
+
+        clippyCheck = mkQuickCheck {
+          name = "clippy";
+          command = "cargo clippy --verbose --workspace --all-targets -- --deny warnings";
         };
 
         dominoTreefmt = treefmt-nix.lib.evalModule pkgs {
@@ -165,6 +202,8 @@
         checks.default = domino;
         checks.domino = domino;
         checks.treefmt = dominoTreefmt.config.build.check self;
+        checks.cargo-check = cargoCheck;
+        checks.clippy = clippyCheck;
         checks.knownWorkingExamples = knownWorkingExamplesCheck;
 
         devShells.default = defaultDevShell;
