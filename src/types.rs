@@ -84,12 +84,6 @@ impl Type {
         }
     }
 
-    pub(crate) fn user_defined(name: String) -> Self {
-        Self {
-            kind: TypeKind::UserDefined(name),
-        }
-    }
-
     pub fn into_kind(self) -> TypeKind {
         self.kind
     }
