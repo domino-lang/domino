@@ -35,7 +35,7 @@
 
 
 (define-state-relation relation-no-overwriting
-    ((left) (right))
+    (left right)
   (forall ((i Int))
           (=> (> i right.PRF.kid_)
               (and (is-mk-none (select right.PRF.LTK i))
@@ -43,7 +43,7 @@
 
 
 (define-state-relation relation-ltk-and-h-set-equally
-    ((left) (right))
+    (left right)
   (forall ((i Int))
           (= (is-mk-none (select right.PRF.LTK i))
              (is-mk-none (select right.PRF.H i)))))
@@ -118,7 +118,7 @@
 
 
 (define-state-relation relation-trivial-equalities
-    ((left) (right))
+    (left right)
   (and (= left.Nonces.Nonces right.Nonces.Nonces)
        (= left.KX.Fresh     right.KX.Fresh)
        (= left.KX.First     right.KX.First)
@@ -131,7 +131,7 @@
 
 
 (define-state-relation invariant
-    ((left) (right))
+    (left right)
   (and (relation-trivial-equalities left right)
        (relation-no-overwriting left right)
        (relation-ltk-and-h-set-equally left right)

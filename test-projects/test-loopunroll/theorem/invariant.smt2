@@ -1,1 +1,1 @@
-(define-state-relation invariant ((left)(right)) true)
+(define-state-relation invariant (left right) true)

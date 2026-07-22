@@ -1,5 +1,5 @@
 (define-state-relation state=
-    ((left) (right))
+    (left right)
   (and
   (forall ((ctr Int))
           (and (= (is-mk-none (select left.KX.State ctr))
@@ -23,7 +23,7 @@
 
 
 (define-state-relation invariant
-    ((left) (right))
+    (left right)
   (and
    (= left.KX.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)

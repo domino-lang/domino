@@ -1,7 +1,5 @@
 (define-state-relation invariants
-    (
-        (state-left) (state-right)
-    )
+    (state-left state-right)
     (forall 
         (
             (i Int)
@@ -43,8 +41,6 @@
 )
 
 (define-state-relation invariant
-    (
-        (state-left) (state-right)
-    )
+    (state-left state-right)
     (invariants state-left state-right)
 )

@@ -475,7 +475,7 @@
 ;;    that message
 
 (define-state-relation relation-mac-implies-message
-    ((left) (right))
+    (left right)
   (let ((zeron <0_n>))
     (forall
      ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
@@ -683,7 +683,7 @@
 
 
 (define-state-relation relation-trivial-equalities
-    ((left) (right))
+    (left right)
   (and (= left.Nonces         right.Nonces)
        (= left.PRF.LTK        right.PRF.LTK)
        (= left.PRF.H          right.PRF.H)
@@ -702,7 +702,7 @@
 
 
 (define-state-relation relation-no-overwriting
-    ((left) (right))
+    (left right)
   (and (freshness-and-honesty-matches left.KX.State left.KX.Fresh left.PRF.H)
        (freshness-and-honesty-matches right.KX.State right.KX.Fresh right.PRF.H)
 
@@ -716,27 +716,27 @@
 
 
 (define-state-relation relation-sids
-    ((left) (right))
+    (left right)
   (and (sid-is-wellformed left.KX.State left.KX.Fresh left.MAC.Keys)
        (sid-matches left.KX.State left.KX.Fresh)
        (sids-unique left.KX.Fresh left.KX.State)))
 
 
 (define-state-relation relation-wellformedness
-    ((left) (right))
+    (left right)
   (and (kmac-and-tau-are-computed-correctly left.KX.State left.PRF.H left.PRF.LTK left.KX.Fresh left.MAC.Keys)
        (kmac-and-tau-are-computed-correctly right.KX.State right.PRF.H right.PRF.LTK right.KX.Fresh right.MAC.Keys)))
 
 
 (define-state-relation relation-time
-    ((left) (right))
+    (left right)
   (and (time-of-acceptance left.KX.State)
        (time-of-acceptance right.KX.State)
        (stuff-not-initialized-early left.KX.State left.KX.Fresh left.MAC.Keys)))
 
 
 (define-state-relation relation-macs
-    ((left) (right))
+    (left right)
   (and (mac-table-wellformed left.MAC.Keys left.MAC.Values)
        (four-mac-implies-three-mac left.MAC.Values)
        (three-mac-implies-two-mac left.MAC.Values)
@@ -746,7 +746,7 @@
 
 
 (define-state-relation relation-first
-    ((left) (right))
+    (left right)
   (and (sessions-in-first-exist left.KX.First left.KX.State)
        (sessions-in-first-exist left.KX.Second left.KX.State)
 
@@ -759,13 +759,13 @@
 
 
 (define-state-relation relation-reverse-mac
-    ((left) (right))
+    (left right)
   (and (reverse-mac-matches left.MAC.Values left.KX.ReverseMac left.PRF.H)
        (reverse-mac-state-consistent left.KX.ReverseMac left.KX.State)))
 
 
 (define-state-relation invariant
-    ((state-H710) (state-H711))
+    (state-H710 state-H711)
   (and (relation-trivial-equalities  state-H710 state-H711)
        (relation-mac-implies-message state-H710 state-H711)
        (relation-no-overwriting      state-H710 state-H711)

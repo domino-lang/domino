@@ -1,6 +1,5 @@
 (define-state-relation invariant
-    ((left-game)
-     (right-game))
+    (left-game right-game)
     (and
         (= left-game.Scheme_KEM.st right-game.Scheme_KEM.st)
         (= left-game.CCA_PKE.pk
