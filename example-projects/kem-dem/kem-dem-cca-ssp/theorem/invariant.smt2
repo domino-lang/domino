@@ -1,7 +1,7 @@
 (define-state-relation invariant
     (
-        (left <GameState_Game_MON_CCA_PKE_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>) ; left
-        (right <GameState_Game_MOD_CCA_PKE_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>) ; right
+        (left) ; left
+        (right) ; right
     )
     (and
         ; left_pk = right_pk

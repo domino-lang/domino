@@ -1,7 +1,6 @@
 (define-state-relation invariant
      (
-          (left-game <GameState_LayerHybrid_<$<!n!><!m!><!p!>$>>)
-          (right-game <GameState_LayerIdeal_<$<!n!><!m!><!p!>$>>)
+          (left-game) (right-game)
      )
      (and
           (= left-game.keys_top.T right-game.keys_top.T)
