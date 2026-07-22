@@ -1,6 +1,6 @@
 (define-state-relation invariant
-    ((left-game <GameState_Composition_Ideal_KEM_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
-     (right-game <GameState_Hybrid2_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>))
+    ((left-game)
+     (right-game))
     (and
         (= left-game.Scheme_KEM.st right-game.Scheme_KEM.st)
         (= left-game.Ideal_KEM.pk right-game.Reduction_DEM.pk)
