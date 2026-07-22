@@ -264,7 +264,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             params: &right_game_inst.consts,
         };
 
-        let [SmtExpr::List(left_arg), SmtExpr::List(right_arg)] = &args[..] else {
+        let [left_arg, right_arg] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
                 argument: format!(
                     "({})",
@@ -274,31 +274,22 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 equivalence: self.equivalence_name(),
             });
         };
-        let [left_arg_name] = &left_arg[..] else {
+        let SmtExpr::Atom(left_arg_name) = left_arg else {
             return Err(Error::IncorrectArgument {
-                argument: format!(
-                    "({})",
-                    left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" ")
-                ),
+                argument: format!("{left_arg}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let [right_arg_name] = &right_arg[..] else {
+        let SmtExpr::Atom(right_arg_name) = right_arg else {
             return Err(Error::IncorrectArgument {
-                argument: format!(
-                    "({})",
-                    left_arg.iter().map(|sexpr| format!("{sexpr}")).join(" "),
-                ),
+                argument: format!("{right_arg}",),
                 equivalence: self.equivalence_name(),
             });
         };
 
         let mut pkgbindings = Vec::new();
-        pkgbindings.extend(gen_pkgbinding(left_game_inst, &format!("{left_arg_name}")));
-        pkgbindings.extend(gen_pkgbinding(
-            right_game_inst,
-            &format!("{right_arg_name}"),
-        ));
+        pkgbindings.extend(gen_pkgbinding(left_game_inst, left_arg_name));
+        pkgbindings.extend(gen_pkgbinding(right_game_inst, right_arg_name));
 
         let mut varbindings = Vec::new();
         varbindings.extend(
@@ -408,9 +399,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             oracle_name,
         };
 
-        let [SmtExpr::List(left_old), SmtExpr::List(right_old), SmtExpr::List(left_return), SmtExpr::List(right_return), ..] =
-            &args[..]
-        else {
+        let [left_old, right_old, left_return, right_return, ..] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
                 argument: format!(
                     "({})",
@@ -420,42 +409,27 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 equivalence: self.equivalence_name(),
             });
         };
-        let [left_old_name] = &left_old[..] else {
+        let SmtExpr::Atom(left_old_name) = left_old else {
             return Err(Error::IncorrectArgument {
-                argument: format!(
-                    "({})",
-                    left_old.iter().map(|sexpr| format!("{sexpr}")).join(" ")
-                ),
+                argument: format!("{left_old}"),
                 equivalence: self.equivalence_name(),
             });
         };
-        let [right_old_name] = &right_old[..] else {
+        let SmtExpr::Atom(right_old_name) = right_old else {
             return Err(Error::IncorrectArgument {
-                argument: format!(
-                    "({})",
-                    right_old.iter().map(|sexpr| format!("{sexpr}")).join(" ")
-                ),
+                argument: format!("{right_old}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let [left_return_name] = &left_return[..] else {
+        let SmtExpr::Atom(left_return_name) = left_return else {
             return Err(Error::IncorrectArgument {
-                argument: format!(
-                    "({})",
-                    left_return.iter().map(|sexpr| format!("{sexpr}")).join(" ")
-                ),
+                argument: format!("{left_return}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let [right_return_name] = &right_return[..] else {
+        let SmtExpr::Atom(right_return_name) = right_return else {
             return Err(Error::IncorrectArgument {
-                argument: format!(
-                    "({})",
-                    right_return
-                        .iter()
-                        .map(|sexpr| format!("{sexpr}"))
-                        .join(" ")
-                ),
+                argument: format!("{right_return}",),
                 equivalence: self.equivalence_name(),
             });
         };
@@ -463,25 +437,22 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         let mut retbindings = Vec::new();
         retbindings.extend(gen_returnbinding(
             left_game_inst,
-            &format!("{left_return_name}"),
+            left_return_name,
             left_oracle_export,
         ));
         retbindings.extend(gen_returnbinding(
             right_game_inst,
-            &format!("{right_return_name}"),
+            right_return_name,
             right_oracle_export,
         ));
 
         let mut pkgbindings = Vec::new();
-        pkgbindings.extend(gen_pkgbinding(left_game_inst, &format!("{left_old_name}")));
+        pkgbindings.extend(gen_pkgbinding(left_game_inst, left_old_name));
         pkgbindings.extend(gen_pkgbinding(
             left_game_inst,
             &format!("{left_return_name}.state"),
         ));
-        pkgbindings.extend(gen_pkgbinding(
-            right_game_inst,
-            &format!("{right_old_name}"),
-        ));
+        pkgbindings.extend(gen_pkgbinding(right_game_inst, right_old_name));
         pkgbindings.extend(gen_pkgbinding(
             right_game_inst,
             &format!("{right_return_name}.state"),
