@@ -80,10 +80,17 @@ pub enum Error {
         lemma_name: String,
         oracle_name: String,
     },
-    #[error("Expected 2-tuple (name type) for argument but got {argument}")]
-    IncorrectArgument { argument: String },
-    #[error("expected {expected} arguments but found {argument}")]
-    IncorrectNumberOfArguments { argument: String, expected: String },
+    #[error("{equivalence}: Expected symbol name for argument but got {argument}")]
+    IncorrectArgument {
+        argument: String,
+        equivalence: String,
+    },
+    #[error("{equivalence}: Expected {expected} arguments but found {argument}")]
+    IncorrectNumberOfArguments {
+        argument: String,
+        expected: String,
+        equivalence: String,
+    },
     #[error("define-game-invariant only valid in game contexts: {defn}")]
     RewriteNeedsGameContext { defn: String },
     #[error("define-package-invariant only valid in package contexts: {defn}")]

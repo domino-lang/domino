@@ -21,10 +21,7 @@
 )
 
 (define-state-relation relation-randomness
-    (
-        (left-game <GameState_Composition_Ideal_KEM_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
-        (right-game <GameState_Hybrid2_<$<!pkeyl!><!skeyl!><!ptl!><!dkeyl!><!kctl!><!dctl!><!kgenr!><!kencr!>$>>)
-    )
+    (left-game right-game)
     (and
         (rand-is-eq
             (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")

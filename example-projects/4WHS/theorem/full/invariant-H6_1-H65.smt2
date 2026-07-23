@@ -272,8 +272,7 @@
 
 
 (define-state-relation relation-trivial-equalities
-    ((left <GameState_H6_<$<!n!>$>>)
-     (right <GameState_H6_<$<!n!>$>>))
+    (left right)
   (and (= left.Nonces       right.Nonces)
        (= left.PRF.kid_     right.PRF.kid_)
        (= left.KX.ctr_      right.KX.ctr_)
@@ -286,8 +285,7 @@
        (= left.KX.State     right.KX.State)))
 
 (define-state-relation invariant
-    ((left <GameState_H6_<$<!n!>$>>)
-     (right <GameState_H6_<$<!n!>$>>))
+    (left right)
   (and (relation-trivial-equalities left right)
        (=prf left.PRF.PRF right.PRF.PRF left.PRF.H)
 
@@ -317,10 +315,7 @@
 
 
 (define-lemma <relation-aux-H6_1_0-H6_1_1-AtLeast>
-    ((H610-old <GameState_H6_<$<!n!>$>>)
-     (H611-old <GameState_H6_<$<!n!>$>>)
-     (H610-return <OracleReturn_H6_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtLeast>)
-     (H611-return <OracleReturn_H6_<$<!n!>$>_KX_noprfkey_<$<!n!>$>_AtLeast>)
+    (H610-old H611-old H610-return H611-return
      (sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
   (and (= H610-return.state.KX H610-old.KX)
        (= H611-return.state.KX H611-old.KX)

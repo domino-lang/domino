@@ -1,8 +1,5 @@
 (define-state-relation invariant
-    (
-        (state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>>)
-        (state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>>)
-    )
+    (state-left state-right)
     (let 
         (
             (d (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))

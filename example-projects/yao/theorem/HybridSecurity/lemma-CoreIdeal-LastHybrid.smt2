@@ -1,9 +1,9 @@
 (define-lemma <relation-case-i-lt-dminusone-CoreIdeal-LastHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>>)
-        (old-state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>>)
-        (return-left <OracleReturn_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        old-state-left
+        old-state-right
+        return-left
+        return-right
         (i Int)
         (l Int)
         (r Int)
@@ -18,10 +18,10 @@
 
 (define-lemma <relation-case-i-is-dminusone-CoreIdeal-LastHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>>)
-        (old-state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>>)
-        (return-left <OracleReturn_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        old-state-left
+        old-state-right
+        return-left
+        return-right
         (i Int)
         (l Int)
         (r Int)
@@ -36,10 +36,10 @@
 
 (define-lemma <relation-case-i-is-d-CoreIdeal-LastHybrid-GBLG>
     (
-        (old-state-left <GameState_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>>)
-        (old-state-right <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>>)
-        (return-left <OracleReturn_CoreIdeal_<$<!n!><!m!><!p!><!d!>$>_LayerMap_<$<!d!><!n!><!p!>$>_GBLG>)
-        (return-right <OracleReturn_HybridIdeal_<$<!n!><!m!><!p!><!d!><!d!>$>_HybridLayerMap_<$<!d!><!h!><!n!><!p!>$>_GBLG>)
+        old-state-left
+        old-state-right
+        return-left
+        return-right
         (i Int)
         (l Int)
         (r Int)

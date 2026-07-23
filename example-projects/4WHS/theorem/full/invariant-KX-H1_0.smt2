@@ -1,5 +1,4 @@
 (define-state-relation invariant
-    ((state-left  <GameState_H0_<$<!n!>$>>)
-     (state-right <GameState_H1_<$<!n!>$>>))
+    (state-left state-right)
   (= state-left.KX
      state-right.KX))

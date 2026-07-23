@@ -1,8 +1,5 @@
 (define-state-relation invariants
-    (
-        (state-left <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!h!>$>>)
-        (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!hplusone!>$>>)
-    )
+    (state-left state-right)
     (forall 
         (
             (i Int)
@@ -44,9 +41,6 @@
 )
 
 (define-state-relation invariant
-    (
-        (state-left <GameState_HybridIdeal_<$<!n!><!m!><!p!><!d!><!h!>$>>)
-        (state-right <GameState_HybridReal_<$<!n!><!m!><!p!><!d!><!hplusone!>$>>)
-    )
+    (state-left state-right)
     (invariants state-left state-right)
 )
