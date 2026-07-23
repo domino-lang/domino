@@ -23,6 +23,7 @@ use crate::{
     statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement},
     theorem::Theorem,
     transforms::{resolveoracles, Transformation as _},
+    types::Type,
 };
 
 /// Recursion is bounded so that a malformed (cyclic) composition can't make us loop forever.
@@ -220,9 +221,9 @@ impl<'a> Writer<'a> {
                 let _ = write!(out, ", ");
             }
             first = false;
-            let _ = write!(out, "{name}: {ty}");
+            let _ = write!(out, "{name}: {}", ty_repr(ty));
         }
-        let _ = write!(out, ") -> {}", sig.ty);
+        let _ = write!(out, ") -> {}", ty_repr(&sig.ty));
     }
 
     fn write_codeblock(
@@ -305,10 +306,16 @@ impl<'a> Writer<'a> {
                     self.write_expr(out, e);
                     let _ = writeln!(out, ";");
                 }
-                AssignmentRhs::Sample { ty, .. } => {
+                AssignmentRhs::Sample {
+                    ty, sample_name, ..
+                } => {
                     let _ = write!(out, "{p}");
                     self.write_pattern(out, pattern);
-                    let _ = writeln!(out, " <-$ {ty};");
+                    let _ = write!(out, " <-$ {}", ty_repr(ty));
+                    if let Some(name) = sample_name {
+                        let _ = write!(out, " sample-name {name}");
+                    }
+                    let _ = writeln!(out, ";");
                 }
                 AssignmentRhs::Invoke {
                     oracle_name,
@@ -444,7 +451,7 @@ impl<'a> Writer<'a> {
         for ((arg_name, arg_ty), arg_expr) in target_sig.args.iter().zip(args) {
             let _ = write!(out, "{inner}{arg_name} <- ");
             self.write_expr(out, arg_expr);
-            let _ = writeln!(out, ";  // : {arg_ty}");
+            let _ = writeln!(out, ";  // : {}", ty_repr(arg_ty));
         }
 
         let child_mode = ReturnMode::Inlined { pattern, label };
@@ -488,7 +495,7 @@ impl<'a> Writer<'a> {
         match expr.kind() {
             ExpressionKind::Bot => out.push('\u{22a5}'),
             ExpressionKind::Sample(ty) => {
-                let _ = write!(out, "Sample({ty})");
+                let _ = write!(out, "Sample({})", ty_repr(ty));
             }
             ExpressionKind::StringLiteral(s) => {
                 let _ = write!(out, "{s:?}");
@@ -500,7 +507,7 @@ impl<'a> Writer<'a> {
             ExpressionKind::BitsLiteral(s, _) => out.push_str(s),
             ExpressionKind::Identifier(ident) => out.push_str(&ident_repr(ident)),
             ExpressionKind::EmptyTable(ty) => {
-                let _ = write!(out, "EmptyTable({ty})");
+                let _ = write!(out, "EmptyTable({})", ty_repr(ty));
             }
             ExpressionKind::TableAccess(ident, index) => {
                 out.push_str(&ident_repr(ident));
@@ -525,7 +532,7 @@ impl<'a> Writer<'a> {
             ExpressionKind::None(_) => out.push_str("None"),
             ExpressionKind::Some(e) => self.write_wrapped(out, "Some(", e, ")"),
             ExpressionKind::Unwrap(e) => self.write_wrapped(out, "Unwrap(", e, ")"),
-            ExpressionKind::Not(e) => self.write_wrapped(out, "!(", e, ")"),
+            ExpressionKind::Not(e) => self.write_wrapped(out, "not (", e, ")"),
             ExpressionKind::Neg(e) => self.write_wrapped(out, "-(", e, ")"),
             ExpressionKind::Inv(e) => self.write_wrapped(out, "(1 / ", e, ")"),
             ExpressionKind::Sum(e) => self.write_wrapped(out, "sum(", e, ")"),
@@ -633,4 +640,10 @@ fn ident_repr(ident: &Identifier) -> String {
 
         Identifier::TheoremIdentifier(theorem_ident) => theorem_ident.ident(),
     }
+}
+
+/// The display name of a type. Domino source syntax spells the boolean type `Bool`, but
+/// [`Type`]'s `Display` impl (shared with non-Domino-facing output) still says `Boolean`.
+fn ty_repr(ty: &Type) -> String {
+    ty.to_string().replace("Boolean", "Bool")
 }
