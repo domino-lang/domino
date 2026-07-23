@@ -157,8 +157,9 @@ fn render_game_instance_oracle(
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "// game instance: {game_inst_name}   (package instance: {})",
-        pkg_inst.name
+        "// game instance: {game_inst_name}   (package instance: {}, package type: {})",
+        pkg_inst.name,
+        pkg_inst.pkg.name
     );
     writer.write_signature(&mut out, &odef.sig);
     out.push(' ');
