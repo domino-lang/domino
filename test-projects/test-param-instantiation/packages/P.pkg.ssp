@@ -1,7 +1,8 @@
 package P {
     params {
         b: Bool,
-        y: Integer
+        y: Integer,
+        f: fn Bool -> Bool
     }
 
     state {
@@ -10,6 +11,7 @@ package P {
 
     oracle Hello(k: Bits(y)) -> Bits(y) {
         tea <- Some(k);
+        /* assert f(true); */
         return Unwrap(tea);
     }
 }

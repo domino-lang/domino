@@ -1,17 +1,20 @@
 theorem Proof {
     const x: Integer;
+    const prf: fn Bool -> Bool;
 
     instance G1 = Game {
         params {
             x: x,
-            b: false
+            b: false,
+            f: prf
         }
     }
 
     instance G2 = Game {
         params {
             x: x,
-            b: true
+            b: true,
+            f: prf
         }
     }
 
