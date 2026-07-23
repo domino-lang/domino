@@ -123,6 +123,16 @@ fn model(m: &Model) -> Result<(), Error> {
     Ok(())
 }
 
+fn inline(i: &Inline) -> Result<(), Error> {
+    let project_root = project::directory::find_project_root()?;
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(&files)?;
+
+    let rendered = project.inline(&i.proof, i.proofstep, &i.oracle)?;
+    println!("{rendered}");
+    Ok(())
+}
+
 fn latex(l: &Latex) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
@@ -160,6 +170,7 @@ fn main() -> miette::Result<()> {
     let result = match &cli.command {
         Commands::Prove(p) => prove(p),
         Commands::Proofsteps(p) => proofsteps(p),
+        Commands::Inline(i) => inline(i),
         Commands::Latex(l) => latex(l),
         Commands::Format(f) => format(f),
         Commands::Model(m) => model(m),

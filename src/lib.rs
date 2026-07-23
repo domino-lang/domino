@@ -29,6 +29,8 @@ pub mod writers;
 
 pub mod hacks;
 
+pub mod inline;
+
 pub mod parser;
 
 pub mod project;
