@@ -533,7 +533,7 @@ impl<'a> Writer<'a> {
                 out.push(')');
             }
             ExpressionKind::FnCall(ident, args) => {
-                out.push_str(&ident_repr(ident));
+                self.write_ident(out, ident);
                 out.push('(');
                 self.write_joined(out, args, ", ");
                 out.push(')');
@@ -661,29 +661,33 @@ impl<'a> Writer<'a> {
     /// Resolves a `Bits(n)` length to the concrete value it was instantiated with, following the
     /// same package/game-constant assignment chain as [`resolve_const`].
     fn write_countspec(&self, out: &mut String, cs: &CountSpec) {
-        let assignment = match cs {
+        match cs {
             CountSpec::Any | CountSpec::Literal(_) => {
                 let _ = write!(out, "{cs}");
-                return;
             }
-            CountSpec::Identifier(ident) => match ident.as_ref() {
-                Identifier::PackageIdentifier(PackageIdentifier::Const(c)) => {
-                    c.game_assignment.as_deref()
-                }
-                Identifier::GameIdentifier(GameIdentifier::Const(c)) => {
-                    c.assigned_value.as_deref()
-                }
-                _ => None,
-            },
+            CountSpec::Identifier(ident) => self.write_ident(out, ident),
+        }
+    }
+
+    /// Renders an identifier standing on its own (as opposed to as the head of an
+    /// `ExpressionKind::Identifier`, which [`Self::write_expr`] already resolves via
+    /// [`resolve_const`] before it ever reaches [`ident_repr`]). This covers spots where a bare
+    /// [`Identifier`] appears without being wrapped in an expression first - e.g. the callee of a
+    /// `FnCall`, or a `Bits(n)` length - and so would otherwise print the package/game-local
+    /// parameter name instead of the concrete value (or further-along name) it was instantiated
+    /// with.
+    fn write_ident(&self, out: &mut String, ident: &Identifier) {
+        let assignment = match ident {
+            Identifier::PackageIdentifier(PackageIdentifier::Const(c)) => {
+                c.game_assignment.as_deref()
+            }
+            Identifier::GameIdentifier(GameIdentifier::Const(c)) => c.assigned_value.as_deref(),
+            _ => None,
         };
 
         match assignment {
             Some(expr) => self.write_expr(out, expr),
-            None => {
-                if let CountSpec::Identifier(ident) = cs {
-                    out.push_str(&ident_repr(ident));
-                }
-            }
+            None => out.push_str(&ident_repr(ident)),
         }
     }
 }
