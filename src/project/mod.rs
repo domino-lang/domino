@@ -188,6 +188,18 @@ pub trait Project {
         Ok(())
     }
 
+    /// Renders the inlined code of `oracle_name`, as exposed by the equivalence proved at
+    /// `proofstep` of `theorem_name`, for the left and right game instance side by side.
+    ///
+    /// Only equivalence proofsteps are supported.
+    fn inline(&self, theorem_name: &str, proofstep: usize, oracle_name: &str) -> Result<String> {
+        let theorem = self
+            .get_theorem(theorem_name)
+            .ok_or_else(|| crate::inline::Error::TheoremNotFound(theorem_name.to_string()))?;
+
+        Ok(crate::inline::render(theorem, proofstep, oracle_name)?)
+    }
+
     fn latex(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
         let mut path = self.get_root_dir();
         path.push("_build/latex/");

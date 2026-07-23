@@ -11,6 +11,9 @@ pub(crate) enum Commands {
     /// Prove the whole project.
     Prove(Prove),
 
+    /// Inline the code of an oracle for both sides of an equivalence proofstep, side by side.
+    Inline(Inline),
+
     /// Reformat file or directory
     Format(Format),
 
@@ -48,4 +51,18 @@ pub(crate) struct Prove {
     pub(crate) oracle: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Inline {
+    /// Name of the theorem the equivalence proofstep belongs to.
+    #[clap(long)]
+    pub(crate) proof: String,
+    /// Index (starting at 0) of the equivalence proofstep within the theorem.
+    #[clap(long)]
+    pub(crate) proofstep: usize,
+    /// Name of the oracle to inline, as exported by the games in the proofstep.
+    #[clap(long)]
+    pub(crate) oracle: String,
 }
