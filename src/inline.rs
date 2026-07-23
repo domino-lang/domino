@@ -23,7 +23,7 @@ use crate::{
     statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement},
     theorem::Theorem,
     transforms::{resolveoracles, Transformation as _},
-    types::Type,
+    types::{CountSpec, Type, TypeKind},
 };
 
 /// Recursion is bounded so that a malformed (cyclic) composition can't make us loop forever.
@@ -221,9 +221,11 @@ impl<'a> Writer<'a> {
                 let _ = write!(out, ", ");
             }
             first = false;
-            let _ = write!(out, "{name}: {}", ty_repr(ty));
+            let _ = write!(out, "{name}: ");
+            self.write_type(out, ty);
         }
-        let _ = write!(out, ") -> {}", ty_repr(&sig.ty));
+        let _ = write!(out, ") -> ");
+        self.write_type(out, &sig.ty);
     }
 
     fn write_codeblock(
@@ -311,7 +313,8 @@ impl<'a> Writer<'a> {
                 } => {
                     let _ = write!(out, "{p}");
                     self.write_pattern(out, pattern);
-                    let _ = write!(out, " <-$ {}", ty_repr(ty));
+                    let _ = write!(out, " <-$ ");
+                    self.write_type(out, ty);
                     if let Some(name) = sample_name {
                         let _ = write!(out, " sample-name {name}");
                     }
@@ -451,7 +454,9 @@ impl<'a> Writer<'a> {
         for ((arg_name, arg_ty), arg_expr) in target_sig.args.iter().zip(args) {
             let _ = write!(out, "{inner}{arg_name} <- ");
             self.write_expr(out, arg_expr);
-            let _ = writeln!(out, ";  // : {}", ty_repr(arg_ty));
+            let _ = write!(out, ";  // : ");
+            self.write_type(out, arg_ty);
+            let _ = writeln!(out);
         }
 
         let child_mode = ReturnMode::Inlined { pattern, label };
@@ -495,7 +500,9 @@ impl<'a> Writer<'a> {
         match expr.kind() {
             ExpressionKind::Bot => out.push('\u{22a5}'),
             ExpressionKind::Sample(ty) => {
-                let _ = write!(out, "Sample({})", ty_repr(ty));
+                out.push_str("Sample(");
+                self.write_type(out, ty);
+                out.push(')');
             }
             ExpressionKind::StringLiteral(s) => {
                 let _ = write!(out, "{s:?}");
@@ -507,7 +514,9 @@ impl<'a> Writer<'a> {
             ExpressionKind::BitsLiteral(s, _) => out.push_str(s),
             ExpressionKind::Identifier(ident) => out.push_str(&ident_repr(ident)),
             ExpressionKind::EmptyTable(ty) => {
-                let _ = write!(out, "EmptyTable({})", ty_repr(ty));
+                out.push_str("EmptyTable(");
+                self.write_type(out, ty);
+                out.push(')');
             }
             ExpressionKind::TableAccess(ident, index) => {
                 out.push_str(&ident_repr(ident));
@@ -595,6 +604,88 @@ impl<'a> Writer<'a> {
         self.write_expr(out, rhs);
         out.push(')');
     }
+
+    /// Renders a type the way Domino source spells it, resolving any package/game constants
+    /// nested inside (currently only possible via a `Bits(n)` length) to their concrete value,
+    /// the same way [`Self::write_expr`] does for expressions.
+    fn write_type(&self, out: &mut String, ty: &Type) {
+        match ty.kind() {
+            TypeKind::Boolean => out.push_str("Bool"),
+            TypeKind::Bits(cs) => {
+                out.push_str("Bits(");
+                self.write_countspec(out, cs);
+                out.push(')');
+            }
+            TypeKind::Maybe(t) => {
+                out.push_str("Maybe(");
+                self.write_type(out, t);
+                out.push(')');
+            }
+            TypeKind::Tuple(types) => {
+                out.push('(');
+                let mut first = true;
+                for t in types {
+                    if !first {
+                        out.push_str(", ");
+                    }
+                    first = false;
+                    self.write_type(out, t);
+                }
+                out.push(')');
+            }
+            TypeKind::Table(key, value) => {
+                out.push_str("Table(");
+                self.write_type(out, key);
+                out.push_str(", ");
+                self.write_type(out, value);
+                out.push(')');
+            }
+            TypeKind::Fn(args, ret) => {
+                out.push_str("fn ");
+                let mut first = true;
+                for t in args {
+                    if !first {
+                        out.push_str(", ");
+                    }
+                    first = false;
+                    self.write_type(out, t);
+                }
+                out.push_str(" -> ");
+                self.write_type(out, ret);
+            }
+            // No consts to resolve inside these; the shared `Display` impl already renders them.
+            _ => out.push_str(&ty.to_string()),
+        }
+    }
+
+    /// Resolves a `Bits(n)` length to the concrete value it was instantiated with, following the
+    /// same package/game-constant assignment chain as [`resolve_const`].
+    fn write_countspec(&self, out: &mut String, cs: &CountSpec) {
+        let assignment = match cs {
+            CountSpec::Any | CountSpec::Literal(_) => {
+                let _ = write!(out, "{cs}");
+                return;
+            }
+            CountSpec::Identifier(ident) => match ident.as_ref() {
+                Identifier::PackageIdentifier(PackageIdentifier::Const(c)) => {
+                    c.game_assignment.as_deref()
+                }
+                Identifier::GameIdentifier(GameIdentifier::Const(c)) => {
+                    c.assigned_value.as_deref()
+                }
+                _ => None,
+            },
+        };
+
+        match assignment {
+            Some(expr) => self.write_expr(out, expr),
+            None => {
+                if let CountSpec::Identifier(ident) = cs {
+                    out.push_str(&ident_repr(ident));
+                }
+            }
+        }
+    }
 }
 
 /// Follows the chain of const-identifier assignments down to either a non-const expression (a
@@ -640,10 +731,4 @@ fn ident_repr(ident: &Identifier) -> String {
 
         Identifier::TheoremIdentifier(theorem_ident) => theorem_ident.ident(),
     }
-}
-
-/// The display name of a type. Domino source syntax spells the boolean type `Bool`, but
-/// [`Type`]'s `Display` impl (shared with non-Domino-facing output) still says `Boolean`.
-fn ty_repr(ty: &Type) -> String {
-    ty.to_string().replace("Boolean", "Bool")
 }
