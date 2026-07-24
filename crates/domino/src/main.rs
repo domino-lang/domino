@@ -62,7 +62,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
             p.transcript,
             p.parallel,
             &p.proof,
-            p.proofstep,
+            &p.proofstep,
             &p.oracle,
             &p.claim,
         )?;

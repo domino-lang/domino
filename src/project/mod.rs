@@ -11,7 +11,6 @@ use std::path::PathBuf;
 
 use error::Result;
 
-use crate::parser::ast::Identifier;
 use crate::{
     gamehops::{equivalence::EquivalenceSmtDriver, GameHop},
     package::{Composition, Package},
@@ -55,41 +54,25 @@ pub trait Project {
 
         for theorem_key in theorem_keys.into_iter() {
             let theorem = self.get_theorem(theorem_key).unwrap();
-            let max_width_left = theorem
-                .game_hops
-                .iter()
-                .map(GameHop::left_game_instance_name)
-                .map(str::len)
-                .max()
-                .unwrap_or(0);
 
             println!("{theorem_key}:");
-            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
+            for game_hop in theorem.game_hops.iter() {
                 match game_hop {
-                    GameHop::Equivalence(eq) => {
-                        let left_name = eq.left_name();
-                        let right_name = eq.right_name();
-                        let spaces = " ".repeat(max_width_left - left_name.len());
-                        println!("{i}: Equivalence {left_name}{spaces} == {right_name}");
+                    GameHop::Equivalence(_) => {
+                        println!("  Equivalence {}", game_hop.name());
                     }
                     GameHop::Reduction(red) => {
                         println!(
-                            "{i}: Reduction   {} ~= {} using {}",
-                            red.left().construction_game_instance_name().as_str(),
-                            red.right().construction_game_instance_name().as_str(),
+                            "  Reduction   {} using {}",
+                            game_hop.name(),
                             red.assumption_name()
                         );
                     }
-                    GameHop::Conjecture(conj) => {
-                        println!(
-                            "{i}: Conjecture   {} ~= {}",
-                            conj.left_name().as_str(),
-                            conj.right_name().as_str()
-                        );
+                    GameHop::Conjecture(_) => {
+                        println!("  Conjecture   {}", game_hop.name());
                     }
-                    GameHop::Hybrid(hybrid) => {
-                        let hybrid_name = hybrid.hybrid_name().as_str();
-                        println!("hybrid: {hybrid_name}");
+                    GameHop::Hybrid(_) => {
+                        println!("  Hybrid      {}", game_hop.name());
                     }
                 }
             }
@@ -105,7 +88,7 @@ pub trait Project {
         transcript: bool,
         parallel: usize,
         req_theorem: &Option<String>,
-        req_proofstep: Option<usize>,
+        req_proofstep: &Option<String>,
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
     ) -> Result<()>
@@ -128,11 +111,11 @@ pub trait Project {
                 }
             }
 
-            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
+            for game_hop in theorem.game_hops.iter() {
                 ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
 
-                if let Some(ref req_proofstep) = req_proofstep {
-                    if i != *req_proofstep {
+                if let Some(req_proofstep) = req_proofstep {
+                    if game_hop.name() != *req_proofstep {
                         ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
                         continue;
                     }

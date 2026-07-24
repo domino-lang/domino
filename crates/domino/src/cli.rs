@@ -40,8 +40,10 @@ pub(crate) struct Prove {
     pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
     pub(crate) transcript: bool,
+    /// Name of the proof step, e.g. "Left = Right" for an equivalence or
+    /// "Left ~= Right" for a reduction. See `domino proofsteps` for the exact names.
     #[clap(long)]
-    pub(crate) proofstep: Option<usize>,
+    pub(crate) proofstep: Option<String>,
     #[clap(long)]
     pub(crate) proof: Option<String>,
     #[clap(long)]
