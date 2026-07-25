@@ -1,0 +1,18 @@
+composition A {
+    const foo: fn Integer -> Integer;
+
+    invariant: [
+        ./games/A.comp.smt2
+    ]
+
+    instance A = A {
+        params {
+            foo: foo
+        }
+    }
+    compose {
+        adversary: {
+            Test: A
+        }
+    }
+}
