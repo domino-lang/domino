@@ -1,0 +1,25 @@
+theorem A {
+    const foo: fn Integer -> Integer;
+    
+    instance A = A {
+        params {
+            foo: foo
+        }
+    }
+    instance B = A {
+        params {
+            foo: foo
+        }
+    }
+
+    gamehops {
+        equivalence A B {
+            Test: {
+                randomness: none
+                invariant: [
+                    ./theorem/invariant.smt2
+                ]
+            }
+        }
+    }
+}
