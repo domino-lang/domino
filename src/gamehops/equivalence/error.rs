@@ -85,8 +85,14 @@ pub enum Error {
         argument: String,
         equivalence: String,
     },
-    #[error("{equivalence}: Expected {expected} arguments but found {argument}")]
+    #[error("{file_name}: {equivalence}: \"{name}\": Expected {expected} arguments but found {argument}\n  in {expression}")]
     IncorrectNumberOfArguments {
+        /// name of the lemma or state relation whose definition has the wrong number of arguments
+        name: String,
+        /// path of the invariant file the definition was read from
+        file_name: String,
+        /// the define-lemma / define-state-relation expression that failed to parse
+        expression: String,
         argument: String,
         expected: String,
         equivalence: String,

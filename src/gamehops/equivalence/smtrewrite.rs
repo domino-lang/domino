@@ -18,24 +18,27 @@ struct SmtRewrite<'a> {
     package: Option<&'a PackageInstance>,
     game: Option<&'a GameInstance>,
     content: Vec<SmtExpr>,
+    file_name: String,
 }
 
 impl<'a> SmtRewrite<'a> {
-    fn new(context: &'a EquivalenceContext) -> Self {
+    fn new(context: &'a EquivalenceContext, file_name: &str) -> Self {
         Self {
             context,
             package: None,
             game: None,
             content: Vec::new(),
+            file_name: file_name.to_string(),
         }
     }
 
-    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance) -> Self {
+    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance, file_name: &str) -> Self {
         Self {
             context,
             package: None,
             game: Some(game),
             content: Vec::new(),
+            file_name: file_name.to_string(),
         }
     }
 
@@ -43,12 +46,14 @@ impl<'a> SmtRewrite<'a> {
         context: &'a EquivalenceContext,
         game: &'a GameInstance,
         package: &'a PackageInstance,
+        file_name: &str,
     ) -> Self {
         Self {
             context,
             package: Some(package),
             game: Some(game),
             content: Vec::new(),
+            file_name: file_name.to_string(),
         }
     }
 }
@@ -138,6 +143,13 @@ impl SmtRewrite<'_> {
             self.context.equivalence().right_name
         )
     }
+}
+
+fn format_definition(keyword: &str, funname: &str, args: &[SmtExpr], body: &SmtExpr) -> String {
+    format!(
+        "({keyword} {funname} ({}) {body})",
+        args.iter().map(|arg| format!("{arg}")).join(" ")
+    )
 }
 
 impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
@@ -264,8 +276,13 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             params: &right_game_inst.consts,
         };
 
+        let expression = format_definition("define-state-relation", funname, &args, &body);
+
         let [left_arg, right_arg] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
+                name: funname.to_string(),
+                file_name: self.file_name.clone(),
+                expression,
                 argument: format!(
                     "({})",
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
@@ -352,6 +369,8 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             params: &right_game_inst.consts,
         };
 
+        let expression = format_definition("define-lemma", funname, &args, &body);
+
         let Some(oracle_name) = funname
             .rfind("-")
             .map(|i| &funname[i + 1..funname.len() - 1])
@@ -401,6 +420,9 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
         let [left_old, right_old, left_return, right_return, ..] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
+                name: funname.to_string(),
+                file_name: self.file_name.clone(),
+                expression: expression.clone(),
                 argument: format!(
                     "({})",
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
@@ -507,22 +529,60 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             )
                 .into(),
         ];
-        newargs.extend(args.into_iter().skip(4));
+
+        let oracle_args = &left_oracle_export.sig().args;
+        let extra_args = &args[4..];
+        if extra_args.len() != oracle_args.len() {
+            return Err(Error::IncorrectNumberOfArguments {
+                name: funname.to_string(),
+                file_name: self.file_name.clone(),
+                expression,
+                argument: format!(
+                    "({})",
+                    extra_args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+                expected: format!("{} oracle argument(s)", oracle_args.len()),
+                equivalence: self.equivalence_name(),
+            });
+        }
+        for (arg, (_, ty)) in extra_args.iter().zip(oracle_args.iter()) {
+            let arg_name = match arg {
+                SmtExpr::Atom(name) => name.clone(),
+                SmtExpr::List(elems) => match elems.first() {
+                    Some(SmtExpr::Atom(name)) => name.clone(),
+                    _ => {
+                        return Err(Error::IncorrectArgument {
+                            argument: format!("{arg}"),
+                            equivalence: self.equivalence_name(),
+                        })
+                    }
+                },
+                _ => {
+                    return Err(Error::IncorrectArgument {
+                        argument: format!("{arg}"),
+                        equivalence: self.equivalence_name(),
+                    })
+                }
+            };
+            newargs.push((arg_name, ty.clone()).into());
+        }
+
         self.handle_definefun(funname, newargs, "Bool", bindreturn.into())
     }
 }
 
-pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtExpr>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new(context);
+pub fn rewrite(context: &EquivalenceContext, file_name: &str, content: &str) -> Result<Vec<SmtExpr>> {
+    let mut rewriter: SmtRewrite = SmtRewrite::new(context, file_name);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }
 pub fn rewrite_game(
     context: &EquivalenceContext,
     game: &GameInstance,
+    file_name: &str,
     content: &str,
 ) -> Result<Vec<SmtExpr>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game);
+    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game, file_name);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }
@@ -530,9 +590,10 @@ pub fn rewrite_package(
     context: &EquivalenceContext,
     game: &GameInstance,
     package: &PackageInstance,
+    file_name: &str,
     content: &str,
 ) -> Result<Vec<SmtExpr>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package);
+    let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package, file_name);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }

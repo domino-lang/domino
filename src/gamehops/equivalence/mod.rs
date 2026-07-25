@@ -248,6 +248,7 @@ impl<'a> EquivalenceContext<'a> {
                         self,
                         left_gctx.game_inst(),
                         pkg,
+                        file_name,
                         &file_contents,
                     )?);
                 }
@@ -266,6 +267,7 @@ impl<'a> EquivalenceContext<'a> {
                         self,
                         right_gctx.game_inst(),
                         pkg,
+                        file_name,
                         &file_contents,
                     )?);
                 }
@@ -280,6 +282,7 @@ impl<'a> EquivalenceContext<'a> {
                 out.append(&mut smtrewrite::rewrite_game(
                     self,
                     left_gctx.game_inst(),
+                    file_name,
                     &file_contents,
                 )?);
             }
@@ -291,6 +294,7 @@ impl<'a> EquivalenceContext<'a> {
                 out.append(&mut smtrewrite::rewrite_game(
                     self,
                     right_gctx.game_inst(),
+                    file_name,
                     &file_contents,
                 )?);
             }
@@ -304,7 +308,7 @@ impl<'a> EquivalenceContext<'a> {
                 })?;
                 log::info!("read file {file_name}");
                 //linter.lint_file(file_name, &file_contents)?;
-                out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+                out.append(&mut smtrewrite::rewrite(self, file_name, &file_contents)?);
 
                 // log::info!("wrote contents of file {file_name}");
 
