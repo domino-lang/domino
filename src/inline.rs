@@ -276,26 +276,26 @@ impl<'a> Writer<'a> {
                         self.write_pattern(out, pattern);
                         let _ = write!(out, " <- ");
                         self.write_expr(out, e);
-                        let _ = writeln!(out, ";  // return from {label}, exits inlined block");
+                        let _ = writeln!(out, ";  // return from {label}");
                     }
                     (Some(pattern), None) => {
                         let _ = write!(out, "{p}");
                         self.write_pattern(out, pattern);
                         let _ =
-                            writeln!(out, " <- ();  // return from {label}, exits inlined block");
+                            writeln!(out, " <- ();  // return from {label}");
                     }
                     (None, Some(e)) => {
                         let _ = write!(out, "{p}// return ");
                         self.write_expr(out, e);
                         let _ = writeln!(
                             out,
-                            ";  // from {label}, exits inlined block (result discarded)"
+                            ";  // from {label}"
                         );
                     }
                     (None, None) => {
                         let _ = writeln!(
                             out,
-                            "{p}// return;  from {label}, exits inlined block (result discarded)"
+                            "{p}// return;  from {label}"
                         );
                     }
                 },
@@ -455,8 +455,9 @@ impl<'a> Writer<'a> {
         for ((arg_name, arg_ty), arg_expr) in target_sig.args.iter().zip(args) {
             let _ = write!(out, "{inner}{arg_name} <- ");
             self.write_expr(out, arg_expr);
-            let _ = write!(out, ";  // : ");
-            self.write_type(out, arg_ty);
+            let _ = write!(out, ";");
+            //let _ = write!(out, ";  // : ");
+            //self.write_type(out, arg_ty);
             let _ = writeln!(out);
         }
 
