@@ -38,6 +38,7 @@ pub mod util;
 pub mod proof;
 pub mod theorem;
 
+pub mod modelview;
 pub mod ui;
 
 pub mod error {

@@ -14,7 +14,19 @@ pub(crate) enum Commands {
     /// Reformat file or directory
     Format(Format),
 
+    /// Parse a cvc5 model (e.g. one produced by a failed `prove`) and explain it in terms of
+    /// this Domino project's theorems, oracles and package states.
+    Model(Model),
+
     Proofsteps,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Model {
+    /// Path to the cvc5 model file (e.g. as produced by `domino prove --transcript`, or the
+    /// model file referenced in a failed proof's error message).
+    pub(crate) model_file: std::path::PathBuf,
 }
 
 #[derive(clap::Args, Debug)]

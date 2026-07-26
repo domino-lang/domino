@@ -288,9 +288,12 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
             std::thread::sleep(std::time::Duration::from_millis(20));
 
+            let model_info = self.eqctx.emit_model_info(oracle.name(), claim);
+
             for entry in equivalence_smt
                 .iter()
                 .chain(oracle_smt)
+                .chain(model_info.iter())
                 .chain(std::iter::once(
                     &self.eqctx.emit_claim_assert(oracle.name(), claim),
                 ))

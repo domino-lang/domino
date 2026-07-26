@@ -274,6 +274,40 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
+    /// Emits small breadcrumb constants identifying which theorem, proof step, oracle and claim
+    /// this query belongs to. These are free `declare-const`s equated to fixed string literals,
+    /// so they round-trip verbatim into `(get-model)` output (unlike `define-fun`s, which cvc5
+    /// doesn't echo back) and let `domino model` identify the context of a model file even when
+    /// it has been separated from the transcript that produced it.
+    pub(crate) fn emit_model_info(&self, oracle_name: &str, claim: &Claim) -> Vec<SmtExpr> {
+        let fields: [(&str, &str); 5] = [
+            ("<domino-model-info-theorem>", &self.theorem().name),
+            (
+                "<domino-model-info-game-inst-left>",
+                self.equivalence.left_name(),
+            ),
+            (
+                "<domino-model-info-game-inst-right>",
+                self.equivalence.right_name(),
+            ),
+            ("<domino-model-info-oracle>", oracle_name),
+            ("<domino-model-info-claim>", claim.name()),
+        ];
+
+        fields
+            .into_iter()
+            .flat_map(|(name, value)| {
+                let declare = declare_const(name, Sort::String);
+                let constrain = SmtAssert(SmtEq2 {
+                    lhs: name,
+                    rhs: SmtExpr::Atom(format!("\"{value}\"")),
+                });
+
+                [declare, constrain.into()]
+            })
+            .collect()
+    }
+
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
         let left = self
             .theorem

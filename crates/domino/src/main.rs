@@ -38,6 +38,11 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
+    #[error("could not read model file")]
+    ModelFileReadError(#[from] std::io::Error),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ModelViewError(#[from] sspverif::modelview::Error),
 }
 
 fn proofsteps() -> Result<(), Error> {
@@ -69,6 +74,36 @@ fn prove(p: &Prove) -> Result<(), Error> {
     } else {
         return Err(IncompatibleArgumentsError.into());
     }
+    Ok(())
+}
+
+fn model(m: &Model) -> Result<(), Error> {
+    // Loading the project is best-effort here: the model parser/viewer is still useful without
+    // one (it just can't resolve names back to package/oracle semantics), so a missing or
+    // unparseable project is a warning, not a hard error.
+    let files = project::directory::find_project_root()
+        .and_then(|root| project::DirectoryFiles::load(&root))
+        .inspect_err(|err| {
+            eprintln!(
+                "warning: could not load a Domino project ({err}); showing raw model values only"
+            );
+        })
+        .ok();
+
+    let project = files.as_ref().and_then(|files| {
+        project::DirectoryProject::load(files)
+            .inspect_err(|err| {
+                eprintln!(
+                    "warning: could not load a Domino project ({err}); showing raw model values only"
+                );
+            })
+            .ok()
+    });
+
+    let content = std::fs::read_to_string(&m.model_file)?;
+    let report = sspverif::modelview::analyze(project.as_ref(), &content)?;
+    println!("{report}");
+
     Ok(())
 }
 
@@ -111,6 +146,7 @@ fn main() -> miette::Result<()> {
         Commands::Proofsteps => proofsteps(),
         Commands::Latex(l) => latex(l),
         Commands::Format(f) => format(f),
+        Commands::Model(m) => model(m),
     };
 
     result.map_err(miette::Report::new)
