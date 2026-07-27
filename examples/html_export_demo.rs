@@ -55,7 +55,12 @@ const ENC_INVARIANTS: &str = r#"
 (define-fun kem-correctness
     ((pk (Maybe Bits_pkeyl)) (sk (Maybe Bits_skeyl)))
     Bool
-    (=> (not (is-mk-none pk)) (= pk pk)))
+    (=> (pk-valid pk) (= pk pk)))
+
+(define-fun pk-valid
+    ((pk (Maybe Bits_pkeyl)))
+    Bool
+    (not (is-mk-none pk)))
 "#;
 // lemma-admitted-example is admitted in the theorem's `lemmas {}` block (see
 // `enc_tree` below), so -- like a real admitted claim -- it deliberately has

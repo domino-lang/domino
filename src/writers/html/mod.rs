@@ -12,7 +12,7 @@
 pub mod data;
 pub mod layout;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use data::{ClusterData, EdgeData, GraphData, NodeData, ReferencedDefinition};
 use layout::LayoutParams;
@@ -79,28 +79,48 @@ fn referenced_definition_kind_label(kind: claim_source::ClaimKind) -> &'static s
 }
 
 /// Finds every other captured definition in `sources` that `claim_source`'s
-/// raw Domino text calls -- a plain `define-fun` helper, or another
-/// lemma/relation -- so the panel can show their definitions inline instead
-/// of making a reviewer go hunting for them. Best-effort text search (see
-/// [`contains_whole_identifier`]), not a real call-graph analysis: it can't
-/// see through further indirection, but every real example this was tested
-/// against calls its helpers directly.
+/// raw Domino text calls -- transitively: a plain `define-fun` helper, or
+/// another lemma/relation, *and* anything referenced from within those in
+/// turn (helpers calling helpers, a relation calling another relation,
+/// etc.), so the panel can show every definition a reviewer would need
+/// without having to click through each one by hand.
+///
+/// This is a breadth-first search over the "mentions this other name"
+/// relation (see [`contains_whole_identifier`]) starting from `claim_source`
+/// itself, so the result is ordered shallowest-first: names the claim calls
+/// directly come before names only reached through one of those. It's still
+/// best-effort text search rather than true call-graph analysis (it can miss
+/// a reference built up dynamically rather than written as a literal name),
+/// but unlike a single-level scan it no longer stops at the first hop, and
+/// visiting each name at most once makes it safe against reference cycles.
 fn find_referenced_definitions(
     self_key: &str,
     claim_source: &ClaimSource,
     sources: &BTreeMap<String, ClaimSource>,
 ) -> Vec<ReferencedDefinition> {
-    sources
-        .iter()
-        .filter(|(name, _)| name.as_str() != self_key)
-        .filter(|(name, _)| contains_whole_identifier(&claim_source.domino_source, name))
-        .map(|(name, src)| ReferencedDefinition {
-            name: name.clone(),
-            kind_label: referenced_definition_kind_label(src.kind),
-            domino_source: src.domino_source.clone(),
-            easycrypt_source: src.easycrypt_source.clone(),
-        })
-        .collect()
+    let mut visited: BTreeSet<&str> = BTreeSet::new();
+    visited.insert(self_key);
+
+    let mut queue: VecDeque<&str> = VecDeque::new();
+    queue.push_back(claim_source.domino_source.as_str());
+
+    let mut result = Vec::new();
+    while let Some(text) = queue.pop_front() {
+        for (name, src) in sources.iter() {
+            if visited.contains(name.as_str()) || !contains_whole_identifier(text, name) {
+                continue;
+            }
+            visited.insert(name.as_str());
+            result.push(ReferencedDefinition {
+                name: name.clone(),
+                kind_label: referenced_definition_kind_label(src.kind),
+                domino_source: src.domino_source.clone(),
+                easycrypt_source: src.easycrypt_source.clone(),
+            });
+            queue.push_back(src.domino_source.as_str());
+        }
+    }
+    result
 }
 
 /// The SMT function name Domino's own proof pipeline looks a claim up under
