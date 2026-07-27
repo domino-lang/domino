@@ -289,6 +289,38 @@ impl Claim {
     }
 }
 
+/// Returns the transitive closure of `root_name`'s dependencies within
+/// `tree` (i.e. not just its direct `lemmas { root: [...] }` list, but
+/// everything reachable by repeatedly following dependency edges), down to
+/// the leaves -- claims with no further known dependencies, whether because
+/// they're `admit`ted, proved outright with no hints, or a built-in like
+/// `no-abort` that was never given its own `lemmas` entry. Returns `None` if
+/// `root_name` isn't a claim in `tree`.
+pub fn claim_closure(tree: &[Claim], root_name: &str) -> Option<Vec<Claim>> {
+    let by_name: std::collections::BTreeMap<&str, &Claim> =
+        tree.iter().map(|claim| (claim.name(), claim)).collect();
+    let root = *by_name.get(root_name)?;
+
+    let mut visited = std::collections::BTreeSet::new();
+    let mut stack = vec![root];
+    let mut closure = Vec::new();
+
+    while let Some(claim) = stack.pop() {
+        if !visited.insert(claim.name()) {
+            continue;
+        }
+        closure.push(claim.clone());
+        for dep in claim.dependencies() {
+            if let Some(dep_claim) = by_name.get(dep.as_str()) {
+                stack.push(dep_claim);
+            }
+        }
+    }
+
+    closure.sort_by(|a, b| a.name().cmp(b.name()));
+    Some(closure)
+}
+
 #[derive(Clone, Debug, Ord, Eq, PartialOrd, PartialEq)]
 pub enum RandomnessType {
     Custom,

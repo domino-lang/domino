@@ -14,7 +14,7 @@ use error::Result;
 use crate::{
     gamehops::{equivalence::EquivalenceSmtDriver, GameHop},
     package::{Composition, Package},
-    theorem::Theorem,
+    theorem::{claim_closure, Claim, Theorem},
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform, Transformation},
     util::smtsolver::SmtSolverBackend,
     writers::smt::contexts::EquivalenceContext,
@@ -48,18 +48,51 @@ pub trait Project {
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
-    fn proofsteps(&self) -> Result<()> {
+    /// `req_oracle`/`req_claim` narrow the generated dependency graphs, same
+    /// spirit as `prove`'s `--proof`/`--proofstep`/`--oracle`: with neither
+    /// set, every oracle of a game hop is merged into one file; with
+    /// `req_oracle` set, only that oracle's tree is emitted, on its own;
+    /// with `req_claim` also set, only that claim's transitive dependency
+    /// closure (not just its direct `lemmas { claim: [...] }` list) is
+    /// emitted, down to admitted/built-in leaves.
+    fn proofsteps(
+        &self,
+        req_theorem: &Option<String>,
+        req_proofstep: Option<usize>,
+        req_oracle: &Option<String>,
+        req_claim: &Option<String>,
+    ) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
         for theorem_key in theorem_keys.into_iter() {
+            if let Some(req_theorem) = req_theorem {
+                if theorem_key != req_theorem {
+                    continue;
+                }
+            }
+
             let theorem = self.get_theorem(theorem_key).unwrap();
 
             println!("{theorem_key}:");
-            for game_hop in theorem.game_hops.iter() {
+            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
+                if let Some(req_proofstep) = req_proofstep {
+                    if i != req_proofstep {
+                        continue;
+                    }
+                }
+
                 match game_hop {
-                    GameHop::Equivalence(_) => {
+                    GameHop::Equivalence(eq) => {
                         println!("  Equivalence {}", game_hop.name());
+                        self.write_lemma_dependency_dot(
+                            theorem_key,
+                            eq.left_name(),
+                            eq.right_name(),
+                            eq.trees(),
+                            req_oracle.as_deref(),
+                            req_claim.as_deref(),
+                        )?;
                     }
                     GameHop::Reduction(red) => {
                         println!(
@@ -71,12 +104,103 @@ pub trait Project {
                     GameHop::Conjecture(_) => {
                         println!("  Conjecture   {}", game_hop.name());
                     }
-                    GameHop::Hybrid(_) => {
+                    GameHop::Hybrid(hybrid) => {
                         println!("  Hybrid      {}", game_hop.name());
+                        let eq = hybrid.equivalence();
+                        self.write_lemma_dependency_dot(
+                            theorem_key,
+                            eq.left_name(),
+                            eq.right_name(),
+                            eq.trees(),
+                            req_oracle.as_deref(),
+                            req_claim.as_deref(),
+                        )?;
                     }
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Writes a Graphviz DOT file for a `equivalence`/`hybrid` game hop,
+    /// containing lemma dependency tree(s) (as declared in the theorem's
+    /// `lemmas { ... }` blocks) of either every oracle (one cluster
+    /// subgraph each), a single oracle, or a single claim's transitive
+    /// dependency closure within a single oracle -- see [`Project::proofsteps`].
+    /// Called automatically by [`Project::proofsteps`] as a side effect,
+    /// mirroring how [`Project::latex`] writes into `_build/latex`.
+    ///
+    /// Named like the SMT transcript files from [`Project::get_joined_smt_file`]
+    /// (`{left_game_name}-{right_game_name}-{oracle}-{claim}.smt2`), with the
+    /// oracle/claim suffix dropped for whichever of the two are merged over.
+    fn write_lemma_dependency_dot(
+        &self,
+        theorem_key: &str,
+        left_name: &str,
+        right_name: &str,
+        trees: &[(String, Vec<Claim>)],
+        req_oracle: Option<&str>,
+        req_claim: Option<&str>,
+    ) -> Result<()> {
+        let mut dir = self.get_root_dir();
+        dir.push("_build/dot");
+        std::fs::create_dir_all(&dir)?;
+
+        let Some(oracle_name) = req_oracle else {
+            let path = dir.join(format!("{left_name}-{right_name}.dot"));
+            let graph_name = format!("{left_name}_{right_name}").replace('-', "_");
+            let label = format!("{theorem_key}: {left_name} == {right_name}");
+
+            std::fs::write(
+                &path,
+                crate::writers::dot::lemma_dependency_dot(&graph_name, &label, trees),
+            )?;
+            println!("    lemma dependency graph: {}", path.display());
+            return Ok(());
+        };
+
+        let Some((_, oracle_tree)) = trees.iter().find(|(name, _)| name == oracle_name) else {
+            // This game hop doesn't export the requested oracle; nothing to do here.
+            return Ok(());
+        };
+
+        let tree = match req_claim {
+            None => oracle_tree.clone(),
+            Some(claim_name) => match claim_closure(oracle_tree, claim_name) {
+                Some(closure) => closure,
+                None => {
+                    eprintln!(
+                        "warning: claim `{claim_name}` not found for oracle `{oracle_name}` in {theorem_key} ({left_name} == {right_name})"
+                    );
+                    return Ok(());
+                }
+            },
+        };
+
+        let mut filename = format!("{left_name}-{right_name}-{oracle_name}");
+        let mut graph_name = format!("{left_name}_{right_name}_{oracle_name}");
+        let mut label = format!("{theorem_key}: {left_name} == {right_name} (oracle {oracle_name}");
+        if let Some(claim_name) = req_claim {
+            filename.push('-');
+            filename.push_str(claim_name);
+            graph_name.push('_');
+            graph_name.push_str(claim_name);
+            label.push_str(", claim ");
+            label.push_str(claim_name);
+        }
+        filename.push_str(".dot");
+        label.push(')');
+        let graph_name = graph_name.replace('-', "_");
+
+        let path = dir.join(filename);
+        let trees_for_dot = [(oracle_name.to_string(), tree)];
+
+        std::fs::write(
+            &path,
+            crate::writers::dot::lemma_dependency_dot(&graph_name, &label, &trees_for_dot),
+        )?;
+        println!("    lemma dependency graph: {}", path.display());
+
         Ok(())
     }
 

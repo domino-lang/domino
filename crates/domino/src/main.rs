@@ -25,9 +25,9 @@ pub(crate) struct Cli {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("Need to specify a proof when specifying a proofstep")]
+#[error("{0}")]
 #[diagnostic(code(cli::incompatible_arguments))]
-pub struct IncompatibleArgumentsError;
+pub struct IncompatibleArgumentsError(pub &'static str);
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Error, Diagnostic)]
@@ -45,12 +45,25 @@ enum Error {
     ModelViewError(#[from] sspverif::modelview::Error),
 }
 
-fn proofsteps() -> Result<(), Error> {
+fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
 
-    project.proofsteps()?;
+    if p.proofstep.is_some() && p.proof.is_none() {
+        return Err(IncompatibleArgumentsError(
+            "Need to specify a proof when specifying a proofstep",
+        )
+        .into());
+    }
+    if p.claim.is_some() && p.oracle.is_none() {
+        return Err(IncompatibleArgumentsError(
+            "Need to specify an oracle when specifying a claim",
+        )
+        .into());
+    }
+
+    project.proofsteps(&p.proof, p.proofstep, &p.oracle, &p.claim)?;
     Ok(())
 }
 
@@ -72,7 +85,10 @@ fn prove(p: &Prove) -> Result<(), Error> {
             &p.claim,
         )?;
     } else {
-        return Err(IncompatibleArgumentsError.into());
+        return Err(IncompatibleArgumentsError(
+            "Need to specify a proof when specifying a proofstep",
+        )
+        .into());
     }
     Ok(())
 }
@@ -143,7 +159,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(p),
-        Commands::Proofsteps => proofsteps(),
+        Commands::Proofsteps(p) => proofsteps(p),
         Commands::Latex(l) => latex(l),
         Commands::Format(f) => format(f),
         Commands::Model(m) => model(m),

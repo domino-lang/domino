@@ -18,7 +18,7 @@ pub(crate) enum Commands {
     /// this Domino project's theorems, oracles and package states.
     Model(Model),
 
-    Proofsteps,
+    Proofsteps(Proofsteps),
 }
 
 #[derive(clap::Args, Debug)]
@@ -64,4 +64,24 @@ pub(crate) struct Prove {
     pub(crate) claim: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Proofsteps {
+    /// Restrict to a single theorem
+    #[clap(long)]
+    pub(crate) proof: Option<String>,
+    /// Restrict to a single game hop (proof step) within the theorem
+    #[clap(long)]
+    pub(crate) proofstep: Option<usize>,
+    /// Restrict the lemma dependency graph to a single oracle instead of
+    /// merging all of a game hop's oracles into one file
+    #[clap(long)]
+    pub(crate) oracle: Option<String>,
+    /// Restrict the lemma dependency graph to a single claim's transitive
+    /// dependencies (down to admitted/built-in leaves) instead of the whole
+    /// oracle. Requires --oracle.
+    #[clap(long)]
+    pub(crate) claim: Option<String>,
 }
