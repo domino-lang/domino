@@ -5,10 +5,13 @@ use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
+    gamehops::equivalence::{
+        error::{ClaimTheoremFailedError, Error, Result},
+        ClaimScope,
+    },
     package::Export,
     project::Project,
-    theorem::{Claim, ClaimType},
+    theorem::{Claim, ClaimType, INITIAL_STATE_CLAIM_NAME},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
@@ -54,6 +57,16 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         self.verify_equivalence(ui)
     }
 
+    /// The initial-state invariant check isn't scoped to any one oracle, so `--oracle` (which
+    /// asks for a specific oracle's claims) excludes it; `--claim` can still single it out via
+    /// `INITIAL_STATE_CLAIM_NAME`.
+    fn should_verify_initial_state(&self) -> bool {
+        self.req_oracle.is_none()
+            && self
+                .req_claim
+                .is_none_or(|req_claim| req_claim == INITIAL_STATE_CLAIM_NAME)
+    }
+
     fn verify_equivalence<UI: TheoremUI + Send>(&self, ui: Arc<Mutex<&mut UI>>) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut smt = Vec::new();
@@ -92,37 +105,93 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         let oracle_sequence = self.oracle_sequence();
+        let verify_initial_state = self.should_verify_initial_state();
 
         ui.lock().unwrap().proofstep_set_oracles(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle_sequence.len().try_into().unwrap(),
+            (oracle_sequence.len() + usize::from(verify_initial_state))
+                .try_into()
+                .unwrap(),
         );
 
-        let failed_oracles: Vec<_> = rayon::ThreadPoolBuilder::new()
+        let claims: Vec<Result<()>> = rayon::ThreadPoolBuilder::new()
             .num_threads(self.parallel + 1) // one process is reserved for the "main" method
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
-                oracle_sequence
-                    .par_iter()
-                    .map(|oracle| -> Vec<Result<()>> {
-                        self.verify_oracle(ui.clone(), &smt, oracle)
+                rayon::iter::once(())
+                    .map(|_| {
+                        if verify_initial_state {
+                            vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)]
+                        } else {
+                            vec![]
+                        }
                     })
+                    .chain(oracle_sequence.par_iter().map(|oracle| -> Vec<Result<()>> {
+                        self.verify_oracle(ui.clone(), &smt, oracle)
+                    }))
                     .flatten()
                     .collect()
-            })
-            .into_iter()
-            .filter_map(Result::err)
-            .collect();
-        if !failed_oracles.is_empty() {
+            });
+
+        let failed_claims: Vec<_> = claims.into_iter().filter_map(Result::err).collect();
+        if !failed_claims.is_empty() {
             return Err(Error::ParallelEquivalenceError {
                 left_game_inst_name: eq.left_name.clone(),
                 right_game_inst_name: eq.right_name.clone(),
-                failed_oracles,
+                failed_claims,
             });
         }
         Ok(())
+    }
+
+    /// Checks that the invariant holds on the two game instances' basic initial states (all
+    /// package state fields at their type's default value). This is the "induction start" /
+    /// base-case obligation for the equivalence's invariant: `domino prove` proving every oracle
+    /// preserves the invariant only shows it's an *inductive* invariant; this additionally
+    /// checks it actually holds at the start.
+    fn verify_invariants_in_initial_state<UI: TheoremUI + Send>(
+        &self,
+        ui: Arc<Mutex<&mut UI>>,
+        equivalence_smt: &[SmtExpr],
+    ) -> Result<()> {
+        let mut smt = vec![];
+        let eq = self.eqctx.equivalence();
+        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+
+        let claim = Claim {
+            name: INITIAL_STATE_CLAIM_NAME.to_string(),
+            dependencies: vec![],
+            ty: ClaimType::InitialState,
+            admitted: false,
+        };
+
+        let claim_scope = ClaimScope::InitialState;
+
+        ui.lock().unwrap().start_scope(
+            &self.eqctx.theorem().name,
+            &proofstep_name,
+            claim_scope.name(),
+            1,
+        );
+
+        log::info!("verify: invariants in initial state");
+        // TODO: this is temporary workaround until we make the invariants equivalence-wide.
+        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
+        let oracle_name = self.eqctx.oracle_sequence().first().unwrap().name();
+        smt.append(&mut self.eqctx.emit_invariant(oracle_name));
+        smt.append(&mut self.eqctx.emit_initial_state_values());
+
+        let result = self.verify_claim(ui.clone(), equivalence_smt, &smt, &claim, &claim_scope);
+
+        ui.lock().unwrap().finish_scope(
+            &self.eqctx.theorem().name,
+            &proofstep_name,
+            claim_scope.name(),
+        );
+
+        result
     }
 
     fn verify_oracle<UI: TheoremUI + Send>(
@@ -215,10 +284,12 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             })
         }
 
-        ui.lock().unwrap().start_oracle(
+        let claim_scope = ClaimScope::Oracle(oracle.name().to_string());
+
+        ui.lock().unwrap().start_scope(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
             claims.len().try_into().unwrap(),
         );
 
@@ -237,14 +308,14 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 }
             })
             .map(|claim| -> Result<()> {
-                self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle, claim)
+                self.verify_claim(ui.clone(), equivalence_smt, &smt, claim, &claim_scope)
             })
             .collect();
 
-        ui.lock().unwrap().finish_oracle(
+        ui.lock().unwrap().finish_scope(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
         );
 
         result
@@ -254,16 +325,16 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         &self,
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
-        oracle_smt: &[SmtExpr],
-        oracle: &Export,
+        scope_smt: &[SmtExpr],
         claim: &Claim,
+        claim_scope: &ClaimScope,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         ui.lock().unwrap().start_lemma(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
             claim.name(),
         );
 
@@ -275,7 +346,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         .get_joined_smt_file(
                             eq.left_name(),
                             eq.right_name(),
-                            oracle.name(),
+                            claim_scope.name(),
                             claim.name(),
                         )
                         .unwrap();
@@ -285,27 +356,27 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     self.backend.new_smtsolver()
                 }
             }
-            .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
+            .map_err(|err| Error::prover_process_error(claim.name(), claim_scope.name(), err))?;
             std::thread::sleep(std::time::Duration::from_millis(20));
 
-            let model_info = self.eqctx.emit_model_info(oracle.name(), claim);
+            let model_info = self.eqctx.emit_model_info(claim_scope, claim);
 
             for entry in equivalence_smt
                 .iter()
-                .chain(oracle_smt)
+                .chain(scope_smt)
                 .chain(model_info.iter())
                 .chain(std::iter::once(
-                    &self.eqctx.emit_claim_assert(oracle.name(), claim),
+                    &self.eqctx.emit_claim_assert(claim, claim_scope),
                 ))
             {
-                solver
-                    .write_smt(entry.clone())
-                    .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
+                solver.write_smt(entry.clone()).map_err(|err| {
+                    Error::prover_process_error(claim.name(), claim_scope.name(), err)
+                })?;
             }
 
             match solver
                 .check_sat()
-                .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?
+                .map_err(|err| Error::prover_process_error(claim.name(), claim_scope.name(), err))?
             {
                 SmtSolverResponse::Unsat => {}
                 response => {
@@ -319,7 +390,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     solver.close();
                     return Err(ClaimTheoremFailedError {
                         claim_name: claim.name().to_string(),
-                        oracle_name: oracle.name().to_string(),
+                        scope_name: claim_scope.name().to_string(),
                         response,
                         modelfile,
                     }
@@ -330,7 +401,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().finish_lemma(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle.name(),
+            claim_scope.name(),
             claim.name(),
         );
 

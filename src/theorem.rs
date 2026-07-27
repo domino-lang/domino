@@ -198,6 +198,11 @@ impl GameInstance {
     }
 }
 
+/// Name of the (equivalence-wide, not oracle-scoped) claim that the invariant holds on the two
+/// game instances' initial states. Used both to construct that claim (`verify_fn.rs`) and to
+/// recognize it later (e.g. `domino-verify`'s model rendering).
+pub const INITIAL_STATE_CLAIM_NAME: &str = "!initial-state!";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClaimType {
     Lemma,
@@ -207,6 +212,7 @@ pub enum ClaimType {
     RightPackageInvariant,
     LeftGameInvariant,
     RightGameInvariant,
+    InitialState,
 }
 
 impl ClaimType {
