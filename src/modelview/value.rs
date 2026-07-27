@@ -9,9 +9,10 @@
 use std::fmt;
 
 use crate::modelview::ctors::CtorMap;
+use crate::util::smtmodel::SmtModelEntry;
 use crate::writers::smt::exprs::SmtExpr;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Pretty {
     Bool(bool),
     Int(i64),
@@ -33,6 +34,12 @@ pub enum Pretty {
     Record {
         label: String,
         fields: Vec<(String, Pretty)>,
+    },
+    /// An uninterpreted (theorem) function, reconstructed from cvc5's nested-`ite` model as a
+    /// list of specific input tuples mapped to a value, plus a catch-all default.
+    FnTable {
+        entries: Vec<(Vec<Option<Pretty>>, Pretty)>,
+        default: Box<Pretty>,
     },
     /// A function application we don't have any special handling or ctor-map entry for.
     Unknown(String),
@@ -59,11 +66,11 @@ impl fmt::Display for Pretty {
             Pretty::Maybe(None) => write!(f, "None"),
             Pretty::Maybe(Some(v)) => write!(f, "Some({v})"),
             Pretty::Map { entries, default } => {
-                write!(f, "{{")?;
+                write!(f, "{{ ")?;
                 for (k, v) in entries {
-                    write!(f, "{k} -> {v}, ")?;
+                    write!(f, "{k}: {v}, ")?;
                 }
-                write!(f, "_ -> {default}}}")
+                write!(f, "..: {default} }}")
             }
             Pretty::Record { label, fields } => {
                 if fields.is_empty() {
@@ -78,8 +85,156 @@ impl fmt::Display for Pretty {
                 }
                 write!(f, " }}")
             }
+            Pretty::FnTable { entries, default } => {
+                write!(f, "{{ ")?;
+                for (keys, value) in entries {
+                    write!(f, "{}: {value}, ", format_fn_key(keys))?;
+                }
+                write!(f, "..: {default} }}")
+            }
             Pretty::Unknown(raw) => write!(f, "{raw}"),
         }
+    }
+}
+
+fn format_fn_key(keys: &[Option<Pretty>]) -> String {
+    let rendered: Vec<String> = keys
+        .iter()
+        .map(|k| match k {
+            Some(v) => v.to_string(),
+            None => "_".to_string(),
+        })
+        .collect();
+    if rendered.len() == 1 {
+        rendered.into_iter().next().unwrap()
+    } else {
+        format!("({})", rendered.join(", "))
+    }
+}
+
+/// Renders a single `label: value` line, or (if `value` is compound, e.g. a long `Tuple`, a
+/// nested `Record`/`Map`/`FnTable`) a heading line plus recursively indented sub-lines.
+fn render_named(pad: &str, indent: usize, label: String, value: &Pretty) -> Vec<String> {
+    if value.is_compound() {
+        let mut lines = vec![format!("{pad}{label}:")];
+        lines.extend(value.render_lines(indent + 1));
+        lines
+    } else {
+        vec![format!("{pad}{label}: {value}")]
+    }
+}
+
+/// Above this rendered width, a value that could otherwise be inlined (a `Tuple`, or a `Maybe`
+/// wrapping one) is instead split into its own indented block, one line per element. Also used
+/// as the two-column display's per-column width cap, so a long tuple doesn't dominate a whole row
+/// the way a long `Map`/`Record` dump used to before those got block-rendering too.
+pub const MAX_INLINE_WIDTH: usize = 60;
+
+impl Pretty {
+    /// Whether this value is best rendered as its own indented block (a heading line followed by
+    /// nested lines) rather than inline after a `name: ` prefix.
+    pub fn is_compound(&self) -> bool {
+        match self {
+            Pretty::Record { fields, .. } => !fields.is_empty(),
+            Pretty::Map { entries, .. } => !entries.is_empty(),
+            Pretty::FnTable { .. } => true,
+            Pretty::Tuple(items) => {
+                !items.is_empty() && self.to_string().chars().count() > MAX_INLINE_WIDTH
+            }
+            // a `Some(...)` wrapping a long tuple (or other compound value) should still get
+            // split, rather than hiding the overflow behind the wrapper.
+            Pretty::Maybe(Some(inner)) => inner.is_compound(),
+            _ => false,
+        }
+    }
+
+    /// Renders this value as a list of indented lines: compound fields get their own heading
+    /// line followed by recursively indented sub-lines, everything else is a single
+    /// `name: value` line. `indent` is the current indentation level (each level is 2 spaces).
+    pub fn render_lines(&self, indent: usize) -> Vec<String> {
+        let pad = "  ".repeat(indent);
+        match self {
+            Pretty::Record { fields, .. } if !fields.is_empty() => fields
+                .iter()
+                .flat_map(|(name, value)| render_named(&pad, indent, name.clone(), value))
+                .collect(),
+            Pretty::FnTable { entries, default } => {
+                let mut lines: Vec<String> = entries
+                    .iter()
+                    .flat_map(|(keys, value)| render_named(&pad, indent, format_fn_key(keys), value))
+                    .collect();
+                lines.extend(render_named(&pad, indent, "..".to_string(), default));
+                lines
+            }
+            Pretty::Map { entries, default } if !entries.is_empty() => {
+                let mut lines: Vec<String> = entries
+                    .iter()
+                    .flat_map(|(key, value)| render_named(&pad, indent, key.to_string(), value))
+                    .collect();
+                lines.extend(render_named(&pad, indent, "..".to_string(), default));
+                lines
+            }
+            Pretty::Tuple(items) if self.is_compound() => items
+                .iter()
+                .enumerate()
+                .flat_map(|(i, item)| render_named(&pad, indent, format!("_{i}"), item))
+                .collect(),
+            Pretty::Maybe(Some(inner)) if self.is_compound() => {
+                let mut lines = vec![format!("{pad}Some:")];
+                lines.extend(inner.render_lines(indent + 1));
+                lines
+            }
+            other => vec![format!("{pad}{other}")],
+        }
+    }
+
+    /// Renders two values (e.g. the same field on the left/right side of an equivalence) as
+    /// paired lines suitable for a two-column display, keeping both sides' row counts in sync so
+    /// that unrelated fields further down don't drift out of alignment.
+    ///
+    /// When both sides are records with the exact same field names in the same order (the common
+    /// case: left/right game states share the same underlying constructor, see
+    /// [`crate::modelview::ctors`]), fields are recursively paired by name so mismatched values
+    /// (e.g. one side having an extra `Map` override the other lacks) still line up next to each
+    /// other. Otherwise, both sides are rendered independently and zipped row-by-row, padding the
+    /// shorter side with blank lines.
+    pub fn render_pair_lines(left: &Pretty, right: &Pretty, indent: usize) -> Vec<(String, String)> {
+        let pad = "  ".repeat(indent);
+
+        if let (Pretty::Record { fields: lf, .. }, Pretty::Record { fields: rf, .. }) =
+            (left, right)
+        {
+            let names_match = !lf.is_empty()
+                && lf.len() == rf.len()
+                && lf.iter().zip(rf).all(|(l, r)| l.0 == r.0);
+            if names_match {
+                let mut lines = Vec::new();
+                for ((name, lval), (_, rval)) in lf.iter().zip(rf) {
+                    if lval.is_compound() || rval.is_compound() {
+                        lines.push((format!("{pad}{name}:"), format!("{pad}{name}:")));
+                        lines.extend(Pretty::render_pair_lines(lval, rval, indent + 1));
+                    } else {
+                        lines.push((
+                            format!("{pad}{name}: {lval}"),
+                            format!("{pad}{name}: {rval}"),
+                        ));
+                    }
+                }
+                return lines;
+            }
+        }
+
+        let left_lines = left.render_lines(indent);
+        let right_lines = right.render_lines(indent);
+        let rows = left_lines.len().max(right_lines.len());
+        (0..rows)
+            .map(|i| {
+                (
+                    left_lines.get(i).cloned().unwrap_or_default(),
+                    right_lines.get(i).cloned().unwrap_or_default(),
+                )
+            })
+            .collect()
     }
 }
 
@@ -262,6 +417,90 @@ fn render_unknown(items: &[SmtExpr]) -> Pretty {
     Pretty::Unknown(SmtExpr::List(items.to_vec()).to_string())
 }
 
+/// Cap on the number of case-split entries extracted from a function's `ite` body, as a safety
+/// net against pathologically deep decision trees.
+const MAX_FN_ENTRIES: usize = 64;
+
+/// Interprets a `define-fun` model entry that takes arguments (an uninterpreted/theorem
+/// function) as a [`Pretty::FnTable`]: cvc5 represents such a function as a chain of nested
+/// `ite`s case-splitting on equality with specific argument values, bottoming out in a default
+/// value for everything else. Entries with no arguments are interpreted as plain values.
+pub fn interpret_function(entry: &SmtModelEntry, ctors: &CtorMap) -> Pretty {
+    let arg_names: Vec<String> = entry.args().iter().map(|(name, _)| name.clone()).collect();
+    if arg_names.is_empty() {
+        return interpret(&entry.value_expr(), ctors);
+    }
+
+    let mut entries = Vec::new();
+    let prefix = vec![None; arg_names.len()];
+    let default = flatten_ite(&entry.value_expr(), &arg_names, ctors, &prefix, &mut entries);
+    Pretty::FnTable {
+        entries,
+        default: Box::new(default),
+    }
+}
+
+/// Extracts equality constraints on named arguments from an `ite` condition: `(= argN c)`,
+/// `(= c argN)`, or a conjunction (`and ...`) of such equalities. Returns an empty list if the
+/// condition isn't shaped like a case-split on the function's arguments (in which case the
+/// caller treats the whole `ite` as an opaque leaf value instead).
+fn parse_condition<'e>(cond: &'e SmtExpr, arg_names: &[String]) -> Vec<(usize, &'e SmtExpr)> {
+    fn arg_index(expr: &SmtExpr, arg_names: &[String]) -> Option<usize> {
+        match expr {
+            SmtExpr::Atom(a) => arg_names.iter().position(|name| name == a),
+            _ => None,
+        }
+    }
+
+    match cond {
+        SmtExpr::List(items) if items.len() == 3 && is_atom(&items[0], "=") => {
+            let (lhs, rhs) = (&items[1], &items[2]);
+            if let Some(idx) = arg_index(lhs, arg_names) {
+                vec![(idx, rhs)]
+            } else if let Some(idx) = arg_index(rhs, arg_names) {
+                vec![(idx, lhs)]
+            } else {
+                vec![]
+            }
+        }
+        SmtExpr::List(items) if items.len() > 1 && is_atom(&items[0], "and") => items[1..]
+            .iter()
+            .flat_map(|c| parse_condition(c, arg_names))
+            .collect(),
+        _ => vec![],
+    }
+}
+
+/// Recursively walks a function body, splitting it into `(input tuple, value)` case-split
+/// entries pushed to `out`, and returns the value that applies to `prefix` when none of the
+/// case-split's deeper conditions hold (i.e. this subtree's own default).
+fn flatten_ite(
+    expr: &SmtExpr,
+    arg_names: &[String],
+    ctors: &CtorMap,
+    prefix: &[Option<Pretty>],
+    out: &mut Vec<(Vec<Option<Pretty>>, Pretty)>,
+) -> Pretty {
+    if out.len() < MAX_FN_ENTRIES {
+        if let SmtExpr::List(items) = expr {
+            if items.len() == 4 && is_atom(&items[0], "ite") {
+                let conds = parse_condition(&items[1], arg_names);
+                if !conds.is_empty() {
+                    let mut then_prefix = prefix.to_vec();
+                    for (idx, value_expr) in &conds {
+                        then_prefix[*idx] = Some(interpret(value_expr, ctors));
+                    }
+                    let then_value = flatten_ite(&items[2], arg_names, ctors, &then_prefix, out);
+                    out.push((then_prefix, then_value));
+                    return flatten_ite(&items[3], arg_names, ctors, prefix, out);
+                }
+            }
+        }
+    }
+
+    interpret(expr, ctors)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -394,6 +633,89 @@ mod test {
                 assert_eq!(fields[1].0, "[[field 1]]");
             }
             other => panic!("expected record, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn interprets_nullary_function_entry_as_plain_value() {
+        let ctors = CtorMap::new();
+        let entry = SmtModelEntry::IntEntry {
+            name: "foo".to_string(),
+            args: vec![],
+            value: 42,
+        };
+        assert!(matches!(interpret_function(&entry, &ctors), Pretty::Int(42)));
+    }
+
+    #[test]
+    fn interprets_single_arg_function_as_table_with_default() {
+        let ctors = CtorMap::new();
+        // (ite (= _arg_1 7) 99 6)
+        let body = list(vec![
+            atom("ite"),
+            list(vec![atom("="), atom("_arg_1"), atom("7")]),
+            atom("99"),
+            atom("6"),
+        ]);
+        let entry = SmtModelEntry::UnknownEntry {
+            name: "<<func-f>>".to_string(),
+            args: vec![("_arg_1".to_string(), "Int".to_string())],
+            ty: "Int".to_string(),
+            value: body,
+        };
+
+        match interpret_function(&entry, &ctors) {
+            Pretty::FnTable { entries, default } => {
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].0, vec![Some(Pretty::Int(7))]);
+                assert!(matches!(entries[0].1, Pretty::Int(99)));
+                assert!(matches!(*default, Pretty::Int(6)));
+            }
+            other => panic!("expected fn table, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn interprets_multi_arg_nested_function_as_single_point_override() {
+        let ctors = CtorMap::new();
+        // mirrors cvc5's real output for a 2-arg uninterpreted function with one override point:
+        // (ite (= _arg_1 7) (ite (= _arg_2 12) 5 6) 6)
+        let body = list(vec![
+            atom("ite"),
+            list(vec![atom("="), atom("_arg_1"), atom("7")]),
+            list(vec![
+                atom("ite"),
+                list(vec![atom("="), atom("_arg_2"), atom("12")]),
+                atom("5"),
+                atom("6"),
+            ]),
+            atom("6"),
+        ]);
+        let entry = SmtModelEntry::UnknownEntry {
+            name: "<<func-mac>>".to_string(),
+            args: vec![
+                ("_arg_1".to_string(), "Int".to_string()),
+                ("_arg_2".to_string(), "Int".to_string()),
+            ],
+            ty: "Int".to_string(),
+            value: body,
+        };
+
+        match interpret_function(&entry, &ctors) {
+            Pretty::FnTable { entries, default } => {
+                // the fully-specified point (7, 12) -> 5, and the partial-match fallback
+                // (7, _) -> 6 should both show up, in more-specific-first order.
+                assert_eq!(entries.len(), 2);
+                assert_eq!(
+                    entries[0].0,
+                    vec![Some(Pretty::Int(7)), Some(Pretty::Int(12))]
+                );
+                assert!(matches!(entries[0].1, Pretty::Int(5)));
+                assert_eq!(entries[1].0, vec![Some(Pretty::Int(7)), None]);
+                assert!(matches!(entries[1].1, Pretty::Int(6)));
+                assert!(matches!(*default, Pretty::Int(6)));
+            }
+            other => panic!("expected fn table, got {other:?}"),
         }
     }
 }

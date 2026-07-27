@@ -22,6 +22,7 @@ use crate::{
     theorem::{GameInstance, Theorem},
     transforms::samplify::{SampleInfo, Transformation},
     transforms::Transformation as _,
+    types::TypeKind,
     writers::smt::patterns::{
         self,
         datastructures::game_consts::GameConstsPattern as DsGameConstsPattern,
@@ -49,6 +50,7 @@ pub enum Side {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Category {
     TheoremConsts,
+    TheoremFunc(String),
     GameConsts(Side),
     OldState(Side),
     NewState(Side, String),
@@ -201,6 +203,18 @@ pub fn build_maps(theorem: &Theorem, left: &SideInfo, right: &SideInfo) -> (Ctor
         Category::TheoremConsts,
         "theorem constants".to_string(),
     );
+
+    // theorem functions (parametrized theorem consts, e.g. `mac`/`prf` in a PRF/MAC proof)
+    for (func_name, ty) in &theorem.consts {
+        if matches!(ty.kind(), TypeKind::Fn(_, _)) {
+            insert_label(
+                &mut labels,
+                format!("<<func-{func_name}>>"),
+                Category::TheoremFunc(func_name.clone()),
+                func_name.clone(),
+            );
+        }
+    }
 
     for side in [left, right] {
         add_side(&mut ctors, &mut labels, side);
