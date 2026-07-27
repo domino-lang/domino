@@ -172,6 +172,28 @@ impl<'a> SmtRewriteGame<'a> {
             type_mapping: full_mapping,
         }
     }
+
+    fn rewrite_type(&self, expr: SmtExpr) -> SmtExpr {
+        match expr {
+            SmtExpr::Atom(_) => self
+                .type_mapping
+                .iter()
+                .find_map(|(orig, repl)| {
+                    if orig == &expr {
+                        Some(repl.clone())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(expr.clone()),
+            SmtExpr::List(list) => SmtExpr::List(
+                list.into_iter()
+                    .map(|expr| self.rewrite_type(expr))
+                    .collect(),
+            ),
+            SmtExpr::Comment(_) => expr,
+        }
+    }
 }
 
 fn rewrite_functions(rules: &[(SmtExpr, SmtExpr)], expr: SmtExpr) -> SmtExpr {
@@ -468,16 +490,7 @@ impl SmtParser<Error> for SmtRewriteGame<'_> {
                             if let [name, ty] = &binding[..] {
                                 return SmtExpr::List(vec![
                                     name.clone(),
-                                    self.type_mapping
-                                        .iter()
-                                        .find_map(|(orig, repl)| {
-                                            if orig == ty {
-                                                Some(repl.clone())
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .unwrap_or(ty.clone()),
+                                    self.rewrite_type(ty.clone()),
                                 ]);
                             }
                         }
