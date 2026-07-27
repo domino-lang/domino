@@ -24,12 +24,11 @@ use crate::{
     transforms::Transformation as _,
     types::TypeKind,
     writers::smt::patterns::{
-        self,
-        datastructures::game_consts::GameConstsPattern as DsGameConstsPattern,
+        self, datastructures::game_consts::GameConstsPattern as DsGameConstsPattern,
         datastructures::theorem_consts::TheoremConstsPattern as DsTheoremConstsPattern,
-        theorem_constants::ConstantPattern,
-        DatastructurePattern, GameStateDeclareInfo, GameStatePattern as DsGameStatePattern,
-        PackageStatePattern as DsPackageStatePattern, ReturnPattern,
+        theorem_constants::ConstantPattern, DatastructurePattern, GameStateDeclareInfo,
+        GameStatePattern as DsGameStatePattern, PackageStatePattern as DsPackageStatePattern,
+        ReturnPattern,
     },
 };
 
@@ -53,8 +52,14 @@ pub enum Category {
     TheoremFunc(String),
     GameConsts(Side),
     OldState(Side),
+    /// The basic initial state (all package state fields at their type's default value), only
+    /// meaningful for the `INITIAL_STATE_CLAIM_NAME` claim -- see `render::render`.
+    InitialState(Side),
     NewState(Side, String),
-    OracleArg { oracle: String, arg: String },
+    OracleArg {
+        oracle: String,
+        arg: String,
+    },
     RawReturn(Side, String),
     ReturnValue(Side, String),
     IsAbort(Side, String),
@@ -258,6 +263,13 @@ fn add_side(ctors: &mut CtorMap, labels: &mut EntryLabels, side: &SideInfo) {
         format!("<<game-state-{inst_name}-old>>"),
         Category::OldState(side.side),
         format!("{inst_name}: old state"),
+    );
+
+    insert_label(
+        labels,
+        format!("<<game-state-{inst_name}-initial>>"),
+        Category::InitialState(side.side),
+        format!("{inst_name}: initial state"),
     );
 
     // game consts
@@ -472,7 +484,9 @@ mod test {
             sel.to_uppercase()
         });
 
-        let info = ctors.get("mk-test").expect("constructor should be registered");
+        let info = ctors
+            .get("mk-test")
+            .expect("constructor should be registered");
         assert_eq!(info.label, "my record");
         assert_eq!(info.fields, vec!["A".to_string(), "B".to_string()]);
     }

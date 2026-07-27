@@ -7,6 +7,7 @@ use std::fmt;
 use crate::modelview::ctors::{self, Category, CtorMap, EntryLabels, Side};
 use crate::modelview::trace::Trace;
 use crate::modelview::value::{self, Pretty};
+use crate::theorem::INITIAL_STATE_CLAIM_NAME;
 use crate::util::smtmodel::SmtModel;
 
 pub struct Report {
@@ -29,7 +30,27 @@ pub fn render(trace: &Trace, model: &SmtModel) -> Report {
         None => (ctors::builtin_ctors(), EntryLabels::new()),
     };
 
-    if trace.matched.is_some() {
+    // The initial-state claim isn't scoped to an oracle call: the `old`/`new` game states and
+    // oracle args/returns/aborts sections below are meaningless noise for it (those consts are
+    // declared in every transcript regardless of claim, but are only *constrained* -- and thus
+    // only meaningful to inspect -- when actually proving that claim). Show the initial states
+    // instead.
+    let is_initial_state_claim = trace.claim_name.as_deref() == Some(INITIAL_STATE_CLAIM_NAME);
+
+    if trace.matched.is_some() && is_initial_state_claim {
+        render_initial_state_claim_description(&mut out);
+
+        out.push_str("\n== Left/Right initial game state ==\n");
+        render_state_columns(
+            &mut out,
+            model,
+            &ctors,
+            &format!("<<game-state-{}-initial>>", side_name(trace, Side::Left)),
+            &format!("<<game-state-{}-initial>>", side_name(trace, Side::Right)),
+            &format!("left ({})", side_name(trace, Side::Left)),
+            &format!("right ({})", side_name(trace, Side::Right)),
+        );
+    } else if trace.matched.is_some() {
         render_claim_description(&mut out, trace, model, &ctors, &labels);
 
         out.push_str("\n== Left/Right old game state ==\n");
@@ -51,34 +72,63 @@ pub fn render(trace: &Trace, model: &SmtModel) -> Report {
                 &mut out,
                 model,
                 &ctors,
-                &format!("<<game-state-{}-new-{oracle}>>", side_name(trace, Side::Left)),
-                &format!("<<game-state-{}-new-{oracle}>>", side_name(trace, Side::Right)),
+                &format!(
+                    "<<game-state-{}-new-{oracle}>>",
+                    side_name(trace, Side::Left)
+                ),
+                &format!(
+                    "<<game-state-{}-new-{oracle}>>",
+                    side_name(trace, Side::Right)
+                ),
                 &format!("left ({})", side_name(trace, Side::Left)),
                 &format!("right ({})", side_name(trace, Side::Right)),
             );
         }
     }
 
-    // When the relevant oracle is known, hide other oracles' arguments/returns/aborts, since
-    // they're irrelevant noise for the claim actually being investigated.
-    let oracle_filter = trace.oracle_name.as_deref();
-    let oracle_matches = |name: &str| oracle_filter.map_or(true, |o| o == name);
+    if !is_initial_state_claim {
+        // When the relevant oracle is known, hide other oracles' arguments/returns/aborts, since
+        // they're irrelevant noise for the claim actually being investigated.
+        let oracle_filter = trace.oracle_name.as_deref();
+        let oracle_matches = |name: &str| oracle_filter.map_or(true, |o| o == name);
 
-    render_bucket(&mut out, model, &labels, &ctors, "== Oracle arguments ==", |cat| {
-        matches!(cat, Category::OracleArg { oracle, .. } if oracle_matches(oracle))
-    });
-    // `RawReturn` bundles the oracle's return value together with the *entire* resulting game
-    // state, which is already shown in full in the "new game state" section above; only the
-    // return value itself is useful here.
-    render_bucket(&mut out, model, &labels, &ctors, "== Return values ==", |cat| {
-        matches!(cat, Category::ReturnValue(_, oracle) if oracle_matches(oracle))
-    });
-    render_bucket(&mut out, model, &labels, &ctors, "== Abort flags ==", |cat| {
-        matches!(cat, Category::IsAbort(_, oracle) if oracle_matches(oracle))
-    });
-    render_bucket(&mut out, model, &labels, &ctors, "== Theorem constants ==", |cat| {
-        matches!(cat, Category::TheoremConsts)
-    });
+        render_bucket(
+            &mut out,
+            model,
+            &labels,
+            &ctors,
+            "== Oracle arguments ==",
+            |cat| matches!(cat, Category::OracleArg { oracle, .. } if oracle_matches(oracle)),
+        );
+        // `RawReturn` bundles the oracle's return value together with the *entire* resulting
+        // game state, which is already shown in full in the "new game state" section above; only
+        // the return value itself is useful here.
+        render_bucket(
+            &mut out,
+            model,
+            &labels,
+            &ctors,
+            "== Return values ==",
+            |cat| matches!(cat, Category::ReturnValue(_, oracle) if oracle_matches(oracle)),
+        );
+        render_bucket(
+            &mut out,
+            model,
+            &labels,
+            &ctors,
+            "== Abort flags ==",
+            |cat| matches!(cat, Category::IsAbort(_, oracle) if oracle_matches(oracle)),
+        );
+    }
+
+    render_bucket(
+        &mut out,
+        model,
+        &labels,
+        &ctors,
+        "== Theorem constants ==",
+        |cat| matches!(cat, Category::TheoremConsts),
+    );
     render_function_bucket(&mut out, model, &labels, &ctors);
     render_bucket(
         &mut out,
@@ -119,14 +169,28 @@ fn render_header(out: &mut String, trace: &Trace) {
         (Some(l), Some(r)) => out.push_str(&format!("proofstep: {l} == {r}\n")),
         _ => out.push_str("proofstep: <unknown>\n"),
     }
-    out.push_str(&format!(
-        "oracle:    {}\n",
+    let oracle_display = if trace.claim_name.as_deref() == Some(INITIAL_STATE_CLAIM_NAME) {
+        "n/a (equivalence-wide claim)"
+    } else {
         trace.oracle_name.as_deref().unwrap_or("<unknown>")
-    ));
+    };
+    out.push_str(&format!("oracle:    {oracle_display}\n"));
     out.push_str(&format!(
         "claim:     {}\n",
         trace.claim_name.as_deref().unwrap_or("<unknown>")
     ));
+}
+
+/// Explains the initial-state claim: the equivalence's induction *base case*, checking that the
+/// invariant actually holds on the two games' basic initial states (every package state field at
+/// its type's default value) rather than just being preserved once established.
+fn render_initial_state_claim_description(out: &mut String) {
+    out.push_str(
+        "\nThe invariant was expected to hold on the initial state of both games, but didn't.\n\
+         This is the base case of the equivalence's invariant induction (`domino prove` proving \
+         each oracle preserves it only shows it's inductive, not that it actually holds at the \
+         start). See the initial game states below.\n",
+    );
 }
 
 /// Looks up the single model entry whose label matches `category`, if any.
@@ -136,7 +200,9 @@ fn find_by_category(
     ctors: &CtorMap,
     category: &Category,
 ) -> Option<Pretty> {
-    let (name, _) = labels.iter().find(|(_, label)| &label.category == category)?;
+    let (name, _) = labels
+        .iter()
+        .find(|(_, label)| &label.category == category)?;
     let entry = model.get_value(name)?;
     Some(value::interpret(&entry.value_expr(), ctors))
 }
@@ -173,12 +239,15 @@ fn render_claim_description(
             out.push_str(&format!(
                 "  left  ({}): {}\n",
                 side_name(trace, Side::Left),
-                left.map(|v| v.to_string()).unwrap_or_else(|| "<not present in model>".to_string())
+                left.map(|v| v.to_string())
+                    .unwrap_or_else(|| "<not present in model>".to_string())
             ));
             out.push_str(&format!(
                 "  right ({}): {}\n",
                 side_name(trace, Side::Right),
-                right.map(|v| v.to_string()).unwrap_or_else(|| "<not present in model>".to_string())
+                right
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "<not present in model>".to_string())
             ));
         }
         "equal-aborts" => {
@@ -200,16 +269,21 @@ fn render_claim_description(
             out.push_str(&format!(
                 "  left  ({}) aborted: {}\n",
                 side_name(trace, Side::Left),
-                left.map(|v| v.to_string()).unwrap_or_else(|| "<not present in model>".to_string())
+                left.map(|v| v.to_string())
+                    .unwrap_or_else(|| "<not present in model>".to_string())
             ));
             out.push_str(&format!(
                 "  right ({}) aborted: {}\n",
                 side_name(trace, Side::Right),
-                right.map(|v| v.to_string()).unwrap_or_else(|| "<not present in model>".to_string())
+                right
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|| "<not present in model>".to_string())
             ));
         }
         "no-abort" => {
-            out.push_str(&format!("\n`{oracle}` was expected not to abort, but it did.\n"));
+            out.push_str(&format!(
+                "\n`{oracle}` was expected not to abort, but it did.\n"
+            ));
         }
         _ => {}
     }
@@ -232,7 +306,12 @@ fn render_state_columns(
     let right_value = state_value(model, ctors, right_name);
     let pairs = Pretty::render_pair_lines(&left_value, &right_value, 0);
     let (left_lines, right_lines): (Vec<String>, Vec<String>) = pairs.into_iter().unzip();
-    out.push_str(&side_by_side(&left_lines, &right_lines, left_header, right_header));
+    out.push_str(&side_by_side(
+        &left_lines,
+        &right_lines,
+        left_header,
+        right_header,
+    ));
 }
 
 fn state_value(model: &SmtModel, ctors: &CtorMap, name: &str) -> Pretty {
@@ -246,7 +325,12 @@ fn state_value(model: &SmtModel, ctors: &CtorMap, name: &str) -> Pretty {
 /// capped at [`value::MAX_INLINE_WIDTH`] so one unusually long, un-splittable row doesn't blow up
 /// the padding for every other, much shorter row; long lines just spill into the right column on
 /// their own row instead of forcing the whole table wide.
-fn side_by_side(left: &[String], right: &[String], left_header: &str, right_header: &str) -> String {
+fn side_by_side(
+    left: &[String],
+    right: &[String],
+    left_header: &str,
+    right_header: &str,
+) -> String {
     let width = left
         .iter()
         .map(|line| line.chars().count())
@@ -273,13 +357,22 @@ fn side_by_side(left: &[String], right: &[String], left_header: &str, right_head
     out
 }
 
-fn render_function_bucket(out: &mut String, model: &SmtModel, labels: &EntryLabels, ctors: &CtorMap) {
+fn render_function_bucket(
+    out: &mut String,
+    model: &SmtModel,
+    labels: &EntryLabels,
+    ctors: &CtorMap,
+) {
     let mut funcs: Vec<(String, Pretty)> = model
         .entries()
         .filter_map(|entry| {
             let label = labels.get(entry.name())?;
-            matches!(label.category, Category::TheoremFunc(_))
-                .then(|| (label.display.clone(), value::interpret_function(entry, ctors)))
+            matches!(label.category, Category::TheoremFunc(_)).then(|| {
+                (
+                    label.display.clone(),
+                    value::interpret_function(entry, ctors),
+                )
+            })
         })
         .collect();
 
