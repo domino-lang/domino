@@ -45,6 +45,7 @@ where
         funname: &str,
         args: Vec<T>,
         body: T,
+        _raw: &str,
     ) -> Result<T, E> {
         let funname = self.handle_atom(funname)?;
         let args = self.handle_list(args)?;
@@ -53,7 +54,13 @@ where
         self.handle_list(vec![defun, funname, args, body])
     }
 
-    fn handle_define_lemma(&mut self, funname: &str, args: Vec<T>, body: T) -> Result<T, E> {
+    fn handle_define_lemma(
+        &mut self,
+        funname: &str,
+        args: Vec<T>,
+        body: T,
+        _raw: &str,
+    ) -> Result<T, E> {
         let funname = self.handle_atom(funname)?;
         let args = self.handle_list(args)?;
         let defun = self.handle_atom("define-lemma")?;
@@ -158,6 +165,7 @@ where
                 self.handle_define_game_invariant(body)
             }
             Rule::define_state_relation => {
+                let raw = inner.as_str();
                 let mut inner = inner.into_inner();
                 let funname = inner.next().unwrap().as_str();
                 let args = inner.next().unwrap();
@@ -168,9 +176,10 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 let body = self.rule_sexp(&inner.next().unwrap())?;
 
-                self.handle_define_state_relation(funname, args, body)
+                self.handle_define_state_relation(funname, args, body, raw)
             }
             Rule::define_lemma => {
+                let raw = inner.as_str();
                 let mut inner = inner.into_inner();
                 let funname = inner.next().unwrap().as_str();
                 let args = inner.next().unwrap();
@@ -181,7 +190,7 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 let body = self.rule_sexp(&inner.next().unwrap())?;
 
-                self.handle_define_lemma(funname, args, body)
+                self.handle_define_lemma(funname, args, body, raw)
             }
             _ => {
                 todo!("{inner}")

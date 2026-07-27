@@ -266,6 +266,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
+        _raw: &str,
     ) -> Result<SmtExpr> {
         self.state_relations.push(funname.to_string());
 
@@ -361,6 +362,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
+        _raw: &str,
     ) -> Result<SmtExpr> {
         let left_game_inst = self
             .context

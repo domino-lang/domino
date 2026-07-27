@@ -15,9 +15,12 @@ use crate::theorem::{Claim, ClaimType};
 /// is checked against (injected with default dependencies unless the
 /// theorem overrides them). They aren't "just another lemma" the author
 /// wrote, so they're called out separately in the graph.
-const BUILTIN_CLAIM_NAMES: [&str; 4] = ["no-abort", "invariant", "same-output", "equal-aborts"];
+/// Shared with [`crate::writers::html`] so both exporters agree on which
+/// claims are built-ins without the list drifting out of sync.
+pub(crate) const BUILTIN_CLAIM_NAMES: [&str; 4] =
+    ["no-abort", "invariant", "same-output", "equal-aborts"];
 
-fn is_builtin_claim_name(name: &str) -> bool {
+pub(crate) fn is_builtin_claim_name(name: &str) -> bool {
     BUILTIN_CLAIM_NAMES.contains(&name)
 }
 
@@ -25,7 +28,9 @@ fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-fn claim_fillcolor(ty: ClaimType) -> &'static str {
+/// Shared with [`crate::writers::html`] so both exporters use the same
+/// palette for each [`ClaimType`].
+pub(crate) fn claim_fillcolor(ty: ClaimType) -> &'static str {
     match ty {
         ClaimType::Lemma => "lightblue",
         ClaimType::Relation => "lightyellow",

@@ -1,0 +1,775 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --panel-bg: #ffffff;
+    --border: #333;
+    --edge: #9098a8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1d22;
+      --fg: #eee;
+      --muted: #aaa;
+      --panel-bg: #24262c;
+      --border: #ccc;
+      --edge: #6b7280;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  #toolbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--edge);
+    flex-wrap: wrap;
+  }
+  #title { font-weight: 600; }
+  #hint { color: var(--muted); font-size: 12px; }
+  #toolbar-spacer { flex: 1; }
+  #oracle-nav { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  #current-oracle { font-weight: 600; min-width: 6em; }
+  #oracle-jump, #reset-view {
+    font: inherit;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  #viewport {
+    position: absolute;
+    inset: 0;
+    top: 40px;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #viewport.panning { cursor: grabbing; }
+  #world {
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  #edges {
+    position: absolute;
+    top: 0; left: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .cluster-label {
+    position: absolute;
+    font-weight: 700;
+    font: 15px/1 ui-monospace, monospace;
+    color: var(--fg);
+    background: var(--panel-bg);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 3px 8px;
+    pointer-events: none;
+  }
+  .node {
+    position: absolute;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: 12px/1.3 ui-monospace, monospace;
+    cursor: grab;
+    overflow: hidden;
+    color: #111;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    border: 1px solid #333;
+    user-select: none;
+    touch-action: none;
+  }
+  .node:hover { outline: 2px solid #2563eb; }
+  .node.builtin { border-style: dotted; border-width: 2px; }
+  .node.admitted { border-style: dashed; border-width: 3px; border-color: #c00; }
+  .node.implicit { opacity: 0.85; }
+  .node.dragging-node {
+    cursor: grabbing;
+    z-index: 5;
+    box-shadow: 0 6px 16px rgba(0,0,0,.45);
+  }
+  .node-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .node-tags {
+    color: #333;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .badge-new-state {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 9px;
+  }
+  #legend {
+    position: fixed;
+    right: 10px;
+    bottom: 10px;
+    z-index: 20;
+    background: var(--panel-bg);
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    max-width: 260px;
+  }
+  #legend h3 { margin: 0 0 6px; font-size: 12px; }
+  #legend .row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  #legend .swatch {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    border: 1px solid #333;
+    flex: none;
+    background: #ccc;
+  }
+  #panel {
+    position: fixed;
+    top: 40px; right: 0; bottom: 0;
+    width: min(480px, 90vw);
+    z-index: 30;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--edge);
+    box-shadow: -4px 0 12px rgba(0,0,0,.15);
+    padding: 16px;
+    overflow-y: auto;
+  }
+  #panel.hidden { display: none; }
+  #panel-close {
+    float: right;
+    font-size: 20px;
+    line-height: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fg);
+  }
+  #panel-title {
+    font: 14px/1.3 ui-monospace, monospace;
+    word-break: break-word;
+    margin: 0 28px 8px 0;
+  }
+  #panel-badges { margin-bottom: 12px; }
+  #panel-badges span {
+    display: inline-block;
+    margin: 0 6px 6px 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    background: #e5e7eb;
+    color: #111;
+  }
+  .panel-section-title {
+    margin: 16px 0 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
+  .panel-section-title:first-of-type { margin-top: 0; }
+  .panel-ref-list { display: flex; flex-direction: column; gap: 4px; }
+  .panel-ref-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: 12px ui-monospace, monospace;
+    padding: 5px 8px;
+    border: 1px solid var(--edge);
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .panel-ref-btn:hover { background: rgba(37,99,235,.15); }
+  .panel-list-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+  #panel-tabs { margin-bottom: 8px; }
+  .tab-btn {
+    font: inherit;
+    padding: 4px 10px;
+    cursor: pointer;
+    border: 1px solid var(--edge);
+    background: transparent;
+    color: var(--fg);
+  }
+  .tab-btn.active { background: var(--edge); color: var(--panel-bg); }
+  #panel pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font: 12px/1.4 ui-monospace, monospace;
+    background: rgba(127,127,127,.1);
+    padding: 10px;
+    border-radius: 6px;
+  }
+  #panel pre.hidden { display: none; }
+  #panel-easycrypt-note {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--muted);
+    font-style: italic;
+  }
+  #panel-easycrypt-note.hidden { display: none; }
+  .ref-item {
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+  }
+  .ref-item summary {
+    cursor: pointer;
+    font: 12px ui-monospace, monospace;
+    font-weight: 600;
+  }
+  .ref-item .ref-ec-label {
+    margin-top: 6px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
+  .ref-item pre { font-size: 11px; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+  <div id="toolbar">
+    <span id="title">__TITLE__</span>
+    <span id="hint">scroll/pinch to zoom &middot; drag background to pan &middot; drag a node to move it &middot; click a node for details</span>
+    <span id="toolbar-spacer"></span>
+    <span id="oracle-nav">
+      viewing: <span id="current-oracle">&mdash;</span>
+      <select id="oracle-jump" aria-label="Jump to oracle"><option value="">Jump to oracle&hellip;</option></select>
+    </span>
+    <button id="reset-view" type="button">Fit all</button>
+  </div>
+
+  <div id="viewport">
+    <div id="world">
+      <svg id="edges">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--edge)"></path>
+          </marker>
+        </defs>
+      </svg>
+      <div id="cluster-labels"></div>
+      <div id="nodes"></div>
+    </div>
+  </div>
+
+  <div id="legend">
+    <h3>Legend</h3>
+    <div class="row"><span class="swatch" style="background:lightblue"></span> Lemma</div>
+    <div class="row"><span class="swatch" style="background:lightyellow"></span> State relation</div>
+    <div class="row"><span class="swatch" style="background:lightgreen"></span> Invariant</div>
+    <div class="row"><span class="swatch" style="background:orange"></span> Package invariant</div>
+    <div class="row"><span class="swatch" style="background:plum"></span> Game invariant</div>
+    <div class="row"><span class="swatch" style="background:lightgray;border-style:dotted;border-width:2px"></span> Built-in claim</div>
+    <div class="row"><span class="swatch" style="border-style:dashed;border-width:3px;border-color:#c00"></span> Admitted (unproven)</div>
+    <div class="row"><span class="badge-new-state">&Delta; new-state</span> depends on oracle args / output / new state</div>
+    <div class="row">(no badge) depends only on old state</div>
+  </div>
+
+  <aside id="panel" class="hidden">
+    <button id="panel-close" type="button" aria-label="Close">&times;</button>
+    <h2 id="panel-title"></h2>
+    <div id="panel-badges"></div>
+
+    <div id="panel-tabs">
+      <button class="tab-btn active" type="button" data-tab="domino">Domino source</button>
+      <button class="tab-btn" type="button" data-tab="easycrypt" title="A readable, best-effort translation of just the SMT formula -- not meant to type-check in EasyCrypt as-is.">EasyCrypt</button>
+    </div>
+    <p id="panel-easycrypt-note" class="hidden">Best-effort, readable translation of the SMT formula only &mdash; not meant to type-check in EasyCrypt as-is.</p>
+    <pre id="panel-domino"></pre>
+    <pre id="panel-easycrypt" class="hidden"></pre>
+
+    <div class="panel-section-title">Depends on (direct)</div>
+    <div id="panel-deps" class="panel-ref-list"></div>
+
+    <div class="panel-section-title">Depended on by</div>
+    <div id="panel-dependents" class="panel-ref-list"></div>
+
+    <div id="panel-references-section">
+      <div class="panel-section-title">Referenced definitions</div>
+      <div id="panel-references"></div>
+    </div>
+  </aside>
+
+  <script type="application/json" id="graph-data">__GRAPH_DATA_JSON__</script>
+  <script>
+  (function () {
+    "use strict";
+    var data = JSON.parse(document.getElementById("graph-data").textContent);
+
+    var world = document.getElementById("world");
+    var viewport = document.getElementById("viewport");
+    var nodesLayer = document.getElementById("nodes");
+    var labelsLayer = document.getElementById("cluster-labels");
+    var svg = document.getElementById("edges");
+    var currentOracleEl = document.getElementById("current-oracle");
+    var oracleJump = document.getElementById("oracle-jump");
+
+    world.style.width = data.width + "px";
+    world.style.height = data.height + "px";
+    svg.setAttribute("width", data.width);
+    svg.setAttribute("height", data.height);
+
+    // id -> { node, worldX, worldY } -- worldX/worldY are kept in sync with
+    // the node's actual on-screen position (including manual drags), so
+    // every other feature (edges, jump-to-node, re-focusing) stays correct
+    // after the user has rearranged nodes.
+    var nodeById = {};
+    data.clusters.forEach(function (cluster) {
+      cluster.nodes.forEach(function (node) {
+        nodeById[node.id] = {
+          node: node,
+          worldX: cluster.x + node.x,
+          worldY: cluster.y + node.y,
+        };
+      });
+    });
+
+    // Adjacency, built once from the (from depends on to) edge list, so the
+    // detail panel can show both directions without re-scanning anything.
+    var outgoingByNode = {};
+    var incomingByNode = {};
+    data.clusters.forEach(function (cluster) {
+      cluster.edges.forEach(function (edge) {
+        (outgoingByNode[edge.from] = outgoingByNode[edge.from] || []).push(edge.to);
+        (incomingByNode[edge.to] = incomingByNode[edge.to] || []).push(edge.from);
+      });
+    });
+
+    function rectOf(id) {
+      var entry = nodeById[id];
+      if (!entry) return null;
+      return { x: entry.worldX, y: entry.worldY, width: entry.node.width, height: entry.node.height };
+    }
+
+    function centerOf(id) {
+      var r = rectOf(id);
+      if (!r) return null;
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }
+
+    // Where a ray from a rect's center in direction (dx, dy) exits the
+    // rect's boundary -- used to clip edges to the node's border (with a
+    // small gap) instead of drawing straight through its center, so the
+    // arrowhead marker actually lands somewhere visible.
+    function clipToRectBoundary(rect, dx, dy, gap) {
+      var halfW = rect.width / 2 + gap;
+      var halfH = rect.height / 2 + gap;
+      var cx = rect.x + rect.width / 2;
+      var cy = rect.y + rect.height / 2;
+      if (dx === 0 && dy === 0) return { x: cx, y: cy };
+      var tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
+      var ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
+      var t = Math.min(tx, ty);
+      return { x: cx + dx * t, y: cy + dy * t };
+    }
+
+    var svgns = "http://www.w3.org/2000/svg";
+    var linesByNode = {}; // id -> [{el, otherId, isSource}]
+
+    function addEdgeToIndex(id, entry) {
+      (linesByNode[id] = linesByNode[id] || []).push(entry);
+    }
+
+    function positionEdgeLine(line, fromId, toId) {
+      var fromRect = rectOf(fromId);
+      var toRect = rectOf(toId);
+      if (!fromRect || !toRect) return;
+      var fromCenter = { x: fromRect.x + fromRect.width / 2, y: fromRect.y + fromRect.height / 2 };
+      var toCenter = { x: toRect.x + toRect.width / 2, y: toRect.y + toRect.height / 2 };
+      var dx = toCenter.x - fromCenter.x;
+      var dy = toCenter.y - fromCenter.y;
+      var start = clipToRectBoundary(fromRect, dx, dy, 2);
+      var end = clipToRectBoundary(toRect, -dx, -dy, 4);
+      line.setAttribute("x1", start.x);
+      line.setAttribute("y1", start.y);
+      line.setAttribute("x2", end.x);
+      line.setAttribute("y2", end.y);
+    }
+
+    data.clusters.forEach(function (cluster) {
+      cluster.edges.forEach(function (edge) {
+        if (!nodeById[edge.from] || !nodeById[edge.to]) return;
+        var line = document.createElementNS(svgns, "line");
+        line.setAttribute("stroke", "var(--edge)");
+        line.setAttribute("stroke-width", "1.5");
+        line.setAttribute("marker-end", "url(#arrow)");
+        positionEdgeLine(line, edge.from, edge.to);
+        svg.appendChild(line);
+        addEdgeToIndex(edge.from, { el: line, from: edge.from, to: edge.to });
+        addEdgeToIndex(edge.to, { el: line, from: edge.from, to: edge.to });
+      });
+    });
+
+    function updateEdgesTouching(id) {
+      var touching = linesByNode[id];
+      if (!touching) return;
+      touching.forEach(function (entry) {
+        positionEdgeLine(entry.el, entry.from, entry.to);
+      });
+    }
+
+    function badgeList(node) {
+      var badges = [node.claimType];
+      if (node.builtin) badges.push("builtin");
+      if (node.admitted) badges.push("admitted");
+      if (node.dependsOnNewState === true) badges.push("depends on new state / oracle args / output");
+      if (node.dependsOnNewState === false) badges.push("old-state only");
+      return badges;
+    }
+
+    var nodeElsById = {};
+
+    data.clusters.forEach(function (cluster) {
+      var label = document.createElement("div");
+      label.className = "cluster-label";
+      label.style.left = cluster.x + "px";
+      label.style.top = (cluster.y - 2) + "px";
+      label.textContent = cluster.oracleName;
+      labelsLayer.appendChild(label);
+
+      var opt = document.createElement("option");
+      opt.value = cluster.oracleName;
+      opt.textContent = cluster.oracleName;
+      oracleJump.appendChild(opt);
+
+      cluster.nodes.forEach(function (node) {
+        var el = document.createElement("div");
+        el.className = "node" + (node.builtin ? " builtin" : "") + (node.admitted ? " admitted" : "") + (node.implicit ? " implicit" : "");
+        el.style.left = (cluster.x + node.x) + "px";
+        el.style.top = (cluster.y + node.y) + "px";
+        el.style.width = node.width + "px";
+        el.style.height = node.height + "px";
+        el.style.background = node.fillColor;
+        el.dataset.nodeId = node.id;
+        el.title = node.name + " (" + badgeList(node).join(", ") + ") — click for details, drag to move";
+
+        var name = document.createElement("div");
+        name.className = "node-name";
+        name.textContent = node.name;
+        el.appendChild(name);
+
+        var tags = document.createElement("div");
+        tags.className = "node-tags";
+        var tagText = node.claimType;
+        if (node.builtin) tagText += " (builtin)";
+        if (node.admitted) tagText += " (admitted)";
+        tags.textContent = tagText;
+        el.appendChild(tags);
+
+        if (node.dependsOnNewState === true) {
+          var badge = document.createElement("span");
+          badge.className = "badge-new-state";
+          badge.textContent = "Δ new-state";
+          el.appendChild(badge);
+        }
+
+        makeNodeDraggable(el, node);
+
+        nodesLayer.appendChild(el);
+        nodeElsById[node.id] = el;
+      });
+    });
+
+    // --- pan / zoom ---
+    var MIN_SCALE = 0.02;
+    var MAX_SCALE = 8;
+    var scale = 1;
+    var panX = 40;
+    var panY = 40;
+    var pendingFrame = null;
+
+    function clampScale(s) {
+      return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+    }
+
+    function applyTransformNow() {
+      world.style.transform = "translate(" + panX + "px, " + panY + "px) scale(" + scale + ")";
+      updateCurrentOracleIndicator();
+    }
+
+    function applyTransform() {
+      if (pendingFrame) return;
+      pendingFrame = requestAnimationFrame(function () {
+        pendingFrame = null;
+        applyTransformNow();
+      });
+    }
+
+    function updateCurrentOracleIndicator() {
+      var rect = viewport.getBoundingClientRect();
+      var worldX = (rect.width / 2 - panX) / scale;
+      var current = data.clusters.find(function (c) {
+        return worldX >= c.x && worldX <= c.x + c.width;
+      });
+      currentOracleEl.textContent = current ? current.oracleName : "—";
+      oracleJump.value = current ? current.oracleName : "";
+    }
+
+    function fitAll() {
+      var rect = viewport.getBoundingClientRect();
+      var margin = 40;
+      var availW = Math.max(rect.width - margin * 2, 50);
+      var availH = Math.max(rect.height - margin * 2, 50);
+      var s = Math.min(1, availW / Math.max(data.width, 1), availH / Math.max(data.height, 1));
+      scale = clampScale(s);
+      panX = margin;
+      panY = margin;
+      applyTransformNow();
+    }
+
+    function jumpToCluster(cluster) {
+      var rect = viewport.getBoundingClientRect();
+      var margin = 60;
+      var availW = Math.max(rect.width - margin * 2, 50);
+      var availH = Math.max(rect.height - margin * 2, 50);
+      var s = Math.min(1.25, availW / Math.max(cluster.width, 1), availH / Math.max(cluster.height, 1));
+      scale = clampScale(s);
+      panX = rect.width / 2 - (cluster.x + cluster.width / 2) * scale;
+      panY = rect.height / 2 - (cluster.y + cluster.height / 2) * scale;
+      applyTransformNow();
+    }
+
+    function focusNode(id) {
+      var entry = nodeById[id];
+      if (!entry) return;
+      var rect = viewport.getBoundingClientRect();
+      var cx = entry.worldX + entry.node.width / 2;
+      var cy = entry.worldY + entry.node.height / 2;
+      scale = clampScale(Math.max(scale, 0.6));
+      panX = rect.width / 2 - cx * scale;
+      panY = rect.height / 2 - cy * scale;
+      applyTransformNow();
+      openPanel(entry.node);
+      var el = nodeElsById[id];
+      if (el) {
+        el.animate(
+          [{ outline: "3px solid #2563eb" }, { outline: "3px solid transparent" }],
+          { duration: 900, iterations: 1 },
+        );
+      }
+    }
+
+    fitAll();
+
+    oracleJump.addEventListener("change", function () {
+      var cluster = data.clusters.find(function (c) { return c.oracleName === oracleJump.value; });
+      if (cluster) jumpToCluster(cluster);
+    });
+
+    // Exponential zoom (constant *feel* per wheel notch regardless of
+    // current scale, unlike a linear step) with a higher-than-default
+    // sensitivity, batched into one style write per animation frame so
+    // rapid trackpad/wheel events stay smooth even on large graphs.
+    var ZOOM_SENSITIVITY = 0.0035;
+    viewport.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var rect = viewport.getBoundingClientRect();
+      var mx = e.clientX - rect.left;
+      var my = e.clientY - rect.top;
+      var prevScale = scale;
+      var factor = Math.exp(-e.deltaY * ZOOM_SENSITIVITY);
+      scale = clampScale(scale * factor);
+      var wx = (mx - panX) / prevScale;
+      var wy = (my - panY) / prevScale;
+      panX = mx - wx * scale;
+      panY = my - wy * scale;
+      applyTransform();
+    }, { passive: false });
+
+    var panning = false;
+    var panStart = null;
+    viewport.addEventListener("mousedown", function (e) {
+      if (e.target.closest(".node")) return;
+      panning = true;
+      panStart = { x: e.clientX, y: e.clientY, panX: panX, panY: panY };
+      viewport.classList.add("panning");
+    });
+    window.addEventListener("mousemove", function (e) {
+      if (!panning) return;
+      panX = panStart.panX + (e.clientX - panStart.x);
+      panY = panStart.panY + (e.clientY - panStart.y);
+      applyTransform();
+    });
+    window.addEventListener("mouseup", function () {
+      panning = false;
+      viewport.classList.remove("panning");
+    });
+
+    document.getElementById("reset-view").addEventListener("click", fitAll);
+
+    // --- node dragging (reposition), separate from canvas panning ---
+    var DRAG_THRESHOLD = 4; // px, in screen space, before a press counts as a drag rather than a click
+    function makeNodeDraggable(el, node) {
+      el.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var origLeft = nodeById[node.id].worldX;
+        var origTop = nodeById[node.id].worldY;
+        var moved = false;
+
+        function onMove(e2) {
+          var dxScreen = e2.clientX - startX;
+          var dyScreen = e2.clientY - startY;
+          if (!moved && Math.hypot(dxScreen, dyScreen) > DRAG_THRESHOLD) {
+            moved = true;
+            el.classList.add("dragging-node");
+          }
+          if (!moved) return;
+          var newLeft = origLeft + dxScreen / scale;
+          var newTop = origTop + dyScreen / scale;
+          el.style.left = newLeft + "px";
+          el.style.top = newTop + "px";
+          nodeById[node.id].worldX = newLeft;
+          nodeById[node.id].worldY = newTop;
+          updateEdgesTouching(node.id);
+        }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          el.classList.remove("dragging-node");
+          if (!moved) {
+            openPanel(node);
+          }
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+    }
+
+    // --- detail panel ---
+    var panel = document.getElementById("panel");
+    var panelTitle = document.getElementById("panel-title");
+    var panelBadges = document.getElementById("panel-badges");
+    var panelDomino = document.getElementById("panel-domino");
+    var panelEasycrypt = document.getElementById("panel-easycrypt");
+    var panelEasycryptNote = document.getElementById("panel-easycrypt-note");
+    var panelDeps = document.getElementById("panel-deps");
+    var panelDependents = document.getElementById("panel-dependents");
+    var panelReferencesSection = document.getElementById("panel-references-section");
+    var panelReferences = document.getElementById("panel-references");
+
+    function renderNodeRefList(container, ids, emptyText) {
+      container.innerHTML = "";
+      if (!ids || ids.length === 0) {
+        var span = document.createElement("span");
+        span.className = "panel-list-empty";
+        span.textContent = emptyText;
+        container.appendChild(span);
+        return;
+      }
+      ids.forEach(function (id) {
+        var entry = nodeById[id];
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panel-ref-btn";
+        btn.textContent = entry ? entry.node.name : id;
+        btn.addEventListener("click", function () {
+          focusNode(id);
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    function renderReferencedDefinitions(defs) {
+      panelReferences.innerHTML = "";
+      if (!defs || defs.length === 0) {
+        panelReferencesSection.style.display = "none";
+        return;
+      }
+      panelReferencesSection.style.display = "";
+      defs.forEach(function (ref) {
+        var details = document.createElement("details");
+        details.className = "ref-item";
+        var summary = document.createElement("summary");
+        summary.textContent = ref.name + " (" + ref.kindLabel + ")";
+        details.appendChild(summary);
+
+        var dominoPre = document.createElement("pre");
+        dominoPre.textContent = ref.dominoSource;
+        details.appendChild(dominoPre);
+
+        var ecLabel = document.createElement("div");
+        ecLabel.className = "ref-ec-label";
+        ecLabel.textContent = "EasyCrypt (best-effort)";
+        details.appendChild(ecLabel);
+
+        var ecPre = document.createElement("pre");
+        ecPre.textContent = ref.easycryptSource;
+        details.appendChild(ecPre);
+
+        panelReferences.appendChild(details);
+      });
+    }
+
+    function openPanel(node) {
+      panelTitle.textContent = node.name;
+      panelBadges.innerHTML = "";
+      badgeList(node).forEach(function (text) {
+        var span = document.createElement("span");
+        span.textContent = text;
+        panelBadges.appendChild(span);
+      });
+      panelDomino.textContent = node.dominoSource || "(source not captured for this claim)";
+      panelEasycrypt.textContent = node.easycryptSource || "(source not captured for this claim)";
+      renderNodeRefList(panelDeps, outgoingByNode[node.id], "no direct dependencies");
+      renderNodeRefList(panelDependents, incomingByNode[node.id], "nothing in this view depends on it");
+      renderReferencedDefinitions(node.referencedDefinitions);
+      panel.classList.remove("hidden");
+    }
+
+    document.getElementById("panel-close").addEventListener("click", function () {
+      panel.classList.add("hidden");
+    });
+    window.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") panel.classList.add("hidden");
+    });
+
+    var tabButtons = document.querySelectorAll(".tab-btn");
+    tabButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        tabButtons.forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        var tab = btn.dataset.tab;
+        panelDomino.classList.toggle("hidden", tab !== "domino");
+        panelEasycrypt.classList.toggle("hidden", tab !== "easycrypt");
+        panelEasycryptNote.classList.toggle("hidden", tab !== "easycrypt");
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

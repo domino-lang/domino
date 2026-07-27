@@ -93,6 +93,14 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                         )?;
+                        self.write_lemma_dependency_html(
+                            theorem_key,
+                            eq.left_name(),
+                            eq.right_name(),
+                            eq,
+                            req_oracle.as_deref(),
+                            req_claim.as_deref(),
+                        )?;
                     }
                     GameHop::Reduction(red) => {
                         println!(
@@ -112,6 +120,14 @@ pub trait Project {
                             eq.left_name(),
                             eq.right_name(),
                             eq.trees(),
+                            req_oracle.as_deref(),
+                            req_claim.as_deref(),
+                        )?;
+                        self.write_lemma_dependency_html(
+                            theorem_key,
+                            eq.left_name(),
+                            eq.right_name(),
+                            eq,
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                         )?;
@@ -200,6 +216,125 @@ pub trait Project {
             crate::writers::dot::lemma_dependency_dot(&graph_name, &label, &trees_for_dot),
         )?;
         println!("    lemma dependency graph: {}", path.display());
+
+        Ok(())
+    }
+
+    /// Writes a self-contained HTML lemma-tree viewer for a
+    /// `equivalence`/`hybrid` game hop -- the HTML analogue of
+    /// [`Project::write_lemma_dependency_dot`] (same file naming and
+    /// `req_oracle`/`req_claim` selection semantics), additionally reading
+    /// each affected oracle's invariant files to capture verbatim Domino
+    /// source and an old-state/new-state classification per claim (see
+    /// [`crate::writers::claim_source`]). Invariant files that fail to read
+    /// are silently skipped here -- if they're genuinely broken, `prove`
+    /// surfaces that; this viewer degrades to "source not captured" instead
+    /// of blocking the export.
+    fn write_lemma_dependency_html(
+        &self,
+        theorem_key: &str,
+        left_name: &str,
+        right_name: &str,
+        eq: &crate::gamehops::equivalence::Equivalence,
+        req_oracle: Option<&str>,
+        req_claim: Option<&str>,
+    ) -> Result<()> {
+        let trees = eq.trees();
+        let mut dir = self.get_root_dir();
+        dir.push("_build/html");
+        std::fs::create_dir_all(&dir)?;
+
+        let claim_sources_for_oracle = |oracle_name: &str| {
+            let mut merged = std::collections::BTreeMap::new();
+            for file_name in eq.invariants_by_oracle_name(oracle_name) {
+                if let Ok(contents) = self.read_input_file(&file_name) {
+                    merged.extend(crate::writers::claim_source::collect_claim_sources(
+                        &contents,
+                    ));
+                }
+            }
+            merged
+        };
+
+        let Some(oracle_name) = req_oracle else {
+            let path = dir.join(format!("{left_name}-{right_name}.html"));
+            let graph_name = format!("{left_name}_{right_name}").replace('-', "_");
+            let label = format!("{theorem_key}: {left_name} == {right_name}");
+
+            let claim_sources: Vec<_> = trees
+                .iter()
+                .map(|(oracle_name, _)| {
+                    (oracle_name.clone(), claim_sources_for_oracle(oracle_name))
+                })
+                .collect();
+
+            std::fs::write(
+                &path,
+                crate::writers::html::lemma_dependency_html(
+                    &graph_name,
+                    &label,
+                    left_name,
+                    right_name,
+                    trees,
+                    &claim_sources,
+                ),
+            )?;
+            println!("    lemma dependency page: {}", path.display());
+            return Ok(());
+        };
+
+        let Some((_, oracle_tree)) = trees.iter().find(|(name, _)| name == oracle_name) else {
+            // This game hop doesn't export the requested oracle; nothing to do here.
+            return Ok(());
+        };
+
+        let tree = match req_claim {
+            None => oracle_tree.clone(),
+            Some(claim_name) => match claim_closure(oracle_tree, claim_name) {
+                Some(closure) => closure,
+                None => {
+                    eprintln!(
+                        "warning: claim `{claim_name}` not found for oracle `{oracle_name}` in {theorem_key} ({left_name} == {right_name})"
+                    );
+                    return Ok(());
+                }
+            },
+        };
+
+        let mut filename = format!("{left_name}-{right_name}-{oracle_name}");
+        let mut graph_name = format!("{left_name}_{right_name}_{oracle_name}");
+        let mut label = format!("{theorem_key}: {left_name} == {right_name} (oracle {oracle_name}");
+        if let Some(claim_name) = req_claim {
+            filename.push('-');
+            filename.push_str(claim_name);
+            graph_name.push('_');
+            graph_name.push_str(claim_name);
+            label.push_str(", claim ");
+            label.push_str(claim_name);
+        }
+        filename.push_str(".html");
+        label.push(')');
+        let graph_name = graph_name.replace('-', "_");
+
+        let path = dir.join(filename);
+        let trees_for_html = [(oracle_name.to_string(), tree)];
+        let claim_sources = [(
+            oracle_name.to_string(),
+            claim_sources_for_oracle(oracle_name),
+        )];
+
+        std::fs::write(
+            &path,
+            crate::writers::html::lemma_dependency_html(
+                &graph_name,
+                &label,
+                left_name,
+                right_name,
+                &trees_for_html,
+                &claim_sources,
+            ),
+        )?;
+        println!("    lemma dependency page: {}", path.display());
 
         Ok(())
     }
