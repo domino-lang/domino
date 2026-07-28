@@ -50,12 +50,12 @@ theorem PRF {
 
             map assumptionreal constructionreal {
                 key    : key
-                prf    : prf
+                Prf    : Prf
             }
 
             map assumptionideal constructionideal {
                 key    : key
-                prf    : prf
+                Prf    : Prf
             }
         }
     }
