@@ -193,7 +193,7 @@ fn test_state_datatypes_remap_consts() {
         .game()
         .pkgs
         .iter()
-        .find(|pkg_inst| pkg_inst.name == "prf")
+        .find(|pkg_inst| pkg_inst.name == "Prf")
         .unwrap();
     let pkg = &pkg_inst.pkg;
 

@@ -18,10 +18,10 @@ theorem Theorem {
         assumption identity
 
         map real_assumption real_ {
-          b: b
+          B: B
         }
         map ideal_assumption ideal_ {
-          b: b
+          B: B
         }
       }
     }

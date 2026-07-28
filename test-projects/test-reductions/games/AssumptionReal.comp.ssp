@@ -2,7 +2,7 @@ composition AssumptionReal {
     const n: Integer;
     const prf: fn Bits(n), Bits(n) -> Bits(n);
     
-    instance prf = PRF {
+    instance Prf = PRF {
         params {
             n:   n,
             prf: prf,
@@ -17,10 +17,10 @@ composition AssumptionReal {
     
     compose {
         adversary: {
-            Eval: prf,
+            Eval: Prf,
             Get:  key,
         },
-        prf: {
+        Prf: {
             Set: key,
         },
     }
