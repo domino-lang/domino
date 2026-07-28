@@ -2,7 +2,7 @@ composition SmallPRFGame {
     const n:   Integer;
     const prf: fn Bits(n), Bits(n) -> Bits(n);
 
-    instance prf = PRF {
+    instance Prf = PRF {
         params {
             n: n,
             prf: prf,
@@ -17,10 +17,10 @@ composition SmallPRFGame {
 
     compose {
         adversary: {
-          Eval: prf,
-          Get:  prf,
+          Eval: Prf,
+          Get:  Prf,
         }
-        prf: {
+        Prf: {
             Set: key
         }
     }
