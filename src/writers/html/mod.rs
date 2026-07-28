@@ -78,12 +78,18 @@ fn referenced_definition_kind_label(kind: claim_source::ClaimKind) -> &'static s
     }
 }
 
-/// Finds every other captured definition in `sources` that `claim_source`'s
-/// raw Domino text calls -- transitively: a plain `define-fun` helper, or
-/// another lemma/relation, *and* anything referenced from within those in
-/// turn (helpers calling helpers, a relation calling another relation,
-/// etc.), so the panel can show every definition a reviewer would need
-/// without having to click through each one by hand.
+/// Finds every other captured *non-function* definition in `sources` that
+/// `claim_source`'s raw Domino text calls -- transitively: another
+/// lemma/relation, and anything referenced from within those in turn (a
+/// relation calling another relation, or reached indirectly through a helper
+/// function's own body), so the panel can show every definition a reviewer
+/// would need without having to click through each one by hand.
+///
+/// Plain `define-fun` helpers are deliberately excluded from the *result*
+/// (though their bodies are still walked into, same as any other match) --
+/// they're promoted to first-class graph nodes with their own direct edges
+/// by [`build_cluster`]'s helper-function BFS instead, so listing them here
+/// too would just be duplication.
 ///
 /// This is a breadth-first search over the "mentions this other name"
 /// relation (see [`contains_whole_identifier`]) starting from `claim_source`
@@ -111,16 +117,61 @@ fn find_referenced_definitions(
                 continue;
             }
             visited.insert(name.as_str());
-            result.push(ReferencedDefinition {
-                name: name.clone(),
-                kind_label: referenced_definition_kind_label(src.kind),
-                domino_source: src.domino_source.clone(),
-                easycrypt_source: src.easycrypt_source.clone(),
-            });
+            if src.kind != claim_source::ClaimKind::Function {
+                result.push(ReferencedDefinition {
+                    name: name.clone(),
+                    kind_label: referenced_definition_kind_label(src.kind),
+                    domino_source: src.domino_source.clone(),
+                    easycrypt_source: src.easycrypt_source.clone(),
+                });
+            }
             queue.push_back(src.domino_source.as_str());
         }
     }
     result
+}
+
+/// BFS over the "calls this helper function" relation (see
+/// [`contains_whole_identifier`]), starting from every `root`'s own text and
+/// following helper-calling-helper chains -- the same one-hop-at-a-time
+/// shape as the claim-dependency edges in [`build_cluster`], but restricted
+/// to `ClaimKind::Function` targets so it can feed the layout algorithm a
+/// proper node+edge graph (unlike [`find_referenced_definitions`]'s flat,
+/// transitively-collapsed list). Returns the discovered function names
+/// (each returned once, sorted, regardless of how many roots or helpers call
+/// it) and every direct call edge as `(caller_id, "{oracle_name}::{callee}")`
+/// pairs -- note a shared helper naturally ends up with more than one
+/// incoming edge here, from each distinct caller.
+fn find_function_calls<'a>(
+    roots: impl IntoIterator<Item = (String, &'a str)>,
+    oracle_name: &str,
+    sources: &'a BTreeMap<String, ClaimSource>,
+) -> (Vec<&'a str>, Vec<(String, String)>) {
+    let node_id = |name: &str| format!("{oracle_name}::{name}");
+    let mut seen: BTreeSet<&str> = BTreeSet::new();
+    let mut queue: VecDeque<(String, &str)> = VecDeque::new();
+    queue.extend(roots);
+
+    let mut names = Vec::new();
+    let mut edges = Vec::new();
+    while let Some((from_id, text)) = queue.pop_front() {
+        for (name, src) in sources.iter() {
+            let to_id = node_id(name);
+            if src.kind != claim_source::ClaimKind::Function
+                || to_id == from_id
+                || !contains_whole_identifier(text, name)
+            {
+                continue;
+            }
+            edges.push((from_id.clone(), to_id));
+            if seen.insert(name.as_str()) {
+                names.push(name.as_str());
+                queue.push_back((node_id(name), src.domino_source.as_str()));
+            }
+        }
+    }
+    names.sort_unstable();
+    (names, edges)
 }
 
 /// The SMT function name Domino's own proof pipeline looks a claim up under
@@ -154,7 +205,9 @@ fn claim_smt_lookup_key(
 
 /// Builds one oracle's cluster: same node set (declared claims + implicit
 /// undeclared/builtin dependency stubs) and edges as
-/// [`crate::writers::dot::write_claim_tree_body`], laid out with
+/// [`crate::writers::dot::write_claim_tree_body`], plus (HTML-only) helper
+/// (`define-fun`) function nodes discovered from the claims' own Domino
+/// source via [`find_function_calls`], laid out with
 /// [`layout::layered_layout`].
 #[allow(clippy::too_many_arguments)]
 fn build_cluster(
@@ -177,10 +230,33 @@ fn build_cluster(
     implicit.sort_unstable();
     implicit.dedup();
 
+    // Helper ("define-fun") functions any declared claim calls, directly or
+    // through a chain of other helpers -- promoted to their own nodes with
+    // their own direct edges (see `find_function_calls`) rather than only
+    // showing up nested in the calling claim's detail panel, so a helper
+    // shared by several oracles' claims is visible as the same-named node in
+    // each of their clusters (`sources` is captured per oracle, so it can't
+    // be a single shared node) and the cross-oracle reuse becomes visible
+    // both through the graph and the "also referenced in oracle(s)" panel
+    // section (see `template.html`).
+    let (function_nodes, function_edges) = match sources {
+        Some(sources) => {
+            let roots = tree.iter().filter_map(|claim| {
+                let lookup_key = claim_smt_lookup_key(claim, left_name, right_name, oracle_name);
+                sources
+                    .get(&lookup_key)
+                    .map(|src| (node_id(claim.name()), src.domino_source.as_str()))
+            });
+            find_function_calls(roots, oracle_name, sources)
+        }
+        None => (Vec::new(), Vec::new()),
+    };
+
     let mut node_ids: Vec<String> = tree.iter().map(|c| node_id(c.name())).collect();
     node_ids.extend(implicit.iter().map(|dep| node_id(dep)));
+    node_ids.extend(function_nodes.iter().map(|name| node_id(name)));
 
-    let edges: Vec<(String, String)> = tree
+    let mut edges: Vec<(String, String)> = tree
         .iter()
         .flat_map(|claim| {
             claim
@@ -189,6 +265,7 @@ fn build_cluster(
                 .map(move |dep| (node_id(claim.name()), node_id(dep)))
         })
         .collect();
+    edges.extend(function_edges);
 
     let layout = layout::layered_layout(&node_ids, &edges, params);
     let positions: BTreeMap<&str, (f64, f64)> = layout
@@ -262,6 +339,35 @@ fn build_cluster(
             easycrypt_source: None,
             referenced_definitions: Vec::new(),
         });
+    }
+    if let Some(sources) = sources {
+        for name in &function_nodes {
+            let id = node_id(name);
+            let (x, y) = positions.get(id.as_str()).copied().unwrap_or((0.0, 0.0));
+            // Present by construction: `name` only ever came from iterating
+            // this same `sources` map in `find_function_calls`.
+            let src = sources.get(*name).expect("function source must exist");
+            nodes.push(NodeData {
+                id,
+                name: name.to_string(),
+                x,
+                y,
+                width: params.node_width,
+                height: params.node_height,
+                fill_color: "wheat",
+                claim_type: "Helper function",
+                builtin: false,
+                admitted: false,
+                // Doesn't apply: a `define-fun` helper isn't asserted about
+                // a specific oracle call the way a lemma/relation is, so
+                // there's no old-state-vs-new-state distinction to draw.
+                depends_on_new_state: None,
+                implicit: false,
+                domino_source: Some(src.domino_source.clone()),
+                easycrypt_source: Some(src.easycrypt_source.clone()),
+                referenced_definitions: find_referenced_definitions(name, src, sources),
+            });
+        }
     }
 
     let edges = edges
