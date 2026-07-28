@@ -24,8 +24,7 @@ use crate::{
             AssumptionMappingLeftGameInstanceIsNotFromAssumption,
             AssumptionMappingTypeParameterMismatchError, InductionStepUnprovableError,
             ReductionContainsDifferentPackagesError,
-            ReductionPackageInstanceTypeParameterMismatchError,
-            UnprovenTheoremError,
+            ReductionPackageInstanceTypeParameterMismatchError, UnprovenTheoremError,
         },
         Rule,
     },
@@ -795,8 +794,13 @@ fn handle_instance_assign_list<'src>(
             }
             Rule::params_def => {
                 if let Some(ast) = ast.into_inner().next() {
-                    let defs =
-                        common::handle_theorem_params_def_list(ctx, game, game_inst_name, &types, ast)?;
+                    let defs = common::handle_theorem_params_def_list(
+                        ctx,
+                        game,
+                        game_inst_name,
+                        &types,
+                        ast,
+                    )?;
 
                     consts.extend(defs.into_iter().map(|(name, value)| {
                         (

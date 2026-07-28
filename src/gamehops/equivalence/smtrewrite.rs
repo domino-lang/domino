@@ -373,7 +373,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
                             if let [name, ty] = &binding[..] {
                                 return SmtExpr::List(vec![
                                     name.clone(),
-                                    self.rewrite_type(ty.clone())
+                                    self.rewrite_type(ty.clone()),
                                 ]);
                             }
                         }

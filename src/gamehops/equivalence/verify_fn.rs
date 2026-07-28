@@ -4,6 +4,7 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use wildcard::Wildcard;
 
 use std::io::Write as _;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::theorem::RandomnessMappingInjectivityCheck;
@@ -463,7 +464,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             claim_name,
         );
 
-        let result = self.verify_with_solver(smt, claim_group, claim_name);
+        let result = self.verify_with_solver(ui.clone(), smt, claim_group, claim_name);
 
         ui.lock().unwrap().finish_claim(
             &self.eqctx.theorem().name,
@@ -482,8 +483,9 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         }
     }
 
-    fn verify_with_solver(
+    fn verify_with_solver<UI: TheoremUI>(
         &self,
+        ui: Arc<Mutex<&mut UI>>,
         smt: SmtBuf,
         claim_group: &ClaimGroup,
         claim_name: &str,
@@ -529,9 +531,18 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     fname
                 });
                 solver.close();
+                ui.lock().unwrap().println(&format!(
+                    "{:?}",
+                    miette::Report::new(ClaimTheoremFailedError {
+                        claim_name: claim_name.to_string(),
+                        claim_group_name: claim_group.error_name(),
+                        response,
+                        modelfile: Ok(PathBuf::new()),
+                    })
+                )).unwrap();
                 Err(ClaimTheoremFailedError {
                     claim_name: claim_name.to_string(),
-                    claim_group_name: claim_group.error_name(),
+                    claim_group_name: claim_group.error_name().to_string(),
                     response,
                     modelfile,
                 }
