@@ -3,6 +3,7 @@
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
 
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
@@ -314,13 +315,24 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         fname
                     });
                     solver.close();
-                    return Err(ClaimTheoremFailedError {
+
+                    ui.lock().unwrap().println(&format!("{:?}",
+                    miette::Report::new(ClaimTheoremFailedError {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle.name().to_string(),
                         response,
-                        modelfile,
-                    }
-                    .into());
+                        modelfile: Ok(PathBuf::new()),
+                    })));
+                    
+                    return Err(
+                        ClaimTheoremFailedError {
+                            claim_name: claim.name().to_string(),
+                            oracle_name: oracle.name().to_string(),
+                            response,
+                            modelfile,
+                        }
+                        .into()
+                    );
                 }
             }
         }
