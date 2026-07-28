@@ -10,6 +10,7 @@ pub mod pkg_state;
 mod return_value;
 pub mod theorem_consts;
 
+pub use game_consts::*;
 pub use game_state::*;
 //pub use intermediate_state::*;
 pub use normal_return::*;
