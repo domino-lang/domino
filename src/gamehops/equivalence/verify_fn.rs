@@ -382,7 +382,7 @@ where
                 solver.close();
                 Err(ClaimTheoremFailedError {
                     claim_name: claim_name.to_string(),
-                    claim_group_name: claim_group.error_name(),
+                    claim_group_name: claim_group.error_name().to_string(),
                     response,
                     modelfile,
                 }
