@@ -322,22 +322,6 @@
     font-weight: 600;
   }
   .ref-item pre { font-size: 11px; margin: 4px 0 0; }
-  #flow-edge-labels {
-    position: absolute;
-    top: 0; left: 0;
-    pointer-events: none;
-  }
-  .flow-edge-label {
-    position: absolute;
-    transform: translate(-50%, -50%);
-    font: 10px ui-monospace, monospace;
-    padding: 1px 6px;
-    border-radius: 3px;
-    white-space: nowrap;
-    color: #fff;
-  }
-  .flow-edge-label.cross { background: #2563eb; }
-  .flow-edge-label.back { background: #ea580c; }
 </style>
 </head>
 <body>
@@ -347,10 +331,6 @@
     <span id="search-box">
       <input id="search-input" type="text" placeholder="Search lemmas, relations &amp; helpers&hellip;" autocomplete="off" aria-label="Search nodes">
       <div id="search-results" class="hidden"></div>
-    </span>
-    <span id="view-mode-toggle">
-      <button class="tab-btn active" type="button" data-view="tree">Proof tree</button>
-      <button class="tab-btn" type="button" data-view="flow" title="Start from each oracle's same-output/equal-aborts obligations and follow them down to the invariants they need, jumping to whichever oracle actually (re-)establishes each one -- rendered as its own compact tree, separate from the proof-tree view.">Invariant flow</button>
     </span>
     <span id="toolbar-spacer"></span>
     <span id="oracle-nav">
@@ -380,9 +360,6 @@
       </svg>
       <div id="cluster-labels"></div>
       <div id="nodes"></div>
-      <div id="flow-cluster-labels"></div>
-      <div id="flow-nodes"></div>
-      <div id="flow-edge-labels"></div>
     </div>
   </div>
 
@@ -399,9 +376,6 @@
     <div class="row"><span class="badge-new-state">&Delta; new-state</span> depends on oracle args / output / new state</div>
     <div class="row">(no badge) depends only on old state</div>
     <div class="row"><span class="swatch" style="background:#b45309;border-radius:999px;width:20px;height:8px;"></span> calls a helper function (not a proof dependency)</div>
-    <h3 style="margin-top:8px;">Invariant flow view</h3>
-    <div class="row"><span class="swatch" style="background:#2563eb;border-radius:999px;width:20px;height:8px;"></span> proved in this other oracle</div>
-    <div class="row"><span class="swatch" style="background:#ea580c;border-radius:999px;width:20px;height:8px;"></span> back-edge: already shown elsewhere (cycle)</div>
   </div>
 
   <aside id="panel" class="hidden">
@@ -483,8 +457,8 @@
     // `src/writers/html/mod.rs`) is an HTML-only documentation aid showing
     // which helper a claim's body calls, not a real proof dependency, so it
     // gets a visually distinct, muted style everywhere an edge is drawn
-    // (both graph views) and its own "Called functions" bucket in the
-    // detail panel instead of being lumped in with "Depends on".
+    // and its own "Called functions" bucket in the detail panel instead of
+    // being lumped in with "Depends on".
     function isHelperFunctionNode(id) {
       var entry = nodeById[id];
       return !!entry && entry.node.claimType === "Helper function";
@@ -603,360 +577,11 @@
       if (!touching) return;
       touching.forEach(function (entry) {
         positionEdgeLine(entry.el, entry.from, entry.to);
-        if (entry.label) positionFlowLabel(entry);
       });
     }
 
-    // --- "Invariant flow" view ---
-    //
-    // Starting from each oracle's `same-output`/`equal-aborts` obligations
-    // (the two properties every oracle must satisfy), follow dependency
-    // edges down exactly like the proof-tree view until hitting a claim
-    // that's "invariant-like" (a state relation, an `Invariant`-family
-    // claim, or any other old-state-only claim -- see `isInvariantLikeNode`)
-    // with no proof of its own *in this oracle* (either it's an
-    // implicit/undeclared stub, or it's declared but has zero dependencies
-    // here -- see `needsCrossOracleRedirect`). At that point, instead of
-    // dead-ending, jump to every other oracle in the graph that declares a
-    // *non-implicit* claim under that same name -- i.e. the oracle(s) that
-    // actually establish it -- and keep expanding from there.
-    //
-    // Claim names are effectively global (the same relation/lemma name is
-    // reused, independently, across several oracles' `lemmas {}` blocks --
-    // see `sharedNodesByKey` above for the same assumption made elsewhere),
-    // so a name lookup across every cluster is enough; no backend change is
-    // needed; every field this relies on (`claimType`, `dependsOnNewState`,
-    // `implicit`, `builtin`) is already embedded in `data`.
-    //
-    // Unlike an earlier version of this view, this does *not* reuse the
-    // proof-tree view's node positions (just dimming what's irrelevant) --
-    // in a huge proof (many oracles, each with a large claim tree) that put
-    // a redirect's source and target however far apart the two oracles'
-    // clusters happened to land in that much wider canvas, which made the
-    // cross-oracle arrows hard to follow. Instead, every oracle root and
-    // every freshly-expanded redirect target gets its own small cluster
-    // here, laid out compactly with `layeredLayout` below (a JS port of
-    // `src/writers/html/layout.rs`'s algorithm -- this genuinely is a tree,
-    // modulo the deliberate back-edges, so the same layered-DAG approach
-    // fits), and clusters are appended in traversal order, so a redirect's
-    // target cluster always lands immediately next to the arrow that
-    // triggered it.
-    //
-    // A node already shown anywhere in this view (tracked in `processed`)
-    // never gets its own cluster a second time -- reaching it again instead
-    // draws a "back" edge (a different color) directly to the existing
-    // node, so a cycle across oracles (A's invariant needs B's, B's needs
-    // A's) terminates instead of recursing forever.
-    var nameIndex = {};
-    allNodesFlat.forEach(function (node) {
-      (nameIndex[node.name] = nameIndex[node.name] || []).push(node);
-    });
-
-    var INVARIANT_LIKE_CLAIM_TYPES = [
-      "Relation",
-      "Invariant",
-      "LeftPackageInvariant",
-      "RightPackageInvariant",
-      "LeftGameInvariant",
-      "RightGameInvariant",
-    ];
-
-    function isInvariantLikeNode(node) {
-      return INVARIANT_LIKE_CLAIM_TYPES.indexOf(node.claimType) !== -1 ||
-        node.dependsOnNewState === false;
-    }
-
-    // Whether `node` already has a real proof chain in *this* oracle --
-    // i.e. at least one outgoing edge to something other than a "Helper
-    // function" node. Helper-function edges (see `find_function_calls` in
-    // `src/writers/html/mod.rs`) are an HTML-only documentation aid showing
-    // which `define-fun` a claim's body calls, not a proof dependency: an
-    // admitted claim that merely references a helper (e.g. `admit []` whose
-    // body calls a helper predicate) must still count as having *no* local
-    // proof, or it would never trigger the cross-oracle lookup below.
-    function hasLocalProofChain(node) {
-      return (outgoingByNode[node.id] || []).some(function (depId) {
-        return nodeById[depId] && !isHelperFunctionNode(depId);
-      });
-    }
-
-    // Builtins (`no-abort`, `same-output`, `equal-aborts`, `invariant`) are
-    // structural proof obligations every oracle carries, not authored
-    // invariants -- they're never worth hunting down "where else is this
-    // proved", so they always fall through to a normal (possibly childless)
-    // leaf instead.
-    function needsCrossOracleRedirect(node) {
-      if (node.builtin) return false;
-      if (node.implicit) return true;
-      if (hasLocalProofChain(node)) return false;
-      return isInvariantLikeNode(node);
-    }
-
-    // Walks the same-output/equal-aborts trees of every oracle, grouping
-    // the result into clusters: one per oracle root, plus one more each
-    // time a cross-oracle redirect is followed for the first time (see the
-    // module doc comment above). Returns `clusters` (each with its own
-    // *local* node id list and *local* "normal" dependency edges, ready to
-    // feed to `layeredLayout` independently) and the cross-cluster
-    // `crossEdges` (kind "cross" the first time, "back" for a revisit).
-    function buildInvariantFlowGraph() {
-      var processed = {};
-      var clusters = [];
-      var crossEdges = [];
-
-      function newCluster(label) {
-        var cluster = { label: label, nodeIds: [], edges: [] };
-        clusters.push(cluster);
-        return cluster;
-      }
-
-      function walk(id, cluster) {
-        if (processed[id]) return;
-        processed[id] = true;
-        cluster.nodeIds.push(id);
-        var node = nodeById[id].node;
-        if (needsCrossOracleRedirect(node)) {
-          var candidates = (nameIndex[node.name] || []).filter(function (n) {
-            return !n.implicit && n.id !== id;
-          });
-          candidates.forEach(function (target) {
-            if (processed[target.id]) {
-              crossEdges.push({ from: id, to: target.id, kind: "back", label: target.oracleName });
-              return;
-            }
-            crossEdges.push({ from: id, to: target.id, kind: "cross", label: target.oracleName });
-            walk(target.id, newCluster(target.oracleName + " · " + target.name));
-          });
-          return;
-        }
-        (outgoingByNode[id] || []).forEach(function (depId) {
-          cluster.edges.push({ from: id, to: depId });
-          walk(depId, cluster);
-        });
-      }
-
-      var rootIdsByOracle = {};
-      allNodesFlat.forEach(function (node) {
-        if (node.name === "same-output" || node.name === "equal-aborts") {
-          (rootIdsByOracle[node.oracleName] = rootIdsByOracle[node.oracleName] || []).push(node.id);
-        }
-      });
-      Object.keys(rootIdsByOracle).forEach(function (oracleName) {
-        var cluster = newCluster(oracleName);
-        rootIdsByOracle[oracleName].forEach(function (id) { walk(id, cluster); });
-      });
-
-      return { clusters: clusters, crossEdges: crossEdges };
-    }
-
-    // --- JS port of `src/writers/html/layout.rs`'s layered ("Sugiyama-
-    // style") DAG layout -- rank by longest path to a sink, order each
-    // layer with a barycenter sweep, assign evenly-spaced layer-centered
-    // coordinates. Kept in lockstep with the Rust version (down to the
-    // iteration count) so both exporters' tree shapes read the same way;
-    // see that module's doc comment for the full algorithm rationale.
-    function computeDepths(nodeIds, outgoing) {
-      var depth = {};
-      var onStack = {};
-      function visit(id) {
-        if (Object.prototype.hasOwnProperty.call(depth, id)) return depth[id];
-        if (onStack[id]) return 0;
-        onStack[id] = true;
-        var d = 0;
-        (outgoing[id] || []).forEach(function (dep) { d = Math.max(d, 1 + visit(dep)); });
-        onStack[id] = false;
-        depth[id] = d;
-        return d;
-      }
-      nodeIds.forEach(visit);
-      return depth;
-    }
-
-    function barycenterSweep(layers, outgoing, incoming, iterations) {
-      function positionOf(layer) {
-        var pos = {};
-        layer.forEach(function (id, i) { pos[id] = i; });
-        return pos;
-      }
-      function reorderBy(layer, neighborPos, adj) {
-        var keyed = layer.map(function (id, i) {
-          var neighbors = adj[id] || [];
-          var positions = neighbors
-            .map(function (n) { return neighborPos[n]; })
-            .filter(function (p) { return p !== undefined; });
-          var b = positions.length === 0
-            ? NaN
-            : positions.reduce(function (a, c) { return a + c; }, 0) / positions.length;
-          return [b, i, id];
-        });
-        var finite = keyed.map(function (k) { return k[0]; }).filter(function (b) { return !isNaN(b); });
-        var finiteAvg = finite.length ? finite.reduce(function (a, b) { return a + b; }, 0) / finite.length : 0;
-        keyed.forEach(function (k) { if (isNaN(k[0])) k[0] = finiteAvg + k[1] * 1e-6; });
-        keyed.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
-        return keyed.map(function (k) { return k[2]; });
-      }
-      for (var iter = 0; iter < iterations; iter++) {
-        for (var i = 1; i < layers.length; i++) layers[i] = reorderBy(layers[i], positionOf(layers[i - 1]), incoming);
-        for (var j = layers.length - 2; j >= 0; j--) layers[j] = reorderBy(layers[j], positionOf(layers[j + 1]), outgoing);
-      }
-    }
-
-    function layeredLayout(nodeIds, edges, params) {
-      if (nodeIds.length === 0) return { positions: {}, width: 0, height: 0 };
-      var outgoing = {}, incoming = {};
-      edges.forEach(function (e) {
-        if (e.from === e.to) return;
-        (outgoing[e.from] = outgoing[e.from] || []).push(e.to);
-        (incoming[e.to] = incoming[e.to] || []).push(e.from);
-      });
-      var depth = computeDepths(nodeIds, outgoing);
-      var maxDepth = 0;
-      nodeIds.forEach(function (id) { maxDepth = Math.max(maxDepth, depth[id] || 0); });
-      var layers = [];
-      for (var i = 0; i <= maxDepth; i++) layers.push([]);
-      nodeIds.forEach(function (id) { layers[maxDepth - (depth[id] || 0)].push(id); });
-      barycenterSweep(layers, outgoing, incoming, 4);
-
-      var layerWidths = layers.map(function (layer) {
-        return layer.length === 0 ? 0 : layer.length * params.nodeWidth + (layer.length - 1) * params.xGap;
-      });
-      var totalWidth = layerWidths.reduce(function (a, b) { return Math.max(a, b); }, 0);
-      var positions = {};
-      layers.forEach(function (layer, rank) {
-        var xOffset = (totalWidth - layerWidths[rank]) / 2;
-        var y = rank * (params.nodeHeight + params.yGap);
-        layer.forEach(function (id, i) {
-          positions[id] = { x: xOffset + i * (params.nodeWidth + params.xGap), y: y };
-        });
-      });
-      var height = (maxDepth + 1) * params.nodeHeight + maxDepth * params.yGap;
-      return { positions: positions, width: Math.max(totalWidth, params.nodeWidth), height: height };
-    }
-
-    var FLOW_LAYOUT_PARAMS = { nodeWidth: 220, nodeHeight: 56, xGap: 40, yGap: 70 };
-    var FLOW_CLUSTER_GAP = 80;
-    var FLOW_LABEL_HEIGHT = 40;
-
-    // Runs each cluster from `buildInvariantFlowGraph` through its own
-    // independent `layeredLayout` call, then arranges the clusters
-    // left-to-right (same shape as the Rust exporter's per-oracle
-    // clusters) to get final world coordinates plus the overall canvas
-    // size this view needs.
-    function buildInvariantFlowLayout() {
-      var graph = buildInvariantFlowGraph();
-      var xCursor = 0;
-      var maxHeight = 0;
-      var positions = {};
-      var clusterBoxes = [];
-      var normalEdges = [];
-      graph.clusters.forEach(function (cluster) {
-        var layout = layeredLayout(cluster.nodeIds, cluster.edges, FLOW_LAYOUT_PARAMS);
-        var width = Math.max(layout.width, FLOW_LAYOUT_PARAMS.nodeWidth);
-        cluster.nodeIds.forEach(function (id) {
-          var p = layout.positions[id] || { x: 0, y: 0 };
-          positions[id] = { x: xCursor + p.x, y: p.y + FLOW_LABEL_HEIGHT };
-        });
-        cluster.edges.forEach(function (e) { normalEdges.push(e); });
-        clusterBoxes.push({
-          label: cluster.label,
-          x: xCursor,
-          y: 0,
-          width: width,
-          height: layout.height + FLOW_LABEL_HEIGHT,
-        });
-        xCursor += width + FLOW_CLUSTER_GAP;
-        maxHeight = Math.max(maxHeight, layout.height + FLOW_LABEL_HEIGHT);
-      });
-      return {
-        positions: positions,
-        clusters: clusterBoxes,
-        normalEdges: normalEdges,
-        crossEdges: graph.crossEdges,
-        width: Math.max(xCursor - FLOW_CLUSTER_GAP, 0),
-        height: maxHeight,
-      };
-    }
-
-    var flowLayout = buildInvariantFlowLayout();
-
-    // Both views' content lives in the same `#world`/`#edges` (just toggled
-    // via `display: none`), so the shared canvas needs to be big enough for
-    // whichever view needs more room.
-    world.style.width = Math.max(data.width, flowLayout.width) + "px";
-    world.style.height = Math.max(data.height, flowLayout.height) + "px";
-    svg.setAttribute("width", Math.max(data.width, flowLayout.width));
-    svg.setAttribute("height", Math.max(data.height, flowLayout.height));
-
-    var flowNodesLayer = document.getElementById("flow-nodes");
-    var flowLabelsLayer = document.getElementById("flow-cluster-labels");
-    var flowEdgeLabelsLayer = document.getElementById("flow-edge-labels");
-
-    // A position/element index mirroring `nodeById`/`nodeElsById` above,
-    // but for this view's own compact layout -- the same underlying claim
-    // only ever lands in one flow cluster (see `processed` in
-    // `buildInvariantFlowGraph`), so no new ids are needed, just new
-    // coordinates and new DOM elements.
-    var flowNodeById = {};
-    var flowNodeElsById = {};
-    var flowLinesByNode = {};
-
-    function addFlowEdgeToIndex(id, entry) {
-      (flowLinesByNode[id] = flowLinesByNode[id] || []).push(entry);
-    }
-
-    function flowRectOf(id) {
-      var entry = flowNodeById[id];
-      if (!entry) return null;
-      return { x: entry.worldX, y: entry.worldY, width: entry.node.width, height: entry.node.height };
-    }
-
-    function flowPositionEdgeLine(line, fromId, toId) {
-      var fromRect = flowRectOf(fromId);
-      var toRect = flowRectOf(toId);
-      if (!fromRect || !toRect) return;
-      var fromCenter = { x: fromRect.x + fromRect.width / 2, y: fromRect.y + fromRect.height / 2 };
-      var toCenter = { x: toRect.x + toRect.width / 2, y: toRect.y + toRect.height / 2 };
-      var dx = toCenter.x - fromCenter.x;
-      var dy = toCenter.y - fromCenter.y;
-      var start = clipToRectBoundary(fromRect, dx, dy, 2);
-      var end = clipToRectBoundary(toRect, -dx, -dy, 4);
-      line.setAttribute("x1", start.x);
-      line.setAttribute("y1", start.y);
-      line.setAttribute("x2", end.x);
-      line.setAttribute("y2", end.y);
-    }
-
-    function positionFlowLabel(entry) {
-      if (!entry.label) return;
-      var fromRect = flowRectOf(entry.from);
-      var toRect = flowRectOf(entry.to);
-      if (!fromRect || !toRect) return;
-      entry.label.style.left = ((fromRect.x + fromRect.width / 2 + toRect.x + toRect.width / 2) / 2) + "px";
-      entry.label.style.top = ((fromRect.y + fromRect.height / 2 + toRect.y + toRect.height / 2) / 2) + "px";
-    }
-
-    function updateFlowEdgesTouching(id) {
-      var touching = flowLinesByNode[id];
-      if (!touching) return;
-      touching.forEach(function (entry) {
-        flowPositionEdgeLine(entry.el, entry.from, entry.to);
-        if (entry.label) positionFlowLabel(entry);
-      });
-    }
-
-    flowLayout.clusters.forEach(function (cluster) {
-      var label = document.createElement("div");
-      label.className = "cluster-label";
-      label.style.left = cluster.x + "px";
-      label.style.top = (cluster.y - 2) + "px";
-      label.textContent = cluster.label;
-      flowLabelsLayer.appendChild(label);
-    });
-
-    // Builds a node `<div>` with the same content/classes as the proof-tree
-    // view's nodes (shared with the node-creation loop below) -- callers
-    // position it (`style.left`/`style.top`) themselves, since the two
-    // views place the very same node data at different coordinates.
+    // Builds a node `<div>`; callers position it (`style.left`/`style.top`)
+    // themselves.
     function buildNodeElement(node) {
       var el = document.createElement("div");
       el.className = "node" + (node.builtin ? " builtin" : "") + (node.admitted ? " admitted" : "") + (node.implicit ? " implicit" : "");
@@ -987,129 +612,6 @@
       }
       return el;
     }
-
-    function makeFlowNodeDraggable(el, node) {
-      el.addEventListener("mousedown", function (e) {
-        if (e.button !== 0) return;
-        e.stopPropagation();
-        e.preventDefault();
-        var startX = e.clientX;
-        var startY = e.clientY;
-        var origLeft = flowNodeById[node.id].worldX;
-        var origTop = flowNodeById[node.id].worldY;
-        var moved = false;
-
-        function onMove(e2) {
-          var dxScreen = e2.clientX - startX;
-          var dyScreen = e2.clientY - startY;
-          if (!moved && Math.hypot(dxScreen, dyScreen) > DRAG_THRESHOLD) {
-            moved = true;
-            el.classList.add("dragging-node");
-          }
-          if (!moved) return;
-          var newLeft = origLeft + dxScreen / scale;
-          var newTop = origTop + dyScreen / scale;
-          el.style.left = newLeft + "px";
-          el.style.top = newTop + "px";
-          flowNodeById[node.id].worldX = newLeft;
-          flowNodeById[node.id].worldY = newTop;
-          updateFlowEdgesTouching(node.id);
-        }
-        function onUp() {
-          window.removeEventListener("mousemove", onMove);
-          window.removeEventListener("mouseup", onUp);
-          el.classList.remove("dragging-node");
-          if (!moved) openPanel(node);
-        }
-        window.addEventListener("mousemove", onMove);
-        window.addEventListener("mouseup", onUp);
-      });
-    }
-
-    Object.keys(flowLayout.positions).forEach(function (id) {
-      var node = nodeById[id].node;
-      var pos = flowLayout.positions[id];
-      flowNodeById[id] = { node: node, worldX: pos.x, worldY: pos.y };
-
-      var el = buildNodeElement(node);
-      el.style.left = pos.x + "px";
-      el.style.top = pos.y + "px";
-      makeFlowNodeDraggable(el, node);
-      flowNodesLayer.appendChild(el);
-      flowNodeElsById[id] = el;
-    });
-
-    var flowEdgesGroup = document.createElementNS(svgns, "g");
-    svg.appendChild(flowEdgesGroup);
-
-    var FLOW_EDGE_STYLE = {
-      normal: { stroke: "var(--edge)", dash: null, marker: "url(#arrow)", width: "1.5" },
-      helper: { stroke: HELPER_EDGE_STROKE, dash: "2,3", marker: "url(#arrow-helper)", width: "1" },
-      cross: { stroke: "#2563eb", dash: "6,4", marker: "url(#arrow-cross)", width: "2" },
-      back: { stroke: "#ea580c", dash: "6,4", marker: "url(#arrow-back)", width: "2" },
-    };
-
-    function addFlowLine(fromId, toId, kind, labelText) {
-      if (!flowNodeById[fromId] || !flowNodeById[toId]) return;
-      var style = FLOW_EDGE_STYLE[kind];
-      var line = document.createElementNS(svgns, "line");
-      line.setAttribute("stroke", style.stroke);
-      line.setAttribute("stroke-width", style.width);
-      if (style.dash) line.setAttribute("stroke-dasharray", style.dash);
-      line.setAttribute("marker-end", style.marker);
-      flowEdgesGroup.appendChild(line);
-
-      var entry = { el: line, from: fromId, to: toId };
-      if (labelText) {
-        var label = document.createElement("div");
-        label.className = "flow-edge-label " + kind;
-        label.textContent = labelText;
-        flowEdgeLabelsLayer.appendChild(label);
-        entry.label = label;
-      }
-      flowPositionEdgeLine(line, fromId, toId);
-      if (entry.label) positionFlowLabel(entry);
-      addFlowEdgeToIndex(fromId, entry);
-      addFlowEdgeToIndex(toId, entry);
-    }
-
-    flowLayout.normalEdges.forEach(function (e) {
-      addFlowLine(e.from, e.to, isHelperFunctionNode(e.to) ? "helper" : "normal", null);
-    });
-    flowLayout.crossEdges.forEach(function (e) { addFlowLine(e.from, e.to, e.kind, e.label); });
-
-    var VIEW_STORAGE_KEY = "domino-lemma-tree:preferred-view";
-    function loadPreferredView() {
-      try {
-        return localStorage.getItem(VIEW_STORAGE_KEY) === "flow" ? "flow" : "tree";
-      } catch (e) {
-        return "tree";
-      }
-    }
-    function savePreferredView(view) {
-      try { localStorage.setItem(VIEW_STORAGE_KEY, view); } catch (e) { /* ignore */ }
-    }
-
-    var viewButtons = document.querySelectorAll("#view-mode-toggle .tab-btn");
-    var oracleNav = document.getElementById("oracle-nav");
-    var currentView = "tree";
-    function applyViewMode(view) {
-      currentView = view;
-      viewButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.view === view); });
-      nodesLayer.style.display = view === "tree" ? "" : "none";
-      labelsLayer.style.display = view === "tree" ? "" : "none";
-      treeEdgesGroup.style.display = view === "tree" ? "" : "none";
-      oracleNav.style.display = view === "tree" ? "" : "none";
-      flowNodesLayer.style.display = view === "flow" ? "" : "none";
-      flowLabelsLayer.style.display = view === "flow" ? "" : "none";
-      flowEdgesGroup.style.display = view === "flow" ? "" : "none";
-      flowEdgeLabelsLayer.style.display = view === "flow" ? "" : "none";
-      savePreferredView(view);
-      fitAll();
-    }
-    viewButtons.forEach(function (btn) {
-      btn.addEventListener("click", function () { applyViewMode(btn.dataset.view); });
-    });
 
     function badgeList(node) {
       var badges = [node.claimType];
@@ -1183,7 +685,7 @@
     function fitAll() {
       var rect = viewport.getBoundingClientRect();
       var margin = 40;
-      var bounds = currentView === "flow" ? flowLayout : data;
+      var bounds = data;
       var availW = Math.max(rect.width - margin * 2, 50);
       var availH = Math.max(rect.height - margin * 2, 50);
       var s = Math.min(1, availW / Math.max(bounds.width, 1), availH / Math.max(bounds.height, 1));
@@ -1208,7 +710,6 @@
     function focusNode(id) {
       var entry = nodeById[id];
       if (!entry) return;
-      if (currentView !== "tree") applyViewMode("tree");
       var rect = viewport.getBoundingClientRect();
       var cx = entry.worldX + entry.node.width / 2;
       var cy = entry.worldY + entry.node.height / 2;
@@ -1226,7 +727,7 @@
       }
     }
 
-    applyViewMode(loadPreferredView());
+    fitAll();
 
     oracleJump.addEventListener("change", function () {
       var cluster = data.clusters.find(function (c) { return c.oracleName === oracleJump.value; });
@@ -1361,10 +862,6 @@
     var panelOtherOracles = document.getElementById("panel-other-oracles");
     var panelReferencesSection = document.getElementById("panel-references-section");
     var panelReferences = document.getElementById("panel-references");
-    // Scoped to `#panel-tabs` (not a bare `.tab-btn`) since the toolbar's
-    // tree/flow view-mode toggle reuses the same `.tab-btn` class for a
-    // consistent look but is a wholly separate button group -- see
-    // `viewButtons` above.
     var tabButtons = document.querySelectorAll("#panel-tabs .tab-btn");
 
     // Which of "domino"/"easycrypt" is showing, applied to *every* code
