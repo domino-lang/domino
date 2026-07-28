@@ -161,8 +161,19 @@
     box-shadow: -4px 0 12px rgba(0,0,0,.15);
     padding: 16px;
     overflow-y: auto;
+    overflow-x: hidden;
   }
   #panel.hidden { display: none; }
+  #panel-resize-handle {
+    position: absolute;
+    top: 0; bottom: 0; left: -4px;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 6;
+  }
+  #panel-resize-handle:hover, #panel-resize-handle.resizing {
+    background: rgba(37,99,235,.35);
+  }
   #panel-close {
     float: right;
     font-size: 20px;
@@ -221,8 +232,8 @@
   }
   .tab-btn.active { background: var(--edge); color: var(--panel-bg); }
   #panel pre {
-    white-space: pre-wrap;
-    word-break: break-word;
+    white-space: pre;
+    overflow-x: auto;
     font: 12px/1.4 ui-monospace, monospace;
     background: rgba(127,127,127,.1);
     padding: 10px;
@@ -246,13 +257,6 @@
     cursor: pointer;
     font: 12px ui-monospace, monospace;
     font-weight: 600;
-  }
-  .ref-item .ref-ec-label {
-    margin-top: 6px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--muted);
   }
   .ref-item pre { font-size: 11px; margin: 4px 0 0; }
 </style>
@@ -297,6 +301,7 @@
   </div>
 
   <aside id="panel" class="hidden">
+    <div id="panel-resize-handle" title="Drag to resize"></div>
     <button id="panel-close" type="button" aria-label="Close">&times;</button>
     <h2 id="panel-title"></h2>
     <div id="panel-badges"></div>
@@ -305,9 +310,9 @@
       <button class="tab-btn active" type="button" data-tab="domino">Domino source</button>
       <button class="tab-btn" type="button" data-tab="easycrypt" title="A readable, best-effort translation of just the SMT formula -- not meant to type-check in EasyCrypt as-is.">EasyCrypt</button>
     </div>
-    <p id="panel-easycrypt-note" class="hidden">Best-effort, readable translation of the SMT formula only &mdash; not meant to type-check in EasyCrypt as-is.</p>
-    <pre id="panel-domino"></pre>
-    <pre id="panel-easycrypt" class="hidden"></pre>
+    <p id="panel-easycrypt-note" class="hidden">Best-effort, readable translation of the SMT formula only &mdash; not meant to type-check in EasyCrypt as-is. This choice applies to every snippet in this panel, and is remembered next time.</p>
+    <pre id="panel-domino" class="code-view view-domino"></pre>
+    <pre id="panel-easycrypt" class="code-view view-easycrypt hidden"></pre>
 
     <div class="panel-section-title">Depends on (direct)</div>
     <div id="panel-deps" class="panel-ref-list"></div>
@@ -670,6 +675,34 @@
       });
     }
 
+    // --- small persisted-preference helpers (best-effort: file:// pages and
+    // privacy modes can throw on localStorage access, so every call is
+    // wrapped and just silently no-ops rather than breaking the page) ---
+    var TAB_STORAGE_KEY = "domino-lemma-tree:preferred-tab";
+    var WIDTH_STORAGE_KEY = "domino-lemma-tree:panel-width";
+    function loadPreferredTab() {
+      try {
+        var saved = localStorage.getItem(TAB_STORAGE_KEY);
+        return saved === "easycrypt" ? "easycrypt" : "domino";
+      } catch (e) {
+        return "domino";
+      }
+    }
+    function savePreferredTab(tab) {
+      try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch (e) { /* ignore */ }
+    }
+    function loadPanelWidth() {
+      try {
+        var w = parseFloat(localStorage.getItem(WIDTH_STORAGE_KEY));
+        return isFinite(w) && w > 0 ? w : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    function savePanelWidth(w) {
+      try { localStorage.setItem(WIDTH_STORAGE_KEY, String(w)); } catch (e) { /* ignore */ }
+    }
+
     // --- detail panel ---
     var panel = document.getElementById("panel");
     var panelTitle = document.getElementById("panel-title");
@@ -681,6 +714,32 @@
     var panelDependents = document.getElementById("panel-dependents");
     var panelReferencesSection = document.getElementById("panel-references-section");
     var panelReferences = document.getElementById("panel-references");
+    var tabButtons = document.querySelectorAll(".tab-btn");
+
+    // Which of "domino"/"easycrypt" is showing, applied to *every* code
+    // snippet in the panel at once (the main claim's own source/translation,
+    // plus every referenced definition's) -- switching tabs is a single
+    // global choice, not per-snippet, and is remembered across reloads.
+    var currentTab = loadPreferredTab();
+
+    function applyTab(tab) {
+      currentTab = tab;
+      tabButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === tab); });
+      document.querySelectorAll(".view-domino").forEach(function (el) {
+        el.classList.toggle("hidden", tab !== "domino");
+      });
+      document.querySelectorAll(".view-easycrypt").forEach(function (el) {
+        el.classList.toggle("hidden", tab !== "easycrypt");
+      });
+      panelEasycryptNote.classList.toggle("hidden", tab !== "easycrypt");
+      savePreferredTab(tab);
+    }
+
+    tabButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        applyTab(btn.dataset.tab);
+      });
+    });
 
     function renderNodeRefList(container, ids, emptyText) {
       container.innerHTML = "";
@@ -714,20 +773,20 @@
       defs.forEach(function (ref) {
         var details = document.createElement("details");
         details.className = "ref-item";
+        details.open = true;
         var summary = document.createElement("summary");
         summary.textContent = ref.name + " (" + ref.kindLabel + ")";
         details.appendChild(summary);
 
+        // Both views are always rendered; applyTab() controls which one is
+        // visible, in lockstep with the main claim's own snippet above.
         var dominoPre = document.createElement("pre");
+        dominoPre.className = "code-view view-domino";
         dominoPre.textContent = ref.dominoSource;
         details.appendChild(dominoPre);
 
-        var ecLabel = document.createElement("div");
-        ecLabel.className = "ref-ec-label";
-        ecLabel.textContent = "EasyCrypt (best-effort)";
-        details.appendChild(ecLabel);
-
         var ecPre = document.createElement("pre");
+        ecPre.className = "code-view view-easycrypt";
         ecPre.textContent = ref.easycryptSource;
         details.appendChild(ecPre);
 
@@ -748,6 +807,9 @@
       renderNodeRefList(panelDeps, outgoingByNode[node.id], "no direct dependencies");
       renderNodeRefList(panelDependents, incomingByNode[node.id], "nothing in this view depends on it");
       renderReferencedDefinitions(node.referencedDefinitions);
+      // Referenced-definition snippets were just (re)created above, so
+      // re-apply the current tab choice to them too.
+      applyTab(currentTab);
       panel.classList.remove("hidden");
     }
 
@@ -758,16 +820,32 @@
       if (e.key === "Escape") panel.classList.add("hidden");
     });
 
-    var tabButtons = document.querySelectorAll(".tab-btn");
-    tabButtons.forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        tabButtons.forEach(function (b) { b.classList.remove("active"); });
-        btn.classList.add("active");
-        var tab = btn.dataset.tab;
-        panelDomino.classList.toggle("hidden", tab !== "domino");
-        panelEasycrypt.classList.toggle("hidden", tab !== "easycrypt");
-        panelEasycryptNote.classList.toggle("hidden", tab !== "easycrypt");
-      });
+    // --- panel resize (horizontal only) ---
+    var resizeHandle = document.getElementById("panel-resize-handle");
+    var PANEL_MIN_WIDTH = 320;
+    function panelMaxWidth() {
+      return Math.max(PANEL_MIN_WIDTH, window.innerWidth - 100);
+    }
+    var savedPanelWidth = loadPanelWidth();
+    if (savedPanelWidth) {
+      panel.style.width = Math.min(Math.max(savedPanelWidth, PANEL_MIN_WIDTH), panelMaxWidth()) + "px";
+    }
+    resizeHandle.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      resizeHandle.classList.add("resizing");
+      function onMove(e2) {
+        var newWidth = window.innerWidth - e2.clientX;
+        newWidth = Math.min(Math.max(newWidth, PANEL_MIN_WIDTH), panelMaxWidth());
+        panel.style.width = newWidth + "px";
+      }
+      function onUp() {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        resizeHandle.classList.remove("resizing");
+        savePanelWidth(parseFloat(panel.style.width));
+      }
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
     });
   })();
   </script>

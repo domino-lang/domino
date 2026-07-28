@@ -102,13 +102,26 @@ impl SmtParser<SmtExpr> for ClaimSourceCollector {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
-        raw: &str,
+        _raw: &str,
     ) -> Result<SmtExpr> {
+        let rendered = SmtExpr::List(vec![
+            SmtExpr::Atom("define-state-relation".to_string()),
+            SmtExpr::Atom(funname.to_string()),
+            SmtExpr::List(args.clone()),
+            body.clone(),
+        ]);
+
         self.sources.insert(
             funname.to_string(),
             ClaimSource {
                 kind: ClaimKind::StateRelation,
-                domino_source: raw.to_string(),
+                // Re-rendered via `SmtExpr`'s existing `Display` impl (the
+                // same pretty-printer the solver transcript uses) rather
+                // than the verbatim source span, so indentation is always
+                // clean regardless of how the author formatted the original
+                // -- at the cost of not preserving any inline comments,
+                // which never survive parsing into `SmtExpr` to begin with.
+                domino_source: rendered.to_string(),
                 // `define-state-relation` only ever binds the two old game
                 // states -- there is no return value or oracle argument to
                 // depend on structurally.
@@ -128,7 +141,7 @@ impl SmtParser<SmtExpr> for ClaimSourceCollector {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
-        raw: &str,
+        _raw: &str,
     ) -> Result<SmtExpr> {
         // Positional convention enforced by `smtrewrite::handle_define_lemma`:
         // (old-left old-right return-left return-right <oracle args...>).
@@ -141,11 +154,18 @@ impl SmtParser<SmtExpr> for ClaimSourceCollector {
             .iter()
             .any(|binder| references_binder(&body, binder));
 
+        let rendered = SmtExpr::List(vec![
+            SmtExpr::Atom("define-lemma".to_string()),
+            SmtExpr::Atom(funname.to_string()),
+            SmtExpr::List(args.clone()),
+            body.clone(),
+        ]);
+
         self.sources.insert(
             funname.to_string(),
             ClaimSource {
                 kind: ClaimKind::Lemma,
-                domino_source: raw.to_string(),
+                domino_source: rendered.to_string(),
                 depends_on_new_state,
                 easycrypt_source: crate::writers::easycrypt::translate_term(&body),
             },
@@ -159,12 +179,7 @@ impl SmtParser<SmtExpr> for ClaimSourceCollector {
 
     /// Plain `define-fun` helpers (e.g. `kem-correctness`) aren't claims,
     /// but a lemma/relation that calls one is much easier to review with the
-    /// helper's own definition shown alongside it. The shared `SmtParser`
-    /// trait doesn't thread a raw source span through this particular
-    /// handler (only the two macro forms above needed that), so this
-    /// re-renders the definition from its parsed parts via `SmtExpr`'s
-    /// existing `Display` impl instead -- structurally faithful, just not
-    /// byte-identical to the original formatting/comments.
+    /// helper's own definition shown alongside it.
     fn handle_definefun(
         &mut self,
         funname: &str,
