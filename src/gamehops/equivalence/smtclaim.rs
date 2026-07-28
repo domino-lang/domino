@@ -77,13 +77,11 @@ impl SmtClaim {
         }
     }
 
-    pub fn new_package_invariant(
-        ty: ClaimType,
-        smt: SmtExpr,
-        filename: String,
-    ) -> Self {
-        let SmtExpr::List(list) = &smt else {todo!()};
-        let SmtExpr::Atom(ref name) = list[1] else {todo!()};
+    pub fn new_package_invariant(ty: ClaimType, smt: SmtExpr, filename: String) -> Self {
+        let SmtExpr::List(list) = &smt else { todo!() };
+        let SmtExpr::Atom(ref name) = list[1] else {
+            todo!()
+        };
         let name = name.to_string();
         Self {
             ty,
@@ -93,13 +91,11 @@ impl SmtClaim {
         }
     }
 
-    pub fn new_game_invariant(
-        ty: ClaimType,
-        smt: SmtExpr,
-        filename: String,
-    ) -> Self {
-        let SmtExpr::List(list) = &smt else {todo!()};
-        let SmtExpr::Atom(ref name) = list[1] else {todo!()};
+    pub fn new_game_invariant(ty: ClaimType, smt: SmtExpr, filename: String) -> Self {
+        let SmtExpr::List(list) = &smt else { todo!() };
+        let SmtExpr::Atom(ref name) = list[1] else {
+            todo!()
+        };
         let name = name.to_string();
         Self {
             ty,

@@ -1215,9 +1215,10 @@ pub fn handle_ite(
         Some(c) if c.as_rule() == Rule::code => {
             (Some(c.as_span()), handle_code(ctx, c, oracle_sig)?)
         }
-        Some(c) if c.as_rule() == Rule::ite => {
-            (Some(c.as_span()), block!{handle_ite(ctx, c, oracle_sig, full_span)?})
-        }
+        Some(c) if c.as_rule() == Rule::ite => (
+            Some(c.as_span()),
+            block! {handle_ite(ctx, c, oracle_sig, full_span)?},
+        ),
         Some(_) => unreachable!(),
     };
 

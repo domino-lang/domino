@@ -262,12 +262,8 @@ impl<'a> EquivalenceContext<'a> {
             build_invariant_old_call("invariant"),
         ];
 
-        dependencies_code.extend(self
-            .invariants
-            .get(oracle_name)
-            .unwrap()
-            .iter()
-            .filter_map(|claim| match claim.ty() {
+        dependencies_code.extend(self.invariants.get(oracle_name).unwrap().iter().filter_map(
+            |claim| match claim.ty() {
                 ClaimType::LeftPackageInvariant | ClaimType::LeftGameInvariant => {
                     Some(build_left_invariant_old_call(claim.name()))
                 }
@@ -275,10 +271,9 @@ impl<'a> EquivalenceContext<'a> {
                     Some(build_right_invariant_old_call(claim.name()))
                 }
                 _ => None,
-            }));
+            },
+        ));
 
-        
-        
         for dep in dep_calls {
             dependencies_code.push(dep)
         }

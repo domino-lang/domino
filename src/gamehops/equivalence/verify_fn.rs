@@ -2,6 +2,7 @@
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Write as _;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::{
@@ -173,7 +174,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let result: Vec<_> = claims
             .par_iter()
-            .filter(|claim|{
+            .filter(|claim| {
                 if let Some(req_claim) = self.req_claim {
                     claim.name == req_claim
                 } else {
@@ -257,6 +258,15 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     fname
                 });
                 solver.close();
+                ui.lock().unwrap().println(&format!(
+                    "{:?}",
+                    miette::Report::new(ClaimTheoremFailedError {
+                        claim_name: claim.name().to_string(),
+                        oracle_name: oracle.name().to_string(),
+                        response,
+                        modelfile: Ok(PathBuf::new()),
+                    })
+                ));
                 return Err(ClaimTheoremFailedError {
                     claim_name: claim.name().to_string(),
                     oracle_name: oracle.name().to_string(),
