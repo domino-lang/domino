@@ -13,6 +13,10 @@
     --panel-bg: #ffffff;
     --border: #333;
     --edge: #9098a8;
+    --ec-kw: #1d4ed8;
+    --ec-num: #b45309;
+    --ec-op: #7c3aed;
+    --ec-comment: #6b7280;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -22,6 +26,10 @@
       --panel-bg: #24262c;
       --border: #ccc;
       --edge: #6b7280;
+      --ec-kw: #93c5fd;
+      --ec-num: #fbbf24;
+      --ec-op: #c4b5fd;
+      --ec-comment: #9ca3af;
     }
   }
   * { box-sizing: border-box; }
@@ -291,6 +299,10 @@
     border-radius: 6px;
   }
   #panel pre.hidden { display: none; }
+  .ec-kw { color: var(--ec-kw); font-weight: 600; }
+  .ec-num { color: var(--ec-num); }
+  .ec-op { color: var(--ec-op); }
+  .ec-comment { color: var(--ec-comment); font-style: italic; }
   #panel-easycrypt-note {
     margin: 0 0 8px;
     font-size: 11px;
@@ -831,6 +843,317 @@
       });
     });
 
+    // --- best-effort EasyCrypt syntax highlighting *and* line-wrapping,
+    // entirely hand-rolled (no CDN/external highlighter/formatter -- this
+    // page has no external dependencies by design, see
+    // src/writers/html/mod.rs's module docs) ---
+    // Alternatives are tried in order at each position, so multi-char
+    // operators (e.g. "<=>") must precede their single-char prefixes (e.g.
+    // "<") to win the match.
+    var EC_TOKEN_RE = /(;;.*)|(\b(?:forall|exists|let|in|if|then|else|true|false|None|Some|oget)\b)|(\b\d+\b)|(\/\\|\\\/|<=>|=>|<>|<=|>=|\.`|\.\[)|([()[\]{},.:=<>+*!-])|([A-Za-z_][A-Za-z0-9_'-]*)|(\s+)|(.)/g;
+
+    function tokenizeEasyCrypt(source) {
+      EC_TOKEN_RE.lastIndex = 0;
+      var tokens = [];
+      var m;
+      while ((m = EC_TOKEN_RE.exec(source))) {
+        var cls = m[1] ? "comment" : m[2] ? "kw" : m[3] ? "num" : m[4] ? "op" : m[5] ? "punct" : m[6] ? "ident" : m[7] ? "ws" : null;
+        tokens.push({ cls: cls, text: m[0] });
+      }
+      return tokens;
+    }
+
+    // A small structural pretty-printer over the token stream above, driven
+    // entirely by paren/bracket nesting and the handful of connective
+    // keywords/operators src/writers/easycrypt.rs's translator actually
+    // emits (see its module docs) -- only formulas wider than
+    // EC_WRAP_WIDTH get broken up, so short/medium claims render exactly as
+    // a single line, same as before this existed. Every recursive call
+    // below operates on a strictly smaller token range than its caller, so
+    // it always terminates; anything this doesn't specifically recognize
+    // just falls through to one (possibly overflowing) line rather than
+    // risk mis-wrapping it.
+    var EC_WRAP_WIDTH = 64;
+    var EC_INDENT_UNIT = "  ";
+
+    function ecIsOpenParen(t) { return !!t && t.cls === "punct" && t.text === "("; }
+    function ecIsCloseParen(t) { return !!t && t.cls === "punct" && t.text === ")"; }
+    function ecIsOpenBracket(t) { return !!t && t.cls === "op" && t.text === ".["; }
+    function ecIsCloseBracket(t) { return !!t && t.cls === "punct" && t.text === "]"; }
+    function ecIsConnective(t) { return t.cls === "op" && (t.text === "/\\" || t.text === "\\/"); }
+    function ecIsKw(text) {
+      return function (t) { return t.cls === "kw" && t.text === text; };
+    }
+
+    // The index of the ")"/"]" matching the opener at `openIdx`.
+    function ecMatchClose(tokens, openIdx) {
+      var depth = 0;
+      for (var i = openIdx; i < tokens.length; i++) {
+        var t = tokens[i];
+        if (ecIsOpenParen(t) || ecIsOpenBracket(t)) depth++;
+        else if (ecIsCloseParen(t) || ecIsCloseBracket(t)) {
+          depth--;
+          if (depth === 0) return i;
+        }
+      }
+      return tokens.length - 1;
+    }
+
+    // Trims leading/trailing whitespace tokens from [start, end].
+    function ecTrim(tokens, start, end) {
+      while (start <= end && tokens[start].cls === "ws") start++;
+      while (end >= start && tokens[end].cls === "ws") end--;
+      return [start, end];
+    }
+
+    function ecFlatWidth(tokens, start, end) {
+      var w = 0;
+      for (var i = start; i <= end; i++) w += tokens[i].text.length;
+      return w;
+    }
+
+    // Indices within [start, end] where `pred` matches at nesting depth 0
+    // relative to this range (i.e. not inside a nested (...)/.[...] group).
+    // An opener is tested at the depth it's opening *from* (so a top-level
+    // "(" or ".[" itself can still match `pred`, e.g. when looking for
+    // brackets); a closer is tested at the depth it's closing back *to*,
+    // symmetrically.
+    function ecTopLevelIndices(tokens, start, end, pred) {
+      var found = [];
+      var depth = 0;
+      for (var i = start; i <= end; i++) {
+        var t = tokens[i];
+        var isOpen = ecIsOpenParen(t) || ecIsOpenBracket(t);
+        var isClose = ecIsCloseParen(t) || ecIsCloseBracket(t);
+        if (isClose) depth--;
+        if (depth === 0 && pred(t)) found.push(i);
+        if (isOpen) depth++;
+      }
+      return found;
+    }
+
+    // Lays out [start, end] (which must NOT itself contain the delimiter
+    // that produced this segment -- see the connective/implication
+    // branches below) and glues `leadTokens` onto the front of whatever
+    // comes out, without re-scanning them as structural content. Used so a
+    // split's own delimiter (e.g. "/\") never ends up as the first token
+    // of the very range being searched for that same delimiter, which
+    // would just re-match itself forever.
+    function ecEmitWithLead(tokens, leadTokens, start, end, indent, lines) {
+      var trimmed = ecTrim(tokens, start, end);
+      var s = trimmed[0];
+      var e = trimmed[1];
+      var leadWidth = leadTokens.reduce(function (w, t) { return w + t.text.length; }, 0);
+      if (s > e) {
+        if (leadTokens.length > 0) lines.push({ indent: indent, tokens: leadTokens });
+        return;
+      }
+      // Continuation lines are laid out at `indent` padded out by the
+      // lead's own width, so they land under the content rather than
+      // under the lead -- the first line then swaps that padding for the
+      // lead tokens themselves (same width, so nothing else shifts).
+      var innerIndent = indent + " ".repeat(leadWidth);
+      var sub = [];
+      if (ecFlatWidth(tokens, s, e) + innerIndent.length <= EC_WRAP_WIDTH) {
+        sub.push({ indent: innerIndent, tokens: tokens.slice(s, e + 1) });
+      } else {
+        ecLayout(tokens, s, e, innerIndent, sub);
+      }
+      if (leadTokens.length > 0 && sub.length > 0) {
+        sub[0] = { indent: indent, tokens: leadTokens.concat(sub[0].tokens) };
+      }
+      sub.forEach(function (l) { lines.push(l); });
+    }
+
+    function ecLayout(tokens, start, end, indent, lines) {
+      var trimmed = ecTrim(tokens, start, end);
+      start = trimmed[0];
+      end = trimmed[1];
+      if (start > end) return;
+
+      if (ecFlatWidth(tokens, start, end) + indent.length <= EC_WRAP_WIDTH) {
+        lines.push({ indent: indent, tokens: tokens.slice(start, end + 1) });
+        return;
+      }
+
+      // "!(...)" -- keep the "!" glued to the paren it negates, no space.
+      if (tokens[start].text === "!" && ecIsOpenParen(tokens[start + 1]) &&
+          ecMatchClose(tokens, start + 1) === end) {
+        lines.push({ indent: indent, tokens: [tokens[start], tokens[start + 1]] });
+        ecLayout(tokens, start + 2, end - 1, indent + EC_INDENT_UNIT, lines);
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // A single "(...)" spanning the whole range: unwrap and indent the
+      // inside one level further.
+      if (ecIsOpenParen(tokens[start]) && ecMatchClose(tokens, start) === end) {
+        lines.push({ indent: indent, tokens: [tokens[start]] });
+        ecLayout(tokens, start + 1, end - 1, indent + EC_INDENT_UNIT, lines);
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // "a /\ b /\ c" / "a \/ b \/ c" -- one conjunct/disjunct per line,
+      // the connective glued to the start of each continuation line. The
+      // connective tokens themselves are excluded from the recursed
+      // ranges (and reattached via `lead`) so a segment never starts with
+      // the very delimiter its own range was split on.
+      var connectives = ecTopLevelIndices(tokens, start, end, ecIsConnective);
+      if (connectives.length > 0) {
+        var segStart = start;
+        var lead = [];
+        connectives.concat([end + 1]).forEach(function (splitAt) {
+          ecEmitWithLead(tokens, lead, segStart, splitAt - 1, indent, lines);
+          if (splitAt <= end) lead = [tokens[splitAt], { cls: null, text: " " }];
+          segStart = splitAt + 1;
+        });
+        return;
+      }
+
+      // "hyp => concl" / "lhs <=> rhs".
+      var implies = ecTopLevelIndices(tokens, start, end, function (t) {
+        return t.cls === "op" && (t.text === "=>" || t.text === "<=>");
+      })[0];
+      if (implies !== undefined) {
+        ecEmitWithLead(tokens, [], start, implies - 1, indent, lines);
+        ecEmitWithLead(tokens, [tokens[implies], { cls: null, text: " " }], implies + 1, end, indent, lines);
+        return;
+      }
+
+      // "forall (bindings), body" / "exists (bindings), body".
+      if (tokens[start].cls === "kw" && (tokens[start].text === "forall" || tokens[start].text === "exists")) {
+        var comma = ecTopLevelIndices(tokens, start, end, function (t) { return t.cls === "punct" && t.text === ","; })[0];
+        if (comma !== undefined) {
+          lines.push({ indent: indent, tokens: tokens.slice(start, comma + 1) });
+          ecLayout(tokens, comma + 1, end, indent + EC_INDENT_UNIT, lines);
+          return;
+        }
+      }
+
+      // "if c then t else e".
+      if (tokens[start].cls === "kw" && tokens[start].text === "if") {
+        var thenIdx = ecTopLevelIndices(tokens, start, end, ecIsKw("then"))[0];
+        var elseIdx = ecTopLevelIndices(tokens, start, end, ecIsKw("else"))[0];
+        if (thenIdx !== undefined && elseIdx !== undefined) {
+          ecLayout(tokens, start, thenIdx - 1, indent, lines);
+          ecLayout(tokens, thenIdx, elseIdx - 1, indent, lines);
+          ecLayout(tokens, elseIdx, end, indent, lines);
+          return;
+        }
+      }
+
+      // "let a = x in let b = y in body" -- one binding per line; each
+      // binding is kept flat (rebreaking a single "let ... in" further
+      // isn't worth the extra complexity here).
+      if (tokens[start].cls === "kw" && tokens[start].text === "let") {
+        var ins = ecTopLevelIndices(tokens, start, end, ecIsKw("in"));
+        if (ins.length > 0) {
+          var segStart = start;
+          ins.forEach(function (inIdx) {
+            lines.push({ indent: indent, tokens: tokens.slice(segStart, inIdx + 1) });
+            segStart = inIdx + 1;
+          });
+          ecLayout(tokens, segStart, end, indent, lines);
+          return;
+        }
+      }
+
+      // "lhs = rhs" -- a last-resort split for long bare equalities (most
+      // often a state-field update chain) that don't have any of the
+      // connectives or keyword forms above to break on. Deliberately
+      // checked after "let"/"if"/"forall" -- those constructs contain
+      // their own top-level "="s (e.g. "let x = e in ...") that must stay
+      // with their binder, not be split on here.
+      var eq = ecTopLevelIndices(tokens, start, end, function (t) {
+        return t.cls === "punct" && t.text === "=";
+      })[0];
+      if (eq !== undefined) {
+        ecEmitWithLead(tokens, [], start, eq - 1, indent, lines);
+        ecEmitWithLead(tokens, [tokens[eq], { cls: null, text: " " }], eq + 1, end, indent, lines);
+        return;
+      }
+
+      // "prefix.[key <- val]" / "prefix.[key]" -- array update/select
+      // whose bracket runs to the end of the range: keep the prefix glued
+      // to the opening ".[" and indent the inside. For a chained update
+      // like "x.[a <- b].[c <- d]" this peels off the outermost (last)
+      // bracket first, leaving the rest of the chain in `prefix` as one
+      // line -- imperfect if that prefix is itself still long, but such
+      // multiply-chained updates are rare enough not to be worth chasing
+      // further here.
+      var brackets = ecTopLevelIndices(tokens, start, end, function (t) { return t.cls === "op" && t.text === ".["; });
+      var lastBracket = brackets[brackets.length - 1];
+      if (lastBracket !== undefined && ecMatchClose(tokens, lastBracket) === end) {
+        lines.push({ indent: indent, tokens: tokens.slice(start, lastBracket + 1) });
+        ecLayout(tokens, lastBracket + 1, end - 1, indent + EC_INDENT_UNIT, lines);
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // "ident(arg1, arg2, ...)" -- one argument per line.
+      if (tokens[start].cls === "ident" && ecIsOpenParen(tokens[start + 1]) &&
+          ecMatchClose(tokens, start + 1) === end) {
+        lines.push({ indent: indent, tokens: tokens.slice(start, start + 2) });
+        var commas = ecTopLevelIndices(tokens, start + 2, end - 1, function (t) { return t.cls === "punct" && t.text === ","; });
+        var argBounds = [start + 2].concat(commas.map(function (c) { return c + 1; })).concat([end]);
+        for (var j = 0; j < argBounds.length - 1; j++) {
+          ecLayout(tokens, argBounds[j], argBounds[j + 1] - 1, indent + EC_INDENT_UNIT, lines);
+        }
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // Generic top-level comma list (e.g. a bare tuple) with no enclosing
+      // marker of its own -- one element per line, at the current indent.
+      var commas2 = ecTopLevelIndices(tokens, start, end, function (t) { return t.cls === "punct" && t.text === ","; });
+      if (commas2.length > 0) {
+        var elemBounds = [start].concat(commas2.map(function (c) { return c + 1; })).concat([end + 1]);
+        for (var k = 0; k < elemBounds.length - 1; k++) {
+          ecLayout(tokens, elemBounds[k], elemBounds[k + 1] - 1, indent, lines);
+        }
+        return;
+      }
+
+      // Nothing recognized -- emit as one (possibly overflowing) line
+      // rather than risk mis-wrapping something not specifically handled.
+      lines.push({ indent: indent, tokens: tokens.slice(start, end + 1) });
+    }
+
+    function renderEasyCryptLines(pre, lines) {
+      lines.forEach(function (line, idx) {
+        if (idx > 0) pre.appendChild(document.createTextNode("\n"));
+        if (line.indent) pre.appendChild(document.createTextNode(line.indent));
+        line.tokens.forEach(function (tok) {
+          if (tok.cls === "kw" || tok.cls === "num" || tok.cls === "op" || tok.cls === "comment") {
+            var span = document.createElement("span");
+            span.className = "ec-" + tok.cls;
+            span.textContent = tok.text;
+            pre.appendChild(span);
+          } else {
+            pre.appendChild(document.createTextNode(tok.text));
+          }
+        });
+      });
+    }
+
+    function highlightEasyCrypt(pre, source) {
+      pre.textContent = "";
+      var tokens = tokenizeEasyCrypt(source);
+      if (tokens.length === 0) return;
+      var lines = [];
+      ecLayout(tokens, 0, tokens.length - 1, "", lines);
+      renderEasyCryptLines(pre, lines);
+    }
+
+    function setEasyCryptSource(pre, source) {
+      if (!source) {
+        pre.textContent = "(source not captured for this claim)";
+        return;
+      }
+      highlightEasyCrypt(pre, source);
+    }
+
     function renderNodeRefList(container, ids, emptyText) {
       container.innerHTML = "";
       if (!ids || ids.length === 0) {
@@ -877,7 +1200,7 @@
 
         var ecPre = document.createElement("pre");
         ecPre.className = "code-view view-easycrypt";
-        ecPre.textContent = ref.easycryptSource;
+        setEasyCryptSource(ecPre, ref.easycryptSource);
         details.appendChild(ecPre);
 
         panelReferences.appendChild(details);
@@ -932,7 +1255,7 @@
         panelBadges.appendChild(span);
       });
       panelDomino.textContent = node.dominoSource || "(source not captured for this claim)";
-      panelEasycrypt.textContent = node.easycryptSource || "(source not captured for this claim)";
+      setEasyCryptSource(panelEasycrypt, node.easycryptSource);
       renderNodeRefList(panelDeps, outgoingByNode[node.id], "no direct dependencies");
       renderNodeRefList(panelDependents, incomingByNode[node.id], "nothing in this view depends on it");
       renderOtherOracles(node);
