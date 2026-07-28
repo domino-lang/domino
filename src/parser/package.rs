@@ -735,9 +735,8 @@ pub fn handle_expression(
 
             let ident = match decl {
                 Declaration::Identifier(ident) => ident,
-                Declaration::Oracle(_) => {
-                    todo!("handle error, user tried assigning to an oracle")
-                }
+                Declaration::Oracle(_) => todo!("handle error, user tried assigning to an oracle"),
+                Declaration::PackageInstance | Declaration::GameInstance => unreachable!(),
             };
             ExpressionKind::Identifier(ident)
         }
