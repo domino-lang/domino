@@ -86,27 +86,42 @@ fn gen_returnbinding(
 }
 
 fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr)> {
-    let pattern = patterns::GameStatePattern {
+    let state_pattern = patterns::GameStatePattern {
         game_name: game.game_name(),
         params: &game.consts,
     };
-    let info = patterns::GameStateDeclareInfo {
+    let state_info = patterns::GameStateDeclareInfo {
         game_inst: game,
         sample_info: &SampleInfo::default(),
     };
 
-    let spec = pattern.datastructure_spec(&info);
-    let (_, selectors) = &spec.0[0];
+    let state_spec = state_pattern.datastructure_spec(&state_info);
+    let (_, state_selectors) = &state_spec.0[0];
 
-    selectors
+    let const_pattern = patterns::GameConstsPattern {
+        game_name: game.game_name(),
+    };
+    let const_spec = const_pattern.datastructure_spec(&game.game);
+
+    let (_, const_selectors) = &const_spec.0[0];
+    let game_consts = format!("<<game-consts-{}>>", game.name());
+
+    state_selectors
         .iter()
         .filter_map(|sel| match sel {
             patterns::GameStateSelector::Randomness { .. } => None,
             patterns::GameStateSelector::PackageInstance { pkg_inst_name, .. } => Some((
                 format!("{game_state}.{pkg_inst_name}"),
-                (pattern.selector_name(sel), game_state).into(),
+                (state_pattern.selector_name(sel), game_state).into(),
             )),
         })
+        .chain(const_selectors.iter().map(|sel| {
+            let varname = sel.name;
+            (
+                format!("{game_state}.{varname}"),
+                (const_pattern.selector_name(sel), game_consts.clone()).into(),
+            )
+        }))
         .collect()
 }
 
