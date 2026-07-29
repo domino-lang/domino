@@ -179,6 +179,7 @@ impl GameInstance {
             &game_inst_name,
             &theorem_name,
             &params,
+            &types,
         );
 
         let new_pkg_instances = game
