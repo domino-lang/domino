@@ -750,6 +750,7 @@ fn handle_mapspec_assumption<'src>(
                     this.name(),
                     ctx.theorem_name,
                     &this.consts,
+                    &this.types,
                 );
                 inst_ctx.rewrite_oracle_sig(sig)
             };
@@ -790,11 +791,13 @@ fn handle_mapspec_assumption<'src>(
                 assumption_game_inst_name,
                 ctx.theorem_name,
                 &assumption_game_inst.consts,
+                &assumption_game_inst.types,
             );
             let constr_inst_ctx = InstantiationContext::new_game_instantiation_context(
                 construction_game_inst_name,
                 ctx.theorem_name,
                 &construction_game_inst.consts,
+                &construction_game_inst.types,
             );
 
             let assump_sig = assump_dst_export.sig();
@@ -860,6 +863,7 @@ fn handle_mapspec_assumption<'src>(
                                 this.name(),
                                 ctx.theorem_name,
                                 &this.consts,
+                                &this.types,
                             );
                             inst_ctx.rewrite_oracle_sig(sig)
                         };
@@ -870,6 +874,7 @@ fn handle_mapspec_assumption<'src>(
                                 this.name(),
                                 ctx.theorem_name,
                                 &this.consts,
+                                &this.types,
                             );
                             inst_ctx.rewrite_oracle_sig(sig)
                         };
