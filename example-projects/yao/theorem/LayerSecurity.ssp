@@ -121,9 +121,9 @@ theorem LayerSecurity {
                 ]
 
                 lemmas {
-                    same-output: [no-abort]
                     equal-aborts: []
                     invariant: [no-abort]
+                    same-output: [no-abort]
                     
                 }
             }

@@ -1,9 +1,9 @@
 composition XY {
-  const i: Integer;
+  const j: Integer;
   const b: Bool;
   
   instance x = X {
-    params {i:i}
+    params {h:j}
   }
   instance y = Y {
     params {b:b}
