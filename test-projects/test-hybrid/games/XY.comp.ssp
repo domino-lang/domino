@@ -1,0 +1,18 @@
+composition XY {
+  const i: Integer;
+  const b: Bool;
+  
+  instance x = X {
+    params {i:i}
+  }
+  instance y = Y {
+    params {b:b}
+  }
+
+  compose {
+    adversary: {
+      Run: x,
+      Eval: y,
+    }
+  }
+}
