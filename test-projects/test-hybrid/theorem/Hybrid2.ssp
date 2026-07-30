@@ -3,15 +3,15 @@ theorem Hybrid2 {
   const n_real: Integer;
   const n_ideal: Integer;
 
-  instance real = XY {params{i:0,b:false}}
-  instance ideal = XY {params{i:n,b:true}}
+  instance real = XY {params{j:0,b:false}}
+  instance ideal = XY {params{j:n,b:true}}
 
   instance real_assumption = Y {params{b:false}}
   instance ideal_assumption = Y {params{b:true}}
 
   hybrid instance h i = {
-    XY {params{i:i, b:false}}
-    XY {params{i:i, b:true}}
+    XY {params{j:i, b:false}}
+    XY {params{j:i, b:true}}
   }
 
   assumptions {

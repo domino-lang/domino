@@ -1,6 +1,6 @@
 package X {
    params {
-     i: Integer,
+     h: Integer,
    }
    oracle Run () {
 
