@@ -2,12 +2,13 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
+    gamehops::equivalence::smtclaim::ClaimType,
     hacks,
     identifier::{
         game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
         Identifier,
     },
-    theorem::{Claim, ClaimType, GameInstance, RandomnessType},
+    theorem::{GameInstance, ParsedClaim, RandomnessType},
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
     writers::smt::{
@@ -34,13 +35,13 @@ use crate::{
 impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
         if let Some(invariants) = self.invariants.get(oracle_name) {
-            invariants.clone()
+            invariants.iter().map(|claim| claim.smt().clone()).collect()
         } else {
             vec![]
         }
     }
 
-    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
+    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &ParsedClaim) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -173,31 +174,57 @@ impl<'a> EquivalenceContext<'a> {
                 .into()
         };
 
+        let smt_claims = self.claims(oracle_name).unwrap();
+
         let dep_calls: Vec<_> = claim
             .dependencies()
             .iter()
             .map(|dep_name| {
-                let claim_type = ClaimType::guess_from_name(dep_name);
-                match claim_type {
-                    ClaimType::Lemma => build_lemma_call.clone()(dep_name),
-                    ClaimType::Relation => build_relation_call(dep_name),
-                    ClaimType::Invariant
-                    | ClaimType::LeftPackageInvariant
-                    | ClaimType::RightPackageInvariant
-                    | ClaimType::LeftGameInvariant
-                    | ClaimType::RightGameInvariant => unreachable!(),
+                if dep_name == "no-abort" || dep_name == "equal-aborts" || dep_name == "same-output"
+                {
+                    build_lemma_call.clone()(dep_name)
+                } else {
+                    let dep_claim = smt_claims
+                        .iter()
+                        .find(|claim| claim.name() == dep_name)
+                        .unwrap();
+                    match dep_claim.ty() {
+                        ClaimType::Lemma => build_lemma_call.clone()(dep_name),
+                        ClaimType::Relation => build_relation_call(dep_name),
+                        ClaimType::Invariant
+                        | ClaimType::LeftPackageInvariant
+                        | ClaimType::RightPackageInvariant
+                        | ClaimType::LeftGameInvariant
+                        | ClaimType::RightGameInvariant
+                        | ClaimType::Function
+                        | ClaimType::RawSmt => unreachable!(),
+                    }
                 }
             })
             .collect();
 
-        let postcond_call = match claim.ty {
-            ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
-            ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::Invariant => build_invariant_new_call(&claim.name),
-            ClaimType::LeftPackageInvariant => build_left_invariant_new_call(&claim.name),
-            ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
-            ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
-            ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
+        let postcond_call = match smt_claims
+            .iter()
+            .find(|smt_claim| smt_claim.name() == claim.name())
+            .map(|claim| claim.ty())
+            .unwrap_or_else(|| {
+                if claim.name() == "no-abort"
+                    || claim.name() == "same-output"
+                    || claim.name() == "equal-aborts"
+                {
+                    &ClaimType::Lemma
+                } else {
+                    unreachable!("{claim:?}")
+                }
+            }) {
+            ClaimType::Lemma => build_lemma_call.clone()(claim.name()),
+            ClaimType::Relation => build_relation_call(claim.name()),
+            ClaimType::Invariant => build_invariant_new_call(claim.name()),
+            ClaimType::LeftPackageInvariant => build_left_invariant_new_call(claim.name()),
+            ClaimType::RightPackageInvariant => build_right_invariant_new_call(claim.name()),
+            ClaimType::LeftGameInvariant => build_left_invariant_new_call(claim.name()),
+            ClaimType::RightGameInvariant => build_right_invariant_new_call(claim.name()),
+            ClaimType::Function | ClaimType::RawSmt => unreachable!(),
         };
 
         let randomness_mapping = SmtForall {

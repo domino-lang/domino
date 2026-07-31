@@ -198,45 +198,19 @@ impl GameInstance {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ClaimType {
-    Lemma,
-    Relation,
-    Invariant,
-    LeftPackageInvariant,
-    RightPackageInvariant,
-    LeftGameInvariant,
-    RightGameInvariant,
-}
-
-impl ClaimType {
-    pub fn guess_from_name(name: &str) -> ClaimType {
-        if name.starts_with("relation") {
-            ClaimType::Relation
-        } else if name.starts_with("invariant") {
-            ClaimType::Invariant
-        } else {
-            ClaimType::Lemma
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct Claim {
+pub struct ParsedClaim {
     pub(crate) name: String,
-    pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
     pub(crate) admitted: bool,
 }
 
-impl Claim {
+impl ParsedClaim {
     pub fn from_tuple(data: (String, Vec<String>, bool)) -> Self {
         let (name, dependencies, admitted) = data;
-        let ty = ClaimType::guess_from_name(&name);
 
         Self {
             name,
-            ty,
             dependencies,
             admitted,
         }
@@ -244,10 +218,6 @@ impl Claim {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn ty(&self) -> ClaimType {
-        self.ty
     }
 
     pub fn dependencies(&self) -> &[String] {

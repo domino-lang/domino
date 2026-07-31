@@ -5,13 +5,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     package::{Export, OracleSig},
     project::Project,
-    theorem::{Claim, RandomnessType},
+    theorem::{ParsedClaim, RandomnessType},
     writers::smt::contexts::EquivalenceContext,
 };
+
+use smtclaim::{ClaimType, SmtClaim};
 
 use error::{Error, ExportSignatureMismatch, Result};
 
 pub mod error;
+pub mod smtclaim;
 mod smtrewrite;
 mod verify_fn;
 
@@ -26,7 +29,7 @@ pub struct Equivalence {
     pub(crate) left_name: String,
     pub(crate) right_name: String,
     pub(crate) invariants: Vec<(String, Vec<String>)>,
-    pub(crate) trees: Vec<(String, Vec<Claim>)>,
+    pub(crate) trees: Vec<(String, Vec<ParsedClaim>)>,
     pub(crate) randomness: Vec<(String, RandomnessType)>,
 }
 
@@ -35,7 +38,7 @@ impl Equivalence {
         left_name: String,
         right_name: String,
         mut invariants: Vec<(String, Vec<String>)>,
-        mut trees: Vec<(String, Vec<Claim>)>,
+        mut trees: Vec<(String, Vec<ParsedClaim>)>,
         mut randomness: Vec<(String, RandomnessType)>,
     ) -> Self {
         trees.sort();
@@ -51,7 +54,7 @@ impl Equivalence {
         }
     }
 
-    pub fn trees(&self) -> &[(String, Vec<Claim>)] {
+    pub fn trees(&self) -> &[(String, Vec<ParsedClaim>)] {
         &self.trees
     }
 
@@ -82,7 +85,7 @@ impl Equivalence {
             .unwrap_or(vec![])
     }
 
-    pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<Claim> {
+    pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<ParsedClaim> {
         self.trees
             .iter()
             .find(|(name, _tree)| name == oracle_name)
@@ -244,12 +247,24 @@ impl<'a> EquivalenceContext<'a> {
                             err,
                         )
                     })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        left_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
+                    out.append(
+                        &mut smtrewrite::rewrite_package(
+                            self,
+                            left_gctx.game_inst(),
+                            pkg,
+                            &file_contents,
+                        )?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_package_invariant(
+                                ClaimType::LeftPackageInvariant,
+                                smt,
+                                left_gctx.game_inst().name(),
+                                pkg.name(),
+                            )
+                        })
+                        .collect(),
+                    );
                 }
             }
             for pkg in &right_gctx.game().pkgs {
@@ -262,12 +277,24 @@ impl<'a> EquivalenceContext<'a> {
                             err,
                         )
                     })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        right_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
+                    out.append(
+                        &mut smtrewrite::rewrite_package(
+                            self,
+                            right_gctx.game_inst(),
+                            pkg,
+                            &file_contents,
+                        )?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_package_invariant(
+                                ClaimType::RightPackageInvariant,
+                                smt,
+                                right_gctx.game_inst().name(),
+                                pkg.name(),
+                            )
+                        })
+                        .collect(),
+                    );
                 }
             }
 
@@ -277,22 +304,36 @@ impl<'a> EquivalenceContext<'a> {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
-                    self,
-                    left_gctx.game_inst(),
-                    &file_contents,
-                )?);
+                out.append(
+                    &mut smtrewrite::rewrite_game(self, left_gctx.game_inst(), &file_contents)?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_game_invariant(
+                                ClaimType::LeftGameInvariant,
+                                smt,
+                                left_gctx.game_inst().name(),
+                            )
+                        })
+                        .collect(),
+                );
             }
             for file_name in &right_gctx.game().invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
-                    self,
-                    right_gctx.game_inst(),
-                    &file_contents,
-                )?);
+                out.append(
+                    &mut smtrewrite::rewrite_game(self, right_gctx.game_inst(), &file_contents)?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_game_invariant(
+                                ClaimType::RightGameInvariant,
+                                smt,
+                                right_gctx.game_inst().name(),
+                            )
+                        })
+                        .collect(),
+                );
             }
 
             // Load the main Invariant
@@ -304,7 +345,16 @@ impl<'a> EquivalenceContext<'a> {
                 })?;
                 log::info!("read file {file_name}");
                 //linter.lint_file(file_name, &file_contents)?;
-                out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+                out.append(
+                    &mut smtrewrite::rewrite(self, &file_contents)?
+                        .into_iter()
+                        .map(|smt| {
+                            let (ty, name) = ClaimType::guess_from_smt(&smt);
+                            //dbg!((&smt, ty, &name));
+                            smtclaim::SmtClaim::new(ty, smt, name)
+                        })
+                        .collect(),
+                );
 
                 // log::info!("wrote contents of file {file_name}");
 
@@ -315,6 +365,12 @@ impl<'a> EquivalenceContext<'a> {
                 //     });
                 // }
             }
+            log::info!(
+                "parsed smt claims: {:?}",
+                out.iter()
+                    .map(|claim| (claim.name(), claim.ty()))
+                    .collect::<Vec<_>>()
+            );
             self.append_invariants(oracle_name, out);
         }
         //linter.lint_finish()?;
