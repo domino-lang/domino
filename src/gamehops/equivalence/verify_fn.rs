@@ -5,10 +5,13 @@ use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
+    gamehops::equivalence::{
+        error::{ClaimTheoremFailedError, Error, Result},
+        ClaimType,
+    },
     package::Export,
     project::Project,
-    theorem::{Claim, ClaimType},
+    theorem::ParsedClaim,
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
@@ -132,85 +135,26 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let mut claims = self
+        let claims: Vec<_> = self
             .eqctx
             .equivalence()
-            .proof_tree_by_oracle_name(oracle.name());
-
-        claims.extend(
-            self.eqctx
-                .left_game_inst_ctx()
-                .game()
-                .pkgs
-                .iter()
-                .filter_map(|pkg| {
-                    if pkg.pkg.invariants.is_empty() {
-                        None
-                    } else {
-                        Some(Claim {
-                            admitted: false,
-                            dependencies: vec!["no-abort".to_string()],
-                            ty: ClaimType::LeftPackageInvariant,
-                            name: format!(
-                                "package-invariant!{}-{}!",
-                                self.eqctx.left_game_inst_ctx().game_inst().name(),
-                                pkg.name()
-                            ),
-                        })
-                    }
-                }),
-        );
-        claims.extend(
-            self.eqctx
-                .right_game_inst_ctx()
-                .game()
-                .pkgs
-                .iter()
-                .filter_map(|pkg| {
-                    if pkg.pkg.invariants.is_empty() {
-                        None
-                    } else {
-                        Some(Claim {
-                            admitted: false,
-                            dependencies: vec!["no-abort".to_string()],
-                            ty: ClaimType::RightPackageInvariant,
-                            name: format!(
-                                "package-invariant!{}-{}!",
-                                self.eqctx.right_game_inst_ctx().game_inst().name(),
-                                pkg.name()
-                            ),
-                        })
-                    }
-                }),
-        );
-        if !self.eqctx.left_game_inst_ctx().game().invariants.is_empty() {
-            claims.push(Claim {
-                admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: ClaimType::LeftGameInvariant,
-                name: format!(
-                    "game-invariant!{}!",
-                    self.eqctx.left_game_inst_ctx().game_inst().name(),
-                ),
-            })
-        }
-        if !self
-            .eqctx
-            .right_game_inst_ctx()
-            .game()
-            .invariants
-            .is_empty()
-        {
-            claims.push(Claim {
-                admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: ClaimType::RightGameInvariant,
-                name: format!(
-                    "game-invariant!{}!",
-                    self.eqctx.right_game_inst_ctx().game_inst().name(),
-                ),
-            })
-        }
+            .proof_tree_by_oracle_name(oracle.name())
+            .into_iter()
+            .filter(|claim| !claim.is_admitted())
+            .chain(self.eqctx.claims(oracle.name()).unwrap().iter().filter_map(
+                |smt| match smt.ty() {
+                    ClaimType::LeftPackageInvariant
+                    | ClaimType::RightPackageInvariant
+                    | ClaimType::LeftGameInvariant
+                    | ClaimType::RightGameInvariant => Some(ParsedClaim {
+                        name: smt.name().to_string(),
+                        dependencies: vec!["no-abort".to_string()],
+                        admitted: false,
+                    }),
+                    _ => None,
+                },
+            ))
+            .collect();
 
         ui.lock().unwrap().start_oracle(
             &self.eqctx.theorem().name,
@@ -246,7 +190,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         equivalence_smt: &[SmtExpr],
         oracle_smt: &[SmtExpr],
         oracle: &Export,
-        claim: &Claim,
+        claim: &ParsedClaim,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
@@ -257,61 +201,59 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             claim.name(),
         );
 
-        if !claim.is_admitted() {
-            let mut solver = {
-                if self.transcript {
-                    let transcript_file: std::fs::File = self
-                        .project
-                        .get_joined_smt_file(
-                            eq.left_name(),
-                            eq.right_name(),
-                            oracle.name(),
-                            claim.name(),
-                        )
-                        .unwrap();
+        let mut solver = {
+            if self.transcript {
+                let transcript_file: std::fs::File = self
+                    .project
+                    .get_joined_smt_file(
+                        eq.left_name(),
+                        eq.right_name(),
+                        oracle.name(),
+                        claim.name(),
+                    )
+                    .unwrap();
 
-                    self.backend.new_smtsolver_with_transcript(transcript_file)
-                } else {
-                    self.backend.new_smtsolver()
-                }
+                self.backend.new_smtsolver_with_transcript(transcript_file)
+            } else {
+                self.backend.new_smtsolver()
             }
-            .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
-            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
+        std::thread::sleep(std::time::Duration::from_millis(20));
 
-            for entry in equivalence_smt
-                .iter()
-                .chain(oracle_smt)
-                .chain(std::iter::once(
-                    &self.eqctx.emit_claim_assert(oracle.name(), claim),
-                ))
-            {
-                solver
-                    .write_smt(entry.clone())
-                    .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
-            }
+        for entry in equivalence_smt
+            .iter()
+            .chain(oracle_smt)
+            .chain(std::iter::once(
+                &self.eqctx.emit_claim_assert(oracle.name(), claim),
+            ))
+        {
+            solver
+                .write_smt(entry.clone())
+                .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?;
+        }
 
-            match solver
-                .check_sat()
-                .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?
-            {
-                SmtSolverResponse::Unsat => {}
-                response => {
-                    let modelfile = solver.get_model().map(|(modelstring, _model)| {
-                        let mut modelfile =
-                            tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
-                        modelfile.write_all(modelstring.as_bytes()).unwrap();
-                        let (_, fname) = modelfile.keep().unwrap();
-                        fname
-                    });
-                    solver.close();
-                    return Err(ClaimTheoremFailedError {
-                        claim_name: claim.name().to_string(),
-                        oracle_name: oracle.name().to_string(),
-                        response,
-                        modelfile,
-                    }
-                    .into());
+        match solver
+            .check_sat()
+            .map_err(|err| Error::prover_process_error(claim.name(), oracle.name(), err))?
+        {
+            SmtSolverResponse::Unsat => {}
+            response => {
+                let modelfile = solver.get_model().map(|(modelstring, _model)| {
+                    let mut modelfile =
+                        tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
+                    modelfile.write_all(modelstring.as_bytes()).unwrap();
+                    let (_, fname) = modelfile.keep().unwrap();
+                    fname
+                });
+                solver.close();
+                return Err(ClaimTheoremFailedError {
+                    claim_name: claim.name().to_string(),
+                    oracle_name: oracle.name().to_string(),
+                    response,
+                    modelfile,
                 }
+                .into());
             }
         }
         ui.lock().unwrap().finish_lemma(
