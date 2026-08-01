@@ -5,10 +5,13 @@ use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
 use crate::util::smtparser::SmtParser;
 use crate::writers::smt::contexts::GameInstanceContext;
+use crate::writers::smt::exprs::SmtAnd;
 use crate::writers::smt::exprs::SmtExpr;
 use crate::writers::smt::exprs::SmtLet;
 use crate::writers::smt::patterns;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
+use crate::writers::smt::patterns::SmtDefineFun;
+use crate::writers::smt::sorts::Sort;
 
 use crate::gamehops::equivalence::error::{Error, Result};
 use itertools::Itertools;
@@ -19,6 +22,10 @@ struct SmtRewrite<'a> {
     game: Option<&'a GameInstance>,
     content: Vec<SmtExpr>,
     file_name: String,
+    /// Names of every `define-state-relation` encountered while rewriting. Only meaningful for
+    /// `rewrite()` (the equivalence-level "main invariant" files) — these are the candidate
+    /// invariant fragments (see `EquivalenceContext::state_relation_names`).
+    state_relations: Vec<String>,
 }
 
 impl<'a> SmtRewrite<'a> {
@@ -29,6 +36,7 @@ impl<'a> SmtRewrite<'a> {
             game: None,
             content: Vec::new(),
             file_name: file_name.to_string(),
+            state_relations: Vec::new(),
         }
     }
 
@@ -39,6 +47,7 @@ impl<'a> SmtRewrite<'a> {
             game: Some(game),
             content: Vec::new(),
             file_name: file_name.to_string(),
+            state_relations: Vec::new(),
         }
     }
 
@@ -54,6 +63,7 @@ impl<'a> SmtRewrite<'a> {
             game: Some(game),
             content: Vec::new(),
             file_name: file_name.to_string(),
+            state_relations: Vec::new(),
         }
     }
 }
@@ -257,6 +267,8 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         args: Vec<SmtExpr>,
         body: SmtExpr,
     ) -> Result<SmtExpr> {
+        self.state_relations.push(funname.to_string());
+
         let left_game_inst = self
             .context
             .theorem()
@@ -571,11 +583,65 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     }
 }
 
-pub fn rewrite(context: &EquivalenceContext, file_name: &str, content: &str) -> Result<Vec<SmtExpr>> {
+/// Rewrites an equivalence-level ("main") invariant file, returning both the rewritten SMT
+/// content and the names of every `define-state-relation` it declared (the invariant fragment
+/// names — see `EquivalenceContext::state_relation_names`).
+pub fn rewrite(
+    context: &EquivalenceContext,
+    file_name: &str,
+    content: &str,
+) -> Result<(Vec<SmtExpr>, Vec<String>)> {
     let mut rewriter: SmtRewrite = SmtRewrite::new(context, file_name);
     rewriter.parse_sexps(content)?;
-    Ok(rewriter.content)
+    Ok((rewriter.content, rewriter.state_relations))
 }
+
+/// Whether `exprs` already contains a top-level `define-fun`/`define-fun-rec` literally named
+/// `name`. Unlike tracking `define-state-relation` macro invocations, this also recognizes older
+/// projects that hand-write the fully mangled `(define-fun invariant ...)` form directly instead
+/// of going through the macro (see the domino skill docs / `hello-world` example project).
+pub fn defines_function_named(exprs: &[SmtExpr], name: &str) -> bool {
+    exprs.iter().any(|expr| {
+        let SmtExpr::List(items) = expr else {
+            return false;
+        };
+        let is_define = matches!(
+            items.first(),
+            Some(SmtExpr::Atom(kw)) if kw == "define-fun" || kw == "define-fun-rec"
+        );
+        let matches_name = matches!(items.get(1), Some(SmtExpr::Atom(n)) if n == name);
+        is_define && matches_name
+    })
+}
+
+/// Synthesizes a `define-fun invariant ((L <left_sort>) (R <right_sort>)) Bool (and (frag1 L R)
+/// ...))` combining every named invariant fragment via conjunction. Used when an oracle's main
+/// invariant files declare one or more `define-state-relation`s but none of them is literally
+/// named `invariant` — every existing call site that assumes/asserts the old-state invariant
+/// hardcodes a call to the function literally named `invariant`, so synthesizing it under that
+/// name lets those call sites work unmodified.
+pub fn synthesize_invariant(left_sort: Sort, right_sort: Sort, fragment_names: &[String]) -> SmtExpr {
+    let calls: Vec<SmtExpr> = fragment_names
+        .iter()
+        .map(|name| (name.as_str(), "L", "R").into())
+        .collect();
+
+    let body: SmtExpr = match calls.len() {
+        0 => "true".into(),
+        1 => calls.into_iter().next().unwrap(),
+        _ => SmtAnd(calls).into(),
+    };
+
+    SmtDefineFun {
+        is_rec: false,
+        name: "invariant".to_string(),
+        args: vec![("L".to_string(), left_sort), ("R".to_string(), right_sort)],
+        sort: Sort::Bool,
+        body,
+    }
+    .into()
+}
+
 pub fn rewrite_game(
     context: &EquivalenceContext,
     game: &GameInstance,

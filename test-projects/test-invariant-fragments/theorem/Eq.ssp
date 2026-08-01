@@ -1,0 +1,23 @@
+theorem Eq {
+    instance A = A {}
+    instance B = B {}
+
+    gamehops {
+        equivalence A B {
+            Test: {
+                randomness: simple
+                invariant: [
+                    theorem/invariant.smt2
+                ]
+                lemmas {
+                    ctr-broken: admit []
+                    /* "with invariants" scopes a claim to a subset of the fragments. Since this
+                       oracle has no literal `invariant` (new semantics), ctr-eq doesn't need to
+                       be explicitly proved elsewhere for this to be allowed - domino auto-proves
+                       it regardless. */
+                    same-output: with invariants [ctr-eq] [no-abort]
+                }
+            }
+        }
+    }
+}

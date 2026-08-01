@@ -162,24 +162,32 @@ fn equivalence_parses() {
                     ty: ClaimType::Invariant,
                     dependencies: vec![],
                     admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
                 Claim {
                     name: "equal-aborts".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admitted: false
+                    admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
                 Claim {
                     name: "same-output".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admitted: false
+                    admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
                 Claim {
                     name: "smt_ident".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admitted: false
+                    admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
             ]
         )]

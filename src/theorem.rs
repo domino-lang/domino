@@ -233,11 +233,21 @@ pub struct Claim {
     pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
     pub(crate) admitted: bool,
+    /// Whether this claim came from an explicit line in the `.ssp` file's `lemmas {}` block, as
+    /// opposed to one of the claims domino injects automatically (the `equal-aborts`/
+    /// `same-output`/`invariant` defaults, or an auto-generated invariant fragment claim). Used
+    /// to decide whether an automatically generated claim should be overridden/dropped.
+    pub(crate) user_declared: bool,
+    /// From an explicit `with invariants [inv1, inv2]` modifier on this claim's `lemmas {}` line:
+    /// restricts what's assumed on the old state, for this claim only, to exactly the named
+    /// invariant fragments' conjunction instead of the full `invariant` (the AND of every
+    /// fragment). `None` means the usual, unrestricted assumption.
+    pub(crate) invariant_scope: Option<Vec<String>>,
 }
 
 impl Claim {
-    pub fn from_tuple(data: (String, Vec<String>, bool)) -> Self {
-        let (name, dependencies, admitted) = data;
+    pub fn from_tuple(data: (String, Vec<String>, bool, bool, Option<Vec<String>>)) -> Self {
+        let (name, dependencies, admitted, user_declared, invariant_scope) = data;
         let ty = ClaimType::guess_from_name(&name);
 
         Self {
@@ -245,6 +255,8 @@ impl Claim {
             ty,
             dependencies,
             admitted,
+            user_declared,
+            invariant_scope,
         }
     }
 

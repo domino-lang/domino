@@ -6,7 +6,9 @@ use crate::{
     package::{Export, OracleSig},
     project::Project,
     theorem::{Claim, RandomnessType},
-    writers::smt::contexts::EquivalenceContext,
+    writers::smt::{
+        contexts::EquivalenceContext, patterns::datastructures::DatastructurePattern, sorts::Sort,
+    },
 };
 
 use error::{Error, ExportSignatureMismatch, Result};
@@ -317,6 +319,7 @@ impl<'a> EquivalenceContext<'a> {
             }
 
             // Load the main Invariant
+            let mut state_relation_names = Vec::new();
             for file_name in &self.equivalence().invariants_by_oracle_name(oracle_name) {
                 log::info!("reading file {file_name}");
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
@@ -325,7 +328,9 @@ impl<'a> EquivalenceContext<'a> {
                 })?;
                 log::info!("read file {file_name}");
                 //linter.lint_file(file_name, &file_contents)?;
-                out.append(&mut smtrewrite::rewrite(self, file_name, &file_contents)?);
+                let (mut rewritten, mut names) = smtrewrite::rewrite(self, file_name, &file_contents)?;
+                out.append(&mut rewritten);
+                state_relation_names.append(&mut names);
 
                 // log::info!("wrote contents of file {file_name}");
 
@@ -336,7 +341,40 @@ impl<'a> EquivalenceContext<'a> {
                 //     });
                 // }
             }
+
+            // A literal `invariant` relation may come from a `define-state-relation invariant`
+            // (tracked in `state_relation_names`) or, in older projects, from hand-writing the
+            // fully mangled `(define-fun invariant ...)` form directly (see e.g. the
+            // `hello-world` example project) — check both. If neither is present, this oracle is
+            // using the "invariant fragments" mechanism: synthesize `invariant` as the AND of
+            // every fragment, so the (unmodified) call sites that assume/assert the old-state
+            // invariant under that literal name keep working. Either way, `state_relation_names`
+            // ends up faithfully recording whether a literal `invariant` exists for this oracle,
+            // since that's also how `EquivalenceSmtDriver` decides which semantics apply.
+            let has_literal_invariant = state_relation_names.iter().any(|name| name == "invariant")
+                || smtrewrite::defines_function_named(&out, "invariant");
+            if has_literal_invariant {
+                if !state_relation_names.iter().any(|name| name == "invariant") {
+                    state_relation_names.push("invariant".to_string());
+                }
+            } else {
+                let left_sort = Sort::Other(
+                    left_gctx.datastructure_game_state_pattern().sort_name(),
+                    vec![],
+                );
+                let right_sort = Sort::Other(
+                    right_gctx.datastructure_game_state_pattern().sort_name(),
+                    vec![],
+                );
+                out.push(smtrewrite::synthesize_invariant(
+                    left_sort,
+                    right_sort,
+                    &state_relation_names,
+                ));
+            }
+
             self.append_invariants(oracle_name, out);
+            self.set_state_relation_names(oracle_name, state_relation_names);
         }
         //linter.lint_finish()?;
         Ok(())

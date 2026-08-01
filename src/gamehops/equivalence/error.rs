@@ -110,6 +110,24 @@ pub enum Error {
         #[related]
         solver_errors: Vec<crate::util::smtsolver::Error>,
     },
+    #[error("in oracle \"{oracle_name}\": claim \"{claim_name}\" lists \"{dependency_name}\" as a dependency, but \"{dependency_name}\" is an invariant (or invariant fragment), which can't be used as a dependency of another claim — it's already assumed on the old state for every claim automatically.")]
+    InvariantUsedAsDependency {
+        oracle_name: String,
+        claim_name: String,
+        dependency_name: String,
+    },
+    #[error("in oracle \"{oracle_name}\": claim \"{claim_name}\" has \"with invariants [{fragment_name}, ...]\", but \"{fragment_name}\" is not a `define-state-relation` declared in this oracle's invariant files (only invariant fragments can be named here, not lemmas).")]
+    UnknownInvariantScopeReference {
+        oracle_name: String,
+        claim_name: String,
+        fragment_name: String,
+    },
+    #[error("in oracle \"{oracle_name}\": claim \"{claim_name}\" has \"with invariants [{fragment_name}, ...]\", but \"{fragment_name}\" is never itself proved by an explicit claim in this oracle's lemmas {{}} block. Since this oracle also declares a literal `invariant` state relation, domino doesn't auto-prove invariant fragments here — add an explicit \"{fragment_name}: [...]\" claim, or remove it from \"with invariants\".")]
+    UnprovenInvariantScopeReference {
+        oracle_name: String,
+        claim_name: String,
+        fragment_name: String,
+    },
 }
 
 impl Error {

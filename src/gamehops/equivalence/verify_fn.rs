@@ -165,6 +165,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             dependencies: vec![],
             ty: ClaimType::InitialState,
             admitted: false,
+            user_declared: false,
+            invariant_scope: None,
         };
 
         let claim_scope = ClaimScope::InitialState;
@@ -209,6 +211,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .equivalence()
             .proof_tree_by_oracle_name(oracle.name());
 
+        self.reconcile_invariant_fragment_claims(&mut claims, oracle.name());
+
         claims.extend(
             self.eqctx
                 .left_game_inst_ctx()
@@ -228,6 +232,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                                 self.eqctx.left_game_inst_ctx().game_inst().name(),
                                 pkg.name()
                             ),
+                            user_declared: false,
+                            invariant_scope: None,
                         })
                     }
                 }),
@@ -251,6 +257,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                                 self.eqctx.right_game_inst_ctx().game_inst().name(),
                                 pkg.name()
                             ),
+                            user_declared: false,
+                            invariant_scope: None,
                         })
                     }
                 }),
@@ -264,6 +272,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     "game-invariant!{}!",
                     self.eqctx.left_game_inst_ctx().game_inst().name(),
                 ),
+                user_declared: false,
+                invariant_scope: None,
             })
         }
         if !self
@@ -281,7 +291,16 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     "game-invariant!{}!",
                     self.eqctx.right_game_inst_ctx().game_inst().name(),
                 ),
+                user_declared: false,
+                invariant_scope: None,
             })
+        }
+
+        if let Err(err) = self.validate_claim_dependencies(&claims, oracle.name()) {
+            return vec![Err(err)];
+        }
+        if let Err(err) = self.validate_invariant_scopes(&claims, oracle.name()) {
+            return vec![Err(err)];
         }
 
         let claim_scope = ClaimScope::Oracle(oracle.name().to_string());
@@ -319,6 +338,121 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
 
         result
+    }
+
+    /// Reconciles this oracle's invariant fragments (every `define-state-relation` declared in
+    /// its main invariant files) into `claims`, in place.
+    ///
+    /// Any claim (auto or user-declared) named after a fragment that `ClaimType::guess_from_name`
+    /// would otherwise call `Lemma` gets its `ClaimType` corrected to `Invariant` — `guess_from_name`
+    /// only looks at the name prefix, and a `Lemma`-shaped SMT call never worked for a fragment
+    /// not conventionally prefixed `invariant`/`relation` anyway (there's no matching
+    /// `define-lemma` to call), so this is a strict bugfix, done unconditionally. Fragments
+    /// already recognized as `relation-*` are deliberately left alone: that's the pre-existing
+    /// convention (proven and chained by hand in the `lemmas {}` block, e.g. in the 4WHS example
+    /// project) for using a state relation as an explicit dependency of another claim, which
+    /// still works exactly as before.
+    ///
+    /// If one of the fragments is literally named `invariant`, today's semantics are otherwise
+    /// kept as-is beyond that fixup: fragments are only proved if explicitly declared.
+    ///
+    /// Otherwise (no literal `invariant`), every fragment becomes its own claim, each
+    /// individually reported on failure: the auto-generated monolithic `invariant` claim (if
+    /// any) is dropped, and every fragment not already covered by an explicit `lemmas {}` entry
+    /// gets an auto-generated claim depending only on `no-abort`.
+    fn reconcile_invariant_fragment_claims(&self, claims: &mut Vec<Claim>, oracle_name: &str) {
+        let fragment_names = self.eqctx.state_relation_names(oracle_name);
+        let has_literal_invariant = fragment_names.iter().any(|name| name == "invariant");
+
+        for claim in claims.iter_mut() {
+            if claim.ty == ClaimType::Lemma && fragment_names.iter().any(|name| name == &claim.name)
+            {
+                claim.ty = ClaimType::Invariant;
+            }
+        }
+
+        if has_literal_invariant {
+            return;
+        }
+
+        // domino no longer proves the monolithic AND as its own claim under this mode, unless
+        // the user explicitly asked to (in which case it's just proving the synthesized
+        // `invariant` function directly, which is legal if redundant).
+        claims.retain(|claim| !(claim.name == "invariant" && !claim.user_declared));
+
+        for name in fragment_names {
+            if !claims.iter().any(|claim| &claim.name == name) {
+                claims.push(Claim {
+                    name: name.clone(),
+                    ty: ClaimType::Invariant,
+                    dependencies: vec!["no-abort".to_string()],
+                    admitted: false,
+                    user_declared: false,
+                    invariant_scope: None,
+                });
+            }
+        }
+    }
+
+    /// Validates every claim's `with invariants [...]` scope (if any) for this oracle: each named
+    /// fragment must actually be a `define-state-relation` declared here (never a `define-lemma`
+    /// claim), and — only when this oracle also declares a literal `invariant` (today's
+    /// semantics, where fragments aren't auto-proved) — must itself be proved by an explicit,
+    /// `user_declared` claim in the `lemmas {}` block. Under the new fragment semantics this
+    /// second check is unnecessary: every fragment is auto-proved regardless.
+    fn validate_invariant_scopes(&self, claims: &[Claim], oracle_name: &str) -> Result<()> {
+        let fragment_names = self.eqctx.state_relation_names(oracle_name);
+        let has_literal_invariant = fragment_names.iter().any(|name| name == "invariant");
+
+        for claim in claims {
+            let Some(scope) = &claim.invariant_scope else {
+                continue;
+            };
+            for fragment_name in scope {
+                if !fragment_names.iter().any(|name| name == fragment_name) {
+                    return Err(Error::UnknownInvariantScopeReference {
+                        oracle_name: oracle_name.to_string(),
+                        claim_name: claim.name().to_string(),
+                        fragment_name: fragment_name.clone(),
+                    });
+                }
+                if has_literal_invariant
+                    && !claims
+                        .iter()
+                        .any(|c| &c.name == fragment_name && c.user_declared)
+                {
+                    return Err(Error::UnprovenInvariantScopeReference {
+                        oracle_name: oracle_name.to_string(),
+                        claim_name: claim.name().to_string(),
+                        fragment_name: fragment_name.clone(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Rejects claims that list an invariant (or invariant fragment, or package/game invariant)
+    /// as an explicit dependency — `emit_oracle_claim_assert`'s `dep_calls` construction has no
+    /// meaningful call shape for those (they're already assumed automatically for every claim,
+    /// so referencing one by name as a dependency is never necessary and would otherwise hit an
+    /// internal `unreachable!()`).
+    fn validate_claim_dependencies(&self, claims: &[Claim], oracle_name: &str) -> Result<()> {
+        for claim in claims {
+            for dep in claim.dependencies() {
+                if !matches!(
+                    ClaimType::guess_from_name(dep),
+                    ClaimType::Lemma | ClaimType::Relation
+                ) {
+                    return Err(Error::InvariantUsedAsDependency {
+                        oracle_name: oracle_name.to_string(),
+                        claim_name: claim.name().to_string(),
+                        dependency_name: dep.clone(),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     fn verify_claim<UI: TheoremUI>(

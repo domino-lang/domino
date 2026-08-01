@@ -303,10 +303,17 @@ impl<'a> EquivalenceContext<'a> {
             ),
         };
 
-        let mut dependencies_code: Vec<SmtExpr> = vec![
-            randomness_mapping.into(),
-            build_invariant_old_call("invariant"),
-        ];
+        let mut dependencies_code: Vec<SmtExpr> = vec![randomness_mapping.into()];
+        match &claim.invariant_scope {
+            // `with invariants [...]` on this claim: assume only the conjunction of the named
+            // invariant fragments, instead of the full `invariant` (the AND of all of them).
+            Some(fragment_names) => {
+                for fragment_name in fragment_names {
+                    dependencies_code.push(build_invariant_old_call(fragment_name));
+                }
+            }
+            None => dependencies_code.push(build_invariant_old_call("invariant")),
+        }
 
         for pkg in &gctx_left.game().pkgs {
             if !pkg.pkg.invariants.is_empty() {
