@@ -1,0 +1,35 @@
+composition BigComposition {
+    const n: Integer;
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+    }
+
+    instance fwd = Fwd {
+        params {
+            n:   n,
+        }
+    }
+
+    instance fwd2 = Fwd {
+        params {
+            n:   n,
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: fwd2,
+            UselessOracle: fwd2,
+            AnotherUsefulOracle: UsefulOracle of fwd,
+        },
+        fwd: {
+            O: UsefulOracle of rand,
+        },
+        fwd2: {
+            O: UsefulOracle of fwd,
+        },
+    }
+}
