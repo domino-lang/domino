@@ -7,7 +7,7 @@ package Rand {
           ctr: Integer,
     }
 
-    oracle UsefulOracle() -> (Integer, Bits(n))  {
+    oracle UsefulOracle(dummy: Integer) -> (Integer, Bits(n))  {
         ctr  <- (ctr + 1);
         rand <-$ Bits(n) sample-name samplepoint;
         return (ctr, rand);
