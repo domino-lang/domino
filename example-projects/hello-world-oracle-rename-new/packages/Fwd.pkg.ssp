@@ -8,11 +8,11 @@ package Fwd {
     }
 
     import oracles {
-        O() -> (Integer,Bits(n)),
+        O(dummy: Integer) -> (Integer,Bits(n)),
     }
 
-    oracle UsefulOracle() -> (Integer,Bits(n))  {
-        y  <- invoke O();
+    oracle UsefulOracle(dummy: Integer) -> (Integer,Bits(n))  {
+        y  <- invoke O(dummy);
         return y;
     }
 

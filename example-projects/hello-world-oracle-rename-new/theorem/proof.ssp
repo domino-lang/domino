@@ -50,10 +50,9 @@ theorem Proof {
                 ]
 
                 lemmas {
-                    equal-aborts: [trivial]
+                    equal-aborts: []
                     invariant:    [no-abort]
                     same-output:  [no-abort]
-                    trivial: []
                 }
             }
         }
