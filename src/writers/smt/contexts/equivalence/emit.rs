@@ -781,10 +781,12 @@ impl<'a> EquivalenceContext<'a> {
                 .iter()
                 .find(|exp| exp.name() == left_export.name())
                 .unwrap();
-            if let (Some(left_orcl_ctx), Some(right_orcl_ctx)) = (
-                gctx_left.exported_oracle_ctx_by_name(&left_export.sig().name),
-                gctx_right.exported_oracle_ctx_by_name(&right_export.sig().name),
+            if let (Some(mut left_orcl_ctx), Some(mut right_orcl_ctx)) = (
+                gctx_left.exported_oracle_ctx_by_name(left_export.name()),
+                gctx_right.exported_oracle_ctx_by_name(right_export.name()),
             ) {
+                left_orcl_ctx.set_renamed(left_export.alias());
+                right_orcl_ctx.set_renamed(right_export.alias());
                 for ((arg_name_left, arg_type), (arg_name_right, _)) in left_export
                     .sig()
                     .args
@@ -1288,13 +1290,14 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
         let oracle_import_name = export.name();
         let return_type = &sig.ty;
 
-        let octx = gctx
+        let mut octx = gctx
             .exported_oracle_ctx_by_name(export.name())
             .unwrap_or_else(|| {
                 panic!(
                     "error looking up exported oracle with name {oracle_name} in game {game_name}"
                 )
             });
+        octx.set_renamed(export.alias());
 
         let return_const = patterns::ReturnConst {
             game_inst_name,

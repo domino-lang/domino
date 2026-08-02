@@ -156,7 +156,7 @@ impl GameInstance {
                 Export::new(
                     export.to(),
                     inst_ctx.rewrite_oracle_sig(export.sig().clone()),
-                    export.alias().cloned(),
+                    export.alias().map(String::from),
                 )
             })
             .collect();
