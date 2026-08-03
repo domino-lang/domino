@@ -261,6 +261,7 @@ impl<'a> EquivalenceContext<'a> {
                                 smt,
                                 left_gctx.game_inst().name(),
                                 pkg.name(),
+                                file_name.clone(),
                             )
                         })
                         .collect(),
@@ -291,6 +292,7 @@ impl<'a> EquivalenceContext<'a> {
                                 smt,
                                 right_gctx.game_inst().name(),
                                 pkg.name(),
+                                file_name.clone(),
                             )
                         })
                         .collect(),
@@ -312,6 +314,7 @@ impl<'a> EquivalenceContext<'a> {
                                 ClaimType::LeftGameInvariant,
                                 smt,
                                 left_gctx.game_inst().name(),
+                                file_name.clone(),
                             )
                         })
                         .collect(),
@@ -330,6 +333,7 @@ impl<'a> EquivalenceContext<'a> {
                                 ClaimType::RightGameInvariant,
                                 smt,
                                 right_gctx.game_inst().name(),
+                                file_name.clone(),
                             )
                         })
                         .collect(),
@@ -351,7 +355,7 @@ impl<'a> EquivalenceContext<'a> {
                         .map(|smt| {
                             let (ty, name) = ClaimType::guess_from_smt(&smt);
                             //dbg!((&smt, ty, &name));
-                            smtclaim::SmtClaim::new(ty, smt, name)
+                            smtclaim::SmtClaim::new(ty, smt, name, file_name.clone())
                         })
                         .collect(),
                 );
