@@ -63,11 +63,17 @@ pub(crate) struct SmtClaim {
     ty: ClaimType,
     smt: SmtExpr,
     name: String,
+    filename: String,
 }
 
 impl SmtClaim {
-    pub fn new(ty: ClaimType, smt: SmtExpr, name: String) -> Self {
-        Self { ty, smt, name }
+    pub fn new(ty: ClaimType, smt: SmtExpr, name: String, filename: String) -> Self {
+        Self {
+            ty,
+            smt,
+            name,
+            filename,
+        }
     }
 
     pub fn new_package_invariant(
@@ -75,19 +81,27 @@ impl SmtClaim {
         smt: SmtExpr,
         game_name: &str,
         pkg_name: &str,
+        filename: String,
     ) -> Self {
         Self {
             ty,
             smt,
             name: format!("package-invariant!{game_name}-{pkg_name}!"),
+            filename,
         }
     }
 
-    pub fn new_game_invariant(ty: ClaimType, smt: SmtExpr, game_name: &str) -> Self {
+    pub fn new_game_invariant(
+        ty: ClaimType,
+        smt: SmtExpr,
+        game_name: &str,
+        filename: String,
+    ) -> Self {
         Self {
             ty,
             smt,
             name: format!("game-invariant!{game_name}!"),
+            filename,
         }
     }
 
