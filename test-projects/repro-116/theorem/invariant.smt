@@ -1,8 +1,4 @@
-(define-fun invariant
-  ( (l <GameState_Simple>)
-    (r <GameState_Simple>))
-  Bool
-  true)
+(define-state-relation invariant (L R) true)
 
 (define-fun randomness-mapping-Sample
   ( (stmt-left  SampleId) 

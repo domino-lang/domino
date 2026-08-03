@@ -6,8 +6,4 @@
   Bool
   false)
 
-(define-fun invariant
-  ((state-left <GameState_GameSplit>)
-   (state-right <GameState_GameTmp>))
-  Bool
-  true)
+(define-state-relation invariant (L R) true)

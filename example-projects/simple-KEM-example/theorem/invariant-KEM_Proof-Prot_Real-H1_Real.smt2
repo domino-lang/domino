@@ -1,7 +1,4 @@
-(define-fun invariant ( 
-  (prot    <GameState_Prot>)
-  (h1      <GameState_H1>)
-) Bool
+(define-state-relation invariant (prot h1)
 ; BEGIN FUNCTION BODY
   (let 
     (

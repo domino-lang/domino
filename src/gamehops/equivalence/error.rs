@@ -122,12 +122,6 @@ pub enum Error {
         claim_name: String,
         fragment_name: String,
     },
-    #[error("in oracle \"{oracle_name}\": claim \"{claim_name}\" has \"with invariants [{fragment_name}, ...]\", but \"{fragment_name}\" is never itself proved by an explicit claim in this oracle's lemmas {{}} block. Since this oracle also declares a literal `invariant` state relation, domino doesn't auto-prove invariant fragments here — add an explicit \"{fragment_name}: [...]\" claim, or remove it from \"with invariants\".")]
-    UnprovenInvariantScopeReference {
-        oracle_name: String,
-        claim_name: String,
-        fragment_name: String,
-    },
 }
 
 impl Error {

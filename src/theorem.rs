@@ -203,6 +203,18 @@ impl GameInstance {
 /// recognize it later (e.g. `domino-verify`'s model rendering).
 pub const INITIAL_STATE_CLAIM_NAME: &str = "!initial-state!";
 
+/// Internal SMT function name domino calls to assume the old-state invariant as a dependency of
+/// every claim, and to check the induction base case on the initial state. This is deliberately
+/// *not* `"invariant"`: no name is special to domino except this one — a `define-state-relation`
+/// (or even a raw `define-fun`) named `invariant` is just an ordinary, unremarkable name, since
+/// nothing looks for it. Domino always synthesizes this reserved, bracketed name itself as the
+/// AND of every `define-state-relation` fragment declared in an oracle's invariant files
+/// (`smtrewrite::synthesize_invariant` — `true` if there are none) *unless* the user has already
+/// defined something under this exact name themselves (raw or via the macro), in which case that
+/// collides with domino's own definition: `EquivalenceContext::load_invariants` warns and uses
+/// the user's definition as-is instead of synthesizing one.
+pub const DOMINO_INVARIANT_FN_NAME: &str = "<domino-invariant>";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClaimType {
     Lemma,

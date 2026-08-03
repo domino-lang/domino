@@ -1,9 +1,0 @@
-composition A {
-    instance A = A {}
-
-    compose {
-        adversary: {
-            Test: A
-        }
-    }
-}

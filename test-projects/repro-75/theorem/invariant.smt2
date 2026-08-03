@@ -5,8 +5,4 @@
   false)
 
 
-(define-fun invariant
-    ((left-game <GameState_X>)
-     (right-game <GameState_Y>))
-  Bool
-  true)
+(define-state-relation invariant (L R) true)

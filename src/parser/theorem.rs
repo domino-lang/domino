@@ -864,8 +864,14 @@ fn handle_game_hops<'a>(
     Ok(())
 }
 
-/** Required to be proven: equal-aborts, invariant, same-output
+/** Required to be proven: equal-aborts, same-output
  ** Allowed to use: no-abort
+ **
+ ** (Invariant fragments have their own, separate provability guarantee: every
+ ** `define-state-relation` not explicitly claimed here gets auto-claimed with
+ ** dependency `no-abort` once the invariant files are parsed — see
+ ** `EquivalenceSmtDriver::reconcile_invariant_fragment_claims` — so they don't need to be
+ ** part of this claim-name graph at all, and this check doesn't need to know about them.)
  **
  ** We iteratively add all claims that have all their requirements
  ** met. When we can no longer add additional claims, the algorithm
@@ -906,7 +912,7 @@ pub(crate) fn verify_induction_step(
         progress = !new.is_empty();
         provable.append(&mut new);
     }
-    for target_claim in ["equal-aborts", "invariant", "same-output"] {
+    for target_claim in ["equal-aborts", "same-output"] {
         if !provable.contains(target_claim) {
             return Err(InductionStepUnprovableError {
                 source_code: ctx.named_source(),
@@ -1167,11 +1173,12 @@ fn handle_equivalence_oracle(
             _ => unimplemented!(),
         }
     }
-    for default_claim in [
-        ("equal-aborts", vec![]),
-        ("same-output", vec!["no-abort"]),
-        ("invariant", vec!["no-abort"]),
-    ] {
+    // Note: no `invariant` default here. A state relation is never proved just because it
+    // exists — it's proved because it's an invariant fragment (auto-claimed at proving time,
+    // once the invariant files have actually been parsed — see
+    // `EquivalenceSmtDriver::reconcile_invariant_fragment_claims`) or because the user
+    // explicitly claims it here.
+    for default_claim in [("equal-aborts", vec![]), ("same-output", vec!["no-abort"])] {
         if !lemmas.iter().any(|claim| claim.name == default_claim.0) {
             lemmas.push(ParsedLemmaLine {
                 name: default_claim.0.to_string(),

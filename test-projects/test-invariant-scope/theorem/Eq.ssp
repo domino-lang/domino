@@ -10,7 +10,9 @@ theorem Eq {
                     theorem/invariant.smt2
                 ]
                 lemmas {
-                    ctr-eq: [no-abort]
+                    /* ctr-eq is deliberately NOT declared here: it's still auto-claimed and
+                       auto-proved just like every other invariant fragment. "with invariants"
+                       can reference it regardless. */
                     same-output: with invariants [ctr-eq] [no-abort]
                 }
             }

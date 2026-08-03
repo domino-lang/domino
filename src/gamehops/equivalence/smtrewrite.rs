@@ -597,9 +597,9 @@ pub fn rewrite(
 }
 
 /// Whether `exprs` already contains a top-level `define-fun`/`define-fun-rec` literally named
-/// `name`. Unlike tracking `define-state-relation` macro invocations, this also recognizes older
-/// projects that hand-write the fully mangled `(define-fun invariant ...)` form directly instead
-/// of going through the macro (see the domino skill docs / `hello-world` example project).
+/// `name`. Unlike tracking `define-state-relation` macro invocations, this also recognizes a raw,
+/// hand-written `define-fun` that bypasses the macro entirely — used to detect whether the user
+/// has already defined something under domino's reserved `theorem::DOMINO_INVARIANT_FN_NAME`.
 pub fn defines_function_named(exprs: &[SmtExpr], name: &str) -> bool {
     exprs.iter().any(|expr| {
         let SmtExpr::List(items) = expr else {
@@ -614,12 +614,11 @@ pub fn defines_function_named(exprs: &[SmtExpr], name: &str) -> bool {
     })
 }
 
-/// Synthesizes a `define-fun invariant ((L <left_sort>) (R <right_sort>)) Bool (and (frag1 L R)
-/// ...))` combining every named invariant fragment via conjunction. Used when an oracle's main
-/// invariant files declare one or more `define-state-relation`s but none of them is literally
-/// named `invariant` — every existing call site that assumes/asserts the old-state invariant
-/// hardcodes a call to the function literally named `invariant`, so synthesizing it under that
-/// name lets those call sites work unmodified.
+/// Synthesizes `(define-fun <domino-invariant> ((L <left_sort>) (R <right_sort>)) Bool
+/// (and (frag1 L R) ...))` combining every named invariant fragment via conjunction (`true` if
+/// there are none). `DOMINO_INVARIANT_FN_NAME` is what every call site that assumes/asserts the
+/// old-state invariant actually calls; callers should only invoke this when nothing already
+/// defines that name (see `EquivalenceContext::load_invariants`).
 pub fn synthesize_invariant(left_sort: Sort, right_sort: Sort, fragment_names: &[String]) -> SmtExpr {
     let calls: Vec<SmtExpr> = fragment_names
         .iter()
@@ -634,7 +633,7 @@ pub fn synthesize_invariant(left_sort: Sort, right_sort: Sort, fragment_names: &
 
     SmtDefineFun {
         is_rec: false,
-        name: "invariant".to_string(),
+        name: crate::theorem::DOMINO_INVARIANT_FN_NAME.to_string(),
         args: vec![("L".to_string(), left_sort), ("R".to_string(), right_sort)],
         sort: Sort::Bool,
         body,

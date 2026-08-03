@@ -341,28 +341,28 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     }
 
     /// Reconciles this oracle's invariant fragments (every `define-state-relation` declared in
-    /// its main invariant files) into `claims`, in place.
+    /// its main invariant files) into `claims`, in place. A state relation's name is never
+    /// special — one the user happens to name `invariant` is just another fragment — so this
+    /// applies uniformly, regardless of whether one of the fragments happens to be named
+    /// `invariant`.
     ///
     /// Any claim (auto or user-declared) named after a fragment that `ClaimType::guess_from_name`
     /// would otherwise call `Lemma` gets its `ClaimType` corrected to `Invariant` — `guess_from_name`
     /// only looks at the name prefix, and a `Lemma`-shaped SMT call never worked for a fragment
     /// not conventionally prefixed `invariant`/`relation` anyway (there's no matching
-    /// `define-lemma` to call), so this is a strict bugfix, done unconditionally. Fragments
-    /// already recognized as `relation-*` are deliberately left alone: that's the pre-existing
-    /// convention (proven and chained by hand in the `lemmas {}` block, e.g. in the 4WHS example
-    /// project) for using a state relation as an explicit dependency of another claim, which
-    /// still works exactly as before.
+    /// `define-lemma` to call), so this is a strict bugfix. Fragments already recognized as
+    /// `relation-*` are deliberately left alone: that's the pre-existing convention (proven and
+    /// chained by hand in the `lemmas {}` block, e.g. in the 4WHS example project) for using a
+    /// state relation as an explicit dependency of another claim, which still works exactly as
+    /// before.
     ///
-    /// If one of the fragments is literally named `invariant`, today's semantics are otherwise
-    /// kept as-is beyond that fixup: fragments are only proved if explicitly declared.
-    ///
-    /// Otherwise (no literal `invariant`), every fragment becomes its own claim, each
-    /// individually reported on failure: the auto-generated monolithic `invariant` claim (if
-    /// any) is dropped, and every fragment not already covered by an explicit `lemmas {}` entry
-    /// gets an auto-generated claim depending only on `no-abort`.
+    /// Every fragment becomes its own claim, each individually reported on failure: every
+    /// fragment not already covered by an explicit `lemmas {}` entry gets an auto-generated
+    /// claim depending only on `no-abort`. Domino never proves a monolithic AND of them as its
+    /// own claim automatically — see `theorem::DOMINO_INVARIANT_FN_NAME` for the (differently
+    /// named) function that plays that role internally.
     fn reconcile_invariant_fragment_claims(&self, claims: &mut Vec<Claim>, oracle_name: &str) {
         let fragment_names = self.eqctx.state_relation_names(oracle_name);
-        let has_literal_invariant = fragment_names.iter().any(|name| name == "invariant");
 
         for claim in claims.iter_mut() {
             if claim.ty == ClaimType::Lemma && fragment_names.iter().any(|name| name == &claim.name)
@@ -370,15 +370,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 claim.ty = ClaimType::Invariant;
             }
         }
-
-        if has_literal_invariant {
-            return;
-        }
-
-        // domino no longer proves the monolithic AND as its own claim under this mode, unless
-        // the user explicitly asked to (in which case it's just proving the synthesized
-        // `invariant` function directly, which is legal if redundant).
-        claims.retain(|claim| !(claim.name == "invariant" && !claim.user_declared));
 
         for name in fragment_names {
             if !claims.iter().any(|claim| &claim.name == name) {
@@ -396,13 +387,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
     /// Validates every claim's `with invariants [...]` scope (if any) for this oracle: each named
     /// fragment must actually be a `define-state-relation` declared here (never a `define-lemma`
-    /// claim), and — only when this oracle also declares a literal `invariant` (today's
-    /// semantics, where fragments aren't auto-proved) — must itself be proved by an explicit,
-    /// `user_declared` claim in the `lemmas {}` block. Under the new fragment semantics this
-    /// second check is unnecessary: every fragment is auto-proved regardless.
+    /// claim). Since every fragment is always auto-proved regardless of whether the user declares
+    /// it explicitly, there's no separate "must already be proved" requirement to check here.
     fn validate_invariant_scopes(&self, claims: &[Claim], oracle_name: &str) -> Result<()> {
         let fragment_names = self.eqctx.state_relation_names(oracle_name);
-        let has_literal_invariant = fragment_names.iter().any(|name| name == "invariant");
 
         for claim in claims {
             let Some(scope) = &claim.invariant_scope else {
@@ -411,17 +399,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             for fragment_name in scope {
                 if !fragment_names.iter().any(|name| name == fragment_name) {
                     return Err(Error::UnknownInvariantScopeReference {
-                        oracle_name: oracle_name.to_string(),
-                        claim_name: claim.name().to_string(),
-                        fragment_name: fragment_name.clone(),
-                    });
-                }
-                if has_literal_invariant
-                    && !claims
-                        .iter()
-                        .any(|c| &c.name == fragment_name && c.user_declared)
-                {
-                    return Err(Error::UnprovenInvariantScopeReference {
                         oracle_name: oracle_name.to_string(),
                         claim_name: claim.name().to_string(),
                         fragment_name: fragment_name.clone(),

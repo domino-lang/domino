@@ -88,7 +88,7 @@ impl<'a> EquivalenceContext<'a> {
         let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
 
         SmtAssert(SmtNot((
-            "invariant",
+            crate::theorem::DOMINO_INVARIANT_FN_NAME,
             state_left.global_const_name(
                 self.equivalence.left_name(),
                 &GameStateOracleArgVariant::Initial,
@@ -312,7 +312,8 @@ impl<'a> EquivalenceContext<'a> {
                     dependencies_code.push(build_invariant_old_call(fragment_name));
                 }
             }
-            None => dependencies_code.push(build_invariant_old_call("invariant")),
+            None => dependencies_code
+                .push(build_invariant_old_call(crate::theorem::DOMINO_INVARIANT_FN_NAME)),
         }
 
         for pkg in &gctx_left.game().pkgs {

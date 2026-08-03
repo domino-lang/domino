@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     package::{Export, OracleSig},
     project::Project,
-    theorem::{Claim, RandomnessType},
+    theorem::{Claim, RandomnessType, DOMINO_INVARIANT_FN_NAME},
     writers::smt::{
         contexts::EquivalenceContext, patterns::datastructures::DatastructurePattern, sorts::Sort,
     },
@@ -342,21 +342,28 @@ impl<'a> EquivalenceContext<'a> {
                 // }
             }
 
-            // A literal `invariant` relation may come from a `define-state-relation invariant`
-            // (tracked in `state_relation_names`) or, in older projects, from hand-writing the
-            // fully mangled `(define-fun invariant ...)` form directly (see e.g. the
-            // `hello-world` example project) — check both. If neither is present, this oracle is
-            // using the "invariant fragments" mechanism: synthesize `invariant` as the AND of
-            // every fragment, so the (unmodified) call sites that assume/assert the old-state
-            // invariant under that literal name keep working. Either way, `state_relation_names`
-            // ends up faithfully recording whether a literal `invariant` exists for this oracle,
-            // since that's also how `EquivalenceSmtDriver` decides which semantics apply.
-            let has_literal_invariant = state_relation_names.iter().any(|name| name == "invariant")
-                || smtrewrite::defines_function_named(&out, "invariant");
-            if has_literal_invariant {
-                if !state_relation_names.iter().any(|name| name == "invariant") {
-                    state_relation_names.push("invariant".to_string());
-                }
+            // No name is special to domino except its own reserved `DOMINO_INVARIANT_FN_NAME` —
+            // a `define-state-relation` (or even a raw `define-fun`) the user happens to name
+            // `invariant` is just an ordinary, unremarkable name; nothing in domino looks for it.
+            // The only thing that matters is whether the user has *already* defined something
+            // under the exact reserved name itself (raw, or via a fragment coincidentally named
+            // that) — which would collide with domino's own synthesized definition below. In
+            // that case, warn and use their definition as-is instead of also synthesizing one
+            // (any other fragments are then *not* folded into the old-state assumption, since
+            // domino isn't the one defining it and has no way to combine into someone else's
+            // definition).
+            let user_defines_reserved_name =
+                smtrewrite::defines_function_named(&out, DOMINO_INVARIANT_FN_NAME);
+
+            if user_defines_reserved_name {
+                eprintln!(
+                    "warning: oracle \"{oracle_name}\": a function literally named \
+                     \"{DOMINO_INVARIANT_FN_NAME}\" is already defined here, which is the name \
+                     domino reserves for its own synthesized invariant (the AND of every \
+                     `define-state-relation` fragment). Domino will use your definition as-is \
+                     instead of synthesizing one — any other fragments declared alongside it are \
+                     NOT automatically combined into it."
+                );
             } else {
                 let left_sort = Sort::Other(
                     left_gctx.datastructure_game_state_pattern().sort_name(),
