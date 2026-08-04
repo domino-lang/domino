@@ -10,7 +10,7 @@ theorem Eq {
                     theorem/invariant.smt2
                 ]
                 lemmas {
-                    same-output: with invariants [nonexistent-fragment] [no-abort]
+                    same-output: [no-abort] with invariants [nonexistent-fragment]
                 }
             }
         }

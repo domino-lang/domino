@@ -305,7 +305,7 @@ theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assu
         lemmas_spec = {kw_lemmas ~ "{" ~ (lemma_line)* ~ "}"}
 
           /// A single lemma with its dependencies.
-          lemma_line = {smt_identifier ~ ":" ~ lemma_modifier? ~ with_invariants_spec? ~ "[" ~ ( smt_identifier  ~ ","?)* ~ "]"}
+          lemma_line = {smt_identifier ~ ":" ~ lemma_modifier? ~ "[" ~ ( smt_identifier  ~ ","?)* ~ "]" ~ with_invariants_spec?}
           lemma_modifier = { !kw_with ~ identifier }
 
           /// Restricts which invariant fragments this claim may assume on the old state to

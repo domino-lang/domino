@@ -14,7 +14,7 @@ theorem Eq {
                     /* "with invariants" scopes a claim to a subset of the fragments. ctr-eq
                        isn't declared anywhere else in this block - domino auto-proves it
                        regardless, so referencing it here is fine. */
-                    same-output: with invariants [ctr-eq] [no-abort]
+                    same-output: [no-abort] with invariants [ctr-eq]
                 }
             }
         }

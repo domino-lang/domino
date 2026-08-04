@@ -1241,6 +1241,10 @@ fn handle_lemma_line(
     } else {
         false
     };
+    let mut dependencies = BTreeSet::new();
+    while matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::smt_identifier)) {
+        dependencies.insert(ast.next().unwrap().as_str().to_string());
+    }
     let invariant_scope = if matches!(
         ast.peek().map(|a| a.as_rule()),
         Some(Rule::with_invariants_spec)
@@ -1255,7 +1259,6 @@ fn handle_lemma_line(
     } else {
         None
     };
-    let dependencies = ast.map(|dep| dep.as_str().to_string()).collect();
 
     ParsedLemmaLine {
         name,

@@ -13,7 +13,7 @@ theorem Eq {
                     /* ctr-eq is deliberately NOT declared here: it's still auto-claimed and
                        auto-proved just like every other invariant fragment. "with invariants"
                        can reference it regardless. */
-                    same-output: with invariants [ctr-eq] [no-abort]
+                    same-output: [no-abort] with invariants [ctr-eq]
                 }
             }
         }
