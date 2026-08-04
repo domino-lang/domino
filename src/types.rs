@@ -221,11 +221,11 @@ impl Type {
             }
 
             (TypeKind::UserDefined(UserDefinedType::Package(_)), _) => {
-                panic!("must be resolved at this point")
+                panic!("must be resolved at this point: {self}")
             }
 
             (_, TypeKind::UserDefined(UserDefinedType::Package(_))) => {
-                panic!("must be resolved at this point")
+                panic!("must be resolved at this point {self}")
             }
 
             (lother, rother) => lother == rother,
