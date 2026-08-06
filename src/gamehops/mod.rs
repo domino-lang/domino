@@ -78,6 +78,18 @@ impl<'a> GameHop<'a> {
             GameHop::Hybrid(hybrid) => hybrid.right_name(),
         }
     }
+
+    /// Returns the name used to identify this proof step on the command line,
+    /// e.g. `"Left == Right"` for equivalences, or `"Left ~= Right"` for
+    /// reductions, hybrids and conjectures.
+    pub fn name(&self) -> String {
+        let left = self.left_game_instance_name();
+        let right = self.right_game_instance_name();
+        match self {
+            GameHop::Equivalence(_) => format!("{left} == {right}"),
+            GameHop::Reduction(_) | GameHop::Hybrid(_) | GameHop::Conjecture(_) => format!("{left} ~= {right}"),
+        }
+    }
 }
 
 impl<'a> fmt::Display for GameHop<'a> {

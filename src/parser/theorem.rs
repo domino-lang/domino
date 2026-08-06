@@ -967,8 +967,14 @@ fn handle_game_hops<'src>(
     Ok(())
 }
 
-/** Required to be proven: equal-aborts, invariant, same-output
+/** Required to be proven: equal-aborts, same-output
  ** Allowed to use: no-abort
+ **
+ ** (Invariant fragments have their own, separate provability guarantee: every
+ ** `define-state-relation` not explicitly claimed here gets auto-claimed with
+ ** dependency `no-abort` once the invariant files are parsed — see
+ ** `EquivalenceSmtDriver::reconcile_invariant_fragment_claims` — so they don't need to be
+ ** part of this claim-name graph at all, and this check doesn't need to know about them.)
  **
  ** We iteratively add all claims that have all their requirements
  ** met. When we can no longer add additional claims, the algorithm
@@ -981,14 +987,13 @@ fn handle_game_hops<'src>(
  */
 pub(crate) fn verify_induction_step(
     ctx: &mut ParseTheoremContext,
-    step: &[(String, BTreeSet<String>, bool)],
+    step: &[ParsedLemmaLine],
     span: SourceSpan,
 ) -> Result<(), ParseTheoremError> {
     let mut progress = true;
     let mut provable: BTreeSet<String> = step
         .iter()
-        .filter_map(|(name, _, admitted)| if *admitted { Some(name) } else { None })
-        .cloned()
+        .filter_map(|lemma| lemma.admitted.then(|| lemma.name.clone()))
         .collect();
 
     while progress {
@@ -999,9 +1004,9 @@ pub(crate) fn verify_induction_step(
 
         let mut new: BTreeSet<_> = step
             .iter()
-            .filter_map(|(name, dependencies, _)| {
-                if !provable.contains(name) && provable.is_superset(dependencies) {
-                    Some(name.clone())
+            .filter_map(|lemma| {
+                if !provable.contains(&lemma.name) && provable.is_superset(&lemma.dependencies) {
+                    Some(lemma.name.clone())
                 } else {
                     None
                 }
@@ -1010,7 +1015,7 @@ pub(crate) fn verify_induction_step(
         progress = !new.is_empty();
         provable.append(&mut new);
     }
-    for target_claim in ["equal-aborts", "invariant", "same-output"] {
+    for target_claim in ["equal-aborts", "same-output"] {
         if !provable.contains(target_claim) {
             return Err(InductionStepUnprovableError {
                 source_code: ctx.named_source(),
@@ -1071,8 +1076,14 @@ pub(crate) fn handle_hybrid<'src>(
                     oracle_name,
                     lemmas
                         .into_iter()
-                        .map(|(name, dependencies, admitted)| {
-                            Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
+                        .map(|lemma| {
+                            Claim::from_tuple((
+                                lemma.name,
+                                lemma.dependencies.into_iter().collect(),
+                                lemma.admitted,
+                                lemma.user_declared,
+                                lemma.invariant_scope,
+                            ))
                         })
                         .collect(),
                 )
@@ -1156,8 +1167,14 @@ fn handle_equivalence<'src>(
                 oracle_name,
                 lemmas
                     .into_iter()
-                    .map(|(name, dependencies, admitted)| {
-                        Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
+                    .map(|lemma| {
+                        Claim::from_tuple((
+                            lemma.name,
+                            lemma.dependencies.into_iter().collect(),
+                            lemma.admitted,
+                            lemma.user_declared,
+                            lemma.invariant_scope,
+                        ))
                     })
                     .collect(),
             )
@@ -1198,6 +1215,19 @@ fn handle_equivalence<'src>(
     Ok(GameHop::Equivalence(eq))
 }
 
+/// A single parsed `lemmas {}` line (or one of the defaults domino injects when it's absent).
+#[derive(Clone)]
+pub(crate) struct ParsedLemmaLine {
+    name: String,
+    dependencies: BTreeSet<String>,
+    admitted: bool,
+    /// Whether this came from an explicit line in the `.ssp` file, as opposed to one of
+    /// domino's automatic default claims.
+    user_declared: bool,
+    /// From an explicit `with invariants [...]` modifier — see `Claim::invariant_scope`.
+    invariant_scope: Option<Vec<String>>,
+}
+
 fn handle_equivalence_oracle(
     ctx: &mut ParseTheoremContext,
     ast: Pair<Rule>,
@@ -1205,7 +1235,7 @@ fn handle_equivalence_oracle(
     (
         String,
         Vec<String>,
-        Vec<(String, BTreeSet<String>, bool)>,
+        Vec<ParsedLemmaLine>,
         RandomnessType,
     ),
     ParseTheoremError,
@@ -1214,7 +1244,7 @@ fn handle_equivalence_oracle(
     let mut ast = ast.into_inner();
     let oracle_name = ast.next().unwrap().as_str();
     let mut invariant_paths = Vec::new();
-    let mut lemmas = Vec::new();
+    let mut lemmas: Vec<ParsedLemmaLine> = Vec::new();
     let mut randomness = RandomnessType::Custom;
 
     for next in ast {
@@ -1241,27 +1271,30 @@ fn handle_equivalence_oracle(
             }
             Rule::lemmas_spec => {
                 span = next.as_span();
-                let new_lemmas = handle_lemmas_spec(ctx, oracle_name, next.into_inner());
-                lemmas.extend(new_lemmas);
+                lemmas.extend(handle_lemmas_spec(ctx, oracle_name, next.into_inner()));
             }
             _ => unimplemented!(),
         }
     }
-    for default_claim in [
-        ("equal-aborts", vec![]),
-        ("same-output", vec!["no-abort"]),
-        ("invariant", vec!["no-abort"]),
-    ] {
-        if !lemmas.iter().any(|claim| claim.0 == default_claim.0) {
-            lemmas.push((
-                default_claim.0.to_string(),
-                default_claim
+    // Note: no `invariant` default here. A state relation is never proved just because it
+    // exists — it's proved because it's an invariant fragment (auto-claimed at proving time,
+    // once the invariant files have actually been parsed — see
+    // `EquivalenceSmtDriver::reconcile_invariant_fragment_claims`) or because the user
+    // explicitly claims it here.
+    for default_claim in [("equal-aborts", vec![]), ("same-output", vec!["no-abort"])] {
+        if !lemmas.iter().any(|claim| claim.name == default_claim.0) {
+            lemmas.push(ParsedLemmaLine {
+                name: default_claim.0.to_string(),
+                dependencies: default_claim
                     .1
                     .iter()
                     .map(|x| x.to_string())
                     .collect::<BTreeSet<_>>(),
-                false,
-            ));
+                admitted: false,
+                // not user-declared: this is one of domino's automatic default claims.
+                user_declared: false,
+                invariant_scope: None,
+            });
         }
     }
     verify_induction_step(ctx, &lemmas, (span.start()..span.end()).into())?;
@@ -1277,7 +1310,7 @@ fn handle_lemmas_spec(
     ctx: &mut ParseTheoremContext,
     oracle_name: &str,
     ast: Pairs<Rule>,
-) -> Vec<(String, BTreeSet<String>, bool)> {
+) -> Vec<ParsedLemmaLine> {
     ast.map(|ast| handle_lemma_line(ctx, oracle_name, ast))
         .collect()
 }
@@ -1286,11 +1319,11 @@ fn handle_lemma_line(
     ctx: &mut ParseTheoremContext,
     oracle_name: &str,
     ast: Pair<Rule>,
-) -> (String, BTreeSet<String>, bool) {
+) -> ParsedLemmaLine {
     let span = ast.as_span();
     let mut ast = ast.into_inner();
     let name = next_str(&mut ast).to_string();
-    let admit = if matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::lemma_modifier)) {
+    let admitted = if matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::lemma_modifier)) {
         let modifier_ast = ast.next().unwrap();
         let modifier = modifier_ast.as_str();
         match modifier {
@@ -1311,9 +1344,32 @@ fn handle_lemma_line(
     } else {
         false
     };
-    let deps = ast.map(|dep| dep.as_str().to_string()).collect();
+    let mut dependencies = BTreeSet::new();
+    while matches!(ast.peek().map(|a| a.as_rule()), Some(Rule::smt_identifier)) {
+        dependencies.insert(ast.next().unwrap().as_str().to_string());
+    }
+    let invariant_scope = if matches!(
+        ast.peek().map(|a| a.as_rule()),
+        Some(Rule::with_invariants_spec)
+    ) {
+        let spec_ast = ast.next().unwrap();
+        Some(
+            spec_ast
+                .into_inner()
+                .map(|inv| inv.as_str().to_string())
+                .collect(),
+        )
+    } else {
+        None
+    };
 
-    (name, deps, admit)
+    ParsedLemmaLine {
+        name,
+        dependencies,
+        admitted,
+        user_declared: true,
+        invariant_scope,
+    }
 }
 
 fn handle_string_triplet<'src>(

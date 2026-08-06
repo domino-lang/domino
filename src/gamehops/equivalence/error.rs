@@ -65,13 +65,13 @@ pub enum Error {
     },
     #[error(transparent)]
     ClaimTheoremFailed(#[from] ClaimTheoremFailedError),
-    #[error("Failed invariant {left_game_inst_name} = {right_game_inst_name}")]
+    #[error("Failed to prove equivalence {left_game_inst_name} = {right_game_inst_name}")]
     ParallelEquivalenceError {
         left_game_inst_name: String,
         right_game_inst_name: String,
 
         #[related]
-        failed_oracles: Vec<Error>,
+        failed_claims: Vec<Error>,
     },
     #[error("found lemma named \"{lemma_name}\". Expected name ending in the name of the oracle. followed by a closing angle bracket")]
     IllegalLemmaName { lemma_name: String },
@@ -85,8 +85,14 @@ pub enum Error {
         argument: String,
         equivalence: String,
     },
-    #[error("{equivalence}: Expected {expected} arguments but found {argument}")]
+    #[error("{file_name}: {equivalence}: \"{name}\": Expected {expected} arguments but found {argument}\n  in {expression}")]
     IncorrectNumberOfArguments {
+        /// name of the lemma or state relation whose definition has the wrong number of arguments
+        name: String,
+        /// path of the invariant file the definition was read from
+        file_name: String,
+        /// the define-lemma / define-state-relation expression that failed to parse
+        expression: String,
         argument: String,
         expected: String,
         equivalence: String,
@@ -97,35 +103,47 @@ pub enum Error {
     RewriteNeedsPackageContext { defn: String },
     #[error(transparent)]
     ParserError(#[from] crate::util::smtparser::Error),
-    #[error("SMT Solver failed in oracle {oracle_name}, claim {claim_name}")]
+    #[error("SMT Solver failed in {scope_name}, claim {claim_name}")]
     ProverProcessError {
         claim_name: String,
-        oracle_name: String,
+        scope_name: String,
         #[related]
         solver_errors: Vec<crate::util::smtsolver::Error>,
+    },
+    #[error("in oracle \"{oracle_name}\": claim \"{claim_name}\" lists \"{dependency_name}\" as a dependency, but \"{dependency_name}\" is an invariant (or invariant fragment), which can't be used as a dependency of another claim — it's already assumed on the old state for every claim automatically.")]
+    InvariantUsedAsDependency {
+        oracle_name: String,
+        claim_name: String,
+        dependency_name: String,
+    },
+    #[error("in oracle \"{oracle_name}\": claim \"{claim_name}\" has \"with invariants [{fragment_name}, ...]\", but \"{fragment_name}\" is not a `define-state-relation` declared in this oracle's invariant files (only invariant fragments can be named here, not lemmas).")]
+    UnknownInvariantScopeReference {
+        oracle_name: String,
+        claim_name: String,
+        fragment_name: String,
     },
 }
 
 impl Error {
     pub(super) fn prover_process_error(
         claim_name: &str,
-        oracle_name: &str,
+        scope_name: &str,
         err: crate::util::smtsolver::Error,
     ) -> Self {
         Self::ProverProcessError {
             claim_name: claim_name.to_string(),
-            oracle_name: oracle_name.to_string(),
+            scope_name: scope_name.to_string(),
             solver_errors: vec![err],
         }
     }
 }
 
 #[derive(Debug, Error, Diagnostic)]
-#[error("{oracle_name}: error proving claim {claim_name}. status: {response}. modelfile {}",
+#[error("{scope_name}: error proving claim {claim_name}. status: {response}. modelfile {}",
         if let Ok(modfile) = modelfile {modfile.to_str().unwrap()} else {""})]
 pub struct ClaimTheoremFailedError {
     pub claim_name: String,
-    pub oracle_name: String,
+    pub scope_name: String,
     pub response: SmtSolverResponse,
     pub modelfile: SmtSolverResponseResult<PathBuf>,
 }

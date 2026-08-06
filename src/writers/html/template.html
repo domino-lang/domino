@@ -1,0 +1,1852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --panel-bg: #ffffff;
+    --border: #333;
+    --edge: #9098a8;
+    --ec-kw: #1d4ed8;
+    --ec-num: #b45309;
+    --ec-op: #7c3aed;
+    --ec-comment: #6b7280;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1b1d22;
+      --fg: #eee;
+      --muted: #aaa;
+      --panel-bg: #24262c;
+      --border: #ccc;
+      --edge: #6b7280;
+      --ec-kw: #93c5fd;
+      --ec-num: #fbbf24;
+      --ec-op: #c4b5fd;
+      --ec-comment: #9ca3af;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+  #toolbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+    background: var(--panel-bg);
+    border-bottom: 1px solid var(--edge);
+    flex-wrap: wrap;
+  }
+  #title { font-weight: 600; }
+  #hint { color: var(--muted); font-size: 12px; }
+  #toolbar-spacer { flex: 1; }
+  #oracle-nav { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  #current-oracle { font-weight: 600; min-width: 6em; }
+  #oracle-jump, #reset-view {
+    font: inherit;
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  #search-box { position: relative; }
+  #search-input {
+    font: inherit;
+    padding: 4px 8px;
+    width: 220px;
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    background: var(--panel-bg);
+    color: var(--fg);
+  }
+  #search-results {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 320px;
+    max-height: 360px;
+    overflow-y: auto;
+    background: var(--panel-bg);
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.25);
+    z-index: 25;
+  }
+  #search-results.hidden { display: none; }
+  #search-results .search-empty {
+    padding: 8px 10px;
+    color: var(--muted);
+    font-size: 12px;
+    font-style: italic;
+  }
+  .search-result-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: 12px ui-monospace, monospace;
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid var(--edge);
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+  }
+  .search-result-btn:last-child { border-bottom: none; }
+  .search-result-btn:hover { background: rgba(37,99,235,.15); }
+  .search-result-name { font-weight: 600; }
+  .search-result-meta { color: var(--muted); font-size: 10px; margin-top: 2px; }
+  #viewport {
+    position: absolute;
+    inset: 0;
+    top: 40px;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #viewport.panning { cursor: grabbing; }
+  #world, #flow-world {
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  #edges {
+    position: absolute;
+    top: 0; left: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .cluster-label {
+    position: absolute;
+    font-weight: 700;
+    font: 15px/1 ui-monospace, monospace;
+    color: var(--fg);
+    background: var(--panel-bg);
+    border: 1px solid var(--edge);
+    border-radius: 4px;
+    padding: 3px 8px;
+    pointer-events: none;
+  }
+  .node {
+    position: absolute;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: 12px/1.3 ui-monospace, monospace;
+    cursor: grab;
+    overflow: hidden;
+    color: #111;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    border: 1px solid #333;
+    user-select: none;
+    touch-action: none;
+  }
+  .node:hover { outline: 2px solid #2563eb; }
+  .node.builtin { border-style: dotted; border-width: 2px; }
+  .node.admitted { border-style: dashed; border-width: 3px; border-color: #c00; }
+  .node.implicit { opacity: 0.85; }
+  .node.dragging-node {
+    cursor: grabbing;
+    z-index: 5;
+    box-shadow: 0 6px 16px rgba(0,0,0,.45);
+  }
+  .node-name {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .node-tags {
+    color: #333;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .badge-new-state {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 9px;
+  }
+  #legend {
+    position: fixed;
+    right: 10px;
+    bottom: 10px;
+    z-index: 20;
+    background: var(--panel-bg);
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    max-width: 260px;
+  }
+  #legend h3 { margin: 0 0 6px; font-size: 12px; }
+  #legend .row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  #legend .swatch {
+    width: 12px; height: 12px;
+    border-radius: 3px;
+    border: 1px solid #333;
+    flex: none;
+    background: #ccc;
+  }
+  #panel {
+    position: fixed;
+    top: 40px; right: 0; bottom: 0;
+    width: min(480px, 90vw);
+    z-index: 30;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--edge);
+    box-shadow: -4px 0 12px rgba(0,0,0,.15);
+    padding: 16px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  #panel.hidden { display: none; }
+  #panel-resize-handle {
+    position: absolute;
+    top: 0; bottom: 0; left: -4px;
+    width: 8px;
+    cursor: ew-resize;
+    z-index: 6;
+  }
+  #panel-resize-handle:hover, #panel-resize-handle.resizing {
+    background: rgba(37,99,235,.35);
+  }
+  #panel-close {
+    float: right;
+    font-size: 20px;
+    line-height: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--fg);
+  }
+  #panel-title {
+    font: 14px/1.3 ui-monospace, monospace;
+    word-break: break-word;
+    margin: 0 28px 8px 0;
+  }
+  #panel-oracle {
+    font: 11px ui-monospace, monospace;
+    color: var(--muted);
+    margin: -4px 0 10px;
+  }
+  #panel-badges { margin-bottom: 12px; }
+  #panel-badges span {
+    display: inline-block;
+    margin: 0 6px 6px 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    background: #e5e7eb;
+    color: #111;
+  }
+  .panel-section-title {
+    margin: 16px 0 6px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--muted);
+  }
+  .panel-section-title:first-of-type { margin-top: 0; }
+  .panel-ref-list { display: flex; flex-direction: column; gap: 4px; }
+  .panel-ref-btn {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: 12px ui-monospace, monospace;
+    padding: 5px 8px;
+    border: 1px solid var(--edge);
+    background: transparent;
+    color: var(--fg);
+    cursor: pointer;
+    border-radius: 4px;
+  }
+  .panel-ref-btn:hover { background: rgba(37,99,235,.15); }
+  .panel-list-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+  #panel-tabs { margin-bottom: 8px; }
+  .tab-btn {
+    font: inherit;
+    padding: 4px 10px;
+    cursor: pointer;
+    border: 1px solid var(--edge);
+    background: transparent;
+    color: var(--fg);
+  }
+  .tab-btn.active { background: var(--edge); color: var(--panel-bg); }
+  #panel pre {
+    white-space: pre;
+    overflow-x: auto;
+    font: 12px/1.4 ui-monospace, monospace;
+    background: rgba(127,127,127,.1);
+    padding: 10px;
+    border-radius: 6px;
+  }
+  #panel pre.hidden { display: none; }
+  .ec-kw { color: var(--ec-kw); font-weight: 600; }
+  .ec-num { color: var(--ec-num); }
+  .ec-op { color: var(--ec-op); }
+  .ec-comment { color: var(--ec-comment); font-style: italic; }
+  #panel-easycrypt-note {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--muted);
+    font-style: italic;
+  }
+  #panel-easycrypt-note.hidden { display: none; }
+  .ref-item {
+    border: 1px solid var(--edge);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+  }
+  .ref-item summary {
+    cursor: pointer;
+    font: 12px ui-monospace, monospace;
+    font-weight: 600;
+  }
+  .ref-item pre { font-size: 11px; margin: 4px 0 0; }
+  #flow-world { display: none; }
+  #flow-edges {
+    position: absolute;
+    top: 0; left: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  #flow-edge-labels {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+  .flow-edge-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font: 10px ui-monospace, monospace;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    color: #fff;
+  }
+  .flow-edge-label.cross-oracle { background: #2563eb; }
+  .flow-edge-label.back { background: #ea580c; }
+</style>
+</head>
+<body>
+  <div id="toolbar">
+    <span id="title">__TITLE__</span>
+    <span id="hint">scroll/pinch to zoom &middot; drag background to pan &middot; drag a node to move it &middot; click a node for details</span>
+    <span id="search-box">
+      <input id="search-input" type="text" placeholder="Search lemmas, relations &amp; helpers&hellip;" autocomplete="off" aria-label="Search nodes">
+      <div id="search-results" class="hidden"></div>
+    </span>
+    <span id="view-mode-toggle">
+      <button class="tab-btn active" type="button" data-view="tree">Proof tree</button>
+      <button class="tab-btn" type="button" data-view="flow" title="Start from this oracle's same-output/equal-aborts obligations and follow them down to the invariants they need, jumping to whichever oracle(s) actually establish each one.">Invariant flow</button>
+    </span>
+    <span id="toolbar-spacer"></span>
+    <span id="oracle-nav">
+      viewing: <span id="current-oracle">&mdash;</span>
+      <select id="oracle-jump" aria-label="Jump to oracle"><option value="">Jump to oracle&hellip;</option></select>
+    </span>
+    <button id="reset-view" type="button">Fit all</button>
+  </div>
+
+  <div id="viewport">
+    <div id="world">
+      <svg id="edges">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--edge)"></path>
+          </marker>
+          <marker id="arrow-helper" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#b45309"></path>
+          </marker>
+          <marker id="arrow-cross" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2563eb"></path>
+          </marker>
+          <marker id="arrow-back" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"></path>
+          </marker>
+          <marker id="arrow-with-invariants" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"></path>
+          </marker>
+        </defs>
+      </svg>
+      <div id="cluster-labels"></div>
+      <div id="nodes"></div>
+    </div>
+    <div id="flow-world">
+      <svg id="flow-edges"></svg>
+      <div id="flow-cluster-labels"></div>
+      <div id="flow-nodes"></div>
+      <div id="flow-edge-labels"></div>
+    </div>
+  </div>
+
+  <div id="legend">
+    <h3>Legend</h3>
+    <div class="row"><span class="swatch" style="background:lightblue"></span> Lemma</div>
+    <div class="row"><span class="swatch" style="background:lightyellow"></span> State relation</div>
+    <div class="row"><span class="swatch" style="background:lightgreen"></span> Invariant</div>
+    <div class="row"><span class="swatch" style="background:orange"></span> Package invariant</div>
+    <div class="row"><span class="swatch" style="background:plum"></span> Game invariant</div>
+    <div class="row"><span class="swatch" style="background:wheat"></span> Helper function</div>
+    <div class="row"><span class="swatch" style="background:lightgray;border-style:dotted;border-width:2px"></span> Built-in claim</div>
+    <div class="row"><span class="swatch" style="border-style:dashed;border-width:3px;border-color:#c00"></span> Admitted (unproven)</div>
+    <div class="row"><span class="badge-new-state">&Delta; new-state</span> depends on oracle args / output / new state</div>
+    <div class="row">(no badge) depends only on old state</div>
+    <div class="row"><span class="swatch" style="background:#b45309;border-radius:999px;width:20px;height:8px;"></span> calls a helper function (not a proof dependency)</div>
+    <div class="row"><span class="swatch" style="background:#7c3aed;border-radius:999px;width:20px;height:8px;"></span> "with invariants": scoped to this fragment only</div>
+    <h3 style="margin-top:8px;">Invariant flow view</h3>
+    <div class="row"><span class="swatch" style="background:#2563eb;border-radius:999px;width:20px;height:8px;"></span> established in this other oracle</div>
+    <div class="row"><span class="swatch" style="background:#ea580c;border-radius:999px;width:20px;height:8px;"></span> back-edge: cycle, already on this path</div>
+  </div>
+
+  <aside id="panel" class="hidden">
+    <div id="panel-resize-handle" title="Drag to resize"></div>
+    <button id="panel-close" type="button" aria-label="Close">&times;</button>
+    <h2 id="panel-title"></h2>
+    <div id="panel-oracle"></div>
+    <div id="panel-badges"></div>
+
+    <div id="panel-tabs">
+      <button class="tab-btn active" type="button" data-tab="domino">Domino source</button>
+      <button class="tab-btn" type="button" data-tab="easycrypt" title="A readable, best-effort translation of just the SMT formula -- not meant to type-check in EasyCrypt as-is.">EasyCrypt</button>
+    </div>
+    <p id="panel-easycrypt-note" class="hidden">Best-effort, readable translation of the SMT formula only &mdash; not meant to type-check in EasyCrypt as-is. This choice applies to every snippet in this panel, and is remembered next time.</p>
+    <pre id="panel-domino" class="code-view view-domino"></pre>
+    <pre id="panel-easycrypt" class="code-view view-easycrypt hidden"></pre>
+
+    <div class="panel-section-title">Depends on (direct)</div>
+    <div id="panel-deps" class="panel-ref-list"></div>
+
+    <div id="panel-called-functions-section">
+      <div class="panel-section-title">Called functions</div>
+      <div id="panel-called-functions" class="panel-ref-list"></div>
+    </div>
+
+    <div class="panel-section-title">Depended on by</div>
+    <div id="panel-dependents" class="panel-ref-list"></div>
+
+    <div id="panel-other-oracles-section">
+      <div class="panel-section-title" id="panel-other-oracles-title">Also proved in oracle(s)</div>
+      <div id="panel-other-oracles" class="panel-ref-list"></div>
+    </div>
+
+    <div id="panel-references-section">
+      <div class="panel-section-title">Referenced definitions</div>
+      <div id="panel-references"></div>
+    </div>
+  </aside>
+
+  <script type="application/json" id="graph-data">__GRAPH_DATA_JSON__</script>
+  <script>
+  (function () {
+    "use strict";
+    var data = JSON.parse(document.getElementById("graph-data").textContent);
+
+    var world = document.getElementById("world");
+    var viewport = document.getElementById("viewport");
+    var nodesLayer = document.getElementById("nodes");
+    var labelsLayer = document.getElementById("cluster-labels");
+    var svg = document.getElementById("edges");
+    var currentOracleEl = document.getElementById("current-oracle");
+    var oracleJump = document.getElementById("oracle-jump");
+
+    var flowWorld = document.getElementById("flow-world");
+    var flowNodesLayer = document.getElementById("flow-nodes");
+    var flowClusterLabels = document.getElementById("flow-cluster-labels");
+    var flowEdgesSvg = document.getElementById("flow-edges");
+    var flowEdgeLabelsLayer = document.getElementById("flow-edge-labels");
+
+    world.style.width = data.width + "px";
+    world.style.height = data.height + "px";
+    svg.setAttribute("width", data.width);
+    svg.setAttribute("height", data.height);
+
+    // id -> { node, worldX, worldY } -- worldX/worldY are kept in sync with
+    // the node's actual on-screen position (including manual drags), so
+    // every other feature (edges, jump-to-node, re-focusing) stays correct
+    // after the user has rearranged nodes.
+    var nodeById = {};
+    // claimType-and-name -> [{id, oracleName}] for every non-implicit
+    // "Relation" (state relation) or "Helper function" node, so the detail
+    // panel can point out other oracles that share the same-named
+    // definition: state relations and helper functions are both captured
+    // per oracle (see `sources` in `build_cluster`, `src/writers/html/mod.rs`)
+    // even when they're really the same shared definition, so they end up as
+    // separate, same-named nodes in each oracle's cluster rather than a
+    // single shared tree node.
+    var CROSS_ORACLE_CLAIM_TYPES = ["Relation", "Helper function"];
+    var sharedNodesByKey = {};
+    function sharedNodeKey(node) {
+      return node.claimType + " " + node.name;
+    }
+    // Whether `id` names a "Helper function" (`define-fun`) node -- an edge
+    // pointing at one (see `find_function_calls` in
+    // `src/writers/html/mod.rs`) is an HTML-only documentation aid showing
+    // which helper a claim's body calls, not a real proof dependency, so it
+    // gets a visually distinct, muted style everywhere an edge is drawn
+    // and its own "Called functions" bucket in the detail panel instead of
+    // being lumped in with "Depends on".
+    function isHelperFunctionNodeIn(lookup, id) {
+      var entry = lookup[id];
+      return !!entry && entry.node.claimType === "Helper function";
+    }
+    function isHelperFunctionNode(id) {
+      return isHelperFunctionNodeIn(nodeById, id);
+    }
+    // Flat index of every node across every cluster, for the search box.
+    var allNodesFlat = [];
+    data.clusters.forEach(function (cluster) {
+      cluster.nodes.forEach(function (node) {
+        node.oracleName = cluster.oracleName;
+        nodeById[node.id] = {
+          node: node,
+          worldX: cluster.x + node.x,
+          worldY: cluster.y + node.y,
+        };
+        if (!node.implicit && CROSS_ORACLE_CLAIM_TYPES.indexOf(node.claimType) !== -1) {
+          var key = sharedNodeKey(node);
+          (sharedNodesByKey[key] = sharedNodesByKey[key] || []).push({
+            id: node.id,
+            oracleName: cluster.oracleName,
+          });
+        }
+        allNodesFlat.push(node);
+      });
+    });
+
+    // Adjacency, built once from the (from depends on to) edge list, so the
+    // detail panel can show both directions without re-scanning anything.
+    var outgoingByNode = {};
+    var incomingByNode = {};
+    data.clusters.forEach(function (cluster) {
+      cluster.edges.forEach(function (edge) {
+        (outgoingByNode[edge.from] = outgoingByNode[edge.from] || []).push(edge.to);
+        (incomingByNode[edge.to] = incomingByNode[edge.to] || []).push(edge.from);
+      });
+    });
+
+    function rectOf(id) {
+      var entry = nodeById[id];
+      if (!entry) return null;
+      return { x: entry.worldX, y: entry.worldY, width: entry.node.width, height: entry.node.height };
+    }
+
+    function centerOf(id) {
+      var r = rectOf(id);
+      if (!r) return null;
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }
+
+    // Where a ray from a rect's center in direction (dx, dy) exits the
+    // rect's boundary -- used to clip edges to the node's border (with a
+    // small gap) instead of drawing straight through its center, so the
+    // arrowhead marker actually lands somewhere visible.
+    function clipToRectBoundary(rect, dx, dy, gap) {
+      var halfW = rect.width / 2 + gap;
+      var halfH = rect.height / 2 + gap;
+      var cx = rect.x + rect.width / 2;
+      var cy = rect.y + rect.height / 2;
+      if (dx === 0 && dy === 0) return { x: cx, y: cy };
+      var tx = dx !== 0 ? halfW / Math.abs(dx) : Infinity;
+      var ty = dy !== 0 ? halfH / Math.abs(dy) : Infinity;
+      var t = Math.min(tx, ty);
+      return { x: cx + dx * t, y: cy + dy * t };
+    }
+
+    var svgns = "http://www.w3.org/2000/svg";
+    var linesByNode = {}; // id -> [{el, otherId, isSource}]
+
+    function addEdgeToIndex(id, entry) {
+      (linesByNode[id] = linesByNode[id] || []).push(entry);
+    }
+
+    function positionEdgeLine(line, fromId, toId) {
+      var fromRect = rectOf(fromId);
+      var toRect = rectOf(toId);
+      if (!fromRect || !toRect) return;
+      var fromCenter = { x: fromRect.x + fromRect.width / 2, y: fromRect.y + fromRect.height / 2 };
+      var toCenter = { x: toRect.x + toRect.width / 2, y: toRect.y + toRect.height / 2 };
+      var dx = toCenter.x - fromCenter.x;
+      var dy = toCenter.y - fromCenter.y;
+      var start = clipToRectBoundary(fromRect, dx, dy, 2);
+      var end = clipToRectBoundary(toRect, -dx, -dy, 4);
+      line.setAttribute("x1", start.x);
+      line.setAttribute("y1", start.y);
+      line.setAttribute("x2", end.x);
+      line.setAttribute("y2", end.y);
+    }
+
+    var treeEdgesGroup = document.createElementNS(svgns, "g");
+    svg.appendChild(treeEdgesGroup);
+
+    // An edge into a "Helper function" node is a documentation aid (which
+    // `define-fun` a claim's body calls), not a real proof dependency --
+    // drawn thinner, dotted, and in a muted amber (echoing the helper
+    // nodes' own "wheat" fill) so it visually recedes behind the bold,
+    // solid proof-dependency edges.
+    var HELPER_EDGE_STROKE = "#b45309";
+
+    // Per-`kind` (see `EdgeKind`, `src/writers/html/data.rs`) line style,
+    // shared by both the proof-tree view and the invariant-flow view -- a
+    // helper-function call (detected structurally, not via `kind`, since
+    // it's still a plain "dependency" edge underneath) always wins over
+    // whatever `kind` says, same as before this table existed.
+    var EDGE_STYLE = {
+      "dependency": { stroke: "var(--edge)", width: "1.5", dash: null, marker: "url(#arrow)" },
+      "with-invariants": { stroke: "#7c3aed", width: "1.5", dash: "5,3", marker: "url(#arrow-with-invariants)" },
+      "cross-oracle": { stroke: "#2563eb", width: "2", dash: null, marker: "url(#arrow-cross)" },
+      "back": { stroke: "#ea580c", width: "1.5", dash: "4,3", marker: "url(#arrow-back)" },
+    };
+    function edgeStyleFor(kind, isHelperCall) {
+      if (isHelperCall) {
+        return { stroke: HELPER_EDGE_STROKE, width: "1", dash: "2,3", marker: "url(#arrow-helper)" };
+      }
+      return EDGE_STYLE[kind] || EDGE_STYLE.dependency;
+    }
+    function applyEdgeStyle(line, kind, isHelperCall) {
+      var style = edgeStyleFor(kind, isHelperCall);
+      line.setAttribute("stroke", style.stroke);
+      line.setAttribute("stroke-width", style.width);
+      if (style.dash) {
+        line.setAttribute("stroke-dasharray", style.dash);
+      } else {
+        line.removeAttribute("stroke-dasharray");
+      }
+      line.setAttribute("marker-end", style.marker);
+    }
+
+    data.clusters.forEach(function (cluster) {
+      cluster.edges.forEach(function (edge) {
+        if (!nodeById[edge.from] || !nodeById[edge.to]) return;
+        var isHelperCall = isHelperFunctionNode(edge.to);
+        var line = document.createElementNS(svgns, "line");
+        applyEdgeStyle(line, edge.kind, isHelperCall);
+        positionEdgeLine(line, edge.from, edge.to);
+        treeEdgesGroup.appendChild(line);
+        addEdgeToIndex(edge.from, { el: line, from: edge.from, to: edge.to });
+        addEdgeToIndex(edge.to, { el: line, from: edge.from, to: edge.to });
+      });
+    });
+
+    function updateEdgesTouching(id) {
+      var touching = linesByNode[id];
+      if (!touching) return;
+      touching.forEach(function (entry) {
+        positionEdgeLine(entry.el, entry.from, entry.to);
+      });
+    }
+
+    // Builds a node `<div>`; callers position it (`style.left`/`style.top`)
+    // themselves.
+    function buildNodeElement(node) {
+      var el = document.createElement("div");
+      el.className = "node" + (node.builtin ? " builtin" : "") + (node.admitted ? " admitted" : "") + (node.implicit ? " implicit" : "");
+      el.style.width = node.width + "px";
+      el.style.height = node.height + "px";
+      el.style.background = node.fillColor;
+      el.dataset.nodeId = node.id;
+      el.title = node.name + " (" + badgeList(node).join(", ") + ") — click for details, drag to move";
+
+      var name = document.createElement("div");
+      name.className = "node-name";
+      name.textContent = node.name;
+      el.appendChild(name);
+
+      var tags = document.createElement("div");
+      tags.className = "node-tags";
+      var tagText = node.claimType;
+      if (node.builtin) tagText += " (builtin)";
+      if (node.admitted) tagText += " (admitted)";
+      tags.textContent = tagText;
+      el.appendChild(tags);
+
+      if (node.dependsOnNewState === true) {
+        var badge = document.createElement("span");
+        badge.className = "badge-new-state";
+        badge.textContent = "Δ new-state";
+        el.appendChild(badge);
+      }
+      return el;
+    }
+
+    function badgeList(node) {
+      var badges = [node.claimType];
+      if (node.builtin) badges.push("builtin");
+      if (node.admitted) badges.push("admitted");
+      if (node.dependsOnNewState === true) badges.push("depends on new state / oracle args / output");
+      if (node.dependsOnNewState === false) badges.push("old-state only");
+      return badges;
+    }
+
+    var nodeElsById = {};
+
+    data.clusters.forEach(function (cluster) {
+      var label = document.createElement("div");
+      label.className = "cluster-label";
+      label.style.left = cluster.x + "px";
+      label.style.top = (cluster.y - 2) + "px";
+      label.textContent = cluster.label;
+      labelsLayer.appendChild(label);
+
+      var opt = document.createElement("option");
+      opt.value = cluster.oracleName;
+      opt.textContent = cluster.oracleName;
+      oracleJump.appendChild(opt);
+
+      cluster.nodes.forEach(function (node) {
+        var el = buildNodeElement(node);
+        el.style.left = (cluster.x + node.x) + "px";
+        el.style.top = (cluster.y + node.y) + "px";
+        makeNodeDraggable(el, node);
+        nodesLayer.appendChild(el);
+        nodeElsById[node.id] = el;
+      });
+    });
+
+    // --- "Invariant flow" view ---
+    //
+    // A separate, precomputed graph per oracle (`data.invariantFlows`, built
+    // server-side by `build_invariant_flow_graph` in
+    // `src/writers/html/mod.rs`): starting from that oracle's
+    // `same-output`/`equal-aborts` obligations, follows the same edges as
+    // the proof-tree view above down to the invariant fragments they need,
+    // and additionally shows -- as extra clusters, connected by
+    // `cross-oracle`/`back` edges -- how each of those fragments is
+    // established in every other oracle that also declares it (recursively,
+    // cut short by a `back` edge once a cycle would re-expand something
+    // already on the current path). Only one oracle's flow graph is shown
+    // at a time, so unlike the proof-tree view above, its DOM/indices are
+    // rebuilt on demand by `renderFlowGraph` rather than all built upfront.
+    var flowGraphsByOracle = {};
+    (data.invariantFlows || []).forEach(function (flow) {
+      flowGraphsByOracle[flow.oracleName] = flow;
+    });
+
+    var viewMode = "tree";
+    var currentFlowOracle = null;
+    var flowNodeById = {};
+    var flowOutgoingByNode = {};
+    var flowIncomingByNode = {};
+    var flowNodeElsById = {};
+    var flowLinesByNode = {};
+
+    function rectOfFlow(id) {
+      var entry = flowNodeById[id];
+      if (!entry) return null;
+      return { x: entry.worldX, y: entry.worldY, width: entry.node.width, height: entry.node.height };
+    }
+
+    // A `back` edge whose target is its own source (the temporal self-cycle
+    // this whole view exists to surface -- "this fragment held in the old
+    // state, established by an earlier call to this very oracle") would
+    // otherwise clip to the exact same boundary point on both ends and
+    // render as an invisible zero-length line; draw a short stub off the
+    // node's right edge instead, so the cycle is visible rather than just a
+    // floating label.
+    function selfLoopPoints(rect) {
+      var cy = rect.y + rect.height / 2;
+      var edgeX = rect.x + rect.width + 2;
+      return {
+        start: { x: edgeX, y: cy - rect.height / 4 },
+        end: { x: edgeX + 20, y: cy + rect.height / 4 },
+      };
+    }
+
+    function positionFlowEdgeLine(line, fromId, toId) {
+      var fromRect = rectOfFlow(fromId);
+      var toRect = rectOfFlow(toId);
+      if (!fromRect || !toRect) return null;
+      var start, end;
+      if (fromId === toId) {
+        var pts = selfLoopPoints(fromRect);
+        start = pts.start;
+        end = pts.end;
+      } else {
+        var fromCenter = { x: fromRect.x + fromRect.width / 2, y: fromRect.y + fromRect.height / 2 };
+        var toCenter = { x: toRect.x + toRect.width / 2, y: toRect.y + toRect.height / 2 };
+        var dx = toCenter.x - fromCenter.x;
+        var dy = toCenter.y - fromCenter.y;
+        start = clipToRectBoundary(fromRect, dx, dy, 2);
+        end = clipToRectBoundary(toRect, -dx, -dy, 4);
+      }
+      line.setAttribute("x1", start.x);
+      line.setAttribute("y1", start.y);
+      line.setAttribute("x2", end.x);
+      line.setAttribute("y2", end.y);
+      return { start: start, end: end };
+    }
+
+    function addFlowEdgeToIndex(id, entry) {
+      (flowLinesByNode[id] = flowLinesByNode[id] || []).push(entry);
+    }
+
+    function updateFlowEdgesTouching(id) {
+      var touching = flowLinesByNode[id];
+      if (!touching) return;
+      touching.forEach(function (entry) {
+        var pos = positionFlowEdgeLine(entry.el, entry.from, entry.to);
+        if (pos && entry.labelEl) positionFlowLabel(entry.labelEl, pos);
+      });
+    }
+
+    function positionFlowLabel(labelEl, pos) {
+      labelEl.style.left = ((pos.start.x + pos.end.x) / 2) + "px";
+      labelEl.style.top = ((pos.start.y + pos.end.y) / 2) + "px";
+    }
+
+    var FLOW_DRAG_THRESHOLD = 4;
+    function makeFlowNodeDraggable(el, node) {
+      el.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var origLeft = flowNodeById[node.id].worldX;
+        var origTop = flowNodeById[node.id].worldY;
+        var moved = false;
+
+        function onMove(e2) {
+          var dxScreen = e2.clientX - startX;
+          var dyScreen = e2.clientY - startY;
+          if (!moved && Math.hypot(dxScreen, dyScreen) > FLOW_DRAG_THRESHOLD) {
+            moved = true;
+            el.classList.add("dragging-node");
+          }
+          if (!moved) return;
+          var newLeft = origLeft + dxScreen / scale;
+          var newTop = origTop + dyScreen / scale;
+          el.style.left = newLeft + "px";
+          el.style.top = newTop + "px";
+          flowNodeById[node.id].worldX = newLeft;
+          flowNodeById[node.id].worldY = newTop;
+          updateFlowEdgesTouching(node.id);
+        }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          el.classList.remove("dragging-node");
+          if (!moved) openFlowPanel(node);
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+    }
+
+    // Rebuilds the flow world for `oracleName`'s invariant-flow graph (or
+    // empties it if that oracle has neither `same-output` nor
+    // `equal-aborts` -- see `build_invariant_flow_graph`). Returns the
+    // `FlowGraphData`, or `null`.
+    function renderFlowGraph(oracleName) {
+      flowEdgesSvg.innerHTML = "";
+      flowClusterLabels.innerHTML = "";
+      flowNodesLayer.innerHTML = "";
+      flowEdgeLabelsLayer.innerHTML = "";
+      flowNodeById = {};
+      flowOutgoingByNode = {};
+      flowIncomingByNode = {};
+      flowNodeElsById = {};
+      flowLinesByNode = {};
+
+      var flow = flowGraphsByOracle[oracleName];
+      currentFlowOracle = flow ? oracleName : null;
+      if (!flow) {
+        flowWorld.style.width = "0px";
+        flowWorld.style.height = "0px";
+        return null;
+      }
+
+      flowWorld.style.width = flow.width + "px";
+      flowWorld.style.height = flow.height + "px";
+      flowEdgesSvg.setAttribute("width", flow.width);
+      flowEdgesSvg.setAttribute("height", flow.height);
+
+      flow.clusters.forEach(function (cluster) {
+        var label = document.createElement("div");
+        label.className = "cluster-label";
+        label.style.left = cluster.x + "px";
+        label.style.top = (cluster.y - 2) + "px";
+        label.textContent = cluster.label;
+        flowClusterLabels.appendChild(label);
+
+        cluster.nodes.forEach(function (node) {
+          node.oracleName = cluster.oracleName;
+          flowNodeById[node.id] = {
+            node: node,
+            worldX: cluster.x + node.x,
+            worldY: cluster.y + node.y,
+          };
+          var el = buildNodeElement(node);
+          el.style.left = (cluster.x + node.x) + "px";
+          el.style.top = (cluster.y + node.y) + "px";
+          makeFlowNodeDraggable(el, node);
+          flowNodesLayer.appendChild(el);
+          flowNodeElsById[node.id] = el;
+        });
+      });
+
+      var allFlowEdges = [];
+      flow.clusters.forEach(function (cluster) { allFlowEdges = allFlowEdges.concat(cluster.edges); });
+      allFlowEdges = allFlowEdges.concat(flow.crossEdges || []);
+
+      allFlowEdges.forEach(function (edge) {
+        if (!flowNodeById[edge.from] || !flowNodeById[edge.to]) return;
+        (flowOutgoingByNode[edge.from] = flowOutgoingByNode[edge.from] || []).push(edge.to);
+        (flowIncomingByNode[edge.to] = flowIncomingByNode[edge.to] || []).push(edge.from);
+
+        var isHelperCall = isHelperFunctionNodeIn(flowNodeById, edge.to);
+        var line = document.createElementNS(svgns, "line");
+        applyEdgeStyle(line, edge.kind, isHelperCall);
+        var pos = positionFlowEdgeLine(line, edge.from, edge.to);
+        flowEdgesSvg.appendChild(line);
+
+        var labelEl = null;
+        if (edge.label && (edge.kind === "cross-oracle" || edge.kind === "back")) {
+          labelEl = document.createElement("div");
+          labelEl.className = "flow-edge-label " + edge.kind;
+          labelEl.textContent = edge.label;
+          flowEdgeLabelsLayer.appendChild(labelEl);
+          if (pos) positionFlowLabel(labelEl, pos);
+        }
+
+        var entry = { el: line, from: edge.from, to: edge.to, labelEl: labelEl };
+        addFlowEdgeToIndex(edge.from, entry);
+        addFlowEdgeToIndex(edge.to, entry);
+      });
+
+      return flow;
+    }
+
+    // --- pan / zoom ---
+    var MIN_SCALE = 0.02;
+    var MAX_SCALE = 8;
+    var scale = 1;
+    var panX = 40;
+    var panY = 40;
+    var pendingFrame = null;
+
+    function clampScale(s) {
+      return Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
+    }
+
+    function applyTransformNow() {
+      var t = "translate(" + panX + "px, " + panY + "px) scale(" + scale + ")";
+      world.style.transform = t;
+      flowWorld.style.transform = t;
+      updateCurrentOracleIndicator();
+    }
+
+    function applyTransform() {
+      if (pendingFrame) return;
+      pendingFrame = requestAnimationFrame(function () {
+        pendingFrame = null;
+        applyTransformNow();
+      });
+    }
+
+    function updateCurrentOracleIndicator() {
+      if (viewMode === "flow") {
+        currentOracleEl.textContent = currentFlowOracle || "—";
+        oracleJump.value = currentFlowOracle || "";
+        return;
+      }
+      var rect = viewport.getBoundingClientRect();
+      var worldX = (rect.width / 2 - panX) / scale;
+      var current = data.clusters.find(function (c) {
+        return worldX >= c.x && worldX <= c.x + c.width;
+      });
+      currentOracleEl.textContent = current ? current.oracleName : "—";
+      oracleJump.value = current ? current.oracleName : "";
+    }
+
+    function fitAll() {
+      var rect = viewport.getBoundingClientRect();
+      var margin = 40;
+      var bounds = viewMode === "flow" ? (flowGraphsByOracle[currentFlowOracle] || { width: 0, height: 0 }) : data;
+      var availW = Math.max(rect.width - margin * 2, 50);
+      var availH = Math.max(rect.height - margin * 2, 50);
+      var s = Math.min(1, availW / Math.max(bounds.width, 1), availH / Math.max(bounds.height, 1));
+      scale = clampScale(s);
+      panX = margin;
+      panY = margin;
+      applyTransformNow();
+    }
+
+    function jumpToCluster(cluster) {
+      var rect = viewport.getBoundingClientRect();
+      var margin = 60;
+      var availW = Math.max(rect.width - margin * 2, 50);
+      var availH = Math.max(rect.height - margin * 2, 50);
+      var s = Math.min(1.25, availW / Math.max(cluster.width, 1), availH / Math.max(cluster.height, 1));
+      scale = clampScale(s);
+      panX = rect.width / 2 - (cluster.x + cluster.width / 2) * scale;
+      panY = rect.height / 2 - (cluster.y + cluster.height / 2) * scale;
+      applyTransformNow();
+    }
+
+    function focusNode(id) {
+      // A cross-link into the proof-tree view (e.g. the detail panel's
+      // "other oracles sharing" section, reachable from a flow-view panel
+      // too) should land the user back in the view it actually points into.
+      if (viewMode !== "tree") switchViewMode("tree");
+      var entry = nodeById[id];
+      if (!entry) return;
+      var rect = viewport.getBoundingClientRect();
+      var cx = entry.worldX + entry.node.width / 2;
+      var cy = entry.worldY + entry.node.height / 2;
+      scale = clampScale(Math.max(scale, 0.6));
+      panX = rect.width / 2 - cx * scale;
+      panY = rect.height / 2 - cy * scale;
+      applyTransformNow();
+      openPanel(entry.node);
+      var el = nodeElsById[id];
+      if (el) {
+        el.animate(
+          [{ outline: "3px solid #2563eb" }, { outline: "3px solid transparent" }],
+          { duration: 900, iterations: 1 },
+        );
+      }
+    }
+
+    function focusFlowNode(id) {
+      var entry = flowNodeById[id];
+      if (!entry) return;
+      var rect = viewport.getBoundingClientRect();
+      var cx = entry.worldX + entry.node.width / 2;
+      var cy = entry.worldY + entry.node.height / 2;
+      scale = clampScale(Math.max(scale, 0.6));
+      panX = rect.width / 2 - cx * scale;
+      panY = rect.height / 2 - cy * scale;
+      applyTransformNow();
+      openFlowPanel(entry.node);
+      var el = flowNodeElsById[id];
+      if (el) {
+        el.animate(
+          [{ outline: "3px solid #2563eb" }, { outline: "3px solid transparent" }],
+          { duration: 900, iterations: 1 },
+        );
+      }
+    }
+
+    // --- Proof tree / Invariant flow toggle ---
+    var viewModeButtons = document.querySelectorAll("#view-mode-toggle .tab-btn");
+
+    function switchViewMode(mode) {
+      if (mode === viewMode) return;
+      viewMode = mode;
+      viewModeButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.view === mode); });
+      world.style.display = mode === "tree" ? "" : "none";
+      flowWorld.style.display = mode === "flow" ? "block" : "none";
+      if (mode === "flow") {
+        var initialOracle = flowGraphsByOracle[currentOracleEl.textContent]
+          ? currentOracleEl.textContent
+          : Object.keys(flowGraphsByOracle)[0];
+        if (initialOracle) {
+          renderFlowGraph(initialOracle);
+          fitAll();
+        }
+      } else {
+        updateCurrentOracleIndicator();
+      }
+    }
+
+    viewModeButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () { switchViewMode(btn.dataset.view); });
+    });
+
+    if (Object.keys(flowGraphsByOracle).length === 0) {
+      var flowToggleBtn = document.querySelector('#view-mode-toggle .tab-btn[data-view="flow"]');
+      if (flowToggleBtn) {
+        flowToggleBtn.disabled = true;
+        flowToggleBtn.title = "No oracle in this view declares same-output/equal-aborts to root an invariant-flow graph at.";
+      }
+    }
+
+    fitAll();
+
+    oracleJump.addEventListener("change", function () {
+      if (viewMode === "flow") {
+        if (flowGraphsByOracle[oracleJump.value]) {
+          renderFlowGraph(oracleJump.value);
+          fitAll();
+        }
+        return;
+      }
+      var cluster = data.clusters.find(function (c) { return c.oracleName === oracleJump.value; });
+      if (cluster) jumpToCluster(cluster);
+    });
+
+    // Exponential zoom (constant *feel* per wheel notch regardless of
+    // current scale, unlike a linear step) with a higher-than-default
+    // sensitivity, batched into one style write per animation frame so
+    // rapid trackpad/wheel events stay smooth even on large graphs.
+    var ZOOM_SENSITIVITY = 0.0035;
+    viewport.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var rect = viewport.getBoundingClientRect();
+      var mx = e.clientX - rect.left;
+      var my = e.clientY - rect.top;
+      var prevScale = scale;
+      var factor = Math.exp(-e.deltaY * ZOOM_SENSITIVITY);
+      scale = clampScale(scale * factor);
+      var wx = (mx - panX) / prevScale;
+      var wy = (my - panY) / prevScale;
+      panX = mx - wx * scale;
+      panY = my - wy * scale;
+      applyTransform();
+    }, { passive: false });
+
+    var panning = false;
+    var panStart = null;
+    viewport.addEventListener("mousedown", function (e) {
+      if (e.target.closest(".node")) return;
+      panning = true;
+      panStart = { x: e.clientX, y: e.clientY, panX: panX, panY: panY };
+      viewport.classList.add("panning");
+    });
+    window.addEventListener("mousemove", function (e) {
+      if (!panning) return;
+      panX = panStart.panX + (e.clientX - panStart.x);
+      panY = panStart.panY + (e.clientY - panStart.y);
+      applyTransform();
+    });
+    window.addEventListener("mouseup", function () {
+      panning = false;
+      viewport.classList.remove("panning");
+    });
+
+    document.getElementById("reset-view").addEventListener("click", fitAll);
+
+    // --- node dragging (reposition), separate from canvas panning ---
+    var DRAG_THRESHOLD = 4; // px, in screen space, before a press counts as a drag rather than a click
+    function makeNodeDraggable(el, node) {
+      el.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var origLeft = nodeById[node.id].worldX;
+        var origTop = nodeById[node.id].worldY;
+        var moved = false;
+
+        function onMove(e2) {
+          var dxScreen = e2.clientX - startX;
+          var dyScreen = e2.clientY - startY;
+          if (!moved && Math.hypot(dxScreen, dyScreen) > DRAG_THRESHOLD) {
+            moved = true;
+            el.classList.add("dragging-node");
+          }
+          if (!moved) return;
+          var newLeft = origLeft + dxScreen / scale;
+          var newTop = origTop + dyScreen / scale;
+          el.style.left = newLeft + "px";
+          el.style.top = newTop + "px";
+          nodeById[node.id].worldX = newLeft;
+          nodeById[node.id].worldY = newTop;
+          updateEdgesTouching(node.id);
+        }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          el.classList.remove("dragging-node");
+          if (!moved) {
+            openPanel(node);
+          }
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+    }
+
+    // --- small persisted-preference helpers (best-effort: file:// pages and
+    // privacy modes can throw on localStorage access, so every call is
+    // wrapped and just silently no-ops rather than breaking the page) ---
+    var TAB_STORAGE_KEY = "domino-lemma-tree:preferred-tab";
+    var WIDTH_STORAGE_KEY = "domino-lemma-tree:panel-width";
+    function loadPreferredTab() {
+      try {
+        var saved = localStorage.getItem(TAB_STORAGE_KEY);
+        return saved === "easycrypt" ? "easycrypt" : "domino";
+      } catch (e) {
+        return "domino";
+      }
+    }
+    function savePreferredTab(tab) {
+      try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch (e) { /* ignore */ }
+    }
+    function loadPanelWidth() {
+      try {
+        var w = parseFloat(localStorage.getItem(WIDTH_STORAGE_KEY));
+        return isFinite(w) && w > 0 ? w : null;
+      } catch (e) {
+        return null;
+      }
+    }
+    function savePanelWidth(w) {
+      try { localStorage.setItem(WIDTH_STORAGE_KEY, String(w)); } catch (e) { /* ignore */ }
+    }
+
+    // --- detail panel ---
+    var panel = document.getElementById("panel");
+    var panelTitle = document.getElementById("panel-title");
+    var panelOracle = document.getElementById("panel-oracle");
+    var panelBadges = document.getElementById("panel-badges");
+    var panelDomino = document.getElementById("panel-domino");
+    var panelEasycrypt = document.getElementById("panel-easycrypt");
+    var panelEasycryptNote = document.getElementById("panel-easycrypt-note");
+    var panelDeps = document.getElementById("panel-deps");
+    var panelCalledFunctionsSection = document.getElementById("panel-called-functions-section");
+    var panelCalledFunctions = document.getElementById("panel-called-functions");
+    var panelDependents = document.getElementById("panel-dependents");
+    var panelOtherOraclesSection = document.getElementById("panel-other-oracles-section");
+    var panelOtherOraclesTitle = document.getElementById("panel-other-oracles-title");
+    var panelOtherOracles = document.getElementById("panel-other-oracles");
+    var panelReferencesSection = document.getElementById("panel-references-section");
+    var panelReferences = document.getElementById("panel-references");
+    var tabButtons = document.querySelectorAll("#panel-tabs .tab-btn");
+
+    // Which of "domino"/"easycrypt" is showing, applied to *every* code
+    // snippet in the panel at once (the main claim's own source/translation,
+    // plus every referenced definition's) -- switching tabs is a single
+    // global choice, not per-snippet, and is remembered across reloads.
+    var currentTab = loadPreferredTab();
+
+    function applyTab(tab) {
+      currentTab = tab;
+      tabButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.tab === tab); });
+      document.querySelectorAll(".view-domino").forEach(function (el) {
+        el.classList.toggle("hidden", tab !== "domino");
+      });
+      document.querySelectorAll(".view-easycrypt").forEach(function (el) {
+        el.classList.toggle("hidden", tab !== "easycrypt");
+      });
+      panelEasycryptNote.classList.toggle("hidden", tab !== "easycrypt");
+      savePreferredTab(tab);
+    }
+
+    tabButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        applyTab(btn.dataset.tab);
+      });
+    });
+
+    // --- best-effort EasyCrypt syntax highlighting *and* line-wrapping,
+    // entirely hand-rolled (no CDN/external highlighter/formatter -- this
+    // page has no external dependencies by design, see
+    // src/writers/html/mod.rs's module docs) ---
+    // Alternatives are tried in order at each position, so multi-char
+    // operators (e.g. "<=>") must precede their single-char prefixes (e.g.
+    // "<") to win the match.
+    var EC_TOKEN_RE = /(;;.*)|(\b(?:forall|exists|let|in|if|then|else|true|false|None|Some|oget)\b)|(\b\d+\b)|(\/\\|\\\/|<=>|=>|<>|<=|>=|\.`|\.\[)|([()[\]{},.:=<>+*!-])|([A-Za-z_][A-Za-z0-9_'-]*)|(\s+)|(.)/g;
+
+    function tokenizeEasyCrypt(source) {
+      EC_TOKEN_RE.lastIndex = 0;
+      var tokens = [];
+      var m;
+      while ((m = EC_TOKEN_RE.exec(source))) {
+        var cls = m[1] ? "comment" : m[2] ? "kw" : m[3] ? "num" : m[4] ? "op" : m[5] ? "punct" : m[6] ? "ident" : m[7] ? "ws" : null;
+        tokens.push({ cls: cls, text: m[0] });
+      }
+      return tokens;
+    }
+
+    // A small structural pretty-printer over the token stream above, driven
+    // entirely by paren/bracket nesting and the handful of connective
+    // keywords/operators src/writers/easycrypt.rs's translator actually
+    // emits (see its module docs) -- only formulas wider than
+    // EC_WRAP_WIDTH get broken up, so short/medium claims render exactly as
+    // a single line, same as before this existed. Every recursive call
+    // below operates on a strictly smaller token range than its caller, so
+    // it always terminates; anything this doesn't specifically recognize
+    // just falls through to one (possibly overflowing) line rather than
+    // risk mis-wrapping it.
+    var EC_WRAP_WIDTH = 64;
+    var EC_INDENT_UNIT = "  ";
+
+    function ecIsOpenParen(t) { return !!t && t.cls === "punct" && t.text === "("; }
+    function ecIsCloseParen(t) { return !!t && t.cls === "punct" && t.text === ")"; }
+    function ecIsOpenBracket(t) { return !!t && t.cls === "op" && t.text === ".["; }
+    function ecIsCloseBracket(t) { return !!t && t.cls === "punct" && t.text === "]"; }
+    function ecIsConnective(t) { return t.cls === "op" && (t.text === "/\\" || t.text === "\\/"); }
+    function ecIsKw(text) {
+      return function (t) { return t.cls === "kw" && t.text === text; };
+    }
+
+    // The index of the ")"/"]" matching the opener at `openIdx`.
+    function ecMatchClose(tokens, openIdx) {
+      var depth = 0;
+      for (var i = openIdx; i < tokens.length; i++) {
+        var t = tokens[i];
+        if (ecIsOpenParen(t) || ecIsOpenBracket(t)) depth++;
+        else if (ecIsCloseParen(t) || ecIsCloseBracket(t)) {
+          depth--;
+          if (depth === 0) return i;
+        }
+      }
+      return tokens.length - 1;
+    }
+
+    // Trims leading/trailing whitespace tokens from [start, end].
+    function ecTrim(tokens, start, end) {
+      while (start <= end && tokens[start].cls === "ws") start++;
+      while (end >= start && tokens[end].cls === "ws") end--;
+      return [start, end];
+    }
+
+    function ecFlatWidth(tokens, start, end) {
+      var w = 0;
+      for (var i = start; i <= end; i++) w += tokens[i].text.length;
+      return w;
+    }
+
+    // Indices within [start, end] where `pred` matches at nesting depth 0
+    // relative to this range (i.e. not inside a nested (...)/.[...] group).
+    // An opener is tested at the depth it's opening *from* (so a top-level
+    // "(" or ".[" itself can still match `pred`, e.g. when looking for
+    // brackets); a closer is tested at the depth it's closing back *to*,
+    // symmetrically.
+    function ecTopLevelIndices(tokens, start, end, pred) {
+      var found = [];
+      var depth = 0;
+      for (var i = start; i <= end; i++) {
+        var t = tokens[i];
+        var isOpen = ecIsOpenParen(t) || ecIsOpenBracket(t);
+        var isClose = ecIsCloseParen(t) || ecIsCloseBracket(t);
+        if (isClose) depth--;
+        if (depth === 0 && pred(t)) found.push(i);
+        if (isOpen) depth++;
+      }
+      return found;
+    }
+
+    // Lays out [start, end] (which must NOT itself contain the delimiter
+    // that produced this segment -- see the connective/implication
+    // branches below) and glues `leadTokens` onto the front of whatever
+    // comes out, without re-scanning them as structural content. Used so a
+    // split's own delimiter (e.g. "/\") never ends up as the first token
+    // of the very range being searched for that same delimiter, which
+    // would just re-match itself forever.
+    function ecEmitWithLead(tokens, leadTokens, start, end, indent, lines) {
+      var trimmed = ecTrim(tokens, start, end);
+      var s = trimmed[0];
+      var e = trimmed[1];
+      var leadWidth = leadTokens.reduce(function (w, t) { return w + t.text.length; }, 0);
+      if (s > e) {
+        if (leadTokens.length > 0) lines.push({ indent: indent, tokens: leadTokens });
+        return;
+      }
+      // Continuation lines are laid out at `indent` padded out by the
+      // lead's own width, so they land under the content rather than
+      // under the lead -- the first line then swaps that padding for the
+      // lead tokens themselves (same width, so nothing else shifts).
+      var innerIndent = indent + " ".repeat(leadWidth);
+      var sub = [];
+      if (ecFlatWidth(tokens, s, e) + innerIndent.length <= EC_WRAP_WIDTH) {
+        sub.push({ indent: innerIndent, tokens: tokens.slice(s, e + 1) });
+      } else {
+        ecLayout(tokens, s, e, innerIndent, sub);
+      }
+      if (leadTokens.length > 0 && sub.length > 0) {
+        sub[0] = { indent: indent, tokens: leadTokens.concat(sub[0].tokens) };
+      }
+      sub.forEach(function (l) { lines.push(l); });
+    }
+
+    function ecLayout(tokens, start, end, indent, lines) {
+      var trimmed = ecTrim(tokens, start, end);
+      start = trimmed[0];
+      end = trimmed[1];
+      if (start > end) return;
+
+      if (ecFlatWidth(tokens, start, end) + indent.length <= EC_WRAP_WIDTH) {
+        lines.push({ indent: indent, tokens: tokens.slice(start, end + 1) });
+        return;
+      }
+
+      // "!(...)" -- keep the "!" glued to the paren it negates, no space.
+      if (tokens[start].text === "!" && ecIsOpenParen(tokens[start + 1]) &&
+          ecMatchClose(tokens, start + 1) === end) {
+        lines.push({ indent: indent, tokens: [tokens[start], tokens[start + 1]] });
+        ecLayout(tokens, start + 2, end - 1, indent + EC_INDENT_UNIT, lines);
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // A single "(...)" spanning the whole range: unwrap and indent the
+      // inside one level further.
+      if (ecIsOpenParen(tokens[start]) && ecMatchClose(tokens, start) === end) {
+        lines.push({ indent: indent, tokens: [tokens[start]] });
+        ecLayout(tokens, start + 1, end - 1, indent + EC_INDENT_UNIT, lines);
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // "a /\ b /\ c" / "a \/ b \/ c" -- one conjunct/disjunct per line,
+      // the connective glued to the start of each continuation line. The
+      // connective tokens themselves are excluded from the recursed
+      // ranges (and reattached via `lead`) so a segment never starts with
+      // the very delimiter its own range was split on.
+      var connectives = ecTopLevelIndices(tokens, start, end, ecIsConnective);
+      if (connectives.length > 0) {
+        var segStart = start;
+        var lead = [];
+        connectives.concat([end + 1]).forEach(function (splitAt) {
+          ecEmitWithLead(tokens, lead, segStart, splitAt - 1, indent, lines);
+          if (splitAt <= end) lead = [tokens[splitAt], { cls: null, text: " " }];
+          segStart = splitAt + 1;
+        });
+        return;
+      }
+
+      // "hyp => concl" / "lhs <=> rhs".
+      var implies = ecTopLevelIndices(tokens, start, end, function (t) {
+        return t.cls === "op" && (t.text === "=>" || t.text === "<=>");
+      })[0];
+      if (implies !== undefined) {
+        ecEmitWithLead(tokens, [], start, implies - 1, indent, lines);
+        ecEmitWithLead(tokens, [tokens[implies], { cls: null, text: " " }], implies + 1, end, indent, lines);
+        return;
+      }
+
+      // "forall (bindings), body" / "exists (bindings), body".
+      if (tokens[start].cls === "kw" && (tokens[start].text === "forall" || tokens[start].text === "exists")) {
+        var comma = ecTopLevelIndices(tokens, start, end, function (t) { return t.cls === "punct" && t.text === ","; })[0];
+        if (comma !== undefined) {
+          lines.push({ indent: indent, tokens: tokens.slice(start, comma + 1) });
+          ecLayout(tokens, comma + 1, end, indent + EC_INDENT_UNIT, lines);
+          return;
+        }
+      }
+
+      // "if c then t else e".
+      if (tokens[start].cls === "kw" && tokens[start].text === "if") {
+        var thenIdx = ecTopLevelIndices(tokens, start, end, ecIsKw("then"))[0];
+        var elseIdx = ecTopLevelIndices(tokens, start, end, ecIsKw("else"))[0];
+        if (thenIdx !== undefined && elseIdx !== undefined) {
+          ecLayout(tokens, start, thenIdx - 1, indent, lines);
+          ecLayout(tokens, thenIdx, elseIdx - 1, indent, lines);
+          ecLayout(tokens, elseIdx, end, indent, lines);
+          return;
+        }
+      }
+
+      // "let a = x in let b = y in body" -- one binding per line; each
+      // binding is kept flat (rebreaking a single "let ... in" further
+      // isn't worth the extra complexity here).
+      if (tokens[start].cls === "kw" && tokens[start].text === "let") {
+        var ins = ecTopLevelIndices(tokens, start, end, ecIsKw("in"));
+        if (ins.length > 0) {
+          var segStart = start;
+          ins.forEach(function (inIdx) {
+            lines.push({ indent: indent, tokens: tokens.slice(segStart, inIdx + 1) });
+            segStart = inIdx + 1;
+          });
+          ecLayout(tokens, segStart, end, indent, lines);
+          return;
+        }
+      }
+
+      // "lhs = rhs" -- a last-resort split for long bare equalities (most
+      // often a state-field update chain) that don't have any of the
+      // connectives or keyword forms above to break on. Deliberately
+      // checked after "let"/"if"/"forall" -- those constructs contain
+      // their own top-level "="s (e.g. "let x = e in ...") that must stay
+      // with their binder, not be split on here.
+      var eq = ecTopLevelIndices(tokens, start, end, function (t) {
+        return t.cls === "punct" && t.text === "=";
+      })[0];
+      if (eq !== undefined) {
+        ecEmitWithLead(tokens, [], start, eq - 1, indent, lines);
+        ecEmitWithLead(tokens, [tokens[eq], { cls: null, text: " " }], eq + 1, end, indent, lines);
+        return;
+      }
+
+      // "prefix.[key <- val]" / "prefix.[key]" -- array update/select
+      // whose bracket runs to the end of the range: keep the prefix glued
+      // to the opening ".[" and indent the inside. For a chained update
+      // like "x.[a <- b].[c <- d]" this peels off the outermost (last)
+      // bracket first, leaving the rest of the chain in `prefix` as one
+      // line -- imperfect if that prefix is itself still long, but such
+      // multiply-chained updates are rare enough not to be worth chasing
+      // further here.
+      var brackets = ecTopLevelIndices(tokens, start, end, function (t) { return t.cls === "op" && t.text === ".["; });
+      var lastBracket = brackets[brackets.length - 1];
+      if (lastBracket !== undefined && ecMatchClose(tokens, lastBracket) === end) {
+        lines.push({ indent: indent, tokens: tokens.slice(start, lastBracket + 1) });
+        ecLayout(tokens, lastBracket + 1, end - 1, indent + EC_INDENT_UNIT, lines);
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // "ident(arg1, arg2, ...)" -- one argument per line.
+      if (tokens[start].cls === "ident" && ecIsOpenParen(tokens[start + 1]) &&
+          ecMatchClose(tokens, start + 1) === end) {
+        lines.push({ indent: indent, tokens: tokens.slice(start, start + 2) });
+        var commas = ecTopLevelIndices(tokens, start + 2, end - 1, function (t) { return t.cls === "punct" && t.text === ","; });
+        var argBounds = [start + 2].concat(commas.map(function (c) { return c + 1; })).concat([end]);
+        for (var j = 0; j < argBounds.length - 1; j++) {
+          ecLayout(tokens, argBounds[j], argBounds[j + 1] - 1, indent + EC_INDENT_UNIT, lines);
+        }
+        lines.push({ indent: indent, tokens: [tokens[end]] });
+        return;
+      }
+
+      // Generic top-level comma list (e.g. a bare tuple) with no enclosing
+      // marker of its own -- one element per line, at the current indent.
+      var commas2 = ecTopLevelIndices(tokens, start, end, function (t) { return t.cls === "punct" && t.text === ","; });
+      if (commas2.length > 0) {
+        var elemBounds = [start].concat(commas2.map(function (c) { return c + 1; })).concat([end + 1]);
+        for (var k = 0; k < elemBounds.length - 1; k++) {
+          ecLayout(tokens, elemBounds[k], elemBounds[k + 1] - 1, indent, lines);
+        }
+        return;
+      }
+
+      // Nothing recognized -- emit as one (possibly overflowing) line
+      // rather than risk mis-wrapping something not specifically handled.
+      lines.push({ indent: indent, tokens: tokens.slice(start, end + 1) });
+    }
+
+    function renderEasyCryptLines(pre, lines) {
+      lines.forEach(function (line, idx) {
+        if (idx > 0) pre.appendChild(document.createTextNode("\n"));
+        if (line.indent) pre.appendChild(document.createTextNode(line.indent));
+        line.tokens.forEach(function (tok) {
+          if (tok.cls === "kw" || tok.cls === "num" || tok.cls === "op" || tok.cls === "comment") {
+            var span = document.createElement("span");
+            span.className = "ec-" + tok.cls;
+            span.textContent = tok.text;
+            pre.appendChild(span);
+          } else {
+            pre.appendChild(document.createTextNode(tok.text));
+          }
+        });
+      });
+    }
+
+    function highlightEasyCrypt(pre, source) {
+      pre.textContent = "";
+      var tokens = tokenizeEasyCrypt(source);
+      if (tokens.length === 0) return;
+      var lines = [];
+      ecLayout(tokens, 0, tokens.length - 1, "", lines);
+      renderEasyCryptLines(pre, lines);
+    }
+
+    function setEasyCryptSource(pre, source) {
+      if (!source) {
+        pre.textContent = "(source not captured for this claim)";
+        return;
+      }
+      highlightEasyCrypt(pre, source);
+    }
+
+    // `lookup`/`onClick` default to the proof-tree view's; the invariant-flow
+    // view's panel (`openFlowPanel`) passes its own (`flowNodeById`,
+    // `focusFlowNode`) so a "Depends on"/"Depended on by" button jumps
+    // within whichever world the click actually came from.
+    function renderNodeRefList(container, ids, emptyText, lookup, onClick) {
+      lookup = lookup || nodeById;
+      onClick = onClick || focusNode;
+      container.innerHTML = "";
+      if (!ids || ids.length === 0) {
+        var span = document.createElement("span");
+        span.className = "panel-list-empty";
+        span.textContent = emptyText;
+        container.appendChild(span);
+        return;
+      }
+      ids.forEach(function (id) {
+        var entry = lookup[id];
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panel-ref-btn";
+        btn.textContent = entry ? entry.node.name : id;
+        btn.addEventListener("click", function () {
+          onClick(id);
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    // "Called functions" -- the subset of `node`'s direct edges that point
+    // at a helper (`define-fun`) rather than a real proof dependency (see
+    // `isHelperFunctionNodeIn`); kept out of "Depends on" and out of sight
+    // entirely (whole section hidden) for the common case of a claim that
+    // doesn't call any helper.
+    function renderCalledFunctions(ids, lookup, onClick) {
+      lookup = lookup || nodeById;
+      onClick = onClick || focusNode;
+      panelCalledFunctions.innerHTML = "";
+      if (!ids || ids.length === 0) {
+        panelCalledFunctionsSection.style.display = "none";
+        return;
+      }
+      panelCalledFunctionsSection.style.display = "";
+      ids.forEach(function (id) {
+        var entry = lookup[id];
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panel-ref-btn";
+        btn.textContent = entry ? entry.node.name : id;
+        btn.addEventListener("click", function () {
+          onClick(id);
+        });
+        panelCalledFunctions.appendChild(btn);
+      });
+    }
+
+    function renderReferencedDefinitions(defs) {
+      panelReferences.innerHTML = "";
+      if (!defs || defs.length === 0) {
+        panelReferencesSection.style.display = "none";
+        return;
+      }
+      panelReferencesSection.style.display = "";
+      defs.forEach(function (ref) {
+        var details = document.createElement("details");
+        details.className = "ref-item";
+        details.open = true;
+        var summary = document.createElement("summary");
+        summary.textContent = ref.name + " (" + ref.kindLabel + ")";
+        details.appendChild(summary);
+
+        // Both views are always rendered; applyTab() controls which one is
+        // visible, in lockstep with the main claim's own snippet above.
+        var dominoPre = document.createElement("pre");
+        dominoPre.className = "code-view view-domino";
+        dominoPre.textContent = ref.dominoSource;
+        details.appendChild(dominoPre);
+
+        var ecPre = document.createElement("pre");
+        ecPre.className = "code-view view-easycrypt";
+        setEasyCryptSource(ecPre, ref.easycryptSource);
+        details.appendChild(ecPre);
+
+        panelReferences.appendChild(details);
+      });
+    }
+
+    // For a state relation or helper function, every other non-implicit node
+    // elsewhere in the graph sharing its (claimType, name) -- i.e. the same
+    // relation/helper as used (separately) by other oracles. Empty for
+    // anything that isn't one of `CROSS_ORACLE_CLAIM_TYPES`, or that no
+    // other oracle shares under the same name.
+    function otherOraclesSharing(node) {
+      if (CROSS_ORACLE_CLAIM_TYPES.indexOf(node.claimType) === -1) return [];
+      return (sharedNodesByKey[sharedNodeKey(node)] || []).filter(function (entry) {
+        return entry.id !== node.id;
+      });
+    }
+
+    var OTHER_ORACLES_TITLE_BY_TYPE = {
+      "Relation": "Also proved in oracle(s)",
+      "Helper function": "Also referenced in oracle(s)",
+    };
+
+    function renderOtherOracles(node) {
+      var others = otherOraclesSharing(node);
+      if (others.length === 0) {
+        panelOtherOraclesSection.style.display = "none";
+        return;
+      }
+      panelOtherOraclesSection.style.display = "";
+      panelOtherOraclesTitle.textContent = OTHER_ORACLES_TITLE_BY_TYPE[node.claimType] || "Also shared by oracle(s)";
+      panelOtherOracles.innerHTML = "";
+      others.forEach(function (entry) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "panel-ref-btn";
+        btn.textContent = entry.oracleName;
+        btn.addEventListener("click", function () {
+          focusNode(entry.id);
+        });
+        panelOtherOracles.appendChild(btn);
+      });
+    }
+
+    // Shared by both `openPanel` (proof-tree view) and `openFlowPanel`
+    // (invariant-flow view) -- `outgoing`/`incoming`/`lookup`/`onClick` are
+    // whichever view's own edge index/node index/focus function, so
+    // "Depends on"/"Depended on by" buttons navigate within the view the
+    // click came from. "Other oracles sharing" and "Referenced definitions"
+    // are always driven by the global, proof-tree-only indices (see
+    // `otherOraclesSharing`) -- clicking through one of those switches back
+    // to the proof-tree view via `focusNode`.
+    function openPanelWith(node, outgoing, incoming, lookup, onClick) {
+      panelTitle.textContent = node.name;
+      panelOracle.textContent = "Oracle: " + node.oracleName;
+      panelBadges.innerHTML = "";
+      badgeList(node).forEach(function (text) {
+        var span = document.createElement("span");
+        span.textContent = text;
+        panelBadges.appendChild(span);
+      });
+      panelDomino.textContent = node.dominoSource || "(source not captured for this claim)";
+      setEasyCryptSource(panelEasycrypt, node.easycryptSource);
+      var allDeps = outgoing[node.id] || [];
+      renderNodeRefList(
+        panelDeps,
+        allDeps.filter(function (id) { return !isHelperFunctionNodeIn(lookup, id); }),
+        "no direct dependencies",
+        lookup,
+        onClick,
+      );
+      renderCalledFunctions(allDeps.filter(function (id) { return isHelperFunctionNodeIn(lookup, id); }), lookup, onClick);
+      renderNodeRefList(panelDependents, incoming[node.id], "nothing in this view depends on it", lookup, onClick);
+      renderOtherOracles(node);
+      renderReferencedDefinitions(node.referencedDefinitions);
+      // Referenced-definition snippets were just (re)created above, so
+      // re-apply the current tab choice to them too.
+      applyTab(currentTab);
+      panel.classList.remove("hidden");
+    }
+
+    function openPanel(node) {
+      openPanelWith(node, outgoingByNode, incomingByNode, nodeById, focusNode);
+    }
+
+    function openFlowPanel(node) {
+      openPanelWith(node, flowOutgoingByNode, flowIncomingByNode, flowNodeById, focusFlowNode);
+    }
+
+    document.getElementById("panel-close").addEventListener("click", function () {
+      panel.classList.add("hidden");
+    });
+    window.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") panel.classList.add("hidden");
+    });
+
+    // --- panel resize (horizontal only) ---
+    var resizeHandle = document.getElementById("panel-resize-handle");
+    var PANEL_MIN_WIDTH = 320;
+    function panelMaxWidth() {
+      return Math.max(PANEL_MIN_WIDTH, window.innerWidth - 100);
+    }
+    var savedPanelWidth = loadPanelWidth();
+    if (savedPanelWidth) {
+      panel.style.width = Math.min(Math.max(savedPanelWidth, PANEL_MIN_WIDTH), panelMaxWidth()) + "px";
+    }
+    resizeHandle.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+      resizeHandle.classList.add("resizing");
+      function onMove(e2) {
+        var newWidth = window.innerWidth - e2.clientX;
+        newWidth = Math.min(Math.max(newWidth, PANEL_MIN_WIDTH), panelMaxWidth());
+        panel.style.width = newWidth + "px";
+      }
+      function onUp() {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        resizeHandle.classList.remove("resizing");
+        savePanelWidth(parseFloat(panel.style.width));
+      }
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    });
+
+    // --- search: find lemmas/relations (and any other node) by name or
+    // oracle, across the whole graph, not just the currently-visible cluster ---
+    var searchInput = document.getElementById("search-input");
+    var searchResults = document.getElementById("search-results");
+    var SEARCH_RESULT_LIMIT = 40;
+
+    function renderSearchResults(query) {
+      searchResults.innerHTML = "";
+      if (!query) {
+        searchResults.classList.add("hidden");
+        return;
+      }
+      var q = query.toLowerCase();
+      var matches = allNodesFlat.filter(function (n) {
+        return n.name.toLowerCase().indexOf(q) !== -1 || n.oracleName.toLowerCase().indexOf(q) !== -1;
+      });
+      matches.sort(function (a, b) {
+        if (a.implicit !== b.implicit) return a.implicit ? 1 : -1;
+        return a.name.localeCompare(b.name);
+      });
+      var truncated = matches.length > SEARCH_RESULT_LIMIT;
+      matches = matches.slice(0, SEARCH_RESULT_LIMIT);
+
+      if (matches.length === 0) {
+        var empty = document.createElement("div");
+        empty.className = "search-empty";
+        empty.textContent = "No matching nodes";
+        searchResults.appendChild(empty);
+      } else {
+        matches.forEach(function (n) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "search-result-btn";
+
+          var name = document.createElement("div");
+          name.className = "search-result-name";
+          name.textContent = n.name;
+          btn.appendChild(name);
+
+          var meta = document.createElement("div");
+          meta.className = "search-result-meta";
+          meta.textContent = n.oracleName + " · " + n.claimType + (n.implicit ? " · implicit" : "");
+          btn.appendChild(meta);
+
+          btn.addEventListener("click", function () {
+            focusNode(n.id);
+            searchResults.classList.add("hidden");
+          });
+          searchResults.appendChild(btn);
+        });
+        if (truncated) {
+          var more = document.createElement("div");
+          more.className = "search-empty";
+          more.textContent = "…and more, refine your search";
+          searchResults.appendChild(more);
+        }
+      }
+      searchResults.classList.remove("hidden");
+    }
+
+    searchInput.addEventListener("input", function () {
+      renderSearchResults(searchInput.value.trim());
+    });
+    searchInput.addEventListener("focus", function () {
+      if (searchInput.value.trim()) renderSearchResults(searchInput.value.trim());
+    });
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") {
+        searchResults.classList.add("hidden");
+        searchInput.blur();
+        e.stopPropagation();
+      } else if (e.key === "Enter") {
+        var first = searchResults.querySelector(".search-result-btn");
+        if (first) first.click();
+      }
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest("#search-box")) {
+        searchResults.classList.add("hidden");
+      }
+    });
+  })();
+  </script>
+</body>
+</html>

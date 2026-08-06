@@ -46,15 +46,18 @@ impl SmtParser<ModelExtractorState> for SmtModel {
     fn handle_definefun(
         &mut self,
         funname: &str,
-        _args: Vec<ModelExtractorState>,
+        args: Vec<ModelExtractorState>,
         ty: &str,
         body: ModelExtractorState,
     ) -> Result<ModelExtractorState> {
+        let args = args.into_iter().filter_map(extract_arg).collect();
+
         match body {
             ModelExtractorState::Integer(int) => {
                 debug_assert_eq!(ty, "Int");
                 self.values.push(SmtModelEntry::IntEntry {
                     name: funname.to_string(),
+                    args,
                     value: int,
                 });
             }
@@ -62,12 +65,14 @@ impl SmtParser<ModelExtractorState> for SmtModel {
                 debug_assert_eq!(ty, "Bool");
                 self.values.push(SmtModelEntry::BoolEntry {
                     name: funname.to_string(),
+                    args,
                     value: bo,
                 });
             }
             ModelExtractorState::SmtExpr(expr) => {
                 self.values.push(SmtModelEntry::UnknownEntry {
                     name: funname.to_string(),
+                    args,
                     ty: ty.to_string(),
                     value: expr,
                 });
@@ -79,6 +84,24 @@ impl SmtParser<ModelExtractorState> for SmtModel {
 
         Ok(ModelExtractorState::Empty)
     }
+}
+
+/// Turns a parsed `(argname argsort)` pair into `(name, rendered sort)`.
+fn extract_arg(state: ModelExtractorState) -> Option<(String, String)> {
+    let ModelExtractorState::SmtExpr(SmtExpr::List(mut parts)) = state else {
+        return None;
+    };
+    if parts.len() != 2 {
+        return None;
+    }
+    let sort = parts.pop().unwrap();
+    let name = parts.pop().unwrap();
+
+    let SmtExpr::Atom(name) = name else {
+        return None;
+    };
+
+    Some((name, sort.to_string()))
 }
 
 pub fn parse(content: &str) -> Result<(SmtModel, usize)> {

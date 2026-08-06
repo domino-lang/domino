@@ -203,7 +203,11 @@ fn test_state_datatypes_remap_consts() {
     let pkg = &pkgs[pkg_name];
     let params = &pkg_inst.params;
 
-    let pkg_state_pattern = pkg_state::PackageStatePattern { pkg_name, params };
+    let pkg_state_pattern = pkg_state::PackageStatePattern {
+        pkg_name,
+        params,
+        types: &pkg_inst.types,
+    };
     let pkg_state_spec = pkg_state_pattern.datastructure_spec(pkg);
 
     let pkg_state_constructors = &pkg_state_spec.0;
@@ -237,7 +241,11 @@ fn test_state_datatypes_remap_consts() {
     let pkg_name = &pkg.name;
     let params = &pkg_inst.params;
 
-    let pkg_state_pattern = pkg_state::PackageStatePattern { pkg_name, params };
+    let pkg_state_pattern = pkg_state::PackageStatePattern {
+        pkg_name,
+        params,
+        types: &pkg_inst.types,
+    };
     let pkg_state_spec = pkg_state_pattern.datastructure_spec(pkg);
 
     let pkg_state_constructors = &pkg_state_spec.0;

@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
+    gamehops::equivalence::ClaimScope,
     hacks,
     identifier::{
         game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
@@ -21,7 +22,9 @@ use crate::{
             datastructures::DatastructurePattern,
             declare_datatype,
             functions::FunctionPattern,
-            oracle_args::OldNewOracleArgPattern,
+            oracle_args::GameStateOracleArgPattern,
+            oracle_args::GameStateOracleArgVariant,
+            oracle_args::OracleArgPattern,
             oracle_args::UnitOracleArgPattern,
             theorem_constants::ConstantPattern,
             GameStateDeclareInfo, ReturnIsAbortConst, SmtDefineFun,
@@ -40,7 +43,79 @@ impl<'a> EquivalenceContext<'a> {
         }
     }
 
-    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
+    pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
+        let mut out = Vec::new();
+
+        out.extend(self.emit_game_initial_state_values(self.left_game_inst_ctx()));
+        out.extend(self.emit_game_initial_state_values(self.right_game_inst_ctx()));
+
+        out
+    }
+
+    fn emit_game_initial_state_values(&self, gctx: GameInstanceContext<'a>) -> Vec<SmtExpr> {
+        let game_inst_name = gctx.game_inst_name();
+        let initial_state = gctx
+            .oracle_arg_game_state_pattern()
+            .global_const_name(game_inst_name, &GameStateOracleArgVariant::Initial);
+
+        let mut out = Vec::new();
+
+        for pctx in gctx.pkg_inst_contexts() {
+            let pkg_state = gctx
+                .smt_access_gamestate_pkgstate(&initial_state, pctx.pkg_inst_name())
+                .unwrap();
+
+            for (field_name, field_ty, _) in &pctx.pkg().state {
+                let field = pctx
+                    .smt_access_pkgstate(pkg_state.clone(), field_name)
+                    .unwrap();
+
+                out.push(
+                    SmtAssert(SmtEq2 {
+                        lhs: field,
+                        rhs: default_smt_value(field_ty),
+                    })
+                    .into(),
+                );
+            }
+        }
+
+        out
+    }
+
+    fn emit_invariant_in_initial_state_assert(&self) -> SmtExpr {
+        let state_left = self.left_game_inst_ctx().oracle_arg_game_state_pattern();
+        let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
+
+        SmtAssert(SmtNot((
+            crate::theorem::DOMINO_INVARIANT_FN_NAME,
+            state_left.global_const_name(
+                self.equivalence.left_name(),
+                &GameStateOracleArgVariant::Initial,
+            ),
+            state_right.global_const_name(
+                self.equivalence.right_name(),
+                &GameStateOracleArgVariant::Initial,
+            ),
+        )))
+        .into()
+    }
+
+    fn emit_equivalence_claim_assert(&self, claim: &Claim) -> SmtExpr {
+        match claim.ty {
+            ClaimType::InitialState => self.emit_invariant_in_initial_state_assert(),
+            _ => unreachable!(),
+        }
+    }
+
+    pub(crate) fn emit_claim_assert(&self, claim: &Claim, claim_scope: &ClaimScope) -> SmtExpr {
+        match claim_scope {
+            ClaimScope::InitialState => self.emit_equivalence_claim_assert(claim),
+            ClaimScope::Oracle(oracle_name) => self.emit_oracle_claim_assert(claim, oracle_name),
+        }
+    }
+
+    fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -190,7 +265,8 @@ impl<'a> EquivalenceContext<'a> {
                     | ClaimType::LeftPackageInvariant
                     | ClaimType::RightPackageInvariant
                     | ClaimType::LeftGameInvariant
-                    | ClaimType::RightGameInvariant => unreachable!(),
+                    | ClaimType::RightGameInvariant
+                    | ClaimType::InitialState => unreachable!(),
                 }
             })
             .collect();
@@ -203,6 +279,7 @@ impl<'a> EquivalenceContext<'a> {
             ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
             ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
             ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
+            ClaimType::InitialState => unreachable!(),
         };
 
         let randomness_mapping = SmtForall {
@@ -231,10 +308,18 @@ impl<'a> EquivalenceContext<'a> {
             ),
         };
 
-        let mut dependencies_code: Vec<SmtExpr> = vec![
-            randomness_mapping.into(),
-            build_invariant_old_call("invariant"),
-        ];
+        let mut dependencies_code: Vec<SmtExpr> = vec![randomness_mapping.into()];
+        match &claim.invariant_scope {
+            // `with invariants [...]` on this claim: assume only the conjunction of the named
+            // invariant fragments, instead of the full `invariant` (the AND of all of them).
+            Some(fragment_names) => {
+                for fragment_name in fragment_names {
+                    dependencies_code.push(build_invariant_old_call(fragment_name));
+                }
+            }
+            None => dependencies_code
+                .push(build_invariant_old_call(crate::theorem::DOMINO_INVARIANT_FN_NAME)),
+        }
 
         for pkg in &gctx_left.game().pkgs {
             if !pkg.pkg.invariants.is_empty() {
@@ -277,6 +362,46 @@ impl<'a> EquivalenceContext<'a> {
             postcond_call,
         )))
         .into()
+    }
+
+    /// Emits small breadcrumb constants identifying which theorem, proof step, oracle and claim
+    /// this query belongs to. These are free `declare-const`s equated to fixed string literals,
+    /// so they round-trip verbatim into `(get-model)` output (unlike `define-fun`s, which cvc5
+    /// doesn't echo back) and let `domino model` identify the context of a model file even when
+    /// it has been separated from the transcript that produced it.
+    pub(crate) fn emit_model_info(&self, claim_scope: &ClaimScope, claim: &Claim) -> Vec<SmtExpr> {
+        let mut fields: Vec<(&str, &str)> = vec![
+            ("<domino-model-info-theorem>", &self.theorem().name),
+            (
+                "<domino-model-info-game-inst-left>",
+                self.equivalence.left_name(),
+            ),
+            (
+                "<domino-model-info-game-inst-right>",
+                self.equivalence.right_name(),
+            ),
+            ("<domino-model-info-claim>", claim.name()),
+        ];
+
+        // The initial-state claim isn't tied to any one oracle: leave the breadcrumb out
+        // entirely rather than pointing at whichever oracle happened to be used internally to
+        // look up the invariant, which would be misleading.
+        if let ClaimScope::Oracle(oracle_name) = claim_scope {
+            fields.push(("<domino-model-info-oracle>", oracle_name));
+        }
+
+        fields
+            .into_iter()
+            .flat_map(|(name, value)| {
+                let declare = declare_const(name, Sort::String);
+                let constrain = SmtAssert(SmtEq2 {
+                    lhs: name,
+                    rhs: SmtExpr::Atom(format!("\"{value}\"")),
+                });
+
+                [declare, constrain.into()]
+            })
+            .collect()
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
@@ -715,8 +840,10 @@ impl<'a> EquivalenceContext<'a> {
         // the new ones are declared in the declare-then-assert loop below
 
         out.push(game_state_left.declare_old(left_game_inst_name));
+        out.push(game_state_left.declare_initial(left_game_inst_name));
         //out.push(game_state_left.declare_new(left_game_inst_name));
         out.push(game_state_right.declare_old(right_game_inst_name));
+        out.push(game_state_right.declare_initial(right_game_inst_name));
         //out.push(game_state_right.declare_new(right_game_inst_name));
 
         ////// consts constants
@@ -1271,6 +1398,47 @@ impl<'a> EquivalenceContext<'a> {
             body,
         )
             .into()
+    }
+}
+
+fn default_smt_value(ty: &Type) -> SmtExpr {
+    match ty.kind() {
+        TypeKind::Integer => 0.into(),
+        TypeKind::Boolean => false.into(),
+        TypeKind::Empty => "mk-empty".into(),
+        TypeKind::Bits(count_spec) => match count_spec {
+            CountSpec::Literal(len) => format!("<0_{len}>").into(),
+            CountSpec::Identifier(id) => {
+                let suffix = id
+                    .as_theorem_identifier()
+                    .map(|theorem_ident| theorem_ident.ident())
+                    .unwrap_or_else(|| id.ident());
+                format!("<0_{suffix}>").into()
+            }
+            CountSpec::Any => "<empty-bitstring>".into(),
+        },
+        TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
+        TypeKind::Table(_index_ty, value_ty) => (
+            ("as", "const", ty.clone()),
+            ("as", "mk-none", Type::maybe(*value_ty.clone())),
+        )
+            .into(),
+        TypeKind::Tuple(types) => {
+            let mut call = Vec::with_capacity(types.len() + 1);
+            call.push(format!("mk-tuple{}", types.len()).into());
+            call.extend(types.iter().map(default_smt_value));
+            call.into()
+        }
+        TypeKind::Unknown
+        | TypeKind::String
+        | TypeKind::AddiGroupEl(_)
+        | TypeKind::MultGroupEl(_)
+        | TypeKind::List(_)
+        | TypeKind::Set(_)
+        | TypeKind::Fn(_, _)
+        | TypeKind::UserDefined(_) => {
+            panic!("cannot build a default value for type {ty}")
+        }
     }
 }
 

@@ -1,0 +1,22 @@
+theorem Eq {
+    instance A = A {}
+    instance B = B {}
+
+    gamehops {
+        equivalence A B {
+            Test: {
+                randomness: simple
+                invariant: [
+                    theorem/invariant.smt2
+                ]
+                lemmas {
+                    ctr-broken: admit []
+                    /* "with invariants" scopes a claim to a subset of the fragments. ctr-eq
+                       isn't declared anywhere else in this block - domino auto-proves it
+                       regardless, so referencing it here is fine. */
+                    same-output: [no-abort] with invariants [ctr-eq]
+                }
+            }
+        }
+    }
+}

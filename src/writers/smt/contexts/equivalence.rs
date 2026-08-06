@@ -34,6 +34,9 @@ pub struct EquivalenceContext<'a> {
     theorem: &'a Theorem<'a>,
     auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
     invariants: HashMap<String, Vec<SmtExpr>>,
+    /// Names of the `define-state-relation`s declared per oracle's main invariant files — the
+    /// candidate invariant fragments. See `state_relation_names`.
+    state_relation_names: HashMap<String, Vec<String>>,
 }
 
 // simple getters
@@ -48,6 +51,7 @@ impl<'a> EquivalenceContext<'a> {
             theorem,
             auxs,
             invariants: HashMap::new(),
+            state_relation_names: HashMap::new(),
         }
     }
 
@@ -70,6 +74,22 @@ impl<'a> EquivalenceContext<'a> {
             self.invariants
                 .insert(oracle_name.to_string(), new_invariants);
         }
+    }
+
+    pub(crate) fn set_state_relation_names(&mut self, oracle_name: &str, names: Vec<String>) {
+        self.state_relation_names
+            .insert(oracle_name.to_string(), names);
+    }
+
+    /// Names of every `define-state-relation` declared in this oracle's main invariant files —
+    /// the invariant fragments. If this contains the literal name `"invariant"`, the fragment
+    /// mechanism doesn't apply for this oracle and today's behavior (a single, user-defined
+    /// `invariant` relation) is kept unchanged.
+    pub(crate) fn state_relation_names(&self, oracle_name: &str) -> &[String] {
+        self.state_relation_names
+            .get(oracle_name)
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
     }
 }
 

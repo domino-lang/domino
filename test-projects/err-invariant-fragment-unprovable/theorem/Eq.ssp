@@ -1,0 +1,15 @@
+theorem Eq {
+    instance A = A {}
+    instance B = B {}
+
+    gamehops {
+        equivalence A B {
+            Test: {
+                randomness: simple
+                invariant: [
+                    theorem/invariant.smt2
+                ]
+            }
+        }
+    }
+}

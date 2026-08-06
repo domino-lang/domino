@@ -5,8 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     package::{Export, OracleSig},
     project::Project,
-    theorem::{Claim, RandomnessType},
-    writers::smt::contexts::EquivalenceContext,
+    theorem::{Claim, RandomnessType, DOMINO_INVARIANT_FN_NAME},
+    writers::smt::{
+        contexts::EquivalenceContext, patterns::datastructures::DatastructurePattern, sorts::Sort,
+    },
 };
 
 use error::{Error, ExportSignatureMismatch, Result};
@@ -96,6 +98,23 @@ impl Equivalence {
             .find(|(name, _randomness)| name == oracle_name)
             .map(|(_oname, randomness)| randomness.clone())
             .unwrap_or_else(|| panic!("can't find randomness for {oracle_name}"))
+    }
+}
+
+/// The "scope" a claim is checked in: either equivalence-wide (currently only the initial-state
+/// invariant check) or tied to a single exported oracle.
+pub enum ClaimScope {
+    InitialState,
+    Oracle(String), // oracle name is stored
+}
+
+impl ClaimScope {
+    pub fn name(&self) -> &str {
+        match self {
+            // the only equivalence-wide claim we have at the moment
+            ClaimScope::InitialState => "!INITIAL-STATE!",
+            ClaimScope::Oracle(oracle_name) => oracle_name,
+        }
     }
 }
 
@@ -248,6 +267,7 @@ impl<'a> EquivalenceContext<'a> {
                         self,
                         left_gctx.game_inst(),
                         pkg,
+                        file_name,
                         &file_contents,
                     )?);
                 }
@@ -266,6 +286,7 @@ impl<'a> EquivalenceContext<'a> {
                         self,
                         right_gctx.game_inst(),
                         pkg,
+                        file_name,
                         &file_contents,
                     )?);
                 }
@@ -280,6 +301,7 @@ impl<'a> EquivalenceContext<'a> {
                 out.append(&mut smtrewrite::rewrite_game(
                     self,
                     left_gctx.game_inst(),
+                    file_name,
                     &file_contents,
                 )?);
             }
@@ -291,11 +313,13 @@ impl<'a> EquivalenceContext<'a> {
                 out.append(&mut smtrewrite::rewrite_game(
                     self,
                     right_gctx.game_inst(),
+                    file_name,
                     &file_contents,
                 )?);
             }
 
             // Load the main Invariant
+            let mut state_relation_names = Vec::new();
             for file_name in &self.equivalence().invariants_by_oracle_name(oracle_name) {
                 log::info!("reading file {file_name}");
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
@@ -304,7 +328,9 @@ impl<'a> EquivalenceContext<'a> {
                 })?;
                 log::info!("read file {file_name}");
                 //linter.lint_file(file_name, &file_contents)?;
-                out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+                let (mut rewritten, mut names) = smtrewrite::rewrite(self, file_name, &file_contents)?;
+                out.append(&mut rewritten);
+                state_relation_names.append(&mut names);
 
                 // log::info!("wrote contents of file {file_name}");
 
@@ -315,7 +341,47 @@ impl<'a> EquivalenceContext<'a> {
                 //     });
                 // }
             }
+
+            // No name is special to domino except its own reserved `DOMINO_INVARIANT_FN_NAME` —
+            // a `define-state-relation` (or even a raw `define-fun`) the user happens to name
+            // `invariant` is just an ordinary, unremarkable name; nothing in domino looks for it.
+            // The only thing that matters is whether the user has *already* defined something
+            // under the exact reserved name itself (raw, or via a fragment coincidentally named
+            // that) — which would collide with domino's own synthesized definition below. In
+            // that case, warn and use their definition as-is instead of also synthesizing one
+            // (any other fragments are then *not* folded into the old-state assumption, since
+            // domino isn't the one defining it and has no way to combine into someone else's
+            // definition).
+            let user_defines_reserved_name =
+                smtrewrite::defines_function_named(&out, DOMINO_INVARIANT_FN_NAME);
+
+            if user_defines_reserved_name {
+                eprintln!(
+                    "warning: oracle \"{oracle_name}\": a function literally named \
+                     \"{DOMINO_INVARIANT_FN_NAME}\" is already defined here, which is the name \
+                     domino reserves for its own synthesized invariant (the AND of every \
+                     `define-state-relation` fragment). Domino will use your definition as-is \
+                     instead of synthesizing one — any other fragments declared alongside it are \
+                     NOT automatically combined into it."
+                );
+            } else {
+                let left_sort = Sort::Other(
+                    left_gctx.datastructure_game_state_pattern().sort_name(),
+                    vec![],
+                );
+                let right_sort = Sort::Other(
+                    right_gctx.datastructure_game_state_pattern().sort_name(),
+                    vec![],
+                );
+                out.push(smtrewrite::synthesize_invariant(
+                    left_sort,
+                    right_sort,
+                    &state_relation_names,
+                ));
+            }
+
             self.append_invariants(oracle_name, out);
+            self.set_state_relation_names(oracle_name, state_relation_names);
         }
         //linter.lint_finish()?;
         Ok(())

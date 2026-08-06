@@ -162,24 +162,32 @@ fn equivalence_parses() {
                     ty: ClaimType::Invariant,
                     dependencies: vec![],
                     admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
                 Claim {
                     name: "equal-aborts".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admitted: false
+                    admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
                 Claim {
                     name: "same-output".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admitted: false
+                    admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
                 Claim {
                     name: "smt_ident".into(),
                     ty: ClaimType::Lemma,
                     dependencies: vec![],
-                    admitted: false
+                    admitted: false,
+                    user_declared: true,
+                    invariant_scope: None,
                 },
             ]
         )]
@@ -220,7 +228,7 @@ fn equivalence_gamehome_generates_code() {
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
 
     let mut driver =
-        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &backend, false, None, 1);
+        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &backend, false, None, None, 1);
     driver
         .verify(&mut MockTestTheoremUI::new())
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));

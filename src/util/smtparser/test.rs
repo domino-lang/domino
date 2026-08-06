@@ -34,3 +34,27 @@ fn parsing_half_model_fails() {
 
     assert_matches!(parse_model(&content), Err(_));
 }
+
+#[test]
+fn parse_model_captures_function_args() {
+    let content = r#"(
+        (define-fun <<func-mac>> ((_arg_1 Bits_n) (_arg_2 Int)) Bits_n (as @Bits_n_0 Bits_n))
+        (define-fun <domino-model-info-theorem> () String "Full4WHS")
+    )"#;
+
+    let (model, _len) = parse_model(content).unwrap();
+
+    let entry = model.get_value("<<func-mac>>").unwrap();
+    assert_eq!(
+        entry.args(),
+        &[
+            ("_arg_1".to_string(), "Bits_n".to_string()),
+            ("_arg_2".to_string(), "Int".to_string()),
+        ]
+    );
+
+    assert_eq!(
+        model.get_value_as_string("<domino-model-info-theorem>"),
+        Some("Full4WHS".to_string())
+    );
+}

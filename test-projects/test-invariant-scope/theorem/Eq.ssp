@@ -1,0 +1,21 @@
+theorem Eq {
+    instance A = A {}
+    instance B = B {}
+
+    gamehops {
+        equivalence A B {
+            Test: {
+                randomness: simple
+                invariant: [
+                    theorem/invariant.smt2
+                ]
+                lemmas {
+                    /* ctr-eq is deliberately NOT declared here: it's still auto-claimed and
+                       auto-proved just like every other invariant fragment. "with invariants"
+                       can reference it regardless. */
+                    same-output: [no-abort] with invariants [ctr-eq]
+                }
+            }
+        }
+    }
+}

@@ -1,11 +1,13 @@
 composition Game {
     const b: Bool;
     const x: Integer;
+    const f: fn Bool -> Bool;
 
     instance p = P {
         params {
             b: b,
-            y: x
+            y: x,
+            f: f
         }
     }
 

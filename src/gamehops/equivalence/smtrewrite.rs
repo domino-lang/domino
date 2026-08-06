@@ -10,11 +10,14 @@ use crate::transforms::samplify::SampleInfo;
 use crate::types::TypeKind;
 use crate::util::smtparser::SmtParser;
 use crate::writers::smt::contexts::GameInstanceContext;
+use crate::writers::smt::exprs::SmtAnd;
 use crate::writers::smt::exprs::SmtExpr;
 use crate::writers::smt::exprs::SmtLet;
 use crate::writers::smt::patterns;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 use crate::writers::smt::patterns::functions::FunctionPattern;
+use crate::writers::smt::patterns::SmtDefineFun;
+use crate::writers::smt::sorts::Sort;
 
 use crate::gamehops::equivalence::error::{Error, Result};
 use itertools::Itertools;
@@ -25,20 +28,27 @@ struct SmtRewrite<'a> {
     game: Option<&'a GameInstance>,
     content: Vec<SmtExpr>,
     type_mapping: Vec<(SmtExpr, SmtExpr)>,
+    file_name: String,
+    /// Names of every `define-state-relation` encountered while rewriting. Only meaningful for
+    /// `rewrite()` (the equivalence-level "main invariant" files) — these are the candidate
+    /// invariant fragments (see `EquivalenceContext::state_relation_names`).
+    state_relations: Vec<String>,
 }
 
 impl<'a> SmtRewrite<'a> {
-    fn new(context: &'a EquivalenceContext) -> Self {
+    fn new(context: &'a EquivalenceContext, file_name: &str) -> Self {
         Self {
             context,
             package: None,
             game: None,
             content: Vec::new(),
             type_mapping: Vec::new(),
+            file_name: file_name.to_string(),
+            state_relations: Vec::new(),
         }
     }
 
-    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance) -> Self {
+    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance, file_name: &str) -> Self {
         let game_mapping = game_inst_type_mapping_vec(&game.types);
         Self {
             context,
@@ -49,6 +59,8 @@ impl<'a> SmtRewrite<'a> {
                 .into_iter()
                 .map(|(ty1, ty2)| (ty1.into(), ty2.into()))
                 .collect(),
+            file_name: file_name.to_string(),
+            state_relations: Vec::new(),
         }
     }
 
@@ -56,6 +68,7 @@ impl<'a> SmtRewrite<'a> {
         context: &'a EquivalenceContext,
         game: &'a GameInstance,
         package: &'a PackageInstance,
+        file_name: &str,
     ) -> Self {
         let game_mapping = game_inst_type_mapping_vec(&game.types);
         let package_mapping = pkg_inst_type_mapping_vec(&package.types);
@@ -71,6 +84,8 @@ impl<'a> SmtRewrite<'a> {
             game: Some(game),
             content: Vec::new(),
             type_mapping: full_mapping,
+            file_name: file_name.to_string(),
+            state_relations: Vec::new(),
         }
     }
 
@@ -300,6 +315,13 @@ impl SmtRewrite<'_> {
     }
 }
 
+fn format_definition(keyword: &str, funname: &str, args: &[SmtExpr], body: &SmtExpr) -> String {
+    format!(
+        "({keyword} {funname} ({}) {body})",
+        args.iter().map(|arg| format!("{arg}")).join(" ")
+    )
+}
+
 impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
     fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
         Ok(SmtExpr::Atom(content.to_string()))
@@ -423,7 +445,10 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
+        _raw: &str,
     ) -> Result<SmtExpr> {
+        self.state_relations.push(funname.to_string());
+
         let left_game_inst = self
             .context
             .theorem()
@@ -443,8 +468,13 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             params: &right_game_inst.consts,
         };
 
+        let expression = format_definition("define-state-relation", funname, &args, &body);
+
         let [left_arg, right_arg] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
+                name: funname.to_string(),
+                file_name: self.file_name.clone(),
+                expression,
                 argument: format!(
                     "({})",
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
@@ -518,6 +548,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         funname: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
+        _raw: &str,
     ) -> Result<SmtExpr> {
         let left_game_inst = self
             .context
@@ -537,6 +568,8 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             game_name: right_game_inst.game_name(),
             params: &right_game_inst.consts,
         };
+
+        let expression = format_definition("define-lemma", funname, &args, &body);
 
         let Some(oracle_name) = funname
             .rfind("-")
@@ -589,6 +622,9 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
         let [left_old, right_old, left_return, right_return, ..] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
+                name: funname.to_string(),
+                file_name: self.file_name.clone(),
+                expression: expression.clone(),
                 argument: format!(
                     "({})",
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
@@ -710,22 +746,113 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             )
                 .into(),
         ];
-        newargs.extend(args.into_iter().skip(4));
+
+        let oracle_args = &left_oracle_export.sig().args;
+        let extra_args = &args[4..];
+        if extra_args.len() != oracle_args.len() {
+            return Err(Error::IncorrectNumberOfArguments {
+                name: funname.to_string(),
+                file_name: self.file_name.clone(),
+                expression,
+                argument: format!(
+                    "({})",
+                    extra_args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+                expected: format!("{} oracle argument(s)", oracle_args.len()),
+                equivalence: self.equivalence_name(),
+            });
+        }
+        for (arg, (_, ty)) in extra_args.iter().zip(oracle_args.iter()) {
+            let arg_name = match arg {
+                SmtExpr::Atom(name) => name.clone(),
+                SmtExpr::List(elems) => match elems.first() {
+                    Some(SmtExpr::Atom(name)) => name.clone(),
+                    _ => {
+                        return Err(Error::IncorrectArgument {
+                            argument: format!("{arg}"),
+                            equivalence: self.equivalence_name(),
+                        })
+                    }
+                },
+                _ => {
+                    return Err(Error::IncorrectArgument {
+                        argument: format!("{arg}"),
+                        equivalence: self.equivalence_name(),
+                    })
+                }
+            };
+            newargs.push((arg_name, ty.clone()).into());
+        }
+
         self.handle_definefun(funname, newargs, "Bool", bindreturn.into())
     }
 }
 
-pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtExpr>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new(context);
+/// Rewrites an equivalence-level ("main") invariant file, returning both the rewritten SMT
+/// content and the names of every `define-state-relation` it declared (the invariant fragment
+/// names — see `EquivalenceContext::state_relation_names`).
+pub fn rewrite(
+    context: &EquivalenceContext,
+    file_name: &str,
+    content: &str,
+) -> Result<(Vec<SmtExpr>, Vec<String>)> {
+    let mut rewriter: SmtRewrite = SmtRewrite::new(context, file_name);
     rewriter.parse_sexps(content)?;
-    Ok(rewriter.content)
+    Ok((rewriter.content, rewriter.state_relations))
 }
+
+/// Whether `exprs` already contains a top-level `define-fun`/`define-fun-rec` literally named
+/// `name`. Unlike tracking `define-state-relation` macro invocations, this also recognizes a raw,
+/// hand-written `define-fun` that bypasses the macro entirely — used to detect whether the user
+/// has already defined something under domino's reserved `theorem::DOMINO_INVARIANT_FN_NAME`.
+pub fn defines_function_named(exprs: &[SmtExpr], name: &str) -> bool {
+    exprs.iter().any(|expr| {
+        let SmtExpr::List(items) = expr else {
+            return false;
+        };
+        let is_define = matches!(
+            items.first(),
+            Some(SmtExpr::Atom(kw)) if kw == "define-fun" || kw == "define-fun-rec"
+        );
+        let matches_name = matches!(items.get(1), Some(SmtExpr::Atom(n)) if n == name);
+        is_define && matches_name
+    })
+}
+
+/// Synthesizes `(define-fun <domino-invariant> ((L <left_sort>) (R <right_sort>)) Bool
+/// (and (frag1 L R) ...))` combining every named invariant fragment via conjunction (`true` if
+/// there are none). `DOMINO_INVARIANT_FN_NAME` is what every call site that assumes/asserts the
+/// old-state invariant actually calls; callers should only invoke this when nothing already
+/// defines that name (see `EquivalenceContext::load_invariants`).
+pub fn synthesize_invariant(left_sort: Sort, right_sort: Sort, fragment_names: &[String]) -> SmtExpr {
+    let calls: Vec<SmtExpr> = fragment_names
+        .iter()
+        .map(|name| (name.as_str(), "L", "R").into())
+        .collect();
+
+    let body: SmtExpr = match calls.len() {
+        0 => "true".into(),
+        1 => calls.into_iter().next().unwrap(),
+        _ => SmtAnd(calls).into(),
+    };
+
+    SmtDefineFun {
+        is_rec: false,
+        name: crate::theorem::DOMINO_INVARIANT_FN_NAME.to_string(),
+        args: vec![("L".to_string(), left_sort), ("R".to_string(), right_sort)],
+        sort: Sort::Bool,
+        body,
+    }
+    .into()
+}
+
 pub fn rewrite_game(
     context: &EquivalenceContext,
     game: &GameInstance,
+    file_name: &str,
     content: &str,
 ) -> Result<Vec<SmtExpr>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game);
+    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game, file_name);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }
@@ -733,9 +860,10 @@ pub fn rewrite_package(
     context: &EquivalenceContext,
     game: &GameInstance,
     package: &PackageInstance,
+    file_name: &str,
     content: &str,
 ) -> Result<Vec<SmtExpr>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package);
+    let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package, file_name);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }

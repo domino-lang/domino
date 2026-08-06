@@ -205,6 +205,23 @@ impl GameInstance {
     }
 }
 
+/// Name of the (equivalence-wide, not oracle-scoped) claim that the invariant holds on the two
+/// game instances' initial states. Used both to construct that claim (`verify_fn.rs`) and to
+/// recognize it later (e.g. `domino-verify`'s model rendering).
+pub const INITIAL_STATE_CLAIM_NAME: &str = "!initial-state!";
+
+/// Internal SMT function name domino calls to assume the old-state invariant as a dependency of
+/// every claim, and to check the induction base case on the initial state. This is deliberately
+/// *not* `"invariant"`: no name is special to domino except this one — a `define-state-relation`
+/// (or even a raw `define-fun`) named `invariant` is just an ordinary, unremarkable name, since
+/// nothing looks for it. Domino always synthesizes this reserved, bracketed name itself as the
+/// AND of every `define-state-relation` fragment declared in an oracle's invariant files
+/// (`smtrewrite::synthesize_invariant` — `true` if there are none) *unless* the user has already
+/// defined something under this exact name themselves (raw or via the macro), in which case that
+/// collides with domino's own definition: `EquivalenceContext::load_invariants` warns and uses
+/// the user's definition as-is instead of synthesizing one.
+pub const DOMINO_INVARIANT_FN_NAME: &str = "<domino-invariant>";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClaimType {
     Lemma,
@@ -214,6 +231,7 @@ pub enum ClaimType {
     RightPackageInvariant,
     LeftGameInvariant,
     RightGameInvariant,
+    InitialState,
 }
 
 impl ClaimType {
@@ -234,11 +252,21 @@ pub struct Claim {
     pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
     pub(crate) admitted: bool,
+    /// Whether this claim came from an explicit line in the `.ssp` file's `lemmas {}` block, as
+    /// opposed to one of the claims domino injects automatically (the `equal-aborts`/
+    /// `same-output`/`invariant` defaults, or an auto-generated invariant fragment claim). Used
+    /// to decide whether an automatically generated claim should be overridden/dropped.
+    pub(crate) user_declared: bool,
+    /// From an explicit `with invariants [inv1, inv2]` modifier on this claim's `lemmas {}` line:
+    /// restricts what's assumed on the old state, for this claim only, to exactly the named
+    /// invariant fragments' conjunction instead of the full `invariant` (the AND of every
+    /// fragment). `None` means the usual, unrestricted assumption.
+    pub(crate) invariant_scope: Option<Vec<String>>,
 }
 
 impl Claim {
-    pub fn from_tuple(data: (String, Vec<String>, bool)) -> Self {
-        let (name, dependencies, admitted) = data;
+    pub fn from_tuple(data: (String, Vec<String>, bool, bool, Option<Vec<String>>)) -> Self {
+        let (name, dependencies, admitted, user_declared, invariant_scope) = data;
         let ty = ClaimType::guess_from_name(&name);
 
         Self {
@@ -246,6 +274,8 @@ impl Claim {
             ty,
             dependencies,
             admitted,
+            user_declared,
+            invariant_scope,
         }
     }
 
@@ -264,6 +294,38 @@ impl Claim {
     pub fn is_admitted(&self) -> bool {
         self.admitted
     }
+}
+
+/// Returns the transitive closure of `root_name`'s dependencies within
+/// `tree` (i.e. not just its direct `lemmas { root: [...] }` list, but
+/// everything reachable by repeatedly following dependency edges), down to
+/// the leaves -- claims with no further known dependencies, whether because
+/// they're `admit`ted, proved outright with no hints, or a built-in like
+/// `no-abort` that was never given its own `lemmas` entry. Returns `None` if
+/// `root_name` isn't a claim in `tree`.
+pub fn claim_closure(tree: &[Claim], root_name: &str) -> Option<Vec<Claim>> {
+    let by_name: std::collections::BTreeMap<&str, &Claim> =
+        tree.iter().map(|claim| (claim.name(), claim)).collect();
+    let root = *by_name.get(root_name)?;
+
+    let mut visited = std::collections::BTreeSet::new();
+    let mut stack = vec![root];
+    let mut closure = Vec::new();
+
+    while let Some(claim) = stack.pop() {
+        if !visited.insert(claim.name()) {
+            continue;
+        }
+        closure.push(claim.clone());
+        for dep in claim.dependencies() {
+            if let Some(dep_claim) = by_name.get(dep.as_str()) {
+                stack.push(dep_claim);
+            }
+        }
+    }
+
+    closure.sort_by(|a, b| a.name().cmp(b.name()));
+    Some(closure)
 }
 
 #[derive(Clone, Debug, Ord, Eq, PartialOrd, PartialEq)]

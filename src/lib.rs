@@ -29,6 +29,8 @@ pub mod writers;
 
 pub mod hacks;
 
+pub mod inline;
+
 pub mod parser;
 
 pub mod project;
@@ -38,6 +40,7 @@ pub mod util;
 pub mod proof;
 pub mod theorem;
 
+pub mod modelview;
 pub mod ui;
 
 pub mod error {
