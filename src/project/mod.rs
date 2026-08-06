@@ -256,17 +256,20 @@ pub trait Project {
             merged
         };
 
+        // Every oracle's claims/sources, regardless of `req_oracle`/`req_claim`
+        // scoping below -- the invariant-flow view's cross-oracle jumps need
+        // to find their target oracle's claims even when the displayed page
+        // itself is scoped down to a single oracle (see
+        // `writers::html::lemma_dependency_html`'s doc comment).
+        let all_claim_sources: Vec<_> = trees
+            .iter()
+            .map(|(oracle_name, _)| (oracle_name.clone(), claim_sources_for_oracle(oracle_name)))
+            .collect();
+
         let Some(oracle_name) = req_oracle else {
             let path = dir.join(format!("{left_name}-{right_name}.html"));
             let graph_name = format!("{left_name}_{right_name}").replace('-', "_");
             let label = format!("{theorem_key}: {left_name} == {right_name}");
-
-            let claim_sources: Vec<_> = trees
-                .iter()
-                .map(|(oracle_name, _)| {
-                    (oracle_name.clone(), claim_sources_for_oracle(oracle_name))
-                })
-                .collect();
 
             std::fs::write(
                 &path,
@@ -276,7 +279,9 @@ pub trait Project {
                     left_name,
                     right_name,
                     trees,
-                    &claim_sources,
+                    &all_claim_sources,
+                    trees,
+                    &all_claim_sources,
                 ),
             )?;
             println!("    lemma dependency page: {}", path.display());
@@ -332,6 +337,8 @@ pub trait Project {
                 right_name,
                 &trees_for_html,
                 &claim_sources,
+                trees,
+                &all_claim_sources,
             ),
         )?;
         println!("    lemma dependency page: {}", path.display());

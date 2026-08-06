@@ -14,7 +14,9 @@ pub mod layout;
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-use data::{ClusterData, EdgeData, GraphData, NodeData, ReferencedDefinition};
+use data::{
+    ClusterData, EdgeData, EdgeKind, FlowGraphData, GraphData, NodeData, ReferencedDefinition,
+};
 use layout::LayoutParams;
 
 use crate::theorem::Claim;
@@ -203,6 +205,61 @@ fn claim_smt_lookup_key(
     }
 }
 
+/// Names of every `define-state-relation` invariant fragment captured for
+/// one oracle, from its `sources` map -- ground truth (see
+/// [`claim_source::ClaimKind::StateRelation`]), independent of whether the
+/// theorem's `lemmas {}` block happens to mention any of them by name.
+fn fragment_names(sources: Option<&BTreeMap<String, ClaimSource>>) -> BTreeSet<&str> {
+    sources
+        .into_iter()
+        .flatten()
+        .filter(|(_, src)| src.kind == claim_source::ClaimKind::StateRelation)
+        .map(|(name, _)| name.as_str())
+        .collect()
+}
+
+/// Mirrors `EquivalenceSmtDriver::reconcile_invariant_fragment_claims`
+/// (`src/gamehops/equivalence/verify_fn.rs`) for the HTML/dot exporters,
+/// which build their claim trees straight from the parsed theorem rather
+/// than from a loaded `EquivalenceContext` (see this module's doc comment):
+/// every fragment not already covered by an explicit `lemmas {}` entry gets
+/// a synthesized claim depending only on `no-abort` (exactly what domino
+/// auto-generates and proves at `prove` time), and any existing claim
+/// sharing a fragment's name gets corrected from `ClaimType::guess_from_name`'s
+/// `Lemma` guess to `Invariant` -- a fragment is never actually
+/// `define-lemma`-shaped, so the name-prefix guess is simply wrong for it.
+/// Without this, an un-declared fragment (the common case -- fragments are
+/// auto-proved whether or not the theorem mentions them) would never appear
+/// in the graph at all, since [`crate::gamehops::equivalence::EquivalenceSmtDriver::validate_claim_dependencies`]
+/// forbids ever listing one as a plain `dependencies()` entry, so it can't
+/// even surface as an implicit/undeclared stub the way a missing lemma can.
+fn reconcile_invariant_fragments(tree: &[Claim], fragments: &BTreeSet<&str>) -> Vec<Claim> {
+    let mut claims: Vec<Claim> = tree.to_vec();
+    for claim in claims.iter_mut() {
+        if claim.ty() == crate::theorem::ClaimType::Lemma && fragments.contains(claim.name()) {
+            claim.ty = crate::theorem::ClaimType::Invariant;
+        }
+    }
+    let known: BTreeSet<&str> = claims.iter().map(Claim::name).collect();
+    let mut missing: Vec<&str> = fragments
+        .iter()
+        .filter(|name| !known.contains(*name))
+        .copied()
+        .collect();
+    missing.sort_unstable();
+    for name in missing {
+        claims.push(Claim {
+            name: name.to_string(),
+            ty: crate::theorem::ClaimType::Invariant,
+            dependencies: vec!["no-abort".to_string()],
+            admitted: false,
+            user_declared: false,
+            invariant_scope: None,
+        });
+    }
+    claims
+}
+
 /// Builds one oracle's cluster: same node set (declared claims + implicit
 /// undeclared/builtin dependency stubs) and edges as
 /// [`crate::writers::dot::write_claim_tree_body`], plus (HTML-only) helper
@@ -219,6 +276,11 @@ fn build_cluster(
     params: &LayoutParams,
 ) -> ClusterData {
     let node_id = |name: &str| format!("{oracle_name}::{name}");
+
+    let fragments = fragment_names(sources);
+    let tree: Vec<Claim> = reconcile_invariant_fragments(tree, &fragments);
+    let tree = tree.as_slice();
+
     let known: BTreeSet<&str> = tree.iter().map(Claim::name).collect();
 
     let mut implicit: Vec<&str> = tree
@@ -256,18 +318,47 @@ fn build_cluster(
     node_ids.extend(implicit.iter().map(|dep| node_id(dep)));
     node_ids.extend(function_nodes.iter().map(|name| node_id(name)));
 
-    let mut edges: Vec<(String, String)> = tree
+    let mut edges: Vec<(String, String, EdgeKind)> = tree
         .iter()
         .flat_map(|claim| {
             claim
                 .dependencies()
                 .iter()
-                .map(move |dep| (node_id(claim.name()), node_id(dep)))
+                .map(move |dep| (node_id(claim.name()), node_id(dep), EdgeKind::Dependency))
         })
         .collect();
-    edges.extend(function_edges);
+    edges.extend(
+        function_edges
+            .into_iter()
+            .map(|(from, to)| (from, to, EdgeKind::Dependency)),
+    );
 
-    let layout = layout::layered_layout(&node_ids, &edges, params);
+    // An explicit `with invariants [...]` modifier: draw an edge to each
+    // named fragment (best-effort -- `validate_invariant_scopes` already
+    // rejects an unknown fragment name at `prove` time, so silently skipping
+    // one here just means this exporter degrades gracefully instead of
+    // panicking on an otherwise-invalid theorem it's still asked to render).
+    for claim in tree {
+        let Some(scope) = &claim.invariant_scope else {
+            continue;
+        };
+        for fragment_name in scope {
+            if !fragments.contains(fragment_name.as_str()) {
+                continue;
+            }
+            edges.push((
+                node_id(claim.name()),
+                node_id(fragment_name),
+                EdgeKind::WithInvariants,
+            ));
+        }
+    }
+
+    let layout_edges: Vec<(String, String)> = edges
+        .iter()
+        .map(|(from, to, _)| (from.clone(), to.clone()))
+        .collect();
+    let layout = layout::layered_layout(&node_ids, &layout_edges, params);
     let positions: BTreeMap<&str, (f64, f64)> = layout
         .nodes
         .iter()
@@ -284,14 +375,21 @@ fn build_cluster(
         // Prefer ground truth from the invariant source (which macro form
         // actually defined this claim) over `claim.ty()`'s name-prefix
         // guess, which the common `relation-lemma-...` naming convention
-        // fools into reading lemmas as state relations.
+        // fools into reading lemmas as state relations. A `StateRelation`
+        // source doesn't need the same override: `reconcile_invariant_fragments`
+        // above already resolved its `ClaimType` to `Relation`/`Invariant`
+        // (mirroring `EquivalenceSmtDriver::reconcile_invariant_fragment_claims`'s
+        // naming-convention split) more precisely than a blanket "always
+        // `Relation`" guess would.
         let effective_ty = match source.map(|s| s.kind) {
-            Some(claim_source::ClaimKind::StateRelation) => crate::theorem::ClaimType::Relation,
             Some(claim_source::ClaimKind::Lemma) => crate::theorem::ClaimType::Lemma,
             // A claim name colliding with a captured `define-fun` helper's
             // name would be a strange coincidence, not a real signal -- fall
-            // back to the plain name-prefix guess same as no match at all.
-            Some(claim_source::ClaimKind::Function) | None => claim.ty(),
+            // back to the already-reconciled `ClaimType` same as no match at
+            // all.
+            Some(claim_source::ClaimKind::StateRelation)
+            | Some(claim_source::ClaimKind::Function)
+            | None => claim.ty(),
         };
         nodes.push(NodeData {
             id,
@@ -372,11 +470,17 @@ fn build_cluster(
 
     let edges = edges
         .into_iter()
-        .map(|(from, to)| EdgeData { from, to })
+        .map(|(from, to, kind)| EdgeData {
+            from,
+            to,
+            kind,
+            label: None,
+        })
         .collect();
 
     ClusterData {
         oracle_name: oracle_name.to_string(),
+        label: oracle_name.to_string(),
         x: 0.0,
         y: 0.0,
         width: layout.width.max(params.node_width),
@@ -384,6 +488,374 @@ fn build_cluster(
         nodes,
         edges,
     }
+}
+
+/// Lays clusters out left-to-right (same shape [`lemma_dependency_html`] uses
+/// for its top-level per-oracle clusters), mutating each cluster's `x`/`y` in
+/// place and returning the overall `(width, height)` this arrangement needs.
+fn arrange_clusters_left_to_right(clusters: &mut [ClusterData]) -> (f64, f64) {
+    let mut x_cursor = 0.0;
+    let mut max_height: f64 = 0.0;
+    for cluster in clusters.iter_mut() {
+        cluster.x = x_cursor;
+        cluster.y = 0.0;
+        x_cursor += cluster.width + CLUSTER_GAP;
+        max_height = max_height.max(cluster.height);
+    }
+    let total_width = (x_cursor - CLUSTER_GAP).max(0.0);
+    (total_width, max_height)
+}
+
+/// A lookup over every oracle's already-built cluster (see [`build_cluster`]),
+/// used by [`build_invariant_flow_graph`] to jump between oracles: every
+/// node and its local outgoing edges, keyed by the same `{oracle}::{name}`
+/// id `build_cluster` assigns, plus a name -> declaring-oracles index for
+/// non-implicit, non-builtin `Relation`/`Invariant` nodes (i.e. claims
+/// backed by a `define-state-relation` -- both the fragment-promoted
+/// `Invariant` case and the pre-existing hand-chained `relation-*` naming
+/// convention, see [`reconcile_invariant_fragments`]) -- the set of claims a
+/// `with invariants [...]` edge can actually point at.
+struct FlowIndex<'a> {
+    node_by_id: BTreeMap<String, &'a NodeData>,
+    outgoing: BTreeMap<String, Vec<(String, EdgeKind)>>,
+    fragment_oracles: BTreeMap<String, Vec<String>>,
+}
+
+impl<'a> FlowIndex<'a> {
+    fn build(clusters: &'a [ClusterData]) -> Self {
+        let mut node_by_id = BTreeMap::new();
+        let mut outgoing: BTreeMap<String, Vec<(String, EdgeKind)>> = BTreeMap::new();
+        let mut fragment_oracles: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+        for cluster in clusters {
+            for node in &cluster.nodes {
+                node_by_id.insert(node.id.clone(), node);
+                if !node.builtin
+                    && !node.implicit
+                    && matches!(node.claim_type, "Relation" | "Invariant")
+                {
+                    fragment_oracles
+                        .entry(node.name.clone())
+                        .or_default()
+                        .push(cluster.oracle_name.clone());
+                }
+            }
+            for edge in &cluster.edges {
+                outgoing
+                    .entry(edge.from.clone())
+                    .or_default()
+                    .push((edge.to.clone(), edge.kind));
+            }
+        }
+        for oracles in fragment_oracles.values_mut() {
+            oracles.sort_unstable();
+            oracles.dedup();
+        }
+
+        FlowIndex {
+            node_by_id,
+            outgoing,
+            fragment_oracles,
+        }
+    }
+}
+
+/// Wraps a freshly walked cluster's nodes/edges into a [`ClusterData`],
+/// running them through [`layout::layered_layout`] the same way
+/// [`build_cluster`] does (each invariant-flow cluster is laid out
+/// independently of every other one, root or virtual).
+fn finish_flow_cluster(
+    label: String,
+    oracle_name: &str,
+    mut nodes: Vec<NodeData>,
+    edges: Vec<EdgeData>,
+    params: &LayoutParams,
+) -> ClusterData {
+    let node_ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
+    let layout_edges: Vec<(String, String)> = edges
+        .iter()
+        .map(|e| (e.from.clone(), e.to.clone()))
+        .collect();
+    let layout = layout::layered_layout(&node_ids, &layout_edges, params);
+    let positions: BTreeMap<&str, (f64, f64)> = layout
+        .nodes
+        .iter()
+        .map(|n| (n.id.as_str(), (n.x, n.y + LABEL_HEIGHT)))
+        .collect();
+    for node in nodes.iter_mut() {
+        let (x, y) = positions
+            .get(node.id.as_str())
+            .copied()
+            .unwrap_or((0.0, 0.0));
+        node.x = x;
+        node.y = y;
+    }
+
+    ClusterData {
+        oracle_name: oracle_name.to_string(),
+        label,
+        x: 0.0,
+        y: 0.0,
+        width: layout.width.max(params.node_width),
+        height: layout.height + LABEL_HEIGHT,
+        nodes,
+        edges,
+    }
+}
+
+/// Walks the "invariant flow" of one oracle -- see [`build_invariant_flow_graph`]'s
+/// doc comment for the algorithm. Threaded through the whole recursive walk
+/// (both the local, same-cluster dependency walk and the cross-oracle jumps
+/// it triggers), so it's a struct rather than a bare function plus
+/// parameters.
+struct FlowBuilder<'a, 'b> {
+    index: &'b FlowIndex<'a>,
+    params: &'b LayoutParams,
+    id_counter: usize,
+    /// Clusters spawned by a cross-oracle jump, in the order they were
+    /// created -- the root cluster (built by the caller) is prepended to
+    /// these to form the final cluster list.
+    extra_clusters: Vec<ClusterData>,
+    cross_edges: Vec<EdgeData>,
+    /// `{oracle}::{fragment}` keys currently being expanded higher up the
+    /// current path -- i.e. an actual ancestor, not merely "already drawn
+    /// somewhere in the graph". Checked before following a cross-oracle
+    /// candidate so a genuine cycle (a fragment depending, transitively, on
+    /// itself holding in an old state) terminates with a `Back` edge, while
+    /// the very same fragment/oracle pair reached again via a *different,
+    /// unrelated* branch still gets its own fresh expansion.
+    ancestors: Vec<String>,
+    ancestor_flow_id: BTreeMap<String, String>,
+}
+
+impl<'a, 'b> FlowBuilder<'a, 'b> {
+    fn fresh_id(&mut self) -> String {
+        self.id_counter += 1;
+        format!("flow-{}", self.id_counter)
+    }
+
+    /// Places `real_id` in the current cluster (memoized via `local_memo`,
+    /// scoped to that one cluster, so a diamond within one oracle's own
+    /// dependency chain collapses to a single node instead of duplicating
+    /// it) and recurses into its outgoing edges: a plain `Dependency` edge
+    /// stays within the same cluster/oracle, while a `WithInvariants` edge's
+    /// target additionally triggers [`Self::branch_cross_oracle`] the first
+    /// time it's placed (not on a `local_memo` hit -- otherwise two claims
+    /// in the same oracle both scoping to the same fragment would branch
+    /// twice). Returns `real_id`'s flow-local id.
+    fn expand_local(
+        &mut self,
+        real_id: &str,
+        oracle_name: &str,
+        nodes: &mut Vec<NodeData>,
+        edges: &mut Vec<EdgeData>,
+        local_memo: &mut BTreeMap<String, String>,
+    ) -> String {
+        if let Some(id) = local_memo.get(real_id) {
+            return id.clone();
+        }
+        let flow_id = self.fresh_id();
+        local_memo.insert(real_id.to_string(), flow_id.clone());
+
+        let Some(&node_ref) = self.index.node_by_id.get(real_id) else {
+            // Shouldn't happen (every edge target came from a real cluster's
+            // own node list), but degrade gracefully rather than panic on a
+            // stray id in an otherwise-invalid theorem this exporter is
+            // still asked to render.
+            return flow_id;
+        };
+        let mut node = node_ref.clone();
+        node.id = flow_id.clone();
+        nodes.push(node);
+
+        let deps = self
+            .index
+            .outgoing
+            .get(real_id)
+            .cloned()
+            .unwrap_or_default();
+        for (dep_real_id, kind) in deps {
+            let already_placed = local_memo.contains_key(&dep_real_id);
+            let dep_flow_id =
+                self.expand_local(&dep_real_id, oracle_name, nodes, edges, local_memo);
+            edges.push(EdgeData {
+                from: flow_id.clone(),
+                to: dep_flow_id.clone(),
+                kind,
+                label: None,
+            });
+            if kind == EdgeKind::WithInvariants && !already_placed {
+                if let Some(dep_name) = self.index.node_by_id.get(dep_real_id.as_str()) {
+                    let dep_name = dep_name.name.clone();
+                    self.branch_cross_oracle(oracle_name, &dep_name, &dep_flow_id);
+                }
+            }
+        }
+        flow_id
+    }
+
+    /// For `fragment_name` as established in `from_oracle` (the node already
+    /// placed at `flow_id`), spawns one freshly expanded cluster per *other*
+    /// oracle (including possibly `from_oracle` itself again, later on a
+    /// different path -- see the module doc) that also declares this
+    /// fragment, connected by a `CrossOracle` edge; a candidate that's
+    /// already an ancestor of this exact call (a cycle) gets a `Back` edge
+    /// to that ancestor's node instead of a new cluster.
+    ///
+    /// This call itself can be reentrant: two independent cross-oracle
+    /// branches (each with their own fresh `local_memo`, so the local
+    /// same-cluster memoization can't see each other) can both walk back
+    /// into the same `(from_oracle, fragment_name)` pair. Without this
+    /// check that reentrancy isn't a "different, unrelated branch" -- it's
+    /// the same ancestor pair already being expanded further up the current
+    /// call stack -- and would recurse forever instead of terminating with
+    /// a `Back` edge.
+    fn branch_cross_oracle(&mut self, from_oracle: &str, fragment_name: &str, flow_id: &str) {
+        let key = format!("{from_oracle}::{fragment_name}");
+        if let Some(ancestor_flow_id) = self.ancestor_flow_id.get(&key) {
+            self.cross_edges.push(EdgeData {
+                from: flow_id.to_string(),
+                to: ancestor_flow_id.clone(),
+                kind: EdgeKind::Back,
+                label: Some(from_oracle.to_string()),
+            });
+            return;
+        }
+        self.ancestors.push(key.clone());
+        self.ancestor_flow_id
+            .insert(key.clone(), flow_id.to_string());
+
+        let candidates = self
+            .index
+            .fragment_oracles
+            .get(fragment_name)
+            .cloned()
+            .unwrap_or_default();
+        for other_oracle in candidates {
+            let other_key = format!("{other_oracle}::{fragment_name}");
+            if self.ancestors.iter().any(|k| k == &other_key) {
+                let back_id = self.ancestor_flow_id[&other_key].clone();
+                self.cross_edges.push(EdgeData {
+                    from: flow_id.to_string(),
+                    to: back_id,
+                    kind: EdgeKind::Back,
+                    label: Some(other_oracle.clone()),
+                });
+                continue;
+            }
+
+            let other_real_id = format!("{other_oracle}::{fragment_name}");
+            if !self.index.node_by_id.contains_key(&other_real_id) {
+                continue;
+            }
+            let mut cluster_nodes = Vec::new();
+            let mut cluster_edges = Vec::new();
+            let mut local_memo = BTreeMap::new();
+            let target_flow_id = self.expand_local(
+                &other_real_id,
+                &other_oracle,
+                &mut cluster_nodes,
+                &mut cluster_edges,
+                &mut local_memo,
+            );
+            let cluster = finish_flow_cluster(
+                format!("{other_oracle} \u{b7} {fragment_name}"),
+                &other_oracle,
+                cluster_nodes,
+                cluster_edges,
+                self.params,
+            );
+            self.extra_clusters.push(cluster);
+            self.cross_edges.push(EdgeData {
+                from: flow_id.to_string(),
+                to: target_flow_id,
+                kind: EdgeKind::CrossOracle,
+                label: Some(other_oracle),
+            });
+        }
+
+        self.ancestors.pop();
+        self.ancestor_flow_id.remove(&key);
+    }
+}
+
+/// Builds `root_oracle`'s "invariant flow" graph: starting from its
+/// `same-output`/`equal-aborts` obligations, follows the exact same edges as
+/// the main proof-tree graph (plain dependency hints, plus `with invariants`
+/// scope edges -- see [`build_cluster`]) down through the lemmas and
+/// invariant fragments they need. Every invariant fragment reached this way
+/// additionally gets a `CrossOracle` edge into a freshly expanded, separately
+/// laid out cluster for each *other* oracle (of the same equivalence hop)
+/// that also declares it, showing how that oracle establishes it in turn --
+/// recursively, since that oracle's own claims can themselves scope to
+/// further fragments. A fragment/oracle pair already an ancestor of itself
+/// on the current path (the temporal cycle inherent to an inductive
+/// invariant -- e.g. "this fragment held in the old state" bottoming out at
+/// "...which was itself established by some earlier call") is cut short with
+/// a `Back` edge into the existing ancestor node rather than expanding
+/// forever; the same pair reached again via an unrelated branch still gets
+/// its own separate expansion.
+///
+/// `index` must be built from *every* oracle of the equivalence hop (not
+/// just the ones actually being displayed), so a cross-oracle jump can find
+/// its target even when the page is scoped to a single oracle via
+/// `--oracle`. Returns `None` if `root_oracle` declares neither
+/// `same-output` nor `equal-aborts` (nothing to root the graph at).
+fn build_invariant_flow_graph(
+    root_oracle: &str,
+    index: &FlowIndex,
+    params: &LayoutParams,
+) -> Option<FlowGraphData> {
+    let root_ids: Vec<String> = ["same-output", "equal-aborts"]
+        .iter()
+        .map(|name| format!("{root_oracle}::{name}"))
+        .filter(|id| index.node_by_id.contains_key(id))
+        .collect();
+    if root_ids.is_empty() {
+        return None;
+    }
+
+    let mut builder = FlowBuilder {
+        index,
+        params,
+        id_counter: 0,
+        extra_clusters: Vec::new(),
+        cross_edges: Vec::new(),
+        ancestors: Vec::new(),
+        ancestor_flow_id: BTreeMap::new(),
+    };
+
+    let mut root_nodes = Vec::new();
+    let mut root_edges = Vec::new();
+    let mut local_memo = BTreeMap::new();
+    for root_id in &root_ids {
+        builder.expand_local(
+            root_id,
+            root_oracle,
+            &mut root_nodes,
+            &mut root_edges,
+            &mut local_memo,
+        );
+    }
+    let root_cluster = finish_flow_cluster(
+        root_oracle.to_string(),
+        root_oracle,
+        root_nodes,
+        root_edges,
+        params,
+    );
+
+    let mut clusters = vec![root_cluster];
+    clusters.extend(builder.extra_clusters);
+    let (width, height) = arrange_clusters_left_to_right(&mut clusters);
+
+    Some(FlowGraphData {
+        oracle_name: root_oracle.to_string(),
+        width,
+        height,
+        clusters,
+        cross_edges: builder.cross_edges,
+    })
 }
 
 fn claim_type_label(ty: crate::theorem::ClaimType) -> &'static str {
@@ -416,6 +888,15 @@ fn claim_type_label(ty: crate::theorem::ClaimType) -> &'static str {
 /// `define-lemma`/`define-state-relation` claim (see
 /// [`crate::writers::claim_source`]); pass an empty map for an oracle to
 /// fall back to "source not captured" for all of its nodes.
+///
+/// `trees`/`claim_sources` scope what's actually *displayed* (mirroring
+/// `--oracle`/`--claim`'s narrowing, same as before this parameter existed).
+/// `all_trees`/`all_claim_sources` must always cover *every* oracle of the
+/// equivalence hop, regardless of that scoping: the invariant-flow view's
+/// cross-oracle jumps need to find their target oracle's claims even when
+/// the displayed page has been narrowed down to just one. Pass the same
+/// value for both pairs to display every oracle.
+#[allow(clippy::too_many_arguments)]
 pub fn lemma_dependency_html(
     graph_name: &str,
     label: &str,
@@ -423,29 +904,41 @@ pub fn lemma_dependency_html(
     right_name: &str,
     trees: &[(String, Vec<Claim>)],
     claim_sources: &[(String, BTreeMap<String, ClaimSource>)],
+    all_trees: &[(String, Vec<Claim>)],
+    all_claim_sources: &[(String, BTreeMap<String, ClaimSource>)],
 ) -> String {
     let params = LayoutParams::default();
 
-    let mut clusters: Vec<ClusterData> = trees
-        .iter()
-        .map(|(oracle_name, tree)| {
-            let sources = claim_sources
+    let build =
+        |oracle_name: &str, tree: &[Claim], sources: &[(String, BTreeMap<String, ClaimSource>)]| {
+            let sources = sources
                 .iter()
                 .find(|(name, _)| name == oracle_name)
                 .map(|(_, m)| m);
             build_cluster(left_name, right_name, oracle_name, tree, sources, &params)
+        };
+
+    let mut clusters: Vec<ClusterData> = trees
+        .iter()
+        .map(|(oracle_name, tree)| build(oracle_name, tree, claim_sources))
+        .collect();
+    let (total_width, max_height) = arrange_clusters_left_to_right(&mut clusters);
+
+    // Every oracle's cluster, unscoped by `--oracle`/`--claim`, purely as an
+    // index for the invariant-flow view's cross-oracle jumps (see
+    // `FlowIndex`) -- these are never themselves shown; only their
+    // nodes/edges are read back out via `build_invariant_flow_graph`.
+    let full_clusters: Vec<ClusterData> = all_trees
+        .iter()
+        .map(|(oracle_name, tree)| build(oracle_name, tree, all_claim_sources))
+        .collect();
+    let flow_index = FlowIndex::build(&full_clusters);
+    let invariant_flows: Vec<FlowGraphData> = clusters
+        .iter()
+        .filter_map(|cluster| {
+            build_invariant_flow_graph(&cluster.oracle_name, &flow_index, &params)
         })
         .collect();
-
-    let mut x_cursor = 0.0;
-    let mut max_height: f64 = 0.0;
-    for cluster in &mut clusters {
-        cluster.x = x_cursor;
-        cluster.y = 0.0;
-        x_cursor += cluster.width + CLUSTER_GAP;
-        max_height = max_height.max(cluster.height);
-    }
-    let total_width = (x_cursor - CLUSTER_GAP).max(0.0);
 
     let graph_data = GraphData {
         graph_name: graph_name.to_string(),
@@ -453,6 +946,7 @@ pub fn lemma_dependency_html(
         width: total_width,
         height: max_height,
         clusters,
+        invariant_flows,
     };
 
     let json = graph_data.to_json().replace("</", "<\\/");
@@ -463,3 +957,239 @@ pub fn lemma_dependency_html(
 }
 
 const TEMPLATE: &str = include_str!("template.html");
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn claim(name: &str, deps: &[&str], scope: Option<&[&str]>) -> Claim {
+        Claim::from_tuple((
+            name.to_string(),
+            deps.iter().map(|s| s.to_string()).collect(),
+            false,
+            true,
+            scope.map(|s| s.iter().map(|x| x.to_string()).collect()),
+        ))
+    }
+
+    fn ctr_eq_source() -> ClaimSource {
+        ClaimSource {
+            kind: claim_source::ClaimKind::StateRelation,
+            domino_source: "(define-state-relation ctr-eq (L R) (= L.A.ctr R.B.ctr))".to_string(),
+            depends_on_new_state: false,
+            easycrypt_source: "L.A.ctr = R.B.ctr".to_string(),
+        }
+    }
+
+    #[test]
+    fn undeclared_fragment_still_gets_a_real_invariant_node_with_a_scope_edge() {
+        let params = LayoutParams::default();
+        let tree = vec![
+            claim("same-output", &["no-abort"], Some(&["ctr-eq"])),
+            claim("equal-aborts", &[], None),
+        ];
+        let mut sources = BTreeMap::new();
+        sources.insert("ctr-eq".to_string(), ctr_eq_source());
+
+        let cluster = build_cluster("A", "B", "Test", &tree, Some(&sources), &params);
+
+        let ctr_eq = cluster
+            .nodes
+            .iter()
+            .find(|n| n.name == "ctr-eq")
+            .expect("ctr-eq should be synthesized as a real node");
+        assert!(
+            !ctr_eq.implicit,
+            "an auto-generated invariant fragment is a real proof obligation, not an undeclared stub"
+        );
+        assert_eq!(ctr_eq.claim_type, "Invariant");
+
+        let edge = cluster
+            .edges
+            .iter()
+            .find(|e| e.from == "Test::same-output" && e.to == ctr_eq.id)
+            .expect("same-output should have a with-invariants edge to ctr-eq");
+        assert_eq!(edge.kind, EdgeKind::WithInvariants);
+    }
+
+    #[test]
+    fn plain_dependencies_are_unaffected() {
+        let params = LayoutParams::default();
+        let tree = vec![claim("same-output", &["no-abort"], None)];
+        let cluster = build_cluster("A", "B", "Test", &tree, None, &params);
+        let edge = cluster
+            .edges
+            .iter()
+            .find(|e| e.from == "Test::same-output" && e.to == "Test::no-abort")
+            .expect("plain dependency edge");
+        assert_eq!(edge.kind, EdgeKind::Dependency);
+    }
+
+    #[test]
+    fn self_referential_fragment_in_flow_graph_terminates_with_back_edge() {
+        let params = LayoutParams::default();
+        let mut sources = BTreeMap::new();
+        sources.insert("ctr-eq".to_string(), ctr_eq_source());
+
+        let test_tree = vec![
+            claim("same-output", &["no-abort"], Some(&["ctr-eq"])),
+            claim("equal-aborts", &[], None),
+        ];
+        // "Other" oracle's own claim for the shared fragment scopes right
+        // back to itself -- an immediate cycle once the flow view starts
+        // following cross-oracle candidates for "ctr-eq".
+        let other_tree = vec![claim("ctr-eq", &[], Some(&["ctr-eq"]))];
+
+        let clusters = vec![
+            build_cluster("A", "B", "Test", &test_tree, Some(&sources), &params),
+            build_cluster("A", "B", "Other", &other_tree, Some(&sources), &params),
+        ];
+
+        let index = FlowIndex::build(&clusters);
+        // Terminating at all (this call returning) is half of what's under
+        // test; an unguarded recursion here would hang or blow the stack.
+        let flow = build_invariant_flow_graph("Test", &index, &params).expect("flow graph");
+
+        assert!(
+            flow.cross_edges.iter().any(|e| e.kind == EdgeKind::Back),
+            "the self-referential fragment must be cut with a Back edge, not expanded forever"
+        );
+        assert!(
+            flow.cross_edges
+                .iter()
+                .any(|e| e.kind == EdgeKind::CrossOracle && e.label.as_deref() == Some("Other")),
+            "Test's ctr-eq should still jump into Other's independent proof of the same fragment"
+        );
+    }
+
+    #[test]
+    fn unrelated_branch_reaching_the_same_target_gets_its_own_expansion() {
+        // Ancestor-based cycle detection (as opposed to a global
+        // once-per-(oracle,fragment) cache): "Other::ctr-eq" is reachable
+        // two different ways here --
+        //   Test::ctr-eq --cross-oracle--> Other::ctr-eq                 (direct)
+        //   Test::ctr-nonneg --cross-oracle--> Mid::ctr-nonneg
+        //     --with-invariants--> Mid::ctr-eq --cross-oracle--> Other::ctr-eq  (via Mid)
+        // and neither path is an ancestor of the other (they split at the
+        // Test root, into same-output vs equal-aborts), so both must expand
+        // Other::ctr-eq independently rather than the second one collapsing
+        // into the first.
+        let params = LayoutParams::default();
+        let source = |name: &str| ClaimSource {
+            kind: claim_source::ClaimKind::StateRelation,
+            domino_source: format!("(define-state-relation {name} (L R) true)"),
+            depends_on_new_state: false,
+            easycrypt_source: "true".to_string(),
+        };
+
+        let mut test_sources = BTreeMap::new();
+        test_sources.insert("ctr-eq".to_string(), source("ctr-eq"));
+        test_sources.insert("ctr-nonneg".to_string(), source("ctr-nonneg"));
+        let test_tree = vec![
+            claim("same-output", &[], Some(&["ctr-eq"])),
+            claim("equal-aborts", &[], Some(&["ctr-nonneg"])),
+        ];
+
+        let mut mid_sources = BTreeMap::new();
+        mid_sources.insert("ctr-nonneg".to_string(), source("ctr-nonneg"));
+        mid_sources.insert("ctr-eq".to_string(), source("ctr-eq"));
+        let mid_tree = vec![claim("ctr-nonneg", &[], Some(&["ctr-eq"]))];
+
+        let mut other_sources = BTreeMap::new();
+        other_sources.insert("ctr-eq".to_string(), source("ctr-eq"));
+        let other_tree = vec![claim("ctr-eq", &[], None)];
+
+        let clusters = vec![
+            build_cluster("A", "B", "Test", &test_tree, Some(&test_sources), &params),
+            build_cluster("A", "B", "Mid", &mid_tree, Some(&mid_sources), &params),
+            build_cluster(
+                "A",
+                "B",
+                "Other",
+                &other_tree,
+                Some(&other_sources),
+                &params,
+            ),
+        ];
+
+        let index = FlowIndex::build(&clusters);
+        let flow = build_invariant_flow_graph("Test", &index, &params).expect("flow graph");
+
+        let other_targets: BTreeSet<&str> = flow
+            .cross_edges
+            .iter()
+            .filter(|e| e.kind == EdgeKind::CrossOracle && e.label.as_deref() == Some("Other"))
+            .map(|e| e.to.as_str())
+            .collect();
+        assert_eq!(
+            other_targets.len(),
+            2,
+            "the two unrelated paths into Other::ctr-eq should produce two distinct flow nodes, not share one: {:?}",
+            flow.cross_edges
+        );
+        assert_eq!(
+            flow.clusters
+                .iter()
+                .filter(|c| c.oracle_name == "Other")
+                .count(),
+            2,
+            "each independent jump into Other should get its own cluster"
+        );
+    }
+
+    #[test]
+    fn nested_cross_oracle_jump_back_into_an_active_ancestor_terminates() {
+        // Regression test for a stack overflow found on a real project:
+        // `branch_cross_oracle` only checked candidates against `ancestors`,
+        // never its own `(from_oracle, fragment_name)` key on entry. Two
+        // independent cross-oracle jumps (each with their own fresh
+        // `local_memo`, so local same-cluster memoization can't see each
+        // other) could both walk back into the very same ancestor pair and
+        // re-enter `branch_cross_oracle` for it while it was still on the
+        // call stack, re-pushing the same key and recursing forever instead
+        // of stopping with a `Back` edge:
+        //   Root::same-output --w/inv--> Root::F --w/inv--> Root::G
+        //     --cross-oracle--> A::G --w/inv--> A::F --w/inv--> A::G (local cycle, fine)
+        //     A::G --cross-oracle--> A::F's own w/inv jump back to Root::F
+        //       --w/inv--> Root::G  <-- same (Root, G) pair already an
+        //                              ancestor, reached via a fresh
+        //                              `local_memo`/candidate loop that
+        //                              can't see the outer one.
+        let params = LayoutParams::default();
+        let source = |name: &str| ClaimSource {
+            kind: claim_source::ClaimKind::StateRelation,
+            domino_source: format!("(define-state-relation {name} (L R) true)"),
+            depends_on_new_state: false,
+            easycrypt_source: "true".to_string(),
+        };
+        let mut sources = BTreeMap::new();
+        sources.insert("F".to_string(), source("F"));
+        sources.insert("G".to_string(), source("G"));
+
+        let root_tree = vec![
+            claim("same-output", &[], Some(&["F"])),
+            claim("F", &[], Some(&["G"])),
+            claim("G", &[], None),
+        ];
+        let a_tree = vec![
+            claim("F", &[], Some(&["G"])),
+            claim("G", &[], Some(&["F"])),
+        ];
+
+        let clusters = vec![
+            build_cluster("L", "R", "Root", &root_tree, Some(&sources), &params),
+            build_cluster("L", "R", "A", &a_tree, Some(&sources), &params),
+        ];
+
+        let index = FlowIndex::build(&clusters);
+        // Terminating at all (this call returning instead of hanging or
+        // overflowing the stack) is what's under test.
+        let flow = build_invariant_flow_graph("Root", &index, &params).expect("flow graph");
+
+        assert!(
+            flow.cross_edges.iter().any(|e| e.kind == EdgeKind::Back),
+            "the reentrant (Root, G) ancestor pair must be cut with a Back edge: {:?}",
+            flow.cross_edges
+        );
+    }
+}

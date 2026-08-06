@@ -8,8 +8,12 @@
 
 use std::fmt::Write;
 
+#[derive(Clone)]
 pub struct NodeData {
-    /// DOM/JS id, unique across the whole page (`{oracle}::{claim_name}`).
+    /// DOM/JS id, unique across the whole page (`{oracle}::{claim_name}`) for
+    /// a main-graph node, or a freshly synthesized `flow-N` id for an
+    /// invariant-flow node (which may re-embed the same underlying claim
+    /// more than once -- see [`crate::writers::html::build_invariant_flow_graph`]).
     pub id: String,
     /// Bare claim name, for the label and the detail panel title.
     pub name: String,
@@ -37,6 +41,7 @@ pub struct NodeData {
     pub referenced_definitions: Vec<ReferencedDefinition>,
 }
 
+#[derive(Clone)]
 pub struct ReferencedDefinition {
     pub name: String,
     pub kind_label: &'static str,
@@ -44,13 +49,70 @@ pub struct ReferencedDefinition {
     pub easycrypt_source: String,
 }
 
+/// What relation an [`EdgeData`] draws between two nodes -- lets the JS side
+/// style each kind distinctly instead of everything being a plain proof
+/// dependency, and lets [`crate::writers::html::mod`]'s invariant-flow
+/// builder tell a normal in-cluster dependency edge apart from a cross-oracle
+/// jump/back-edge without re-deriving it from node shapes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeKind {
+    /// A claim's ordinary `lemmas { name: [dep, ...] }` hint, or an
+    /// HTML-only helper-function call edge (see `find_function_calls`).
+    Dependency,
+    /// An explicit `with invariants [...]` scope entry: the claim assumes
+    /// only this named invariant fragment on the old state, instead of the
+    /// full (AND-of-every-fragment) `invariant`.
+    WithInvariants,
+    /// Invariant-flow view only: a fragment's establishment jumps into a
+    /// freshly expanded cluster for another oracle that also declares it.
+    CrossOracle,
+    /// Invariant-flow view only: the jump target is already an ancestor of
+    /// itself on the current expansion path (a cycle, e.g. a fragment
+    /// depending on itself holding in the old state) -- points back at the
+    /// existing ancestor node instead of expanding it again.
+    Back,
+}
+
+impl EdgeKind {
+    fn as_str(self) -> &'static str {
+        match self {
+            EdgeKind::Dependency => "dependency",
+            EdgeKind::WithInvariants => "with-invariants",
+            EdgeKind::CrossOracle => "cross-oracle",
+            EdgeKind::Back => "back",
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct EdgeData {
     pub from: String,
     pub to: String,
+    pub kind: EdgeKind,
+    /// Set for `CrossOracle`/`Back` edges: the oracle name the edge jumps to
+    /// (or back into), shown as a small label on the edge.
+    pub label: Option<String>,
+}
+
+impl EdgeData {
+    pub fn dependency(from: String, to: String) -> Self {
+        EdgeData {
+            from,
+            to,
+            kind: EdgeKind::Dependency,
+            label: None,
+        }
+    }
 }
 
 pub struct ClusterData {
     pub oracle_name: String,
+    /// Display heading for the cluster -- equal to `oracle_name` for a
+    /// normal per-oracle cluster, but distinct for an invariant-flow
+    /// cross-oracle cluster (`"{other_oracle} · {fragment_name}"`), whose
+    /// nodes still carry the real `oracle_name` so panel/search features
+    /// that key off it keep working.
+    pub label: String,
     pub x: f64,
     pub y: f64,
     pub width: f64,
@@ -59,12 +121,29 @@ pub struct ClusterData {
     pub edges: Vec<EdgeData>,
 }
 
+/// One oracle's "invariant flow" graph (see
+/// [`crate::writers::html::build_invariant_flow_graph`]): starting from its
+/// `same-output`/`equal-aborts` obligations, follows normal dependency edges
+/// plus `with invariants` edges out to the invariant fragments they need,
+/// each of which additionally gets its own freshly expanded cluster per
+/// other oracle that also establishes it (a `CrossOracle`/`Back` edge in
+/// `cross_edges`, not `clusters[i].edges`, since those connect nodes across
+/// different clusters).
+pub struct FlowGraphData {
+    pub oracle_name: String,
+    pub width: f64,
+    pub height: f64,
+    pub clusters: Vec<ClusterData>,
+    pub cross_edges: Vec<EdgeData>,
+}
+
 pub struct GraphData {
     pub graph_name: String,
     pub label: String,
     pub width: f64,
     pub height: f64,
     pub clusters: Vec<ClusterData>,
+    pub invariant_flows: Vec<FlowGraphData>,
 }
 
 fn json_string(s: &str) -> String {
@@ -153,9 +232,11 @@ impl EdgeData {
     fn write_json(&self, out: &mut String) {
         write!(
             out,
-            "{{\"from\":{},\"to\":{}}}",
+            "{{\"from\":{},\"to\":{},\"kind\":{},\"label\":{}}}",
             json_string(&self.from),
             json_string(&self.to),
+            json_string(self.kind.as_str()),
+            json_opt_string(&self.label),
         )
         .unwrap();
     }
@@ -176,8 +257,9 @@ impl ClusterData {
     fn write_json(&self, out: &mut String) {
         write!(
             out,
-            "{{\"oracleName\":{},\"x\":{},\"y\":{},\"width\":{},\"height\":{},\"nodes\":",
+            "{{\"oracleName\":{},\"label\":{},\"x\":{},\"y\":{},\"width\":{},\"height\":{},\"nodes\":",
             json_string(&self.oracle_name),
+            json_string(&self.label),
             self.x,
             self.y,
             self.width,
@@ -187,6 +269,23 @@ impl ClusterData {
         write_json_array(out, &self.nodes, NodeData::write_json);
         out.push_str(",\"edges\":");
         write_json_array(out, &self.edges, EdgeData::write_json);
+        out.push('}');
+    }
+}
+
+impl FlowGraphData {
+    fn write_json(&self, out: &mut String) {
+        write!(
+            out,
+            "{{\"oracleName\":{},\"width\":{},\"height\":{},\"clusters\":",
+            json_string(&self.oracle_name),
+            self.width,
+            self.height,
+        )
+        .unwrap();
+        write_json_array(out, &self.clusters, ClusterData::write_json);
+        out.push_str(",\"crossEdges\":");
+        write_json_array(out, &self.cross_edges, EdgeData::write_json);
         out.push('}');
     }
 }
@@ -204,6 +303,8 @@ impl GraphData {
         )
         .unwrap();
         write_json_array(&mut out, &self.clusters, ClusterData::write_json);
+        out.push_str(",\"invariantFlows\":");
+        write_json_array(&mut out, &self.invariant_flows, FlowGraphData::write_json);
         out.push('}');
         out
     }
@@ -227,10 +328,11 @@ mod tests {
             width: 0.0,
             height: 0.0,
             clusters: vec![],
+            invariant_flows: vec![],
         };
         assert_eq!(
             g.to_json(),
-            "{\"graphName\":\"g\",\"label\":\"l\",\"width\":0,\"height\":0,\"clusters\":[]}"
+            "{\"graphName\":\"g\",\"label\":\"l\",\"width\":0,\"height\":0,\"clusters\":[],\"invariantFlows\":[]}"
         );
     }
 

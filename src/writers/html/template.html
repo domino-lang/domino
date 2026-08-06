@@ -117,7 +117,7 @@
     cursor: grab;
   }
   #viewport.panning { cursor: grabbing; }
-  #world {
+  #world, #flow-world {
     position: absolute;
     top: 0; left: 0;
     transform-origin: 0 0;
@@ -322,6 +322,29 @@
     font-weight: 600;
   }
   .ref-item pre { font-size: 11px; margin: 4px 0 0; }
+  #flow-world { display: none; }
+  #flow-edges {
+    position: absolute;
+    top: 0; left: 0;
+    overflow: visible;
+    pointer-events: none;
+  }
+  #flow-edge-labels {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+  }
+  .flow-edge-label {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font: 10px ui-monospace, monospace;
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    color: #fff;
+  }
+  .flow-edge-label.cross-oracle { background: #2563eb; }
+  .flow-edge-label.back { background: #ea580c; }
 </style>
 </head>
 <body>
@@ -331,6 +354,10 @@
     <span id="search-box">
       <input id="search-input" type="text" placeholder="Search lemmas, relations &amp; helpers&hellip;" autocomplete="off" aria-label="Search nodes">
       <div id="search-results" class="hidden"></div>
+    </span>
+    <span id="view-mode-toggle">
+      <button class="tab-btn active" type="button" data-view="tree">Proof tree</button>
+      <button class="tab-btn" type="button" data-view="flow" title="Start from this oracle's same-output/equal-aborts obligations and follow them down to the invariants they need, jumping to whichever oracle(s) actually establish each one.">Invariant flow</button>
     </span>
     <span id="toolbar-spacer"></span>
     <span id="oracle-nav">
@@ -356,10 +383,19 @@
           <marker id="arrow-back" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="#ea580c"></path>
           </marker>
+          <marker id="arrow-with-invariants" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#7c3aed"></path>
+          </marker>
         </defs>
       </svg>
       <div id="cluster-labels"></div>
       <div id="nodes"></div>
+    </div>
+    <div id="flow-world">
+      <svg id="flow-edges"></svg>
+      <div id="flow-cluster-labels"></div>
+      <div id="flow-nodes"></div>
+      <div id="flow-edge-labels"></div>
     </div>
   </div>
 
@@ -376,6 +412,10 @@
     <div class="row"><span class="badge-new-state">&Delta; new-state</span> depends on oracle args / output / new state</div>
     <div class="row">(no badge) depends only on old state</div>
     <div class="row"><span class="swatch" style="background:#b45309;border-radius:999px;width:20px;height:8px;"></span> calls a helper function (not a proof dependency)</div>
+    <div class="row"><span class="swatch" style="background:#7c3aed;border-radius:999px;width:20px;height:8px;"></span> "with invariants": scoped to this fragment only</div>
+    <h3 style="margin-top:8px;">Invariant flow view</h3>
+    <div class="row"><span class="swatch" style="background:#2563eb;border-radius:999px;width:20px;height:8px;"></span> established in this other oracle</div>
+    <div class="row"><span class="swatch" style="background:#ea580c;border-radius:999px;width:20px;height:8px;"></span> back-edge: cycle, already on this path</div>
   </div>
 
   <aside id="panel" class="hidden">
@@ -429,6 +469,12 @@
     var currentOracleEl = document.getElementById("current-oracle");
     var oracleJump = document.getElementById("oracle-jump");
 
+    var flowWorld = document.getElementById("flow-world");
+    var flowNodesLayer = document.getElementById("flow-nodes");
+    var flowClusterLabels = document.getElementById("flow-cluster-labels");
+    var flowEdgesSvg = document.getElementById("flow-edges");
+    var flowEdgeLabelsLayer = document.getElementById("flow-edge-labels");
+
     world.style.width = data.width + "px";
     world.style.height = data.height + "px";
     svg.setAttribute("width", data.width);
@@ -459,9 +505,12 @@
     // gets a visually distinct, muted style everywhere an edge is drawn
     // and its own "Called functions" bucket in the detail panel instead of
     // being lumped in with "Depends on".
-    function isHelperFunctionNode(id) {
-      var entry = nodeById[id];
+    function isHelperFunctionNodeIn(lookup, id) {
+      var entry = lookup[id];
       return !!entry && entry.node.claimType === "Helper function";
+    }
+    function isHelperFunctionNode(id) {
+      return isHelperFunctionNodeIn(nodeById, id);
     }
     // Flat index of every node across every cluster, for the search box.
     var allNodesFlat = [];
@@ -556,15 +605,41 @@
     // solid proof-dependency edges.
     var HELPER_EDGE_STROKE = "#b45309";
 
+    // Per-`kind` (see `EdgeKind`, `src/writers/html/data.rs`) line style,
+    // shared by both the proof-tree view and the invariant-flow view -- a
+    // helper-function call (detected structurally, not via `kind`, since
+    // it's still a plain "dependency" edge underneath) always wins over
+    // whatever `kind` says, same as before this table existed.
+    var EDGE_STYLE = {
+      "dependency": { stroke: "var(--edge)", width: "1.5", dash: null, marker: "url(#arrow)" },
+      "with-invariants": { stroke: "#7c3aed", width: "1.5", dash: "5,3", marker: "url(#arrow-with-invariants)" },
+      "cross-oracle": { stroke: "#2563eb", width: "2", dash: null, marker: "url(#arrow-cross)" },
+      "back": { stroke: "#ea580c", width: "1.5", dash: "4,3", marker: "url(#arrow-back)" },
+    };
+    function edgeStyleFor(kind, isHelperCall) {
+      if (isHelperCall) {
+        return { stroke: HELPER_EDGE_STROKE, width: "1", dash: "2,3", marker: "url(#arrow-helper)" };
+      }
+      return EDGE_STYLE[kind] || EDGE_STYLE.dependency;
+    }
+    function applyEdgeStyle(line, kind, isHelperCall) {
+      var style = edgeStyleFor(kind, isHelperCall);
+      line.setAttribute("stroke", style.stroke);
+      line.setAttribute("stroke-width", style.width);
+      if (style.dash) {
+        line.setAttribute("stroke-dasharray", style.dash);
+      } else {
+        line.removeAttribute("stroke-dasharray");
+      }
+      line.setAttribute("marker-end", style.marker);
+    }
+
     data.clusters.forEach(function (cluster) {
       cluster.edges.forEach(function (edge) {
         if (!nodeById[edge.from] || !nodeById[edge.to]) return;
         var isHelperCall = isHelperFunctionNode(edge.to);
         var line = document.createElementNS(svgns, "line");
-        line.setAttribute("stroke", isHelperCall ? HELPER_EDGE_STROKE : "var(--edge)");
-        line.setAttribute("stroke-width", isHelperCall ? "1" : "1.5");
-        if (isHelperCall) line.setAttribute("stroke-dasharray", "2,3");
-        line.setAttribute("marker-end", isHelperCall ? "url(#arrow-helper)" : "url(#arrow)");
+        applyEdgeStyle(line, edge.kind, isHelperCall);
         positionEdgeLine(line, edge.from, edge.to);
         treeEdgesGroup.appendChild(line);
         addEdgeToIndex(edge.from, { el: line, from: edge.from, to: edge.to });
@@ -629,7 +704,7 @@
       label.className = "cluster-label";
       label.style.left = cluster.x + "px";
       label.style.top = (cluster.y - 2) + "px";
-      label.textContent = cluster.oracleName;
+      label.textContent = cluster.label;
       labelsLayer.appendChild(label);
 
       var opt = document.createElement("option");
@@ -647,6 +722,220 @@
       });
     });
 
+    // --- "Invariant flow" view ---
+    //
+    // A separate, precomputed graph per oracle (`data.invariantFlows`, built
+    // server-side by `build_invariant_flow_graph` in
+    // `src/writers/html/mod.rs`): starting from that oracle's
+    // `same-output`/`equal-aborts` obligations, follows the same edges as
+    // the proof-tree view above down to the invariant fragments they need,
+    // and additionally shows -- as extra clusters, connected by
+    // `cross-oracle`/`back` edges -- how each of those fragments is
+    // established in every other oracle that also declares it (recursively,
+    // cut short by a `back` edge once a cycle would re-expand something
+    // already on the current path). Only one oracle's flow graph is shown
+    // at a time, so unlike the proof-tree view above, its DOM/indices are
+    // rebuilt on demand by `renderFlowGraph` rather than all built upfront.
+    var flowGraphsByOracle = {};
+    (data.invariantFlows || []).forEach(function (flow) {
+      flowGraphsByOracle[flow.oracleName] = flow;
+    });
+
+    var viewMode = "tree";
+    var currentFlowOracle = null;
+    var flowNodeById = {};
+    var flowOutgoingByNode = {};
+    var flowIncomingByNode = {};
+    var flowNodeElsById = {};
+    var flowLinesByNode = {};
+
+    function rectOfFlow(id) {
+      var entry = flowNodeById[id];
+      if (!entry) return null;
+      return { x: entry.worldX, y: entry.worldY, width: entry.node.width, height: entry.node.height };
+    }
+
+    // A `back` edge whose target is its own source (the temporal self-cycle
+    // this whole view exists to surface -- "this fragment held in the old
+    // state, established by an earlier call to this very oracle") would
+    // otherwise clip to the exact same boundary point on both ends and
+    // render as an invisible zero-length line; draw a short stub off the
+    // node's right edge instead, so the cycle is visible rather than just a
+    // floating label.
+    function selfLoopPoints(rect) {
+      var cy = rect.y + rect.height / 2;
+      var edgeX = rect.x + rect.width + 2;
+      return {
+        start: { x: edgeX, y: cy - rect.height / 4 },
+        end: { x: edgeX + 20, y: cy + rect.height / 4 },
+      };
+    }
+
+    function positionFlowEdgeLine(line, fromId, toId) {
+      var fromRect = rectOfFlow(fromId);
+      var toRect = rectOfFlow(toId);
+      if (!fromRect || !toRect) return null;
+      var start, end;
+      if (fromId === toId) {
+        var pts = selfLoopPoints(fromRect);
+        start = pts.start;
+        end = pts.end;
+      } else {
+        var fromCenter = { x: fromRect.x + fromRect.width / 2, y: fromRect.y + fromRect.height / 2 };
+        var toCenter = { x: toRect.x + toRect.width / 2, y: toRect.y + toRect.height / 2 };
+        var dx = toCenter.x - fromCenter.x;
+        var dy = toCenter.y - fromCenter.y;
+        start = clipToRectBoundary(fromRect, dx, dy, 2);
+        end = clipToRectBoundary(toRect, -dx, -dy, 4);
+      }
+      line.setAttribute("x1", start.x);
+      line.setAttribute("y1", start.y);
+      line.setAttribute("x2", end.x);
+      line.setAttribute("y2", end.y);
+      return { start: start, end: end };
+    }
+
+    function addFlowEdgeToIndex(id, entry) {
+      (flowLinesByNode[id] = flowLinesByNode[id] || []).push(entry);
+    }
+
+    function updateFlowEdgesTouching(id) {
+      var touching = flowLinesByNode[id];
+      if (!touching) return;
+      touching.forEach(function (entry) {
+        var pos = positionFlowEdgeLine(entry.el, entry.from, entry.to);
+        if (pos && entry.labelEl) positionFlowLabel(entry.labelEl, pos);
+      });
+    }
+
+    function positionFlowLabel(labelEl, pos) {
+      labelEl.style.left = ((pos.start.x + pos.end.x) / 2) + "px";
+      labelEl.style.top = ((pos.start.y + pos.end.y) / 2) + "px";
+    }
+
+    var FLOW_DRAG_THRESHOLD = 4;
+    function makeFlowNodeDraggable(el, node) {
+      el.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        var startX = e.clientX;
+        var startY = e.clientY;
+        var origLeft = flowNodeById[node.id].worldX;
+        var origTop = flowNodeById[node.id].worldY;
+        var moved = false;
+
+        function onMove(e2) {
+          var dxScreen = e2.clientX - startX;
+          var dyScreen = e2.clientY - startY;
+          if (!moved && Math.hypot(dxScreen, dyScreen) > FLOW_DRAG_THRESHOLD) {
+            moved = true;
+            el.classList.add("dragging-node");
+          }
+          if (!moved) return;
+          var newLeft = origLeft + dxScreen / scale;
+          var newTop = origTop + dyScreen / scale;
+          el.style.left = newLeft + "px";
+          el.style.top = newTop + "px";
+          flowNodeById[node.id].worldX = newLeft;
+          flowNodeById[node.id].worldY = newTop;
+          updateFlowEdgesTouching(node.id);
+        }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+          el.classList.remove("dragging-node");
+          if (!moved) openFlowPanel(node);
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      });
+    }
+
+    // Rebuilds the flow world for `oracleName`'s invariant-flow graph (or
+    // empties it if that oracle has neither `same-output` nor
+    // `equal-aborts` -- see `build_invariant_flow_graph`). Returns the
+    // `FlowGraphData`, or `null`.
+    function renderFlowGraph(oracleName) {
+      flowEdgesSvg.innerHTML = "";
+      flowClusterLabels.innerHTML = "";
+      flowNodesLayer.innerHTML = "";
+      flowEdgeLabelsLayer.innerHTML = "";
+      flowNodeById = {};
+      flowOutgoingByNode = {};
+      flowIncomingByNode = {};
+      flowNodeElsById = {};
+      flowLinesByNode = {};
+
+      var flow = flowGraphsByOracle[oracleName];
+      currentFlowOracle = flow ? oracleName : null;
+      if (!flow) {
+        flowWorld.style.width = "0px";
+        flowWorld.style.height = "0px";
+        return null;
+      }
+
+      flowWorld.style.width = flow.width + "px";
+      flowWorld.style.height = flow.height + "px";
+      flowEdgesSvg.setAttribute("width", flow.width);
+      flowEdgesSvg.setAttribute("height", flow.height);
+
+      flow.clusters.forEach(function (cluster) {
+        var label = document.createElement("div");
+        label.className = "cluster-label";
+        label.style.left = cluster.x + "px";
+        label.style.top = (cluster.y - 2) + "px";
+        label.textContent = cluster.label;
+        flowClusterLabels.appendChild(label);
+
+        cluster.nodes.forEach(function (node) {
+          node.oracleName = cluster.oracleName;
+          flowNodeById[node.id] = {
+            node: node,
+            worldX: cluster.x + node.x,
+            worldY: cluster.y + node.y,
+          };
+          var el = buildNodeElement(node);
+          el.style.left = (cluster.x + node.x) + "px";
+          el.style.top = (cluster.y + node.y) + "px";
+          makeFlowNodeDraggable(el, node);
+          flowNodesLayer.appendChild(el);
+          flowNodeElsById[node.id] = el;
+        });
+      });
+
+      var allFlowEdges = [];
+      flow.clusters.forEach(function (cluster) { allFlowEdges = allFlowEdges.concat(cluster.edges); });
+      allFlowEdges = allFlowEdges.concat(flow.crossEdges || []);
+
+      allFlowEdges.forEach(function (edge) {
+        if (!flowNodeById[edge.from] || !flowNodeById[edge.to]) return;
+        (flowOutgoingByNode[edge.from] = flowOutgoingByNode[edge.from] || []).push(edge.to);
+        (flowIncomingByNode[edge.to] = flowIncomingByNode[edge.to] || []).push(edge.from);
+
+        var isHelperCall = isHelperFunctionNodeIn(flowNodeById, edge.to);
+        var line = document.createElementNS(svgns, "line");
+        applyEdgeStyle(line, edge.kind, isHelperCall);
+        var pos = positionFlowEdgeLine(line, edge.from, edge.to);
+        flowEdgesSvg.appendChild(line);
+
+        var labelEl = null;
+        if (edge.label && (edge.kind === "cross-oracle" || edge.kind === "back")) {
+          labelEl = document.createElement("div");
+          labelEl.className = "flow-edge-label " + edge.kind;
+          labelEl.textContent = edge.label;
+          flowEdgeLabelsLayer.appendChild(labelEl);
+          if (pos) positionFlowLabel(labelEl, pos);
+        }
+
+        var entry = { el: line, from: edge.from, to: edge.to, labelEl: labelEl };
+        addFlowEdgeToIndex(edge.from, entry);
+        addFlowEdgeToIndex(edge.to, entry);
+      });
+
+      return flow;
+    }
+
     // --- pan / zoom ---
     var MIN_SCALE = 0.02;
     var MAX_SCALE = 8;
@@ -660,7 +949,9 @@
     }
 
     function applyTransformNow() {
-      world.style.transform = "translate(" + panX + "px, " + panY + "px) scale(" + scale + ")";
+      var t = "translate(" + panX + "px, " + panY + "px) scale(" + scale + ")";
+      world.style.transform = t;
+      flowWorld.style.transform = t;
       updateCurrentOracleIndicator();
     }
 
@@ -673,6 +964,11 @@
     }
 
     function updateCurrentOracleIndicator() {
+      if (viewMode === "flow") {
+        currentOracleEl.textContent = currentFlowOracle || "—";
+        oracleJump.value = currentFlowOracle || "";
+        return;
+      }
       var rect = viewport.getBoundingClientRect();
       var worldX = (rect.width / 2 - panX) / scale;
       var current = data.clusters.find(function (c) {
@@ -685,7 +981,7 @@
     function fitAll() {
       var rect = viewport.getBoundingClientRect();
       var margin = 40;
-      var bounds = data;
+      var bounds = viewMode === "flow" ? (flowGraphsByOracle[currentFlowOracle] || { width: 0, height: 0 }) : data;
       var availW = Math.max(rect.width - margin * 2, 50);
       var availH = Math.max(rect.height - margin * 2, 50);
       var s = Math.min(1, availW / Math.max(bounds.width, 1), availH / Math.max(bounds.height, 1));
@@ -708,6 +1004,10 @@
     }
 
     function focusNode(id) {
+      // A cross-link into the proof-tree view (e.g. the detail panel's
+      // "other oracles sharing" section, reachable from a flow-view panel
+      // too) should land the user back in the view it actually points into.
+      if (viewMode !== "tree") switchViewMode("tree");
       var entry = nodeById[id];
       if (!entry) return;
       var rect = viewport.getBoundingClientRect();
@@ -727,9 +1027,70 @@
       }
     }
 
+    function focusFlowNode(id) {
+      var entry = flowNodeById[id];
+      if (!entry) return;
+      var rect = viewport.getBoundingClientRect();
+      var cx = entry.worldX + entry.node.width / 2;
+      var cy = entry.worldY + entry.node.height / 2;
+      scale = clampScale(Math.max(scale, 0.6));
+      panX = rect.width / 2 - cx * scale;
+      panY = rect.height / 2 - cy * scale;
+      applyTransformNow();
+      openFlowPanel(entry.node);
+      var el = flowNodeElsById[id];
+      if (el) {
+        el.animate(
+          [{ outline: "3px solid #2563eb" }, { outline: "3px solid transparent" }],
+          { duration: 900, iterations: 1 },
+        );
+      }
+    }
+
+    // --- Proof tree / Invariant flow toggle ---
+    var viewModeButtons = document.querySelectorAll("#view-mode-toggle .tab-btn");
+
+    function switchViewMode(mode) {
+      if (mode === viewMode) return;
+      viewMode = mode;
+      viewModeButtons.forEach(function (b) { b.classList.toggle("active", b.dataset.view === mode); });
+      world.style.display = mode === "tree" ? "" : "none";
+      flowWorld.style.display = mode === "flow" ? "block" : "none";
+      if (mode === "flow") {
+        var initialOracle = flowGraphsByOracle[currentOracleEl.textContent]
+          ? currentOracleEl.textContent
+          : Object.keys(flowGraphsByOracle)[0];
+        if (initialOracle) {
+          renderFlowGraph(initialOracle);
+          fitAll();
+        }
+      } else {
+        updateCurrentOracleIndicator();
+      }
+    }
+
+    viewModeButtons.forEach(function (btn) {
+      btn.addEventListener("click", function () { switchViewMode(btn.dataset.view); });
+    });
+
+    if (Object.keys(flowGraphsByOracle).length === 0) {
+      var flowToggleBtn = document.querySelector('#view-mode-toggle .tab-btn[data-view="flow"]');
+      if (flowToggleBtn) {
+        flowToggleBtn.disabled = true;
+        flowToggleBtn.title = "No oracle in this view declares same-output/equal-aborts to root an invariant-flow graph at.";
+      }
+    }
+
     fitAll();
 
     oracleJump.addEventListener("change", function () {
+      if (viewMode === "flow") {
+        if (flowGraphsByOracle[oracleJump.value]) {
+          renderFlowGraph(oracleJump.value);
+          fitAll();
+        }
+        return;
+      }
       var cluster = data.clusters.find(function (c) { return c.oracleName === oracleJump.value; });
       if (cluster) jumpToCluster(cluster);
     });
@@ -1200,7 +1561,13 @@
       highlightEasyCrypt(pre, source);
     }
 
-    function renderNodeRefList(container, ids, emptyText) {
+    // `lookup`/`onClick` default to the proof-tree view's; the invariant-flow
+    // view's panel (`openFlowPanel`) passes its own (`flowNodeById`,
+    // `focusFlowNode`) so a "Depends on"/"Depended on by" button jumps
+    // within whichever world the click actually came from.
+    function renderNodeRefList(container, ids, emptyText, lookup, onClick) {
+      lookup = lookup || nodeById;
+      onClick = onClick || focusNode;
       container.innerHTML = "";
       if (!ids || ids.length === 0) {
         var span = document.createElement("span");
@@ -1210,13 +1577,13 @@
         return;
       }
       ids.forEach(function (id) {
-        var entry = nodeById[id];
+        var entry = lookup[id];
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "panel-ref-btn";
         btn.textContent = entry ? entry.node.name : id;
         btn.addEventListener("click", function () {
-          focusNode(id);
+          onClick(id);
         });
         container.appendChild(btn);
       });
@@ -1224,10 +1591,12 @@
 
     // "Called functions" -- the subset of `node`'s direct edges that point
     // at a helper (`define-fun`) rather than a real proof dependency (see
-    // `isHelperFunctionNode`); kept out of "Depends on" and out of sight
+    // `isHelperFunctionNodeIn`); kept out of "Depends on" and out of sight
     // entirely (whole section hidden) for the common case of a claim that
     // doesn't call any helper.
-    function renderCalledFunctions(ids) {
+    function renderCalledFunctions(ids, lookup, onClick) {
+      lookup = lookup || nodeById;
+      onClick = onClick || focusNode;
       panelCalledFunctions.innerHTML = "";
       if (!ids || ids.length === 0) {
         panelCalledFunctionsSection.style.display = "none";
@@ -1235,13 +1604,13 @@
       }
       panelCalledFunctionsSection.style.display = "";
       ids.forEach(function (id) {
-        var entry = nodeById[id];
+        var entry = lookup[id];
         var btn = document.createElement("button");
         btn.type = "button";
         btn.className = "panel-ref-btn";
         btn.textContent = entry ? entry.node.name : id;
         btn.addEventListener("click", function () {
-          focusNode(id);
+          onClick(id);
         });
         panelCalledFunctions.appendChild(btn);
       });
@@ -1316,7 +1685,15 @@
       });
     }
 
-    function openPanel(node) {
+    // Shared by both `openPanel` (proof-tree view) and `openFlowPanel`
+    // (invariant-flow view) -- `outgoing`/`incoming`/`lookup`/`onClick` are
+    // whichever view's own edge index/node index/focus function, so
+    // "Depends on"/"Depended on by" buttons navigate within the view the
+    // click came from. "Other oracles sharing" and "Referenced definitions"
+    // are always driven by the global, proof-tree-only indices (see
+    // `otherOraclesSharing`) -- clicking through one of those switches back
+    // to the proof-tree view via `focusNode`.
+    function openPanelWith(node, outgoing, incoming, lookup, onClick) {
       panelTitle.textContent = node.name;
       panelOracle.textContent = "Oracle: " + node.oracleName;
       panelBadges.innerHTML = "";
@@ -1327,16 +1704,30 @@
       });
       panelDomino.textContent = node.dominoSource || "(source not captured for this claim)";
       setEasyCryptSource(panelEasycrypt, node.easycryptSource);
-      var allDeps = outgoingByNode[node.id] || [];
-      renderNodeRefList(panelDeps, allDeps.filter(function (id) { return !isHelperFunctionNode(id); }), "no direct dependencies");
-      renderCalledFunctions(allDeps.filter(isHelperFunctionNode));
-      renderNodeRefList(panelDependents, incomingByNode[node.id], "nothing in this view depends on it");
+      var allDeps = outgoing[node.id] || [];
+      renderNodeRefList(
+        panelDeps,
+        allDeps.filter(function (id) { return !isHelperFunctionNodeIn(lookup, id); }),
+        "no direct dependencies",
+        lookup,
+        onClick,
+      );
+      renderCalledFunctions(allDeps.filter(function (id) { return isHelperFunctionNodeIn(lookup, id); }), lookup, onClick);
+      renderNodeRefList(panelDependents, incoming[node.id], "nothing in this view depends on it", lookup, onClick);
       renderOtherOracles(node);
       renderReferencedDefinitions(node.referencedDefinitions);
       // Referenced-definition snippets were just (re)created above, so
       // re-apply the current tab choice to them too.
       applyTab(currentTab);
       panel.classList.remove("hidden");
+    }
+
+    function openPanel(node) {
+      openPanelWith(node, outgoingByNode, incomingByNode, nodeById, focusNode);
+    }
+
+    function openFlowPanel(node) {
+      openPanelWith(node, flowOutgoingByNode, flowIncomingByNode, flowNodeById, focusFlowNode);
     }
 
     document.getElementById("panel-close").addEventListener("click", function () {
