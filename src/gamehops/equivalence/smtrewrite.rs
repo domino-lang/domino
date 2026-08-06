@@ -408,7 +408,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
         self.handle_definefun(
             &format!(
-                "package-invariant!{}-{}!",
+                "package-invariant!{}!{}-{}!",
                 invname,
                 game.name(),
                 package.name()
