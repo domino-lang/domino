@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Subcommand;
+use sspverif::project::ProofStepSelector;
 use sspverif::util::smtsolver::process::SolverVariant;
 
 #[derive(Subcommand, Debug)]
@@ -52,10 +53,11 @@ pub(crate) struct Prove {
     pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
     pub(crate) transcript: bool,
-    /// Name of the proof step, e.g. "Left = Right" for an equivalence or
-    /// "Left ~= Right" for a reduction. See `domino proofsteps` for the exact names.
+    /// The proof step to restrict to, either by its 0-based index within the
+    /// theorem (as printed by `domino proofsteps`) or by its name, e.g.
+    /// "Left == Right" for an equivalence or "Left ~= Right" for a reduction.
     #[clap(long)]
-    pub(crate) proofstep: Option<String>,
+    pub(crate) proofstep: Option<ProofStepSelector>,
     #[clap(long)]
     pub(crate) proof: Option<String>,
     #[clap(long)]
@@ -72,9 +74,10 @@ pub(crate) struct Proofsteps {
     /// Restrict to a single theorem
     #[clap(long)]
     pub(crate) proof: Option<String>,
-    /// Restrict to a single game hop (proof step) within the theorem
+    /// Restrict to a single game hop (proof step) within the theorem,
+    /// either by its 0-based index or by its name (e.g. "Left == Right").
     #[clap(long)]
-    pub(crate) proofstep: Option<usize>,
+    pub(crate) proofstep: Option<ProofStepSelector>,
     /// Restrict the lemma dependency graph to a single oracle instead of
     /// merging all of a game hop's oracles into one file
     #[clap(long)]

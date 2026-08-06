@@ -35,6 +35,36 @@ pub use directory::{DirectoryFiles, DirectoryProject};
 
 pub mod error;
 
+/// Identifies a game hop (proof step) within a theorem, either by its
+/// position (0-based, as printed by `domino proofsteps`) or by its name
+/// (e.g. `"Left == Right"`/`"Left ~= Right"`, as printed by `domino prove`'s
+/// progress output).
+#[derive(Debug, Clone)]
+pub enum ProofStepSelector {
+    Index(usize),
+    Name(String),
+}
+
+impl std::str::FromStr for ProofStepSelector {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s.parse::<usize>() {
+            Ok(index) => ProofStepSelector::Index(index),
+            Err(_) => ProofStepSelector::Name(s.to_string()),
+        })
+    }
+}
+
+impl ProofStepSelector {
+    fn matches(&self, index: usize, game_hop: &GameHop) -> bool {
+        match self {
+            ProofStepSelector::Index(i) => *i == index,
+            ProofStepSelector::Name(name) => game_hop.name() == *name,
+        }
+    }
+}
+
 pub trait Project {
     fn get_root_dir(&self) -> PathBuf;
 
@@ -58,7 +88,7 @@ pub trait Project {
     fn proofsteps(
         &self,
         req_theorem: &Option<String>,
-        req_proofstep: Option<usize>,
+        req_proofstep: &Option<ProofStepSelector>,
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
     ) -> Result<()> {
@@ -77,7 +107,7 @@ pub trait Project {
             println!("{theorem_key}:");
             for (i, game_hop) in theorem.game_hops.iter().enumerate() {
                 if let Some(req_proofstep) = req_proofstep {
-                    if i != req_proofstep {
+                    if !req_proofstep.matches(i, game_hop) {
                         continue;
                     }
                 }
@@ -354,7 +384,7 @@ pub trait Project {
         transcript: bool,
         parallel: usize,
         req_theorem: &Option<String>,
-        req_proofstep: &Option<String>,
+        req_proofstep: &Option<ProofStepSelector>,
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
     ) -> Result<()>
@@ -377,11 +407,11 @@ pub trait Project {
                 }
             }
 
-            for game_hop in theorem.game_hops.iter() {
+            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
                 ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
 
                 if let Some(req_proofstep) = req_proofstep {
-                    if game_hop.name() != *req_proofstep {
+                    if !req_proofstep.matches(i, game_hop) {
                         ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
                         continue;
                     }

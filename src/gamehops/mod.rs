@@ -80,13 +80,13 @@ impl<'a> GameHop<'a> {
     }
 
     /// Returns the name used to identify this proof step on the command line,
-    /// e.g. `"Left = Right"` for equivalences and hybrids, or `"Left ~= Right"`
-    /// for reductions and conjectures.
+    /// e.g. `"Left == Right"` for equivalences, or `"Left ~= Right"` for
+    /// reductions, hybrids and conjectures.
     pub fn name(&self) -> String {
         let left = self.left_game_instance_name();
         let right = self.right_game_instance_name();
         match self {
-            GameHop::Equivalence(_) => format!("{left} = {right}"),
+            GameHop::Equivalence(_) => format!("{left} == {right}"),
             GameHop::Reduction(_) | GameHop::Hybrid(_) | GameHop::Conjecture(_) => format!("{left} ~= {right}"),
         }
     }

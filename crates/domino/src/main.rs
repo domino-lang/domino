@@ -63,7 +63,7 @@ fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
         .into());
     }
 
-    project.proofsteps(&p.proof, p.proofstep, &p.oracle, &p.claim)?;
+    project.proofsteps(&p.proof, &p.proofstep, &p.oracle, &p.claim)?;
     Ok(())
 }
 
