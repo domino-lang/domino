@@ -14,6 +14,7 @@ pub struct CustomSmtWarning {
 pub enum ClaimType {
     RawSmt,
     Function,
+    //Randomness,
     Lemma,
     Relation,
     Invariant,
@@ -79,14 +80,15 @@ impl SmtClaim {
     pub fn new_package_invariant(
         ty: ClaimType,
         smt: SmtExpr,
-        game_name: &str,
-        pkg_name: &str,
         filename: String,
     ) -> Self {
+        let SmtExpr::List(list) = &smt else {todo!()};
+        let SmtExpr::Atom(ref name) = list[1] else {todo!()};
+        let name = name.to_string();
         Self {
             ty,
             smt,
-            name: format!("package-invariant!{game_name}-{pkg_name}!"),
+            name,
             filename,
         }
     }
@@ -94,13 +96,15 @@ impl SmtClaim {
     pub fn new_game_invariant(
         ty: ClaimType,
         smt: SmtExpr,
-        game_name: &str,
         filename: String,
     ) -> Self {
+        let SmtExpr::List(list) = &smt else {todo!()};
+        let SmtExpr::Atom(ref name) = list[1] else {todo!()};
+        let name = name.to_string();
         Self {
             ty,
             smt,
-            name: format!("game-invariant!{game_name}!"),
+            name,
             filename,
         }
     }

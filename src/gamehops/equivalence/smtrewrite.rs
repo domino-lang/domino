@@ -154,7 +154,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         Ok(())
     }
 
-    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtExpr> {
         if self.game.is_none() {
             return Err(Error::RewriteNeedsGameContext {
                 defn: format!("(define-game-invariant {body})"),
@@ -186,7 +186,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         };
 
         self.handle_definefun(
-            &format!("game-invariant!{}!", self.game.unwrap().name()),
+            &format!("game-invariant!{}!{}!", invname, self.game.unwrap().name()),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -197,7 +197,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         )
     }
 
-    fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtExpr> {
         if self.game.is_none() || self.package.is_none() {
             return Err(Error::RewriteNeedsPackageContext {
                 defn: format!("(define-package-invariant {body})"),
@@ -225,7 +225,8 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
         self.handle_definefun(
             &format!(
-                "package-invariant!{}-{}!",
+                "package-invariant!{}!{}-{}!",
+                invname,
                 self.game.unwrap().name(),
                 self.package.unwrap().name()
             ),

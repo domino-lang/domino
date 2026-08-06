@@ -259,8 +259,6 @@ impl<'a> EquivalenceContext<'a> {
                             SmtClaim::new_package_invariant(
                                 ClaimType::LeftPackageInvariant,
                                 smt,
-                                left_gctx.game_inst().name(),
-                                pkg.name(),
                                 file_name.clone(),
                             )
                         })
@@ -290,8 +288,6 @@ impl<'a> EquivalenceContext<'a> {
                             SmtClaim::new_package_invariant(
                                 ClaimType::RightPackageInvariant,
                                 smt,
-                                right_gctx.game_inst().name(),
-                                pkg.name(),
                                 file_name.clone(),
                             )
                         })
@@ -313,7 +309,6 @@ impl<'a> EquivalenceContext<'a> {
                             SmtClaim::new_game_invariant(
                                 ClaimType::LeftGameInvariant,
                                 smt,
-                                left_gctx.game_inst().name(),
                                 file_name.clone(),
                             )
                         })
@@ -332,7 +327,6 @@ impl<'a> EquivalenceContext<'a> {
                             SmtClaim::new_game_invariant(
                                 ClaimType::RightGameInvariant,
                                 smt,
-                                right_gctx.game_inst().name(),
                                 file_name.clone(),
                             )
                         })
