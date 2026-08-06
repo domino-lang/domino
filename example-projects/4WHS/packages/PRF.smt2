@@ -1,4 +1,4 @@
-(define-package-invariant
+(define-package-invariant main
     (forall ((kid Int))
             (and
              (= (> kid pkg.kid_)
