@@ -67,9 +67,7 @@ impl<'a> DirectoryProject<'a> {
         }
     }
 
-    pub fn load(files: &'a DirectoryFiles) -> Result<DirectoryProject<'a>> {
-        let root_dir = find_project_root()?;
-
+    pub fn load(root_dir: PathBuf, files: &'a DirectoryFiles) -> Result<DirectoryProject<'a>> {
         let packages = super::load::packages(&files.packages)?;
         let games = super::load::games(&files.games, &packages)?;
         let theorems =
