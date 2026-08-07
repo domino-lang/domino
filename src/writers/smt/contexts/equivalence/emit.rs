@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
-    gamehops::equivalence::ClaimScope,
+    gamehops::equivalence::{smtclaim::ClaimType as SmtClaimType, ClaimScope},
     hacks,
     identifier::{
         game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
@@ -37,7 +37,7 @@ use crate::{
 impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
         if let Some(invariants) = self.invariants.get(oracle_name) {
-            invariants.clone()
+            invariants.iter().map(|claim| claim.smt().clone()).collect()
         } else {
             vec![]
         }
@@ -321,37 +321,17 @@ impl<'a> EquivalenceContext<'a> {
                 .push(build_invariant_old_call(crate::theorem::DOMINO_INVARIANT_FN_NAME)),
         }
 
-        for pkg in &gctx_left.game().pkgs {
-            if !pkg.pkg.invariants.is_empty() {
-                dependencies_code.push(build_left_invariant_old_call(&format!(
-                    "package-invariant!{}-{}!",
-                    game_inst_name_left,
-                    pkg.name()
-                )));
-            }
-        }
-        for pkg in &gctx_right.game().pkgs {
-            if !pkg.pkg.invariants.is_empty() {
-                dependencies_code.push(build_right_invariant_old_call(&format!(
-                    "package-invariant!{}-{}!",
-                    game_inst_name_right,
-                    pkg.name()
-                )));
-            }
-        }
-
-        if !gctx_left.game().invariants.is_empty() {
-            dependencies_code.push(build_left_invariant_old_call(&format!(
-                "game-invariant!{}!",
-                game_inst_name_left,
-            )));
-        }
-        if !gctx_right.game().invariants.is_empty() {
-            dependencies_code.push(build_right_invariant_old_call(&format!(
-                "game-invariant!{}!",
-                game_inst_name_right,
-            )));
-        }
+        dependencies_code.extend(self.invariants.get(oracle_name).unwrap().iter().filter_map(
+            |claim| match claim.ty() {
+                SmtClaimType::LeftPackageInvariant | SmtClaimType::LeftGameInvariant => {
+                    Some(build_left_invariant_old_call(claim.name()))
+                }
+                SmtClaimType::RightPackageInvariant | SmtClaimType::RightGameInvariant => {
+                    Some(build_right_invariant_old_call(claim.name()))
+                }
+                _ => None,
+            },
+        ));
 
         for dep in dep_calls {
             dependencies_code.push(dep)
@@ -913,10 +893,12 @@ impl<'a> EquivalenceContext<'a> {
                 .iter()
                 .find(|exp| exp.name() == left_export.name())
                 .unwrap();
-            if let (Some(left_orcl_ctx), Some(right_orcl_ctx)) = (
-                gctx_left.exported_oracle_ctx_by_name(&left_export.sig().name),
-                gctx_right.exported_oracle_ctx_by_name(&right_export.sig().name),
+            if let (Some(mut left_orcl_ctx), Some(mut right_orcl_ctx)) = (
+                gctx_left.exported_oracle_ctx_by_name(left_export.name()),
+                gctx_right.exported_oracle_ctx_by_name(right_export.name()),
             ) {
+                left_orcl_ctx.set_renamed(left_export.alias());
+                right_orcl_ctx.set_renamed(right_export.alias());
                 for ((arg_name_left, arg_type), (arg_name_right, _)) in left_export
                     .sig()
                     .args
@@ -1462,13 +1444,14 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
         let oracle_import_name = export.name();
         let return_type = &sig.ty;
 
-        let octx = gctx
+        let mut octx = gctx
             .exported_oracle_ctx_by_name(export.name())
             .unwrap_or_else(|| {
                 panic!(
                     "error looking up exported oracle with name {oracle_name} in game {game_name}"
                 )
             });
+        octx.set_renamed(export.alias());
 
         let return_const = patterns::ReturnConst {
             game_inst_name,

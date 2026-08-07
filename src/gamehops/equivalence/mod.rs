@@ -11,9 +11,12 @@ use crate::{
     },
 };
 
+use smtclaim::{ClaimType, SmtClaim};
+
 use error::{Error, ExportSignatureMismatch, Result};
 
 pub mod error;
+pub(crate) mod smtclaim;
 mod smtrewrite;
 mod verify_fn;
 
@@ -263,13 +266,24 @@ impl<'a> EquivalenceContext<'a> {
                             err,
                         )
                     })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        left_gctx.game_inst(),
-                        pkg,
-                        file_name,
-                        &file_contents,
-                    )?);
+                    out.append(
+                        &mut smtrewrite::rewrite_package(
+                            self,
+                            left_gctx.game_inst(),
+                            pkg,
+                            file_name,
+                            &file_contents,
+                        )?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_package_invariant(
+                                ClaimType::LeftPackageInvariant,
+                                smt,
+                                file_name.clone(),
+                            )
+                        })
+                        .collect(),
+                    );
                 }
             }
             for pkg in &right_gctx.game().pkgs {
@@ -282,13 +296,24 @@ impl<'a> EquivalenceContext<'a> {
                             err,
                         )
                     })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        right_gctx.game_inst(),
-                        pkg,
-                        file_name,
-                        &file_contents,
-                    )?);
+                    out.append(
+                        &mut smtrewrite::rewrite_package(
+                            self,
+                            right_gctx.game_inst(),
+                            pkg,
+                            file_name,
+                            &file_contents,
+                        )?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_package_invariant(
+                                ClaimType::RightPackageInvariant,
+                                smt,
+                                file_name.clone(),
+                            )
+                        })
+                        .collect(),
+                    );
                 }
             }
 
@@ -298,24 +323,46 @@ impl<'a> EquivalenceContext<'a> {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
-                    self,
-                    left_gctx.game_inst(),
-                    file_name,
-                    &file_contents,
-                )?);
+                out.append(
+                    &mut smtrewrite::rewrite_game(
+                        self,
+                        left_gctx.game_inst(),
+                        file_name,
+                        &file_contents,
+                    )?
+                    .into_iter()
+                    .map(|smt| {
+                        SmtClaim::new_game_invariant(
+                            ClaimType::LeftGameInvariant,
+                            smt,
+                            file_name.clone(),
+                        )
+                    })
+                    .collect(),
+                );
             }
             for file_name in &right_gctx.game().invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
-                    self,
-                    right_gctx.game_inst(),
-                    file_name,
-                    &file_contents,
-                )?);
+                out.append(
+                    &mut smtrewrite::rewrite_game(
+                        self,
+                        right_gctx.game_inst(),
+                        file_name,
+                        &file_contents,
+                    )?
+                    .into_iter()
+                    .map(|smt| {
+                        SmtClaim::new_game_invariant(
+                            ClaimType::RightGameInvariant,
+                            smt,
+                            file_name.clone(),
+                        )
+                    })
+                    .collect(),
+                );
             }
 
             // Load the main Invariant
@@ -328,8 +375,17 @@ impl<'a> EquivalenceContext<'a> {
                 })?;
                 log::info!("read file {file_name}");
                 //linter.lint_file(file_name, &file_contents)?;
-                let (mut rewritten, mut names) = smtrewrite::rewrite(self, file_name, &file_contents)?;
-                out.append(&mut rewritten);
+                let (rewritten, mut names) = smtrewrite::rewrite(self, file_name, &file_contents)?;
+                out.append(
+                    &mut rewritten
+                        .into_iter()
+                        .map(|smt| {
+                            let (ty, name) = ClaimType::guess_from_smt(&smt);
+                            //dbg!((&smt, ty, &name));
+                            smtclaim::SmtClaim::new(ty, smt, name, file_name.clone())
+                        })
+                        .collect(),
+                );
                 state_relation_names.append(&mut names);
 
                 // log::info!("wrote contents of file {file_name}");
@@ -352,8 +408,9 @@ impl<'a> EquivalenceContext<'a> {
             // (any other fragments are then *not* folded into the old-state assumption, since
             // domino isn't the one defining it and has no way to combine into someone else's
             // definition).
+            let raw_exprs: Vec<_> = out.iter().map(|claim| claim.smt().clone()).collect();
             let user_defines_reserved_name =
-                smtrewrite::defines_function_named(&out, DOMINO_INVARIANT_FN_NAME);
+                smtrewrite::defines_function_named(&raw_exprs, DOMINO_INVARIANT_FN_NAME);
 
             if user_defines_reserved_name {
                 eprintln!(
@@ -373,13 +430,25 @@ impl<'a> EquivalenceContext<'a> {
                     right_gctx.datastructure_game_state_pattern().sort_name(),
                     vec![],
                 );
-                out.push(smtrewrite::synthesize_invariant(
+                let invariant_smt = smtrewrite::synthesize_invariant(
                     left_sort,
                     right_sort,
                     &state_relation_names,
+                );
+                out.push(SmtClaim::new(
+                    ClaimType::Invariant,
+                    invariant_smt,
+                    DOMINO_INVARIANT_FN_NAME.to_string(),
+                    "<synthesized>".to_string(),
                 ));
             }
 
+            log::warn!(
+                "parsed smt claims: {:?}",
+                out.iter()
+                    .map(|claim| (claim.name(), claim.ty()))
+                    .collect::<Vec<_>>()
+            );
             self.append_invariants(oracle_name, out);
             self.set_state_relation_names(oracle_name, state_relation_names);
         }

@@ -337,7 +337,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                             if let [name, ty] = &binding[..] {
                                 return SmtExpr::List(vec![
                                     name.clone(),
-                                    self.rewrite_type(ty.clone())
+                                    self.rewrite_type(ty.clone()),
                                 ]);
                             }
                         }
@@ -357,7 +357,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         Ok(())
     }
 
-    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtExpr> {
         let Some(game) = self.game else {
             return Err(Error::RewriteNeedsGameContext {
                 defn: format!("(define-game-invariant {body})"),
@@ -389,7 +389,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         };
 
         self.handle_definefun(
-            &format!("game-invariant!{}!", game.name()),
+            &format!("game-invariant!{}!{}!", invname, game.name()),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -400,7 +400,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         )
     }
 
-    fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtExpr> {
         let (Some(game), Some(package)) = (self.game, self.package) else {
             return Err(Error::RewriteNeedsPackageContext {
                 defn: format!("(define-package-invariant {body})"),
@@ -429,7 +429,12 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         };
 
         self.handle_definefun(
-            &format!("package-invariant!{}-{}!", game.name(), package.name()),
+            &format!(
+                "package-invariant!{}!{}-{}!",
+                invname,
+                game.name(),
+                package.name()
+            ),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),

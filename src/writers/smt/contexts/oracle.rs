@@ -21,6 +21,7 @@ pub struct OracleContext<'a> {
     game_inst_context: GameInstanceContext<'a>,
     pkg_inst_offs: usize,
     oracle_offs: usize,
+    renamed: Option<&'a str>,
 }
 
 impl<'a> OracleContext<'a> {
@@ -33,7 +34,12 @@ impl<'a> OracleContext<'a> {
             game_inst_context,
             pkg_inst_offs,
             oracle_offs,
+            renamed: None,
         }
+    }
+
+    pub(crate) fn set_renamed(&mut self, renamed: Option<&'a str>) {
+        self.renamed = renamed;
     }
 }
 
@@ -170,7 +176,7 @@ impl OracleContext<'_> {
         FunctionNameBuilder::new()
             .push("arg")
             .push(game.name())
-            .push(&odef.sig.name)
+            .push(self.renamed.unwrap_or(&odef.sig.name))
             .push(arg_name)
             .build()
             .into()

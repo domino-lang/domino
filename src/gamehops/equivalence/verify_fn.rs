@@ -2,12 +2,13 @@
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use std::io::Write as _;
-use std::sync::{Arc, Mutex};
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use crate::{
     gamehops::equivalence::{
         error::{ClaimTheoremFailedError, Error, Result},
+        smtclaim::ClaimType as SmtClaimType,
         ClaimScope,
     },
     package::Export,
@@ -214,88 +215,30 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         self.reconcile_invariant_fragment_claims(&mut claims, oracle.name());
 
-        claims.extend(
-            self.eqctx
-                .left_game_inst_ctx()
-                .game()
-                .pkgs
-                .iter()
-                .filter_map(|pkg| {
-                    if pkg.pkg.invariants.is_empty() {
-                        None
-                    } else {
-                        Some(Claim {
-                            admitted: false,
-                            dependencies: vec!["no-abort".to_string()],
-                            ty: ClaimType::LeftPackageInvariant,
-                            name: format!(
-                                "package-invariant!{}-{}!",
-                                self.eqctx.left_game_inst_ctx().game_inst().name(),
-                                pkg.name()
-                            ),
-                            user_declared: false,
-                            invariant_scope: None,
-                        })
-                    }
-                }),
-        );
-        claims.extend(
-            self.eqctx
-                .right_game_inst_ctx()
-                .game()
-                .pkgs
-                .iter()
-                .filter_map(|pkg| {
-                    if pkg.pkg.invariants.is_empty() {
-                        None
-                    } else {
-                        Some(Claim {
-                            admitted: false,
-                            dependencies: vec!["no-abort".to_string()],
-                            ty: ClaimType::RightPackageInvariant,
-                            name: format!(
-                                "package-invariant!{}-{}!",
-                                self.eqctx.right_game_inst_ctx().game_inst().name(),
-                                pkg.name()
-                            ),
-                            user_declared: false,
-                            invariant_scope: None,
-                        })
-                    }
-                }),
-        );
-        if !self.eqctx.left_game_inst_ctx().game().invariants.is_empty() {
-            claims.push(Claim {
-                admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: ClaimType::LeftGameInvariant,
-                name: format!(
-                    "game-invariant!{}!",
-                    self.eqctx.left_game_inst_ctx().game_inst().name(),
-                ),
-                user_declared: false,
-                invariant_scope: None,
-            })
-        }
-        if !self
-            .eqctx
-            .right_game_inst_ctx()
-            .game()
-            .invariants
-            .is_empty()
-        {
-            claims.push(Claim {
-                admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: ClaimType::RightGameInvariant,
-                name: format!(
-                    "game-invariant!{}!",
-                    self.eqctx.right_game_inst_ctx().game_inst().name(),
-                ),
-                user_declared: false,
-                invariant_scope: None,
-            })
-        }
+        // Package/game invariant claims are derived straight from the already-loaded, tagged
+        // `SmtClaim`s (`EquivalenceContext::claims`) rather than reconstructed by hand: each one
+        // now carries a user-chosen `invname` component in its generated function name (see
+        // `smtrewrite::handle_define_{package,game}_invariant`), so a package/game can declare
+        // more than one invariant and a hand-formatted name would no longer match.
+        claims.extend(self.eqctx.claims(oracle.name()).unwrap().iter().filter_map(
+            |smt| {
+                let ty = match smt.ty() {
+                    SmtClaimType::LeftPackageInvariant => ClaimType::LeftPackageInvariant,
+                    SmtClaimType::RightPackageInvariant => ClaimType::RightPackageInvariant,
+                    SmtClaimType::LeftGameInvariant => ClaimType::LeftGameInvariant,
+                    SmtClaimType::RightGameInvariant => ClaimType::RightGameInvariant,
+                    _ => return None,
+                };
+                Some(Claim {
+                    name: smt.name().to_string(),
+                    ty,
+                    dependencies: vec!["no-abort".to_string()],
+                    admitted: false,
+                    user_declared: false,
+                    invariant_scope: None,
+                })
+            },
+        ));
 
         if let Err(err) = self.validate_claim_dependencies(&claims, oracle.name()) {
             return vec![Err(err)];

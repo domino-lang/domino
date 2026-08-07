@@ -1,4 +1,4 @@
-(define-game-invariant
+(define-game-invariant main
    (forall ((ctr Int))
           (let ((state (select game.KX.State ctr)))
             (=> (not (is-mk-none state))

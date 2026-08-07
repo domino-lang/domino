@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 mod emit;
 
 use crate::{
-    gamehops::equivalence::Equivalence,
+    gamehops::equivalence::{smtclaim::SmtClaim, Equivalence},
     identifier::{
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
         Identifier,
@@ -33,7 +33,7 @@ pub struct EquivalenceContext<'a> {
     equivalence: &'a Equivalence,
     theorem: &'a Theorem<'a>,
     auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
-    invariants: HashMap<String, Vec<SmtExpr>>,
+    invariants: HashMap<String, Vec<SmtClaim>>,
     /// Names of the `define-state-relation`s declared per oracle's main invariant files — the
     /// candidate invariant fragments. See `state_relation_names`.
     state_relation_names: HashMap<String, Vec<String>>,
@@ -55,6 +55,10 @@ impl<'a> EquivalenceContext<'a> {
         }
     }
 
+    pub(crate) fn claims(&self, oracle: &str) -> Option<&Vec<SmtClaim>> {
+        self.invariants.get(oracle)
+    }
+
     pub(crate) fn theorem(&self) -> &'a Theorem<'a> {
         self.theorem
     }
@@ -66,7 +70,7 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn append_invariants(
         &mut self,
         oracle_name: &str,
-        mut new_invariants: Vec<SmtExpr>,
+        mut new_invariants: Vec<SmtClaim>,
     ) {
         if let Some(current) = self.invariants.get_mut(oracle_name) {
             current.append(&mut new_invariants);

@@ -142,8 +142,8 @@ impl Export {
         &self.sig
     }
 
-    pub fn alias(&self) -> Option<&String> {
-        self.alias.as_ref()
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
     }
 
     pub fn name(&self) -> &str {
