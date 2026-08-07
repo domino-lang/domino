@@ -14,7 +14,7 @@ pub(crate) enum Commands {
     /// Reformat file or directory
     Format(Format),
 
-    Proofsteps,
+    Proofsteps(Proofsteps),
 }
 
 #[derive(clap::Args, Debug)]
@@ -22,6 +22,10 @@ pub(crate) enum Commands {
 pub(crate) struct Format {
     /// Input to reformat
     pub(crate) input: Option<std::path::PathBuf>,
+    /// Path to the Domino project (or a subdirectory of it) to reformat when no input is given.
+    /// Defaults to searching the current directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -31,11 +35,19 @@ pub(crate) struct Latex {
     #[clap(short, long, default_value = "z3")]
     pub(crate) smtsolver: Option<SolverVariant>,
     // TODO: given we have a default here, it seems impossible to choose none
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Prove {
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
     #[clap(short, long, default_value = "cvc5")]
     pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
@@ -48,4 +60,13 @@ pub(crate) struct Prove {
     pub(crate) oracle: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Proofsteps {
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
 }

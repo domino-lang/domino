@@ -40,19 +40,19 @@ enum Error {
     IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
 }
 
-fn proofsteps() -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
+    let project_root = project::directory::find_project_root(p.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     project.proofsteps()?;
     Ok(())
 }
 
 fn prove(p: &Prove) -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+    let project_root = project::directory::find_project_root(p.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     if p.proofstep.is_none() || p.proof.is_some() {
         let smtsolver =
@@ -72,9 +72,9 @@ fn prove(p: &Prove) -> Result<(), Error> {
 }
 
 fn latex(l: &Latex) -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+    let project_root = project::directory::find_project_root(l.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     let smtsolver = l
         .smtsolver
@@ -87,7 +87,7 @@ fn format(f: &Format) -> Result<(), Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
-        let root = crate::project::directory::find_project_root();
+        let root = crate::project::directory::find_project_root(f.project.as_deref());
         sspverif::format::format_file(&root?)?;
     }
     Ok(())
@@ -107,7 +107,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(p),
-        Commands::Proofsteps => proofsteps(),
+        Commands::Proofsteps(p) => proofsteps(p),
         Commands::Latex(l) => latex(l),
         Commands::Format(f) => format(f),
     };
