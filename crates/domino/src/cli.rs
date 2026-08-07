@@ -31,6 +31,11 @@ pub(crate) struct Model {
     /// Path to the cvc5 model file (e.g. as produced by `domino prove --transcript`, or the
     /// model file referenced in a failed proof's error message).
     pub(crate) model_file: std::path::PathBuf,
+    /// Path to the Domino project (or a subdirectory of it), used to resolve model values back
+    /// to project semantics. Defaults to searching the current directory and its ancestors for
+    /// an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -38,6 +43,10 @@ pub(crate) struct Model {
 pub(crate) struct Format {
     /// Input to reformat
     pub(crate) input: Option<std::path::PathBuf>,
+    /// Path to the Domino project (or a subdirectory of it) to reformat when no input is given.
+    /// Defaults to searching the current directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -47,11 +56,19 @@ pub(crate) struct Latex {
     #[clap(short, long, default_value = "z3")]
     pub(crate) smtsolver: Option<SolverVariant>,
     // TODO: given we have a default here, it seems impossible to choose none
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Prove {
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
     #[clap(short, long, default_value = "cvc5")]
     pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
@@ -74,6 +91,10 @@ pub(crate) struct Prove {
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Proofsteps {
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
     /// Restrict to a single theorem
     #[clap(long)]
     pub(crate) proof: Option<String>,
@@ -95,6 +116,10 @@ pub(crate) struct Proofsteps {
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Inline {
+    /// Path to the Domino project (or a subdirectory of it). Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long, short = 'p')]
+    pub(crate) project: Option<std::path::PathBuf>,
     /// Name of the theorem the equivalence proofstep belongs to.
     #[clap(long)]
     pub(crate) proof: String,

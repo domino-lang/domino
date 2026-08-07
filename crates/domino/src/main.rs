@@ -46,9 +46,9 @@ enum Error {
 }
 
 fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+    let project_root = project::directory::find_project_root(p.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     if p.proofstep.is_some() && p.proof.is_none() {
         return Err(IncompatibleArgumentsError(
@@ -68,9 +68,9 @@ fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
 }
 
 fn prove(p: &Prove) -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+    let project_root = project::directory::find_project_root(p.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     if p.proofstep.is_none() || p.proof.is_some() {
         let smtsolver =
@@ -97,8 +97,11 @@ fn model(m: &Model) -> Result<(), Error> {
     // Loading the project is best-effort here: the model parser/viewer is still useful without
     // one (it just can't resolve names back to package/oracle semantics), so a missing or
     // unparseable project is a warning, not a hard error.
-    let files = project::directory::find_project_root()
-        .and_then(|root| project::DirectoryFiles::load(&root))
+    let root_and_files = project::directory::find_project_root(m.project.as_deref())
+        .and_then(|root| {
+            let files = project::DirectoryFiles::load(&root)?;
+            Ok((root, files))
+        })
         .inspect_err(|err| {
             eprintln!(
                 "warning: could not load a Domino project ({err}); showing raw model values only"
@@ -106,8 +109,8 @@ fn model(m: &Model) -> Result<(), Error> {
         })
         .ok();
 
-    let project = files.as_ref().and_then(|files| {
-        project::DirectoryProject::load(files)
+    let project = root_and_files.as_ref().and_then(|(root, files)| {
+        project::DirectoryProject::load(root.clone(), files)
             .inspect_err(|err| {
                 eprintln!(
                     "warning: could not load a Domino project ({err}); showing raw model values only"
@@ -124,9 +127,9 @@ fn model(m: &Model) -> Result<(), Error> {
 }
 
 fn inline(i: &Inline) -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+    let project_root = project::directory::find_project_root(i.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     let rendered = project.inline(&i.proof, i.proofstep, &i.oracle)?;
     println!("{rendered}");
@@ -134,9 +137,9 @@ fn inline(i: &Inline) -> Result<(), Error> {
 }
 
 fn latex(l: &Latex) -> Result<(), Error> {
-    let project_root = project::directory::find_project_root()?;
+    let project_root = project::directory::find_project_root(l.project.as_deref())?;
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(&files)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
 
     let smtsolver = l
         .smtsolver
@@ -149,7 +152,7 @@ fn format(f: &Format) -> Result<(), Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
-        let root = crate::project::directory::find_project_root();
+        let root = crate::project::directory::find_project_root(f.project.as_deref());
         sspverif::format::format_file(&root?)?;
     }
     Ok(())
