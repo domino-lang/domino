@@ -363,6 +363,22 @@ impl<'a> EquivalenceContext<'a> {
                 //     });
                 // }
             }
+
+            let tree = self.equivalence().proof_tree_by_oracle_name(oracle_name);
+            for claim in tree {
+                match claim.name() {
+                    "no-abort" | "same-output" | "equal-aborts" => {}
+                    _ => {
+                        if !out.iter().any(|smtclaim| smtclaim.name() == claim.name()) {
+                            return Err(Error::ClaimNoSmt {
+                                oracle_name: oracle_name.to_string(),
+                                claim_name: claim.name().to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+
             log::info!(
                 "parsed smt claims: {:?}",
                 out.iter()
