@@ -83,28 +83,37 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
-    fn emit_invariant_in_initial_state_assert(&self) -> SmtExpr {
+    /// Asserts the negation of `claim` on the two game instances' basic initial states — used for
+    /// every equivalence-wide (as opposed to oracle-scoped) initial-state obligation: the
+    /// left/right state-relation invariant itself, as well as each package/game invariant (which,
+    /// unlike the state relation, is single-sided and so only needs one side's initial state).
+    fn emit_equivalence_claim_assert(&self, claim: &Claim) -> SmtExpr {
         let state_left = self.left_game_inst_ctx().oracle_arg_game_state_pattern();
         let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
 
-        SmtAssert(SmtNot((
-            crate::theorem::DOMINO_INVARIANT_FN_NAME,
-            state_left.global_const_name(
-                self.equivalence.left_name(),
-                &GameStateOracleArgVariant::Initial,
-            ),
-            state_right.global_const_name(
-                self.equivalence.right_name(),
-                &GameStateOracleArgVariant::Initial,
-            ),
-        )))
-        .into()
-    }
+        let left_initial = state_left.global_const_name(
+            self.equivalence.left_name(),
+            &GameStateOracleArgVariant::Initial,
+        );
+        let right_initial = state_right.global_const_name(
+            self.equivalence.right_name(),
+            &GameStateOracleArgVariant::Initial,
+        );
 
-    fn emit_equivalence_claim_assert(&self, claim: &Claim) -> SmtExpr {
         match claim.ty {
-            ClaimType::InitialState => self.emit_invariant_in_initial_state_assert(),
-            _ => unreachable!(),
+            ClaimType::InitialState => SmtAssert(SmtNot((
+                crate::theorem::DOMINO_INVARIANT_FN_NAME,
+                left_initial,
+                right_initial,
+            )))
+            .into(),
+            ClaimType::LeftPackageInvariant | ClaimType::LeftGameInvariant => {
+                SmtAssert(SmtNot((claim.name.as_str(), left_initial))).into()
+            }
+            ClaimType::RightPackageInvariant | ClaimType::RightGameInvariant => {
+                SmtAssert(SmtNot((claim.name.as_str(), right_initial))).into()
+            }
+            ClaimType::Lemma | ClaimType::Relation | ClaimType::Invariant => unreachable!(),
         }
     }
 

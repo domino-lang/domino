@@ -59,14 +59,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         self.verify_equivalence(ui)
     }
 
-    /// The initial-state invariant check isn't scoped to any one oracle, so `--oracle` (which
-    /// asks for a specific oracle's claims) excludes it; `--claim` can still single it out via
-    /// `INITIAL_STATE_CLAIM_NAME`.
+    /// The initial-state scope isn't tied to any one oracle, so `--oracle` (which asks for a
+    /// specific oracle's claims) excludes it entirely. `--claim` no longer narrows this check:
+    /// the scope holds more than just `INITIAL_STATE_CLAIM_NAME` (the state relation) — it also
+    /// holds one claim per package/game invariant — so `--claim` is instead applied per-claim
+    /// inside `verify_invariants_in_initial_state`, same as it is for oracle-scoped claims.
     fn should_verify_initial_state(&self) -> bool {
         self.req_oracle.is_none()
-            && self
-                .req_claim
-                .is_none_or(|req_claim| req_claim == INITIAL_STATE_CLAIM_NAME)
     }
 
     fn verify_equivalence<UI: TheoremUI + Send>(&self, ui: Arc<Mutex<&mut UI>>) -> Result<()> {
@@ -125,7 +124,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 rayon::iter::once(())
                     .map(|_| {
                         if verify_initial_state {
-                            vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)]
+                            self.verify_invariants_in_initial_state(ui.clone(), &smt)
                         } else {
                             vec![]
                         }
@@ -148,46 +147,84 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         Ok(())
     }
 
-    /// Checks that the invariant holds on the two game instances' basic initial states (all
-    /// package state fields at their type's default value). This is the "induction start" /
-    /// base-case obligation for the equivalence's invariant: `domino prove` proving every oracle
-    /// preserves the invariant only shows it's an *inductive* invariant; this additionally
-    /// checks it actually holds at the start.
+    /// Checks that every equivalence-wide invariant holds on the two game instances' basic
+    /// initial states (all package state fields at their type's default value): the state
+    /// relation itself, plus every package/game invariant declared on either side. This is the
+    /// "induction start" / base-case obligation for each of these invariants: `domino prove`
+    /// proving every oracle preserves them only shows they're *inductive*; this additionally
+    /// checks each one actually holds at the start.
     fn verify_invariants_in_initial_state<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
-    ) -> Result<()> {
+    ) -> Vec<Result<()>> {
         let mut smt = vec![];
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claim = Claim {
+        let claim_scope = ClaimScope::InitialState;
+
+        // TODO: this is temporary workaround until we make the invariants equivalence-wide.
+        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
+        let oracle_name = self.eqctx.oracle_sequence().first().unwrap().name();
+
+        let mut claims = vec![Claim {
             name: INITIAL_STATE_CLAIM_NAME.to_string(),
             dependencies: vec![],
             ty: ClaimType::InitialState,
             admitted: false,
             user_declared: false,
             invariant_scope: None,
-        };
+        }];
 
-        let claim_scope = ClaimScope::InitialState;
+        // Package/game invariants are loaded per-oracle but aren't actually oracle-specific (see
+        // `EquivalenceContext::load_invariants`: they come straight from each package's/game's
+        // `invariants` file list, not anything about the oracle), so any oracle's loaded set
+        // enumerates all of them. Each one is single-sided, so it only needs checking against its
+        // own side's initial state (`emit_equivalence_claim_assert` picks the side from the
+        // claim's type).
+        claims.extend(self.eqctx.claims(oracle_name).unwrap().iter().filter_map(
+            |smt| {
+                let ty = match smt.ty() {
+                    SmtClaimType::LeftPackageInvariant => ClaimType::LeftPackageInvariant,
+                    SmtClaimType::RightPackageInvariant => ClaimType::RightPackageInvariant,
+                    SmtClaimType::LeftGameInvariant => ClaimType::LeftGameInvariant,
+                    SmtClaimType::RightGameInvariant => ClaimType::RightGameInvariant,
+                    _ => return None,
+                };
+                Some(Claim {
+                    name: smt.name().to_string(),
+                    ty,
+                    dependencies: vec![],
+                    admitted: false,
+                    user_declared: false,
+                    invariant_scope: None,
+                })
+            },
+        ));
 
         ui.lock().unwrap().start_scope(
             &self.eqctx.theorem().name,
             &proofstep_name,
             claim_scope.name(),
-            1,
+            claims.len().try_into().unwrap(),
         );
 
         log::info!("verify: invariants in initial state");
-        // TODO: this is temporary workaround until we make the invariants equivalence-wide.
-        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
-        let oracle_name = self.eqctx.oracle_sequence().first().unwrap().name();
         smt.append(&mut self.eqctx.emit_invariant(oracle_name));
         smt.append(&mut self.eqctx.emit_initial_state_values());
 
-        let result = self.verify_claim(ui.clone(), equivalence_smt, &smt, &claim, &claim_scope);
+        let results: Vec<Result<()>> = claims
+            .iter()
+            .filter(|claim| {
+                if let Some(req_claim) = self.req_claim {
+                    claim.name == req_claim
+                } else {
+                    true
+                }
+            })
+            .map(|claim| self.verify_claim(ui.clone(), equivalence_smt, &smt, claim, &claim_scope))
+            .collect();
 
         ui.lock().unwrap().finish_scope(
             &self.eqctx.theorem().name,
@@ -195,7 +232,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             claim_scope.name(),
         );
 
-        result
+        results
     }
 
     fn verify_oracle<UI: TheoremUI + Send>(
