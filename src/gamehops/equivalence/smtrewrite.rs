@@ -365,7 +365,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             .game()
             .exports
             .iter()
-            .find(|export| export.sig().name == oracle_name)
+            .find(|export| export.name() == oracle_name)
         else {
             return Err(Error::UnknownLemmaName {
                 lemma_name: funname.to_string(),
@@ -377,14 +377,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             game_params: &left_game_inst.consts,
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
-            oracle_name,
+            oracle_name: &left_oracle_export.sig().name,
         };
 
         let Some(right_oracle_export) = right_game_inst
             .game()
             .exports
             .iter()
-            .find(|export| export.sig().name == oracle_name)
+            .find(|export| export.name() == oracle_name)
         else {
             return Err(Error::UnknownLemmaName {
                 lemma_name: funname.to_string(),
@@ -396,7 +396,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             game_params: &right_game_inst.consts,
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
-            oracle_name,
+            oracle_name: &right_oracle_export.sig().name,
         };
 
         let [left_old, right_old, left_return, right_return, ..] = &args[..] else {
