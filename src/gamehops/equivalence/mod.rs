@@ -375,6 +375,8 @@ impl<'a> EquivalenceContext<'a> {
             for claim in tree {
                 match claim.name() {
                     "no-abort" | "same-output" | "equal-aborts" => {}
+                    s if s.starts_with("game-invariant!") => {}
+                    s if s.starts_with("package-invariant!") => {}
                     _ => {
                         if out
                             .iter()

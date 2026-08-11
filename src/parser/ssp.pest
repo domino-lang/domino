@@ -318,7 +318,7 @@ theorem_spec_list = { ( types | const_decl | instance_decl | hybrid_instance_dec
       hybrid_reduction = { kw_reduction ~  "{" ~ reduction_spec ~ "}"}
 
 /// An identifier for SMT lemmas (allows hyphens).
-smt_identifier = @{ ( ASCII_ALPHA | "_" | "-" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" )* }
+smt_identifier = @{ ( ASCII_ALPHA | "_" | "-" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" | "!" )* }
 
 /// A file path (allows slashes, dots, hyphens).
 path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT |  "/" | "_" | "-" | "." )* }

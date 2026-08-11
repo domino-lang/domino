@@ -142,26 +142,35 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claims: Vec<_> = self
+        let mut claims: Vec<_> = self
             .eqctx
             .equivalence()
             .proof_tree_by_oracle_name(oracle.name())
             .into_iter()
             .filter(|claim| !claim.is_admitted())
-            .chain(self.eqctx.claims(oracle.name()).unwrap().iter().filter_map(
-                |smt| match smt.ty() {
-                    ClaimType::LeftPackageInvariant
-                    | ClaimType::RightPackageInvariant
-                    | ClaimType::LeftGameInvariant
-                    | ClaimType::RightGameInvariant => Some(ParsedClaim {
-                        name: smt.name().to_string(),
-                        dependencies: vec!["no-abort".to_string()],
-                        admitted: false,
-                    }),
-                    _ => None,
-                },
-            ))
             .collect();
+
+        for smtclaim in self.eqctx.claims(oracle.name()).unwrap() {
+            match smtclaim.ty() {
+                ClaimType::LeftPackageInvariant
+                | ClaimType::RightPackageInvariant
+                | ClaimType::LeftGameInvariant
+                | ClaimType::RightGameInvariant => {
+                    if claims
+                        .iter()
+                        .find(|claim| claim.name() == smtclaim.name())
+                        .is_none()
+                    {
+                        claims.push(ParsedClaim {
+                            name: smtclaim.name().to_string(),
+                            dependencies: vec!["no-abort".to_string()],
+                            admitted: false,
+                        })
+                    }
+                }
+                _ => {},
+            }
+        }
 
         ui.lock().unwrap().start_oracle(
             &self.eqctx.theorem().name,
