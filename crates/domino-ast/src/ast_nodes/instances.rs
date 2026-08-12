@@ -7,7 +7,7 @@ use crate::{
         list::{Colon, Comma, List, ListNoDelim},
         theorem,
         types::{self, Type},
-        InArena, Indexable, NodeType, Parsable, Trivia,
+        InArena, NodeType, Parsable, Trivia,
     },
     source::FileId,
     Pair, State,
@@ -166,7 +166,7 @@ pub fn parse_instance_block<IK: InstanceIdentifierKind>(
     pair: Pair,
 ) -> InstanceBlock<IK>
 where
-    InstanceBlock<IK>: InArena + NodeType + Indexable,
+    InstanceBlock<IK>: InArena + NodeType,
     InstanceItemList<IK>: Parsable,
     Identifier<IK>: Parsable,
     Identifier<IK::InstanceIdentifierKind>: Parsable,

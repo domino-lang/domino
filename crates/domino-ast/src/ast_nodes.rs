@@ -31,12 +31,7 @@ pub trait InArena: Sized {
     fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
 }
 
-pub trait Indexable: Sized {
-    #[allow(unused_variables)]
-    fn index(reference: Ref<Self>, state: &mut State) {}
-}
-
-pub trait Parsable: NodeType + InArena + Indexable {
+pub trait Parsable: NodeType + InArena {
     const RULE: Rule;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self;
@@ -57,15 +52,14 @@ pub trait Parsable: NodeType + InArena + Indexable {
     }
 }
 
-pub trait ParsableArenaNode: Parsable + InArena + Indexable {}
+pub trait ParsableArenaNode: Parsable + InArena {}
 
-impl<T: NodeType + InArena + Indexable> Ref<T> {
+impl<T: NodeType + InArena> Ref<T> {
     pub fn from_parsed(state: &mut State, loc: SourceLocation, node: T) -> Self {
         let arena = T::arena_mut(&mut state.arenas);
         let id = arena.alloc(node);
 
         state.tables.locations.insert(id.global_ref_id(), loc);
-        T::index(id, state);
 
         id
     }
@@ -106,7 +100,6 @@ impl<T: Parsable> Slice<T> {
 
         for (id, loc) in allocated {
             state.tables.locations.insert(id.global_ref_id(), loc);
-            T::index(id, state);
         }
 
         slice
@@ -489,185 +482,4 @@ pub fn parse_ref<T: Parsable>(
     let loc = trimmed_loc(file_id, &pair);
     let node = f(file_id, state, pair);
     Ref::<T>::from_parsed(state, loc, node)
-}
-
-macro_rules! impl_noop_index {
-    ($($node_type:ty),* $(,)?) => {
-        $(
-            impl Indexable for $node_type {}
-        )*
-
-    };
-}
-
-impl_noop_index! {
-    Trivium,
-    Trivia,
-
-    // pure expressions
-
-    //// package const
-    package::Expression,
-    package::TupleExpression,
-    package::TableIndexExpression,
-    package::ParenExpression,
-    package::BinOpExpression,
-    package::UnOpExpression,
-    package::CallExpression,
-    package::OracleInvocationExpression,
-    package::SampleExpression,
-
-    //// game const
-    game::Expression,
-    game::TupleExpression,
-    game::TableIndexExpression,
-    game::ParenExpression,
-    game::BinOpExpression,
-    game::UnOpExpression,
-    game::CallExpression,
-    game::OracleInvocationExpression,
-    game::SampleExpression,
-
-    //// theorem const
-    theorem::Expression,
-    theorem::TupleExpression,
-    theorem::TableIndexExpression,
-    theorem::ParenExpression,
-    theorem::BinOpExpression,
-    theorem::UnOpExpression,
-    theorem::CallExpression,
-    theorem::OracleInvocationExpression,
-    theorem::SampleExpression,
-
-    // types
-    //// in packages
-    types::Type<types::PackageTypeKind>,
-    types::TupleType<types::PackageTypeKind>,
-    types::FnType<types::PackageTypeKind>,
-    types::ArgumentedType<types::PackageTypeKind>,
-    types::TypeArgument<types::PackageTypeKind>,
-
-
-    //// in games
-    types::Type<types::GameTypeKind>,
-    types::TupleType<types::GameTypeKind>,
-    types::FnType<types::GameTypeKind>,
-    types::ArgumentedType<types::GameTypeKind>,
-    types::TypeArgument<types::GameTypeKind>,
-
-    //// in theorems
-    types::Type<types::TheoremTypeKind>,
-    types::TupleType<types::TheoremTypeKind>,
-    types::FnType<types::TheoremTypeKind>,
-    types::ArgumentedType<types::TheoremTypeKind>,
-    types::TypeArgument<types::TheoremTypeKind>,
-
-    // oracle expressions
-    oracles::OracleExpression,
-    oracles::TableIndexExpression,
-    oracles::TupleExpression,
-    oracles::ParenExpression,
-    oracles::BinOpExpression,
-    oracles::UnOpExpression,
-    oracles::CallExpression,
-    oracles::OracleInvocationExpression,
-    oracles::SampleExpression,
-
-    // statemnts
-    statements::Statement,
-    statements::AssertStatement,
-    statements::AssignStatement,
-    statements::IfThenElseStatement,
-    statements::ReturnStatement,
-    statements::ExpressionStatement,
-    statements::Pattern,
-    statements::TablePattern,
-    statements::TuplePattern,
-
-    // oracles
-    oracles::OracleSignature<identifier::OracleImportIdentifierKind>,
-    oracles::OracleSignature<identifier::OracleDefinitionIdentifierKind>,
-    oracles::OracleSignature<identifier::OracleCompositionIdentifierKind>,
-    oracles::OracleValueArgDecl,
-    oracles::OracleDefinition,
-
-    // packages
-    package::PackageConstDecl,
-    package::PackageConstParamBlock,
-
-    package::ImportOraclesBlock,
-    package::StateBlock,
-    package::PackageTypeParamBlock,
-    package::PackageItem,
-    package::Package,
-    // games
-    game::InstanceConstAssignmentItem,
-    game::InstanceConstBlock,
-    game::InstanceTypeAssignmentItem,
-    game::InstanceTypeBlock,
-    game::InstanceItem,
-    game::InstanceBlock,
-    game::ComposeOracleAssignmentItem,
-    game::ComposePackageInstanceItem,
-    game::ComposeBlock,
-    game::GameConstDecl,
-    game::GameConstParamBlock,
-
-    game::GameTypeParamBlock,
-
-    game::GameItem,
-    game::Game,
-
-    // theorems
-    //// instances
-    theorem::InstanceConstAssignmentItem,
-    theorem::InstanceConstBlock,
-
-    theorem::InstanceTypeAssignmentItem,
-    theorem::InstanceTypeBlock,
-
-    theorem::InstanceItem,
-
-    theorem::InstanceBlock,
-
-    //// hybrid instances
-    // theorem::HybridInstanceBlockOne,
-    // theorem::HybridInstanceBlockTwo,
-    // theorem::HybridInstanceBlock,
-
-    theorem::TheoremConstDecl,
-    theorem::TheoremConstParamBlock,
-
-    theorem::Path,
-    theorem::InvariantSpec,
-
-    theorem::SmtIdentifier,
-    theorem::LemmaItem,
-    theorem::LemmaBlock,
-    theorem::EquivalenceOracleItem,
-    theorem::EquivalenceOracleBlock,
-    theorem::Equivalence,
-
-    theorem::Bound,
-    theorem::AssumptionsItem,
-    theorem::AssumptionsBlock,
-
-    theorem::Conjecture,
-
-    theorem::ReductionAssumptionLine,
-    theorem::ReductionMapItem,
-    theorem::ReductionMap,
-    theorem::ReductionItem,
-    theorem::Reduction,
-
-    theorem::GameHopItem,
-    theorem::GameHops,
-
-    theorem::TheoremItem,
-    theorem::Theorem,
-
-    // lists
-    list::Colon,
-    list::Comma,
-    list::Semicolon,
 }

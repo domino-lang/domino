@@ -5,7 +5,7 @@ use crate::{
         identifier::{Identifier, TypeIdentifierKind},
         list::{Comma, List},
         types::Type,
-        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
+        InArena, ListItem, NodeType, Parsable, Trivia,
     },
     Rule,
 };
@@ -35,7 +35,7 @@ where
     EK: ExpressionKind,
     Identifier<EK::ValueIdentifierKind>: Parsable,
     Type<EK::TypeKind>: Parsable,
-    ValueDecl<EK>: Indexable + InArena + NodeType,
+    ValueDecl<EK>: InArena + NodeType,
 {
     let mut inner = pair.into_inner();
 
