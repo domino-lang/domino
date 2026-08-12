@@ -127,7 +127,6 @@ where
         Identifier::default()
     }
 }
-impl<IK: IdentifierKind> crate::ast_nodes::Indexable for Identifier<IK> {}
 
 define_type_ident_kind!(
     PackageTypeIdentifierKind,

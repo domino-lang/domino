@@ -23,7 +23,7 @@ use crate::{
         list::{Comma, List},
         parse_ref,
         types::{Type, TypeKind},
-        InArena, Indexable, NodeType, Parsable, Trivia,
+        InArena, NodeType, Parsable, Trivia,
     },
     source::{FileId, SourceLocation},
     Rule, State,
@@ -142,7 +142,7 @@ pub struct TupleExpression<EK: ExpressionKind>(pub Ref<ExprList<EK>>);
 impl<EK: ExpressionKind> Parsable for TupleExpression<EK>
 where
     Identifier<EK::ValueIdentifierKind>: Parsable,
-    Self: Indexable + InArena + NodeType,
+    Self: InArena + NodeType,
     ExprList<EK>: Parsable,
 {
     const RULE: Rule = Rule::tuple_expr;
@@ -158,7 +158,7 @@ where
 
 impl<EK: ExpressionKind> Parsable for OracleInvocationExpression<EK>
 where
-    Self: Indexable + InArena + NodeType,
+    Self: InArena + NodeType,
     ExprList<EK>: Parsable,
 {
     const RULE: Rule = Rule::invoke;
@@ -184,7 +184,7 @@ where
 
 impl<EK: ExpressionKind> Parsable for SampleExpression<EK>
 where
-    Self: Indexable + InArena + NodeType,
+    Self: InArena + NodeType,
     Type<EK::TypeKind>: Parsable,
 {
     const RULE: Rule = Rule::sample;
@@ -267,9 +267,9 @@ where
     ParenExpression<EK>: Parsable,
     OracleInvocationExpression<EK>: Parsable,
     SampleExpression<EK>: Parsable,
-    BinOpExpression<EK>: NodeType + InArena + Indexable,
-    UnOpExpression<EK>: NodeType + InArena + Indexable,
-    CallExpression<EK>: NodeType + InArena + Indexable,
+    BinOpExpression<EK>: NodeType + InArena,
+    UnOpExpression<EK>: NodeType + InArena,
+    CallExpression<EK>: NodeType + InArena,
 {
     let mut pairs = pair.into_inner();
     let first = pairs.next().unwrap();
@@ -327,9 +327,9 @@ where
     ParenExpression<EK>: Parsable,
     OracleInvocationExpression<EK>: Parsable,
     SampleExpression<EK>: Parsable,
-    BinOpExpression<EK>: NodeType + InArena + Indexable,
-    UnOpExpression<EK>: NodeType + InArena + Indexable,
-    CallExpression<EK>: NodeType + InArena + Indexable,
+    BinOpExpression<EK>: NodeType + InArena,
+    UnOpExpression<EK>: NodeType + InArena,
+    CallExpression<EK>: NodeType + InArena,
 {
     match pair.as_rule() {
         Rule::atom => parse_pure_expression(file_id, state, pair.into_inner().next().unwrap()),
@@ -373,9 +373,9 @@ where
     ParenExpression<EK>: Parsable,
     OracleInvocationExpression<EK>: Parsable,
     SampleExpression<EK>: Parsable,
-    BinOpExpression<EK>: NodeType + InArena + Indexable,
-    UnOpExpression<EK>: NodeType + InArena + Indexable,
-    CallExpression<EK>: NodeType + InArena + Indexable,
+    BinOpExpression<EK>: NodeType + InArena,
+    UnOpExpression<EK>: NodeType + InArena,
+    CallExpression<EK>: NodeType + InArena,
 {
     let loc = SourceLocation::from_file_and_pair(file_id, &pair);
 
@@ -423,7 +423,7 @@ where
     Expression<EK>: Parsable,
     ExprList<EK>: Parsable,
     Identifier<EK::ValueIdentifierKind>: Parsable,
-    CallExpression<EK>: NodeType + InArena + Indexable,
+    CallExpression<EK>: NodeType + InArena,
 {
     let span = pair.as_span();
     let start = span.start() as u32;
@@ -471,9 +471,9 @@ where
     TableIndexExpression<EK>: Parsable,
     OracleInvocationExpression<EK>: Parsable,
     SampleExpression<EK>: Parsable,
-    UnOpExpression<EK>: NodeType + InArena + Indexable,
-    CallExpression<EK>: NodeType + InArena + Indexable,
-    BinOpExpression<EK>: Indexable + InArena + NodeType,
+    UnOpExpression<EK>: NodeType + InArena,
+    CallExpression<EK>: NodeType + InArena,
+    BinOpExpression<EK>: NodeType + InArena,
 {
     let mut inner = pair.into_inner();
     let table_name = Identifier::parse_ref(file_id, state, inner.next().unwrap());
@@ -503,12 +503,12 @@ where
     TableIndexExpression<EK>: Parsable,
     TupleExpression<EK>: Parsable,
     ParenExpression<EK>: Parsable,
-    ParenExpression<EK>: Indexable + InArena + NodeType,
+    ParenExpression<EK>: InArena + NodeType,
     OracleInvocationExpression<EK>: Parsable,
     SampleExpression<EK>: Parsable,
-    CallExpression<EK>: NodeType + InArena + Indexable,
-    BinOpExpression<EK>: NodeType + InArena + Indexable,
-    UnOpExpression<EK>: NodeType + InArena + Indexable,
+    CallExpression<EK>: NodeType + InArena,
+    BinOpExpression<EK>: NodeType + InArena,
+    UnOpExpression<EK>: NodeType + InArena,
 {
     let mut inner = pair.into_inner();
 

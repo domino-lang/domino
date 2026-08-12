@@ -1,6 +1,6 @@
 use crate::{
     arena::Ref,
-    ast_nodes::{InArena, Indexable, ListItem, NodeType, Parsable, Slice, Trivia},
+    ast_nodes::{InArena, ListItem, NodeType, Parsable, Slice, Trivia},
     source::SourceLocation,
     Rule,
 };
@@ -69,7 +69,7 @@ impl<Node, Delim> Parsable for List<Node, Delim>
 where
     Node: Parsable + ListItem,
     Delim: Delimiter + Default,
-    Self: InArena + Indexable + NodeType,
+    Self: InArena + NodeType,
 {
     const RULE: Rule = Node::LIST_RULE;
 
@@ -182,36 +182,10 @@ where
     }
 }
 
-impl<Node, Delim> Indexable for List<Node, Delim>
-where
-    Self: InArena,
-    Node: Parsable,
-{
-    fn index(reference: Ref<Self>, state: &mut crate::State) {
-        let node = Self::arena(&state.arenas).get(reference);
-        for item in node.items.refs() {
-            Node::index(item, state)
-        }
-    }
-}
-
-impl<Node> Indexable for ListNoDelim<Node>
-where
-    Self: InArena,
-    Node: Parsable,
-{
-    fn index(reference: Ref<Self>, state: &mut crate::State) {
-        let node = Self::arena(&state.arenas).get(reference);
-        for item in node.items.refs() {
-            Node::index(item, state)
-        }
-    }
-}
-
 impl<Node> Parsable for ListNoDelim<Node>
 where
     Node: Parsable + ListItem,
-    Self: InArena + Indexable + NodeType,
+    Self: InArena + NodeType,
 {
     const RULE: Rule = Node::LIST_RULE;
 

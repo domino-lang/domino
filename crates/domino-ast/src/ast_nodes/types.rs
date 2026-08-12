@@ -4,7 +4,7 @@ use crate::{
         expressions, game,
         identifier::{self, Identifier},
         list::{Comma, List},
-        package, theorem, InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
+        package, theorem, InArena, ListItem, NodeType, Parsable, Trivia,
     },
     source::FileId,
     Rule, State,
@@ -103,7 +103,7 @@ pub type TypeList<TK: TypeKind> = List<Type<TK>, Comma>;
 
 fn parse_type<TK: TypeKind>(file_id: FileId, state: &mut State, pair: crate::Pair) -> Type<TK>
 where
-    Type<TK>: Indexable + InArena,
+    Type<TK>: InArena,
     ArgumentedType<TK>: Parsable,
     TupleType<TK>: Parsable,
     FnType<TK>: Parsable,
@@ -179,7 +179,7 @@ fn parse_type_arg<TK: TypeKind>(
     pair: crate::Pair,
 ) -> TypeArgument<TK>
 where
-    TypeArgument<TK>: Indexable + InArena + NodeType,
+    TypeArgument<TK>: InArena + NodeType,
     ArgumentedType<TK>: Parsable,
     TypeArgList<TK>: Parsable,
     Type<TK>: Parsable,
@@ -210,7 +210,7 @@ where
 
 impl<TK: TypeKind> Parsable for ArgumentedType<TK>
 where
-    Self: Indexable + InArena + NodeType,
+    Self: InArena + NodeType,
     TypeArgList<TK>: Parsable,
     identifier::Identifier<TK::TypeIdentifierKind>: Parsable,
     identifier::Identifier<TK::TypeArgIdentifierKind>: Parsable,
@@ -237,7 +237,7 @@ where
 
 impl<TK: TypeKind> Parsable for FnType<TK>
 where
-    Self: Indexable + InArena + NodeType,
+    Self: InArena + NodeType,
     TypeList<TK>: Parsable,
     Type<TK>: Parsable,
 {
@@ -264,7 +264,7 @@ where
 
 impl<TK: TypeKind> Parsable for TupleType<TK>
 where
-    Self: Indexable + InArena + NodeType,
+    Self: InArena + NodeType,
     TypeList<TK>: Parsable,
 {
     const RULE: Rule = Rule::tuple_ty;

@@ -9,7 +9,7 @@ use crate::{
         list::{Comma, List},
         statements::StatementList,
         types::{self, Type},
-        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
+        InArena, ListItem, NodeType, Parsable, Trivia,
     },
     Rule,
 };
@@ -91,7 +91,7 @@ pub struct OracleDefinition {
 impl<OI: OracleIdentifierKind> Parsable for OracleSignature<OI>
 where
     Identifier<OI>: Parsable,
-    Self: Indexable + NodeType + InArena,
+    Self: NodeType + InArena,
 {
     const RULE: Rule = Rule::oracle_sig;
 
