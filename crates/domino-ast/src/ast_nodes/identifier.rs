@@ -19,6 +19,7 @@ impl<IK: IdentifierKind + ?Sized> IdentifierKind for Box<IK> {}
 pub trait ValueIdentifierKind: IdentifierKind {}
 pub trait TypeArgIdentifierKind: IdentifierKind {}
 pub trait TypeIdentifierKind: IdentifierKind {}
+pub trait OracleIdentifierKind: IdentifierKind {}
 
 /// An identifier. The span is in the side table, and from there we can get the string.
 /// Once we intern we might hve that in here (or in another side table).
@@ -76,6 +77,17 @@ macro_rules! define_type_arg_ident_kind {
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
         impl TypeArgIdentifierKind for $kind_name {}
+
+        pub type $ident_name = Identifier<$kind_name>;
+    };
+}
+
+macro_rules! define_oracle_ident_kind {
+    ($kind_name:ident, $ident_name:ident $(,)?) => {
+        #[derive(Debug, Clone, Copy)]
+        pub struct $kind_name;
+        impl IdentifierKind for $kind_name {}
+        impl OracleIdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
     };
@@ -190,7 +202,10 @@ define_instance_ident_kind!(
     GameConstValueIdentifierKind = TheoremConstValueIdentifierKind,
 );
 
-define_ident_kind!(OracleIdentifierKind, OracleIdentifier);
+define_oracle_ident_kind!(OracleImportIdentifierKind, OracleImportIdentifier);
+define_oracle_ident_kind!(OracleDefinitionIdentifierKind, OracleDefinitionIdentifier);
+define_oracle_ident_kind!(OracleCompositionIdentifierKind, OracleCompositionIdentifier);
+
 define_ident_kind!(PackageIdentifierKind, PackageIdentifier);
 
 define_ident_kind!(GameIdentifierKind, GameIdentifier);

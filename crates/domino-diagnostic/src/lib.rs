@@ -6,6 +6,7 @@ use domino_ast::{
 
 pub type NamedSource = miette::NamedSource<String>;
 
+#[derive(Clone, Copy)]
 pub struct Resolver<'a> {
     pub arenas: &'a Arenas,
     pub locations: &'a LocationTable,

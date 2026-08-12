@@ -3,12 +3,13 @@ use crate::{
     ast_nodes::{
         expressions,
         identifier::{
-            Identifier, OracleIdentifier, OracleValueIdentifierKind, ValueIdentifierKind,
+            Identifier, OracleDefinitionIdentifierKind, OracleIdentifierKind,
+            OracleValueIdentifierKind, ValueIdentifierKind,
         },
         list::{Comma, List},
         statements::StatementList,
         types::{self, Type},
-        ListItem, Parsable, Trivia,
+        InArena, Indexable, ListItem, NodeType, Parsable, Trivia,
     },
     Rule,
 };
@@ -45,14 +46,14 @@ expressions::impl_expr!(OracleExpressionKind);
 
 /// oracle <gap> <name> <gap> ( <decl_list> )
 #[derive(Debug, Clone, Copy)]
-pub struct OracleSignature {
-    pub name: Ref<OracleIdentifier>,
+pub struct OracleSignature<OI: OracleIdentifierKind> {
+    pub name: Ref<Identifier<OI>>,
     pub trivia: Ref<Trivia>,
     pub args: Ref<OracleValueDeclList>,
     pub ret_ty: Option<OracleReturnType>,
 }
 
-impl ListItem for OracleSignature {
+impl<OI: OracleIdentifierKind> ListItem for OracleSignature<OI> {
     const LIST_RULE: Rule = Rule::oracle_decl_list;
 }
 
@@ -82,12 +83,16 @@ pub type OracleValueDeclList = List<ArgDecl<OracleValueIdentifierKind>, Comma>;
 #[derive(Debug, Clone, Copy)]
 pub struct OracleDefinition {
     pub sig_trivia: Ref<Trivia>,
-    pub oracle_sig: Ref<OracleSignature>,
+    pub oracle_sig: Ref<OracleSignature<OracleDefinitionIdentifierKind>>,
     pub brace_trivia: Ref<Trivia>,
     pub statements: Ref<StatementList>,
 }
 
-impl Parsable for OracleSignature {
+impl<OI: OracleIdentifierKind> Parsable for OracleSignature<OI>
+where
+    Identifier<OI>: Parsable,
+    Self: Indexable + NodeType + InArena,
+{
     const RULE: Rule = Rule::oracle_sig;
 
     fn parse_inner(

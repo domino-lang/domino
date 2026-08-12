@@ -338,7 +338,8 @@ define_node_types! {
     TuplePattern { pat_tuple: statements::TuplePattern }
     PatternList { pat_list: statements::PatternList }
 
-    OracleSignature { oracle_sig: oracles::OracleSignature }
+    OracleImportSignature { oracle_import_sig: oracles::OracleSignature<identifier::OracleImportIdentifierKind> }
+    OracleDefinitionSignature { oracle_def_sig: oracles::OracleSignature<identifier::OracleDefinitionIdentifierKind> }
     OracleValueDeclList { oracle_value_decl_list: oracles::OracleValueDeclList }
     OracleValueArgDecl { oracle_value_arg_decl: oracles::OracleValueArgDecl }
     OracleDefinition { oracle_def: oracles::OracleDefinition }
@@ -365,7 +366,9 @@ define_node_types! {
     GameTypeArgumentIdentifier { game_type_arg_ident: identifier::GameTypeArgumentIdentifier }
     TheoremTypeArgumentIdentifier { thm_type_arg_ident: identifier::TheoremTypeArgumentIdentifier }
 
-    OracleIdentifier { oracle_ident: identifier::OracleIdentifier }
+    OracleImportIdentifier { oracle_import_ident: identifier::OracleImportIdentifier }
+    OracleDefinitionIdentifier { oracle_def_ident: identifier::OracleDefinitionIdentifier }
+    OracleComposeIdentifier { oracle_compose_ident: identifier::OracleCompositionIdentifier }
     PackageIdentifier { pkg_ident: identifier::PackageIdentifier }
     GameIdentifier { game_ident: identifier::GameIdentifier }
     PackageInstanceIdentifier { pkg_inst_ident: identifier::PackageInstanceIdentifier }
@@ -392,8 +395,8 @@ define_node_types! {
     GameInstanceItemList { game_inst_item_list: game::InstanceItemList }
     GameInstanceBlock { game_inst_block: game::InstanceBlock }
 
-    ComposeOracleItem { componse_oracle_item: game::ComposeOracleAssignmentItem }
-    ComposeOracleItemList { componse_oracle_item_list: game::ComposeOracleAssignmentList }
+    ComposeOracleItem { compose_oracle_item: game::ComposeOracleAssignmentItem }
+    ComposeOracleItemList { compose_oracle_item_list: game::ComposeOracleAssignmentList }
 
     ComposePackageInstanceItem { compose_pkg_inst_item: game::ComposePackageInstanceItem }
     ComposePackageInstanceItemList { compose_pkg_inst_item_list: game::ComposePackageInstanceList }
@@ -582,7 +585,9 @@ impl_noop_index! {
     statements::TuplePattern,
 
     // oracles
-    oracles::OracleSignature,
+    oracles::OracleSignature<identifier::OracleImportIdentifierKind>,
+    oracles::OracleSignature<identifier::OracleDefinitionIdentifierKind>,
+    oracles::OracleSignature<identifier::OracleCompositionIdentifierKind>,
     oracles::OracleValueArgDecl,
     oracles::OracleDefinition,
 

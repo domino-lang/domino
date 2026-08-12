@@ -17,6 +17,9 @@ use crate::{
 /// For example, the impl for PackageInstanceIdentifierKind contains the assignment of
 /// GameExpressionKind to PackageConstValueIdentifierKind.
 pub trait InstanceIdentifierKind: IdentifierKind {
+    type InstanceIdentifierKind: IdentifierKind;
+    type InstantiatedIdentifierKind: IdentifierKind;
+
     type LhsValueIdentifierKind: ValueIdentifierKind
         + InstanceAssignmentLhsKind<RhsKind = Self::RhsExpressionKind>;
     type RhsExpressionKind: expressions::ExpressionKind;
@@ -34,6 +37,10 @@ pub trait InstanceAssignmentLhsKind {
 
 // impl for assignments in package instantiations
 impl InstanceIdentifierKind for identifier::PackageInstanceIdentifierKind {
+    type InstanceIdentifierKind = identifier::PackageInstanceIdentifierKind;
+
+    type InstantiatedIdentifierKind = identifier::PackageIdentifierKind;
+
     type LhsValueIdentifierKind = identifier::PackageConstValueIdentifierKind;
 
     type RhsExpressionKind = game::PureGameExpressionKind;
@@ -45,6 +52,10 @@ impl InstanceIdentifierKind for identifier::PackageInstanceIdentifierKind {
 
 // impl for assignments in game instantiations
 impl InstanceIdentifierKind for identifier::GameInstanceIdentifierKind {
+    type InstanceIdentifierKind = identifier::GameInstanceIdentifierKind;
+
+    type InstantiatedIdentifierKind = identifier::GameIdentifierKind;
+
     type LhsValueIdentifierKind = identifier::GameConstValueIdentifierKind;
 
     type RhsExpressionKind = theorem::PureTheoremExpressionKind;
@@ -141,10 +152,10 @@ pub type InstanceItemList<IK: ValueIdentifierKind> = ListNoDelim<InstanceItem<IK
 #[derive(Debug, Clone, Copy)]
 pub struct InstanceBlock<IK: InstanceIdentifierKind> {
     pub instance_name_trivia: Ref<Trivia>,
-    pub instance_name: Ref<Identifier<IK>>,
+    pub instance_name: Ref<Identifier<IK::InstanceIdentifierKind>>,
     pub eq_trivia: Ref<Trivia>,
     pub instantiated_name_trivia: Ref<Trivia>,
-    pub instantiated_name: Ref<Identifier<IK>>,
+    pub instantiated_name: Ref<Identifier<IK::InstantiatedIdentifierKind>>,
     pub brace_trivia: Ref<Trivia>,
     pub items: Ref<InstanceItemList<IK>>,
 }
@@ -158,6 +169,8 @@ where
     InstanceBlock<IK>: InArena + NodeType + Indexable,
     InstanceItemList<IK>: Parsable,
     Identifier<IK>: Parsable,
+    Identifier<IK::InstanceIdentifierKind>: Parsable,
+    Identifier<IK::InstantiatedIdentifierKind>: Parsable,
 {
     let mut inner = pair.into_inner();
     let _kw_instance = inner.next().unwrap();

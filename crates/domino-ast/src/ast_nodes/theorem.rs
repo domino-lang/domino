@@ -4,8 +4,9 @@ use crate::{
         common, expressions,
         identifier::{
             AssumptionIdentifier, GameConstValueIdentifierKind, GameInstanceIdentifier,
-            GameInstanceIdentifierKind, GameTypeIdentifierKind, LemmaIdentifier, OracleIdentifier,
-            PackageInstanceIdentifier, TheoremConstValueIdentifierKind, TheoremIdentifier,
+            GameInstanceIdentifierKind, GameTypeIdentifierKind, LemmaIdentifier,
+            OracleCompositionIdentifier, PackageInstanceIdentifier,
+            TheoremConstValueIdentifierKind, TheoremIdentifier,
         },
         instances,
         list::{Comma, List, ListNoDelim},
@@ -170,7 +171,7 @@ pub type EquivalenceOracleItemList = ListNoDelim<EquivalenceOracleItem>;
 
 #[derive(Debug, Copy, Clone)]
 pub struct EquivalenceOracleBlock {
-    pub name: Ref<OracleIdentifier>,
+    pub name: Ref<OracleCompositionIdentifier>,
     pub pre_colon_trivia: Ref<Trivia>,
     pub pre_brace_trivia: Ref<Trivia>,
     pub items: Ref<EquivalenceOracleItemList>,
@@ -540,7 +541,7 @@ impl Parsable for EquivalenceOracleBlock {
     ) -> Self {
         let mut inner = pair.into_inner();
 
-        let name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
+        let name = OracleCompositionIdentifier::parse_ref(file_id, state, inner.next().unwrap());
         let pre_colon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let pre_brace_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let items = EquivalenceOracleItemList::parse_ref(file_id, state, inner.next().unwrap());

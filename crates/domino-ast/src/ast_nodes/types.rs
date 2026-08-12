@@ -74,7 +74,7 @@ pub struct ArgumentedType<TK: TypeKind> {
 
 #[derive(Debug, Clone, Copy)]
 pub enum TypeArgument<TK: TypeKind> {
-    Identifier(Ref<identifier::PackageTypeArgumentIdentifier>),
+    Identifier(Ref<Identifier<TK::TypeArgIdentifierKind>>),
     Tuple(Ref<TypeArgList<TK>>),
     Application(Ref<ArgumentedType<TK>>),
     Type(Ref<Type<TK>>),
@@ -184,6 +184,7 @@ where
     TypeArgList<TK>: Parsable,
     Type<TK>: Parsable,
     expressions::Expression<TK::ExpressionKind>: Parsable,
+    Identifier<TK::TypeArgIdentifierKind>: Parsable,
 {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
@@ -196,7 +197,10 @@ where
             inner.into_inner().next().unwrap(),
         )),
         Rule::identifier => {
-            TypeArgument::Identifier(identifier::Identifier::parse_ref(file_id, state, inner))
+            let ident = identifier::Identifier::<TK::TypeArgIdentifierKind>::parse_ref(
+                file_id, state, inner,
+            );
+            TypeArgument::Identifier(ident)
         }
         Rule::ty => TypeArgument::Type(Type::parse_ref(file_id, state, inner)),
         Rule::expr => TypeArgument::Expr(expressions::Expression::parse_ref(file_id, state, inner)),

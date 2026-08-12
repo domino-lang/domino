@@ -12,7 +12,7 @@ block_comment = @{ "/*" ~ (!"*/"  ~ ANY)* ~ "*/" }
 // somehow pest hides the NEWLINE rule from rust, we have to wrap it
 newline = { NEWLINE }
 
-trivium = { newline | block_comment| line_comment }
+trivium = { newline | block_comment | line_comment }
 gap = { trivium* }
 
 // ## Keywords
