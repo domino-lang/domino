@@ -4,8 +4,9 @@ use crate::{
         common, expressions,
         identifier::{
             GameConstValueIdentifierKind, GameIdentifier, GameTypeIdentifier,
-            GameTypeIdentifierKind, Identifier, OracleIdentifier, PackageConstValueIdentifierKind,
-            PackageInstanceIdentifier, PackageInstanceIdentifierKind, PackageTypeIdentifierKind,
+            GameTypeIdentifierKind, Identifier, OracleCompositionIdentifier,
+            PackageConstValueIdentifierKind, PackageInstanceIdentifier,
+            PackageInstanceIdentifierKind, PackageTypeIdentifierKind,
         },
         instances,
         list::{Colon, Comma, List, ListNoDelim},
@@ -77,7 +78,7 @@ pub type InstanceBlock = instances::InstanceBlock<PackageInstanceIdentifierKind>
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComposeOracleAssignmentItem {
-    pub oracle_name: Ref<OracleIdentifier>,
+    pub oracle_name: Ref<OracleCompositionIdentifier>,
     pub colon_trivia: Ref<Trivia>,
     pub pkg_inst_name_trivia: Ref<Trivia>,
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
@@ -252,7 +253,8 @@ impl Parsable for ComposeOracleAssignmentItem {
         pair: crate::Pair,
     ) -> Self {
         let mut inner = pair.into_inner();
-        let oracle_name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
+        let oracle_name =
+            OracleCompositionIdentifier::parse_ref(file_id, state, inner.next().unwrap());
         let colon_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let _colon = Colon::parse(file_id, state, inner.next().unwrap());
         let pkg_inst_name_trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());

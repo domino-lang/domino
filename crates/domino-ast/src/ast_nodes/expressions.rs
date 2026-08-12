@@ -19,7 +19,7 @@
 use crate::{
     arena::Ref,
     ast_nodes::{
-        identifier::{Identifier, OracleIdentifier, ValueIdentifierKind},
+        identifier::{Identifier, OracleImportIdentifier, ValueIdentifierKind},
         list::{Comma, List},
         parse_ref,
         types::{Type, TypeKind},
@@ -99,7 +99,7 @@ pub struct UnOpExpression<EK: ExpressionKind> {
 #[derive(Debug, Clone, Copy)]
 pub struct OracleInvocationExpression<EK: ExpressionKind> {
     /// The name of the invoked oracle.
-    pub oracle_name: Ref<OracleIdentifier>,
+    pub oracle_name: Ref<OracleImportIdentifier>,
 
     /// Trivia between name and (
     pub oracle_name_trivia: Ref<Trivia>,
@@ -170,7 +170,7 @@ where
     ) -> Self {
         let mut inner = pair.into_inner();
         let _invoke = inner.next().unwrap();
-        let name = OracleIdentifier::parse_ref(file_id, state, inner.next().unwrap());
+        let name = OracleImportIdentifier::parse_ref(file_id, state, inner.next().unwrap());
         let trivia = Trivia::parse_ref(file_id, state, inner.next().unwrap());
         let expr_list_pair = ExprList::parse_ref(file_id, state, inner.next().unwrap());
 

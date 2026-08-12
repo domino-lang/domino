@@ -17,7 +17,7 @@ use crate::{
     GlobalRefId,
 };
 
-/// An arena for values of type T.
+// An arena for values of type T.
 ///
 /// In order for the lookup type safety to hold, there may only be one arena for any type.
 #[derive(Debug)]
@@ -133,11 +133,25 @@ impl<T> Arena<T> {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     fn current_offset(&self) -> u32 {
         self.0
             .len()
             .try_into()
             .expect("tried to alloc one too many")
+    }
+
+    pub fn into_vec(self) -> Vec<T> {
+        self.0
+    }
+}
+
+impl<T: Clone> Arena<T> {
+    pub fn clone_into_vec(&self) -> Vec<T> {
+        self.0.clone()
     }
 }
 
@@ -176,5 +190,38 @@ impl<'a, I> Extend<I> for SliceAllocator<'a, I> {
 impl Arena<SourceFile> {
     pub fn text(&self, loc: SourceLocation) -> &str {
         &self.get(loc.file_id).contents[(loc.start as usize)..(loc.end as usize)]
+    }
+}
+
+// This is implemented here because we construct Ref here.
+impl<NodeType, Data> crate::DenseTable<NodeType, Data> {
+    pub fn iter(&self) -> impl Iterator<Item = (Ref<NodeType>, &Data)> {
+        self.as_slice()
+            .iter()
+            .enumerate()
+            .map(|(i, data)| (Ref(i as u32, PhantomData), data))
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = (Ref<NodeType>, Data)> {
+        self.into_vec()
+            .into_iter()
+            .enumerate()
+            .map(|(i, data)| (Ref(i as u32, PhantomData), data))
+    }
+}
+
+impl<NodeType, Data> crate::PartialDenseTable<NodeType, Data> {
+    pub fn iter(&self) -> impl Iterator<Item = (Ref<NodeType>, &Option<Data>)> {
+        self.as_slice()
+            .iter()
+            .enumerate()
+            .map(|(i, data)| (Ref(i as u32, PhantomData), data))
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = (Ref<NodeType>, Option<Data>)> {
+        self.into_vec()
+            .into_iter()
+            .enumerate()
+            .map(|(i, data)| (Ref(i as u32, PhantomData), data))
     }
 }
