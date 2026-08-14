@@ -14,7 +14,7 @@ pub(crate) enum Commands {
     /// Reformat file or directory
     Format(Format),
 
-    Proofsteps,
+    Gamehops,
 }
 
 #[derive(clap::Args, Debug)]
@@ -41,9 +41,9 @@ pub(crate) struct Prove {
     #[clap(short, long)]
     pub(crate) transcript: bool,
     #[clap(long)]
-    pub(crate) proofstep: Option<usize>,
+    pub(crate) gamehop: Option<usize>,
     #[clap(long)]
-    pub(crate) proof: Option<String>,
+    pub(crate) theorem: Option<String>,
     #[clap(long)]
     pub(crate) oracle: Option<String>,
     #[clap(long, default_value_t = 1)]

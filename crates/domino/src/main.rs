@@ -25,7 +25,7 @@ pub(crate) struct Cli {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("Need to specify a proof when specifying a proofstep")]
+#[error("Need to specify a proof when specifying a gamehop")]
 #[diagnostic(code(cli::incompatible_arguments))]
 pub struct IncompatibleArgumentsError;
 
@@ -40,12 +40,12 @@ enum Error {
     IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
 }
 
-fn proofsteps() -> Result<(), Error> {
+fn gamehops() -> Result<(), Error> {
     let project_root = project::directory::find_project_root()?;
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
 
-    project.proofsteps()?;
+    project.gamehops()?;
     Ok(())
 }
 
@@ -54,15 +54,15 @@ fn prove(p: &Prove) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(&files)?;
 
-    if p.proofstep.is_none() || p.proof.is_some() {
+    if p.gamehop.is_none() || p.theorem.is_some() {
         let smtsolver =
             sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
         project.prove(
             &smtsolver,
             p.transcript,
             p.parallel,
-            &p.proof,
-            p.proofstep,
+            &p.theorem,
+            p.gamehop,
             &p.oracle,
         )?;
     } else {
@@ -107,7 +107,7 @@ fn main() -> miette::Result<()> {
 
     let result = match &cli.command {
         Commands::Prove(p) => prove(p),
-        Commands::Proofsteps => proofsteps(),
+        Commands::Gamehops => gamehops(),
         Commands::Latex(l) => latex(l),
         Commands::Format(f) => format(f),
     };

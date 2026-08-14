@@ -49,7 +49,7 @@ pub trait Project {
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
-    fn proofsteps(&self) -> Result<()> {
+    fn gamehops(&self) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 

@@ -60,7 +60,7 @@ sed -e 's/[[:space:]]*#.*// ; /^[[:space:]]*$/d' "example-projects/known-good-sl
   (
     echo "## Checking $project parses..."
     cd $project_path
-    $DOMINO proofsteps || fail "expected success, but failed: $project_path"
+    $DOMINO gamehops || fail "expected success, but failed: $project_path"
   )
 done
 
