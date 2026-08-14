@@ -21,9 +21,7 @@ use crate::{
     writers::smt::contexts::EquivalenceContext,
 };
 
-use crate::ui::{
-    LatexUI, LatexUIGameIterator, ProofstepUI, ProveGamehopUI, ProveTheoremUI, ProveUI,
-};
+use crate::ui::{GamehopUI, LatexUI, LatexUIGameIterator, ProveGamehopUI, ProveTheoremUI, ProveUI};
 
 mod consts;
 mod load;
@@ -52,7 +50,7 @@ pub trait Project {
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
-    fn proofsteps(&self, ui: impl ProofstepUI) -> Result<()> {
+    fn gamehops(&self, ui: impl GamehopUI) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
