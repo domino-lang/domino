@@ -757,12 +757,17 @@ fn handle_types_def_spec<'src>(
     ctx: &ParseTheoremContext,
     ast: Pair<'src, Rule>,
 ) -> Result<(&'src str, Type), ParseTheoremError> {
-    debug_assert_matches!(ast.as_rule(), Rule::types_def_spec);
+    debug_assert_matches!(
+        ast.as_rule(),
+        Rule::types_def_spec_simple | Rule::types_def_spec_full
+    );
 
     let mut children = ast.into_inner();
 
     let name = children.next().unwrap();
-    let ty = children.next().unwrap();
+    let ty = children
+        .next()
+        .expect("one-sided type assignments don't make sense on the theorem level");
     let ty = handle_type(&ctx.parse_ctx(), ty)?;
 
     Ok((name.as_str(), ty))
