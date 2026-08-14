@@ -16,7 +16,7 @@ pub(crate) enum Commands {
     /// Reformat file or directory
     Format(Format),
 
-    Proofsteps(Proofsteps),
+    Gamehops(Gamehops),
 }
 
 #[derive(clap::Args, Debug)]
@@ -56,9 +56,9 @@ pub(crate) struct Prove {
     #[clap(long)]
     pub(crate) invariant_start: bool,
     #[clap(long)]
-    pub(crate) proofstep: Option<usize>,
+    pub(crate) gamehop: Option<usize>,
     #[clap(long)]
-    pub(crate) proof: Option<String>,
+    pub(crate) theorem: Option<String>,
     #[clap(long)]
     pub(crate) oracle: Option<String>,
     #[clap(long)]
@@ -69,7 +69,7 @@ pub(crate) struct Prove {
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
-pub(crate) struct Proofsteps {
+pub(crate) struct Gamehops {
     /// Path to the Domino project. Defaults to searching the current
     /// directory and its ancestors for an `ssp.toml`.
     #[clap(long)]
@@ -92,14 +92,14 @@ impl ProveConfiguration for Prove {
     }
 
     fn theorem_requested(&self, theorem: &str) -> bool {
-        self.proof
+        self.theorem
             .as_ref()
             .map(|name| theorem == name)
             .unwrap_or(true)
     }
 
     fn gamehop_requested(&self, gamehop: usize) -> bool {
-        self.proofstep
+        self.gamehop
             .as_ref()
             .map(|hop| *hop == gamehop)
             .unwrap_or(true)

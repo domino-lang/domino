@@ -6,7 +6,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
 use sspverif::ui::{
-    LatexUI, ProofstepUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
+    GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
     ProveTheoremUI, ProveUI, UI,
 };
 
@@ -54,7 +54,7 @@ impl Default for IndicatifUI {
 }
 
 impl UI for IndicatifUI {
-    type ProofstepUI = IndicatifProofstepUI;
+    type GamehopUI = IndicatifGamehopUI;
     type ProveUI = IndicatifProveUI;
     type LatexUI = IndicatifLatexUI;
 
@@ -62,8 +62,8 @@ impl UI for IndicatifUI {
         self.multi_progress.println(line)
     }
 
-    fn proofstep_ui(&self) -> Self::ProofstepUI {
-        IndicatifProofstepUI {
+    fn gamehop_ui(&self) -> Self::GamehopUI {
+        IndicatifGamehopUI {
             main_ui: self.clone(),
         }
     }
@@ -227,7 +227,7 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
     fn start(&mut self) {
         if let Some(progress) = &self.theorem_ui.progress {
             let new_progress = self.theorem_ui.insert_before(progress, ProgressBar::new(0));
-            new_progress.set_style(indicatif_style::proofstep_bar());
+            new_progress.set_style(indicatif_style::gamehop_bar());
             new_progress.set_message(self.name.clone());
             self.progress = Some(new_progress);
             self.tick()
@@ -254,7 +254,7 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
         self.tick();
 
         IndicatifProveOracleUI {
-            proofstep_ui: self.clone(),
+            gamehop_ui: self.clone(),
             name: export.name().to_string(),
             progress: None,
         }
@@ -266,7 +266,7 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
         self.tick();
 
         IndicatifProveOracleUI {
-            proofstep_ui: self.clone(),
+            gamehop_ui: self.clone(),
             name,
             progress: None,
         }
@@ -275,23 +275,23 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
 
 #[derive(Clone)]
 pub struct IndicatifProveOracleUI {
-    proofstep_ui: IndicatifProveGamehopUI,
+    gamehop_ui: IndicatifProveGamehopUI,
     name: String,
     progress: Option<ProgressBar>,
 }
 
 impl IndicatifProveOracleUI {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
-        self.proofstep_ui.insert_before(before, progress)
+        self.gamehop_ui.insert_before(before, progress)
     }
     fn tick(&self) {
-        self.proofstep_ui.tick();
+        self.gamehop_ui.tick();
         if let Some(progress) = &self.progress {
             progress.tick();
         }
     }
     fn start(&mut self) {
-        if let Some(progress) = &self.proofstep_ui.progress {
+        if let Some(progress) = &self.gamehop_ui.progress {
             let new_progress = self.insert_before(progress, ProgressBar::new(0));
             new_progress.set_style(indicatif_style::oracle_bar());
             new_progress.set_message(self.name.clone());
@@ -301,13 +301,13 @@ impl IndicatifProveOracleUI {
     }
 
     fn finish(&self) {
-        if let Some(progress) = &self.proofstep_ui.progress {
+        if let Some(progress) = &self.gamehop_ui.progress {
             progress.inc(1);
         }
         self.tick();
     }
     fn println(&self, line: &str) -> std::io::Result<()> {
-        self.proofstep_ui.println(line)
+        self.gamehop_ui.println(line)
     }
 }
 
@@ -353,7 +353,7 @@ impl ProveInvariantStartUI for IndicatifProveOracleUI {
     type ProveClaimUI = IndicatifProveClaimUI;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
-        self.proofstep_ui.println(line)
+        self.gamehop_ui.println(line)
     }
 
     fn run(mut self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>> {
@@ -452,11 +452,11 @@ impl LatexUI for IndicatifLatexUI {
     }
 }
 
-pub struct IndicatifProofstepUI {
+pub struct IndicatifGamehopUI {
     main_ui: IndicatifUI,
 }
 
-impl ProofstepUI for IndicatifProofstepUI {
+impl GamehopUI for IndicatifGamehopUI {
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.main_ui.println(line)
     }
@@ -473,7 +473,7 @@ mod indicatif_style {
         .progress_chars("#>-")
     }
 
-    pub(super) fn proofstep_bar() -> ProgressStyle {
+    pub(super) fn gamehop_bar() -> ProgressStyle {
         ProgressStyle::with_template(
             "[{elapsed_precise}] {bar:80.yellow/white} {pos:>3}/{len:3} {msg}",
         )
