@@ -72,7 +72,7 @@ kw_randomness = _{ "randomness" }
 identifier = @{ ( ASCII_ALPHA | "_" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" )* }
 
 /// A number. 
-num = { ASCII_DIGIT+ }
+num = { "-"? ~ ASCII_DIGIT+ }
 
 // -- literals --
 
