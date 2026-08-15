@@ -13,4 +13,5 @@ domino-diagnostic.workspace = true
 
 [dev-dependencies]
 pest.workspace = true
+domino-parse-pest.workspace = true
 miette = { workspace = true, features = ["fancy"] }

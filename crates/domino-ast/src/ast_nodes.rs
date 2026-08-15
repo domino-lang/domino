@@ -13,14 +13,9 @@ pub mod types;
 
 use crate::{
     arena::{Ref, Slice},
-    source::{FileId, SourceLocation},
-    util::trimmed_loc,
-    Rule, State,
+    source::SourceLocation,
+    State,
 };
-
-pub trait ListItem {
-    const LIST_RULE: Rule;
-}
 
 pub trait NodeType {
     const NODE_TYPE: NodeTypeEnum;
@@ -31,29 +26,6 @@ pub trait InArena: Sized {
     fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
 }
 
-pub trait Parsable: NodeType + InArena {
-    const RULE: Rule;
-
-    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self;
-
-    fn parse(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Self::RULE);
-
-        Self::parse_inner(file_id, state, pair)
-    }
-
-    fn parse_ref(file_id: FileId, state: &mut State, pair: crate::Pair) -> Ref<Self> {
-        // NOTE: We need to trim trailing whitespace from the span here.
-        let loc = trimmed_loc(file_id, &pair);
-
-        let node = Self::parse(file_id, state, pair);
-
-        Ref::<Self>::from_parsed(state, loc, node)
-    }
-}
-
-pub trait ParsableArenaNode: Parsable + InArena {}
-
 impl<T: NodeType + InArena> Ref<T> {
     pub fn from_parsed(state: &mut State, loc: SourceLocation, node: T) -> Self {
         let arena = T::arena_mut(&mut state.arenas);
@@ -62,47 +34,6 @@ impl<T: NodeType + InArena> Ref<T> {
         state.tables.locations.insert(id.global_ref_id(), loc);
 
         id
-    }
-}
-
-impl<T: Parsable> Slice<T> {
-    pub fn from_iter<'src>(
-        file_id: FileId,
-        state: &mut State,
-        iter: impl IntoIterator<Item = crate::Pair<'src>>,
-    ) -> Self {
-        let parsed: Vec<(T, _)> = iter
-            .into_iter()
-            .map(|pair: crate::Pair| {
-                let loc = SourceLocation::from_file_and_pair(file_id, &pair);
-                let node = T::parse(file_id, state, pair);
-                (node, loc)
-            })
-            .collect();
-
-        Self::from_parsed(state, parsed)
-    }
-
-    pub fn from_parsed(
-        state: &mut State,
-        parsed: impl IntoIterator<Item = (T, SourceLocation)>,
-    ) -> Self {
-        let mut allocator = T::arena_mut(&mut state.arenas).slice_allocator();
-        let allocated: Vec<(Ref<T>, _)> = parsed
-            .into_iter()
-            .map(|(node, loc)| {
-                let id = allocator.push(node);
-                (id, loc)
-            })
-            .collect();
-
-        let slice = allocator.finish();
-
-        for (id, loc) in allocated {
-            state.tables.locations.insert(id.global_ref_id(), loc);
-        }
-
-        slice
     }
 }
 
@@ -116,42 +47,6 @@ pub enum Trivium {
 #[derive(Debug, Clone, Copy)]
 pub struct Trivia {
     pub trivia: Slice<Trivium>,
-}
-
-impl Parsable for Trivium {
-    const RULE: Rule = Rule::trivium;
-
-    fn parse_inner(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::trivium);
-
-        match pair.into_inner().next().unwrap().as_rule() {
-            Rule::newline => Trivium::NewLine,
-            Rule::block_comment => Trivium::BlockComment,
-            Rule::line_comment => Trivium::LineComment,
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl Parsable for Trivia {
-    const RULE: Rule = Rule::gap;
-
-    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::gap);
-
-        let mut trivia = vec![];
-        trivia.extend(
-            pair.into_inner()
-                .map(|trivium_pair| Trivium::parse(file_id, state, trivium_pair)),
-        );
-
-        let mut allocator = state.arenas.trivium.slice_allocator();
-        allocator.extend(trivia);
-
-        Self {
-            trivia: allocator.finish(),
-        }
-    }
 }
 
 macro_rules! define_arenas {
@@ -470,16 +365,4 @@ define_node_types! {
     TheoremItem { thm_item: theorem::TheoremItem }
     TheoremItemList { thm_item_list: theorem::TheoremItemList }
     Theorem { thm: theorem::Theorem }
-}
-
-pub fn parse_ref<T: Parsable>(
-    file_id: crate::source::FileId,
-    state: &mut crate::State,
-    pair: crate::Pair,
-    f: fn(crate::source::FileId, &mut crate::State, crate::Pair) -> T,
-) -> Ref<T> {
-    // NOTE: We need to trim trailing whitespace from the span here.
-    let loc = trimmed_loc(file_id, &pair);
-    let node = f(file_id, state, pair);
-    Ref::<T>::from_parsed(state, loc, node)
 }
