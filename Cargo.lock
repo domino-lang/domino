@@ -368,8 +368,6 @@ name = "domino-ast"
 version = "0.1.0"
 dependencies = [
  "miette",
- "pest",
- "pest_derive",
 ]
 
 [[package]]
@@ -386,9 +384,19 @@ version = "0.1.0"
 dependencies = [
  "domino-ast",
  "domino-diagnostic",
+ "domino-parse-pest",
  "miette",
  "pest",
  "thiserror 1.0.61",
+]
+
+[[package]]
+name = "domino-parse-pest"
+version = "0.1.0"
+dependencies = [
+ "domino-ast",
+ "pest",
+ "pest_derive",
 ]
 
 [[package]]

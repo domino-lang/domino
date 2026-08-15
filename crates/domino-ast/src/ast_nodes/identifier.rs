@@ -1,10 +1,5 @@
 use std::marker::PhantomData;
 
-use crate::{
-    ast_nodes::{InArena, NodeType, Parsable},
-    Rule,
-};
-
 /// Describes what the identifier refers to. We do this along two axes:
 ///
 /// 1. Are you referring to a type? a value? a package?
@@ -64,10 +59,6 @@ macro_rules! define_type_ident_kind {
         impl TypeIdentifierKind for $kind_name {}
 
         pub type $ident_name = Identifier<$kind_name>;
-
-        impl crate::ast_nodes::ListItem for $ident_name {
-            const LIST_RULE: Rule = Rule::ident_list;
-        }
     };
 }
 
@@ -111,21 +102,6 @@ macro_rules! define_ident_kind {
 
         pub type $ident_name = Identifier<$kind_name>;
     };
-}
-
-impl<IK: IdentifierKind> Parsable for Identifier<IK>
-where
-    Identifier<IK>: NodeType + InArena,
-{
-    const RULE: Rule = Rule::identifier;
-
-    fn parse_inner(
-        _file_id: crate::source::FileId,
-        _state: &mut crate::State,
-        _pair: crate::Pair,
-    ) -> Self {
-        Identifier::default()
-    }
 }
 
 define_type_ident_kind!(

@@ -6,6 +6,7 @@ members = [
     "crates/domino-ast",
     "crates/domino-identifier-resolution",
     "crates/domino-diagnostic",
+    "crates/domino-parse-pest",
 ]
 
 [workspace.package]
@@ -16,7 +17,10 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 domino-ast = { path = "crates/domino-ast" }
+domino-parse-pest = { path = "crates/domino-parse-pest" }
+domino-identifier-resolution = { path = "crates/domino-identifier-resolution" }
 domino-diagnostic = { path = "crates/domino-diagnostic" }
+
 sspverif-smtlib = { path = "crates/smtlib" }
 sspverif = { path = "" }
 thiserror = "1.0.61"
