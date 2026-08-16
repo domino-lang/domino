@@ -585,11 +585,16 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             });
         };
 
+        // Exports can be aliased (`EVAL_DPRF: EVAL of DPRF`). The name a lemma refers to is the
+        // adversary-facing one, i.e. the alias, so look exports up by `name()` — as every other
+        // call site does. The return datastructure, on the other hand, is named after the
+        // underlying oracle signature, and the alias may differ per side, so each side's pattern
+        // has to use its own `sig().name`.
         let Some(left_oracle_export) = left_game_inst
             .game()
             .exports
             .iter()
-            .find(|export| export.sig().name == oracle_name)
+            .find(|export| export.name() == oracle_name)
         else {
             return Err(Error::UnknownLemmaName {
                 lemma_name: funname.to_string(),
@@ -602,14 +607,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
             pkg_types: &left_game_inst.game.pkgs[left_oracle_export.to()].types,
-            oracle_name,
+            oracle_name: &left_oracle_export.sig().name,
         };
 
         let Some(right_oracle_export) = right_game_inst
             .game()
             .exports
             .iter()
-            .find(|export| export.sig().name == oracle_name)
+            .find(|export| export.name() == oracle_name)
         else {
             return Err(Error::UnknownLemmaName {
                 lemma_name: funname.to_string(),
@@ -622,7 +627,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
             pkg_types: &right_game_inst.game.pkgs[right_oracle_export.to()].types,
-            oracle_name,
+            oracle_name: &right_oracle_export.sig().name,
         };
 
         let [left_old, right_old, left_return, right_return, ..] = &args[..] else {

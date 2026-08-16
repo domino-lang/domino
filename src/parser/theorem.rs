@@ -758,15 +758,25 @@ fn handle_types_def_spec<'src>(
     ctx: &ParseTheoremContext,
     ast: Pair<'src, Rule>,
 ) -> Result<(&'src str, Type), ParseTheoremError> {
-    debug_assert_matches!(ast.as_rule(), Rule::types_def_spec);
+    match ast.as_rule() {
+        Rule::types_def_spec_full => {
+            let mut children = ast.into_inner();
 
-    let mut children = ast.into_inner();
+            let name = children.next().unwrap();
+            let ty = children.next().unwrap();
+            let ty = handle_type(&ctx.parse_ctx(), ty)?;
 
-    let name = children.next().unwrap();
-    let ty = children.next().unwrap();
-    let ty = handle_type(&ctx.parse_ctx(), ty)?;
+            Ok((name.as_str(), ty))
+        }
+        Rule::types_def_spec_simple => {
+            let ty_ast = ast.into_inner().next().unwrap();
+            let name = ty_ast.as_str();
+            let ty = handle_type(&ctx.parse_ctx(), ty_ast)?;
 
-    Ok((name.as_str(), ty))
+            Ok((name, ty))
+        }
+        _ => unreachable!("{:#?}", ast),
+    }
 }
 
 fn handle_instance_assign_list<'src>(
