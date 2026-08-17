@@ -41,7 +41,7 @@ impl<T: IdentifierKind> Default for Identifier<T> {
 }
 
 macro_rules! define_value_ident_kind {
-    ($kind_name:ident, $ident_name:ident, $ty_ty:ty $(,)?) => {
+    ($kind_name:ident, $ident_name:ident $(,)?) => {
         #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
@@ -52,7 +52,7 @@ macro_rules! define_value_ident_kind {
 }
 
 macro_rules! define_type_ident_kind {
-    ($kind_name:ident, $ident_name:ident, $arg_kind:ty, $value_kind:ty $(,)?) => {
+    ($kind_name:ident, $ident_name:ident $(,)?) => {
         #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
@@ -63,7 +63,7 @@ macro_rules! define_type_ident_kind {
 }
 
 macro_rules! define_type_arg_ident_kind {
-    ($kind_name:ident, $ident_name:ident, $type_kind:ty, $value_kind:ty $(,)?) => {
+    ($kind_name:ident, $ident_name:ident $(,)?) => {
         #[derive(Debug, Clone, Copy)]
         pub struct $kind_name;
         impl IdentifierKind for $kind_name {}
@@ -84,16 +84,6 @@ macro_rules! define_oracle_ident_kind {
     };
 }
 
-macro_rules! define_instance_ident_kind {
-    ($kind_name:ident, $ident_name:ident, $lhs_ty_ty:ty = $rhs_ty_ty:ty, $lhs_val_ty:ty = $rhs_val_ty:ty $(,)?) => {
-        #[derive(Debug, Clone, Copy)]
-        pub struct $kind_name;
-        impl IdentifierKind for $kind_name {}
-
-        pub type $ident_name = Identifier<$kind_name>;
-    };
-}
-
 macro_rules! define_ident_kind {
     ($kind_name:ident, $ident_name:ident $(,)?) => {
         #[derive(Debug, Clone, Copy)]
@@ -104,78 +94,24 @@ macro_rules! define_ident_kind {
     };
 }
 
-define_type_ident_kind!(
-    PackageTypeIdentifierKind,
-    PackageTypeIdentifier,
-    PackageTypeArgumentIdentifierKind,
-    PackageConstValueIdentifierKind
-);
-
-define_type_ident_kind!(
-    GameTypeIdentifierKind,
-    GameTypeIdentifier,
-    GameTypeArgumentIdentifierKind,
-    GameConstValueIdentifierKind
-);
-define_type_ident_kind!(
-    TheoremTypeIdentifierKind,
-    TheoremTypeIdentifier,
-    TheoremTypeArgumentIdentifierKind,
-    TheoremConstValueIdentifierKind
-);
+define_type_ident_kind!(PackageTypeIdentifierKind, PackageTypeIdentifier);
+define_type_ident_kind!(GameTypeIdentifierKind, GameTypeIdentifier);
+define_type_ident_kind!(TheoremTypeIdentifierKind, TheoremTypeIdentifier);
 
 define_type_arg_ident_kind!(
     PackageTypeArgumentIdentifierKind,
-    PackageTypeArgumentIdentifier,
-    PackageTypeIdentifierKind,
-    PackageConstValueIdentifierKind
+    PackageTypeArgumentIdentifier
 );
-define_type_arg_ident_kind!(
-    GameTypeArgumentIdentifierKind,
-    GameTypeArgumentIdentifier,
-    GameTypeIdentifierKind,
-    GameConstValueIdentifierKind
-);
+define_type_arg_ident_kind!(GameTypeArgumentIdentifierKind, GameTypeArgumentIdentifier);
 define_type_arg_ident_kind!(
     TheoremTypeArgumentIdentifierKind,
-    TheoremTypeArgumentIdentifier,
-    TheoremTypeIdentifierKind,
-    TheoremConstValueIdentifierKind
+    TheoremTypeArgumentIdentifier
 );
 
-define_value_ident_kind!(
-    OracleValueIdentifierKind,
-    OracleValueIdentifier,
-    PackageTypeIdentifierKind,
-);
-define_value_ident_kind!(
-    PackageConstValueIdentifierKind,
-    PackageConstValueIdentifier,
-    PackageTypeIdentifierKind,
-);
-define_value_ident_kind!(
-    GameConstValueIdentifierKind,
-    GameConstValueIdentifier,
-    GameTypeIdentifierKind,
-);
-define_value_ident_kind!(
-    TheoremConstValueIdentifierKind,
-    TheoremConstValueIdentifier,
-    TheoremTypeIdentifierKind,
-);
-
-define_instance_ident_kind!(
-    PackageInstanceIdentifierKind,
-    PackageInstanceIdentifier,
-    PackageTypeIdentifierKind = GameTypeIdentifierKind,
-    PackageConstValueIdentifierKind = GameConstValueIdentifierKind,
-);
-define_instance_ident_kind!(
-    GameInstanceIdentifierKind,
-    GameInstanceIdentifier,
-    GameTypeIdentifierKind = TheoremTypeIdentifierKind,
-    GameConstValueIdentifierKind = TheoremConstValueIdentifierKind,
-);
+define_value_ident_kind!(OracleValueIdentifierKind, OracleValueIdentifier);
+define_value_ident_kind!(PackageConstValueIdentifierKind, PackageConstValueIdentifier);
+define_value_ident_kind!(GameConstValueIdentifierKind, GameConstValueIdentifier);
+define_value_ident_kind!(TheoremConstValueIdentifierKind, TheoremConstValueIdentifier);
 
 define_oracle_ident_kind!(OracleImportIdentifierKind, OracleImportIdentifier);
 define_oracle_ident_kind!(OracleDefinitionIdentifierKind, OracleDefinitionIdentifier);
@@ -184,6 +120,9 @@ define_oracle_ident_kind!(OracleCompositionIdentifierKind, OracleCompositionIden
 define_ident_kind!(PackageIdentifierKind, PackageIdentifier);
 
 define_ident_kind!(GameIdentifierKind, GameIdentifier);
+define_ident_kind!(PackageInstanceIdentifierKind, PackageInstanceIdentifier);
+
+define_ident_kind!(TheoremIdentifierKind, TheoremIdentifier);
+define_ident_kind!(GameInstanceIdentifierKind, GameInstanceIdentifier);
 define_ident_kind!(AssumptionIdentifierKind, AssumptionIdentifier);
 define_ident_kind!(LemmaIdentifierKind, LemmaIdentifier);
-define_ident_kind!(TheoremIdentifierKind, TheoremIdentifier);
