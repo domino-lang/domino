@@ -1000,6 +1000,7 @@ pub(crate) fn handle_hybrid<'a>(
         }
 
         Equivalence::new(
+            ctx.theorem_name.to_string(),
             left_equiv_name,
             right_equiv_name,
             invariants,
@@ -1085,6 +1086,7 @@ fn handle_equivalence<'a>(
     }
 
     let eq = Equivalence::new(
+        ctx.theorem_name.to_string(),
         left_name.as_str().to_string(),
         right_name.as_str().to_string(),
         invariants,

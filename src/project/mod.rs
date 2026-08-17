@@ -231,8 +231,9 @@ pub trait Project {
         Ok(())
     }
 
-    fn get_joined_smt_file(
+    fn get_smt_file(
         &self,
+        theorem_name: &str,
         left_game_name: &str,
         right_game_name: &str,
         oracle_name: &str,
@@ -240,12 +241,14 @@ pub trait Project {
     ) -> Result<std::fs::File> {
         let mut path = self.get_root_dir();
 
-        path.push("_build/code_eq/joined/");
+        path.push("_build/code_eq/");
+        path.push(theorem_name);
+        path.push(format!("{left_game_name}-{right_game_name}"));
+        path.push(oracle_name);
         std::fs::create_dir_all(&path)?;
 
-        path.push(format!(
-            "{left_game_name}-{right_game_name}-{oracle_name}-{claim_name}.smt2"
-        ));
+        path.push(format!("{claim_name}.smt2"));
+
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
