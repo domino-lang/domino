@@ -58,11 +58,11 @@ macro_rules! define_arenas {
 
         $(
             impl crate::ast_nodes::InArena for $ty {
-                fn arena(arenas: &crate::Arenas) -> &crate::arena::Arena<Self> {
+                fn arena(arenas: &$crate::Arenas) -> &$crate::arena::Arena<Self> {
                     &arenas.$name
                 }
 
-                fn arena_mut(arenas: &mut crate::Arenas) -> &mut crate::arena::Arena<Self> {
+                fn arena_mut(arenas: &mut $crate::Arenas) -> &mut $crate::arena::Arena<Self> {
                     &mut arenas.$name
                 }
             }
@@ -78,9 +78,35 @@ macro_rules! define_visitor_trait {
     pub trait Visitor {
       $(
         #[allow(unused_variables)]
-        fn $fn_name(&mut self, arenas: &$crate::Arenas, node: $crate::arena::Ref<$node_type>) {}
+        fn $fn_name(
+            &mut self,
+            arenas: &$crate::Arenas,
+            node: $crate::arena::Ref<$node_type>
+        ) {
+            $crate::walk::walk(self, arenas, node)
+        }
       )*
     }
+
+    pub trait Visit: Sized {
+      fn visit<V: Visitor + ?Sized>(
+        visitor: &mut V,
+        arenas: &$crate::Arenas,
+        node: $crate::arena::Ref<Self>
+      );
+    }
+
+    $(
+      impl Visit for $node_type {
+        fn visit<V: Visitor + ?Sized>(
+            visitor: &mut V,
+            arenas: &$crate::Arenas,
+            node: $crate::arena::Ref<Self>
+        ){
+            visitor.$fn_name(arenas, node)
+        }
+      }
+    )*
   }
 }
 
@@ -107,7 +133,6 @@ macro_rules! define_node_types {
             $variant_name: $node_type,
           )*
         }
-
 
         define_arenas! {
           // We need an arena for the sources, but they are not AST nodes

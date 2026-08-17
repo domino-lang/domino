@@ -20,6 +20,7 @@ pub mod arena;
 pub mod ast_nodes;
 pub mod source;
 mod state;
+pub mod walk;
 
 pub use ast_nodes::{Arenas, Visitor};
 pub use state::{

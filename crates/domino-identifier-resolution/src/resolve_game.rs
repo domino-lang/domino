@@ -2,17 +2,13 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{
-        game,
-        identifier::{self, GameTypeIdentifier},
-        instances, package, types, NodeType,
-    },
+    ast_nodes::{game, identifier, package, NodeType},
     source::SourceLocation,
     Arenas, GlobalTable, LocationTable, PartialDenseTable,
 };
 
 use crate::{
-    diag::{self, ExpectedValueIdentifier, UndefinedIdentifier},
+    diag::{self, UndefinedIdentifier},
     resolutions::*,
     scope::*,
     util::get_text,
@@ -171,72 +167,11 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
             .for_each(|node| self.game_item(arenas, node));
     }
 
-    fn game_item(&mut self, arenas: &Arenas, node: Ref<game::GameItem>) {
-        match *arenas.game_item.get(node) {
-            game::GameItem::TypeParams(node) => self.game_type_param_block(arenas, node),
-            game::GameItem::ConstParams(node) => self.game_const_param_block(arenas, node),
-            game::GameItem::Instance(node) => self.game_inst_block(arenas, node),
-            game::GameItem::Compose(node) => self.compose_block(arenas, node),
-        }
-    }
-
-    fn game_type_param_block(&mut self, arenas: &Arenas, node: Ref<game::GameTypeParamBlock>) {
-        let type_params_block = arenas.game_type_param_block.get(node);
-        self.game_type_decl_list(arenas, type_params_block.decls)
-    }
-
-    fn game_type_decl_list(&mut self, arenas: &Arenas, node: Ref<game::GameTypeDeclList>) {
-        arenas
-            .game_type_decl_list
-            .get(node)
-            .items
-            .refs()
-            .for_each(|ty_decl| self.declare_type_param(arenas, ty_decl));
-    }
-
-    fn game_const_param_block(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<game::GameConstParamBlock>,
-    ) {
-        let const_param_block = arenas.game_const_param_block.get(node);
-        self.game_const_decl_list(arenas, const_param_block.decls);
-    }
-
-    fn game_const_decl_list(&mut self, arenas: &Arenas, node: Ref<game::GameConstDeclList>) {
-        arenas
-            .game_const_decl_list
-            .get(node)
-            .items
-            .refs()
-            .for_each(|node| self.game_const_decl(arenas, node));
-    }
-
     fn game_const_decl(&mut self, arenas: &Arenas, node: Ref<game::GameConstDecl>) {
         let decl = arenas.game_const_decl.get(node);
         self.game_type(arenas, decl.ty);
 
         self.declare_const_param(arenas, node);
-    }
-
-    fn game_type(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<
-            domino_ast::ast_nodes::types::Type<domino_ast::ast_nodes::types::GameTypeKind>,
-        >,
-    ) {
-        let ty = arenas.game_type.get(node);
-        match *ty {
-            domino_ast::ast_nodes::types::Type::Identifier(node) => {
-                self.game_type_ident(arenas, node)
-            }
-            domino_ast::ast_nodes::types::Type::Tuple(node) => self.game_type_tuple(arenas, node),
-            domino_ast::ast_nodes::types::Type::Argumented(node) => {
-                self.game_type_app(arenas, node)
-            }
-            domino_ast::ast_nodes::types::Type::Fn(node) => self.game_type_fn(arenas, node),
-        }
     }
 
     fn game_type_ident(
@@ -245,40 +180,6 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         node: domino_ast::arena::Ref<identifier::GameTypeIdentifier>,
     ) {
         self.resolve_type(arenas, node);
-    }
-
-    fn game_type_fn(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<types::FnType<types::GameTypeKind>>,
-    ) {
-        let fn_ty = arenas.game_type_fn.get(node);
-        self.game_type_list(arenas, fn_ty.args);
-        self.game_type(arenas, fn_ty.ret_ty);
-    }
-
-    fn game_type_tuple(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<
-            domino_ast::ast_nodes::types::TupleType<domino_ast::ast_nodes::types::GameTypeKind>,
-        >,
-    ) {
-        let tuple = arenas.game_type_tuple.get(node);
-        self.game_type_list(arenas, tuple.0)
-    }
-
-    fn game_type_list(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<
-            domino_ast::ast_nodes::types::TypeList<domino_ast::ast_nodes::types::GameTypeKind>,
-        >,
-    ) {
-        let list = arenas.game_type_list.get(node);
-        for item in list.items.refs() {
-            self.game_type(arenas, item)
-        }
     }
 
     fn game_type_app(
@@ -293,35 +194,6 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         let app = arenas.game_type_app.get(node);
         self.resolve_type(arenas, app.name);
         self.game_type_applist(arenas, app.args);
-    }
-
-    fn game_type_applist(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<
-            domino_ast::ast_nodes::types::TypeArgList<domino_ast::ast_nodes::types::GameTypeKind>,
-        >,
-    ) {
-        let list = arenas.game_type_applist.get(node);
-
-        for item in list.items.refs() {
-            self.game_type_arg(arenas, item)
-        }
-    }
-
-    fn game_type_arg(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<types::TypeArgument<types::GameTypeKind>>,
-    ) {
-        let arg = arenas.game_type_arg.get(node);
-        match *arg {
-            types::TypeArgument::Identifier(node) => self.game_type_arg_ident(arenas, node),
-            types::TypeArgument::Tuple(node) => self.game_type_applist(arenas, node),
-            types::TypeArgument::Application(node) => self.game_type_app(arenas, node),
-            types::TypeArgument::Type(node) => self.game_type(arenas, node),
-            types::TypeArgument::Expr(node) => self.game_expr(arenas, node),
-        }
     }
 
     fn game_inst_block(&mut self, arenas: &Arenas, node: Ref<game::InstanceBlock>) {
@@ -344,43 +216,6 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         }
     }
 
-    fn game_inst_item_list(&mut self, arenas: &Arenas, node: Ref<game::InstanceItemList>) {
-        let list = arenas.game_inst_item_list.get(node);
-
-        list.items
-            .refs()
-            .for_each(|node| self.game_inst_item(arenas, node));
-    }
-
-    fn game_inst_item(&mut self, arenas: &Arenas, node: Ref<game::InstanceItem>) {
-        let item = arenas.game_inst_item.get(node);
-
-        match *item {
-            instances::InstanceItem::InstanceConst(node) => {
-                self.game_inst_const_block(arenas, node)
-            }
-            instances::InstanceItem::InstanceType(node) => self.game_inst_type_block(arenas, node),
-        }
-    }
-
-    fn game_inst_const_block(&mut self, arenas: &Arenas, node: Ref<game::InstanceConstBlock>) {
-        let block = arenas.game_inst_const_block.get(node);
-
-        self.game_inst_const_item_list(arenas, block.list);
-    }
-
-    fn game_inst_const_item_list(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<game::InstanceConstAssignmentList>,
-    ) {
-        let list = arenas.game_inst_const_item_list.get(node);
-
-        list.items
-            .refs()
-            .for_each(|node| self.game_inst_const_item(arenas, node));
-    }
-
     fn game_inst_const_item(
         &mut self,
         arenas: &Arenas,
@@ -400,41 +235,12 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
             .insert(const_name.to_string(), node);
     }
 
-    fn game_expr(&mut self, arenas: &Arenas, node: Ref<game::Expression>) {
-        let expr = arenas.game_expr.get(node);
-        match *expr {
-            game::Expression::TableIndex(node) => self.game_expr_tableidx(arenas, node),
-            game::Expression::Paren(node) => self.game_expr_paren(arenas, node),
-            game::Expression::Tuple(node) => self.game_expr_tuple(arenas, node),
-            game::Expression::Call(node) => self.game_expr_call(arenas, node),
-            game::Expression::Identifier(node) => {
-                self.game_const_value_ident(arenas, node);
-                self.resolve_value_ident(arenas, node);
-            }
-            game::Expression::BinOp(node) => self.game_expr_binop(arenas, node),
-            game::Expression::UnOp(node) => self.game_expr_unop(arenas, node),
-            game::Expression::Invoke(node) => self.game_expr_invoc(arenas, node),
-            game::Expression::Sample(node) => self.game_expr_sample(arenas, node),
-            game::Expression::String | game::Expression::Int => {}
-        }
-    }
-
-    fn compose_block(&mut self, arenas: &Arenas, node: Ref<game::ComposeBlock>) {
-        let block = arenas.compose_block.get(node);
-
-        self.compose_pkg_inst_item_list(arenas, block.items);
-    }
-
-    fn compose_pkg_inst_item_list(
+    fn game_const_value_ident(
         &mut self,
-        arenas: &Arenas,
-        node: Ref<game::ComposePackageInstanceList>,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<identifier::GameConstValueIdentifier>,
     ) {
-        let list = arenas.compose_pkg_inst_item_list.get(node);
-
-        list.items
-            .refs()
-            .for_each(|item| self.compose_pkg_inst_item(arenas, item));
+        self.resolve_value_ident(arenas, node);
     }
 
     fn compose_pkg_inst_item(
@@ -448,18 +254,6 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
             self.position = Position::Composition(item.pkg_inst_name);
             self.compose_oracle_item_list(arenas, item.items);
         }
-    }
-
-    fn compose_oracle_item_list(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<game::ComposeOracleAssignmentList>,
-    ) {
-        let list = arenas.compose_oracle_item_list.get(node);
-
-        list.items
-            .refs()
-            .for_each(|item| self.compose_oracle_item(arenas, item));
     }
 
     fn compose_oracle_item(
