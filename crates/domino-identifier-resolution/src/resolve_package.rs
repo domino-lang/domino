@@ -255,22 +255,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             .for_each(|node| self.pkg_item(arenas, node));
     }
 
-    fn pkg_item(&mut self, arenas: &Arenas, node: Ref<package::PackageItem>) {
-        match *arenas.pkg_item.get(node) {
-            package::PackageItem::TypeParams(node) => self.pkg_type_param_block(arenas, node),
-            package::PackageItem::ConstParams(node) => self.pkg_const_param_block(arenas, node),
-            package::PackageItem::State(node) => self.state_block(arenas, node),
-            package::PackageItem::ImportOracles(node) => self.import_oracle_block(arenas, node),
-            package::PackageItem::OracleDefinition(node) => self.oracle_def(arenas, node),
-        }
-    }
-
-    fn pkg_type_param_block(&mut self, arenas: &Arenas, node: Ref<package::PackageTypeParamBlock>) {
-        let type_block = arenas.pkg_type_param_block.get(node);
-
-        self.pkg_type_decl_list(arenas, type_block.decls);
-    }
-
     fn pkg_type_decl_list(&mut self, arenas: &Arenas, node: Ref<package::PackageTypeDeclList>) {
         arenas
             .pkg_type_decl_list
@@ -313,31 +297,12 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.inside_state = false;
     }
 
-    fn package_type(&mut self, arenas: &Arenas, node: Ref<types::Type<types::PackageTypeKind>>) {
-        let ty = arenas.package_type.get(node);
-        match *ty {
-            types::Type::Identifier(node) => self.pkg_type_ident(arenas, node),
-            types::Type::Tuple(node) => self.package_type_tuple(arenas, node),
-            types::Type::Argumented(node) => self.package_type_app(arenas, node),
-            types::Type::Fn(node) => self.package_type_fn(arenas, node),
-        }
-    }
-
     fn pkg_type_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
         node: domino_ast::arena::Ref<identifier::PackageTypeIdentifier>,
     ) {
         self.resolve_type_ident(arenas, node)
-    }
-
-    fn package_type_tuple(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<types::TupleType<types::PackageTypeKind>>,
-    ) {
-        let ty = arenas.package_type_tuple.get(node);
-        self.package_type_list(arenas, ty.0);
     }
 
     fn package_type_app(
@@ -350,41 +315,12 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.package_type_applist(arenas, ty.args);
     }
 
-    fn package_type_applist(
+    fn pkg_type_arg_ident(
         &mut self,
-        arenas: &Arenas,
-        node: Ref<types::TypeArgList<types::PackageTypeKind>>,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<identifier::PackageTypeArgumentIdentifier>,
     ) {
-        let ty = arenas.package_type_applist.get(node);
-        for item in ty.items.refs() {
-            self.package_type_arg(arenas, item)
-        }
-    }
-
-    fn package_type_arg(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<types::TypeArgument<types::PackageTypeKind>>,
-    ) {
-        let ty_arg = arenas.package_type_arg.get(node);
-        match *ty_arg {
-            types::TypeArgument::Identifier(ident) => self.resolve_type_arg_ident(arenas, ident),
-            types::TypeArgument::Tuple(node) => self.package_type_applist(arenas, node),
-            types::TypeArgument::Application(node) => self.package_type_app(arenas, node),
-            types::TypeArgument::Type(node) => self.package_type(arenas, node),
-            types::TypeArgument::Expr(node) => self.pkg_expr(arenas, node),
-        }
-    }
-
-    fn package_type_fn(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<types::FnType<types::PackageTypeKind>>,
-    ) {
-        let ty = arenas.package_type_fn.get(node);
-
-        self.package_type(arenas, ty.ret_ty);
-        self.package_type_list(arenas, ty.args);
+        self.resolve_type_arg_ident(arenas, node);
     }
 
     fn package_type_list(
@@ -396,15 +332,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         tys.items
             .refs()
             .for_each(|node| self.package_type(arenas, node));
-    }
-
-    fn pkg_const_decl_list(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDeclList>) {
-        arenas
-            .pkg_const_decl_list
-            .get(node)
-            .items
-            .refs()
-            .for_each(|node| self.pkg_const_decl(arenas, node))
     }
 
     // TODO: change the AST types to have a separate declaration for State, even though it is the
@@ -465,48 +392,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             });
     }
 
-    /// NB: The arguments and oracle name of a definition are declared and indexed in
-    /// [`Self::oracle_def`], because this function here is also called for imports, and we don't
-    /// want to index the arguments of oracle imports.
-    fn oracle_import_sig(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
-    ) {
-        let sig = arenas.oracle_import_sig.get(node);
-        self.oracle_value_decl_list(arenas, sig.args);
-        if let Some(oracle_ret_ty) = sig.ret_ty {
-            self.package_type(arenas, oracle_ret_ty.ty);
-        }
-    }
-
-    /// NB: The arguments and oracle name of a definition are declared and indexed in
-    /// [`Self::oracle_def`], because this function here is also called for imports, and we don't
-    /// want to index the arguments of oracle imports.
-    fn oracle_def_sig(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<oracles::OracleSignature<identifier::OracleDefinitionIdentifierKind>>,
-    ) {
-        let sig = arenas.oracle_def_sig.get(node);
-        self.oracle_value_decl_list(arenas, sig.args);
-        if let Some(oracle_ret_ty) = sig.ret_ty {
-            self.package_type(arenas, oracle_ret_ty.ty);
-        }
-    }
-
-    fn oracle_value_decl_list(&mut self, arenas: &Arenas, node: Ref<oracles::OracleValueDeclList>) {
-        let args = arenas.oracle_value_decl_list.get(node);
-        args.items
-            .refs()
-            .for_each(|arg_decl_ref| self.oracle_value_arg_decl(arenas, arg_decl_ref));
-    }
-
-    fn oracle_value_arg_decl(&mut self, arenas: &Arenas, node: Ref<oracles::OracleValueArgDecl>) {
-        let arg = arenas.oracle_value_arg_decl.get(node);
-        self.package_type(arenas, arg.ty);
-    }
-
     fn oracle_def(&mut self, arenas: &Arenas, node: Ref<oracles::OracleDefinition>) {
         let oracle_def = arenas.oracle_def.get(node);
         let oracle_sig = arenas.oracle_def_sig.get(oracle_def.oracle_sig);
@@ -533,31 +418,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.scope.leave();
     }
 
-    fn stmt_list(&mut self, arenas: &Arenas, node: Ref<statements::StatementList>) {
-        arenas
-            .stmt_list
-            .get(node)
-            .items
-            .refs()
-            .for_each(|node| self.stmt(arenas, node));
-    }
-
-    fn stmt(&mut self, arenas: &Arenas, node: Ref<statements::Statement>) {
-        match *arenas.stmt.get(node) {
-            statements::Statement::Abort => { /* nothing to do */ }
-            statements::Statement::Assert(node) => self.stmt_assert(arenas, node),
-            statements::Statement::Assign(node) => self.stmt_assign(arenas, node),
-            statements::Statement::Expression(node) => self.stmt_expr(arenas, node),
-            statements::Statement::IfThenElse(node) => self.stmt_ite(arenas, node),
-            statements::Statement::Return(node) => self.stmt_ret(arenas, node),
-        }
-    }
-
-    fn stmt_assert(&mut self, arenas: &Arenas, node: Ref<statements::AssertStatement>) {
-        let assert = arenas.stmt_assert.get(node);
-        self.oracle_expr(arenas, assert.expr);
-    }
-
     fn stmt_assign(&mut self, arenas: &Arenas, node: Ref<statements::AssignStatement>) {
         let stmt = arenas.stmt_assign.get(node);
 
@@ -565,11 +425,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.oracle_expr(arenas, stmt.expr);
 
         self.pat_set_assign(arenas, stmt.pat, node);
-    }
-
-    fn stmt_expr(&mut self, arenas: &Arenas, node: Ref<statements::ExpressionStatement>) {
-        let stmt = arenas.stmt_expr.get(node);
-        self.oracle_expr(arenas, stmt.expr);
     }
 
     fn stmt_ite(&mut self, arenas: &Arenas, node: Ref<statements::IfThenElseStatement>) {
@@ -587,11 +442,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         }
     }
 
-    fn stmt_ret(&mut self, arenas: &Arenas, node: Ref<statements::ReturnStatement>) {
-        let stmt = arenas.stmt_ret.get(node);
-        self.oracle_expr(arenas, stmt.expr);
-    }
-
     fn oracle_expr(&mut self, arenas: &Arenas, node: Ref<oracles::OracleExpression>) {
         let expr = arenas.oracle_expr.get(node);
         match *expr {
@@ -601,6 +451,8 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             expressions::Expression::Call(node) => self.oracle_expr_call(arenas, node),
             expressions::Expression::Identifier(node) => {
                 self.oracle_value_ident(arenas, node);
+                // We can't do this in the oracle_value_ident visitor, because that also gets called
+                // for rhs assignments, where we don't want to just resolve.
                 self.resolve_value_ident(arenas, node);
             }
             expressions::Expression::BinOp(node) => self.oracle_expr_binop(arenas, node),
@@ -615,47 +467,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         let expr = arenas.oracle_expr_tableidx.get(node);
         self.resolve_value_ident(arenas, expr.table_name);
         self.oracle_expr(arenas, expr.index);
-    }
-
-    fn oracle_expr_paren(&mut self, arenas: &Arenas, node: Ref<oracles::ParenExpression>) {
-        let expr = arenas.oracle_expr_paren.get(node);
-        self.oracle_expr(arenas, expr.expr);
-    }
-
-    fn oracle_expr_tuple(&mut self, arenas: &Arenas, node: Ref<oracles::TupleExpression>) {
-        let expr = arenas.oracle_expr_tuple.get(node);
-        let items = arenas.oracle_expr_list.get(expr.0);
-        items
-            .items
-            .refs()
-            .for_each(|node| self.oracle_expr(arenas, node));
-    }
-
-    fn oracle_expr_call(&mut self, arenas: &Arenas, node: Ref<oracles::CallExpression>) {
-        let expr = arenas.oracle_expr_call.get(node);
-        self.oracle_expr(arenas, expr.name);
-
-        let items = arenas.oracle_expr_list.get(expr.args);
-        items
-            .items
-            .refs()
-            .for_each(|node| self.oracle_expr(arenas, node));
-    }
-
-    fn oracle_expr_binop(&mut self, arenas: &Arenas, node: Ref<oracles::BinOpExpression>) {
-        let expr = arenas.oracle_expr_binop.get(node);
-        self.oracle_expr(arenas, expr.lhs);
-        self.oracle_expr(arenas, expr.rhs);
-    }
-
-    fn oracle_expr_unop(&mut self, arenas: &Arenas, node: Ref<oracles::UnOpExpression>) {
-        let expr = arenas.oracle_expr_unop.get(node);
-        self.oracle_expr(arenas, expr.expr);
-    }
-
-    fn oracle_expr_sample(&mut self, arenas: &Arenas, node: Ref<oracles::SampleExpression>) {
-        let expr = arenas.oracle_expr_sample.get(node);
-        self.package_type(arenas, expr.ty);
     }
 
     fn oracle_expr_invoc(
