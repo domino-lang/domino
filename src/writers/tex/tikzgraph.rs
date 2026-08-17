@@ -53,9 +53,9 @@ fn fallback_composition_graph(
                 .iter()
                 .any(|edge| i == edge.from() && !printed.contains(&edge.to()))
             {
-                write!(
+                writeln!(
                     result,
-                    "{}",
+                    "  {}",
                     package_node_tikz(
                         &composition.pkgs[i].name,
                         reduction_mapping,
@@ -72,7 +72,7 @@ fn fallback_composition_graph(
 
                 for edge in &composition.edges {
                     if i == edge.from() {
-                        writeln!(result, "\\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", edge.from(), edge.from(), edge.name(), edge.to()).unwrap();
+                        writeln!(result, "  \\draw[-latex,rounded corners] (node{}) -- ($(node{}.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", edge.from(), edge.from(), edge.name(), edge.to()).unwrap();
                     }
                 }
             }
@@ -84,11 +84,11 @@ fn fallback_composition_graph(
 
     writeln!(
         result,
-        "\\node[package] (nodea) at ({tikzx}, {tikzy}) {{$A$}};"
+        "  \\node[package] (nodea) at ({tikzx}, {tikzy}) {{$A$}};"
     )
     .unwrap();
     for export in &composition.exports {
-        writeln!(result, "\\draw[-latex,rounded corners] (nodea) -- ($(nodea.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", export.sig().name, export.to()).unwrap();
+        writeln!(result, "  \\draw[-latex,rounded corners] (nodea) -- ($(nodea.east) + (1,0)$) |- node[onarrow] {{\\O{{{}}}}} (node{});", export.sig().name, export.to()).unwrap();
     }
     writeln!(result, "\\end{{tikzpicture}}").unwrap();
     result
@@ -115,9 +115,9 @@ fn smt_composition_graph(
                 .get_value_as_int(&format!("{pkgname}-column"))
                 .unwrap();
 
-            write!(
+            writeln!(
                 result,
-                "{}",
+                "  {}",
                 package_node_tikz(pkgname, reduction_mapping, i, top, bottom, column)
             )
             .unwrap();
@@ -157,8 +157,7 @@ fn smt_composition_graph(
                     .join("\\\\");
                 writeln!(
                     result,
-                    "\\draw[-latex,rounded corners]
-    ({},{}) -- node[onarrow] {{{}}} ({},{});",
+                    "  \\draw[-latex,rounded corners] ({},{}) -- node[onarrow] {{{}}} ({},{});",
                     f64::from(acolumn) * 3.5 + 2.0,
                     height,
                     oracles,
@@ -200,7 +199,7 @@ fn smt_composition_graph(
                 .join("\\\\");
             writeln!(
                 result,
-                "\\draw[-latex,rounded corners] ({},{}) -- node[onarrow] {{{}}} ({},{});",
+                "  \\draw[-latex,rounded corners] ({},{}) -- node[onarrow] {{{}}} ({},{});",
                 f64::from(acolumn) * 3.5 + 2.0,
                 height,
                 oracles,
