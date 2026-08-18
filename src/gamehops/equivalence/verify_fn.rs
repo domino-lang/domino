@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use wildcard::Wildcard;
+
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
@@ -20,7 +22,7 @@ pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Pro
     backend: &'a Backend,
     transcript: bool,
     req_oracle: Option<&'a str>,
-    req_claim: Option<&'a str>,
+    req_claim: Option<Wildcard<'a>>,
     parallel: usize,
 }
 
@@ -36,6 +38,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         req_claim: Option<&'a str>,
         parallel: usize,
     ) -> Self {
+        let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
         Self {
             eqctx,
             project,
@@ -230,8 +233,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let result: Vec<_> = claims
             .par_iter()
             .filter(|claim| {
-                if let Some(req_claim) = self.req_claim {
-                    claim.name == req_claim
+                if let Some(req_claim) = &self.req_claim {
+                    req_claim.is_match(claim.name.as_bytes())
                 } else {
                     true
                 }
