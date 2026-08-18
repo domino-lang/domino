@@ -48,6 +48,7 @@ sspverif-smtlib = { workspace = true }
 tempfile = "3"
 thiserror = "1.0.61"
 walkdir = "2"
+wildcard = "0.3"
 
 # Feature: zipfile
 zip = { version = "8", features = [
