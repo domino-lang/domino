@@ -9,7 +9,7 @@ use domino_ast::{
 
 use crate::{
     diag::{self, UndefinedIdentifier},
-    resolutions::*,
+    resolutions::{self, *},
     scope::*,
     util::get_text,
     BuiltinType, BuiltinValue, DeclarationType, PackageInfo,
@@ -63,13 +63,19 @@ enum Position {
     /// We are at or near the top level. No relevant information has been accumulated.
     TopLevel,
 
+    /// We are in type parameter declaration. When encountering a type name, declare it.
+    TypeParamsDecl,
+
     /// We are inside a package instance.
     /// This variant contains a partial PackageInstanceInfo, which is extracted when it is complete.
     PackageInstance(PackageInstanceInfo),
 
     /// We are in the inner part of a transition, i.e. the one that maps a package instances oracles
     /// to the callee package instances.
-    Composition(Ref<identifier::PackageInstanceIdentifier>),
+    Composition(
+        Ref<identifier::PackageInstanceIdentifier>,
+        PackageInstanceResolution,
+    ),
 }
 
 impl Position {
@@ -161,6 +167,20 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
             .for_each(|node| self.game_item(arenas, node));
     }
 
+    fn game_type_decl_list(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<game::GameTypeDeclList>,
+    ) {
+        let list = arenas.game_type_decl_list.get(node);
+        self.position = Position::TypeParamsDecl;
+
+        list.items
+            .refs()
+            .for_each(|node| self.game_type_ident(arenas, node));
+        self.position = Position::TopLevel;
+    }
+
     fn game_const_decl(&mut self, arenas: &Arenas, node: Ref<game::GameConstDecl>) {
         let decl = arenas.game_const_decl.get(node);
         self.game_type(arenas, decl.ty);
@@ -173,7 +193,11 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         arenas: &domino_ast::Arenas,
         node: domino_ast::arena::Ref<identifier::GameTypeIdentifier>,
     ) {
-        self.resolve_type(arenas, node);
+        if let Position::TypeParamsDecl = self.position {
+            self.declare_type_param(arenas, node);
+        } else {
+            self.resolve_type(arenas, node);
+        }
     }
 
     fn game_type_app(
@@ -243,11 +267,11 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         node: Ref<game::ComposePackageInstanceItem>,
     ) {
         let item = arenas.compose_pkg_inst_item.get(node);
+        let resolution = self.resolve_pkg_inst(arenas, item.pkg_inst_name);
 
-        if self.resolve_pkg_inst(arenas, item.pkg_inst_name).is_some() {
-            self.position = Position::Composition(item.pkg_inst_name);
-            self.compose_oracle_item_list(arenas, item.items);
-        }
+        self.position = Position::Composition(item.pkg_inst_name, resolution);
+        self.compose_oracle_item_list(arenas, item.items);
+        self.position = Position::TopLevel;
     }
 
     fn compose_oracle_item(
@@ -262,7 +286,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
 
         let item = arenas.compose_oracle_item.get(node);
 
-        let Position::Composition(left_pkg_inst_name_node) = self.position else {
+        let Position::Composition(_, left_resolution) = self.position else {
             unreachable!()
         };
 
@@ -275,8 +299,8 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         };
 
         // resolve caller
-        match self.resolve_pkg_inst(arenas, left_pkg_inst_name_node) {
-            Some(PackageInstanceResolution::Adversary) => {
+        match left_resolution {
+            PackageInstanceResolution::Adversary => {
                 self.tables.oracle_composition_import_names.set(
                     item.oracle_name,
                     OracleCompositionImportResolution::Adversary,
@@ -284,30 +308,21 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
             }
 
             // Resolve in the oracle name in the caller's imports
-            Some(PackageInstanceResolution::PackageInstance(left_inst_ref)) => {
+            PackageInstanceResolution::PackageInstance(left_inst_ref) => {
                 self.resolve_oracle_import_in_pkg_inst(arenas, item.oracle_name, left_inst_ref);
             }
 
-            Some(PackageInstanceResolution::Error(err)) => todo!("propagate error"),
-            None => {
-                crate::fail_resolution!(
-                    self,
+            PackageInstanceResolution::Error(err) => {
+                self.tables.oracle_composition_import_names.set(
                     item.oracle_name,
-                    diag::PackageDoesNotImportOracle::new(
-                        dx,
-                        item.oracle_name,
-                        item.pkg_inst_name,
-                        None,
-                    ),
-                    oracle_composition_import_names,
-                    then {}
+                    OracleCompositionImportResolution::Error(err),
                 );
             }
         }
 
         // resolve callee
         match self.resolve_pkg_inst(arenas, item.pkg_inst_name) {
-            Some(PackageInstanceResolution::PackageInstance(right_inst_ref)) => {
+            PackageInstanceResolution::PackageInstance(right_inst_ref) => {
                 self.resolve_oracle_definition_in_pkg_inst(
                     arenas,
                     item.oracle_name,
@@ -315,28 +330,19 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
                 );
             }
 
-            Some(PackageInstanceResolution::Adversary) => {
+            PackageInstanceResolution::Adversary => {
                 crate::fail_resolution!(
                     self,
                     item.oracle_name,
                     diag::AdversaryAsCallee::new(dx, item.oracle_name,),
-                    oracle_composition_import_names,
+                    oracle_composition_def_names,
                     then {}
                 );
             }
-            Some(PackageInstanceResolution::Error(err)) => todo!("propagate error"),
-            None => {
-                crate::fail_resolution!(
-                    self,
+            PackageInstanceResolution::Error(err) => {
+                self.tables.oracle_composition_def_names.set(
                     item.oracle_name,
-                    diag::PackageDoesNotDefineOracle::new(
-                        dx,
-                        item.oracle_name,
-                        item.pkg_inst_name,
-                        None,
-                    ),
-                    oracle_composition_def_names,
-                    then {}
+                    OracleCompositionDefinitionResolution::Error(err),
                 );
             }
         }
@@ -464,8 +470,13 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
                     game_type_names
                 );
             }
-            _ => {
-                todo!()
+            Some(other) => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::ExpectedTypeIdentifier::new(dx, node, other),
+                    game_type_names
+                );
             }
         };
 
@@ -497,7 +508,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         &mut self,
         arenas: &Arenas,
         node: Ref<identifier::PackageInstanceIdentifier>,
-    ) -> Option<PackageInstanceResolution> {
+    ) -> PackageInstanceResolution {
         let dx = domino_diagnostic::Resolver {
             arenas,
             locations: &self.locations,
@@ -516,7 +527,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
                     node,
                     diag::UndefinedIdentifier::new(dx, node),
                     pkg_inst_names,
-                    then { return None }
+                    then err => { return PackageInstanceResolution::Error(err) }
                 );
             };
 
@@ -527,7 +538,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
                     node,
                     diag::ExpectedPackageInstanceIdentifier::new(dx, node, decl.clone()),
                     pkg_inst_names,
-                    then { return None }
+                    then err => { return PackageInstanceResolution::Error(err) }
                 );
             };
 
@@ -537,7 +548,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         // set the resolved value in the table
         self.tables.pkg_inst_names.set(node, resolution);
 
-        Some(resolution)
+        resolution
     }
 
     fn resolve_pkg_const_param(
@@ -689,7 +700,6 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             Some(GameDeclaration::BuiltinValue(builtin)) => {
                 GameConstValueResolution::Builtin(*builtin)
             }
-            Some(GameDeclaration::PackageConst(_decl)) => todo!("should this even be here?"),
 
             Some(decl) => {
                 crate::fail_resolution!(
@@ -720,7 +730,6 @@ enum GameDeclaration<'res> {
     TypeParam(Ref<identifier::GameTypeIdentifier>),
 
     GameConst(Ref<game::GameConstDecl>),
-    PackageConst(Ref<package::PackageConstDecl>),
 
     BuiltinValue(BuiltinValue),
 }
@@ -750,7 +759,6 @@ impl crate::Declaration for GameDeclaration<'_> {
             GameDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
             GameDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
             GameDeclaration::GameConst(_) => DeclarationType::PureValue,
-            GameDeclaration::PackageConst(_) => DeclarationType::PureValue,
 
             // TODO: Actually, whether this is pure or not depends on whether the inner expression
             //       is pure, but we can't tell that at this point, so we are conservative.
