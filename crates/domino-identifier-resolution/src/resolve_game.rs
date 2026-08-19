@@ -48,12 +48,6 @@ pub struct GameVisitorPartialTables<'a> {
         PackageConstValueResolution,
     >,
     pub pkg_names: &'a mut PartialDenseTable<identifier::PackageIdentifier, PackageResolution>,
-    pub oracle_import_names:
-        &'a mut PartialDenseTable<identifier::OracleImportIdentifier, OracleImportResolution>,
-    pub oracle_def_names: &'a mut PartialDenseTable<
-        identifier::OracleDefinitionIdentifier,
-        OracleDefinitionResolution,
-    >,
     pub oracle_composition_import_names: &'a mut PartialDenseTable<
         identifier::OracleCompositionIdentifier,
         OracleCompositionImportResolution,

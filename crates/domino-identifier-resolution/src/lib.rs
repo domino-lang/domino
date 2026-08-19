@@ -186,8 +186,6 @@ impl<'arena> Resolver<'arena> {
             pkg_inst_names: &mut self.pkg_inst_names,
             pkg_const_value_names: &mut self.pkg_const_value_names,
             pkg_names: &mut self.pkg_names,
-            oracle_def_names: &mut self.oracle_def_names,
-            oracle_import_names: &mut self.oracle_import_names,
             oracle_composition_def_names: &mut self.oracle_composition_def_names,
             oracle_composition_import_names: &mut self.oracle_composition_import_names,
         };
