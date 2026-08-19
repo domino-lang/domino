@@ -307,8 +307,12 @@ macro_rules! fail_resolution {
     };
 
     ($self:expr, $node:expr, $diag:expr, $table:ident, then $blk:block ) => {{
-        let err = $self.diagnostics.alloc($diag.into());
-        $self.tables.$table.set($node, err.into());
+        $crate::fail_resolution!($self, $node, $diag, $table, then err => $blk);
+    }};
+
+    ($self:expr, $node:expr, $diag:expr, $table:ident, then $err_name:ident => $blk:block ) => {{
+        let $err_name = $self.diagnostics.alloc($diag.into());
+        $self.tables.$table.set($node, $err_name.into());
         $blk
     }};
 }
