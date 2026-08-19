@@ -67,9 +67,7 @@ impl<'a> DirectoryProject<'a> {
         }
     }
 
-    pub fn load(files: &'a DirectoryFiles) -> Result<DirectoryProject<'a>> {
-        let root_dir = find_project_root()?;
-
+    pub fn load(root_dir: PathBuf, files: &'a DirectoryFiles) -> Result<DirectoryProject<'a>> {
         let packages = super::load::packages(&files.packages)?;
         let games = super::load::games(&files.games, &packages)?;
         let theorems =
@@ -118,8 +116,15 @@ impl Project for DirectoryProject<'_> {
     }
 }
 
-pub fn find_project_root() -> std::result::Result<std::path::PathBuf, super::error::Error> {
-    let mut dir = std::env::current_dir().map_err(FindProjectRootError::CurrentDir)?;
+/// Finds the root of the Domino project (the directory containing `ssp.toml`) by searching
+/// `start_dir` and its ancestors. If `start_dir` is `None`, searches from the current directory.
+pub fn find_project_root(
+    start_dir: Option<&Path>,
+) -> std::result::Result<std::path::PathBuf, super::error::Error> {
+    let mut dir = match start_dir {
+        Some(path) => path.to_path_buf(),
+        None => std::env::current_dir().map_err(FindProjectRootError::CurrentDir)?,
+    };
 
     loop {
         let lst = dir.read_dir().map_err(FindProjectRootError::ReadDir)?;
