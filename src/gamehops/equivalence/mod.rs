@@ -23,6 +23,7 @@ pub(crate) use verify_fn::EquivalenceSmtDriver;
 #[derive(Debug, Clone)]
 pub struct Equivalence {
     // these two are game instance names
+    pub(crate) theorem_name: String,
     pub(crate) left_name: String,
     pub(crate) right_name: String,
     pub(crate) invariants: Vec<(String, Vec<String>)>,
@@ -32,6 +33,7 @@ pub struct Equivalence {
 
 impl Equivalence {
     pub fn new(
+        theorem_name: String,
         left_name: String,
         right_name: String,
         mut invariants: Vec<(String, Vec<String>)>,
@@ -43,6 +45,7 @@ impl Equivalence {
         randomness.sort();
 
         Equivalence {
+            theorem_name,
             left_name,
             right_name,
             invariants, // TODO INV
@@ -53,6 +56,10 @@ impl Equivalence {
 
     pub fn trees(&self) -> &[(String, Vec<Claim>)] {
         &self.trees
+    }
+
+    pub fn theorem_name(&self) -> &str {
+        &self.theorem_name
     }
 
     pub fn left_name(&self) -> &str {
@@ -358,6 +365,7 @@ mod tests {
             .collect();
 
         Equivalence::new(
+            "test".to_string(),
             "left".to_string(),
             "right".to_string(),
             vec![],

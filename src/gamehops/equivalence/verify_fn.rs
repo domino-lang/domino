@@ -275,7 +275,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 if self.transcript {
                     let transcript_file: std::fs::File = self
                         .project
-                        .get_joined_smt_file(
+                        .get_smt_file(
+                            eq.theorem_name(),
                             eq.left_name(),
                             eq.right_name(),
                             oracle.name(),
