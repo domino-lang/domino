@@ -2,14 +2,14 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{game, identifier, package, NodeType},
+    ast_nodes::{game, identifier, NodeType},
     source::SourceLocation,
     Arenas, GlobalTable, LocationTable, PartialDenseTable,
 };
 
 use crate::{
     diag::{self, UndefinedIdentifier},
-    resolutions::{self, *},
+    resolutions::*,
     scope::*,
     util::get_text,
     BuiltinType, BuiltinValue, DeclarationType, PackageInfo,
@@ -63,8 +63,8 @@ enum Position {
     /// We are at or near the top level. No relevant information has been accumulated.
     TopLevel,
 
-    /// We are in type parameter declaration. When encountering a type name, declare it.
-    TypeParamsDecl,
+    /// We are inside a package instance, but the package could not be resolved.
+    UnresolvedPackageInstance(Ref<diag::Diagnostic>),
 
     /// We are inside a package instance.
     /// This variant contains a partial PackageInstanceInfo, which is extracted when it is complete.
@@ -79,28 +79,21 @@ enum Position {
 }
 
 impl Position {
-    fn leave_pkg_instance(&mut self) -> Option<PackageInstanceInfo> {
-        if !matches!(self, Self::PackageInstance(_)) {
-            return None;
-        }
-
-        let mut out = Self::TopLevel;
-        core::mem::swap(self, &mut out);
-
-        // SAFETY: We checked above that the value has the right variant.
-        let Self::PackageInstance(pkg_inst_info) = out else {
-            unreachable!()
-        };
-
-        Some(pkg_inst_info)
-    }
-
     fn pkg_inst_mut(&mut self) -> Option<&mut PackageInstanceInfo> {
         if let Position::PackageInstance(ref mut pkg_inst_info) = self {
             Some(pkg_inst_info)
         } else {
             None
         }
+    }
+
+    fn replace_with(&mut self, mut new_position: Self) -> Self {
+        core::mem::swap(self, &mut new_position);
+        new_position
+    }
+
+    fn reset(&mut self) -> Self {
+        self.replace_with(Self::TopLevel)
     }
 }
 
@@ -172,18 +165,20 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         arenas: &domino_ast::Arenas,
         node: domino_ast::arena::Ref<game::GameTypeDeclList>,
     ) {
-        let list = arenas.game_type_decl_list.get(node);
-        self.position = Position::TypeParamsDecl;
-
-        list.items
+        arenas
+            .game_type_decl_list
+            .get(node)
+            .items
             .refs()
-            .for_each(|node| self.game_type_ident(arenas, node));
-        self.position = Position::TopLevel;
+            .for_each(|ty_decl| self.declare_type_param(arenas, ty_decl));
     }
 
     fn game_const_decl(&mut self, arenas: &Arenas, node: Ref<game::GameConstDecl>) {
         let decl = arenas.game_const_decl.get(node);
         self.game_type(arenas, decl.ty);
+
+        // DON'T recurse into the ident child node here, as that would try resolving
+        // instead of declaring.
 
         self.declare_const_param(arenas, node);
     }
@@ -193,44 +188,30 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         arenas: &domino_ast::Arenas,
         node: domino_ast::arena::Ref<identifier::GameTypeIdentifier>,
     ) {
-        if let Position::TypeParamsDecl = self.position {
-            self.declare_type_param(arenas, node);
-        } else {
-            self.resolve_type(arenas, node);
-        }
-    }
-
-    fn game_type_app(
-        &mut self,
-        arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<
-            domino_ast::ast_nodes::types::ArgumentedType<
-                domino_ast::ast_nodes::types::GameTypeKind,
-            >,
-        >,
-    ) {
-        let app = arenas.game_type_app.get(node);
-        self.resolve_type(arenas, app.name);
-        self.game_type_applist(arenas, app.args);
+        self.resolve_type(arenas, node);
     }
 
     fn game_inst_block(&mut self, arenas: &Arenas, node: Ref<game::InstanceBlock>) {
         let inst = arenas.game_inst_block.get(node);
 
-        // Only proceed if the package instance info could be prepared, and the package resolved. If
-        // this returns None, a diagnostic that the identifier is None will be emitted.
-        if let Some(pkg_inst_info) = self.prepare_pkg_inst_info(arenas, node) {
-            self.position = Position::PackageInstance(pkg_inst_info);
+        self.position = match self.prepare_pkg_inst_info(arenas, node) {
+            Ok(pkg_inst_info) => Position::PackageInstance(pkg_inst_info),
+            Err(diag) => Position::UnresolvedPackageInstance(diag),
+        };
 
-            self.resolve_pkg(arenas, inst.instantiated_name);
-            self.game_inst_item_list(arenas, inst.items);
+        self.resolve_pkg(arenas, inst.instantiated_name);
+        self.game_inst_item_list(arenas, inst.items);
 
-            // Consume the resolved package instance and store it
-            let pkg_inst_info = self
-                .position
-                .leave_pkg_instance()
-                .expect("in_package_instance was None at the end of resolution process");
-            self.declare_game_inst(arenas, node, pkg_inst_info);
+        // Consume the resolved package instance and store it - if we are
+        match self.position.reset() {
+            Position::PackageInstance(pkg_inst_info) => {
+                self.declare_game_inst(arenas, node, pkg_inst_info)
+            }
+            Position::UnresolvedPackageInstance(diag) => self
+                .tables
+                .pkg_inst_names
+                .set(inst.instance_name, PackageInstanceResolution::Error(diag)),
+            _ => unreachable!(),
         }
     }
 
@@ -241,6 +222,9 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
     ) {
         let item = arenas.game_inst_const_item.get(node);
 
+        // `item.ident` names a const param of the instantiated package, so it resolves against that
+        // package's params rather than the game scope.
+        // Recursing would reach `pkg_const_value_ident`, which this visitor doesn't handle.
         self.resolve_pkg_const_param(arenas, item.ident);
         self.game_expr(arenas, item.expr);
 
@@ -347,6 +331,14 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
             }
         }
     }
+
+    // ignore trivia
+    fn trivia(
+        &mut self,
+        _arenas: &domino_ast::Arenas,
+        _node: domino_ast::arena::Ref<domino_ast::ast_nodes::Trivia>,
+    ) {
+    }
 }
 
 impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
@@ -419,7 +411,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         &mut self,
         arenas: &Arenas,
         pkg_inst: Ref<game::InstanceBlock>,
-    ) -> Option<PackageInstanceInfo> {
+    ) -> Result<PackageInstanceInfo, Ref<diag::Diagnostic>> {
         let dx = domino_diagnostic::Resolver {
             arenas,
             locations: &self.locations,
@@ -438,11 +430,11 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
                 pkg_name,
                 diag::UndefinedIdentifier::new(dx, pkg_name),
                 pkg_names,
-                then { return None }
+                then err => { return Err(err)  }
             );
         };
 
-        Some(PackageInstanceInfo {
+        Ok(PackageInstanceInfo {
             pkg_inst,
             name,
             pkg_name: resolved_pkg.name,
