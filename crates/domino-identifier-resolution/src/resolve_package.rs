@@ -305,16 +305,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.resolve_type_ident(arenas, node)
     }
 
-    fn package_type_app(
-        &mut self,
-        arenas: &Arenas,
-        node: Ref<types::ArgumentedType<types::PackageTypeKind>>,
-    ) {
-        let ty = arenas.package_type_app.get(node);
-        self.resolve_type_ident(arenas, ty.name);
-        self.package_type_applist(arenas, ty.args);
-    }
-
     fn pkg_type_arg_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
@@ -418,10 +408,22 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.scope.leave();
     }
 
+    fn oracle_value_arg_decl(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<oracles::OracleValueArgDecl>,
+    ) {
+        let arg = arenas.oracle_value_arg_decl.get(node);
+        // DON'T recurse into the name child node here, as that would try resolving
+        // instead of declaring.
+        self.package_type(arenas, arg.ty);
+    }
+
     fn stmt_assign(&mut self, arenas: &Arenas, node: Ref<statements::AssignStatement>) {
         let stmt = arenas.stmt_assign.get(node);
 
-        self.pat(arenas, stmt.pat);
+        // DON'T recurse into the pat child node here, as that would try resolving
+        // instead of declaring.
         self.oracle_expr(arenas, stmt.expr);
 
         self.pat_set_assign(arenas, stmt.pat, node);
@@ -442,31 +444,12 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         }
     }
 
-    fn oracle_expr(&mut self, arenas: &Arenas, node: Ref<oracles::OracleExpression>) {
-        let expr = arenas.oracle_expr.get(node);
-        match *expr {
-            expressions::Expression::TableIndex(node) => self.oracle_expr_tableidx(arenas, node),
-            expressions::Expression::Paren(node) => self.oracle_expr_paren(arenas, node),
-            expressions::Expression::Tuple(node) => self.oracle_expr_tuple(arenas, node),
-            expressions::Expression::Call(node) => self.oracle_expr_call(arenas, node),
-            expressions::Expression::Identifier(node) => {
-                self.oracle_value_ident(arenas, node);
-                // We can't do this in the oracle_value_ident visitor, because that also gets called
-                // for rhs assignments, where we don't want to just resolve.
-                self.resolve_value_ident(arenas, node);
-            }
-            expressions::Expression::BinOp(node) => self.oracle_expr_binop(arenas, node),
-            expressions::Expression::UnOp(node) => self.oracle_expr_unop(arenas, node),
-            expressions::Expression::Invoke(node) => self.oracle_expr_invoc(arenas, node),
-            expressions::Expression::Sample(node) => self.oracle_expr_sample(arenas, node),
-            expressions::Expression::String | expressions::Expression::Int => {}
-        }
-    }
-
-    fn oracle_expr_tableidx(&mut self, arenas: &Arenas, node: Ref<oracles::TableIndexExpression>) {
-        let expr = arenas.oracle_expr_tableidx.get(node);
-        self.resolve_value_ident(arenas, expr.table_name);
-        self.oracle_expr(arenas, expr.index);
+    fn oracle_value_ident(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<identifier::OracleValueIdentifier>,
+    ) {
+        self.resolve_value_ident(arenas, node);
     }
 
     fn oracle_expr_invoc(
@@ -481,6 +464,14 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         args.items
             .refs()
             .for_each(|node| self.oracle_expr(arenas, node));
+    }
+
+    // ignore trivia
+    fn trivia(
+        &mut self,
+        _arenas: &domino_ast::Arenas,
+        _node: domino_ast::arena::Ref<domino_ast::ast_nodes::Trivia>,
+    ) {
     }
 }
 
