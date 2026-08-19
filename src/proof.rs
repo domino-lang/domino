@@ -52,7 +52,7 @@ impl Specialization {
 }
 
 impl<'a> Proof<'a> {
-    /// Tries to find a swquence of game hops that proves that the game instance with name
+    /// Tries to find a sequence of game hops that proves that the game instance with name
     /// `left_name` is indistinguishable from the game instance with name `right_name`
     pub fn try_new(
         instances: &[GameInstance],

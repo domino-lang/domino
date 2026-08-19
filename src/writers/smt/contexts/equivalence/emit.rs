@@ -219,7 +219,13 @@ impl<'a> EquivalenceContext<'a> {
                 {
                     &ClaimType::Lemma
                 } else {
-                    unreachable!("{claim:?}, {:#?}", smt_claims.iter().map(|claim| claim.name()).collect::<Vec<_>>())
+                    unreachable!(
+                        "{claim:?}, {:#?}",
+                        smt_claims
+                            .iter()
+                            .map(|claim| claim.name())
+                            .collect::<Vec<_>>()
+                    )
                 }
             }) {
             ClaimType::Lemma => build_lemma_call.clone()(claim.name()),

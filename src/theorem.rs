@@ -100,7 +100,11 @@ mod instantiate {
             })
             .collect();
 
-        let new_types = pkg_inst.types.into_iter().map(|(n,t)| (n, inst_ctx.rewrite_type(t))).collect();
+        let new_types = pkg_inst
+            .types
+            .into_iter()
+            .map(|(n, t)| (n, inst_ctx.rewrite_type(t)))
+            .collect();
         PackageInstance {
             pkg,
             params: new_params,
