@@ -5,10 +5,10 @@ use crate::{
     util::smtsolver::SmtSolverBackend, writers::util::graph::GraphLayout,
 };
 
-use std::fmt::Write;
+use std::{fmt::Write, path::Path};
 
 pub(crate) trait TikzGraph {
-    fn tikz_graph(&self, backend: &impl SmtSolverBackend) -> String;
+    fn tikz_graph(&self, backend: &impl SmtSolverBackend, cache: &Path) -> String;
 }
 
 pub(crate) struct ReductionGraph<'a> {
@@ -17,16 +17,17 @@ pub(crate) struct ReductionGraph<'a> {
 }
 
 impl TikzGraph for ReductionGraph<'_> {
-    fn tikz_graph(&self, backend: &impl SmtSolverBackend) -> String {
-        smt_composition_graph(backend, self.composition, Some(self.mapping)).unwrap_or(
+    fn tikz_graph(&self, backend: &impl SmtSolverBackend, cache: &Path) -> String {
+        smt_composition_graph(backend, self.composition, Some(self.mapping), cache).unwrap_or(
             fallback_composition_graph(self.composition, Some(self.mapping)),
         )
     }
 }
 
 impl TikzGraph for Composition {
-    fn tikz_graph(&self, backend: &impl SmtSolverBackend) -> String {
-        smt_composition_graph(backend, self, None).unwrap_or(fallback_composition_graph(self, None))
+    fn tikz_graph(&self, backend: &impl SmtSolverBackend, cache: &Path) -> String {
+        smt_composition_graph(backend, self, None, cache)
+            .unwrap_or(fallback_composition_graph(self, None))
     }
 }
 
@@ -98,9 +99,10 @@ fn smt_composition_graph(
     backend: &impl SmtSolverBackend,
     composition: &Composition,
     reduction_mapping: Option<&ReductionMapping>,
+    cache: &Path,
 ) -> Option<String> {
     let mut result = String::new();
-    let layout = GraphLayout::new(backend, composition);
+    let layout = GraphLayout::new(backend, cache, composition);
     if let Some(layout) = layout {
         let model = layout.model();
         writeln!(result, "\\begin{{tikzpicture}}").unwrap();

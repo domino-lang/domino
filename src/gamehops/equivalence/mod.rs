@@ -5,13 +5,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::{
     package::{Export, OracleSig},
     project::Project,
-    theorem::{Claim, RandomnessType},
+    theorem::{ParsedClaim, RandomnessType},
     writers::smt::contexts::EquivalenceContext,
 };
+
+use smtclaim::{ClaimType, SmtClaim};
 
 use error::{Error, ExportSignatureMismatch, Result};
 
 pub mod error;
+pub(crate) mod smtclaim;
 mod smtrewrite;
 mod verify_fn;
 
@@ -23,19 +26,21 @@ pub(crate) use verify_fn::EquivalenceSmtDriver;
 #[derive(Debug, Clone)]
 pub struct Equivalence {
     // these two are game instance names
+    pub(crate) theorem_name: String,
     pub(crate) left_name: String,
     pub(crate) right_name: String,
     pub(crate) invariants: Vec<(String, Vec<String>)>,
-    pub(crate) trees: Vec<(String, Vec<Claim>)>,
+    pub(crate) trees: Vec<(String, Vec<ParsedClaim>)>,
     pub(crate) randomness: Vec<(String, RandomnessType)>,
 }
 
 impl Equivalence {
     pub fn new(
+        theorem_name: String,
         left_name: String,
         right_name: String,
         mut invariants: Vec<(String, Vec<String>)>,
-        mut trees: Vec<(String, Vec<Claim>)>,
+        mut trees: Vec<(String, Vec<ParsedClaim>)>,
         mut randomness: Vec<(String, RandomnessType)>,
     ) -> Self {
         trees.sort();
@@ -43,6 +48,7 @@ impl Equivalence {
         randomness.sort();
 
         Equivalence {
+            theorem_name,
             left_name,
             right_name,
             invariants, // TODO INV
@@ -51,8 +57,12 @@ impl Equivalence {
         }
     }
 
-    pub fn trees(&self) -> &[(String, Vec<Claim>)] {
+    pub fn trees(&self) -> &[(String, Vec<ParsedClaim>)] {
         &self.trees
+    }
+
+    pub fn theorem_name(&self) -> &str {
+        &self.theorem_name
     }
 
     pub fn left_name(&self) -> &str {
@@ -82,7 +92,7 @@ impl Equivalence {
             .unwrap_or(vec![])
     }
 
-    pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<Claim> {
+    pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<ParsedClaim> {
         self.trees
             .iter()
             .find(|(name, _tree)| name == oracle_name)
@@ -244,12 +254,23 @@ impl<'a> EquivalenceContext<'a> {
                             err,
                         )
                     })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        left_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
+                    out.append(
+                        &mut smtrewrite::rewrite_package(
+                            self,
+                            left_gctx.game_inst(),
+                            pkg,
+                            &file_contents,
+                        )?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_package_invariant(
+                                ClaimType::LeftPackageInvariant,
+                                smt,
+                                file_name.clone(),
+                            )
+                        })
+                        .collect(),
+                    );
                 }
             }
             for pkg in &right_gctx.game().pkgs {
@@ -262,12 +283,23 @@ impl<'a> EquivalenceContext<'a> {
                             err,
                         )
                     })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        right_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
+                    out.append(
+                        &mut smtrewrite::rewrite_package(
+                            self,
+                            right_gctx.game_inst(),
+                            pkg,
+                            &file_contents,
+                        )?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_package_invariant(
+                                ClaimType::RightPackageInvariant,
+                                smt,
+                                file_name.clone(),
+                            )
+                        })
+                        .collect(),
+                    );
                 }
             }
 
@@ -277,22 +309,36 @@ impl<'a> EquivalenceContext<'a> {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
-                    self,
-                    left_gctx.game_inst(),
-                    &file_contents,
-                )?);
+                out.append(
+                    &mut smtrewrite::rewrite_game(self, left_gctx.game_inst(), &file_contents)?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_game_invariant(
+                                ClaimType::LeftGameInvariant,
+                                smt,
+                                file_name.clone(),
+                            )
+                        })
+                        .collect(),
+                );
             }
             for file_name in &right_gctx.game().invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
-                    self,
-                    right_gctx.game_inst(),
-                    &file_contents,
-                )?);
+                out.append(
+                    &mut smtrewrite::rewrite_game(self, right_gctx.game_inst(), &file_contents)?
+                        .into_iter()
+                        .map(|smt| {
+                            SmtClaim::new_game_invariant(
+                                ClaimType::RightGameInvariant,
+                                smt,
+                                file_name.clone(),
+                            )
+                        })
+                        .collect(),
+                );
             }
 
             // Load the main Invariant
@@ -304,7 +350,16 @@ impl<'a> EquivalenceContext<'a> {
                 })?;
                 log::info!("read file {file_name}");
                 //linter.lint_file(file_name, &file_contents)?;
-                out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+                out.append(
+                    &mut smtrewrite::rewrite(self, &file_contents)?
+                        .into_iter()
+                        .map(|smt| {
+                            let (ty, name) = ClaimType::guess_from_smt(&smt);
+                            //dbg!((&smt, ty, &name));
+                            smtclaim::SmtClaim::new(ty, smt, name, file_name.clone())
+                        })
+                        .collect(),
+                );
 
                 // log::info!("wrote contents of file {file_name}");
 
@@ -315,6 +370,34 @@ impl<'a> EquivalenceContext<'a> {
                 //     });
                 // }
             }
+
+            let tree = self.equivalence().proof_tree_by_oracle_name(oracle_name);
+            for claim in tree {
+                match claim.name() {
+                    "no-abort" | "same-output" | "equal-aborts" => {}
+                    s if s.starts_with("game-invariant!") => {}
+                    s if s.starts_with("package-invariant!") => {}
+                    _ => {
+                        if out
+                            .iter()
+                            .find(|smtclaim| smtclaim.name() == claim.name())
+                            .is_none()
+                        {
+                            return Err(Error::ClaimNoSmt {
+                                oracle_name: oracle_name.to_string(),
+                                claim_name: claim.name().to_string(),
+                            });
+                        }
+                    }
+                }
+            }
+
+            log::info!(
+                "parsed smt claims: {:?}",
+                out.iter()
+                    .map(|claim| (claim.name(), claim.ty()))
+                    .collect::<Vec<_>>()
+            );
             self.append_invariants(oracle_name, out);
         }
         //linter.lint_finish()?;
@@ -358,6 +441,7 @@ mod tests {
             .collect();
 
         Equivalence::new(
+            "test".to_string(),
             "left".to_string(),
             "right".to_string(),
             vec![],

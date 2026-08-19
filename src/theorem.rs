@@ -8,7 +8,7 @@ use crate::{
     },
     identifier::game_ident::GameConstIdentifier,
     package::{Composition, Edge, Export, Package},
-    packageinstance::instantiate::InstantiationContext,
+    packageinstance::{game_inst_type_mapping_vec, instantiate::InstantiationContext},
     proof::Proof,
     types::Type,
 };
@@ -100,9 +100,15 @@ mod instantiate {
             })
             .collect();
 
+        let new_types = pkg_inst
+            .types
+            .into_iter()
+            .map(|(n, t)| (n, inst_ctx.rewrite_type(t)))
+            .collect();
         PackageInstance {
             pkg,
             params: new_params,
+            types: new_types,
             ..pkg_inst
         }
     }
@@ -116,10 +122,12 @@ impl GameInstance {
         types: Vec<(String, Type)>,
         params: Vec<(GameConstIdentifier, Expression)>,
     ) -> GameInstance {
+        let rewrite_types = game_inst_type_mapping_vec(&types);
         let inst_ctx: InstantiationContext = InstantiationContext::new_game_instantiation_context(
             &game_inst_name,
             &theorem_name,
             &params,
+            &rewrite_types,
         );
 
         let new_pkg_instances = game
@@ -168,6 +176,9 @@ impl GameInstance {
             edges: new_edges,
             exports: new_exports,
             invariants: game.invariants.clone(),
+
+            // XXX: This probably needs rewriting
+            type_params: game.type_params,
         };
 
         GameInstance {
@@ -198,45 +209,19 @@ impl GameInstance {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ClaimType {
-    Lemma,
-    Relation,
-    Invariant,
-    LeftPackageInvariant,
-    RightPackageInvariant,
-    LeftGameInvariant,
-    RightGameInvariant,
-}
-
-impl ClaimType {
-    pub fn guess_from_name(name: &str) -> ClaimType {
-        if name.starts_with("relation") {
-            ClaimType::Relation
-        } else if name.starts_with("invariant") {
-            ClaimType::Invariant
-        } else {
-            ClaimType::Lemma
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
-pub struct Claim {
+pub struct ParsedClaim {
     pub(crate) name: String,
-    pub(crate) ty: ClaimType,
     pub(crate) dependencies: Vec<String>,
     pub(crate) admitted: bool,
 }
 
-impl Claim {
+impl ParsedClaim {
     pub fn from_tuple(data: (String, Vec<String>, bool)) -> Self {
         let (name, dependencies, admitted) = data;
-        let ty = ClaimType::guess_from_name(&name);
 
         Self {
             name,
-            ty,
             dependencies,
             admitted,
         }
@@ -244,10 +229,6 @@ impl Claim {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn ty(&self) -> ClaimType {
-        self.ty
     }
 
     pub fn dependencies(&self) -> &[String] {
@@ -269,6 +250,7 @@ pub enum RandomnessType {
 #[derive(Clone, Debug)]
 pub struct Theorem<'a> {
     pub name: String,
+    pub types: Vec<String>,
     pub consts: Vec<(String, Type)>,
     pub instances: Vec<GameInstance>,
     pub assumptions: Vec<Assumption>,

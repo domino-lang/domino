@@ -84,6 +84,12 @@ impl Type {
         }
     }
 
+    pub(crate) fn user_defined(ty: UserDefinedType) -> Self {
+        Self {
+            kind: TypeKind::UserDefined(ty),
+        }
+    }
+
     pub fn into_kind(self) -> TypeKind {
         self.kind
     }
@@ -94,6 +100,23 @@ impl Type {
 
     pub fn kind_mut(&mut self) -> &mut TypeKind {
         &mut self.kind
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub enum UserDefinedType {
+    Package(String),
+    Game(String),
+    Theorem(String),
+}
+
+impl core::fmt::Display for UserDefinedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserDefinedType::Package(name)
+            | UserDefinedType::Game(name)
+            | UserDefinedType::Theorem(name) => write!(f, "{name}"),
+        }
     }
 }
 
@@ -114,7 +137,7 @@ pub enum TypeKind {
     Table(Box<Type>, Box<Type>),
     Maybe(Box<Type>),
     Fn(Vec<Type>, Box<Type>), // arg types, return type
-    UserDefined(String),
+    UserDefined(UserDefinedType),
 }
 
 impl TypeKind {
@@ -168,7 +191,7 @@ impl Type {
                     t.rewrite_type(rules),
                 ),
                 TypeKind::Unknown => unreachable!(),
-                TypeKind::UserDefined(_) => unreachable!(),
+                TypeKind::UserDefined(_) => self.clone(),
             }
         }
     }
@@ -195,6 +218,14 @@ impl Type {
                     .zip(rargs.iter())
                     .all(|(l, r)| Type::types_match(l, r))
                     && lty.types_match(rty.as_ref())
+            }
+
+            (TypeKind::UserDefined(UserDefinedType::Package(_)), _) => {
+                panic!("must be resolved at this point: {self}")
+            }
+
+            (_, TypeKind::UserDefined(UserDefinedType::Package(_))) => {
+                panic!("must be resolved at this point {self}")
             }
 
             (lother, rother) => lother == rother,
@@ -237,6 +268,7 @@ impl std::fmt::Display for Type {
                 f.write_str(")")
             }
             TypeKind::Unknown => f.write_str("Unknown"),
+            TypeKind::UserDefined(n) => f.write_str(&n.to_string()),
             TypeKind::Fn(args, ret) => {
                 f.write_str("fn ")?;
                 let mut maybe_comma = "";

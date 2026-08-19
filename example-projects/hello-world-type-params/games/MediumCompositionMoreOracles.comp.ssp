@@ -1,0 +1,38 @@
+composition MediumCompositionMoreOracles {
+    types {
+        Domain
+          }
+
+ /*Constants need to come after types,
+  because a constant might be of a type
+  that is specified before. */
+
+    const n: Integer;
+
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+        types {
+            Domain: Domain,
+        }
+
+    }
+
+    instance fwd = Fwd {
+        types {
+            Domain: Domain,
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: fwd,
+            UselessOracle: fwd,
+        },
+        fwd: {
+            UsefulOracle: rand,
+        },
+    }
+}
