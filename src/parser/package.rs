@@ -25,7 +25,7 @@ use crate::{
     },
     statement::{CodeBlock, FilePosition, IfThenElse, InvokeOracle, Pattern, Statement},
     types::{CountSpec, Type, TypeKind},
-    util::scope::{Declaration, OracleContext, Scope},
+    util::scope::{Declaration, Scope},
 };
 
 use miette::{Diagnostic, NamedSource, SourceSpan};
@@ -735,9 +735,8 @@ pub fn handle_expression(
 
             let ident = match decl {
                 Declaration::Identifier(ident) => ident,
-                Declaration::Oracle(_, _) => {
-                    todo!("handle error, user tried assigning to an oracle")
-                }
+                Declaration::Oracle(_) => todo!("handle error, user tried assigning to an oracle"),
+                Declaration::PackageInstance | Declaration::GameInstance => unreachable!(),
             };
             ExpressionKind::Identifier(ident)
         }
@@ -1138,7 +1137,7 @@ fn handle_assign_rhs(
                     oracle_name: oracle_name.to_string(),
                 })?;
 
-            let Declaration::Oracle(_target_oracle_ctx, target_oracle_sig) = oracle_decl else {
+            let Declaration::Oracle(target_oracle_sig) = oracle_decl else {
                 return Err(NoSuchOracleError {
                     source_code: ctx.named_source(),
                     at: (oracle_name_span.start()..oracle_name_span.end()).into(),
@@ -1269,7 +1268,7 @@ pub fn handle_code(
                             oracle_name: oracle_name.to_string(),
                         })?;
 
-                    let Declaration::Oracle(_target_oracle_ctx, target_oracle_sig) = oracle_decl else {
+                    let Declaration::Oracle(target_oracle_sig) = oracle_decl else {
                         return Err(NoSuchOracleError {
                             source_code: ctx.named_source(),
                             at: (oracle_name_span.start()..oracle_name_span.end()).into(),
@@ -1671,7 +1670,6 @@ pub fn handle_import_oracles_body(
     ctx: &mut ParsePackageContext,
     ast: Pair<Rule>,
 ) -> Result<(), ParsePackageError> {
-    let pkg_name = ctx.pkg_name;
     assert_eq!(ast.as_rule(), Rule::import_oracles_body);
 
     for entry in ast.into_inner() {
@@ -1696,12 +1694,7 @@ pub fn handle_import_oracles_body(
                 ctx.scope
                     .declare(
                         &sig.name,
-                        Declaration::Oracle(
-                            OracleContext::Package {
-                                pkg_name: pkg_name.to_string(),
-                            },
-                            sig.clone(),
-                        ),
+                        Declaration::Oracle(sig.clone()),
                         // we already checked that the oracle has not yet been imported, so this
                         // shouldn't fail?
                     )
