@@ -75,13 +75,12 @@ theorem LayerSecurity {
         }
 
         equivalence LayerHybrid LayerIdeal {
-            GETAOUT: {
-                randomness: simple
-                invariant: [
+            invariant: [
                     ./theorem/LayerSecurity/invariant-Layer.smt2
                     ./theorem/LayerSecurity/randomness-Layer.smt2
                 ]
-
+            GETAOUT: {
+                randomness: simple
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -90,11 +89,6 @@ theorem LayerSecurity {
             }
             SETBIT: {
                 randomness: none
-                invariant: [
-                    ./theorem/LayerSecurity/invariant-Layer.smt2
-                    ./theorem/LayerSecurity/randomness-Layer.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -103,11 +97,6 @@ theorem LayerSecurity {
             }
             GETKEYSIN: {
                 randomness: none
-                invariant: [
-                    ./theorem/LayerSecurity/invariant-Layer.smt2
-                    ./theorem/LayerSecurity/randomness-Layer.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -115,12 +104,7 @@ theorem LayerSecurity {
                 }
             }
             GBLG: {
-                invariant: [
-                    ./theorem/LayerSecurity/invariant-Layer.smt2
-                    ./theorem/LayerSecurity/randomness-Layer.smt2
-                ]
-
-                lemmas {
+               lemmas {
                     same-output: [no-abort]
                     equal-aborts: []
                     invariant: [no-abort]
