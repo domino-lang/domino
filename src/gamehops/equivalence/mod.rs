@@ -106,21 +106,6 @@ impl Equivalence {
     }
 }
 
-pub enum ClaimScope {
-    InitialState,
-    Oracle(String), // oracle name is stored
-}
-
-impl ClaimScope {
-    pub fn name(&self) -> &str {
-        match self {
-            // the only equivalence wide claim we have at the moment
-            ClaimScope::InitialState => "!INITIAL-STATE!",
-            ClaimScope::Oracle(oracle_name) => oracle_name,
-        }
-    }
-}
-
 /// Checks that both game instances export the same oracles with the same signatures, and that the
 /// equivalence declares a proof tree for exactly those oracles.
 ///
@@ -142,6 +127,13 @@ fn verify_exports_match(
         .iter()
         .map(|export| (export.name(), export.sig()))
         .collect();
+
+    if left_exports.is_empty() && right_exports.is_empty() {
+        return Err(Error::NoOraclesExported {
+            left_game_inst_name: left_game_inst_name.to_string(),
+            right_game_inst_name: right_game_inst_name.to_string(),
+        });
+    }
 
     let only_left: Vec<String> = left_exports
         .keys()
@@ -387,6 +379,26 @@ mod tests {
             trees,
             vec![],
         )
+    }
+
+    #[test]
+    fn neither_game_exporting_any_oracle_is_rejected() {
+        let left: Vec<Export> = vec![];
+        let right: Vec<Export> = vec![];
+
+        let err = verify_exports_match(&equivalence(&[]), &left, &right)
+            .expect_err("neither game exports any oracles, so the check should fail");
+
+        let Error::NoOraclesExported {
+            left_game_inst_name,
+            right_game_inst_name,
+        } = err
+        else {
+            panic!("expected a NoOraclesExported error, got {err}")
+        };
+
+        assert_eq!(left_game_inst_name, "left");
+        assert_eq!(right_game_inst_name, "right");
     }
 
     #[test]

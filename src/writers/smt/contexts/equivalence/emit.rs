@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
-    gamehops::equivalence::ClaimScope,
     hacks,
     identifier::Identifier,
     theorem::{Claim, ClaimType, GameInstance, RandomnessType},
@@ -79,7 +78,7 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
-    fn emit_invariant_in_initial_state_assert(&self) -> SmtExpr {
+    pub(crate) fn emit_induction_start_assert(&self) -> SmtExpr {
         let state_left = self.left_game_inst_ctx().oracle_arg_game_state_pattern();
         let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
 
@@ -97,14 +96,7 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    fn emit_equivalence_claim_assert(&self, claim: &Claim) -> SmtExpr {
-        match claim.ty {
-            ClaimType::InitialState => self.emit_invariant_in_initial_state_assert(),
-            _ => unreachable!(),
-        }
-    }
-
-    fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
+    pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -249,8 +241,7 @@ impl<'a> EquivalenceContext<'a> {
                     | ClaimType::LeftPackageInvariant
                     | ClaimType::RightPackageInvariant
                     | ClaimType::LeftGameInvariant
-                    | ClaimType::RightGameInvariant 
-                    | ClaimType::InitialState => unreachable!(),
+                    | ClaimType::RightGameInvariant => unreachable!(),
                 }
             })
             .collect();
@@ -263,7 +254,6 @@ impl<'a> EquivalenceContext<'a> {
             ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
             ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
             ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
-            ClaimType::InitialState => unreachable!(),
         };
 
         let randomness_mapping = SmtForall {
@@ -338,13 +328,6 @@ impl<'a> EquivalenceContext<'a> {
             postcond_call,
         )))
         .into()
-    }
-
-    pub(crate) fn emit_claim_assert(&self, claim: &Claim, claim_scope: &ClaimScope) -> SmtExpr {
-        match claim_scope {
-            ClaimScope::InitialState => self.emit_equivalence_claim_assert(claim),
-            ClaimScope::Oracle(oracle_name) => self.emit_oracle_claim_assert(claim, oracle_name),
-        }
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {

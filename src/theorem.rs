@@ -207,7 +207,6 @@ pub enum ClaimType {
     RightPackageInvariant,
     LeftGameInvariant,
     RightGameInvariant,
-    InitialState,
 }
 
 impl ClaimType {
