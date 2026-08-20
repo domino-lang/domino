@@ -104,11 +104,8 @@ theorem KEM_Proof {
     gamehops 
     {
         equivalence Prot H1_kem_correctness_real {
+            invariant: ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
             GetPK: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -116,10 +113,6 @@ theorem KEM_Proof {
                 }
             }
             Run: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -127,10 +120,6 @@ theorem KEM_Proof {
                 }
             }
             TestSender: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -138,10 +127,6 @@ theorem KEM_Proof {
                 }
             }
             TestReceiver: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-Prot_Real-H1_Real.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -173,11 +158,8 @@ theorem KEM_Proof {
             }
         }
         equivalence H1_kem_correctness_ideal H2 {
+            invariant: ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
             GetPK: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -185,10 +167,6 @@ theorem KEM_Proof {
                 }
             }
             Run: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -196,10 +174,6 @@ theorem KEM_Proof {
                 }
             }
             TestSender: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -207,10 +181,6 @@ theorem KEM_Proof {
                 }
             }
             TestReceiver: {
-                invariant: [
-                    ./theorem/invariant-KEM_Proof-H1_kem_correctness_ideal-H2.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
