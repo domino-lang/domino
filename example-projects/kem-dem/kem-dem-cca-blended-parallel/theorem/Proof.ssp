@@ -401,12 +401,11 @@ theorem kem_dem_cca_blended_parallel {
             }
 
             PKENC: {
-                randomness: none
+                randomness: custom
                 lemmas {
-                    invariant:      [no-abort, relation-randomness]
-                    same-output:    [no-abort, relation-randomness]
-                    equal-aborts:   [relation-randomness]
-                    relation-randomness: admit []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
