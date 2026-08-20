@@ -31,12 +31,9 @@ theorem Proof {
 
     gamehops {
         equivalence medium_composition small_composition {
+            invariant: [ ./theorem/invariant.smt2]
             UsefulOracle: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -45,10 +42,6 @@ theorem Proof {
             }
             AnotherUsefulOracle: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
                 lemmas {
                     equal-aborts: [trivial]
                     invariant:    [no-abort]
