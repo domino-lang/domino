@@ -1,5 +1,5 @@
 theorem HybridSecurity {
-    const n: Integer;
+     const n: Integer;
     const m: Integer;
     const p: Integer;
     const d: Integer;
