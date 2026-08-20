@@ -303,17 +303,7 @@ impl Display for SmtExpr {
 impl From<Type> for SmtExpr {
     fn from(t: Type) -> SmtExpr {
         match t.into_kind() {
-            TypeKind::Bits(length) => {
-                let length = match &length {
-                    crate::types::CountSpec::Identifier(identifier) => {
-                        identifier.as_theorem_identifier().unwrap().ident()
-                    }
-                    crate::types::CountSpec::Literal(num) => format!("{num}"),
-                    crate::types::CountSpec::Any => "*".to_string(),
-                };
-
-                SmtExpr::Atom(format!("Bits_{length}"))
-            }
+            TypeKind::Bits(length) => SmtExpr::Atom(format!("Bits_{}", length.resolved_suffix())),
             TypeKind::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (*t).into()]),
             TypeKind::Boolean => SmtExpr::Atom("Bool".to_string()),
             TypeKind::Empty => SmtExpr::Atom("Empty".to_string()),
@@ -340,17 +330,7 @@ impl From<Type> for SmtExpr {
 impl From<&Type> for SmtExpr {
     fn from(t: &Type) -> SmtExpr {
         match t.kind() {
-            TypeKind::Bits(length) => {
-                let length = match length {
-                    crate::types::CountSpec::Identifier(identifier) => {
-                        identifier.as_theorem_identifier().unwrap().ident()
-                    }
-                    crate::types::CountSpec::Literal(num) => format!("{num}"),
-                    crate::types::CountSpec::Any => "*".to_string(),
-                };
-
-                SmtExpr::Atom(format!("Bits_{length}"))
-            }
+            TypeKind::Bits(length) => SmtExpr::Atom(format!("Bits_{}", length.resolved_suffix())),
             TypeKind::Maybe(t) => SmtExpr::List(vec![SmtExpr::Atom("Maybe".into()), (&**t).into()]),
             TypeKind::Boolean => SmtExpr::Atom("Bool".to_string()),
             TypeKind::Integer => SmtExpr::Atom("Int".into()),

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -200,6 +201,40 @@ impl Type {
             (lother, rother) => lother == rother,
         }
     }
+
+    /// Builds an expression for the default value of the type. This is used 
+    /// when building the initial state of the packages and games and checking 
+    /// invariants against them. Creating an expression helps with having 
+    /// SMT translation of expressions universal. 
+    /// Panics for types that don't have a sensible default value.
+    pub(crate) fn default_expression(&self) -> Expression {
+        match self.kind() {
+            TypeKind::Integer => Expression::integer(0),
+            TypeKind::Boolean => Expression::boolean(false),
+            TypeKind::Empty => Expression::from_kind(ExpressionKind::Bot),
+            TypeKind::Bits(CountSpec::Any) => {
+                Expression::from_kind(ExpressionKind::BitsLiteral("empty".to_string(), self.clone()))
+            }
+            TypeKind::Bits(_) => {
+                Expression::from_kind(ExpressionKind::BitsLiteral("0".to_string(), self.clone()))
+            }
+            TypeKind::Maybe(inner) => Expression::from_kind(ExpressionKind::None(*inner.clone())),
+            TypeKind::Table(..) => Expression::from_kind(ExpressionKind::EmptyTable(self.clone())),
+            TypeKind::Tuple(types) => Expression::from_kind(ExpressionKind::Tuple(
+                types.iter().map(Type::default_expression).collect(),
+            )),
+            TypeKind::Unknown
+            | TypeKind::String
+            | TypeKind::AddiGroupEl(_)
+            | TypeKind::MultGroupEl(_)
+            | TypeKind::List(_)
+            | TypeKind::Set(_)
+            | TypeKind::Fn(_, _)
+            | TypeKind::UserDefined(_) => {
+                panic!("cannot build a default value for type {self}")
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Type {
@@ -267,6 +302,25 @@ impl CountSpec {
             l.identifiers_match(r)
         } else {
             self == other
+        }
+    }
+
+    /// Returns the correct suffix as in `Bits_<suffix>` for this count spec.
+    /// If suffix resolves to a theorem identifier, return that.
+    /// Otherwise, panic if the theorem identifier is not resolved.
+    /// This logic is reimplemented and reused in different parts of the codebase
+    /// for SMT translation.
+    pub(crate) fn resolved_suffix(&self) -> String {
+        match self {
+            CountSpec::Literal(n) => n.to_string(),
+            CountSpec::Any => "*".to_string(),
+            CountSpec::Identifier(id) => id
+                .as_theorem_identifier()
+                .map(|id| id.ident())
+                .unwrap_or_else(|| {
+                    //id.ident()
+                    panic!("bits-length identifier not resolved to a theorem const: {id:?}")
+                })
         }
     }
 }
