@@ -3,6 +3,7 @@
 use super::exprs::SmtExpr;
 use crate::expressions::Expression;
 use crate::expressions::ExpressionKind;
+use crate::types::CountSpec;
 use crate::types::Type;
 use crate::types::TypeKind;
 
@@ -38,6 +39,9 @@ impl From<&Expression> for SmtExpr {
             ExpressionKind::StringLiteral(litname) => SmtExpr::Atom(format!("\"{litname}\"")),
             ExpressionKind::BooleanLiteral(litname) => SmtExpr::Atom(litname.to_string()),
             ExpressionKind::IntegerLiteral(litname) => SmtExpr::Atom(format!("{litname}")),
+            ExpressionKind::BitsLiteral(_, ty) if matches!(ty.kind(), TypeKind::Bits(CountSpec::Any)) => {
+                SmtExpr::Atom("<empty-bitstring>".to_string())
+            }
             ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {
                 let TypeKind::Bits(cspec) = ty.kind() else {
                     unreachable!()
@@ -147,7 +151,7 @@ impl From<&Expression> for SmtExpr {
             //     &SelfStatePattern,
             // )
             //     .into(),
-            ExpressionKind::Bot => SmtExpr::Atom("bot".to_string()),
+            ExpressionKind::Bot => SmtExpr::Atom("mk-empty".to_string()),
             ExpressionKind::TableAccess(table, index) => SmtExpr::List(vec![
                 SmtExpr::Atom("select".into()),
                 table.into(),

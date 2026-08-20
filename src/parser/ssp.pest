@@ -51,6 +51,7 @@ kw_sample_name = _{ "sample-name" }
 kw_true  = _{ "true" }
 kw_false = _{ "false" }
 kw_emptyset = _{ "emptyset" }
+kw_empty_bitstring = _{ "empty-bitstring" }
 
 kw_theorem = _{ "theorem" }
 kw_assumption = _{ "assumption" }
@@ -77,7 +78,7 @@ num = { "-"? ~ ASCII_DIGIT+ }
 // -- literals --
 
 /// A union of all the different literals.
-literal = _{ literal_boolean | literal_emptyset | literal_bits | literal_integer }
+literal = _{ literal_boolean | literal_emptyset | literal_empty_bitstring | literal_bits | literal_integer }
 
 /// A boolean literal: true or false
 literal_boolean = { kw_true | kw_false }
@@ -91,6 +92,9 @@ literal_emptyset = { kw_emptyset ~ "as" ~ tipe }
 literal_bits = _{ literal_bits_zero | literal_bits_one }
   literal_bits_zero = ${ "0_" ~ countspec }
   literal_bits_one =  ${ "1_" ~ countspec }
+
+/// The single value of type Bits(*), the sort of bitstrings of unknown/any length.
+literal_empty_bitstring = { kw_empty_bitstring }
 
 // -- types --
 
