@@ -46,7 +46,7 @@ impl From<&Expression> for SmtExpr {
                 let TypeKind::Bits(cspec) = ty.kind() else {
                     unreachable!()
                 };
-                SmtExpr::Atom(format!("<{cont}_{cspec}>"))
+                SmtExpr::Atom(format!("<{cont}_{}>", cspec.resolved_suffix()))
             }
             ExpressionKind::BitsLiteral(cont, ty) => {
                 panic!("found a bits literal {cont} with non Bits type {ty}. Should not have been created.")
