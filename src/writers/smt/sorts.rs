@@ -32,16 +32,7 @@ impl From<&Type> for SmtlibSort {
             TypeKind::Integer => theories::ints::int(),
             TypeKind::String => "String".into(),
             TypeKind::Boolean => theories::core::bool_(),
-            TypeKind::Bits(length) => {
-                let length = match length {
-                    crate::types::CountSpec::Identifier(identifier) => {
-                        identifier.as_theorem_identifier().unwrap().ident()
-                    }
-                    crate::types::CountSpec::Literal(num) => format!("{num}"),
-                    crate::types::CountSpec::Any => "*".to_string(),
-                };
-                format!("Bits_{length}").into()
-            }
+            TypeKind::Bits(length) => format!("Bits_{}", length.resolved_suffix()).into(),
             TypeKind::Table(ty_idx, ty_val) => SmtlibSort {
                 name: "Array".into(),
                 parameters: vec![
@@ -90,17 +81,7 @@ pub enum Sort {
 impl From<Type> for Sort {
     fn from(value: Type) -> Self {
         match value.into_kind() {
-            TypeKind::Bits(length) => {
-                let length = match &length {
-                    crate::types::CountSpec::Identifier(identifier) => {
-                        identifier.as_theorem_identifier().unwrap().ident()
-                    }
-                    crate::types::CountSpec::Literal(num) => format!("{num}"),
-                    crate::types::CountSpec::Any => "*".to_string(),
-                };
-
-                Sort::Other(format!("Bits_{length}"), vec![])
-            }
+            TypeKind::Bits(length) => Sort::Other(format!("Bits_{}", length.resolved_suffix()), vec![]),
             TypeKind::Maybe(t) => Sort::Other("Maybe".to_string(), vec![(*t).into()]),
             TypeKind::Boolean => Sort::Bool,
             TypeKind::Empty => Sort::Other("Empty".to_string(), vec![]),

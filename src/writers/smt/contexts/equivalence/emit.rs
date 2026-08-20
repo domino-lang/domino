@@ -1,13 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
-    expressions::{Expression, ExpressionKind},
     gamehops::equivalence::ClaimScope,
     hacks,
-    identifier::{
-        game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
-        Identifier,
-    },
+    identifier::Identifier,
     theorem::{Claim, ClaimType, GameInstance, RandomnessType},
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
@@ -73,7 +69,7 @@ impl<'a> EquivalenceContext<'a> {
                 out.push(
                     SmtAssert(SmtEq2 {
                         lhs: field,
-                        rhs: default_smt_value(field_ty),
+                        rhs: SmtExpr::from(&field_ty.default_expression()),
                     })
                     .into(),
                 );
@@ -385,36 +381,7 @@ impl<'a> EquivalenceContext<'a> {
 
         for ty in self.types() {
             if let TypeKind::Bits(count_spec) = &ty.kind() {
-                let bits_sort_suffix = match count_spec {
-                    crate::types::CountSpec::Literal(num) => format!("{num}"),
-                    crate::types::CountSpec::Any => "*".to_string(),
-                    crate::types::CountSpec::Identifier(ident) => match ident.as_ref() {
-                        Identifier::TheoremIdentifier(ident) => ident.ident(),
-                        Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident)) => {
-                            match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
-                                Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
-                                Some(ExpressionKind::Identifier(_)) => unreachable!("other identifiers can't occur here"),
-                                Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
-                            }
-                        } ,
-                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref().kind() {
-                            ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
-                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
-                                    Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
-                                    Some(ExpressionKind::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
-                                    Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                    None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
-                                }
-                            },
-                            ExpressionKind::Identifier(_) => unreachable!("other identifiers can't occur here"),
-                            other => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                        }
-                        Identifier::PackageIdentifier(_) => unreachable!("non-const package identifiers can't occur here"),
-                        Identifier::GameIdentifier(_) => unreachable!("non-const game identifiers can't occur here"),
-                        Identifier::Generated(_, _) => unreachable!("generated identifiers can't occur here"),
-                    },
-                };
+                let bits_sort_suffix = count_spec.resolved_suffix();
 
                 log::debug!("found {bits_sort_suffix}");
 
@@ -1347,47 +1314,6 @@ impl<'a> EquivalenceContext<'a> {
             body,
         )
             .into()
-    }
-}
-
-fn default_smt_value(ty: &Type) -> SmtExpr {
-    match ty.kind() {
-        TypeKind::Integer => 0.into(),
-        TypeKind::Boolean => false.into(),
-        TypeKind::Empty => "mk-empty".into(),
-        TypeKind::Bits(count_spec) => match count_spec {
-            CountSpec::Literal(len) => format!("<0_{len}>").into(),
-            CountSpec::Identifier(id) => {
-                let suffix = id
-                    .as_theorem_identifier()
-                    .map(|theorem_ident| theorem_ident.ident())
-                    .unwrap_or_else(|| id.ident());
-                format!("<0_{suffix}>").into()
-            }
-            CountSpec::Any => "<empty-bitstring>".into(),
-        },
-        TypeKind::Maybe(inner) => ("as", "mk-none", Type::maybe(*inner.clone())).into(),
-        TypeKind::Table(_index_ty, value_ty) => (
-            ("as", "const", ty.clone()),
-            ("as", "mk-none", Type::maybe(*value_ty.clone())),
-        )
-            .into(),
-        TypeKind::Tuple(types) => {
-            let mut call = Vec::with_capacity(types.len() + 1);
-            call.push(format!("mk-tuple{}", types.len()).into());
-            call.extend(types.iter().map(default_smt_value));
-            call.into()
-        }
-        TypeKind::Unknown
-        | TypeKind::String
-        | TypeKind::AddiGroupEl(_)
-        | TypeKind::MultGroupEl(_)
-        | TypeKind::List(_)
-        | TypeKind::Set(_)
-        | TypeKind::Fn(_, _)
-        | TypeKind::UserDefined(_) => {
-            panic!("cannot build a default value for type {ty}")
-        }
     }
 }
 
