@@ -112,12 +112,15 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
-                rayon::iter::once(())
-                    .map(|_| vec![self.verify_invariants_in_initial_state(ui.clone(), &smt)])
-                    .chain(oracle_sequence.par_iter().map(|oracle| -> Vec<Result<()>> {
-                        self.verify_oracle(ui.clone(), &smt, oracle)
-                    }))
-                    .flatten()
+                let verify_initial_state_invariant = rayon::iter::once(())
+                    .map(|_| self.verify_invariants_in_initial_state(ui.clone(), &smt));
+                let verify_oracle_claims = oracle_sequence
+                    .par_iter()
+                    .map(|oracle| self.verify_oracle(ui.clone(), &smt, oracle))
+                    .flatten();
+
+                verify_initial_state_invariant
+                    .chain(verify_oracle_claims)
                     .collect()
             });
 
@@ -158,7 +161,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
 
         log::info!("verify: invariants in initial state");
-        // TODO: this is temporary workaround until we make the invariants equivalence-wide.
+        // TODO (#365): this is temporary workaround until we make the invariants equivalence-wide.
         // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
         let oracle_name = self.oracle_sequence().first().unwrap().name();
         smt.append(&mut self.eqctx.emit_invariant(oracle_name));
