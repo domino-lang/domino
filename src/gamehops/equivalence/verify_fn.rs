@@ -228,7 +228,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         log::info!("verify: oracle:{oracle:?}");
         smt.extend(&mut self.eqctx.emit_return_value_helpers(oracle.name()));
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
-        smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
+        smt.append(&mut self.eqctx.emit_invariant());
 
         let result: Vec<_> = claims
             .par_iter()
