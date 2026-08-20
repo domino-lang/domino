@@ -148,10 +148,7 @@ fn equivalence_parses() {
 
     assert_eq!(eq.left_name, "smallA");
     assert_eq!(eq.right_name, "smallB");
-    assert_eq!(
-        eq.invariants,
-        vec![("N".to_string(), vec!["./invariant.smt".to_string()])]
-    );
+    assert_eq!(eq.invariants, vec!["./invariant.smt".to_string()]);
     assert_eq!(
         eq.trees,
         vec![(
