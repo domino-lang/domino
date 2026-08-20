@@ -980,12 +980,6 @@ pub(crate) fn handle_hybrid<'a>(
             })
             .collect();
 
-        let invariants: Vec<_> = equivalence_data
-            .iter()
-            .cloned()
-            .map(|(oracle_name, _, _)| (oracle_name, invariants.clone()))
-            .collect();
-
         if ctx.game_instance(&left_equiv_name).is_none() {
             return Err(UndefinedGameInstanceError {
                 source_code: ctx.named_source(),
@@ -1068,12 +1062,6 @@ fn handle_equivalence<'a>(
                     .collect(),
             )
         })
-        .collect();
-
-    let invariants: Vec<_> = equivalence_data
-        .iter()
-        .cloned()
-        .map(|(oracle_name, _, _)| (oracle_name, invariants.clone()))
         .collect();
 
     if ctx.game_instance(left_name.as_str()).is_none() {
