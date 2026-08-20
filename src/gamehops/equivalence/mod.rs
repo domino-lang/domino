@@ -243,7 +243,7 @@ impl<'a> EquivalenceContext<'a> {
         for export in self.oracle_sequence() {
             let oracle_name = export.name();
             let mut out = Vec::new();
-            //let mut linter = lint::Linter::new(self, oracle_name);
+
             let left_gctx = self.left_game_inst_ctx();
             let right_gctx = self.right_game_inst_ctx();
 
@@ -317,21 +317,10 @@ impl<'a> EquivalenceContext<'a> {
                     error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
                 })?;
                 log::info!("read file {file_name}");
-                //linter.lint_file(file_name, &file_contents)?;
                 out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
-
-                // log::info!("wrote contents of file {file_name}");
-
-                // if comm.check_sat()? != SmtSolverResponse::Sat {
-                //     return Err(Error::UnsatAfterInvariantRead {
-                //         equivalence: self.equivalence.clone(),
-                //         oracle_name: oracle_name.to_string(),
-                //     });
-                // }
             }
             self.append_invariants(oracle_name, out);
         }
-        //linter.lint_finish()?;
         Ok(())
     }
 }

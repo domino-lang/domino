@@ -15,8 +15,8 @@ theorem SmallIsSmall {
 
   gamehops {
     equivalence smallA smallB {
+      invariant: ./invariant.smt
       N: {
-        invariant: ./invariant.smt
         lemmas {
         invariant: []
         equal-aborts: []
