@@ -1,0 +1,12 @@
+composition G {
+    instance p = P {
+        params {
+        }
+    }
+
+    compose {
+        adversary: {
+            Hello: p
+        }
+    }
+}
