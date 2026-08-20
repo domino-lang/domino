@@ -1,0 +1,24 @@
+composition G {
+    const m: Integer;
+
+    instance impl = Impl {
+        params {
+            n: m
+        }
+    }
+
+    instance p = P {
+        params {
+            n: m
+        }
+    }
+
+    compose {
+        p: {
+            Gen: impl
+        }
+        adversary: {
+            Hello: p
+        }
+    }
+}

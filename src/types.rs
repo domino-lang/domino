@@ -318,8 +318,7 @@ impl CountSpec {
                 .as_theorem_identifier()
                 .map(|id| id.ident())
                 .unwrap_or_else(|| {
-                    id.ident()
-                    //panic!("bits-length identifier not resolved to a theorem const: {id:?}")
+                    panic!("bits-length identifier not resolved to a theorem const: {id:?}")
                 })
         }
     }
