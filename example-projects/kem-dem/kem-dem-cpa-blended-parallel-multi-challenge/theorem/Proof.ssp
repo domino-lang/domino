@@ -293,12 +293,11 @@ theorem kem_dem_cpa_blended_parallel_multi_challenge {
             }
 
             PKENC: {
-                randomness: none
+                randomness: custom
                 lemmas {
-                    invariant:      [no-abort, relation-randomness]
-                    same-output:    [no-abort, relation-randomness]
-                    equal-aborts:   [relation-randomness]
-                    relation-randomness: admit []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
         }
