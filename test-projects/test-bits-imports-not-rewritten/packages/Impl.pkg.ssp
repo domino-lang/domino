@@ -1,0 +1,8 @@
+package Impl {
+    params {
+        n: Integer,
+    }
+    oracle Gen() -> Bits(n) {
+        return 0_n;
+    }
+}
