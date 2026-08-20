@@ -24,10 +24,8 @@ pub enum Error {
         equivalence: Equivalence,
         oracle_name: String,
     },
-    #[error("error reading invariant file {invariant_file_name}{}: {err}",
-            if let Some(oracle_name) = oracle_name { format!(" for oracle {oracle_name}")} else {"".to_string()})]
+    #[error("error reading invariant file {invariant_file_name}: {err}")]
     InvariantFileReadError {
-        oracle_name: Option<String>,
         invariant_file_name: String,
         err: std::io::Error,
     },
@@ -228,12 +226,10 @@ fn format_equivalence_oracle_mismatch(
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn new_invariant_file_read_error(
-    oracle_name: Option<String>,
     invariant_file_name: String,
     err: std::io::Error,
 ) -> Error {
     Error::InvariantFileReadError {
-        oracle_name,
         invariant_file_name,
         err,
     }

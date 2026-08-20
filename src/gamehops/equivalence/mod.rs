@@ -225,95 +225,77 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn load_invariants(&mut self, project: &impl Project) -> Result<()> {
-        for export in self.oracle_sequence() {
-            let oracle_name = export.name();
-            let mut out = Vec::new();
+        let mut out = Vec::new();
 
-            let left_gctx = self.left_game_inst_ctx();
-            let right_gctx = self.right_game_inst_ctx();
+        let left_gctx = self.left_game_inst_ctx();
+        let right_gctx = self.right_game_inst_ctx();
 
-            // Emit package invariants
-            for pkg in &left_gctx.game().pkgs {
-                for file_name in &pkg.pkg.invariants {
-                    let file_contents = project.read_input_file(file_name).map_err(|err| {
-                        let file_name = file_name.to_string();
-                        error::new_invariant_file_read_error(
-                            Some(oracle_name.to_string()),
-                            file_name,
-                            err,
-                        )
-                    })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        left_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
-                }
-            }
-            for pkg in &right_gctx.game().pkgs {
-                for file_name in &pkg.pkg.invariants {
-                    let file_contents = project.read_input_file(file_name).map_err(|err| {
-                        let file_name = file_name.to_string();
-                        error::new_invariant_file_read_error(
-                            Some(oracle_name.to_string()),
-                            file_name,
-                            err,
-                        )
-                    })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        right_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
-                }
-            }
-
-            // Load Game Invariants
-            for file_name in &left_gctx.game().invariants {
+        // Emit package invariants
+        for pkg in &left_gctx.game().pkgs {
+            for file_name in &pkg.pkg.invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
-                    error::new_invariant_file_read_error(
-                        Some(oracle_name.to_string()),
-                        file_name,
-                        err,
-                    )
+                    error::new_invariant_file_read_error(file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
+                out.append(&mut smtrewrite::rewrite_package(
                     self,
                     left_gctx.game_inst(),
+                    pkg,
                     &file_contents,
                 )?);
             }
-            for file_name in &right_gctx.game().invariants {
+        }
+        for pkg in &right_gctx.game().pkgs {
+            for file_name in &pkg.pkg.invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
-                    error::new_invariant_file_read_error(
-                        Some(oracle_name.to_string()),
-                        file_name,
-                        err,
-                    )
+                    error::new_invariant_file_read_error(file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
+                out.append(&mut smtrewrite::rewrite_package(
                     self,
                     right_gctx.game_inst(),
+                    pkg,
                     &file_contents,
                 )?);
             }
-
-            // Load the main Invariant
-            for file_name in self.equivalence().invariants() {
-                log::info!("reading file {file_name}");
-                let file_contents = project.read_input_file(file_name).map_err(|err| {
-                    let file_name = file_name.clone();
-                    error::new_invariant_file_read_error(None, file_name, err)
-                })?;
-                log::info!("read file {file_name}");
-                out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
-            }
-            self.append_invariants(oracle_name, out);
         }
+
+        // Load Game Invariants
+        for file_name in &left_gctx.game().invariants {
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
+                let file_name = file_name.to_string();
+                error::new_invariant_file_read_error(file_name, err)
+            })?;
+            out.append(&mut smtrewrite::rewrite_game(
+                self,
+                left_gctx.game_inst(),
+                &file_contents,
+            )?);
+        }
+        for file_name in &right_gctx.game().invariants {
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
+                let file_name = file_name.to_string();
+                error::new_invariant_file_read_error(file_name, err)
+            })?;
+            out.append(&mut smtrewrite::rewrite_game(
+                self,
+                right_gctx.game_inst(),
+                &file_contents,
+            )?);
+        }
+
+        // Load the main Invariant
+        for file_name in self.equivalence().invariants() {
+            log::info!("reading file {file_name}");
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
+                let file_name = file_name.clone();
+                error::new_invariant_file_read_error(file_name, err)
+            })?;
+            log::info!("read file {file_name}");
+            out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+        }
+        self.append_invariants(out);
+
         Ok(())
     }
 }
