@@ -29,12 +29,8 @@ use crate::{
 };
 
 impl<'a> EquivalenceContext<'a> {
-    pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
-        if let Some(invariants) = self.invariants.get(oracle_name) {
-            invariants.clone()
-        } else {
-            vec![]
-        }
+    pub(crate) fn emit_invariant(&self) -> Vec<SmtExpr> {
+        self.invariants.clone()
     }
 
     pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
