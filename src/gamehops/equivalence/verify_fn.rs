@@ -118,6 +118,9 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .map(|_| self.verify_induction_start(ui.clone(), &smt));
 
                 if self.only_induction_start {
+                    if self.req_oracle.is_some() {
+                        // TODO: inform the user the given option does not apply
+                    }
                     verify_induction_start.collect()
                 } else {
                     let verify_oracle_claims = oracle_sequence
