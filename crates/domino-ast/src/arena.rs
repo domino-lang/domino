@@ -94,6 +94,10 @@ impl<T> Slice<T> {
         self.1 as usize
     }
 
+    pub fn is_empty(self) -> bool {
+        self.1 == 0
+    }
+
     pub fn refs(self) -> impl Iterator<Item = Ref<T>> {
         (self.0..(self.0 + self.1)).map(|i| Ref(i, PhantomData))
     }
@@ -201,8 +205,17 @@ impl<NodeType, Data> crate::DenseTable<NodeType, Data> {
             .enumerate()
             .map(|(i, data)| (Ref(i as u32, PhantomData), data))
     }
+}
 
-    pub fn into_iter(self) -> impl Iterator<Item = (Ref<NodeType>, Data)> {
+impl<NodeType, Data> IntoIterator for crate::DenseTable<NodeType, Data> {
+    type Item = (Ref<NodeType>, Data);
+
+    type IntoIter = std::iter::Map<
+        std::iter::Enumerate<std::vec::IntoIter<Data>>,
+        fn((usize, Data)) -> (Ref<NodeType>, Data),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.into_vec()
             .into_iter()
             .enumerate()
@@ -217,8 +230,17 @@ impl<NodeType, Data> crate::PartialDenseTable<NodeType, Data> {
             .enumerate()
             .map(|(i, data)| (Ref(i as u32, PhantomData), data))
     }
+}
 
-    pub fn into_iter(self) -> impl Iterator<Item = (Ref<NodeType>, Option<Data>)> {
+impl<NodeType, Data> IntoIterator for crate::PartialDenseTable<NodeType, Data> {
+    type Item = (Ref<NodeType>, Option<Data>);
+
+    type IntoIter = std::iter::Map<
+        std::iter::Enumerate<std::vec::IntoIter<Option<Data>>>,
+        fn((usize, Option<Data>)) -> (Ref<NodeType>, Option<Data>),
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
         self.into_vec()
             .into_iter()
             .enumerate()
