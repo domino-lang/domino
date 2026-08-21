@@ -55,6 +55,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     }
 
     pub(crate) fn verify<UI: TheoremUI + Send>(&mut self, ui: &mut UI) -> Result<()> {
+        if self.only_induction_start && self.req_oracle.is_some() {
+            return Err(Error::ReqOracleWithOnlyInductionStart);
+        }
+
         self.eqctx.verify_exports_match()?;
 
         let ui = Arc::new(Mutex::new(ui));
@@ -107,10 +111,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 .try_into()
                 .unwrap(),
         );
-
-        if self.only_induction_start && self.req_oracle.is_some() {
-            // inform user they can not use both req_oracle and only_induction-start
-        }
 
         let claims = rayon::ThreadPoolBuilder::new()
             .num_threads(self.parallel + 1) // one process is reserved for the "main" method
