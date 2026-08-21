@@ -21,6 +21,10 @@ pub type Diagnostics = Arena<Diagnostic>;
 pub enum Diagnostic {
     #[error(transparent)]
     #[diagnostic(transparent)]
+    MissingResolution(#[from] MissingResolution),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     UndefinedIdentifier(#[from] UndefinedIdentifier),
 
     #[error(transparent)]
@@ -71,6 +75,7 @@ pub enum Diagnostic {
 impl Diagnostic {
     pub fn at(&self) -> GlobalRefId {
         match self {
+            Diagnostic::MissingResolution(node) => node.global_ref,
             Diagnostic::UndefinedIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedValueIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedConstValueIdentifier(node) => node.global_ref,
@@ -120,6 +125,37 @@ pub enum OracleIdentifier {
     Import(Ref<OracleImportIdentifier>),
     Definition(Ref<OracleDefinitionIdentifier>),
     Composition(Ref<OracleCompositionIdentifier>),
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("internal error: missing resolution for {table}")]
+#[diagnostic(code(domino::resolve::idents::internal::missing_resolution))]
+pub struct MissingResolution {
+    #[label("this identifier")]
+    pub at: SourceSpan,
+
+    pub table: &'static str,
+
+    pub global_ref: GlobalRefId,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl MissingResolution {
+    pub fn new<Node>(dx: Resolver, table: &'static str, ident: Ref<Node>) -> Self
+    where
+        Node: InArena + NodeType,
+    {
+        let at = dx.span(ident);
+        let source_code = dx.named_source(ident);
+        Self {
+            at,
+            table,
+            global_ref: ident.global_ref_id(),
+            source_code,
+        }
+    }
 }
 
 #[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]

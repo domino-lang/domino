@@ -216,7 +216,29 @@ impl<'arena> Resolver<'arena> {
         &self.pkg_infos
     }
 
-    pub fn finish(self) -> IdentifierResolution<'arena> {
+    pub fn finish(mut self) -> IdentifierResolution<'arena> {
+        let failed = print_missing! {
+            self,
+            pkg_names,
+            oracle_def_names,
+            oracle_import_names,
+            oracle_composition_def_names,
+            oracle_composition_import_names,
+            pkg_const_value_names,
+            oracle_value_names,
+            pkg_type_names,
+            pkg_type_arg_names,
+            is_state,
+            game_names,
+            game_type_names,
+            game_const_value_names,
+            pkg_inst_names,
+        };
+
+        if failed {
+            panic!("did not expect to find unresolved nodes")
+        }
+
         IdentifierResolution {
             pkg_infos: self.pkg_infos,
             game_infos: self.game_infos,
@@ -316,3 +338,45 @@ macro_rules! fail_resolution {
 }
 
 use fail_resolution;
+
+macro_rules! print_missing {
+    ($self:expr, $($name:ident),* ,) => { {
+        let dx = domino_diagnostic::Resolver {
+            arenas: $self.arenas,
+            locations: $self.locations,
+        };
+
+        fn print_missing<T: domino_ast::ast_nodes::InArena + domino_ast::ast_nodes::NodeType>(dx: domino_diagnostic::Resolver, diags: &mut Arena<diag::Diagnostic>, name: &'static str, mut missing: impl Iterator<Item = Ref<T>>) {
+
+            if let Some(first) = missing.next() {
+                let mut errs = vec![diag::MissingResolution::new(dx, name, first).into()];
+
+                print!("{name} is missing: {first:?}");
+
+                for r in missing {
+                    print!(", {r:?}");
+                    errs.push(diag::MissingResolution::new(dx, name, r));
+                }
+
+                println!();
+                for d in errs {
+                    println!("{:?}", miette::Report::from(d));
+                }
+            }
+        }
+
+        let mut failed = false;
+        $({
+            let mut missing = $self.$name.missing().peekable();
+            failed |= missing.peek().is_some();
+
+            print_missing(dx, &mut $self.diagnostics, stringify!($name), missing);
+
+        };)*
+
+        failed
+
+    } };
+}
+
+use print_missing;

@@ -67,6 +67,10 @@ impl<K, V> PartialDenseTable<K, V> {
     pub fn into_vec(self) -> Vec<Option<V>> {
         self.0
     }
+
+    pub fn missing<'a>(&'a self) -> impl Iterator<Item = Ref<K>> + 'a {
+        self.iter().filter_map(|(r, v)| v.is_none().then_some(r))
+    }
 }
 
 impl<K, V> PartialDenseTable<K, V> {
