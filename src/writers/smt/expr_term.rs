@@ -60,7 +60,9 @@ impl From<Expression> for Term {
                     "found a boolean literal '{bit}', the parse should have caught that"
                 ),
             },
-            ExpressionKind::BitsLiteral(_, ty) if matches!(ty.kind(), TypeKind::Bits(CountSpec::Any)) => {
+            ExpressionKind::BitsLiteral(_, ty)
+                if matches!(ty.kind(), TypeKind::Bits(CountSpec::Any)) =>
+            {
                 "<empty-bitstring>".to_string().into()
             }
             ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {

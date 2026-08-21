@@ -202,19 +202,20 @@ impl Type {
         }
     }
 
-    /// Builds an expression for the default value of the type. This is used 
-    /// when building the initial state of the packages and games and checking 
-    /// invariants against them. Creating an expression helps with having 
-    /// SMT translation of expressions universal. 
+    /// Builds an expression for the default value of the type. This is used
+    /// when building the initial state of the packages and games and checking
+    /// invariants against them. Creating an expression helps with having
+    /// SMT translation of expressions universal.
     /// Panics for types that don't have a sensible default value.
     pub(crate) fn default_expression(&self) -> Expression {
         match self.kind() {
             TypeKind::Integer => Expression::integer(0),
             TypeKind::Boolean => Expression::boolean(false),
             TypeKind::Empty => Expression::from_kind(ExpressionKind::Bot),
-            TypeKind::Bits(CountSpec::Any) => {
-                Expression::from_kind(ExpressionKind::BitsLiteral("empty".to_string(), self.clone()))
-            }
+            TypeKind::Bits(CountSpec::Any) => Expression::from_kind(ExpressionKind::BitsLiteral(
+                "empty".to_string(),
+                self.clone(),
+            )),
             TypeKind::Bits(_) => {
                 Expression::from_kind(ExpressionKind::BitsLiteral("0".to_string(), self.clone()))
             }
@@ -319,7 +320,7 @@ impl CountSpec {
                 .map(|id| id.ident())
                 .unwrap_or_else(|| {
                     panic!("bits-length identifier not resolved to a theorem const: {id:?}")
-                })
+                }),
         }
     }
 }
