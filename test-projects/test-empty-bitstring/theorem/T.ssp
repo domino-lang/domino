@@ -11,9 +11,10 @@ theorem T {
 
     gamehops {
         equivalence g1 g2 {
+            invariant: ./theorem/inv.smt2
+
             Hello: {
                 randomness: none
-                invariant: ./theorem/inv.smt2
             }
         }
     }

@@ -31,11 +31,11 @@ theorem Proof {
 
     gamehops {
         equivalence medium_composition small_composition {
-            UsefulOracle: {
-                randomness: simple
                 invariant: [
                     ./theorem/invariant.smt2
                 ]
+            UsefulOracle: {
+                randomness: simple
 
                 lemmas {
                     equal-aborts: []
@@ -45,9 +45,6 @@ theorem Proof {
             }
             AnotherUsefulOracle: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
 
                 lemmas {
                     equal-aborts: [trivial]
