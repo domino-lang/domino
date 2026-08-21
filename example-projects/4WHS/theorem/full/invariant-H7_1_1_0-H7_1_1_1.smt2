@@ -96,10 +96,10 @@
   Bool
   (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (msg Bits_n) (tag Int))
           (and
-           (= (> i kid)
+           (= (or (> i kid) (<= i 0))
               (is-mk-none (select H i))
               (is-mk-none (select Ltk i)))
-           (=> (> i kid)
+           (=> (or (> i kid) (<= i 0))
                (and (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
                     (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
                     (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))))
@@ -113,7 +113,7 @@
      (ctr Int))
   Bool
   (forall ((i Int))
-          (= (> i ctr)
+          (= (or (> i ctr) (<= i 0))
              (is-mk-none (select fresh i))
              (is-mk-none (select state i)))))
 
@@ -457,9 +457,9 @@
   (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
           (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                    (mk-tuple2 msg tag))))
-            (= (and (is-mk-none (select ReverseMac handle))
-                    (= (select H kid) (mk-some true)))
-               (is-mk-none (select Values handle))))))
+            (=> (= (select H kid) (mk-some true))
+                (= (is-mk-none (select ReverseMac handle))
+                   (is-mk-none (select Values handle)))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -781,4 +781,5 @@
        (message-implies-mac state-H710.MAC.Values
                             state-H710.KX.Fresh state-H710.KX.State)
        (three-mac-implies-first state-H710.KX.First state-H710.KX.Second
-                                state-H710.KX.ReverseMac state-H710.KX.State)))
+                                state-H710.KX.ReverseMac state-H710.KX.State)
+        ))

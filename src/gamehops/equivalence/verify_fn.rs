@@ -108,6 +108,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 .unwrap(),
         );
 
+        if self.only_induction_start && self.req_oracle.is_some() {
+            // inform user they can not use both req_oracle and only_induction-start
+        }
+
         let claims = rayon::ThreadPoolBuilder::new()
             .num_threads(self.parallel + 1) // one process is reserved for the "main" method
             .build()
@@ -118,9 +122,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .flatten();
 
                 if self.only_induction_start {
-                    if self.req_oracle.is_some() {
-                        // TODO: inform the user the given option does not apply
-                    }
                     verify_induction_start.collect()
                 } else {
                     let verify_oracle_claims = oracle_sequence
