@@ -17,11 +17,11 @@ theorem Proof {
 
     gamehops {
         equivalence G1 G2 {
-            Hello: {
-                randomness: none
                 invariant: [
                     ./theorem/inv.smt2
                 ]
+            Hello: {
+                randomness: none
                 lemmas {
                     same-output: [no-abort]
                     equal-aborts: []
