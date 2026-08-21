@@ -408,26 +408,11 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn oracle_def(&mut self, arenas: &Arenas, node: Ref<oracles::OracleDefinition>) {
         let oracle_def = arenas.oracle_def.get(node);
-        let oracle_sig = arenas.oracle_def_sig.get(oracle_def.oracle_sig);
-        let args = arenas.oracle_value_decl_list.get(oracle_sig.args);
-
-        let name = get_text(oracle_sig.name, self.locations, &arenas.source);
-        self.info
-            .as_mut()
-            .unwrap()
-            .oracle_definitions
-            .insert(name.to_string(), node);
-        self.oracle_def_sig(arenas, oracle_def.oracle_sig);
-        self.tables.oracle_def_names.set(
-            oracle_sig.name,
-            OracleDefinitionResolution::Definition(node),
-        );
+        self.declare_oracle_def(arenas, node);
 
         // enter before declaring oracle args
         self.scope.enter();
-        args.items
-            .refs()
-            .for_each(|arg_decl_ref| self.declare_oracle_arg(arenas, arg_decl_ref));
+        self.oracle_def_sig(arenas, oracle_def.oracle_sig);
         self.stmt_list(arenas, oracle_def.statements);
         self.scope.leave();
     }
@@ -438,8 +423,10 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         node: domino_ast::arena::Ref<oracles::OracleValueArgDecl>,
     ) {
         let arg = arenas.oracle_value_arg_decl.get(node);
+
         // DON'T recurse into the name child node here, as that would try resolving
         // instead of declaring.
+        self.declare_oracle_arg(arenas, node);
         self.package_type(arenas, arg.ty);
     }
 
@@ -500,6 +487,26 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 }
 
 impl<'a> PackageVisitor<'a> {
+    fn declare_oracle_def(
+        &mut self,
+        arenas: &Arenas,
+        oracle_def_ref: Ref<oracles::OracleDefinition>,
+    ) {
+        let oracle_def = arenas.oracle_def.get(oracle_def_ref);
+        let oracle_sig = arenas.oracle_def_sig.get(oracle_def.oracle_sig);
+        let ident_name = get_text(oracle_sig.name, &self.locations, &arenas.source);
+
+        self.info
+            .as_mut()
+            .unwrap()
+            .oracle_definitions
+            .insert(ident_name.to_string(), oracle_def_ref);
+        self.tables.oracle_def_names.set(
+            oracle_sig.name,
+            resolutions::OracleDefinitionResolution::Definition(oracle_def_ref),
+        );
+    }
+
     fn declare_oracle_arg(&mut self, arenas: &Arenas, decl_ref: Ref<oracles::OracleValueArgDecl>) {
         let decl = arenas.oracle_value_arg_decl.get(decl_ref);
         let ident_name = get_text(decl.name, &self.locations, &arenas.source);
