@@ -25,6 +25,10 @@ pub enum Diagnostic {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
+    ExpectedConstValueIdentifier(#[from] ExpectedConstValueIdentifier),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     ExpectedValueIdentifier(#[from] ExpectedValueIdentifier),
 
     #[error(transparent)]
@@ -69,6 +73,7 @@ impl Diagnostic {
         match self {
             Diagnostic::UndefinedIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedValueIdentifier(node) => node.global_ref,
+            Diagnostic::ExpectedConstValueIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedTypeIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedTypeArgIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedOracleIdentifier(node) => node.global_ref,
@@ -141,6 +146,41 @@ impl UndefinedIdentifier {
             at,
             global_ref: ident.global_ref_id(),
             source_code,
+        }
+    }
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("expected a const value identifier, got a {decl_type}")]
+#[diagnostic(code(domino::resolve::idents::expected_const_value))]
+pub struct ExpectedConstValueIdentifier {
+    #[label("this identifier")]
+    pub at: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    pub decl_type: DeclarationType,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl ExpectedConstValueIdentifier {
+    pub fn new<IK: IdentifierKind>(
+        dx: Resolver,
+        ident: Ref<AstIdentifier<IK>>,
+        decl: impl crate::Declaration,
+    ) -> Self
+    where
+        AstIdentifier<IK>: InArena + NodeType,
+    {
+        let at = dx.span(ident);
+        let source_code = dx.named_source(ident);
+        Self {
+            at,
+            source_code,
+            global_ref: ident.global_ref_id(),
+            decl_type: decl.decl_type(),
         }
     }
 }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{expressions, identifier, oracles, package, statements, types, Visitor},
+    ast_nodes::{identifier, oracles, package, statements, types, Visitor},
     source::SourceLocation,
     Arenas, GlobalTable, PartialDenseTable,
 };
@@ -12,7 +12,7 @@ use crate::{
     diag,
     resolutions::{
         self, OracleDefinitionResolution, OracleImportResolution, OracleValueResolution,
-        PackageTypeArgResolution, PackageTypeResolution,
+        PackageConstValueResolution, PackageTypeArgResolution, PackageTypeResolution,
     },
     scope::*,
     util::*,
@@ -71,6 +71,22 @@ impl crate::Declaration for PackageDeclaration {
     }
 }
 
+impl TryFrom<PackageDeclaration> for PackageConstValueResolution {
+    type Error = ();
+
+    fn try_from(decl: PackageDeclaration) -> Result<Self, ()> {
+        let resolution = match decl {
+            PackageDeclaration::Const(decl) => PackageConstValueResolution::ConstParam(decl),
+            PackageDeclaration::BuiltinValue(builtin) => {
+                PackageConstValueResolution::Builtin(builtin)
+            }
+
+            _ => return Err(()),
+        };
+
+        Ok(resolution)
+    }
+}
 impl TryFrom<PackageDeclaration> for OracleValueResolution {
     type Error = ();
 
@@ -356,6 +372,14 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.tables.is_state.set(node, self.inside_state);
     }
 
+    fn pkg_const_value_ident(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<identifier::PackageConstValueIdentifier>,
+    ) {
+        self.resolve_pkg_const_value_ident(arenas, node);
+    }
+
     fn import_oracle_block(&mut self, arenas: &Arenas, node: Ref<package::ImportOraclesBlock>) {
         let decls = arenas.import_oracle_block.get(node).decls;
         arenas
@@ -449,7 +473,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         arenas: &domino_ast::Arenas,
         node: domino_ast::arena::Ref<identifier::OracleValueIdentifier>,
     ) {
-        self.resolve_value_ident(arenas, node);
+        self.resolve_oracle_value_ident(arenas, node);
     }
 
     fn oracle_expr_invoc(
@@ -524,7 +548,7 @@ impl<'a> PackageVisitor<'a> {
 
     /// indexes a value identifier in an expression (i.e. "right of an assignment arrow").
     /// If the Identifier is not declared yet, that is an error.
-    fn resolve_value_ident(
+    fn resolve_oracle_value_ident(
         &mut self,
         arenas: &Arenas,
         ident: Ref<identifier::OracleValueIdentifier>,
@@ -586,6 +610,39 @@ impl<'a> PackageVisitor<'a> {
         };
 
         self.tables.type_names.set(ident, resolution);
+    }
+
+    fn resolve_pkg_const_value_ident(
+        &mut self,
+        arenas: &Arenas,
+        ident: Ref<identifier::PackageConstValueIdentifier>,
+    ) {
+        let dx = Resolver {
+            arenas,
+            locations: self.locations,
+        };
+
+        let ident_name = get_text(ident, self.locations, &arenas.source);
+
+        let Some(decl) = self.scope.lookup(ident_name).copied() else {
+            crate::fail_resolution!(
+                self,
+                ident,
+                diag::UndefinedIdentifier::new(dx, ident),
+                const_value_names
+            );
+        };
+
+        let Ok(resolution) = decl.try_into() else {
+            crate::fail_resolution!(
+                self,
+                ident,
+                diag::ExpectedConstValueIdentifier::new(dx, ident, decl),
+                const_value_names
+            );
+        };
+
+        self.tables.const_value_names.set(ident, resolution);
     }
 
     fn resolve_type_arg_ident(
