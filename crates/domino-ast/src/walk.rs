@@ -64,7 +64,7 @@ mod impls {
             ReductionMap, ReductionMapItem, SmtIdentifier, Theorem, TheoremItem,
         },
         types::{ArgumentedType, FnType, TupleType, Type, TypeArgument, TypeKind},
-        Trivia, Trivium,
+        File, Trivia, Trivium,
     };
 
     impl<IK: IdentifierKind> Walk for Identifier<IK> {
@@ -93,6 +93,30 @@ mod impls {
 
     impl Walk for Path {
         fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+    }
+
+    impl Walk for File<Package> {
+        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+            visitor.trivia(arenas, self.leading_trivia);
+            visitor.package(arenas, self.main);
+            visitor.trivia(arenas, self.trailing_trivia);
+        }
+    }
+
+    impl Walk for File<Game> {
+        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+            visitor.trivia(arenas, self.leading_trivia);
+            visitor.game(arenas, self.main);
+            visitor.trivia(arenas, self.trailing_trivia);
+        }
+    }
+
+    impl Walk for File<Theorem> {
+        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+            visitor.trivia(arenas, self.leading_trivia);
+            visitor.thm(arenas, self.main);
+            visitor.trivia(arenas, self.trailing_trivia);
+        }
     }
 
     impl Walk for Trivia {

@@ -272,3 +272,7 @@ path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT 
 // An identifier for SMT lemmas (allows hyphens).
 smt_identifier = @{ ( ASCII_ALPHA | "_" | "-" ) ~ ( ASCII_ALPHA | ASCII_DIGIT | "_" | "-" )* }
 
+
+package_file = { SOI ~ gap ~ package ~ gap ~ EOI }
+game_file = { SOI ~ gap ~ game ~ gap ~ EOI }
+theorem_file = { SOI ~ gap ~ theorem ~ gap ~ EOI }

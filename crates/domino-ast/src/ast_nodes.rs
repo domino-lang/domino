@@ -38,6 +38,13 @@ impl<T: NodeType + InArena> Ref<T> {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct File<T> {
+    pub leading_trivia: Ref<Trivia>,
+    pub main: Ref<T>,
+    pub trailing_trivia: Ref<Trivia>,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum Trivium {
     BlockComment,
     LineComment,
@@ -150,6 +157,10 @@ macro_rules! define_node_types {
 }
 
 define_node_types! {
+    PackageFile { package_file: File<package::Package> }
+    GameFile { game_file: File<game::Game> }
+    TheoremFile { theorem_file: File<theorem::Theorem> }
+
     Trivium { trivium: Trivium }
     Trivia { trivia: Trivia }
 

@@ -1,6 +1,6 @@
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{InArena, NodeType, Trivia},
+    ast_nodes::{game, package, theorem, InArena, NodeType, Trivia},
     source::FileId,
     State,
 };
@@ -66,12 +66,52 @@ pub fn parse_ref<T: Parsable>(
     Ref::<T>::from_parsed(state, loc, node)
 }
 
+impl Parsable for domino_ast::ast_nodes::File<package::Package> {
+    const RULE: Rule = Rule::package_file;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        let mut inner = pair.into_inner();
+
+        Self {
+            leading_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+            main: package::Package::parse_ref(file_id, state, inner.next().unwrap()),
+            trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+        }
+    }
+}
+
+impl Parsable for domino_ast::ast_nodes::File<game::Game> {
+    const RULE: Rule = Rule::game_file;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        let mut inner = pair.into_inner();
+
+        Self {
+            leading_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+            main: game::Game::parse_ref(file_id, state, inner.next().unwrap()),
+            trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+        }
+    }
+}
+
+impl Parsable for domino_ast::ast_nodes::File<theorem::Theorem> {
+    const RULE: Rule = Rule::theorem_file;
+
+    fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
+        let mut inner = pair.into_inner();
+
+        Self {
+            leading_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+            main: theorem::Theorem::parse_ref(file_id, state, inner.next().unwrap()),
+            trailing_trivia: Trivia::parse_ref(file_id, state, inner.next().unwrap()),
+        }
+    }
+}
+
 impl Parsable for domino_ast::ast_nodes::Trivium {
     const RULE: Rule = Rule::trivium;
 
     fn parse_inner(_file_id: FileId, _state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::trivium);
-
         match pair.into_inner().next().unwrap().as_rule() {
             Rule::newline => domino_ast::ast_nodes::Trivium::NewLine,
             Rule::block_comment => domino_ast::ast_nodes::Trivium::BlockComment,
@@ -85,8 +125,6 @@ impl Parsable for Trivia {
     const RULE: Rule = Rule::gap;
 
     fn parse_inner(file_id: FileId, state: &mut State, pair: crate::Pair) -> Self {
-        debug_assert_eq!(pair.as_rule(), Rule::gap);
-
         let mut trivia = vec![];
         trivia.extend(pair.into_inner().map(|trivium_pair| {
             domino_ast::ast_nodes::Trivium::parse(file_id, state, trivium_pair)
