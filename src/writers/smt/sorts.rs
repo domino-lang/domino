@@ -81,7 +81,9 @@ pub enum Sort {
 impl From<Type> for Sort {
     fn from(value: Type) -> Self {
         match value.into_kind() {
-            TypeKind::Bits(length) => Sort::Other(format!("Bits_{}", length.resolved_suffix()), vec![]),
+            TypeKind::Bits(length) => {
+                Sort::Other(format!("Bits_{}", length.resolved_suffix()), vec![])
+            }
             TypeKind::Maybe(t) => Sort::Other("Maybe".to_string(), vec![(*t).into()]),
             TypeKind::Boolean => Sort::Bool,
             TypeKind::Empty => Sort::Other("Empty".to_string(), vec![]),

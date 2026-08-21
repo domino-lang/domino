@@ -65,7 +65,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
             p.proofstep,
             &p.oracle,
             &p.claim,
-            p.only_induction_start
+            p.only_induction_start,
         )?;
     } else {
         return Err(IncompatibleArgumentsError.into());

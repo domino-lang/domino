@@ -6,10 +6,9 @@ use wildcard::Wildcard;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
+use crate::writers::smt::contexts::GameInstanceContext;
 use crate::{
-    gamehops::equivalence::{
-        error::{ClaimTheoremFailedError, Error, Result},
-    },
+    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
     project::Project,
     theorem::{Claim, ClaimType},
@@ -40,7 +39,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         req_oracle: Option<&'a str>,
         req_claim: Option<&'a str>,
         parallel: usize,
-        only_induction_start: bool
+        only_induction_start: bool,
     ) -> Self {
         let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
         Self {
@@ -51,7 +50,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             req_oracle,
             req_claim,
             parallel,
-            only_induction_start
+            only_induction_start,
         }
     }
 
@@ -115,7 +114,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .unwrap()
             .install(|| -> Vec<Result<()>> {
                 let verify_induction_start = rayon::iter::once(())
-                    .map(|_| self.verify_induction_start(ui.clone(), &smt));
+                    .map(|_| self.verify_induction_start(ui.clone(), &smt))
+                    .flatten();
 
                 if self.only_induction_start {
                     if self.req_oracle.is_some() {
@@ -142,39 +142,82 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         Ok(())
     }
 
+    fn generate_game_or_package_invariant_induction_start_asserts(&self) -> Vec<(String, SmtExpr)> {
+        self.generate_game_or_package_invariant_claims()
+            .iter()
+            .map(|claim| {
+                let claim_name = claim.name();
+                let gctx = match claim.ty {
+                    ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
+                        self.eqctx.left_game_inst_ctx()
+                    }
+                    ClaimType::RightGameInvariant | ClaimType::RightPackageInvariant => {
+                        self.eqctx.right_game_inst_ctx()
+                    }
+                    _ => unreachable!(),
+                };
+                let smt = self
+                    .eqctx
+                    .emit_game_or_package_invariant_induction_start_assert(claim_name, gctx);
+                (claim_name.to_string(), smt)
+            })
+            .collect()
+    }
+
     fn verify_induction_start<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
-        equivalence_smt: &Vec<SmtExpr>,
-    ) -> Result<()> {
-        let mut smt = equivalence_smt.clone();
+        equivalence_smt: &[SmtExpr],
+    ) -> Vec<Result<()>> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claim_group_name = "auto-generated:induction-start";
+        let claim_group_name: &str = "induction-start";
         let transcript_file_claim_group_name = "!induction-start!";
+
+        log::info!("verify: invariants in initial state");
+
+        let mut base_smt = equivalence_smt.to_owned();
+        // TODO (#365): this is temporary workaround until we make the invariants equivalence-wide.
+        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
+        let oracle_name = self.oracle_sequence().first().unwrap().name();
+        base_smt.append(&mut self.eqctx.emit_invariant(oracle_name));
+        base_smt.append(&mut self.eqctx.emit_initial_state_values());
+
+        let mut checks: Vec<(String, SmtExpr)> = vec![(
+            "equivalence".to_string(),
+            self.eqctx.emit_equivalence_induction_start_assert(),
+        )];
+        checks.append(&mut self.generate_game_or_package_invariant_induction_start_asserts());
 
         ui.lock().unwrap().start_claim_group(
             &self.eqctx.theorem().name,
             &proofstep_name,
             claim_group_name,
-            1,
+            checks.len().try_into().unwrap(),
         );
 
-        log::info!("verify: invariants in initial state");
-        // TODO (#365): this is temporary workaround until we make the invariants equivalence-wide.
-        // For future: It's fine to unwrap for now as we accept games that don't expose any oracles.
-        let oracle_name = self.oracle_sequence().first().unwrap().name();
-        smt.append(&mut self.eqctx.emit_invariant(oracle_name));
-        smt.append(&mut self.eqctx.emit_initial_state_values());
-        smt.push(self.eqctx.emit_induction_start_assert());
-
-        let result = self.verify_with_solver(
-            smt, 
-            claim_group_name, 
-            "equivalence-induction-start", 
-            transcript_file_claim_group_name, 
-            "!equivalence-induction-start!");
+        let result: Vec<_> = checks
+            .par_iter()
+            .filter(|(claim_name, _)| {
+                if let Some(req_claim) = &self.req_claim {
+                    req_claim.is_match(claim_name.as_bytes())
+                } else {
+                    true
+                }
+            })
+            .map(|(claim_name, assert)| {
+                let mut smt = base_smt.clone();
+                smt.push(assert.clone());
+                self.verify_with_solver(
+                    smt,
+                    claim_group_name,
+                    claim_name,
+                    transcript_file_claim_group_name,
+                    &format!("!{claim_name}!"),
+                )
+            })
+            .collect();
 
         ui.lock().unwrap().finish_claim_group(
             &self.eqctx.theorem().name,
@@ -185,10 +228,12 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         result
     }
 
-    fn generate_left_package_invariant_claims(&self) -> Vec<Claim> {
-        self.eqctx
-            .left_game_inst_ctx()
-            .game()
+    fn generate_package_invariant_claims(
+        &self,
+        gctx: GameInstanceContext<'a>,
+        claim_type: ClaimType,
+    ) -> Vec<Claim> {
+        gctx.game()
             .pkgs
             .iter()
             .filter_map(|pkg| {
@@ -198,10 +243,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     Some(Claim {
                         admitted: false,
                         dependencies: vec!["no-abort".to_string()],
-                        ty: ClaimType::LeftPackageInvariant,
+                        ty: claim_type,
                         name: format!(
                             "package-invariant!{}-{}!",
-                            self.eqctx.left_game_inst_ctx().game_inst().name(),
+                            gctx.game_inst_name(),
                             pkg.name()
                         ),
                     })
@@ -210,75 +255,53 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .collect()
     }
 
-    fn generate_right_package_invariant_claims(&self) -> Vec<Claim> {
-        self.eqctx
-            .right_game_inst_ctx()
-            .game()
-            .pkgs
-            .iter()
-            .filter_map(|pkg| {
-                if pkg.pkg.invariants.is_empty() {
-                    None
-                } else {
-                    Some(Claim {
-                        admitted: false,
-                        dependencies: vec!["no-abort".to_string()],
-                        ty: ClaimType::RightPackageInvariant,
-                        name: format!(
-                            "package-invariant!{}-{}!",
-                            self.eqctx.right_game_inst_ctx().game_inst().name(),
-                            pkg.name()
-                        ),
-                    })
-                }
-            })
-            .collect()
-    }
-
-    fn push_left_game_invariant_claim_if_exists(
-        &self, 
-        claims: &mut Vec<Claim>)
-    {
-        if !self.eqctx.left_game_inst_ctx().game().invariants.is_empty() {
-            claims.push(Claim {
+    fn generate_game_invariant_claim_if_exists(
+        &self,
+        gctx: GameInstanceContext<'a>,
+        claim_type: ClaimType,
+    ) -> Option<Claim> {
+        if !gctx.game().invariants.is_empty() {
+            Some(Claim {
                 admitted: false,
                 dependencies: vec!["no-abort".to_string()],
-                ty: ClaimType::LeftGameInvariant,
-                name: format!(
-                    "game-invariant!{}!",
-                    self.eqctx.left_game_inst_ctx().game_inst().name(),
-                ),
+                ty: claim_type,
+                name: format!("game-invariant!{}!", gctx.game_inst_name(),),
             })
+        } else {
+            None
         }
     }
 
-    fn push_right_game_invariant_claim_if_exists(
-        &self, 
-        claims: &mut Vec<Claim>)
-    {
-        if !self
-            .eqctx
-            .right_game_inst_ctx()
-            .game()
-            .invariants
-            .is_empty()
-        {
-            claims.push(Claim {
-                admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: ClaimType::RightGameInvariant,
-                name: format!(
-                    "game-invariant!{}!",
-                    self.eqctx.right_game_inst_ctx().game_inst().name(),
-                ),
-            })
+    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
+        let mut claims = vec![];
+        claims.extend(self.generate_package_invariant_claims(
+            self.eqctx.left_game_inst_ctx(),
+            ClaimType::LeftPackageInvariant,
+        ));
+        claims.extend(self.generate_package_invariant_claims(
+            self.eqctx.right_game_inst_ctx(),
+            ClaimType::RightPackageInvariant,
+        ));
+
+        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
+            self.eqctx.left_game_inst_ctx(),
+            ClaimType::LeftGameInvariant,
+        ) {
+            claims.push(claim);
         }
+        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
+            self.eqctx.right_game_inst_ctx(),
+            ClaimType::RightGameInvariant,
+        ) {
+            claims.push(claim);
+        }
+        claims
     }
 
     fn verify_oracle<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
-        equivalence_smt: &Vec<SmtExpr>,
+        equivalence_smt: &[SmtExpr],
         oracle: &Export,
     ) -> Vec<Result<()>> {
         let mut smt = Vec::new();
@@ -290,11 +313,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .equivalence()
             .proof_tree_by_oracle_name(oracle.name());
 
-        claims.extend(self.generate_left_package_invariant_claims());
-        claims.extend(self.generate_right_package_invariant_claims());
-
-        self.push_left_game_invariant_claim_if_exists(&mut claims);
-        self.push_right_game_invariant_claim_if_exists(&mut claims);
+        claims.append(&mut self.generate_game_or_package_invariant_claims());
 
         let claim_group_name = oracle.name().to_string();
 
@@ -336,10 +355,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     fn verify_claim<UI: TheoremUI>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
-        equivalence_smt: &Vec<SmtExpr>,
-        oracle_smt: &Vec<SmtExpr>,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
         oracle_name: &str,
-        claim: &Claim
+        claim: &Claim,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
@@ -364,33 +383,28 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
     fn do_verify_claim(
         &self,
-        equivalence_smt: &Vec<SmtExpr>,
-        oracle_smt: &Vec<SmtExpr>,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
         oracle_name: &str,
-        claim: &Claim
+        claim: &Claim,
     ) -> Result<()> {
         if claim.is_admitted() {
             return Ok(());
         }
 
-        let mut smt = equivalence_smt.clone();
-        smt.append(&mut oracle_smt.clone());
+        let mut smt = equivalence_smt.to_owned();
+        smt.append(&mut oracle_smt.to_owned());
         smt.push(self.eqctx.emit_oracle_claim_assert(claim, oracle_name));
-        self.verify_with_solver(
-            smt,
-            oracle_name,
-            claim.name(),
-            oracle_name,
-            claim.name()
-        )
+        self.verify_with_solver(smt, oracle_name, claim.name(), oracle_name, claim.name())
     }
 
-    fn verify_with_solver(&self,
+    fn verify_with_solver(
+        &self,
         smt: Vec<SmtExpr>,
         claim_group_name: &str,
         claim_name: &str,
         transcript_file_claim_group_name: &str,
-        transcript_file_claim_name: &str
+        transcript_file_claim_name: &str,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut solver = {
@@ -413,8 +427,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         .map_err(|err| Error::prover_process_error(claim_name, claim_group_name, err))?;
         std::thread::sleep(std::time::Duration::from_millis(20));
 
-        for entry in smt
-        {
+        for entry in smt {
             solver
                 .write_smt(entry.clone())
                 .map_err(|err| Error::prover_process_error(claim_name, claim_group_name, err))?;
@@ -434,13 +447,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     fname
                 });
                 solver.close();
-                return Err(ClaimTheoremFailedError {
+                Err(ClaimTheoremFailedError {
                     claim_name: claim_name.to_string(),
                     claim_group_name: claim_group_name.to_string(),
                     response,
                     modelfile,
                 }
-                .into());
+                .into())
             }
         }
     }

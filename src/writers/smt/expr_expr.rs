@@ -39,7 +39,9 @@ impl From<&Expression> for SmtExpr {
             ExpressionKind::StringLiteral(litname) => SmtExpr::Atom(format!("\"{litname}\"")),
             ExpressionKind::BooleanLiteral(litname) => SmtExpr::Atom(litname.to_string()),
             ExpressionKind::IntegerLiteral(litname) => SmtExpr::Atom(format!("{litname}")),
-            ExpressionKind::BitsLiteral(_, ty) if matches!(ty.kind(), TypeKind::Bits(CountSpec::Any)) => {
+            ExpressionKind::BitsLiteral(_, ty)
+                if matches!(ty.kind(), TypeKind::Bits(CountSpec::Any)) =>
+            {
                 SmtExpr::Atom("<empty-bitstring>".to_string())
             }
             ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {

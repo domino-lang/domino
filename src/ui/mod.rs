@@ -13,11 +13,9 @@ pub trait TheoremUI {
 
     fn start_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
 
-    fn proofstep_is_reduction(
-        &mut self, theorem_name: &str, proofstep_name: &str);
+    fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str);
 
-    fn proofstep_set_oracles(
-        &mut self, theorem_name: &str, proofstep_name: &str, num_oracles: u64);
+    fn proofstep_set_oracles(&mut self, theorem_name: &str, proofstep_name: &str, num_oracles: u64);
 
     fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
 
@@ -30,10 +28,11 @@ pub trait TheoremUI {
     );
 
     fn finish_claim_group(
-        &mut self, 
-        theorem_name: &str, 
-        proofstep_name: &str, 
-        claim_group_name: &str);
+        &mut self,
+        theorem_name: &str,
+        proofstep_name: &str,
+        claim_group_name: &str,
+    );
 
     fn start_claim(
         &mut self,
