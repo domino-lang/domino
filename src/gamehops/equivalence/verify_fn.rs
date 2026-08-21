@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use wildcard::Wildcard;
 
-use std::io::Write as _;
-use std::sync::{Arc, Mutex};
+use std::io::Write;
 
+use crate::ui::{ProveClaimUI, ProveGamehopUI, ProveOracleUI};
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
     project::Project,
     theorem::{Claim, ClaimType},
-    ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
@@ -50,14 +49,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         }
     }
 
-    pub(crate) fn verify<UI: TheoremUI + Send>(&mut self, ui: &mut UI) -> Result<()> {
+    pub(crate) fn verify(&mut self, ui: impl ProveGamehopUI) -> Result<()> {
         self.eqctx.verify_exports_match()?;
 
-        let ui = Arc::new(Mutex::new(ui));
         self.verify_equivalence(ui)
     }
 
-    fn verify_equivalence<UI: TheoremUI + Send>(&self, ui: Arc<Mutex<&mut UI>>) -> Result<()> {
+    fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut smt = Vec::new();
 
@@ -93,14 +91,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.append(&mut self.eqctx.emit_constant_declarations());
 
-        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         let oracle_sequence = self.oracle_sequence();
-
-        ui.lock().unwrap().proofstep_set_oracles(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            oracle_sequence.len().try_into().unwrap(),
-        );
 
         let failed_oracles: Vec<_> = rayon::ThreadPoolBuilder::new()
             .num_threads(self.parallel + 1) // one process is reserved for the "main" method
@@ -108,9 +99,15 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .unwrap()
             .install(|| -> Vec<Result<()>> {
                 oracle_sequence
-                    .par_iter()
-                    .map(|oracle| -> Vec<Result<()>> {
-                        self.verify_oracle(ui.clone(), &smt, oracle)
+                    .iter()
+                    .map(|export| {
+                        let oracle_ui = ui.start_oracle(export);
+                        (export, oracle_ui)
+                    })
+                    .collect::<Vec<_>>()
+                    .into_par_iter()
+                    .map(|(oracle, oracle_ui)| -> Vec<Result<()>> {
+                        self.verify_oracle(oracle_ui, &smt, oracle)
                     })
                     .flatten()
                     .collect()
@@ -125,18 +122,18 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 failed_oracles,
             });
         }
+        ui.finish();
         Ok(())
     }
 
-    fn verify_oracle<UI: TheoremUI + Send>(
+    fn verify_oracle(
         &self,
-        ui: Arc<Mutex<&mut UI>>,
+        mut ui: impl ProveOracleUI,
         equivalence_smt: &[SmtExpr],
         oracle: &Export,
     ) -> Vec<Result<()>> {
         let mut smt = Vec::new();
-        let eq = self.eqctx.equivalence();
-        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+        ui.start();
 
         let mut claims = self
             .eqctx
@@ -218,20 +215,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             })
         }
 
-        ui.lock().unwrap().start_oracle(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            oracle.name(),
-            claims.len().try_into().unwrap(),
-        );
-
         log::info!("verify: oracle:{oracle:?}");
         smt.extend(&mut self.eqctx.emit_return_value_helpers(oracle.name()));
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
         smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
 
         let result: Vec<_> = claims
-            .par_iter()
+            .iter()
             .filter(|claim| {
                 if let Some(req_claim) = &self.req_claim {
                     req_claim.is_match(claim.name.as_bytes())
@@ -239,36 +229,31 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     true
                 }
             })
-            .map(|claim| -> Result<()> {
-                self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle, claim)
+            .map(|claim| {
+                let claim_ui = ui.start_claim(claim);
+                (claim, claim_ui)
+            })
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|(claim, claim_ui)| -> Result<()> {
+                self.verify_claim(claim_ui, equivalence_smt, &smt, oracle, claim)
             })
             .collect();
 
-        ui.lock().unwrap().finish_oracle(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            oracle.name(),
-        );
-
+        ui.finish();
         result
     }
 
-    fn verify_claim<UI: TheoremUI>(
+    fn verify_claim(
         &self,
-        ui: Arc<Mutex<&mut UI>>,
+        mut ui: impl ProveClaimUI,
         equivalence_smt: &[SmtExpr],
         oracle_smt: &[SmtExpr],
         oracle: &Export,
         claim: &Claim,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
-        let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
-        ui.lock().unwrap().start_lemma(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            oracle.name(),
-            claim.name(),
-        );
+        ui.start();
 
         if !claim.is_admitted() {
             let mut solver = {
@@ -317,6 +302,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         fname
                     });
                     solver.close();
+                    ui.failure();
+
                     return Err(ClaimTheoremFailedError {
                         claim_name: claim.name().to_string(),
                         oracle_name: oracle.name().to_string(),
@@ -327,12 +314,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 }
             }
         }
-        ui.lock().unwrap().finish_lemma(
-            &self.eqctx.theorem().name,
-            &proofstep_name,
-            oracle.name(),
-            claim.name(),
-        );
+        ui.success();
 
         Ok(())
     }

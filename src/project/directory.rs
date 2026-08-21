@@ -87,13 +87,13 @@ impl<'a> DirectoryProject<'a> {
 }
 
 impl Project for DirectoryProject<'_> {
-    fn packages(&self) -> impl Iterator<Item = &str> {
+    fn packages(&self) -> impl ExactSizeIterator<Item = &str> {
         self.packages.keys().map(String::as_str)
     }
-    fn games(&self) -> impl Iterator<Item = &str> {
+    fn games(&self) -> impl ExactSizeIterator<Item = &str> {
         self.games.keys().map(String::as_str)
     }
-    fn theorems(&self) -> impl Iterator<Item = &str> {
+    fn theorems(&self) -> impl ExactSizeIterator<Item = &str> {
         self.theorems.keys().map(String::as_str)
     }
     fn get_package(&self, name: &str) -> Option<&Package> {

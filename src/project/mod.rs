@@ -21,7 +21,9 @@ use crate::{
     writers::smt::contexts::EquivalenceContext,
 };
 
-use crate::ui::{indicatif::IndicatifTheoremUI, TheoremUI};
+use crate::ui::{
+    LatexUI, LatexUIGameIterator, ProofstepUI, ProveGamehopUI, ProveTheoremUI, ProveUI,
+};
 
 mod consts;
 mod load;
@@ -39,9 +41,9 @@ pub mod error;
 pub trait Project {
     fn get_root_dir(&self) -> PathBuf;
 
-    fn theorems(&self) -> impl Iterator<Item = &str>;
-    fn packages(&self) -> impl Iterator<Item = &str>;
-    fn games(&self) -> impl Iterator<Item = &str>;
+    fn theorems(&self) -> impl ExactSizeIterator<Item = &str>;
+    fn packages(&self) -> impl ExactSizeIterator<Item = &str>;
+    fn games(&self) -> impl ExactSizeIterator<Item = &str>;
 
     fn get_theorem(&self, name: &str) -> Option<&Theorem<'_>>;
     fn get_game(&self, name: &str) -> Option<&Composition>;
@@ -49,7 +51,7 @@ pub trait Project {
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
-    fn proofsteps(&self) -> Result<()> {
+    fn proofsteps(&self, ui: impl ProofstepUI) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
@@ -63,33 +65,35 @@ pub trait Project {
                 .max()
                 .unwrap_or(0);
 
-            println!("{theorem_key}:");
+            ui.println(&format!("{theorem_key}:"))?;
             for (i, game_hop) in theorem.game_hops.iter().enumerate() {
                 match game_hop {
                     GameHop::Equivalence(eq) => {
                         let left_name = eq.left_name();
                         let right_name = eq.right_name();
                         let spaces = " ".repeat(max_width_left - left_name.len());
-                        println!("{i}: Equivalence {left_name}{spaces} == {right_name}");
+                        ui.println(&format!(
+                            "{i}: Equivalence {left_name}{spaces} == {right_name}"
+                        ))?;
                     }
                     GameHop::Reduction(red) => {
-                        println!(
+                        ui.println(&format!(
                             "{i}: Reduction   {} ~= {} using {}",
                             red.left().construction_game_instance_name().as_str(),
                             red.right().construction_game_instance_name().as_str(),
                             red.assumption_name()
-                        );
+                        ))?;
                     }
                     GameHop::Conjecture(conj) => {
-                        println!(
+                        ui.println(&format!(
                             "{i}: Conjecture   {} ~= {}",
                             conj.left_name().as_str(),
                             conj.right_name().as_str()
-                        );
+                        ))?;
                     }
                     GameHop::Hybrid(hybrid) => {
                         let hybrid_name = hybrid.hybrid_name().as_str();
-                        println!("hybrid: {hybrid_name}");
+                        ui.println(&format!("hybrid: {hybrid_name}"))?;
                     }
                 }
             }
@@ -101,6 +105,7 @@ pub trait Project {
     // we could then extract the theorem viewer output and other useful info trom the trace
     fn prove(
         &self,
+        ui: impl ProveUI,
         backend: &(impl SmtSolverBackend + Sync),
         transcript: bool,
         parallel: usize,
@@ -115,35 +120,42 @@ pub trait Project {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
-        let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
-
-        for theorem_key in theorem_keys.into_iter() {
+        for (theorem_key, mut ui) in theorem_keys
+            .into_iter()
+            .map(|theorem_name| (theorem_name, ui.start_theorem(theorem_name)))
+            .collect::<Vec<_>>()
+        {
+            ui.start();
             let theorem = self.get_theorem(theorem_key).unwrap();
-            ui.start_theorem(&theorem.name, theorem.game_hops.len().try_into().unwrap());
 
             if let Some(ref req_theorem) = req_theorem {
                 if theorem_key != req_theorem {
-                    ui.finish_theorem(&theorem.name);
+                    ui.finish();
                     continue;
                 }
             }
 
-            for (i, game_hop) in theorem.game_hops.iter().enumerate() {
-                ui.start_proofstep(&theorem.name, &format!("{game_hop}"));
-
+            for (i, game_hop, mut ui) in theorem
+                .game_hops
+                .iter()
+                .enumerate()
+                .map(|(idx, game_hop)| (idx, game_hop, ui.start_gamehop(game_hop)))
+                .collect::<Vec<_>>()
+            {
+                ui.start();
                 if let Some(ref req_proofstep) = req_proofstep {
                     if i != *req_proofstep {
-                        ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
+                        ui.finish();
                         continue;
                     }
                 }
 
                 match game_hop {
                     GameHop::Reduction(_) => {
-                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.is_reduction();
                     }
                     GameHop::Conjecture(_) => {
-                        ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
+                        ui.is_reduction();
                     }
                     GameHop::Equivalence(eq) => {
                         let (theorem, auxs) =
@@ -161,7 +173,7 @@ pub trait Project {
                             req_claim.as_deref(),
                             parallel,
                         );
-                        driver.verify(&mut ui)?;
+                        driver.verify(ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
                         let (theorem, auxs) =
@@ -179,24 +191,24 @@ pub trait Project {
                             req_claim.as_deref(),
                             parallel,
                         );
-                        driver.verify(&mut ui)?;
+                        driver.verify(ui)?;
                     }
                 }
-                ui.finish_proofstep(&theorem.name, &format!("{game_hop}"));
             }
 
-            ui.finish_theorem(&theorem.name);
+            ui.finish();
         }
 
+        ui.finish();
         Ok(())
     }
 
-    fn latex(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
+    fn latex(&self, ui: impl LatexUI, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
         let mut path = self.get_root_dir();
         path.push("_build/latex/");
         std::fs::create_dir_all(&path)?;
 
-        for name in self.games() {
+        for name in self.games().ui_iter(&ui, "Exporting Games") {
             let game = self.get_game(name).unwrap();
             let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
@@ -204,9 +216,14 @@ pub trait Project {
             let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
                 .transform()
                 .unwrap();
+            crate::writers::tex::writer::tex_write_composition_graph_file(
+                backend,
+                &transformed,
+                name,
+                path.as_path(),
+            )?;
             for lossy in [true, false] {
                 crate::writers::tex::writer::tex_write_composition(
-                    backend,
                     lossy,
                     &transformed,
                     name,
@@ -215,7 +232,7 @@ pub trait Project {
             }
         }
 
-        for name in self.theorems() {
+        for name in self.theorems().ui_iter(&ui, "Exporting Theorems") {
             let theorem = self.get_theorem(name).unwrap();
             for lossy in [true, false] {
                 crate::writers::tex::tex_write_theorem(
