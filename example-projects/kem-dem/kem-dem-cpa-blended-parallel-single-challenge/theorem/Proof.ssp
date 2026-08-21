@@ -242,31 +242,22 @@ theorem kem_dem_cpa_blended_parallel_single_challenge {
 
         /* Step 1: CPA_PKE = H0 */
         equivalence CPA_PKE H0 {
+            invariant: [ ./theorem/invariant-CPA_PKE-H0.smt2]
             PKGEN: {
                 randomness: simple
-
-                invariant: [
-                    ./theorem/invariant-CPA_PKE-H0.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKENC: {
                 randomness: simple
-
-                invariant: [
-                    ./theorem/invariant-CPA_PKE-H0.smt2
-                ]
-
                 lemmas {
-                    same-output: [no-abort]
-                    equal-aborts: []
-                    invariant: [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
+                    invariant:      [no-abort]
                 }
             }
         }
@@ -288,31 +279,27 @@ theorem kem_dem_cpa_blended_parallel_single_challenge {
 
         /* Step 3: H1 = H2 */
         equivalence H1 H2 {
-            PKGEN: {
-                randomness: simple
-                invariant: [
-                    ./theorem/invariant-H1-H2.smt2
-                ]
-
-                lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
-                }
-            }
-
-            PKENC: {
-                randomness: none
                 invariant: [
                     ./theorem/randomness-H1-H2.smt2,
                     ./theorem/invariant-H1-H2.smt2
                 ]
+            PKGEN: {
+                randomness: simple
 
                 lemmas {
-                    invariant: [no-abort, relation-randomness]
-                    same-output: [no-abort, relation-randomness]
-                    equal-aborts: [relation-randomness]
-                    relation-randomness: admit []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
+                }
+            }
+
+            PKENC: {
+                randomness: custom
+
+                lemmas {
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
         }

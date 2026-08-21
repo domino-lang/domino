@@ -288,10 +288,10 @@ theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assu
 
     /// An equivalence proof showing two games are indistinguishable using
     /// formal verification.
-    equivalence = { kw_equivalence ~ identifier ~ identifier ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
+    equivalence = { kw_equivalence ~ identifier ~ identifier ~ "{" ~ invariant_spec ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
 
       /// Specification for proving a single oracle pair equivalent.
-      equivalence_oracle = { identifier ~ ":" ~ "{" ~ randomness_spec? ~ invariant_spec ~ lemmas_spec? ~ "}"}
+      equivalence_oracle = { identifier ~ ":" ~ "{" ~ randomness_spec? ~ lemmas_spec? ~ "}"}
 
         /// auto randomness mapping
         randomness_spec = {kw_randomness ~ ":" ~ identifier}
@@ -310,7 +310,7 @@ theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assu
     hybrid = { kw_hybrid ~ identifier ~ "{" ~ hybrid_reduction ~ hybrid_equivalence ~ "}" }
 
       /// The equivalence part of the hybrid argument.
-      hybrid_equivalence = { kw_equivalence ~ "{" ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
+      hybrid_equivalence = { kw_equivalence ~ "{" ~ invariant_spec ~ equivalence_oracle ~ equivalence_oracle* ~ "}"}
 
       /// The reduction part of the hybrid argument.
       hybrid_reduction = { kw_reduction ~  "{" ~ reduction_spec ~ "}"}

@@ -25,7 +25,7 @@ pub struct Equivalence {
     // these two are game instance names
     pub(crate) left_name: String,
     pub(crate) right_name: String,
-    pub(crate) invariants: Vec<(String, Vec<String>)>,
+    pub(crate) invariants: Vec<String>,
     pub(crate) trees: Vec<(String, Vec<Claim>)>,
     pub(crate) randomness: Vec<(String, RandomnessType)>,
 }
@@ -34,7 +34,7 @@ impl Equivalence {
     pub fn new(
         left_name: String,
         right_name: String,
-        mut invariants: Vec<(String, Vec<String>)>,
+        mut invariants: Vec<String>,
         mut trees: Vec<(String, Vec<Claim>)>,
         mut randomness: Vec<(String, RandomnessType)>,
     ) -> Self {
@@ -63,23 +63,8 @@ impl Equivalence {
         &self.right_name
     }
 
-    pub fn get_invariants(&self, offs: usize) -> Option<&[String]> {
-        self.invariants
-            .get(offs)
-            .map(|(_name, invariants)| invariants.as_slice())
-    }
-
-    pub fn invariants_by_oracle_name(&self, oracle_name: &str) -> Vec<String> {
-        self.invariants
-            .iter()
-            .find_map(|(oracle_name_, invariants)| {
-                if oracle_name_.as_str() == oracle_name {
-                    Some(invariants.clone())
-                } else {
-                    None
-                }
-            })
-            .unwrap_or(vec![])
+    pub fn invariants(&self) -> &[String] {
+        &self.invariants
     }
 
     pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<Claim> {
@@ -226,97 +211,87 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn load_invariants(&mut self, project: &impl Project) -> Result<()> {
-        for export in self.oracle_sequence() {
-            let oracle_name = export.name();
-            let mut out = Vec::new();
-            //let mut linter = lint::Linter::new(self, oracle_name);
-            let left_gctx = self.left_game_inst_ctx();
-            let right_gctx = self.right_game_inst_ctx();
+        let mut out = Vec::new();
+        //let mut linter = lint::Linter::new(self, oracle_name);
+        let left_gctx = self.left_game_inst_ctx();
+        let right_gctx = self.right_game_inst_ctx();
 
-            // Emit package invariants
-            for pkg in &left_gctx.game().pkgs {
-                for file_name in &pkg.pkg.invariants {
-                    let file_contents = project.read_input_file(file_name).map_err(|err| {
-                        let file_name = file_name.to_string();
-                        error::new_invariant_file_read_error(
-                            oracle_name.to_string(),
-                            file_name,
-                            err,
-                        )
-                    })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        left_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
-                }
-            }
-            for pkg in &right_gctx.game().pkgs {
-                for file_name in &pkg.pkg.invariants {
-                    let file_contents = project.read_input_file(file_name).map_err(|err| {
-                        let file_name = file_name.to_string();
-                        error::new_invariant_file_read_error(
-                            oracle_name.to_string(),
-                            file_name,
-                            err,
-                        )
-                    })?;
-                    out.append(&mut smtrewrite::rewrite_package(
-                        self,
-                        right_gctx.game_inst(),
-                        pkg,
-                        &file_contents,
-                    )?);
-                }
-            }
-
-            // Load Game Invariants
-            for file_name in &left_gctx.game().invariants {
+        // Emit package invariants
+        for pkg in &left_gctx.game().pkgs {
+            for file_name in &pkg.pkg.invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
-                    error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
+                    error::new_invariant_file_read_error(file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
+                out.append(&mut smtrewrite::rewrite_package(
                     self,
                     left_gctx.game_inst(),
+                    pkg,
                     &file_contents,
                 )?);
             }
-            for file_name in &right_gctx.game().invariants {
+        }
+        for pkg in &right_gctx.game().pkgs {
+            for file_name in &pkg.pkg.invariants {
                 let file_contents = project.read_input_file(file_name).map_err(|err| {
                     let file_name = file_name.to_string();
-                    error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
+                    error::new_invariant_file_read_error(file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_game(
+                out.append(&mut smtrewrite::rewrite_package(
                     self,
                     right_gctx.game_inst(),
+                    pkg,
                     &file_contents,
                 )?);
             }
-
-            // Load the main Invariant
-            for file_name in &self.equivalence().invariants_by_oracle_name(oracle_name) {
-                log::info!("reading file {file_name}");
-                let file_contents = project.read_input_file(file_name).map_err(|err| {
-                    let file_name = file_name.clone();
-                    error::new_invariant_file_read_error(oracle_name.to_string(), file_name, err)
-                })?;
-                log::info!("read file {file_name}");
-                //linter.lint_file(file_name, &file_contents)?;
-                out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
-
-                // log::info!("wrote contents of file {file_name}");
-
-                // if comm.check_sat()? != SmtSolverResponse::Sat {
-                //     return Err(Error::UnsatAfterInvariantRead {
-                //         equivalence: self.equivalence.clone(),
-                //         oracle_name: oracle_name.to_string(),
-                //     });
-                // }
-            }
-            self.append_invariants(oracle_name, out);
         }
+
+        // Load Game Invariants
+        for file_name in &left_gctx.game().invariants {
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
+                let file_name = file_name.to_string();
+                error::new_invariant_file_read_error(file_name, err)
+            })?;
+            out.append(&mut smtrewrite::rewrite_game(
+                self,
+                left_gctx.game_inst(),
+                &file_contents,
+            )?);
+        }
+        for file_name in &right_gctx.game().invariants {
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
+                let file_name = file_name.to_string();
+                error::new_invariant_file_read_error(file_name, err)
+            })?;
+            out.append(&mut smtrewrite::rewrite_game(
+                self,
+                right_gctx.game_inst(),
+                &file_contents,
+            )?);
+        }
+
+        // Load the main Invariant
+        for file_name in self.equivalence().invariants() {
+            log::info!("reading file {file_name}");
+            let file_contents = project.read_input_file(file_name).map_err(|err| {
+                let file_name = file_name.clone();
+                error::new_invariant_file_read_error(file_name, err)
+            })?;
+            log::info!("read file {file_name}");
+            //linter.lint_file(file_name, &file_contents)?;
+            out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+
+            // log::info!("wrote contents of file {file_name}");
+
+            // if comm.check_sat()? != SmtSolverResponse::Sat {
+            //     return Err(Error::UnsatAfterInvariantRead {
+            //         equivalence: self.equivalence.clone(),
+            //         oracle_name: oracle_name.to_string(),
+            //     });
+            // }
+        }
+        self.append_invariants(out);
+
         //linter.lint_finish()?;
         Ok(())
     }

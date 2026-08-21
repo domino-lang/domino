@@ -1,5 +1,5 @@
 theorem HybridSecurity {
-    const n: Integer;
+     const n: Integer;
     const m: Integer;
     const p: Integer;
     const d: Integer;
@@ -116,12 +116,13 @@ theorem HybridSecurity {
 
     gamehops {
         equivalence CoreReal FirstHybrid {
+            invariant: [
+                    ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
+                    ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
+                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2                    
+                ]
             SETBIT: {
                 randomness: none
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
-                ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -129,11 +130,6 @@ theorem HybridSecurity {
                 }
             }
             GETAOUT: {
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
-                ]
-
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -143,17 +139,11 @@ theorem HybridSecurity {
             }
 
             GBLG: {
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
-                ]
-
                 lemmas {
                     case-i-is-one: [no-abort]
                     case-i-is-two: [no-abort]
                     case-i-gt-two: [no-abort]
-                    same-output:  [no-abort, case-i-is-one, case-i-is-two, case-i-gt-two]
+                    same-output:   [no-abort, case-i-is-one, case-i-is-two, case-i-gt-two]
                     abort-case-i-is-one: []
                     abort-case-i-is-two-assumptions: []
                     abort-case-i-is-two: [abort-case-i-is-two-assumptions]
@@ -165,10 +155,6 @@ theorem HybridSecurity {
 
             GETKEYSIN: {
                 randomness: none
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
-                ]
-
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -178,14 +164,15 @@ theorem HybridSecurity {
         }
 
         equivalence HybridIdeal HybridReal1 {
-            SETBIT: {
-                randomness: none
                 invariant: [
                     /* the following order matters during concatenation */
                     ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
+                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
                     ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
+                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
                 ]
-
+            SETBIT: {
+                randomness: none
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -193,13 +180,6 @@ theorem HybridSecurity {
                 }
             }
             GETAOUT: {
-                invariant: [
-                    /* the following order matters during concatenation */
-                    ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                ]
-
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -208,14 +188,6 @@ theorem HybridSecurity {
             }
 
             GBLG: {
-                invariant: [
-                    /* the following order matters during concatenation */
-                    ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
-                ]
-
                 lemmas {
                     inv-case-i-gt-hplustwo: [no-abort, inv-case-i-gt-hplustwo-assumptions]
                     inv-case-i-gt-hplustwo-assumptions: [no-abort]
@@ -264,12 +236,6 @@ theorem HybridSecurity {
 
             GETKEYSIN: {
                 randomness: none
-                invariant: [
-                    /* the following order matters during concatenation */
-                    ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                ]
-
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -279,25 +245,20 @@ theorem HybridSecurity {
         }
 
         equivalence CoreIdeal LastHybrid {
-            SETBIT: {
-                randomness: none
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
-                ]
-
-                lemmas {
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    
-                }
-            }
-            GETAOUT: {
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
                     ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
+                    ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
                 ]
-
+            SETBIT: {
+                randomness: none
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]                    
+                }
+            }
+            GETAOUT: {
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -307,28 +268,18 @@ theorem HybridSecurity {
             }
 
             GBLG: {
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
-                ]
-
                 lemmas {
-                    same-output:  [no-abort, case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
-                    equal-aborts: [case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
-                    case-i-is-dminusone: []
-                    case-i-is-d: []
-                    case-i-lt-dminusone: []
-                    invariant:    [no-abort]
+                    same-output:            [no-abort, case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
+                    equal-aborts:           [case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
+                    case-i-is-dminusone:    []
+                    case-i-is-d:            []
+                    case-i-lt-dminusone:    []
+                    invariant:              [no-abort]
                 }
             }
 
             GETKEYSIN: {
                 randomness: none
-                invariant: [
-                    ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
-                ]
-
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []

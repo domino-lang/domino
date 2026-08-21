@@ -933,6 +933,9 @@ pub(crate) fn handle_hybrid<'a>(
     debug_assert_eq!(reduction_ast.as_rule(), Rule::hybrid_reduction);
     let equivalence_ast = ast.next().unwrap();
     debug_assert_eq!(equivalence_ast.as_rule(), Rule::hybrid_equivalence);
+    let mut equivalence_ast = equivalence_ast.into_inner();
+    let invariant_ast = equivalence_ast.next().unwrap();
+    debug_assert_eq!(invariant_ast.as_rule(), Rule::invariant_spec);
 
     let left_reduction_name = format!("{}$false$", hybrid_name_ast.as_str());
     let right_reduction_name = format!("{}$true$", hybrid_name_ast.as_str());
@@ -947,9 +950,10 @@ pub(crate) fn handle_hybrid<'a>(
 
     let left_equiv_name = format!("{}$true$", hybrid_name_ast.as_str());
     let right_equiv_name = format!("{}$false$+", hybrid_name_ast.as_str());
+    let invariants = handle_invariant_spec(invariant_ast.into_inner());
+
     let equivalence = {
         let equivalence_data: Result<Vec<_>, _> = equivalence_ast
-            .into_inner()
             .map(|ast| handle_equivalence_oracle(ctx, ast))
             .collect();
         let equivalence_data = equivalence_data?;
@@ -957,13 +961,13 @@ pub(crate) fn handle_hybrid<'a>(
         let randomness: Vec<_> = equivalence_data
             .iter()
             .cloned()
-            .map(|(oracle_name, _, _, randomness)| (oracle_name, randomness))
+            .map(|(oracle_name, _, randomness)| (oracle_name, randomness))
             .collect();
 
         let trees: Vec<_> = equivalence_data
             .iter()
             .cloned()
-            .map(|(oracle_name, _, lemmas, _)| {
+            .map(|(oracle_name, lemmas, _)| {
                 (
                     oracle_name,
                     lemmas
@@ -974,12 +978,6 @@ pub(crate) fn handle_hybrid<'a>(
                         .collect(),
                 )
             })
-            .collect();
-
-        let invariants: Vec<_> = equivalence_data
-            .iter()
-            .cloned()
-            .map(|(oracle_name, inv_paths, _, _)| (oracle_name, inv_paths))
             .collect();
 
         if ctx.game_instance(&left_equiv_name).is_none() {
@@ -1034,6 +1032,10 @@ fn handle_equivalence<'a>(
 ) -> Result<GameHop<'a>, ParseTheoremError> {
     let mut ast = ast.into_inner();
     let (left_name, right_name) = handle_string_pair(&mut ast);
+    let invariant_ast = ast.next().unwrap();
+    debug_assert_eq!(invariant_ast.as_rule(), Rule::invariant_spec);
+
+    let invariants = handle_invariant_spec(invariant_ast.into_inner());
 
     let equivalence_data: Result<Vec<_>, _> =
         ast.map(|ast| handle_equivalence_oracle(ctx, ast)).collect();
@@ -1042,13 +1044,13 @@ fn handle_equivalence<'a>(
     let randomness: Vec<_> = equivalence_data
         .iter()
         .cloned()
-        .map(|(oracle_name, _, _, randomness)| (oracle_name, randomness))
+        .map(|(oracle_name, _, randomness)| (oracle_name, randomness))
         .collect();
 
     let trees: Vec<_> = equivalence_data
         .iter()
         .cloned()
-        .map(|(oracle_name, _, lemmas, _)| {
+        .map(|(oracle_name, lemmas, _)| {
             (
                 oracle_name,
                 lemmas
@@ -1059,12 +1061,6 @@ fn handle_equivalence<'a>(
                     .collect(),
             )
         })
-        .collect();
-
-    let invariants: Vec<_> = equivalence_data
-        .iter()
-        .cloned()
-        .map(|(oracle_name, inv_paths, _, _)| (oracle_name, inv_paths))
         .collect();
 
     if ctx.game_instance(left_name.as_str()).is_none() {
@@ -1101,7 +1097,6 @@ fn handle_equivalence_oracle(
 ) -> Result<
     (
         String,
-        Vec<String>,
         Vec<(String, BTreeSet<String>, bool)>,
         RandomnessType,
     ),
@@ -1110,7 +1105,6 @@ fn handle_equivalence_oracle(
     let mut span = ast.as_span();
     let mut ast = ast.into_inner();
     let oracle_name = ast.next().unwrap().as_str();
-    let mut invariant_paths = Vec::new();
     let mut lemmas = Vec::new();
     let mut randomness = RandomnessType::Custom;
 
@@ -1132,9 +1126,6 @@ fn handle_equivalence_oracle(
                         .into())
                     }
                 }
-            }
-            Rule::invariant_spec => {
-                invariant_paths.extend(handle_invariant_spec(next.into_inner()));
             }
             Rule::lemmas_spec => {
                 span = next.as_span();
@@ -1163,7 +1154,7 @@ fn handle_equivalence_oracle(
     }
     verify_induction_step(ctx, &lemmas, (span.start()..span.end()).into())?;
 
-    Ok((oracle_name.to_string(), invariant_paths, lemmas, randomness))
+    Ok((oracle_name.to_string(), lemmas, randomness))
 }
 
 fn handle_invariant_spec(ast: Pairs<Rule>) -> Vec<String> {

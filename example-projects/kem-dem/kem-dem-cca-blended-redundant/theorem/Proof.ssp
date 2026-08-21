@@ -337,42 +337,31 @@ theorem kem_dem_cca_blended_redundant {
 
     gamehops {
         equivalence CCA_PKE H0 {
+            invariant: [ ./theorem/invariant-CCA_PKE-H0.smt2]
             PKGEN: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-CCA_PKE-H0.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKENC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-CCA_PKE-H0.smt2
-                ]
-
                 lemmas {
-                    same-output: [no-abort]
-                    equal-aborts: []
-                    invariant: [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
+                    invariant:      [no-abort]
                 }
             }
 
             PKDEC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-CCA_PKE-H0.smt2
-                ]
-
                 lemmas {
-                    same-output: [no-abort]
-                    equal-aborts: []
-                    invariant: [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
+                    invariant:      [no-abort]
                 }
             }
         }
@@ -392,82 +381,60 @@ theorem kem_dem_cca_blended_redundant {
         }
 
         equivalence H1 Perfect_KEM {
+            invariant: [ ./theorem/invariant-H1-Perfect_KEM.smt2]
             PKGEN: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-H1-Perfect_KEM.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKENC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-H1-Perfect_KEM.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKDEC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-H1-Perfect_KEM.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
         }
 
         equivalence Perfect_KEM H2 {
+            invariant: [ ./theorem/invariant-Perfect_KEM-H2.smt2]
             PKGEN: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-Perfect_KEM-H2.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKENC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-Perfect_KEM-H2.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKDEC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-Perfect_KEM-H2.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
                     equal-aborts: []
                 }
             }
@@ -488,85 +455,67 @@ theorem kem_dem_cca_blended_redundant {
         }
 
         equivalence H3 Ideal_KEM {
-            PKGEN: {
-                randomness: simple
-                invariant: [
-                    ./theorem/invariant-H3-Ideal_KEM.smt2
-                ]
-
-                lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
-                }
-            }
-
-            PKENC: {
                 invariant: [
                     ./theorem/randomness-H3-Ideal_KEM.smt2
                     ./theorem/invariant-H3-Ideal_KEM.smt2
                 ]
-
+            PKGEN: {
+                randomness: simple
                 lemmas {
-                    invariant: [no-abort, relation-randomness]
-                    same-output: [no-abort, relation-randomness]
-                    equal-aborts: [relation-randomness]
-                    relation-randomness: admit []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
+                }
+            }
+
+            PKENC: {
+                randomness: custom
+                lemmas {
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKDEC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-H3-Ideal_KEM.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
         }
 
         equivalence Ideal_KEM H4 {
-            PKGEN: {
-                randomness: simple
-                invariant: [
-                    ./theorem/invariant-Ideal_KEM-H4.smt2
-                ]
-
-                lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
-                }
-            }
-
-            PKENC: {
                 invariant: [
                     ./theorem/randomness-Ideal_KEM-H4.smt2
                     ./theorem/invariant-Ideal_KEM-H4.smt2
                 ]
-
+            PKGEN: {
+                randomness: simple
                 lemmas {
-                    invariant: [no-abort, relation-randomness]
-                    same-output: [no-abort, relation-randomness]
-                    equal-aborts: [relation-randomness]
-                    relation-randomness: admit []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
+                }
+            }
+
+            PKENC: {
+                randomness: custom
+                lemmas {
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKDEC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant-Ideal_KEM-H4.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
         }

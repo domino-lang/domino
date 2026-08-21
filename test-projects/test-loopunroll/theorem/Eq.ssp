@@ -4,11 +4,11 @@ theorem Eq {
 
     gamehops {
         equivalence A B {
-            Test: {
-                randomness: simple
                 invariant: [
                     theorem/invariant.smt2
                 ]
+            Test: {
+                randomness: simple
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]

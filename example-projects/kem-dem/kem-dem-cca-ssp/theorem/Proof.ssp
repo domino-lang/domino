@@ -235,44 +235,33 @@ theorem kem_dem_cca_ssp {
         /* We first prove real/ideal PKE-CCA game is equivalent to the modular 
         version (i.e. Game_MOD_CCA_PKE_Real_KEM) */
         equivalence Game_MON_CCA_PKE Game_MOD_CCA_PKE_Real_KEM {
+                invariant: [ ./theorem/invariant.smt2]
             PKGEN: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
                 lemmas {
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKENC: {
                 randomness: simple
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
                 lemmas {
                     lemma-kem-correctness: admit []
-                    invariant: [no-abort, lemma-kem-correctness]
-                    same-output: [no-abort]
-                    equal-aborts: []
+                    invariant:      [no-abort, lemma-kem-correctness]
+                    same-output:    [no-abort]
+                    equal-aborts:   []
                 }
             }
 
             PKDEC: {
                 randomness: none
-                invariant: [
-                    ./theorem/invariant.smt2
-                ]
-
                 lemmas {
                     lemma-kem-correctness: admit []
-                    invariant: [no-abort]
-                    same-output: [no-abort, lemma-kem-correctness]
-                    equal-aborts: []
+                    invariant:      [no-abort]
+                    same-output:    [no-abort, lemma-kem-correctness]
+                    equal-aborts:   []
                 }
             }
         }

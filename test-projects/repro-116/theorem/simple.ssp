@@ -9,8 +9,8 @@ theorem Simple {
 
     gamehops {
         equivalence l r {
-            Sample: {
                 invariant: [ ./theorem/invariant.smt ]
+            Sample: {
                 lemmas {
                     equal-aborts: []
                     invariant: [no-abort]

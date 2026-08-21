@@ -1,17 +1,14 @@
-(define-state-relation relation-randomness
-    (left-game right-game)
-    (and
-        (rand-is-eq
-            (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")
-            (get-rand-ctr-H3 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-            (get-rand-ctr-H4 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
-        )
-        (rand-is-eq
-            (sample-id "CCA_KEM" "ENCAPS" "k")
-            (sample-id "CCA_DEM" "ENC" "k")
-            (get-rand-ctr-H3 (sample-id "CCA_KEM" "ENCAPS" "k"))
-            (get-rand-ctr-H4 (sample-id "CCA_DEM" "ENC" "k"))
-        )
-    )
-)
+(define-fun randomness-mapping-PKENC
+    ((id-0 SampleId) (id-1 SampleId)
+     (offset-0 Int) (offset-1 Int))
+  Bool
+  (or
+    (and    (= offset-0 0)
+            (= offset-1 0)
+            (= id-0 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps"))
+            (= id-1 (sample-id "Scheme_KEM" "KEM_ENCAPS" "kem_encaps")))
+    (and    (= offset-0 0)
+            (= offset-1 0)
+            (= id-0 (sample-id "CCA_KEM" "ENCAPS" "k"))
+            (= id-1 (sample-id "CCA_DEM" "ENC"    "k")))
+))

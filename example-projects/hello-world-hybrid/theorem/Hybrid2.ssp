@@ -31,12 +31,11 @@ theorem Hybrid2 {
         }
       }
       equivalence {
+        invariant: [ ./theorem/invariant.smt2 ]
         Run: {
-          invariant: [ ./theorem/invariant.smt2 ]
           lemmas {}
         }
         Eval: {
-          invariant: [ ./theorem/invariant.smt2 ]
           lemmas {}
         }
       }

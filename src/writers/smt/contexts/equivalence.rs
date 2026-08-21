@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 mod emit;
 
@@ -33,7 +33,7 @@ pub struct EquivalenceContext<'a> {
     equivalence: &'a Equivalence,
     theorem: &'a Theorem<'a>,
     auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
-    invariants: HashMap<String, Vec<SmtExpr>>,
+    invariants: Vec<SmtExpr>,
 }
 
 // simple getters
@@ -47,7 +47,7 @@ impl<'a> EquivalenceContext<'a> {
             equivalence,
             theorem,
             auxs,
-            invariants: HashMap::new(),
+            invariants: Vec::new(),
         }
     }
 
@@ -59,17 +59,8 @@ impl<'a> EquivalenceContext<'a> {
         self.equivalence
     }
 
-    pub(crate) fn append_invariants(
-        &mut self,
-        oracle_name: &str,
-        mut new_invariants: Vec<SmtExpr>,
-    ) {
-        if let Some(current) = self.invariants.get_mut(oracle_name) {
-            current.append(&mut new_invariants);
-        } else {
-            self.invariants
-                .insert(oracle_name.to_string(), new_invariants);
-        }
+    pub(crate) fn append_invariants(&mut self, mut new_invariants: Vec<SmtExpr>) {
+        self.invariants.append(&mut new_invariants);
     }
 }
 
