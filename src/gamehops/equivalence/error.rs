@@ -30,6 +30,11 @@ pub enum Error {
         invariant_file_name: String,
         err: std::io::Error,
     },
+    #[error("claim {claim_name} declared in theorem file for oracle {oracle_name} has no corresponding function in smt")]
+    ClaimNoSmt {
+        oracle_name: String,
+        claim_name: String,
+    },
     #[error("parameter {mismatching_param_name} does not match in equivalence theorem of game instances {left_game_inst_name} and {right_game_inst_name}")]
     CompositionParamMismatch {
         left_game_inst_name: String,

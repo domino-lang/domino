@@ -26,7 +26,7 @@ use crate::{
         Rule,
     },
     proof::Proof,
-    theorem::{Claim, GameInstance, RandomnessType, Theorem},
+    theorem::{GameInstance, ParsedClaim, RandomnessType, Theorem},
     types::Type,
     util::scope::{Declaration, Error as ScopeError, Scope},
 };
@@ -969,7 +969,11 @@ pub(crate) fn handle_hybrid<'a>(
                     lemmas
                         .into_iter()
                         .map(|(name, dependencies, admitted)| {
-                            Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
+                            ParsedClaim::from_tuple((
+                                name,
+                                dependencies.into_iter().collect(),
+                                admitted,
+                            ))
                         })
                         .collect(),
                 )
@@ -1054,7 +1058,11 @@ fn handle_equivalence<'a>(
                 lemmas
                     .into_iter()
                     .map(|(name, dependencies, admitted)| {
-                        Claim::from_tuple((name, dependencies.into_iter().collect(), admitted))
+                        ParsedClaim::from_tuple((
+                            name,
+                            dependencies.into_iter().collect(),
+                            admitted,
+                        ))
                     })
                     .collect(),
             )

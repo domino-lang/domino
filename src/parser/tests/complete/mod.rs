@@ -13,7 +13,7 @@ use crate::{
         Identifier,
     },
     statement::Statement,
-    theorem::{Claim, ClaimType},
+    theorem::ParsedClaim,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     types::{CountSpec, Type, TypeKind},
     util::smtsolver::process::{ProcessSmtSolverBackend, SolverVariant},
@@ -157,27 +157,23 @@ fn equivalence_parses() {
         vec![(
             "N".into(),
             vec![
-                Claim {
+                ParsedClaim {
                     name: "invariant".into(),
-                    ty: ClaimType::Invariant,
                     dependencies: vec![],
                     admitted: false,
                 },
-                Claim {
+                ParsedClaim {
                     name: "equal-aborts".into(),
-                    ty: ClaimType::Lemma,
                     dependencies: vec![],
                     admitted: false
                 },
-                Claim {
+                ParsedClaim {
                     name: "same-output".into(),
-                    ty: ClaimType::Lemma,
                     dependencies: vec![],
                     admitted: false
                 },
-                Claim {
+                ParsedClaim {
                     name: "smt_ident".into(),
-                    ty: ClaimType::Lemma,
                     dependencies: vec![],
                     admitted: false
                 },
