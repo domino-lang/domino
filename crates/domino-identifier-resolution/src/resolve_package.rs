@@ -494,7 +494,7 @@ impl<'a> PackageVisitor<'a> {
     ) {
         let oracle_def = arenas.oracle_def.get(oracle_def_ref);
         let oracle_sig = arenas.oracle_def_sig.get(oracle_def.oracle_sig);
-        let ident_name = get_text(oracle_sig.name, &self.locations, &arenas.source);
+        let ident_name = get_text(oracle_sig.name, self.locations, &arenas.source);
 
         self.info
             .as_mut()
@@ -509,7 +509,7 @@ impl<'a> PackageVisitor<'a> {
 
     fn declare_oracle_arg(&mut self, arenas: &Arenas, decl_ref: Ref<oracles::OracleValueArgDecl>) {
         let decl = arenas.oracle_value_arg_decl.get(decl_ref);
-        let ident_name = get_text(decl.name, &self.locations, &arenas.source);
+        let ident_name = get_text(decl.name, self.locations, &arenas.source);
 
         self.tables
             .oracle_value_names
@@ -695,7 +695,7 @@ impl<'a> PackageVisitor<'a> {
     ) {
         let dx = Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
         let ident_name = get_text(ident, self.locations, &arenas.source);

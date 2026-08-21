@@ -72,10 +72,7 @@ enum Position {
 
     /// We are in the inner part of a transition, i.e. the one that maps a package instances oracles
     /// to the callee package instances.
-    Composition(
-        Ref<identifier::PackageInstanceIdentifier>,
-        PackageInstanceResolution,
-    ),
+    Composition(PackageInstanceResolution),
 }
 
 impl Position {
@@ -253,7 +250,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         let item = arenas.compose_pkg_inst_item.get(node);
         let resolution = self.resolve_pkg_inst(arenas, item.pkg_inst_name);
 
-        self.position = Position::Composition(item.pkg_inst_name, resolution);
+        self.position = Position::Composition(resolution);
         self.compose_oracle_item_list(arenas, item.items);
         self.position = Position::TopLevel;
     }
@@ -270,7 +267,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
 
         let item = arenas.compose_oracle_item.get(node);
 
-        let Position::Composition(_, left_resolution) = self.position else {
+        let Position::Composition(left_resolution) = self.position else {
             unreachable!()
         };
 
@@ -279,7 +276,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
 
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
         // resolve caller
@@ -359,7 +356,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     }
 
     fn declare_type_param(&mut self, arenas: &Arenas, ty: Ref<identifier::GameTypeIdentifier>) {
-        let ident_name = get_text(ty, &self.locations, &arenas.source);
+        let ident_name = get_text(ty, self.locations, &arenas.source);
         self.tables
             .game_type_names
             .set(ty, GameTypeResolution::TypeParam(ty));
@@ -414,7 +411,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     ) -> Result<PackageInstanceInfo, Ref<diag::Diagnostic>> {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
         let inst = arenas.game_inst_block.get(pkg_inst);
@@ -446,10 +443,10 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     fn resolve_type(&mut self, arenas: &Arenas, node: Ref<identifier::GameTypeIdentifier>) {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
-        let name = get_text(node, &self.locations, &arenas.source);
+        let name = get_text(node, self.locations, &arenas.source);
 
         let resolution = match self.scope.lookup(name).cloned() {
             Some(GameDeclaration::BuiltinType(ty)) => GameTypeResolution::Builtin(ty),
@@ -478,10 +475,10 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     fn resolve_pkg(&mut self, arenas: &Arenas, node: Ref<identifier::PackageIdentifier>) {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
-        let name = get_text(node, &self.locations, &arenas.source);
+        let name = get_text(node, self.locations, &arenas.source);
         let Some(pkg_info) = self.packages.get(name) else {
             crate::fail_resolution!(
                 self,
@@ -503,11 +500,11 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     ) -> PackageInstanceResolution {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
         // look up the package instance from the scope
-        let name = get_text(node, &self.locations, &arenas.source);
+        let name = get_text(node, self.locations, &arenas.source);
 
         //
         let resolution = if name == "adversary" {
@@ -550,14 +547,14 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     ) {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
 
         // SAFETY: this function is only called when we are inside a package instance block, so this is set
         let pkg_inst_info = self.position.pkg_inst_mut().unwrap();
         let in_package_instance = *arenas.game_inst_block.get(pkg_inst_info.pkg_inst);
 
-        let const_name = get_text(node, &self.locations, &arenas.source);
+        let const_name = get_text(node, self.locations, &arenas.source);
         let pkg_name = get_text(
             in_package_instance.instantiated_name,
             self.locations,
@@ -592,7 +589,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     ) {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
         let oracle_name = self.get_text(arenas, node);
 
@@ -632,7 +629,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     ) {
         let dx = domino_diagnostic::Resolver {
             arenas,
-            locations: &self.locations,
+            locations: self.locations,
         };
         let oracle_name = self.get_text(arenas, node);
 

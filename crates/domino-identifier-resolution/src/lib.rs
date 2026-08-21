@@ -193,7 +193,7 @@ impl<'arena> Resolver<'arena> {
         let mut info = None;
 
         let mut visitor = resolve_game::GameVisitor::new(
-            &self.locations,
+            self.locations,
             &mut self.diagnostics,
             tables,
             &mut info,
@@ -216,7 +216,7 @@ impl<'arena> Resolver<'arena> {
         &self.pkg_infos
     }
 
-    pub fn finish(mut self) -> IdentifierResolution<'arena> {
+    pub fn finish(self) -> IdentifierResolution<'arena> {
         let failed = print_missing! {
             self,
             pkg_names,
@@ -346,10 +346,10 @@ macro_rules! print_missing {
             locations: $self.locations,
         };
 
-        fn print_missing<T: domino_ast::ast_nodes::InArena + domino_ast::ast_nodes::NodeType>(dx: domino_diagnostic::Resolver, diags: &mut Arena<diag::Diagnostic>, name: &'static str, mut missing: impl Iterator<Item = Ref<T>>) {
+        fn print_missing<T: domino_ast::ast_nodes::InArena + domino_ast::ast_nodes::NodeType>(dx: domino_diagnostic::Resolver,  name: &'static str, mut missing: impl Iterator<Item = Ref<T>>) {
 
             if let Some(first) = missing.next() {
-                let mut errs = vec![diag::MissingResolution::new(dx, name, first).into()];
+                let mut errs = vec![diag::MissingResolution::new(dx, name, first)];
 
                 print!("{name} is missing: {first:?}");
 
@@ -370,7 +370,7 @@ macro_rules! print_missing {
             let mut missing = $self.$name.missing().peekable();
             failed |= missing.peek().is_some();
 
-            print_missing(dx, &mut $self.diagnostics, stringify!($name), missing);
+            print_missing(dx, stringify!($name), missing);
 
         };)*
 
