@@ -489,7 +489,7 @@ stmt = _{ assign | invoke_stmt | return_stmt | assert | abort | ite | for_ }
 invoke_stmt = { kw_invoke ~ oracle_call ~ ";" }
 
 /// An if-then-else statement.
-ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
+ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ ( "{" ~ code ~ "}" | ite ) )? }
 
 /// Assign an expression to a variable.
 assign = { pattern ~ "<-" ~ kw_parse? ~ assign_rhs ~ ";" }
