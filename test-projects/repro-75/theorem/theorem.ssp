@@ -5,8 +5,8 @@ theorem Theorem {
 
   gamehops {
     equivalence X Y {
-      Run: {
         invariant: [ ./theorem/invariant.smt2 ]
+      Run: {
         lemmas {
           same-output:  [no-abort]
           invariant:    [no-abort]

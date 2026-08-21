@@ -15,8 +15,8 @@ theorem SplitInvokeProof {
 
     gamehops {
         equivalence game_split game_tmp {
-            Query: {
                 invariant: ./theorem/invariant.smt2
+            Query: {
                 lemmas {
                     same-output: []
                     equal-aborts: []
