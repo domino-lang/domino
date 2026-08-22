@@ -227,9 +227,9 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
 
         let const_name = get_text(item.ident, self.locations, &arenas.source);
 
-        let pkg_inst_info = self.position.pkg_inst_mut().unwrap();
-
-        pkg_inst_info
+        self.position
+            .pkg_inst_mut()
+            .unwrap()
             .const_assignments
             .insert(const_name.to_string(), node);
     }
@@ -270,9 +270,6 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         let Position::Composition(left_resolution) = self.position else {
             unreachable!()
         };
-
-        // XXX: currently both resolve_oracle_in_x functions write into the same side table. These
-        //      should either be different ones or append instead of overwrite
 
         let dx = domino_diagnostic::Resolver {
             arenas,
@@ -330,6 +327,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
     }
 
     // ignore trivia
+    #[inline]
     fn trivia(
         &mut self,
         _arenas: &domino_ast::Arenas,
@@ -379,7 +377,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         node: Ref<game::InstanceBlock>,
         info: PackageInstanceInfo,
     ) {
-        let decl = arenas.game_inst_block.get(node);
+        let block = arenas.game_inst_block.get(node);
         let name = get_text(info.name, self.locations, &arenas.source);
 
         let declare_scope_ok = self
@@ -399,7 +397,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         debug_assert_eq!(declare_scope_ok, declare_info_ok);
 
         self.tables.pkg_inst_names.set(
-            decl.instance_name,
+            block.instance_name,
             PackageInstanceResolution::PackageInstance(node),
         );
     }

@@ -4,6 +4,7 @@ use domino_ast::{
     arena::Ref,
     ast_nodes::{identifier, oracles, package, statements, types, Visitor},
     source::SourceLocation,
+    walk::Walk,
     Arenas, GlobalTable, PartialDenseTable,
 };
 use domino_diagnostic::Resolver;
@@ -234,10 +235,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn package(&mut self, arenas: &Arenas, node: Ref<package::Package>) {
         let package = arenas.package.get(node);
 
-        *self.info = Some(PackageInfo::new(node, package.name));
-        self.tables
-            .pkg_names
-            .set(package.name, resolutions::PackageResolution::Package(node));
+        self.declare_package(node, *package);
 
         self.scope.enter();
         self.pkg_item_list(arenas, package.items);
@@ -272,24 +270,16 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     }
 
     fn pkg_type_decl_list(&mut self, arenas: &Arenas, node: Ref<package::PackageTypeDeclList>) {
+        // We do this in here, because if we just keep walking, we can't distinguish the type
+        // identifiers here in the declaration block with type identifiers used throughout.
+        // TODO: Look into doing this through more fine-grained IdentifierKinds.
+
         arenas
             .pkg_type_decl_list
             .get(node)
             .items
             .refs()
-            .for_each(|type_name| {
-                let name = get_text(type_name, self.locations, &arenas.source);
-                self.info
-                    .as_mut()
-                    .unwrap()
-                    .type_params
-                    .insert(name.to_string(), type_name);
-                self.scope
-                    .declare(name, PackageDeclaration::TypeParam(type_name));
-                self.tables
-                    .type_names
-                    .set(type_name, PackageTypeResolution::TypeParam(type_name));
-            })
+            .for_each(|type_name| self.declare_type_param(arenas, type_name))
     }
 
     fn pkg_const_param_block(
@@ -346,30 +336,13 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     //       for whether we are allowed to write there
     fn pkg_const_decl(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {
         let decl = arenas.pkg_const_decl.get(node);
-        let name = get_text(decl.name, self.locations, &arenas.source);
         self.package_type(arenas, decl.ty);
 
         if self.inside_state {
-            self.info
-                .as_mut()
-                .unwrap()
-                .state
-                .insert(name.to_string(), node);
-            self.scope.declare(name, PackageDeclaration::State(node));
+            self.declare_state_item(arenas, node);
         } else {
-            self.info
-                .as_mut()
-                .unwrap()
-                .const_params
-                .insert(name.to_string(), node);
-            self.scope.declare(name, PackageDeclaration::Const(node));
+            self.declare_const_param(arenas, node);
         }
-
-        self.tables.const_value_names.set(
-            decl.name,
-            resolutions::PackageConstValueResolution::ConstParam(node),
-        );
-        self.tables.is_state.set(node, self.inside_state);
     }
 
     fn pkg_const_value_ident(
@@ -380,30 +353,16 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.resolve_pkg_const_value_ident(arenas, node);
     }
 
-    fn import_oracle_block(&mut self, arenas: &Arenas, node: Ref<package::ImportOraclesBlock>) {
-        let decls = arenas.import_oracle_block.get(node).decls;
-        arenas
-            .oracle_decl_list
-            .get(decls)
-            .items
-            .refs()
-            .for_each(|node| {
-                self.oracle_import_sig(arenas, node);
-
-                let sig = arenas.oracle_import_sig.get(node);
-                let name = get_text(sig.name, self.locations, &arenas.source);
-
-                self.info
-                    .as_mut()
-                    .unwrap()
-                    .oracle_imports
-                    .insert(name.to_string(), node);
-                self.scope
-                    .declare(name, PackageDeclaration::OracleImport(node));
-                self.tables
-                    .oracle_import_names
-                    .set(sig.name, OracleImportResolution::Import(node));
-            });
+    fn oracle_import_sig(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<
+            oracles::OracleSignature<identifier::OracleImportIdentifierKind>,
+        >,
+    ) {
+        let sig = *arenas.oracle_import_sig.get(node);
+        sig.walk(self, arenas);
+        self.declare_oracle_import(arenas, node, sig);
     }
 
     fn oracle_def(&mut self, arenas: &Arenas, node: Ref<oracles::OracleDefinition>) {
@@ -478,6 +437,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     }
 
     // ignore trivia
+    #[inline]
     fn trivia(
         &mut self,
         _arenas: &domino_ast::Arenas,
@@ -487,6 +447,90 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 }
 
 impl<'a> PackageVisitor<'a> {
+    fn declare_package(&mut self, node: Ref<package::Package>, package: package::Package) {
+        *self.info = Some(PackageInfo::new(node, package.name));
+        self.tables
+            .pkg_names
+            .set(package.name, resolutions::PackageResolution::Package(node));
+    }
+
+    fn declare_type_param(
+        &mut self,
+        arenas: &Arenas,
+        node: Ref<identifier::PackageTypeIdentifier>,
+    ) {
+        let name = get_text(node, self.locations, &arenas.source);
+
+        self.info
+            .as_mut()
+            .unwrap()
+            .type_params
+            .insert(name.to_string(), node);
+        self.tables
+            .type_names
+            .set(node, PackageTypeResolution::TypeParam(node));
+
+        self.scope
+            .declare(name, PackageDeclaration::TypeParam(node));
+    }
+
+    fn declare_const_param(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {
+        let decl = arenas.pkg_const_decl.get(node);
+        let name = get_text(decl.name, self.locations, &arenas.source);
+
+        self.info
+            .as_mut()
+            .unwrap()
+            .const_params
+            .insert(name.to_string(), node);
+        self.tables.const_value_names.set(
+            decl.name,
+            resolutions::PackageConstValueResolution::ConstParam(node),
+        );
+        self.tables.is_state.set(node, false);
+
+        self.scope.declare(name, PackageDeclaration::Const(node));
+    }
+
+    fn declare_state_item(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {
+        let decl = arenas.pkg_const_decl.get(node);
+        let name = get_text(decl.name, self.locations, &arenas.source);
+
+        self.info
+            .as_mut()
+            .unwrap()
+            .state
+            .insert(name.to_string(), node);
+        self.tables.const_value_names.set(
+            decl.name,
+            resolutions::PackageConstValueResolution::ConstParam(node),
+        );
+        self.tables.is_state.set(node, true);
+
+        self.scope.declare(name, PackageDeclaration::State(node));
+    }
+
+    fn declare_oracle_import(
+        &mut self,
+        arenas: &Arenas,
+        node: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
+        sig: oracles::OracleSignature<identifier::OracleImportIdentifierKind>,
+    ) {
+        let name = get_text(sig.name, self.locations, &arenas.source);
+
+        self.info
+            .as_mut()
+            .unwrap()
+            .oracle_imports
+            .insert(name.to_string(), node);
+        self.tables
+            .oracle_import_names
+            .set(sig.name, OracleImportResolution::Import(node));
+
+        self.scope
+            .declare(name, PackageDeclaration::OracleImport(node));
+    }
+
     fn declare_oracle_def(
         &mut self,
         arenas: &Arenas,
@@ -514,6 +558,7 @@ impl<'a> PackageVisitor<'a> {
         self.tables
             .oracle_value_names
             .set(decl.name, OracleValueResolution::Arg(decl_ref));
+
         self.scope
             .declare(ident_name, PackageDeclaration::OracleArg(decl_ref));
     }
