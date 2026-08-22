@@ -99,7 +99,7 @@
            (= (or (> i kid) (<= i 0))
               (is-mk-none (select H i))
               (is-mk-none (select Ltk i)))
-           (=> (or (> i kid) (<= i 0))
+           (=> (> i kid)
                (and (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
                     (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
                     (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))))
@@ -457,9 +457,9 @@
   (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
           (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
                                    (mk-tuple2 msg tag))))
-            (=> (= (select H kid) (mk-some true))
-                (= (is-mk-none (select ReverseMac handle))
-                   (is-mk-none (select Values handle)))))))
+            (= (and (is-mk-none (select ReverseMac handle))
+                    (= (select H kid) (mk-some true)))
+               (is-mk-none (select Values handle))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -766,7 +766,9 @@
 
 (define-state-relation invariant
     (state-H710 state-H711)
-  (and (relation-trivial-equalities  state-H710 state-H711)
+  (and 
+       (>= state-H710.KX.ctr_ 0)
+       (relation-trivial-equalities  state-H710 state-H711)
        (relation-mac-implies-message state-H710 state-H711)
        (relation-no-overwriting      state-H710 state-H711)
        (relation-sids                state-H710 state-H711)
@@ -781,5 +783,4 @@
        (message-implies-mac state-H710.MAC.Values
                             state-H710.KX.Fresh state-H710.KX.State)
        (three-mac-implies-first state-H710.KX.First state-H710.KX.Second
-                                state-H710.KX.ReverseMac state-H710.KX.State)
-        ))
+                                state-H710.KX.ReverseMac state-H710.KX.State)))
