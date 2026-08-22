@@ -1,0 +1,11 @@
+package P {
+    params {
+        n: Integer,
+    }
+    import oracles {
+        Gen() -> Bits(n),
+    }
+    oracle Hello() -> Bits(n) {
+        return 0_n;
+    }
+}

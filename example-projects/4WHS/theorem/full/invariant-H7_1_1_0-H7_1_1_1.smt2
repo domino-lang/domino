@@ -96,7 +96,7 @@
   Bool
   (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (msg Bits_n) (tag Int))
           (and
-           (= (> i kid)
+           (= (or (> i kid) (<= i 0))
               (is-mk-none (select H i))
               (is-mk-none (select Ltk i)))
            (=> (> i kid)
@@ -113,7 +113,7 @@
      (ctr Int))
   Bool
   (forall ((i Int))
-          (= (> i ctr)
+          (= (or (> i ctr) (<= i 0))
              (is-mk-none (select fresh i))
              (is-mk-none (select state i)))))
 
@@ -766,7 +766,9 @@
 
 (define-state-relation invariant
     (state-H710 state-H711)
-  (and (relation-trivial-equalities  state-H710 state-H711)
+  (and 
+       (>= state-H710.KX.ctr_ 0)
+       (relation-trivial-equalities  state-H710 state-H711)
        (relation-mac-implies-message state-H710 state-H711)
        (relation-no-overwriting      state-H710 state-H711)
        (relation-sids                state-H710 state-H711)

@@ -1,0 +1,15 @@
+composition G {
+    const n1: Integer;
+
+    instance p = P {
+        params {
+            n2: n1
+        }
+    }
+
+    compose {
+        adversary: {
+            Hello: p
+        }
+    }
+}

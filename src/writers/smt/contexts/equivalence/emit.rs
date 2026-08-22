@@ -1,12 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
-    expressions::{Expression, ExpressionKind},
     hacks,
-    identifier::{
-        game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
-        Identifier,
-    },
+    identifier::Identifier,
     theorem::{Claim, ClaimType, GameInstance, RandomnessType},
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
@@ -21,7 +17,8 @@ use crate::{
             datastructures::DatastructurePattern,
             declare_datatype,
             functions::FunctionPattern,
-            oracle_args::OldNewOracleArgPattern,
+            oracle_args::GameStateOracleArgPattern,
+            oracle_args::OracleArgPattern,
             oracle_args::UnitOracleArgPattern,
             theorem_constants::ConstantPattern,
             GameStateDeclareInfo, ReturnIsAbortConst, SmtDefineFun,
@@ -40,9 +37,92 @@ impl<'a> EquivalenceContext<'a> {
         }
     }
 
-    pub(crate) fn emit_claim_assert(&self, oracle_name: &str, claim: &Claim) -> SmtExpr {
+    pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
+        let mut out = Vec::new();
+
+        out.extend(self.emit_game_initial_state_values(self.left_game_inst_ctx()));
+        out.extend(self.emit_game_initial_state_values(self.right_game_inst_ctx()));
+
+        out
+    }
+
+    fn emit_game_initial_state_values(&self, gctx: GameInstanceContext<'a>) -> Vec<SmtExpr> {
+        let game_inst_name = gctx.game_inst_name();
+        let initial_state = gctx.oracle_arg_game_state_pattern().global_const_name(
+            game_inst_name,
+            &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+        );
+
+        let mut out = Vec::new();
+
+        for pctx in gctx.pkg_inst_contexts() {
+            let pkg_state = gctx
+                .smt_access_gamestate_pkgstate(&initial_state, pctx.pkg_inst_name())
+                .unwrap();
+
+            for (field_name, field_ty, _) in &pctx.pkg().state {
+                let field = pctx
+                    .smt_access_pkgstate(pkg_state.clone(), field_name)
+                    .unwrap();
+
+                out.push(
+                    SmtAssert(SmtEq2 {
+                        lhs: field,
+                        rhs: SmtExpr::from(&field_ty.default_expression()),
+                    })
+                    .into(),
+                );
+            }
+        }
+
+        out
+    }
+
+    pub(crate) fn emit_equivalence_induction_start_assert(&self) -> SmtExpr {
+        let state_left = self.left_game_inst_ctx().oracle_arg_game_state_pattern();
+        let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
+
+        SmtAssert(SmtNot((
+            "invariant",
+            state_left.global_const_name(
+                self.equivalence.left_name(),
+                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+            ),
+            state_right.global_const_name(
+                self.equivalence.right_name(),
+                &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+            ),
+        )))
+        .into()
+    }
+
+    pub(crate) fn emit_game_or_package_invariant_induction_start_assert(
+        &self,
+        game_or_package_invariant_claim_name: &str,
+        gctx: GameInstanceContext<'a>,
+    ) -> SmtExpr {
+        let game_inst_name = gctx.game_inst_name();
+        let state = gctx.oracle_arg_game_state_pattern();
+        let initial_state = state.global_const_name(
+            game_inst_name,
+            &patterns::oracle_args::GameStateOracleArgVariant::Initial,
+        );
+        SmtAssert(SmtNot((
+            game_or_package_invariant_claim_name,
+            initial_state.clone(),
+        )))
+        .into()
+    }
+
+    pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
+
+        let octx_left = gctx_left.exported_oracle_ctx_by_name(oracle_name).unwrap();
+        let octx_right = gctx_right.exported_oracle_ctx_by_name(oracle_name).unwrap();
+
+        let state_left = octx_left.oracle_arg_game_state_pattern();
+        let state_right = octx_right.oracle_arg_game_state_pattern();
 
         let game_inst_name_left = self.equivalence.left_name();
         let game_inst_name_right = self.equivalence.right_name();
@@ -52,9 +132,6 @@ impl<'a> EquivalenceContext<'a> {
 
         let game_params_left = &gctx_left.game_inst().consts;
         let game_params_right = &gctx_right.game_inst().consts;
-
-        let octx_left = gctx_left.exported_oracle_ctx_by_name(oracle_name).unwrap();
-        let octx_right = gctx_right.exported_oracle_ctx_by_name(oracle_name).unwrap();
 
         let pkg_name_left = octx_left.pkg_inst_ctx().pkg_name();
         let pkg_name_right = octx_right.pkg_inst_ctx().pkg_name();
@@ -96,9 +173,6 @@ impl<'a> EquivalenceContext<'a> {
             oracle_name,
             oracle_import_name: oracle_name,
         };
-
-        let state_left = octx_left.oracle_arg_game_state_pattern();
-        let state_right = octx_right.oracle_arg_game_state_pattern();
 
         // this helper builds an smt expression that calls the
         // function with the given name with the old states,
@@ -308,36 +382,7 @@ impl<'a> EquivalenceContext<'a> {
 
         for ty in self.types() {
             if let TypeKind::Bits(count_spec) = &ty.kind() {
-                let bits_sort_suffix = match count_spec {
-                    crate::types::CountSpec::Literal(num) => format!("{num}"),
-                    crate::types::CountSpec::Any => "*".to_string(),
-                    crate::types::CountSpec::Identifier(ident) => match ident.as_ref() {
-                        Identifier::TheoremIdentifier(ident) => ident.ident(),
-                        Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident)) => {
-                            match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
-                                Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_)))) => ident.ident(),
-                                Some(ExpressionKind::Identifier(_)) => unreachable!("other identifiers can't occur here"),
-                                Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
-                            }
-                        } ,
-                        Identifier::PackageIdentifier(PackageIdentifier::Const(pkg_const_ident)) => match pkg_const_ident.game_assignment.as_ref().unwrap_or_else(|| panic!("the assigned value for this identifier should have been resolved at this point:\n  {pkg_const_ident:#?}")).as_ref().kind() {
-                            ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(game_const_ident))) => {
-                                match game_const_ident.assigned_value.as_ref().map(Box::as_ref).map(Expression::kind) {
-                                    Some(ExpressionKind::Identifier(ident@Identifier::TheoremIdentifier(TheoremIdentifier::Const(_))) )=> ident.ident(),
-                                    Some(ExpressionKind::Identifier(_) )=> unreachable!("other identifiers can't occur here"),
-                                    Some(other) => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                                    None => {log::debug!("skipping identifier {count_spec:?} since it is not fully resolved"); ident.ident()}
-                                }
-                            },
-                            ExpressionKind::Identifier(_) => unreachable!("other identifiers can't occur here"),
-                            other => todo!("ADD ERR MSG: no complex expressions allowed for now, found {other:?}"),
-                        }
-                        Identifier::PackageIdentifier(_) => unreachable!("non-const package identifiers can't occur here"),
-                        Identifier::GameIdentifier(_) => unreachable!("non-const game identifiers can't occur here"),
-                        Identifier::Generated(_, _) => unreachable!("generated identifiers can't occur here"),
-                    },
-                };
+                let bits_sort_suffix = count_spec.resolved_suffix();
 
                 log::debug!("found {bits_sort_suffix}");
 
@@ -710,8 +755,10 @@ impl<'a> EquivalenceContext<'a> {
         // the new ones are declared in the declare-then-assert loop below
 
         out.push(game_state_left.declare_old(left_game_inst_name));
+        out.push(game_state_left.declare_initial(left_game_inst_name));
         //out.push(game_state_left.declare_new(left_game_inst_name));
         out.push(game_state_right.declare_old(right_game_inst_name));
+        out.push(game_state_right.declare_initial(right_game_inst_name));
         //out.push(game_state_right.declare_new(right_game_inst_name));
 
         ////// consts constants

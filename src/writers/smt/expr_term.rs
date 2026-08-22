@@ -8,7 +8,7 @@ use crate::{
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
         Identifier,
     },
-    types::{Type, TypeKind},
+    types::{CountSpec, Type, TypeKind},
 };
 use sspverif_smtlib::{
     syntax::{
@@ -60,11 +60,16 @@ impl From<Expression> for Term {
                     "found a boolean literal '{bit}', the parse should have caught that"
                 ),
             },
+            ExpressionKind::BitsLiteral(_, ty)
+                if matches!(ty.kind(), TypeKind::Bits(CountSpec::Any)) =>
+            {
+                "<empty-bitstring>".to_string().into()
+            }
             ExpressionKind::BitsLiteral(cont, ty) if matches!(ty.kind(), TypeKind::Bits(_)) => {
                 let TypeKind::Bits(cspec) = ty.kind() else {
                     unreachable!()
                 };
-                format!("<{cont}_{cspec}>").into()
+                format!("<{cont}_{}>", cspec.resolved_suffix()).into()
             }
             ExpressionKind::BitsLiteral(cont, ty) => {
                 panic!("found a bits literal {cont} with non Bits type {ty}. Should not have been created.")
@@ -86,7 +91,7 @@ impl From<Expression> for Term {
             ExpressionKind::Or(exprs) => theories::core::or(exprs),
             ExpressionKind::Xor(exprs) => theories::core::xor(exprs),
             ExpressionKind::Identifier(ident) => ident.into(),
-            ExpressionKind::Bot => "bot".into(),
+            ExpressionKind::Bot => "mk-empty".into(),
             ExpressionKind::TableAccess(table, index) => theories::array_ex::select(table, *index),
 
             ExpressionKind::Tuple(exprs) => Term::Base(

@@ -41,6 +41,8 @@ pub(crate) struct Prove {
     #[clap(short, long)]
     pub(crate) transcript: bool,
     #[clap(long)]
+    pub(crate) only_induction_start: bool,
+    #[clap(long)]
     pub(crate) proofstep: Option<usize>,
     #[clap(long)]
     pub(crate) proof: Option<String>,

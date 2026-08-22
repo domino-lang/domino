@@ -1,0 +1,23 @@
+package Rand {
+    params {
+        n: Integer,
+    }
+
+    state {
+          ctr: Integer,
+          test_constant: Bits(n),
+    }
+
+    oracle UsefulOracle() -> (Integer, Bits(n))  {
+        ctr  <- (ctr + 1);
+        rand <-$ Bits(n) sample-name samplepoint;
+        return (ctr, test_constant);
+    }
+
+    oracle UselessOracle(x: Integer) -> Integer  {
+        assert (x == 1);
+        rand <-$ Bits(n);
+        return 1;
+    }
+}
+

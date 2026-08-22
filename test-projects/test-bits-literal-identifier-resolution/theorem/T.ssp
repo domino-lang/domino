@@ -1,0 +1,25 @@
+theorem T {
+    const n: Integer;
+
+    instance g1 = G {
+        params {
+            n1: n
+        }
+    }
+
+    instance g2 = G {
+        params {
+            n1: n
+        }
+    }
+
+    gamehops {
+        equivalence g1 g2 {
+            Hello: {
+                randomness: none
+                invariant: ./theorem/inv.smt2
+            }
+        }
+    }
+
+}

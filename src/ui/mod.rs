@@ -19,29 +19,34 @@ pub trait TheoremUI {
 
     fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
 
-    fn start_oracle(
+    fn start_claim_group(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        oracle_name: &str,
+        claim_group_name: &str,
         num_lemmata: u64,
     );
 
-    fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
-
-    fn start_lemma(
+    fn finish_claim_group(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        oracle_name: &str,
-        lemma_name: &str,
+        claim_group_name: &str,
     );
 
-    fn finish_lemma(
+    fn start_claim(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        oracle_name: &str,
-        lemma_name: &str,
+        claim_group_name: &str,
+        claim_name: &str,
+    );
+
+    fn finish_claim(
+        &mut self,
+        theorem_name: &str,
+        proofstep_name: &str,
+        claim_group_name: &str,
+        claim_name: &str,
     );
 }

@@ -1,0 +1,26 @@
+package Fwd {
+    params {
+        n: Integer,
+    }
+
+    state {
+        ctr: Integer,
+        test_constant: Bits(n),
+    }
+
+    import oracles {
+        UsefulOracle() -> (Integer,Bits(n)),
+    }
+
+    oracle UsefulOracle() -> (Integer,Bits(n))  {
+        y  <- invoke UsefulOracle();
+        (a,b) <- y;
+        return (a, test_constant);
+    }
+
+    oracle UselessOracle(x: Integer) -> Integer  {
+        assert (x == 1);
+        return 1;
+    }
+}
+

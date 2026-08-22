@@ -108,6 +108,7 @@ pub trait Project {
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
+        only_induction_start: bool,
     ) -> Result<()>
     where
         Self: Sized + Sync,
@@ -160,6 +161,7 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                             parallel,
+                            only_induction_start,
                         );
                         driver.verify(&mut ui)?;
                     }
@@ -178,6 +180,7 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                             parallel,
+                            only_induction_start,
                         );
                         driver.verify(&mut ui)?;
                     }
@@ -235,7 +238,7 @@ pub trait Project {
         &self,
         left_game_name: &str,
         right_game_name: &str,
-        oracle_name: &str,
+        claim_group_name: &str,
         claim_name: &str,
     ) -> Result<std::fs::File> {
         let mut path = self.get_root_dir();
@@ -244,7 +247,7 @@ pub trait Project {
         std::fs::create_dir_all(&path)?;
 
         path.push(format!(
-            "{left_game_name}-{right_game_name}-{oracle_name}-{claim_name}.smt2"
+            "{left_game_name}-{right_game_name}-{claim_group_name}-{claim_name}.smt2"
         ));
         let f = std::fs::OpenOptions::new()
             .create(true)

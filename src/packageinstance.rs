@@ -664,13 +664,13 @@ pub(crate) mod instantiate {
                         }
                         PackageIdentifier::State(state_ident) => {
                             PackageIdentifier::State(PackageStateIdentifier {
-                                ty: self.rewrite_type(state_ident.ty),
+                                ty: self.rewrite_type(state_ident.ty.clone()),
                                 ..state_ident
                             })
                         }
                         PackageIdentifier::Local(local_ident) => {
                             PackageIdentifier::Local(PackageLocalIdentifier {
-                                ty: self.rewrite_type(local_ident.ty),
+                                ty: self.rewrite_type(local_ident.ty.clone()),
                                 ..local_ident
                             })
                         }

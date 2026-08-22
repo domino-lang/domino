@@ -72,11 +72,19 @@ mod instantiate {
             .map(|(ident, ty, span)| (ident, inst_ctx.rewrite_type(ty), span))
             .collect();
 
+        let new_imports = pkg_inst
+            .pkg
+            .imports
+            .iter()
+            .cloned()
+            .map(|(sig, span)| (inst_ctx.rewrite_oracle_sig(sig), span))
+            .collect();
+
         let pkg = Package {
             oracles: new_oracles,
             state: new_state,
             params: new_params,
-            // split_oracles: new_split_oracles,
+            imports: new_imports,
             ..pkg_inst.pkg.clone()
         };
 

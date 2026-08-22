@@ -22,9 +22,8 @@
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
   (forall ((ctr Int))
-          (= (> ctr max-ctr)
+          (= (or (> ctr max-ctr) (<= ctr 0))
              (is-mk-none (select State ctr)))))
-
 
 (define-fun kmac-before-sid
     ((State (Array Int (Maybe (Tuple10 Int Bool Int Int (Maybe Bool)
@@ -233,6 +232,7 @@
 (define-state-relation invariant
     (left right)
   (and
+   (>= left.KX.ctr_ 0)
    (= left.Prf.kid_ right.Prf.kid_)
    (= left.KX.ctr_ right.KX.ctr_)
    (= left.Prf.LTK right.Prf.LTK)

@@ -1,10 +1,9 @@
 (define-package-invariant
-    (forall ((kid Int))
+   (and 
+      (forall ((kid Int))
             (and
-             (= (> kid pkg.kid_)
+             (= (or (> kid pkg.kid_) (<= kid 0))
                 (is-mk-none (select pkg.H kid))
                 (is-mk-none (select pkg.LTK kid)))
-             (= (> kid pkg.kid_) ;; why is this needed?
-                (and
-                 (is-mk-none (select pkg.H kid))
-                 (is-mk-none (select pkg.LTK kid)))))))
+             ))
+      (>= pkg.kid_ 0)))
