@@ -143,20 +143,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         self.generate_game_or_package_invariant_claims()
             .iter()
             .map(|claim| {
-                let claim_name = claim.name();
-                let gctx = match claim.ty {
-                    ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
-                        self.eqctx.left_game_inst_ctx()
-                    }
-                    ClaimType::RightGameInvariant | ClaimType::RightPackageInvariant => {
-                        self.eqctx.right_game_inst_ctx()
-                    }
-                    _ => unreachable!(),
-                };
                 let smt = self
                     .eqctx
-                    .emit_game_or_package_invariant_induction_start_assert(claim_name, gctx);
-                (claim_name.to_string(), smt)
+                    .emit_game_or_package_invariant_induction_start_assert(claim);
+                (claim.name().to_string(), smt)
             })
             .collect()
     }

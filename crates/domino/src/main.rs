@@ -39,6 +39,7 @@ pub struct IncompatibleArgumentsError;
 pub struct ReqOracleWithOnlyInductionStart;
 
 #[allow(clippy::large_enum_variant)]
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error, Diagnostic)]
 enum Error {
     #[error(transparent)]
@@ -80,8 +81,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
         return Err(ReqOracleWithOnlyInductionStart.into());
     }
 
-    let smtsolver =
-        sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
+    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
     project.prove(
         &smtsolver,
         p.transcript,

@@ -98,20 +98,24 @@ impl<'a> EquivalenceContext<'a> {
 
     pub(crate) fn emit_game_or_package_invariant_induction_start_assert(
         &self,
-        game_or_package_invariant_claim_name: &str,
-        gctx: GameInstanceContext<'a>,
+        claim: &Claim,
     ) -> SmtExpr {
+        let gctx = match claim.ty {
+            ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
+                self.left_game_inst_ctx()
+            }
+            ClaimType::RightGameInvariant | ClaimType::RightPackageInvariant => {
+                self.right_game_inst_ctx()
+            }
+            _ => unreachable!(),
+        };
         let game_inst_name = gctx.game_inst_name();
         let state = gctx.oracle_arg_game_state_pattern();
         let initial_state = state.global_const_name(
             game_inst_name,
             &patterns::oracle_args::GameStateOracleArgVariant::Initial,
         );
-        SmtAssert(SmtNot((
-            game_or_package_invariant_claim_name,
-            initial_state.clone(),
-        )))
-        .into()
+        SmtAssert(SmtNot((claim.name(), initial_state.clone()))).into()
     }
 
     pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
