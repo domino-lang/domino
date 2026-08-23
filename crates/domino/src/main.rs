@@ -29,6 +29,15 @@ pub(crate) struct Cli {
 #[diagnostic(code(cli::incompatible_arguments))]
 pub struct IncompatibleArgumentsError;
 
+#[derive(Error, Diagnostic, Debug)]
+#[error("--oracle and --induction-start cannot be used together")]
+#[diagnostic(help(
+    "--induction-start restricts verification to the induction start, which \
+        doesn't involve any oracle, so --oracle has no effect there. \
+        Pass only one of the two options."
+))]
+pub struct ReqOracleWithOnlyInductionStart;
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Error, Diagnostic)]
 enum Error {
@@ -38,6 +47,9 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ReqOracleWithOnlyInductionStart(#[from] ReqOracleWithOnlyInductionStart),
 }
 
 fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
@@ -60,22 +72,26 @@ fn prove(p: &Prove) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
-    if p.proofstep.is_none() || p.proof.is_some() {
-        let smtsolver =
-            sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
-        project.prove(
-            &smtsolver,
-            p.transcript,
-            p.parallel,
-            &p.proof,
-            p.proofstep,
-            &p.oracle,
-            &p.claim,
-            p.only_induction_start,
-        )?;
-    } else {
+    if p.proofstep.is_some() && p.proof.is_none() {
         return Err(IncompatibleArgumentsError.into());
     }
+
+    if p.induction_start && p.oracle.is_some() {
+        return Err(ReqOracleWithOnlyInductionStart.into());
+    }
+
+    let smtsolver =
+        sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
+    project.prove(
+        &smtsolver,
+        p.transcript,
+        p.parallel,
+        &p.proof,
+        p.proofstep,
+        &p.oracle,
+        &p.claim,
+        p.induction_start,
+    )?;
     Ok(())
 }
 

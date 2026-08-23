@@ -113,13 +113,6 @@ pub enum Error {
         #[related]
         solver_errors: Vec<crate::util::smtsolver::Error>,
     },
-    #[error("--oracle and --only-induction-start cannot be used together")]
-    #[diagnostic(help(
-        "--only-induction-start restricts verification to the induction start, which \
-         doesn't involve any oracle, so --oracle has no effect there. \
-         Pass only one of the two options."
-    ))]
-    ReqOracleWithOnlyInductionStart,
 }
 
 impl Error {

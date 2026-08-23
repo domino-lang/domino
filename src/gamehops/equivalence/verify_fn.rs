@@ -25,7 +25,7 @@ pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Pro
     req_oracle: Option<&'a str>,
     req_claim: Option<Wildcard<'a>>,
     parallel: usize,
-    only_induction_start: bool,
+    induction_start: bool,
 }
 
 impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
@@ -39,7 +39,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         req_oracle: Option<&'a str>,
         req_claim: Option<&'a str>,
         parallel: usize,
-        only_induction_start: bool,
+        induction_start: bool,
     ) -> Self {
         let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
         Self {
@@ -50,15 +50,11 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             req_oracle,
             req_claim,
             parallel,
-            only_induction_start,
+            induction_start,
         }
     }
 
     pub(crate) fn verify<UI: TheoremUI + Send>(&mut self, ui: &mut UI) -> Result<()> {
-        if self.only_induction_start && self.req_oracle.is_some() {
-            return Err(Error::ReqOracleWithOnlyInductionStart);
-        }
-
         self.eqctx.verify_exports_match()?;
 
         let ui = Arc::new(Mutex::new(ui));
@@ -121,7 +117,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .map(|_| self.verify_induction_start(ui.clone(), &smt))
                     .flatten();
 
-                if self.only_induction_start {
+                if self.induction_start {
                     verify_induction_start.collect()
                 } else {
                     let verify_oracle_claims = oracle_sequence

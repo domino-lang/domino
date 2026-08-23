@@ -108,7 +108,7 @@ pub trait Project {
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
-        only_induction_start: bool,
+        induction_start: bool,
     ) -> Result<()>
     where
         Self: Sized + Sync,
@@ -161,7 +161,7 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                             parallel,
-                            only_induction_start,
+                            induction_start,
                         );
                         driver.verify(&mut ui)?;
                     }
@@ -180,7 +180,7 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                             parallel,
-                            only_induction_start,
+                            induction_start,
                         );
                         driver.verify(&mut ui)?;
                     }
