@@ -3,12 +3,15 @@ use crate::package::Export;
 use crate::packageinstance::PackageInstance;
 use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
+use crate::types::TypeKind;
 use crate::util::smtparser::SmtParser;
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::exprs::SmtExpr;
 use crate::writers::smt::exprs::SmtLet;
 use crate::writers::smt::patterns;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
+use crate::writers::smt::patterns::oracle_args::GameStateOracleArgPattern;
+use crate::writers::smt::patterns::ConstantPattern;
 
 use crate::gamehops::equivalence::error::{Error, Result};
 use itertools::Itertools;
@@ -509,6 +512,180 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         ];
         newargs.extend(args.into_iter().skip(4));
         self.handle_definefun(funname, newargs, "Bool", bindreturn.into())
+    }
+
+    fn handle_define_randomness_mapping(
+        &mut self,
+        oracle_name: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtExpr> {
+        let left_game_inst = self
+            .context
+            .theorem()
+            .find_game_instance(&self.context.equivalence().left_name)
+            .unwrap();
+        let right_game_inst = self
+            .context
+            .theorem()
+            .find_game_instance(&self.context.equivalence().right_name)
+            .unwrap();
+
+        let Some(left_oracle_export) = left_game_inst
+            .game()
+            .exports
+            .iter()
+            .find(|export| export.name() == oracle_name)
+        else {
+            return Err(Error::UnknownOracleRandomnessMapping {
+                oracle_name: oracle_name.to_string(),
+            });
+        };
+        if !right_game_inst
+            .game()
+            .exports
+            .iter()
+            .any(|export| export.name() == oracle_name)
+        {
+            return Err(Error::UnknownOracleRandomnessMapping {
+                oracle_name: oracle_name.to_string(),
+            });
+        }
+
+        let [left_arg, right_arg, args_arg, consts_arg] = &args[..] else {
+            return Err(Error::IncorrectNumberOfArguments {
+                argument: format!(
+                    "({})",
+                    args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                ),
+                expected: "4".to_string(),
+                equivalence: self.equivalence_name(),
+            });
+        };
+
+        let atom_name = |expr: &SmtExpr| -> Result<String> {
+            match expr {
+                SmtExpr::Atom(name) => Ok(name.clone()),
+                _ => Err(Error::IncorrectArgument {
+                    argument: format!("{expr}"),
+                    equivalence: self.equivalence_name(),
+                }),
+            }
+        };
+
+        let left_name = atom_name(left_arg)?;
+        let right_name = atom_name(right_arg)?;
+        let args_name = atom_name(args_arg)?;
+        let consts_name = atom_name(consts_arg)?;
+
+        let left_state_name = format!("{left_name}.state");
+        let right_state_name = format!("{right_name}.state");
+
+        let statebindings = vec![
+            (
+                left_state_name.clone(),
+                GameInstanceContext::new(left_game_inst)
+                    .oracle_arg_game_state_pattern()
+                    .old_global_const_name(left_game_inst.name())
+                    .into(),
+            ),
+            (
+                right_state_name.clone(),
+                GameInstanceContext::new(right_game_inst)
+                    .oracle_arg_game_state_pattern()
+                    .old_global_const_name(right_game_inst.name())
+                    .into(),
+            ),
+        ];
+
+        let mut pkgbindings = Vec::new();
+        pkgbindings.extend(gen_pkgbinding(left_game_inst, &left_state_name));
+        pkgbindings.extend(gen_pkgbinding(right_game_inst, &right_state_name));
+
+        let mut varbindings = Vec::new();
+        varbindings.extend(
+            left_game_inst
+                .game
+                .pkgs
+                .iter()
+                .flat_map(|pkg| gen_varbinding(pkg, &format!("{left_state_name}.{}", pkg.name))),
+        );
+        varbindings.extend(right_game_inst.game.pkgs.iter().flat_map(|pkg| {
+            gen_varbinding(pkg, &format!("{right_state_name}.{}", pkg.name))
+        }));
+
+        // oracle arguments are named after the left oracle's argument names
+        let game_name_left = left_game_inst.game_name();
+        let argbindings: Vec<_> = left_oracle_export
+            .sig()
+            .args
+            .iter()
+            .map(|(arg_name, arg_type)| {
+                let pattern = patterns::OracleArgs {
+                    oracle_name,
+                    game_name: game_name_left,
+                    arg_name,
+                    arg_type,
+                };
+                (format!("{args_name}.{arg_name}"), pattern.name().into())
+            })
+            .collect();
+
+        // non-function constants are fields of the global theorem-consts
+        // function-typed constants are declared as global smt functions directly
+        let theorem_consts_pattern = self.context.datastructure_theorem_consts_pattern();
+        let constsbindings: Vec<_> = self
+            .context
+            .theorem()
+            .consts
+            .iter()
+            .map(|(name, ty)| {
+                let value: SmtExpr = if matches!(ty.kind(), TypeKind::Fn(_, _)) {
+                    format!("<<func-{name}>>").into()
+                } else {
+                    let selector = patterns::theorem_consts::TheoremConstsSelector { name, ty };
+                    (
+                        theorem_consts_pattern.selector_name(&selector),
+                        "<<theorem-consts>>",
+                    )
+                        .into()
+                };
+                (format!("{consts_name}.{name}"), value)
+            })
+            .collect();
+
+        let bindconsts = SmtLet {
+            bindings: constsbindings,
+            body,
+        };
+        let bindargs = SmtLet {
+            bindings: argbindings,
+            body: bindconsts,
+        };
+        let bindvars = SmtLet {
+            bindings: varbindings,
+            body: bindargs,
+        };
+        let bindpackages = SmtLet {
+            bindings: pkgbindings,
+            body: bindvars,
+        };
+        let bindstates = SmtLet {
+            bindings: statebindings,
+            body: bindpackages,
+        };
+
+        self.handle_definefun(
+            &format!("randomness-mapping-{oracle_name}"),
+            vec![
+                (format!("{left_name}.id"), "SampleId").into(),
+                (format!("{right_name}.id"), "SampleId").into(),
+                (format!("{left_name}.ctr"), "Int").into(),
+                (format!("{right_name}.ctr"), "Int").into(),
+            ],
+            "Bool",
+            bindstates.into(),
+        )
     }
 }
 
