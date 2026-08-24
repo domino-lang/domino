@@ -121,10 +121,15 @@ impl Communicator {
 
     pub fn new_cvc5() -> Result<Self> {
         let mut cmd = std::process::Command::new("cvc5");
-        cmd.args(["--lang=smt2", "--produce-models", "--arrays-exp"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit());
+        cmd.args([
+            "--lang=smt2",
+            "--produce-models",
+            "--arrays-exp",
+            "--no-incremental",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit());
 
         Ok(Self(
             process::Communicator::new_from_cmd_without_transcript(cmd)?,
@@ -134,14 +139,16 @@ impl Communicator {
     pub fn new_cvc5_with_transcript<W: std::io::Write + Send + Sync + 'static>(
         transcript: W,
     ) -> Result<Self> {
-        //let mut cmd = std::process::Command::new("cat");
-        //cmd.stdin(std::process::Stdio::piped())
-
         let mut cmd = std::process::Command::new("cvc5");
-        cmd.args(["--lang=smt2", "--produce-models", "--arrays-exp"])
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit());
+        cmd.args([
+            "--lang=smt2",
+            "--produce-models",
+            "--arrays-exp",
+            "--no-incremental",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::inherit());
 
         Ok(Self(process::Communicator::new_from_cmd(
             cmd,
