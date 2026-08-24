@@ -104,12 +104,10 @@ theorem Simple4WHS {
 
     gamehops {
         equivalence Hybrid0 Hybrid1 {
+            invariant: ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
+
             Send1: {
                 randomness: simple
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
 
                 lemmas {
                     invariant:    [no-abort]
@@ -120,10 +118,6 @@ theorem Simple4WHS {
              Send2: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
-
                 lemmas {
                     same-output:  [no-abort]
                     invariant:    [no-abort]
@@ -132,10 +126,6 @@ theorem Simple4WHS {
             }
              Send3: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -146,10 +136,6 @@ theorem Simple4WHS {
             Send4: {
                 randomness: none
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -158,10 +144,6 @@ theorem Simple4WHS {
             }
             Send5: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -172,10 +154,6 @@ theorem Simple4WHS {
             NewKey: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -184,10 +162,6 @@ theorem Simple4WHS {
             }
             NewSession: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -198,10 +172,6 @@ theorem Simple4WHS {
             Test: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -210,10 +180,6 @@ theorem Simple4WHS {
             }
             Reveal: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid0-Hybrid1.smt2
-                    ]
 
                 lemmas {
                     invariant:    [no-abort]
@@ -222,14 +188,16 @@ theorem Simple4WHS {
                 }
             }
         }
-        
+
         equivalence Hybrid1 Hybrid2 {
+            invariant: [
+                ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
+                ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
+            ]
+
             Send1: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
 
                 lemmas {
                     invariant:    [no-abort]
@@ -240,10 +208,6 @@ theorem Simple4WHS {
              Send2: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
-
                 lemmas {
                     same-output:  [no-abort]
                     invariant:    [no-abort]
@@ -252,10 +216,6 @@ theorem Simple4WHS {
             }
              Send3: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -266,10 +226,6 @@ theorem Simple4WHS {
             Send4: {
                 randomness: none
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -279,10 +235,6 @@ theorem Simple4WHS {
             Send5: {
                 randomness: none
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -290,11 +242,6 @@ theorem Simple4WHS {
                 }
             }
             NewKey: {
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2,
-                    ./theorem/simple/randomness-Hybrid1-Hybrid2.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -303,10 +250,6 @@ theorem Simple4WHS {
             }
             NewSession: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -317,10 +260,6 @@ theorem Simple4WHS {
             Test: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -329,10 +268,6 @@ theorem Simple4WHS {
             }
             Reveal: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid1-Hybrid2.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -356,12 +291,13 @@ theorem Simple4WHS {
         }
 
         equivalence Real_Hybrid3 Ideal_Hybrid3 {
+            invariant: [
+                ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
+                ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
+            ]
+
             Send1: {
                 randomness: simple
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
 
                 lemmas {
                     invariant:    [no-abort]
@@ -372,10 +308,6 @@ theorem Simple4WHS {
              Send2: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
@@ -384,10 +316,6 @@ theorem Simple4WHS {
             }
              Send3: {
                 randomness: simple
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -398,10 +326,6 @@ theorem Simple4WHS {
             Send4: {
                 randomness: none
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -410,10 +334,6 @@ theorem Simple4WHS {
             }
             Send5: {
                 randomness: none
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
@@ -424,10 +344,6 @@ theorem Simple4WHS {
             NewKey: {
                 randomness: simple
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     same-output:  [no-abort]
@@ -437,10 +353,6 @@ theorem Simple4WHS {
             NewSession: {
                 randomness: none
 
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -448,11 +360,6 @@ theorem Simple4WHS {
                 }
             }
             Test: {
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2,
-                    ./theorem/simple/randomness-Hybrid3_0-Hybrid3_1.smt2
-                    ]
-
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
@@ -461,10 +368,6 @@ theorem Simple4WHS {
             }
             Reveal: {
                 randomness: simple
-
-                invariant: [
-                    ./theorem/simple/invariant-Hybrid3_0-Hybrid3_1.smt2
-                    ]
 
                 lemmas {
                     equal-aborts: []
