@@ -15,7 +15,12 @@ pub trait TheoremUI {
 
     fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str);
 
-    fn proofstep_set_oracles(&mut self, theorem_name: &str, proofstep_name: &str, num_oracles: u64);
+    fn proofstep_set_claim_groups_count(
+        &mut self,
+        theorem_name: &str,
+        proofstep_name: &str,
+        num_claim_groups: u64,
+    );
 
     fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
 

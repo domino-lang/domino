@@ -100,10 +100,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         let oracle_sequence = self.oracle_sequence();
 
-        ui.lock().unwrap().proofstep_set_oracles(
+        ui.lock().unwrap().proofstep_set_claim_groups_count(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            (oracle_sequence.len() + 1) // 1 is for checking invariants in the initial state
+            (oracle_sequence.len() + 1) // 1 is for induction start
                 .try_into()
                 .unwrap(),
         );

@@ -90,17 +90,17 @@ impl TheoremUI for IndicatifTheoremUI {
         };
     }
 
-    fn proofstep_set_oracles(
+    fn proofstep_set_claim_groups_count(
         &mut self,
         theorem_name: &str,
         proofstep_name: &str,
-        num_oracles: u64,
+        num_claim_groups: u64,
     ) {
         if let Some(proofstep_progress) = self
             .seq_proofstep_progress
             .get(&(theorem_name.to_string(), proofstep_name.to_string()))
         {
-            proofstep_progress.set_length(num_oracles);
+            proofstep_progress.set_length(num_claim_groups);
             proofstep_progress.tick();
         } else {
             unreachable!("{theorem_name} -- {proofstep_name}");
