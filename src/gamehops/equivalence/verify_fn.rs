@@ -159,10 +159,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claim_group_name: &str = "induction-start";
-        let transcript_file_claim_group_name = "!induction-start!";
+        let claim_group_name: &str = "invariant-at-initial-state";
+        let transcript_file_claim_group_name = "!invariant-at-initial-state!";
 
-        log::info!("verify: invariants in initial state");
+        log::info!("verify: invariants at initial state");
 
         let mut base_smt = equivalence_smt.to_owned();
         // TODO (#365): this is temporary workaround until we make the invariants equivalence-wide.
