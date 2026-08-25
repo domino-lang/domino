@@ -36,9 +36,8 @@ At the lowest level, there are _packages_, which can expose oracles (exports) an
 
 ## Soundness Gaps
 
-Right now, the tool does the hard parts of equivalence proofs, but so far two properties have to be checked manually:
+Right now, the tool does the hard parts of equivalence proofs, but so far one property has to be checked manually:
 
-- **Invariant Induction Base Case**: The left and right base state are equivalent according to the equivalence relation of the invariant.
 - **Injectivity of Randomness Mapping**: The randomness mapping describes which random values in the left and right game should be equivalent. In order to ensure that the random values are not e.g. all constrained to be the same value, this check needs to be done.
 
 ## Roadmap
