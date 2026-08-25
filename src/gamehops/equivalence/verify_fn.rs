@@ -14,7 +14,10 @@ use crate::{
     theorem::{Claim, ClaimType},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
-    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
+    writers::smt::{
+        contexts::{EquivalenceContext, RandomnessMappingInjectivityCheck},
+        exprs::SmtExpr,
+    },
 };
 
 pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
@@ -26,6 +29,7 @@ pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Pro
     req_claim: Option<Wildcard<'a>>,
     parallel: usize,
     invariant_start: bool,
+    injective_randmap: bool,
 }
 
 enum ClaimGroup {
@@ -68,6 +72,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         req_claim: Option<&'a str>,
         parallel: usize,
         invariant_start: bool,
+        injective_randmap: bool,
     ) -> Self {
         let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
         Self {
@@ -79,6 +84,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             req_claim,
             parallel,
             invariant_start,
+            injective_randmap,
         }
     }
 
@@ -218,13 +224,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let result: Vec<_> = checks
             .par_iter()
-            .filter(|(claim_name, _)| {
-                if let Some(req_claim) = &self.req_claim {
-                    req_claim.is_match(claim_name.as_bytes())
-                } else {
-                    true
-                }
-            })
+            .filter(|(claim_name, _)| self.is_claim_requested(claim_name))
             .map(|(claim_name, assert)| {
                 let mut smt = base_smt.clone();
                 smt.push(assert.clone());
@@ -311,6 +311,38 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         claims
     }
 
+    fn verify_randomness_mapping_injectivity<UI: TheoremUI + Send>(
+        &self,
+        ui: Arc<Mutex<&mut UI>>,
+        equivalence_smt: &[SmtExpr],
+        oracle_name: &str,
+        claim_group: &ClaimGroup
+    ) -> Vec<Result<()>> {
+        log::info!("verify: randomness mapping injectivity of oracle {oracle_name}");
+
+        // the randomness mapping is either defined by the invariant file (custom randomness) or
+        // generated for us (simple/no randomness), so we need both of them here.
+        let mut base_smt = equivalence_smt.to_owned();
+        base_smt.append(&mut self.eqctx.emit_auto_randomness(oracle_name));
+        base_smt.append(&mut self.eqctx.emit_invariant(oracle_name));
+
+        RandomnessMappingInjectivityCheck::ALL
+            .as_slice()
+            .par_iter()
+            .filter(|check| self.is_claim_requested(check.name()))
+            .map(|check| {
+                let claim_name = check.name();
+
+                let mut smt = base_smt.clone();
+                smt.extend(check.emit_randomness_mapping_injectivity_check(oracle_name));
+
+                self.verify_claim_with_ui(ui.clone(), claim_group, claim_name, || {
+                    self.verify_with_solver(smt, claim_group, claim_name)
+                })
+            })
+            .collect()
+    }
+
     fn verify_oracle<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
@@ -332,11 +364,17 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             oracle_name: oracle.name().to_string(),
         };
 
+        let num_claims = if self.injective_randmap {
+            RandomnessMappingInjectivityCheck::ALL.len()
+        } else {
+            claims.len() + RandomnessMappingInjectivityCheck::ALL.len()
+        };
+
         ui.lock().unwrap().start_claim_group(
             &self.eqctx.theorem().name,
             &proofstep_name,
             &claim_group.ui_name(),
-            claims.len().try_into().unwrap(),
+            num_claims.try_into().unwrap(),
         );
 
         log::info!("verify: oracle:{oracle:?}");
@@ -344,19 +382,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
         smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
 
-        let result: Vec<_> = claims
-            .par_iter()
-            .filter(|claim| {
-                if let Some(req_claim) = &self.req_claim {
-                    req_claim.is_match(claim.name.as_bytes())
-                } else {
-                    true
-                }
-            })
-            .map(|claim| -> Result<()> {
-                self.verify_claim(ui.clone(), equivalence_smt, &smt, oracle.name(), claim)
-            })
-            .collect();
+        let result = self.do_verify_oracle(ui.clone(), equivalence_smt, &smt, oracle, &claims, &claim_group);
 
         ui.lock().unwrap().finish_claim_group(
             &self.eqctx.theorem().name,
@@ -367,6 +393,49 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         result
     }
 
+    fn do_verify_oracle<UI: TheoremUI + Send>(
+        &self,
+        ui: Arc<Mutex<&mut UI>>,
+        equivalence_smt: &[SmtExpr],
+        oracle_smt: &[SmtExpr],
+        oracle: &Export,
+        claims: &Vec<Claim>,
+        claim_group: &ClaimGroup
+    ) -> Vec<Result<()>> {
+        let verify_randomness_mapping_injectivity = rayon::iter::once(())
+            .map(|_| {
+                self.verify_randomness_mapping_injectivity(
+                    ui.clone(),
+                    equivalence_smt,
+                    oracle.name(),
+                    claim_group
+                )
+            })
+            .flatten();
+
+        if self.injective_randmap {
+            return verify_randomness_mapping_injectivity.collect();
+        }
+
+        let verify_oracle_claims = claims
+            .par_iter()
+            .filter(|claim| self.is_claim_requested(&claim.name))
+            .map(|claim| -> Result<()> {
+                self.verify_claim(
+                    ui.clone(),
+                    equivalence_smt,
+                    oracle_smt,
+                    oracle.name(),
+                    claim,
+                    claim_group
+                )
+            });
+
+        verify_randomness_mapping_injectivity
+            .chain(verify_oracle_claims)
+            .collect()
+    }
+
     fn verify_claim<UI: TheoremUI>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
@@ -374,26 +443,48 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         oracle_smt: &[SmtExpr],
         oracle_name: &str,
         claim: &Claim,
+        claim_group: &ClaimGroup
+    ) -> Result<()> {
+        self.verify_claim_with_ui(ui, &claim_group, claim.name(), || {
+            self.do_verify_claim(equivalence_smt, oracle_smt, oracle_name, claim, &claim_group)
+        })
+    }
+
+    /// Runs `verify` for the given claim, telling the ui when it starts and when it finishes.
+    fn verify_claim_with_ui<UI: TheoremUI>(
+        &self,
+        ui: Arc<Mutex<&mut UI>>,
+        claim_group: &ClaimGroup,
+        claim_name: &str,
+        verify: impl FnOnce() -> Result<()>,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
+
         ui.lock().unwrap().start_claim(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle_name,
-            claim.name(),
+            &claim_group.ui_name(),
+            claim_name,
         );
 
-        let result = self.do_verify_claim(equivalence_smt, oracle_smt, oracle_name, claim);
+        let result = verify();
 
         ui.lock().unwrap().finish_claim(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            oracle_name,
-            claim.name(),
+            &claim_group.ui_name(),
+            claim_name,
         );
 
         result
+    }
+
+    fn is_claim_requested(&self, claim_name: &str) -> bool {
+        match &self.req_claim {
+            Some(req_claim) => req_claim.is_match(claim_name.as_bytes()),
+            None => true,
+        }
     }
 
     fn do_verify_claim(
@@ -402,6 +493,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         oracle_smt: &[SmtExpr],
         oracle_name: &str,
         claim: &Claim,
+        claim_group: &ClaimGroup
     ) -> Result<()> {
         if claim.is_admitted() {
             return Ok(());

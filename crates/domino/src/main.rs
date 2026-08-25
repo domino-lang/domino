@@ -91,6 +91,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
         &p.oracle,
         &p.claim,
         p.invariant_start,
+        p.injective_randmap,
     )?;
     Ok(())
 }

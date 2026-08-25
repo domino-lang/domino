@@ -29,7 +29,7 @@ mod pkg_inst;
 //     partials: &'a PartialsDatatype,
 // }
 
-pub use equivalence::EquivalenceContext;
+pub use equivalence::{EquivalenceContext, RandomnessMappingInjectivityCheck};
 pub use game_inst::GameInstanceContext;
 pub use oracle::OracleContext;
 pub use pkg_inst::PackageInstanceContext;

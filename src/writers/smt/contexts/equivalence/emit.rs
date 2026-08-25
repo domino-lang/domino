@@ -7,7 +7,10 @@ use crate::{
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
     writers::smt::{
-        contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
+        contexts::{
+            EquivalenceContext, GameInstanceContext, GenericOracleContext,
+            RandomnessMappingInjectivityCheck,
+        },
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtForall, SmtImplies, SmtIte, SmtNot},
         patterns,
@@ -27,6 +30,88 @@ use crate::{
         writer::CompositionSmtWriter,
     },
 };
+
+impl RandomnessMappingInjectivityCheck {
+    pub(crate) const ALL: [Self; 2] = [Self::Left, Self::Right];
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Left => "!randomness-mapping-injective-left!",
+            Self::Right => "!randomness-mapping-injective-right!",
+        }
+    }
+
+    /// Emits the smt code that searches for a counterexample to injectivity of the randomness
+    /// mapping relation on the given component.
+    ///
+    /// Injectivity on the left means that no two distinct left sampling
+    /// points are related to the same right sampling point (and similarly for the right). We declare
+    /// the three sampling points involved as constants, assert that both pairs are in the
+    /// relation, and assert that the two points on `component` differ. A sat result is therefore a
+    /// counterexample to injectivity, and unsat means the relation is injective on that component.
+    ///
+    /// The relation may also read the old game states, the oracle arguments and the theorem
+    /// constants. Those are declared (and constrained) by the equivalence-wide smt code, so they
+    /// stay free here and the check quantifies over them implicitly.
+    pub(crate) fn emit_randomness_mapping_injectivity_check(
+        self,
+        oracle_name: &str,
+    ) -> Vec<SmtExpr> {
+        // the two sampling points on the component we check injectivity on
+        const FIRST_ID: &str = "<randmap-inj-first-id>";
+        const FIRST_CTR: &str = "<randmap-inj-first-ctr>";
+        const SECOND_ID: &str = "<randmap-inj-second-id>";
+        const SECOND_CTR: &str = "<randmap-inj-second-ctr>";
+        // the sampling point on the other component that both are related to
+        const SHARED_ID: &str = "<randmap-inj-shared-id>";
+        const SHARED_CTR: &str = "<randmap-inj-shared-ctr>";
+
+        let sample_id_sort = || Sort::Other("SampleId".to_string(), vec![]);
+
+        let relation_call = |id: &str, ctr: &str| -> SmtExpr {
+            let (id_left, id_right, ctr_left, ctr_right) = match self {
+                Self::Left => (id, SHARED_ID, ctr, SHARED_CTR),
+                Self::Right => (SHARED_ID, id, SHARED_CTR, ctr),
+            };
+
+            (
+                format!("randomness-mapping-{oracle_name}"),
+                id_left,
+                id_right,
+                ctr_left,
+                ctr_right,
+            )
+                .into()
+        };
+
+        vec![
+            declare_const(FIRST_ID, sample_id_sort()),
+            declare_const(FIRST_CTR, Sort::Int),
+            declare_const(SECOND_ID, sample_id_sort()),
+            declare_const(SECOND_CTR, Sort::Int),
+            declare_const(SHARED_ID, sample_id_sort()),
+            declare_const(SHARED_CTR, Sort::Int),
+            // R(first_id, shared_id, first_ctr, shared_ctr)
+            SmtAssert(relation_call(FIRST_ID, FIRST_CTR)).into(),
+            // R(second_id, shared_id, second_ctr, shared_ctr)
+            SmtAssert(relation_call(SECOND_ID, SECOND_CTR)).into(),
+            // (first_id, first_ctr) != (second_id, second_ctr)
+            SmtAssert(SmtNot(SmtAnd(vec![
+                SmtEq2 {
+                    lhs: FIRST_ID,
+                    rhs: SECOND_ID,
+                }
+                .into(),
+                SmtEq2 {
+                    lhs: FIRST_CTR,
+                    rhs: SECOND_CTR,
+                }
+                .into(),
+            ])))
+            .into(),
+        ]
+    }
+}
 
 impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
