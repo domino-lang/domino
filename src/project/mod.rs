@@ -109,6 +109,7 @@ pub trait Project {
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
         invariant_start: bool,
+        injective_randmap: bool,
     ) -> Result<()>
     where
         Self: Sized + Sync,
@@ -162,6 +163,7 @@ pub trait Project {
                             req_claim.as_deref(),
                             parallel,
                             invariant_start,
+                            injective_randmap,
                         );
                         driver.verify(&mut ui)?;
                     }
@@ -181,6 +183,7 @@ pub trait Project {
                             req_claim.as_deref(),
                             parallel,
                             invariant_start,
+                            injective_randmap,
                         );
                         driver.verify(&mut ui)?;
                     }

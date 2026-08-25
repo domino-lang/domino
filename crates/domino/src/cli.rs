@@ -48,6 +48,9 @@ pub(crate) struct Prove {
     pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
     pub(crate) transcript: bool,
+    // only check randomness mapping is injective
+    #[clap(long)]
+    pub(crate) injective_randmap: bool,
     #[clap(long)]
     pub(crate) invariant_start: bool,
     #[clap(long)]

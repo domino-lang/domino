@@ -28,6 +28,12 @@ use crate::{
 
 use super::{GameInstanceContext, GenericOracleContext, OracleContext};
 
+#[derive(Clone, Copy)]
+pub enum RandomnessMappingInjectivityCheck {
+    Left,
+    Right,
+}
+
 #[derive(Clone)]
 pub struct EquivalenceContext<'a> {
     equivalence: &'a Equivalence,
