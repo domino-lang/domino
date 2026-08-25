@@ -1,5 +1,5 @@
 (define-randomness-mapping GETAOUT
-    (left right args consts)
+    (left right consts)
     (let 
         (
             (sample-id-left left.id)
@@ -41,7 +41,7 @@
 )
 
 (define-randomness-mapping GBLG
-    (left right args consts)
+    (left right consts)
     (let 
         (
             (sample-id-left left.id)
@@ -52,56 +52,56 @@
         (or
             ; map Sim to LayeredSim for i < consts.d
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_0"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_0"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_0"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_0"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_1"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_1"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_1"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_1"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_2"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_2"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_2"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_2"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_3"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_3"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i consts.d)
+                (< left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_3"))
                 (= sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_3"))
                 (= sample-offset-left 0)
@@ -109,56 +109,56 @@
             )
             ; map Sim to Sim for i = consts.d 
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_0"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rin_round_0"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_0"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rout_round_0"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_1"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rin_round_1"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_1"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rout_round_1"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_2"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rin_round_2"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_2"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rout_round_2"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rin_round_3"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rin_round_3"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Sim" "LSIMGBLG" "rout_round_3"))
                 (= sample-id-right (sample-id "Sim" "GBLG" "rout_round_3"))
                 (= sample-offset-left 0)
@@ -166,14 +166,14 @@
             )
             ; map Keys to LayeredKeys for i < consts.d - 1
             (and 
-                (< args.i (- consts.d 1))
+                (< left.args.i (- consts.d 1))
                 (= sample-id-left (sample-id "Keys" "LGETAOUT" "r"))
                 (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (< args.i (- consts.d 1))
+                (< left.args.i (- consts.d 1))
                 (= sample-id-left (sample-id "Keys" "LGETAOUT" "rr"))
                 (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
                 (= sample-offset-left 0)
@@ -181,14 +181,14 @@
             )
             ; map Keys to TopKeys for i = consts.d - 1
             (and 
-                (= args.i (- consts.d 1))
+                (= left.args.i (- consts.d 1))
                 (= sample-id-left (sample-id "Keys" "LGETAOUT" "r"))
                 (= sample-id-right (sample-id "KeysTop" "GETAOUT" "r"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i (- consts.d 1))
+                (= left.args.i (- consts.d 1))
                 (= sample-id-left (sample-id "Keys" "LGETAOUT" "rr"))
                 (= sample-id-right (sample-id "KeysTop" "GETAOUT" "rr"))
                 (= sample-offset-left 0)
@@ -196,14 +196,14 @@
             )
             ; map Keys to BotKeys for i = consts.d
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Keys" "LGETAOUT" "r"))
                 (= sample-id-right (sample-id "KeysBot" "GETAOUT" "r"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
-                (= args.i consts.d)
+                (= left.args.i consts.d)
                 (= sample-id-left (sample-id "Keys" "LGETAOUT" "rr"))
                 (= sample-id-right (sample-id "KeysBot" "GETAOUT" "rr"))
                 (= sample-offset-left 0)

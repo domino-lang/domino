@@ -541,24 +541,24 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 oracle_name: oracle_name.to_string(),
             });
         };
-        if !right_game_inst
+        let Some(right_oracle_export) = right_game_inst
             .game()
             .exports
             .iter()
-            .any(|export| export.name() == oracle_name)
-        {
+            .find(|export| export.name() == oracle_name)
+        else {
             return Err(Error::UnknownOracleRandomnessMapping {
                 oracle_name: oracle_name.to_string(),
             });
-        }
+        };
 
-        let [left_arg, right_arg, args_arg, consts_arg] = &args[..] else {
+        let [left_arg, right_arg, consts_arg] = &args[..] else {
             return Err(Error::IncorrectNumberOfArguments {
                 argument: format!(
                     "({})",
                     args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
-                expected: "4".to_string(),
+                expected: "3".to_string(),
                 equivalence: self.equivalence_name(),
             });
         };
@@ -575,7 +575,6 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
 
         let left_name = atom_name(left_arg)?;
         let right_name = atom_name(right_arg)?;
-        let args_name = atom_name(args_arg)?;
         let consts_name = atom_name(consts_arg)?;
 
         let left_state_name = format!("{left_name}.state");
@@ -610,13 +609,20 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 .iter()
                 .flat_map(|pkg| gen_varbinding(pkg, &format!("{left_state_name}.{}", pkg.name))),
         );
-        varbindings.extend(right_game_inst.game.pkgs.iter().flat_map(|pkg| {
-            gen_varbinding(pkg, &format!("{right_state_name}.{}", pkg.name))
-        }));
+        varbindings.extend(
+            right_game_inst
+                .game
+                .pkgs
+                .iter()
+                .flat_map(|pkg| gen_varbinding(pkg, &format!("{right_state_name}.{}", pkg.name))),
+        );
 
-        // oracle arguments are named after the left oracle's argument names
+        // oracle arguments: left.args.<name> and right.args.<name> resolve to each side's own
+        // argument constants (named after that side's own argument names), rather than always
+        // taking the left oracle's arguments for both sides.
         let game_name_left = left_game_inst.game_name();
-        let argbindings: Vec<_> = left_oracle_export
+        let game_name_right = right_game_inst.game_name();
+        let mut argbindings: Vec<_> = left_oracle_export
             .sig()
             .args
             .iter()
@@ -627,9 +633,30 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     arg_name,
                     arg_type,
                 };
-                (format!("{args_name}.{arg_name}"), pattern.name().into())
+                (
+                    format!("{left_name}.args.{arg_name}"),
+                    pattern.name().into(),
+                )
             })
             .collect();
+        argbindings.extend(
+            right_oracle_export
+                .sig()
+                .args
+                .iter()
+                .map(|(arg_name, arg_type)| {
+                    let pattern = patterns::OracleArgs {
+                        oracle_name,
+                        game_name: game_name_right,
+                        arg_name,
+                        arg_type,
+                    };
+                    (
+                        format!("{right_name}.args.{arg_name}"),
+                        pattern.name().into(),
+                    )
+                }),
+        );
 
         // non-function constants are fields of the global theorem-consts
         // function-typed constants are declared as global smt functions directly
