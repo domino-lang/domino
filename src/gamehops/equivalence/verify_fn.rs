@@ -316,7 +316,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
         oracle_name: &str,
-        claim_group: &ClaimGroup
+        claim_group: &ClaimGroup,
     ) -> Vec<Result<()>> {
         log::info!("verify: randomness mapping injectivity of oracle {oracle_name}");
 
@@ -382,7 +382,14 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
         smt.append(&mut self.eqctx.emit_invariant(oracle.name()));
 
-        let result = self.do_verify_oracle(ui.clone(), equivalence_smt, &smt, oracle, &claims, &claim_group);
+        let result = self.do_verify_oracle(
+            ui.clone(),
+            equivalence_smt,
+            &smt,
+            oracle,
+            &claims,
+            &claim_group,
+        );
 
         ui.lock().unwrap().finish_claim_group(
             &self.eqctx.theorem().name,
@@ -400,7 +407,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         oracle_smt: &[SmtExpr],
         oracle: &Export,
         claims: &Vec<Claim>,
-        claim_group: &ClaimGroup
+        claim_group: &ClaimGroup,
     ) -> Vec<Result<()>> {
         let verify_randomness_mapping_injectivity = rayon::iter::once(())
             .map(|_| {
@@ -408,7 +415,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     ui.clone(),
                     equivalence_smt,
                     oracle.name(),
-                    claim_group
+                    claim_group,
                 )
             })
             .flatten();
@@ -427,7 +434,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     oracle_smt,
                     oracle.name(),
                     claim,
-                    claim_group
+                    claim_group,
                 )
             });
 
@@ -443,10 +450,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         oracle_smt: &[SmtExpr],
         oracle_name: &str,
         claim: &Claim,
-        claim_group: &ClaimGroup
+        claim_group: &ClaimGroup,
     ) -> Result<()> {
-        self.verify_claim_with_ui(ui, &claim_group, claim.name(), || {
-            self.do_verify_claim(equivalence_smt, oracle_smt, oracle_name, claim, &claim_group)
+        self.verify_claim_with_ui(ui, claim_group, claim.name(), || {
+            self.do_verify_claim(equivalence_smt, oracle_smt, oracle_name, claim, claim_group)
         })
     }
 
@@ -493,7 +500,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         oracle_smt: &[SmtExpr],
         oracle_name: &str,
         claim: &Claim,
-        claim_group: &ClaimGroup
+        claim_group: &ClaimGroup,
     ) -> Result<()> {
         if claim.is_admitted() {
             return Ok(());
