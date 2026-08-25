@@ -48,7 +48,7 @@
     Bool
     (or
         (and 
-            (< <arg-HybridIdeal-GBLG-i> h)
+            (< <arg-HybridIdeal-GBLG-i> (- h 1))
             (or 
                 (= sample-id-left sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
                 (= sample-id-left sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
