@@ -146,14 +146,19 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .flatten();
 
                 if self.induction_start {
-                    verify_induction_start.collect()
-                } else {
-                    let verify_oracle_claims = oracle_sequence
-                        .par_iter()
-                        .map(|oracle| self.verify_oracle(ui.clone(), &smt, oracle))
-                        .flatten();
-                    verify_induction_start.chain(verify_oracle_claims).collect()
+                    return verify_induction_start.collect();
                 }
+
+                let verify_oracle_claims = oracle_sequence
+                    .par_iter()
+                    .map(|oracle| self.verify_oracle(ui.clone(), &smt, oracle))
+                    .flatten();
+
+                if self.req_oracle.is_some() {
+                    return verify_oracle_claims.collect();
+                }
+
+                verify_induction_start.chain(verify_oracle_claims).collect()
             });
 
         let failed_claims: Vec<_> = claims.into_iter().filter_map(Result::err).collect();
