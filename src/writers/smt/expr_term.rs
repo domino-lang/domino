@@ -91,7 +91,7 @@ impl From<Expression> for Term {
             ExpressionKind::Or(exprs) => theories::core::or(exprs),
             ExpressionKind::Xor(exprs) => theories::core::xor(exprs),
             ExpressionKind::Identifier(ident) => ident.into(),
-            ExpressionKind::Bot => "mk-empty".into(),
+            ExpressionKind::Bot => panic!("bot is broken"),
             ExpressionKind::TableAccess(table, index) => theories::array_ex::select(table, *index),
 
             ExpressionKind::Tuple(exprs) => Term::Base(

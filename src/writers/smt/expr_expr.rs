@@ -153,7 +153,7 @@ impl From<&Expression> for SmtExpr {
             //     &SelfStatePattern,
             // )
             //     .into(),
-            ExpressionKind::Bot => SmtExpr::Atom("mk-empty".to_string()),
+            ExpressionKind::Bot => panic!("bot is broken"),
             ExpressionKind::TableAccess(table, index) => SmtExpr::List(vec![
                 SmtExpr::Atom("select".into()),
                 table.into(),
