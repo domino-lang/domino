@@ -1,19 +1,18 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeSet, HashSet},
     fmt::Display,
 };
 
 use crate::{
     hacks,
-    identifier::Identifier,
     theorem::{Claim, ClaimType, GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
     transforms::samplify::SampleInfo,
-    types::{CountSpec, Type, TypeKind},
+    types::{Type, TypeKind},
     writers::smt::{
         contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
         declare::declare_const,
-        exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtIte, SmtNot},
-        patterns,
+        exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtNot},
+        names, patterns,
         patterns::{
             const_mapping::GameConstMappingFunction,
             const_mapping::{define_game_const_mapping_fun, define_pkg_const_mapping_fun},
@@ -105,7 +104,6 @@ impl RandomnessMappingInjectivityCheck {
 }
 
 pub(crate) const RANDOMNESS_MAPPING_CONDITION_NAME: &str = "<randomness-mapping>";
-pub(crate) const RAND_IS_EQ_IF_MAPPED_NAME: &str = "<rand-is-eq-if-mapped>";
 
 #[derive(Clone, Debug)]
 pub(crate) struct RandomnessMappingEntry {
@@ -113,59 +111,22 @@ pub(crate) struct RandomnessMappingEntry {
     pub(crate) sample_id_right: SmtExpr,
     pub(crate) offset_left: usize,
     pub(crate) offset_right: usize,
+    // the sampling type shared by both sides (guaranteed identical by `types_match`), used to
+    // pick the concrete `__sample-rand-*` functions to compare directly.
+    pub(crate) ty: Type,
 }
 
 impl Display for RandomnessMappingEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "left id: {}, right id: {}, left offset: {}, right offset: {}",
-            self.sample_id_left, self.sample_id_right, self.offset_left, self.offset_right
+            "left id: {}, right id: {}, left offset: {}, right offset: {}, ty: {:?}",
+            self.sample_id_left, self.sample_id_right, self.offset_left, self.offset_right, self.ty
         )
     }
 }
 
 impl<'a> EquivalenceContext<'a> {
-    pub(crate) fn emit_randomness_mapping_declarations(&self, oracle_name: &str) -> Vec<SmtExpr> {
-        vec![
-            declare_const(RANDOMNESS_MAPPING_CONDITION_NAME, Type::boolean().into()),
-            SmtDefineFun {
-                is_rec: false,
-                sort: Type::boolean().into(),
-                name: RAND_IS_EQ_IF_MAPPED_NAME.to_string(),
-                body: SmtImplies(
-                    (
-                        format!("randomness-mapping-{oracle_name}"),
-                        "sample-id-left",
-                        "sample-id-right",
-                        "sample-offset-left",
-                        "sample-offset-right",
-                    ),
-                    (
-                        "rand-is-eq",
-                        "sample-id-left",
-                        "sample-id-right",
-                        "sample-offset-left",
-                        "sample-offset-right",
-                    ),
-                ),
-                args: vec![
-                    (
-                        "sample-id-left".to_string(),
-                        Sort::Other("SampleId".to_string(), vec![]),
-                    ),
-                    (
-                        "sample-id-right".to_string(),
-                        Sort::Other("SampleId".to_string(), vec![]),
-                    ),
-                    ("sample-offset-left".to_string(), Type::integer().into()),
-                    ("sample-offset-right".to_string(), Type::integer().into()),
-                ],
-            }
-            .into(),
-        ]
-    }
-
     pub(crate) fn emit_invariant(&self, oracle_name: &str) -> Vec<SmtExpr> {
         if let Some(invariants) = self.invariants.get(oracle_name) {
             invariants.clone()
@@ -527,32 +488,56 @@ impl<'a> EquivalenceContext<'a> {
             .flat_map(|(_left_sample_id, sample_id_left, offset_left, ty_left)| {
                 right_entries
                     .iter()
-                    .filter(move |(_, _, _, ty_right)| ty_left.types_match(*ty_right))
+                    .filter(move |(_, _, _, ty_right)| ty_left.types_match(ty_right))
                     .map(
                         move |(_, sample_id_right, offset_right, _)| RandomnessMappingEntry {
                             sample_id_left: sample_id_left.clone(),
                             sample_id_right: sample_id_right.clone(),
                             offset_left: *offset_left,
                             offset_right: *offset_right,
+                            // `types_match` guarantees left and right resolve to the same SMT
+                            // sort, so either type can be used to pick the `__sample-rand-*`
+                            // functions for both sides.
+                            ty: (*ty_left).clone(),
                         },
                     )
             })
             .collect()
     }
 
-    pub(crate) fn emit_randomness_mapping_condition(&self, oracle_name: &str) -> SmtExpr {
+    pub(crate) fn emit_randomness_mapping_condition(&self, oracle_name: &str) -> Vec<SmtExpr> {
+        let left_game_inst_name = self.left_game_inst_ctx().game_inst().name();
+        let right_game_inst_name = self.right_game_inst_ctx().game_inst().name();
+
         let conjuncts: Vec<SmtExpr> = self
             .randomness_mapping_candidates(oracle_name)
             .iter()
             .map(|entry| {
-                (
-                    RAND_IS_EQ_IF_MAPPED_NAME,
-                    entry.sample_id_left.clone(),
-                    entry.sample_id_right.clone(),
-                    entry.offset_left,
-                    entry.offset_right,
+                let left_rand_fn = names::fn_sample_rand_name(left_game_inst_name, &entry.ty);
+                let right_rand_fn = names::fn_sample_rand_name(right_game_inst_name, &entry.ty);
+
+                SmtImplies(
+                    (
+                        format!("randomness-mapping-{oracle_name}"),
+                        entry.sample_id_left.clone(),
+                        entry.sample_id_right.clone(),
+                        entry.offset_left,
+                        entry.offset_right,
+                    ),
+                    SmtEq2 {
+                        lhs: (
+                            left_rand_fn,
+                            entry.sample_id_left.clone(),
+                            entry.offset_left,
+                        ),
+                        rhs: (
+                            right_rand_fn,
+                            entry.sample_id_right.clone(),
+                            entry.offset_right,
+                        ),
+                    },
                 )
-                    .into()
+                .into()
             })
             .collect();
 
@@ -562,11 +547,14 @@ impl<'a> EquivalenceContext<'a> {
             SmtAnd(conjuncts).into()
         };
 
-        SmtAssert(SmtEq2 {
-            lhs: RANDOMNESS_MAPPING_CONDITION_NAME,
-            rhs,
-        })
-        .into()
+        vec![
+            declare_const(RANDOMNESS_MAPPING_CONDITION_NAME, Type::boolean().into()),
+            SmtAssert(SmtEq2 {
+                lhs: RANDOMNESS_MAPPING_CONDITION_NAME,
+                rhs,
+            })
+            .into(),
+        ]
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
@@ -1103,6 +1091,8 @@ impl<'a> EquivalenceContext<'a> {
             build_rands(self.sample_info_left(), left)
         {
             out.push(decl_ctr);
+            // the following could be merged together; it is important for
+            // randomness mapping to assert that old value is zero
             out.push(assert_ctr);
             out.push(assert_zero_ctr);
             out.push(decl_val);
@@ -1113,17 +1103,13 @@ impl<'a> EquivalenceContext<'a> {
             build_rands(self.sample_info_right(), right)
         {
             out.push(decl_ctr);
+            // the following could be merged together; it is important for
+            // randomness mapping to assert that old value is zero
             out.push(assert_ctr);
             out.push(assert_zero_ctr);
-            out.push(decl_val);
-            out.push(assert_val);
+            out.push(decl_val); // should not be needed
+            out.push(assert_val); // should not be needed
         }
-
-        /////////// helpers for working with randomness
-
-        out.push(self.smt_define_randctr_function(left, self.sample_info_left()));
-        out.push(self.smt_define_randctr_function(right, self.sample_info_right()));
-        out.push(self.smt_define_randeq_function());
 
         out
     }
@@ -1348,192 +1334,6 @@ impl<'a> EquivalenceContext<'a> {
                     None
                 }
             })
-    }
-
-    pub fn smt_define_randctr_function(
-        &self,
-        game_inst: &GameInstance,
-        sample_info: &SampleInfo,
-    ) -> SmtExpr {
-        let gctx = GameInstanceContext::new(game_inst);
-        let game = game_inst.game();
-        let game_inst_name = game_inst.name();
-        let game_name = &game.name;
-        let params = &game_inst.consts;
-
-        let state_name = gctx
-            .oracle_arg_game_state_pattern()
-            .old_global_const_name(game_inst_name);
-
-        let pattern = patterns::GameStatePattern { game_name, params };
-        let info = patterns::GameStateDeclareInfo {
-            game_inst,
-            sample_info,
-        };
-
-        let spec = pattern.datastructure_spec(&info);
-        let (_, selectors) = &spec.0[0];
-
-        let mut body = SmtExpr::Atom("0".to_string());
-
-        for selector in selectors {
-            body = match selector {
-                patterns::GameStateSelector::Randomness { sample_pos } => SmtIte {
-                    cond: ("=", "sampleid", sample_pos.as_ref()),
-                    then: (pattern.selector_name(selector), state_name.clone()),
-                    els: body,
-                }
-                .into(),
-                _ => body,
-            };
-        }
-
-        (
-            "define-fun",
-            format!("get-rand-ctr-{game_inst_name}"),
-            (("sampleid", "SampleId"),),
-            "Int",
-            body,
-        )
-            .into()
-    }
-
-    pub fn smt_define_randeq_function(&self) -> SmtExpr {
-        let left_game_inst = self.left_game_inst_ctx().game_inst();
-        let right_game_inst = self.right_game_inst_ctx().game_inst();
-
-        let left_game_inst_name = &left_game_inst.name;
-        let right_game_inst_name = &right_game_inst.name;
-
-        /*
-         *
-         *
-         * (= (randfn_left left-id left-ctr) (randfn-right right-id right-ctr)))
-         *
-         * if ( = left-id 3) (randfn-Int id ctr) else if ( )
-         *
-         *
-         * if (or [cases left is type A and right is type A]) (= (fn left id ctr) fn right id ctr)
-         *
-         */
-
-        fn type_use_theorem_ident(ty: Type) -> Type {
-            match ty.into_kind() {
-                TypeKind::Bits(mut count_spec) => {
-                    if let CountSpec::Identifier(identifier) = &mut count_spec {
-                        let theorem_ident = identifier.as_theorem_identifier();
-                        assert!(
-                            theorem_ident.is_some(),
-                            "expected {identifier:?} to be completely resolved"
-                        );
-                        **identifier =
-                            Identifier::TheoremIdentifier(theorem_ident.cloned().unwrap());
-                    }
-                    Type::bits(count_spec)
-                }
-                kind => Type::from_kind(kind),
-            }
-        }
-
-        let left_positions = &self.sample_info_left().positions;
-        let right_positions = &self.sample_info_right().positions;
-
-        let left_types: BTreeSet<Type> = BTreeSet::from_iter(
-            self.sample_info_left()
-                .tys
-                .iter()
-                .cloned()
-                .map(type_use_theorem_ident),
-        );
-        let right_types: BTreeSet<Type> = BTreeSet::from_iter(
-            self.sample_info_right()
-                .tys
-                .iter()
-                .cloned()
-                .map(type_use_theorem_ident),
-        );
-
-        let types: Vec<&Type> = left_types.intersection(&right_types).collect();
-
-        let mut left_positions_by_type: BTreeMap<_, Vec<_>> = BTreeMap::new();
-        let mut right_positions_by_type: BTreeMap<_, Vec<_>> = BTreeMap::new();
-
-        for pos in left_positions {
-            let pos_ty = pos.ty.clone();
-            let pos_theorem_ty = type_use_theorem_ident(pos_ty);
-            left_positions_by_type
-                .entry(pos_theorem_ty)
-                .or_default()
-                .push(pos);
-        }
-
-        for pos in right_positions {
-            let pos_ty = pos.ty.clone();
-            let pos_theorem_ty = type_use_theorem_ident(pos_ty);
-            right_positions_by_type
-                .entry(pos_theorem_ty)
-                .or_default()
-                .push(pos);
-        }
-
-        let mut body: SmtExpr = true.into();
-
-        for ty in types {
-            let sort: SmtExpr = ty.into();
-
-            let left_has_type = left_positions_by_type
-                .get(ty)
-                .expect("expected that left sample info has positions for type {ty:?}")
-                .iter()
-                .map(|sample_pos| ("=", *sample_pos, "sample-id-left").into());
-            let mut left_or_case: Vec<SmtExpr> = vec!["or".into()];
-            left_or_case.extend(left_has_type);
-
-            let right_has_type = right_positions_by_type
-                .get(ty)
-                .expect("expected that right sample info has positions for type {ty:?}")
-                .iter()
-                .map(|sample_pos| ("=", *sample_pos, "sample-id-right").into());
-
-            let mut right_or_case: Vec<SmtExpr> = vec!["or".into()];
-            right_or_case.extend(right_has_type);
-
-            body = SmtIte {
-                cond: SmtAnd(vec![
-                    SmtExpr::List(left_or_case),
-                    SmtExpr::List(right_or_case),
-                ]),
-                then: (
-                    "=",
-                    (
-                        format!("__sample-rand-{left_game_inst_name}-{sort}"),
-                        "sample-id-left",
-                        "sample-ctr-left",
-                    ),
-                    (
-                        format!("__sample-rand-{right_game_inst_name}-{sort}"),
-                        "sample-id-right",
-                        "sample-ctr-right",
-                    ),
-                ),
-                els: body,
-            }
-            .into()
-        }
-
-        (
-            "define-fun",
-            "rand-is-eq",
-            (
-                ("sample-id-left", "SampleId"),
-                ("sample-id-right", "SampleId"),
-                ("sample-ctr-left", Type::integer()),
-                ("sample-ctr-right", Type::integer()),
-            ),
-            "Bool",
-            body,
-        )
-            .into()
     }
 }
 

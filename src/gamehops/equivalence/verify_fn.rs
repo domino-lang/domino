@@ -8,7 +8,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::theorem::RandomnessMappingInjectivityCheck;
 use crate::writers::smt::contexts::GameInstanceContext;
-use crate::writers::smt::patterns::oracle;
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
@@ -430,11 +429,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         let mut smt = smt.to_owned();
         smt.extend(&mut self.eqctx.emit_return_value_helpers(oracle_name));
-        smt.extend(
-            self.eqctx
-                .emit_randomness_mapping_declarations(oracle_name),
-        );
-        smt.push(self.eqctx.emit_randomness_mapping_condition(oracle_name));
+        smt.extend(self.eqctx.emit_randomness_mapping_condition(oracle_name));
         smt.push(self.eqctx.emit_oracle_claim_assert(claim, oracle_name));
 
         self.verify_with_solver_as_ui_claim(ui, &smt, claim_group, claim.name())
