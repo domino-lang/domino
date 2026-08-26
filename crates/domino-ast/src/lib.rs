@@ -22,7 +22,5 @@ pub mod source;
 mod state;
 pub mod walk;
 
-pub use ast_nodes::{Arenas, Visitor};
-pub use state::{
-    DenseTable, GlobalRefId, GlobalTable, LocationTable, PartialDenseTable, State, Tables,
-};
+pub use ast_nodes::{Arenas, GlobalRefId, Visitor};
+pub use state::{DenseTable, GlobalTable, LocationTable, PartialDenseTable, State, Tables};

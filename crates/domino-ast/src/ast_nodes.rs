@@ -17,13 +17,20 @@ use crate::{
     State,
 };
 
-pub trait NodeType {
+pub trait NodeType: Sized {
     const NODE_TYPE: NodeTypeEnum;
+    fn global_ref_id(r: Ref<Self>) -> GlobalRefId;
 }
 
 pub trait InArena: Sized {
     fn arena(arenas: &Arenas) -> &crate::arena::Arena<Self>;
     fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
+}
+
+impl<T: NodeType> Ref<T> {
+    pub fn global_ref_id(self) -> GlobalRefId {
+        NodeType::global_ref_id(self)
+    }
 }
 
 impl<T: NodeType + InArena> Ref<T> {
@@ -125,11 +132,33 @@ macro_rules! define_node_type_enum {
             $($variant_name),*
         }
 
+        #[derive(Clone, Copy, Debug,Eq,PartialEq,Hash)]
+        pub enum GlobalRefId {
+            $($variant_name(Ref<$node_type>)),*
+        }
+
+        #[macro_export]
+        macro_rules! with_global_ref_id {
+            (with Ref($id:ident) = $global_ref_id:expr => $code:block ) => {
+                {
+                match $global_ref_id {
+                    $($crate::GlobalRefId::$variant_name($id) => $code),*
+                }
+            }
+
+            };
+        }
+
         $(
             impl NodeType for $node_type {
                 const NODE_TYPE: NodeTypeEnum = NodeTypeEnum::$variant_name;
+                fn global_ref_id(r: Ref<$node_type>) -> GlobalRefId {
+                    GlobalRefId::$variant_name(r)
+                }
             }
         )*
+
+
     }
 }
 

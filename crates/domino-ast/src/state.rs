@@ -1,7 +1,4 @@
-use crate::{arena::Ref, ast_nodes::NodeTypeEnum};
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct GlobalRefId(pub NodeTypeEnum, pub u32);
+use crate::{arena::Ref, ast_nodes::GlobalRefId};
 
 #[derive(Default, Debug)]
 pub struct State {

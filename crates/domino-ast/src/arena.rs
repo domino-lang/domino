@@ -11,11 +11,7 @@
 
 use std::{fmt::Debug, marker::PhantomData};
 
-use crate::{
-    ast_nodes::NodeType,
-    source::{SourceFile, SourceLocation},
-    GlobalRefId,
-};
+use crate::source::{SourceFile, SourceLocation};
 
 // An arena for values of type T.
 ///
@@ -36,6 +32,32 @@ impl<T> Default for Arena<T> {
 // it keeps Ref covariant in T but stays Send + Sync regardless of whether T is.
 pub struct Ref<T>(u32, PhantomData<fn() -> T>);
 
+impl<T> std::hash::Hash for Ref<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<T> Ord for Ref<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl<T> Eq for Ref<T> {}
+
+impl<T> PartialEq for Ref<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> PartialOrd for Ref<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
 impl<T> core::fmt::Debug for Ref<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Ref").field(&self.0).finish()
@@ -52,12 +74,6 @@ impl<T> Copy for Ref<T> {}
 impl<T> Ref<T> {
     pub fn offset(&self) -> usize {
         self.0 as usize
-    }
-}
-
-impl<T: NodeType> Ref<T> {
-    pub const fn global_ref_id(self) -> GlobalRefId {
-        GlobalRefId(T::NODE_TYPE, self.0)
     }
 }
 
