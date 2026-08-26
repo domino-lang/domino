@@ -54,6 +54,7 @@ impl<'a> EquivalenceContext<'a> {
         );
 
         let mut out = Vec::new();
+        out.push(gctx.oracle_arg_game_state_pattern().declare_initial(game_inst_name));
 
         for pctx in gctx.pkg_inst_contexts() {
             let pkg_state = gctx
@@ -759,10 +760,8 @@ impl<'a> EquivalenceContext<'a> {
         // the new ones are declared in the declare-then-assert loop below
 
         out.push(game_state_left.declare_old(left_game_inst_name));
-        out.push(game_state_left.declare_initial(left_game_inst_name));
         //out.push(game_state_left.declare_new(left_game_inst_name));
         out.push(game_state_right.declare_old(right_game_inst_name));
-        out.push(game_state_right.declare_initial(right_game_inst_name));
         //out.push(game_state_right.declare_new(right_game_inst_name));
 
         ////// consts constants
