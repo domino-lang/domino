@@ -143,13 +143,10 @@ macro_rules! define_node_type_enum {
 
         #[macro_export]
         macro_rules! with_global_ref_id {
-            (with Ref($id:ident) = $global_ref_id:expr => $code:block ) => {
-                {
+            ($global_ref_id:expr, |$id:ident| $code:block ) => {
                 match $global_ref_id {
                     $($crate::GlobalRefId::$variant_name($id) => $code),*
                 }
-            }
-
             };
         }
 

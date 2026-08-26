@@ -507,11 +507,9 @@ impl<'a> PackageVisitor<'a> {
             let err: diag::Diagnostic = match existing_decl.place() {
                 PackageDeclarationPlace::BuiltIn => diag::CantRedefineBuiltin::new(dx, node).into(),
                 PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
-                    domino_ast::with_global_ref_id! {
-                        with Ref(r) = global_ref_id => {
-                            diag::AlreadyDefined::new(dx, node, r).into()
-                        }
-                    }
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, node, r).into()
+                    })
                 }
             };
 
