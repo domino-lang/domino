@@ -48,6 +48,12 @@ pub trait RefHandler<O> {
     fn handle<T: NodeType>(self, r: Ref<T>) -> O;
 }
 
+impl GlobalRefId {
+    pub fn with<O, H: RefHandler<O>>(self, h: H) -> O {
+        with_global_ref_id!(self, |r| { h.handle(r) })
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct File<T> {
     pub leading_trivia: Ref<Trivia>,
@@ -150,13 +156,6 @@ macro_rules! define_node_type_enum {
             };
         }
 
-        impl GlobalRefId {
-            pub fn with<O, H: RefHandler<O>>(self, h:H) -> O {
-                match self {
-                    $(Self::$variant_name(r) => h.handle(r)),*
-                }
-            }
-        }
 
         $(
             impl NodeType for $node_type {
@@ -440,3 +439,5 @@ define_node_types! {
     TheoremItemList { thm_item_list: theorem::TheoremItemList }
     Theorem { thm: theorem::Theorem }
 }
+
+use with_global_ref_id;
