@@ -36,6 +36,40 @@ enum PackageDeclaration {
     BuiltinValue(BuiltinValue),
 }
 
+enum PackageDeclarationPlace {
+    BuiltIn,
+    UserDeclaration(domino_ast::GlobalRefId),
+}
+
+impl PackageDeclaration {
+    fn place(&self) -> PackageDeclarationPlace {
+        match self {
+            PackageDeclaration::BuiltinType(_) | PackageDeclaration::BuiltinValue(_) => {
+                PackageDeclarationPlace::BuiltIn
+            }
+
+            PackageDeclaration::OracleImport(r) => {
+                PackageDeclarationPlace::UserDeclaration(r.global_ref_id())
+            }
+            PackageDeclaration::TypeParam(r) => {
+                PackageDeclarationPlace::UserDeclaration(r.global_ref_id())
+            }
+            PackageDeclaration::Const(r) => {
+                PackageDeclarationPlace::UserDeclaration(r.global_ref_id())
+            }
+            PackageDeclaration::State(r) => {
+                PackageDeclarationPlace::UserDeclaration(r.global_ref_id())
+            }
+            PackageDeclaration::OracleArg(r) => {
+                PackageDeclarationPlace::UserDeclaration(r.global_ref_id())
+            }
+            PackageDeclaration::OracleLocal(r) => {
+                PackageDeclarationPlace::UserDeclaration(r.global_ref_id())
+            }
+        }
+    }
+}
+
 impl From<BuiltinType> for PackageDeclaration {
     fn from(value: BuiltinType) -> Self {
         Self::BuiltinType(value)
@@ -459,7 +493,30 @@ impl<'a> PackageVisitor<'a> {
         arenas: &Arenas,
         node: Ref<identifier::PackageTypeIdentifier>,
     ) {
+        let dx = Resolver {
+            arenas,
+            locations: self.locations,
+        };
+
         let name = get_text(node, self.locations, &arenas.source);
+
+        if let Some(existing_decl) = self
+            .scope
+            .declare(name, PackageDeclaration::TypeParam(node))
+        {
+            let err: diag::Diagnostic = match existing_decl.place() {
+                PackageDeclarationPlace::BuiltIn => diag::CantRedefineBuiltin::new(dx, node).into(),
+                PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id! {
+                        with Ref(r) = global_ref_id => {
+                            diag::AlreadyDefined::new(dx, node, r).into()
+                        }
+                    }
+                }
+            };
+
+            crate::fail_resolution!(self, node, err, type_names);
+        };
 
         self.info
             .as_mut()
@@ -469,9 +526,6 @@ impl<'a> PackageVisitor<'a> {
         self.tables
             .type_names
             .set(node, PackageTypeResolution::TypeParam(node));
-
-        self.scope
-            .declare(name, PackageDeclaration::TypeParam(node));
     }
 
     fn declare_const_param(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {

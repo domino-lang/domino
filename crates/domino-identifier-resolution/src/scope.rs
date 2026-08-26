@@ -44,12 +44,16 @@ impl<Decl: Declaration> Frame<Decl> {
         Self(HashMap::new())
     }
 
-    pub(crate) fn set(&mut self, name: &str, decl: Decl) -> Option<Decl> {
-        self.0.insert(name.to_string(), decl)
+    pub(crate) fn set(&mut self, name: &str, decl: Decl) {
+        self.0.insert(name.to_string(), decl);
     }
 
     pub(crate) fn get(&self, name: &str) -> Option<&Decl> {
         self.0.get(name)
+    }
+
+    fn has(&self, name: &str) -> bool {
+        self.0.contains_key(name)
     }
 }
 
@@ -69,32 +73,41 @@ impl<Decl: Declaration> Scope<Decl> {
         self.0.pop();
     }
 
-    pub(crate) fn declare(&mut self, name: &str, decl: Decl) -> Option<Decl> {
-        // Ensure the name is a plausible identifier. This helps catching bugs early.
-        // Three checks:
-        // 1. first is ascii alphabetic or underscore
-        // 2. first exists (.unwrap_or(false)), i.e. name not the empty string
-        // 3. all are underscore or ascii alphanumeric
-        debug_assert!({
-            let mut chars = name.chars().peekable();
-            let first = chars.peek();
+    pub(crate) fn declare(&mut self, name: &str, decl: Decl) -> Option<&Decl> {
+        debug_assert!(is_identifier(name));
 
-            let nonempty_and_first_is_no_number =
-                first.map(|c| !c.is_ascii_digit()).unwrap_or(false);
-            let all_are_alnum_or_underscore =
-                chars.all(|c: char| c.is_ascii_alphanumeric() || c == '_');
+        // due to lifetime issues we can't just call lookup in the if condition, so we at least
+        // remmeber which frame to search if we find something
+        if let Some(frame) = self.which_frame(name) {
+            return self.0[frame].get(name);
+        }
 
-            nonempty_and_first_is_no_number && all_are_alnum_or_underscore
-        });
+        self.0.last_mut().unwrap().set(name, decl);
+        None
+    }
 
-        // XXX: should we really just write to the first frame here? This means we only report
-        // re-definitions of they happen in the same frame, not if we shadow.
-        self.0.last_mut().unwrap().set(name, decl)
+    fn which_frame(&self, name: &str) -> Option<usize> {
+        self.0.iter().rev().position(|f| f.has(name))
     }
 
     pub(crate) fn lookup(&self, name: &str) -> Option<&Decl> {
         self.0.iter().rev().find_map(|f| f.get(name))
     }
+}
+
+/// Ensure the name is a plausible identifier. This helps catching bugs early.
+/// Three checks:
+/// 1. first is ascii alphabetic or underscore
+/// 2. first exists (.unwrap_or(false)), i.e. name not the empty string
+/// 3. all are underscore or ascii alphanumeric
+fn is_identifier(name: &str) -> bool {
+    let mut chars = name.chars().peekable();
+    let first = chars.peek();
+
+    let nonempty_and_first_is_no_number = first.map(|c| !c.is_ascii_digit()).unwrap_or(false);
+    let all_are_alnum_or_underscore = chars.all(|c: char| c.is_ascii_alphanumeric() || c == '_');
+
+    nonempty_and_first_is_no_number && all_are_alnum_or_underscore
 }
 
 impl core::fmt::Display for DeclarationType {

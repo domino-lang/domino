@@ -70,6 +70,14 @@ pub enum Diagnostic {
     #[error(transparent)]
     #[diagnostic(transparent)]
     AdversaryAsCallee(#[from] AdversaryAsCallee),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    CantRedefineBuiltin(#[from] CantRedefineBuiltin),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    AlreadyDefined(#[from] AlreadyDefined),
 }
 
 impl Diagnostic {
@@ -88,6 +96,8 @@ impl Diagnostic {
             Diagnostic::PackageDoesNotImportOracle(node) => node.global_ref,
             Diagnostic::PackageDoesNotDefineOracle(node) => node.global_ref,
             Diagnostic::AdversaryAsCallee(node) => node.global_ref,
+            Diagnostic::CantRedefineBuiltin(node) => node.global_ref,
+            Diagnostic::AlreadyDefined(node) => node.global_ref,
         }
     }
 }
@@ -559,6 +569,72 @@ impl AdversaryAsCallee {
         let at = dx.span(at);
         Self {
             at,
+            global_ref,
+            source_code,
+        }
+    }
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("this identifier is a builtin an can't be redefined")]
+#[diagnostic(code(domino::resolve::idents::cant_redefine_builtin))]
+pub struct CantRedefineBuiltin {
+    #[label("this identifier is a builtin")]
+    pub at: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl CantRedefineBuiltin {
+    pub fn new<IK>(dx: Resolver, at: Ref<identifier::Identifier<IK>>) -> Self
+    where
+        IK: IdentifierKind,
+        identifier::Identifier<IK>: NodeType + InArena,
+    {
+        let global_ref = at.global_ref_id();
+        let source_code = dx.named_source(at);
+        let at = dx.span(at);
+        Self {
+            at,
+            global_ref,
+            source_code,
+        }
+    }
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("this identifier has been defined before")]
+#[diagnostic(code(domino::resolve::idents::already_defined))]
+pub struct AlreadyDefined {
+    #[label("this identifier has been defined earlier")]
+    pub at: SourceSpan,
+
+    #[label("earlier definition is here")]
+    pub earlier: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl AlreadyDefined {
+    pub fn new<IK, T>(dx: Resolver, at: Ref<identifier::Identifier<IK>>, earlier: Ref<T>) -> Self
+    where
+        IK: IdentifierKind,
+        identifier::Identifier<IK>: NodeType + InArena,
+        T: NodeType + InArena,
+    {
+        let global_ref = at.global_ref_id();
+        let source_code = dx.named_source(at);
+        let at = dx.span(at);
+        let earlier = dx.span(earlier);
+        Self {
+            at,
+            earlier,
             global_ref,
             source_code,
         }
