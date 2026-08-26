@@ -509,10 +509,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut smt = equivalence_smt.to_owned();
         smt.append(&mut oracle_smt.to_owned());
         smt.push(self.eqctx.emit_oracle_claim_assert(claim, oracle_name));
-        let claim_group = ClaimGroup::Oracle {
-            oracle_name: oracle_name.to_string(),
-        };
-        self.verify_with_solver(smt, &claim_group, claim.name())
+        self.verify_with_solver(smt, claim_group, claim.name())
     }
 
     fn verify_with_solver(
