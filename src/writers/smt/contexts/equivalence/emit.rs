@@ -480,13 +480,14 @@ impl<'a> EquivalenceContext<'a> {
             .find(|export| export.name() == oracle_name)
             .unwrap_or_else(|| panic!("could not find right export {oracle_name}"));
 
-        let left_offsets = self
-            .sample_info_left()
+        let left_sample_info = self.sample_info_left();
+        let right_sample_info = self.sample_info_right();
+
+        let left_offsets = left_sample_info
             .max_offset
             .get(left_export)
             .unwrap_or_else(|| panic!("could not find max offsets for left export {oracle_name}"));
-        let right_offsets = self
-            .sample_info_right()
+        let right_offsets = right_sample_info
             .max_offset
             .get(right_export)
             .unwrap_or_else(|| panic!("could not find max offsets for right export {oracle_name}"));
@@ -495,14 +496,20 @@ impl<'a> EquivalenceContext<'a> {
             .iter()
             .flat_map(|(position, max_offset)| {
                 (0..*max_offset)
-                    .map(move |offset| (position.sample_id, SmtExpr::from(position), offset))
+                    .map(move |offset| (
+                        position, 
+                        SmtExpr::from(&left_sample_info.positions[*position]
+                    ), offset))
             })
             .collect();
         let mut right_entries: Vec<_> = right_offsets
             .iter()
             .flat_map(|(position, max_offset)| {
                 (0..*max_offset)
-                    .map(move |offset| (position.sample_id, SmtExpr::from(position), offset))
+                    .map(move |offset| (
+                        position, 
+                        SmtExpr::from(&right_sample_info.positions[*position]
+                    ), offset))
             })
             .collect();
 
