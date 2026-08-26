@@ -106,7 +106,7 @@ pub enum Error {
     RewriteNeedsPackageContext { defn: String },
     #[error(transparent)]
     ParserError(#[from] crate::util::smtparser::Error),
-    #[error("SMT Solver failed in claim {claim_name} of claim group {claim_group_name}")]
+    #[error("SMT Solver failed in claim {claim_name} when verifying {claim_group_name}")]
     ProverProcessError {
         claim_name: String,
         claim_group_name: String,

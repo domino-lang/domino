@@ -6,6 +6,7 @@ use wildcard::Wildcard;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
+use crate::gamehops::equivalence::verify_fn::ClaimGroup::{InductionStart, Oracle};
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
@@ -26,6 +27,34 @@ pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Pro
     req_claim: Option<Wildcard<'a>>,
     parallel: usize,
     induction_start: bool,
+}
+
+enum ClaimGroup {
+    Oracle { oracle_name: String },
+    InductionStart,
+}
+
+impl ClaimGroup {
+    fn ui_name(&self) -> String {
+        match self {
+            Oracle { oracle_name } => oracle_name.clone(),
+            InductionStart => "invariants-at-initial-state".to_string(),
+        }
+    }
+
+    fn error_name(&self) -> String {
+        match self {
+            Oracle { oracle_name } => format!("oracle {oracle_name}").to_string(),
+            InductionStart => "invariants at initial state".to_string(),
+        }
+    }
+
+    fn transcript_file_name(&self) -> String {
+        match self {
+            Oracle { oracle_name } => oracle_name.clone(),
+            InductionStart => "!invariants-at-initial-state!".to_string(),
+        }
+    }
 }
 
 impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
@@ -159,8 +188,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claim_group_name: &str = "invariant-at-initial-state";
-        let transcript_file_claim_group_name = "!invariant-at-initial-state!";
+        let claim_group = ClaimGroup::InductionStart;
 
         log::info!("verify: invariants at initial state");
 
@@ -180,7 +208,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().start_claim_group(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            claim_group_name,
+            &claim_group.ui_name(),
             checks.len().try_into().unwrap(),
         );
 
@@ -196,20 +224,14 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .map(|(claim_name, assert)| {
                 let mut smt = base_smt.clone();
                 smt.push(assert.clone());
-                self.verify_with_solver(
-                    smt,
-                    claim_group_name,
-                    claim_name,
-                    transcript_file_claim_group_name,
-                    &format!("!{claim_name}!"),
-                )
+                self.verify_with_solver(smt, &claim_group, claim_name, &format!("!{claim_name}!"))
             })
             .collect();
 
         ui.lock().unwrap().finish_claim_group(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            claim_group_name,
+            &claim_group.ui_name(),
         );
 
         result
@@ -302,12 +324,14 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         claims.append(&mut self.generate_game_or_package_invariant_claims());
 
-        let claim_group_name = oracle.name().to_string();
+        let claim_group = ClaimGroup::Oracle {
+            oracle_name: oracle.name().to_string(),
+        };
 
         ui.lock().unwrap().start_claim_group(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            &claim_group_name,
+            &claim_group.ui_name(),
             claims.len().try_into().unwrap(),
         );
 
@@ -333,7 +357,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().finish_claim_group(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            &claim_group_name,
+            &claim_group.ui_name(),
         );
 
         result
@@ -382,15 +406,17 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut smt = equivalence_smt.to_owned();
         smt.append(&mut oracle_smt.to_owned());
         smt.push(self.eqctx.emit_oracle_claim_assert(claim, oracle_name));
-        self.verify_with_solver(smt, oracle_name, claim.name(), oracle_name, claim.name())
+        let claim_group = ClaimGroup::Oracle {
+            oracle_name: oracle_name.to_string(),
+        };
+        self.verify_with_solver(smt, &claim_group, claim.name(), oracle_name)
     }
 
     fn verify_with_solver(
         &self,
         smt: Vec<SmtExpr>,
-        claim_group_name: &str,
+        claim_group: &ClaimGroup,
         claim_name: &str,
-        transcript_file_claim_group_name: &str,
         transcript_file_claim_name: &str,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
@@ -402,7 +428,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         eq.theorem_name(),
                         eq.left_name(),
                         eq.right_name(),
-                        transcript_file_claim_group_name,
+                        &claim_group.transcript_file_name(),
                         transcript_file_claim_name,
                     )
                     .unwrap();
@@ -412,19 +438,18 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 self.backend.new_smtsolver()
             }
         }
-        .map_err(|err| Error::prover_process_error(claim_name, claim_group_name, err))?;
+        .map_err(|err| Error::prover_process_error(claim_name, &claim_group.error_name(), err))?;
         std::thread::sleep(std::time::Duration::from_millis(20));
 
         for entry in smt {
-            solver
-                .write_smt(entry.clone())
-                .map_err(|err| Error::prover_process_error(claim_name, claim_group_name, err))?;
+            solver.write_smt(entry.clone()).map_err(|err| {
+                Error::prover_process_error(claim_name, &claim_group.error_name(), err)
+            })?;
         }
 
-        match solver
-            .check_sat()
-            .map_err(|err| Error::prover_process_error(claim_name, claim_group_name, err))?
-        {
+        match solver.check_sat().map_err(|err| {
+            Error::prover_process_error(claim_name, &claim_group.error_name(), err)
+        })? {
             SmtSolverResponse::Unsat => Ok(()),
             response => {
                 let modelfile = solver.get_model().map(|(modelstring, _model)| {
@@ -437,7 +462,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 solver.close();
                 Err(ClaimTheoremFailedError {
                     claim_name: claim_name.to_string(),
-                    claim_group_name: claim_group_name.to_string(),
+                    claim_group_name: claim_group.error_name(),
                     response,
                     modelfile,
                 }
