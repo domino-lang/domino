@@ -2,7 +2,6 @@ composition BigComposition {
     const n: Integer;
     const f: fn Integer -> Integer;
 
-
     instance rand = Rand {
         params {
             n:   n,

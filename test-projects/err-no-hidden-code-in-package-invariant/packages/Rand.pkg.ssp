@@ -7,6 +7,9 @@ package Rand {
     state {
           ctr: Integer,
     }
+    invariant: [
+      ./packages/Rand.smt2
+    ]
 
     oracle UsefulOracle() -> (Integer, Bits(n))  {
         ctr  <- (ctr + 1);

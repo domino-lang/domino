@@ -2,6 +2,10 @@ composition MediumComposition {
     const n: Integer;
     const f: fn Integer -> Integer;
 
+    invariant: [
+      ./games/MediumComposition.smt2
+    ]
+
     instance rand = Rand {
         params {
             n:   n,

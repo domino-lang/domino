@@ -19,11 +19,6 @@
     (and
     ; ctr are equal
     (= ctr-0 ctr-1)
-    
-    ;This is some illegal SMT-code which someone maliciously tries to hide in the invariant
-    (forall ((i Int))
-    (= (<<func-f>> i) 0)
-    )
-    
+        
     )))
 
