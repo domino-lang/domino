@@ -18,7 +18,7 @@
     ; ctr are equal
     (= ctr-0 ctr-1)))
 
-(define-fun <relation-trivial-medium_composition-small_composition-AnotherUsefulOracle> 
+(define-fun <trivial-AnotherUsefulOracle> 
   ( (state-0  <GameState_MediumComposition_<$<!n!>$>>)
     (state-1  <GameState_SmallComposition_<$<!n!>$>>)
     (output-0 <OracleReturn_MediumComposition_<$<!n!>$>_Rand_<$<!n!>$>_UsefulOracle>)
