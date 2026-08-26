@@ -6,7 +6,6 @@ use wildcard::Wildcard;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
-use crate::gamehops::equivalence::verify_fn::ClaimGroup::{InductionStart, Oracle};
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
@@ -37,22 +36,22 @@ enum ClaimGroup {
 impl ClaimGroup {
     fn ui_name(&self) -> String {
         match self {
-            Oracle { oracle_name } => oracle_name.clone(),
-            InductionStart => "invariants-at-initial-state".to_string(),
+            Self::Oracle { oracle_name } => oracle_name.clone(),
+            Self::InductionStart => "invariants-at-initial-state".to_string(),
         }
     }
 
     fn error_name(&self) -> String {
         match self {
-            Oracle { oracle_name } => format!("oracle {oracle_name}").to_string(),
-            InductionStart => "invariants at initial state".to_string(),
+            Self::Oracle { oracle_name } => format!("oracle {oracle_name}").to_string(),
+            Self::InductionStart => "invariants at initial state".to_string(),
         }
     }
 
     fn file_system_name(&self) -> String {
         match self {
-            Oracle { oracle_name } => oracle_name.clone(),
-            InductionStart => "!invariants-at-initial-state!".to_string(),
+            Self::Oracle { oracle_name } => oracle_name.clone(),
+            Self::InductionStart => "!invariants-at-initial-state!".to_string(),
         }
     }
 }
