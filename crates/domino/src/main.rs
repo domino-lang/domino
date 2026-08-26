@@ -30,13 +30,13 @@ pub(crate) struct Cli {
 pub struct IncompatibleArguments;
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("--oracle and --induction-start cannot be used together")]
+#[error("--oracle and --invariant-start cannot be used together")]
 #[diagnostic(help(
-    "--induction-start restricts verification to the induction start, which \
+    "--invariant-start restricts verification to the invariant start, which \
         doesn't involve any oracle, so --oracle has no effect there. \
         Pass only one of the two options."
 ))]
-pub struct ReqOracleWithOnlyInductionStart;
+pub struct ReqOracleWithInvariantStart;
 
 #[allow(clippy::large_enum_variant)]
 #[allow(clippy::enum_variant_names)]
@@ -50,7 +50,7 @@ enum Error {
     IncompatibleArguments(#[from] IncompatibleArguments),
     #[error(transparent)]
     #[diagnostic(transparent)]
-    ReqOracleWithOnlyInductionStart(#[from] ReqOracleWithOnlyInductionStart),
+    ReqOracleWithInvariantStart(#[from] ReqOracleWithInvariantStart),
 }
 
 fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
@@ -77,8 +77,8 @@ fn prove(p: &Prove) -> Result<(), Error> {
         return Err(IncompatibleArguments.into());
     }
 
-    if p.induction_start && p.oracle.is_some() {
-        return Err(ReqOracleWithOnlyInductionStart.into());
+    if p.invariant_start && p.oracle.is_some() {
+        return Err(ReqOracleWithInvariantStart.into());
     }
 
     let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
@@ -90,7 +90,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
         p.proofstep,
         &p.oracle,
         &p.claim,
-        p.induction_start,
+        p.invariant_start,
     )?;
     Ok(())
 }

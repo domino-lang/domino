@@ -25,33 +25,33 @@ pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Pro
     req_oracle: Option<&'a str>,
     req_claim: Option<Wildcard<'a>>,
     parallel: usize,
-    induction_start: bool,
+    invariant_start: bool,
 }
 
 enum ClaimGroup {
     Oracle { oracle_name: String },
-    InductionStart,
+    InvariantStart,
 }
 
 impl ClaimGroup {
     fn ui_name(&self) -> String {
         match self {
             Self::Oracle { oracle_name } => oracle_name.clone(),
-            Self::InductionStart => "invariants-at-initial-state".to_string(),
+            Self::InvariantStart => "invariant-start".to_string(),
         }
     }
 
     fn error_name(&self) -> String {
         match self {
             Self::Oracle { oracle_name } => format!("oracle {oracle_name}").to_string(),
-            Self::InductionStart => "invariants at initial state".to_string(),
+            Self::InvariantStart => "invariant start".to_string(),
         }
     }
 
     fn file_system_name(&self) -> String {
         match self {
             Self::Oracle { oracle_name } => oracle_name.clone(),
-            Self::InductionStart => "!invariants-at-initial-state!".to_string(),
+            Self::InvariantStart => "!invariant-start!".to_string(),
         }
     }
 }
@@ -67,7 +67,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         req_oracle: Option<&'a str>,
         req_claim: Option<&'a str>,
         parallel: usize,
-        induction_start: bool,
+        invariant_start: bool,
     ) -> Self {
         let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
         Self {
@@ -78,7 +78,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             req_oracle,
             req_claim,
             parallel,
-            induction_start,
+            invariant_start,
         }
     }
 
@@ -131,7 +131,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.lock().unwrap().proofstep_set_claim_groups_count(
             &self.eqctx.theorem().name,
             &proofstep_name,
-            (oracle_sequence.len() + 1) // 1 is for induction start
+            (oracle_sequence.len() + 1) // 1 is for invariant start
                 .try_into()
                 .unwrap(),
         );
@@ -141,12 +141,12 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
-                let verify_induction_start = rayon::iter::once(())
-                    .map(|_| self.verify_induction_start(ui.clone(), &smt))
+                let verify_invariant_start = rayon::iter::once(())
+                    .map(|_| self.verify_invariant_start(ui.clone(), &smt))
                     .flatten();
 
-                if self.induction_start {
-                    return verify_induction_start.collect();
+                if self.invariant_start {
+                    return verify_invariant_start.collect();
                 }
 
                 let verify_oracle_claims = oracle_sequence
@@ -158,7 +158,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     return verify_oracle_claims.collect();
                 }
 
-                verify_induction_start.chain(verify_oracle_claims).collect()
+                verify_invariant_start.chain(verify_oracle_claims).collect()
             });
 
         let failed_claims: Vec<_> = claims.into_iter().filter_map(Result::err).collect();
@@ -172,19 +172,19 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         Ok(())
     }
 
-    fn generate_game_or_package_invariant_induction_start_asserts(&self) -> Vec<(String, SmtExpr)> {
+    fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
         self.generate_game_or_package_invariant_claims()
             .iter()
             .map(|claim| {
                 let smt = self
                     .eqctx
-                    .emit_game_or_package_invariant_induction_start_assert(claim);
+                    .emit_game_or_package_invariant_start_assert(claim);
                 (claim.name().to_string(), smt)
             })
             .collect()
     }
 
-    fn verify_induction_start<UI: TheoremUI + Send>(
+    fn verify_invariant_start<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &[SmtExpr],
@@ -192,7 +192,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let eq = self.eqctx.equivalence();
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
 
-        let claim_group = ClaimGroup::InductionStart;
+        let claim_group = ClaimGroup::InvariantStart;
 
         log::info!("verify: invariants at initial state");
 
@@ -204,10 +204,10 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         base_smt.append(&mut self.eqctx.emit_initial_state_values());
 
         let mut checks: Vec<(String, SmtExpr)> = vec![(
-            "state-relation-invariant".to_string(),
-            self.eqctx.emit_equivalence_induction_start_assert(),
+            "invariant".to_string(),
+            self.eqctx.emit_invariant_start_assert(),
         )];
-        checks.append(&mut self.generate_game_or_package_invariant_induction_start_asserts());
+        checks.append(&mut self.generate_game_or_package_invariant_start_asserts());
 
         ui.lock().unwrap().start_claim_group(
             &self.eqctx.theorem().name,

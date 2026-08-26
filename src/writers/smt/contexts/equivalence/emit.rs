@@ -82,7 +82,7 @@ impl<'a> EquivalenceContext<'a> {
         out
     }
 
-    pub(crate) fn emit_equivalence_induction_start_assert(&self) -> SmtExpr {
+    pub(crate) fn emit_invariant_start_assert(&self) -> SmtExpr {
         let state_left = self.left_game_inst_ctx().oracle_arg_game_state_pattern();
         let state_right = self.right_game_inst_ctx().oracle_arg_game_state_pattern();
 
@@ -100,10 +100,7 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    pub(crate) fn emit_game_or_package_invariant_induction_start_assert(
-        &self,
-        claim: &Claim,
-    ) -> SmtExpr {
+    pub(crate) fn emit_game_or_package_invariant_start_assert(&self, claim: &Claim) -> SmtExpr {
         let gctx = match claim.ty {
             ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
                 self.left_game_inst_ctx()
