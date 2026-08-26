@@ -49,7 +49,7 @@ impl ClaimGroup {
         }
     }
 
-    fn transcript_file_name(&self) -> String {
+    fn file_system_name(&self) -> String {
         match self {
             Oracle { oracle_name } => oracle_name.clone(),
             InductionStart => "!invariants-at-initial-state!".to_string(),
@@ -428,7 +428,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         eq.theorem_name(),
                         eq.left_name(),
                         eq.right_name(),
-                        &claim_group.transcript_file_name(),
+                        &claim_group.file_system_name(),
                         transcript_file_claim_name,
                     )
                     .unwrap();
