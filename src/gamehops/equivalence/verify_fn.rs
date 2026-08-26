@@ -200,7 +200,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         base_smt.append(&mut self.eqctx.emit_initial_state_values());
 
         let mut checks: Vec<(String, SmtExpr)> = vec![(
-            "equivalence".to_string(),
+            "state-relation-invariant".to_string(),
             self.eqctx.emit_equivalence_induction_start_assert(),
         )];
         checks.append(&mut self.generate_game_or_package_invariant_induction_start_asserts());
