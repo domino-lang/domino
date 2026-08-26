@@ -27,7 +27,7 @@ pub(crate) struct Cli {
 #[derive(Error, Diagnostic, Debug)]
 #[error("Need to specify a proof when specifying a proofstep")]
 #[diagnostic(code(cli::incompatible_arguments))]
-pub struct IncompatibleArgumentsError;
+pub struct IncompatibleArguments;
 
 #[derive(Error, Diagnostic, Debug)]
 #[error("--oracle and --induction-start cannot be used together")]
@@ -44,10 +44,10 @@ pub struct ReqOracleWithOnlyInductionStart;
 enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
-    ProjectError(#[from] project::error::Error),
+    Project(#[from] project::error::Error),
     #[error(transparent)]
     #[diagnostic(transparent)]
-    IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
+    IncompatibleArguments(#[from] IncompatibleArguments),
     #[error(transparent)]
     #[diagnostic(transparent)]
     ReqOracleWithOnlyInductionStart(#[from] ReqOracleWithOnlyInductionStart),
@@ -74,7 +74,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
     let project = project::DirectoryProject::load(project_root, &files)?;
 
     if p.proofstep.is_some() && p.proof.is_none() {
-        return Err(IncompatibleArgumentsError.into());
+        return Err(IncompatibleArguments.into());
     }
 
     if p.induction_start && p.oracle.is_some() {

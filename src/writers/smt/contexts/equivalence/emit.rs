@@ -54,7 +54,10 @@ impl<'a> EquivalenceContext<'a> {
         );
 
         let mut out = Vec::new();
-        out.push(gctx.oracle_arg_game_state_pattern().declare_initial(game_inst_name));
+        out.push(
+            gctx.oracle_arg_game_state_pattern()
+                .declare_initial(game_inst_name),
+        );
 
         for pctx in gctx.pkg_inst_contexts() {
             let pkg_state = gctx
