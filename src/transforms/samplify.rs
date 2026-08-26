@@ -325,7 +325,7 @@ fn statement_offsets(
         ) => {
             let edge = edge
                 .as_ref()
-                .expect(&format!("oracle invocation {oracle_name} is not resolved"));
+                .unwrap_or_else(|| panic!("oracle invocation {oracle_name} is not resolved"));
             oracle_offsets(pkgs, edge.to(), &edge.sig().name, positions)
         }
         Statement::InvokeOracle(invoke) => {
@@ -348,7 +348,7 @@ fn statement_offsets(
     }
 }
 
-fn extract_max_offset<'a>(
+fn extract_max_offset(
     pkgs: &[PackageInstance],
     exports: &[Export],
     positions: &[Position],
