@@ -795,7 +795,7 @@
                                 state-H710.KX.ReverseMac state-H710.KX.State)))
 
 
-(define-lemma <relation-same-state-H7_1_1_0 H7_1_1_1-AtMost>
+(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-AtMost>
     (state-left-old state-right-old
      ret-left       ret-right
      (ctr1 Int)
@@ -803,6 +803,6 @@
      (ctr3 Int))
   (and
   (= state-left-old  ret-left.state)
-  (= state-right-old state-right.state)
+  (= state-right-old ret-right.state)
   )
 )
