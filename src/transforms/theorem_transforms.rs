@@ -45,7 +45,7 @@ fn transform_game_inst(
         .transform()
         .expect("type extraction transformation failed unexpectedly");
     /*
-     * Note 1: we currently do samplify early so a `if foo { stuff }
+     * Note 1: we currently do samplify before treeify so a `if foo { stuff }
      * else { other stuff } ... x <- Integer` gets the same sample
      * counter for the x sampling after returnify (instead of
      * different ones depending on which branch was taken)
