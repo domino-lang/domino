@@ -223,7 +223,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .map(|(claim_name, assert)| {
                 let mut smt = base_smt.clone();
                 smt.push(assert.clone());
-                self.verify_with_solver(smt, &claim_group, claim_name, &format!("!{claim_name}!"))
+                self.verify_with_solver(smt, &claim_group, claim_name)
             })
             .collect();
 
@@ -408,15 +408,14 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let claim_group = ClaimGroup::Oracle {
             oracle_name: oracle_name.to_string(),
         };
-        self.verify_with_solver(smt, &claim_group, claim.name(), oracle_name)
+        self.verify_with_solver(smt, &claim_group, claim.name())
     }
 
     fn verify_with_solver(
         &self,
         smt: Vec<SmtExpr>,
         claim_group: &ClaimGroup,
-        claim_name: &str,
-        transcript_file_claim_name: &str,
+        claim_name: &str
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut solver = {
@@ -428,7 +427,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                         eq.left_name(),
                         eq.right_name(),
                         &claim_group.file_system_name(),
-                        transcript_file_claim_name,
+                        claim_name,
                     )
                     .unwrap();
 
