@@ -415,7 +415,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         &self,
         smt: Vec<SmtExpr>,
         claim_group: &ClaimGroup,
-        claim_name: &str
+        claim_name: &str,
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut solver = {
