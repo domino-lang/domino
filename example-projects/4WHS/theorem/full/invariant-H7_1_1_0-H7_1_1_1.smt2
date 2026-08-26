@@ -776,9 +776,9 @@
 (define-state-relation invariant
     (state-H710 state-H711)
   (and 
-;       (>= state-H710.KX.ctr_ 0)
-;       (relation-trivial-equalities  state-H710 state-H711)
-;       (relation-mac-implies-message state-H710 state-H711)
+       (>= state-H710.KX.ctr_ 0)
+       (relation-trivial-equalities  state-H710 state-H711)
+       (relation-mac-implies-message state-H710 state-H711)
        (relation-no-overwriting      state-H710 state-H711)
        (relation-sids                state-H710 state-H711)
        (relation-wellformedness      state-H710 state-H711)
@@ -793,3 +793,15 @@
                             state-H710.KX.Fresh state-H710.KX.State)
        (three-mac-implies-first state-H710.KX.First state-H710.KX.Second
                                 state-H710.KX.ReverseMac state-H710.KX.State)))
+
+(define-lemma same-state-AtMost
+    (state-left-old state-right-old
+     state-left     state-left-new
+     (ctr1 Int)
+     (ctr2 Int)
+     (ctr3 Int))
+  (and
+  (= state-left-old  state-left)
+  (= state-right-old state-right)
+  )
+)
