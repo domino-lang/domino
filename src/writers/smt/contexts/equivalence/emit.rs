@@ -495,40 +495,47 @@ impl<'a> EquivalenceContext<'a> {
         let mut left_entries: Vec<_> = left_offsets
             .iter()
             .flat_map(|(position, max_offset)| {
-                (0..*max_offset)
-                    .map(move |offset| (
-                        position, 
-                        SmtExpr::from(&left_sample_info.positions[*position]
-                    ), offset))
+                (0..*max_offset).map(move |offset| {
+                    (
+                        position,
+                        SmtExpr::from(&left_sample_info.positions[*position]),
+                        offset,
+                        &left_sample_info.positions[*position].ty,
+                    )
+                })
             })
             .collect();
         let mut right_entries: Vec<_> = right_offsets
             .iter()
             .flat_map(|(position, max_offset)| {
-                (0..*max_offset)
-                    .map(move |offset| (
-                        position, 
-                        SmtExpr::from(&right_sample_info.positions[*position]
-                    ), offset))
+                (0..*max_offset).map(move |offset| {
+                    (
+                        position,
+                        SmtExpr::from(&right_sample_info.positions[*position]),
+                        offset,
+                        &right_sample_info.positions[*position].ty,
+                    )
+                })
             })
             .collect();
 
-        left_entries.sort_by_key(|(sample_id, _expr, offset)| (*sample_id, *offset));
-        right_entries.sort_by_key(|(sample_id, _expr, offset)| (*sample_id, *offset));
+        left_entries.sort_by_key(|(sample_id, _, offset, _)| (*sample_id, *offset));
+        right_entries.sort_by_key(|(sample_id, _, offset, _)| (*sample_id, *offset));
 
         left_entries
             .iter()
-            .flat_map(|(_left_sample_id, sample_id_left, offset_left)| {
-                right_entries.iter().map(
-                    move |(_right_sample_id, sample_id_right, offset_right)| {
-                        RandomnessMappingEntry {
+            .flat_map(|(_left_sample_id, sample_id_left, offset_left, ty_left)| {
+                right_entries
+                    .iter()
+                    .filter(move |(_, _, _, ty_right)| ty_left.types_match(*ty_right))
+                    .map(
+                        move |(_, sample_id_right, offset_right, _)| RandomnessMappingEntry {
                             sample_id_left: sample_id_left.clone(),
                             sample_id_right: sample_id_right.clone(),
                             offset_left: *offset_left,
                             offset_right: *offset_right,
-                        }
-                    },
-                )
+                        },
+                    )
             })
             .collect()
     }
