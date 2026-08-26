@@ -3,7 +3,8 @@
 use crate::expressions::Expression;
 use crate::package::{Composition, Export, PackageInstance};
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
+use core::panic;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::iter::FromIterator;
@@ -29,13 +30,14 @@ pub struct Position {
 
 #[derive(Clone, Debug, Default)]
 pub struct SampleInfo {
+    // collection of all types of sample operations (without duplicates)
     pub tys: Vec<Type>,
     pub count: usize,
     pub positions: Vec<Position>,
     // Each exported oracle is mapped to a list of sampling positions
-    // ordered based on the first time each sampling occurs in the control flow 
+    // ordered based on the first time each sampling occurs in the control flow
     // together with the maximum possible counter/offset that can be sampled.
-    // Instead of a new instance of Position, we use the index to the 
+    // Instead of a new instance of Position, we use the index to the
     // `positions` vector in order to make type look up fast as well.
     pub max_offset: HashMap<Export, Vec<(usize, usize)>>,
 }
@@ -166,6 +168,12 @@ pub fn samplify(
                 },
                 file_pos,
             ) => {
+                if !matches!(
+                    ty.kind(),
+                    TypeKind::Boolean | TypeKind::Integer | TypeKind::Bits(_)
+                ) {
+                    panic!("Only bits, bools, and integers are allowed for sampling");
+                }
                 let dst_index = match &pattern {
                     Pattern::Table { index, .. } => Some(index.clone()),
                     _ => None,
