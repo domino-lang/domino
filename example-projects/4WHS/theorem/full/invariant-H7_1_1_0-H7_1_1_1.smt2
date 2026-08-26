@@ -794,14 +794,15 @@
        (three-mac-implies-first state-H710.KX.First state-H710.KX.Second
                                 state-H710.KX.ReverseMac state-H710.KX.State)))
 
-(define-lemma same-state-AtMost
+
+(define-lemma <relation-same-state-H7_1_1_0 H7_1_1_1-AtMost>
     (state-left-old state-right-old
-     state-left     state-left-new
+     ret-left       ret-right
      (ctr1 Int)
      (ctr2 Int)
      (ctr3 Int))
   (and
-  (= state-left-old  state-left)
-  (= state-right-old state-right)
+  (= state-left-old  ret-left.state)
+  (= state-right-old state-right.state)
   )
 )

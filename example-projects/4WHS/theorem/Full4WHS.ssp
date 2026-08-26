@@ -1908,8 +1908,8 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    lemma-same-state-AtMost:      [no-abort]
-                    relation-reverse-mac:         [no-abort, lemma-same-state-AtMost ]
+                    relation-same-state    :      [no-abort]
+                    relation-reverse-mac:         [no-abort, relation-same-state]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
