@@ -44,6 +44,10 @@ impl<T: NodeType + InArena> Ref<T> {
     }
 }
 
+pub trait RefHandler<O> {
+    fn handle<T: NodeType>(self, r: Ref<T>) -> O;
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct File<T> {
     pub leading_trivia: Ref<Trivia>,
@@ -147,6 +151,14 @@ macro_rules! define_node_type_enum {
             }
 
             };
+        }
+
+        impl GlobalRefId {
+            pub fn with<O, H: RefHandler<O>>(self, h:H) -> O {
+                match self {
+                    $(Self::$variant_name(r) => h.handle(r)),*
+                }
+            }
         }
 
         $(
