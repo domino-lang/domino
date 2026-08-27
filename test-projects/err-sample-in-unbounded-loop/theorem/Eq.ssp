@@ -1,0 +1,20 @@
+theorem Eq {
+    instance Left = Left {}
+    instance Right = Right {}
+
+    gamehops {
+        equivalence Left Right {
+            Loopy: {
+                randomness: simple
+                invariant: [
+                    theorem/invariant.smt2
+                ]
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+}

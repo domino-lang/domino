@@ -1,0 +1,14 @@
+package Sampler {
+    /*
+     * `n` is an oracle argument, so `loopunroll` can never turn `0 <= i < n`
+     * into a literal-bounds loop. The sampling inside therefore has no static
+     * counter bound, and `sample_max_counter_extractor` rejects it.
+     */
+    oracle Loopy(n: Integer) -> Bits(256) {
+        r <-$ Bits(256);
+        for i: 0 <= i < n {
+            r <-$ Bits(256);
+        }
+        return r;
+    }
+}
