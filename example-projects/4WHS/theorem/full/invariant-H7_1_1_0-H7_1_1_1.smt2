@@ -709,19 +709,23 @@
      (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
      (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (Fresh (Array Int (Maybe Bool))))
   Bool
-    (forall ((handle (Tuple5 Int Int Int Bits_n Bits_n)))
-;     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
+    (forall ((handle (Tuple5 Int Int Int Bits_n Bits_n))) ; (kid, U, V, ni, nr)
      (and
-      (let ((handle_ (mk-tuple2 handle (mk-tuple2 (el5-4 handle) 3)))) ;check order of V and U
+      (let ((handle_ (mk-tuple2 handle (mk-tuple2 (el5-4 handle) 3)))) ; ((kid, U, V, ni, nr) , (ni, 3))
       (let ((ctr (select ReverseMac handle_)))
         (=> (not (is-mk-none ctr))
             (let ((state (select State (maybe-get ctr))))
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
                     (=> (not (is-mk-none sid)) ;; same
-                        (not (is-mk-none (select First (maybe-get sid)))))))))))
+                        (ite (= (mk-some true) (select Fresh (maybe-get ctr)))
+                             (not (is-mk-none (select First (maybe-get sid))))
+                             (or (not (is-mk-none (select First  (maybe-get sid))))
+                                 (not (is-mk-none (select Second (maybe-get sid)))))
+                             ))))))))
       (let ((handle__ (mk-tuple2 handle (mk-tuple2 <0_n> 4))))
       (let ((ctr (select ReverseMac handle__)))
         (=> (not (is-mk-none ctr))
@@ -730,7 +734,8 @@
                   (let ((sid (el11-10 (maybe-get state))))
                     (=> (not (is-mk-none sid)) ;; same
                         (and (not (is-mk-none (select First  (maybe-get sid))))
-                             (not (is-mk-none (select Second (maybe-get sid)))))))))))))))
+                             (not (is-mk-none (select Second (maybe-get sid))))))))))))
+)))
 
 
 (define-state-relation relation-trivial-equalities
@@ -846,9 +851,9 @@
     (left right)
     (and
        (three-mac-implies-first left.KX.First left.KX.Second
-                                left.KX.ReverseMac left.KX.State)
+                                left.KX.ReverseMac left.KX.State left.KX.Fresh)
        (three-mac-implies-first right.KX.First right.KX.Second
-                                right.KX.ReverseMac right.KX.State)
+                                right.KX.ReverseMac right.KX.State right.KX.Fresh)
 ))
 
 
