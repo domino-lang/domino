@@ -1730,12 +1730,13 @@ theorem Full4WHS {
                                                   ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    same-state:                   [no-abort]
                     relation-at-least:            [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least,same-output,same-state]
                 }
             }
             Send5: {

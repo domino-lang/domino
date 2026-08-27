@@ -861,3 +861,20 @@
   (= state-right-old ret-right.state)
   )
 )
+
+(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-Send4>
+    (state-left-old state-right-old
+     ret-left       ret-right
+     (ctr Int)
+     (msg (Tuple2 Bits_n Bits_n)))
+  (and
+  (=  state-left-old.KX.ctr_         ret-left.state.KX.ctr_)
+  (= state-right-old.KX.ctr_        ret-right.state.KX.ctr_)
+  (=  state-left-old.KX.RevTested    ret-left.state.KX.RevTested)
+  (= state-right-old.KX.RevTested   ret-right.state.KX.RevTested)
+  (=  state-left-old.KX.Fresh        ret-left.state.KX.Fresh)
+  (= state-right-old.KX.Fresh       ret-right.state.KX.Fresh)
+  (=  state-left-old.KX.RevTestEval  ret-left.state.KX.RevTestEval)
+  (= state-right-old.KX.RevTestEval ret-right.state.KX.RevTestEval)
+  )
+)
