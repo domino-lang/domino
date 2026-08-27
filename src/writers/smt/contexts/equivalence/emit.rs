@@ -1072,28 +1072,21 @@ impl<'a> EquivalenceContext<'a> {
 
         /////// randomess counters
 
-        for (decl_ctr, assert_ctr, assert_zero_ctr, decl_val, assert_val) in
-            build_rands(self.sample_info_left(), left)
-        {
+        for (decl_ctr, assert_ctr, assert_zero_ctr) in build_rands(self.sample_info_left(), left) {
             out.push(decl_ctr);
-            // the following could be merged together; it is important for
-            // randomness mapping to assert that old value is zero
             out.push(assert_ctr);
+            // it is important for randomness mapping to assert that old counter is zero
+            // otherwise offset is needed
             out.push(assert_zero_ctr);
-            out.push(decl_val);
-            out.push(assert_val);
         }
 
-        for (decl_ctr, assert_ctr, assert_zero_ctr, decl_val, assert_val) in
-            build_rands(self.sample_info_right(), right)
+        for (decl_ctr, assert_ctr, assert_zero_ctr) in build_rands(self.sample_info_right(), right)
         {
             out.push(decl_ctr);
-            // the following could be merged together; it is important for
-            // randomness mapping to assert that old value is zero
             out.push(assert_ctr);
+            // it is important for randomness mapping to assert that old counter is zero
+            // otherwise offset is needed
             out.push(assert_zero_ctr);
-            out.push(decl_val); // should not be needed
-            out.push(assert_val); // should not be needed
         }
 
         out
@@ -1447,7 +1440,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 fn build_rands(
     sample_info: &SampleInfo,
     game_inst: &GameInstance,
-) -> Vec<(SmtExpr, SmtExpr, SmtExpr, SmtExpr, SmtExpr)> {
+) -> Vec<(SmtExpr, SmtExpr, SmtExpr)> {
     let gctx = GameInstanceContext::new(game_inst);
 
     sample_info
@@ -1455,7 +1448,6 @@ fn build_rands(
         .iter()
         .map(|sample_item| {
             let sample_id = sample_item.sample_id;
-            let ty = &sample_item.ty;
             let game_inst_name = game_inst.name();
 
             let state = gctx
@@ -1463,10 +1455,8 @@ fn build_rands(
                 .old_global_const_name(game_inst_name);
 
             let randctr_name = format!("randctr-{game_inst_name}-{sample_id}");
-            let randval_name = format!("randval-{game_inst_name}-{sample_id}");
 
             let decl_randctr = declare_const(randctr_name.clone(), Sort::Int);
-            let decl_randval = declare_const(randval_name.clone(), ty.clone().into());
 
             // pull randomness counter for given sample_id out of the gamestate
             let randctr = gctx
@@ -1485,22 +1475,7 @@ fn build_rands(
             })
             .into();
 
-            // apply respective randomness function (based on type) to the given counter
-            let randval = gctx.smt_eval_randfn(sample_item, ("+", 0, randctr_name.as_str()), ty);
-
-            let constrain_randval: SmtExpr = SmtAssert(SmtEq2 {
-                lhs: randval_name,
-                rhs: randval,
-            })
-            .into();
-
-            (
-                decl_randctr,
-                constrain_randctr,
-                zero_constrain_randctr,
-                decl_randval,
-                constrain_randval,
-            )
+            (decl_randctr, constrain_randctr, zero_constrain_randctr)
         })
         .collect()
 }
