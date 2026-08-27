@@ -3,14 +3,11 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use crate::{
     hacks,
     identifier::Identifier,
-    theorem::{Claim, ClaimType, GameInstance, RandomnessType},
+    theorem::{Claim, ClaimType, GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
     writers::smt::{
-        contexts::{
-            EquivalenceContext, GameInstanceContext, GenericOracleContext,
-            RandomnessMappingInjectivityCheck,
-        },
+        contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtForall, SmtImplies, SmtIte, SmtNot},
         patterns,
@@ -32,15 +29,6 @@ use crate::{
 };
 
 impl RandomnessMappingInjectivityCheck {
-    pub(crate) const ALL: [Self; 2] = [Self::Left, Self::Right];
-
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Self::Left => "!randomness-mapping-injective-left!",
-            Self::Right => "!randomness-mapping-injective-right!",
-        }
-    }
-
     /// Emits the smt code that searches for a counterexample to injectivity of the randomness
     /// mapping relation on the given component.
     ///
