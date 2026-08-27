@@ -1,4 +1,4 @@
-(define-lemma <relation-case-i-lt-dminusone-CoreIdeal-LastHybrid-GBLG>
+(define-lemma <case-i-lt-dminusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -16,7 +16,7 @@
     )
 )
 
-(define-lemma <relation-case-i-is-dminusone-CoreIdeal-LastHybrid-GBLG>
+(define-lemma <case-i-is-dminusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -34,7 +34,7 @@
     )
 )
 
-(define-lemma <relation-case-i-is-d-CoreIdeal-LastHybrid-GBLG>
+(define-lemma <case-i-is-d-GBLG>
     (
         old-state-left
         old-state-right

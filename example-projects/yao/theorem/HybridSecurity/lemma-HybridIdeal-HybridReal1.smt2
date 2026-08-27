@@ -1,4 +1,4 @@
-(define-lemma <relation-value-of-h-HybridIdeal-HybridReal1-SETBIT>
+(define-lemma <value-of-h-SETBIT>
     (
         old-state-left
         old-state-right
@@ -11,7 +11,7 @@
 )
 
 
-(define-lemma <relation-value-of-h-HybridIdeal-HybridReal1-GETKEYSIN>
+(define-lemma <value-of-h-GETKEYSIN>
     (
         old-state-left
         old-state-right
@@ -22,7 +22,7 @@
     (= h 1)
 )
 
-(define-lemma <relation-value-of-h-HybridIdeal-HybridReal1-GETAOUT>
+(define-lemma <value-of-h-GETAOUT>
     (
         old-state-left
         old-state-right
@@ -33,7 +33,7 @@
     (= h 1)
 )
 
-(define-lemma <relation-value-of-i-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <value-of-i-GBLG>
     (
         old-state-left
         old-state-right
@@ -48,7 +48,7 @@
     (= i (+ h 1))
 )
 
-(define-lemma <relation-inv-case-i-lt-hminusone-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-lt-hminusone-assumptions-GBLG>
     (
         old-state-left
         old-state-right
@@ -85,7 +85,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-lt-hminusone-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-lt-hminusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -103,7 +103,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-is-hminusone-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-is-hminusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -121,7 +121,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-is-h-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-is-h-GBLG>
     (
         old-state-left
         old-state-right
@@ -139,7 +139,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-is-hplusone-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-is-hplusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -157,7 +157,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-is-hplustwo-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-is-hplustwo-GBLG>
     (
         old-state-left
         old-state-right
@@ -175,7 +175,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-gt-hplustwo-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-gt-hplustwo-assumptions-GBLG>
     (
         old-state-left
         old-state-right
@@ -265,7 +265,7 @@
     )
 )
 
-(define-lemma <relation-inv-case-i-gt-hplustwo-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <inv-case-i-gt-hplustwo-GBLG>
     (
         old-state-left
         old-state-right
@@ -284,7 +284,7 @@
 )
 
 ; i < h - 1
-(define-lemma <relation-case-i-lt-hminusone-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-lt-hminusone-assumptions-GBLG>
     (
         state-left
         state-right
@@ -311,7 +311,7 @@
     )
 )
 
-(define-lemma <relation-case-i-lt-hminusone-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-lt-hminusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -330,7 +330,7 @@
 )
 
 ; i = h - 1
-(define-lemma <relation-case-i-is-hminusone-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-hminusone-assumptions-GBLG>
     (
         state-left
         state-right
@@ -357,7 +357,7 @@
     )
 )
 
-(define-lemma <relation-case-i-is-hminusone-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-hminusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -376,7 +376,7 @@
 )
 
 ; i = h
-(define-lemma <relation-case-i-is-h-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-h-assumptions-GBLG>
     (
         state-left
         state-right
@@ -404,7 +404,7 @@
     )
 )
 
-(define-lemma <relation-case-i-is-h-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-h-GBLG>
     (
         old-state-left
         old-state-right
@@ -423,7 +423,7 @@
 )
 
 ; i = h + 1
-(define-lemma <relation-case-i-is-hplusone-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-hplusone-assumptions-GBLG>
     (
         state-left
         state-right
@@ -448,7 +448,7 @@
     )
 )
 
-(define-lemma <relation-case-i-is-hplusone-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-hplusone-GBLG>
     (
         old-state-left
         old-state-right
@@ -466,7 +466,7 @@
     )
 )
 ; i = h + 2
-(define-lemma <relation-case-i-is-hplustwo-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-hplustwo-assumptions-GBLG>
     (
         state-left
         state-right
@@ -491,7 +491,7 @@
     )
 )
 
-(define-lemma <relation-case-i-is-hplustwo-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-is-hplustwo-GBLG>
     (
         old-state-left
         old-state-right
@@ -509,7 +509,7 @@
     )
 )
 ; i > h + 2
-(define-lemma <relation-case-i-gt-hplustwo-assumptions-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-gt-hplustwo-assumptions-GBLG>
     (
         state-left
         state-right
@@ -534,7 +534,7 @@
     )
 )
 
-(define-lemma <relation-case-i-gt-hplustwo-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <case-i-gt-hplustwo-GBLG>
     (
         old-state-left
         old-state-right
@@ -553,7 +553,7 @@
 
 )
 
-(define-lemma <relation-assume-all-invariants-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <assume-all-invariants-GBLG>
     (
         old-state-left
         old-state-right
@@ -568,7 +568,7 @@
     (invariants old-state-left old-state-right)
 )
 
-(define-lemma <relation-assert-all-invariants-HybridIdeal-HybridReal1-GBLG>
+(define-lemma <assert-all-invariants-GBLG>
     (
         old-state-left
         old-state-right

@@ -59,7 +59,7 @@
     )
 )
 
-(define-lemma <relation-lemma-kem-correctness-Game_MON_CCA_PKE-Game_MOD_CCA_PKE_Real_KEM-PKENC>
+(define-lemma <lemma-kem-correctness-PKENC>
     (
         old-state-left
         old-state-right
@@ -71,7 +71,7 @@
     (kem-correctness old-state-right.KEM.pk old-state-right.KEM.sk)
 )
 
-(define-lemma <relation-lemma-kem-correctness-Game_MON_CCA_PKE-Game_MOD_CCA_PKE_Real_KEM-PKDEC>
+(define-lemma <lemma-kem-correctness-PKDEC>
     (
         old-state-left
         old-state-right
