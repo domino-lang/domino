@@ -469,9 +469,8 @@
      (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
      (H (Array Int (Maybe Bool))))
   Bool
-  (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(mess_counter Int))
-          (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                   (mk-tuple2 msg mess_counter))))
+  (forall ((handle (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int))))
+          (let ((kid (el5-1 (el2-1 handle))))
           (and
             (=>  (is-mk-none (select H kid))
             (and (is-mk-none (select ReverseMac handle))
