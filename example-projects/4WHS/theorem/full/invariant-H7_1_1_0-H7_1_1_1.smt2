@@ -826,28 +826,50 @@
        (reverse-mac-state-consistent right.KX.ReverseMac right.KX.State)
 ))
 
+(define-state-relation relation-no-ideal-values-for-dishonest-keys
+    (left right)
+    (and
+       (no-ideal-values-for-dishonest-keys left.PRF.H left.PRF.PRF
+                                           left.MAC.Keys left.MAC.Values)
+       (no-ideal-values-for-dishonest-keys left.PRF.H left.PRF.PRF
+                                           left.MAC.Keys left.MAC.Values)))
+
+(define-state-relation relation-message-implies-mac
+    (left right)
+    (and
+       (message-implies-mac left.MAC.Values
+                            left.KX.Fresh left.KX.State)
+       (message-implies-mac right.MAC.Values
+                            right.KX.Fresh right.KX.State)))
+
+(define-state-relation relation-three-mac-implies-first
+    (left right)
+    (and
+       (three-mac-implies-first left.KX.First left.KX.Second
+                                left.KX.ReverseMac left.KX.State)
+       (three-mac-implies-first right.KX.First right.KX.Second
+                                right.KX.ReverseMac right.KX.State)
+))
+
 
 (define-state-relation invariant
     (state-H710 state-H711)
   (and 
        (>= state-H710.KX.ctr_ 0)
-       (relation-trivial-equalities  state-H710 state-H711)
-       (relation-mac-implies-message state-H710 state-H711)
-       (relation-no-overwriting      state-H710 state-H711)
-       (relation-sids                state-H710 state-H711)
-       (relation-wellformedness      state-H710 state-H711)
-       (relation-time                state-H710 state-H711)
-       (relation-macs                state-H710 state-H711)
-       (relation-reverse-mac         state-H710 state-H711)
-       (relation-first               state-H710 state-H711)
-       (relation-at-least            state-H710 state-H711)
-
-       (no-ideal-values-for-dishonest-keys state-H710.PRF.H state-H710.PRF.PRF
-                                           state-H710.MAC.Keys state-H710.MAC.Values)
-       (message-implies-mac state-H710.MAC.Values
-                            state-H710.KX.Fresh state-H710.KX.State)
-       (three-mac-implies-first state-H710.KX.First state-H710.KX.Second
-                                state-H710.KX.ReverseMac state-H710.KX.State)))
+       (relation-trivial-equalities  state-H710 state-H711) ;own lemma
+       (relation-mac-implies-message state-H710 state-H711) ;own lemma
+       (relation-no-overwriting      state-H710 state-H711) ;own lemma
+       (relation-sids                state-H710 state-H711) ;own lemma
+       (relation-wellformedness      state-H710 state-H711) ;own lemma
+       (relation-time                state-H710 state-H711) ;own lemma
+       (relation-macs                state-H710 state-H711) ;own lemma
+       (relation-reverse-mac         state-H710 state-H711) ;own lemma
+       (relation-first               state-H710 state-H711) ;own lemma
+       (relation-at-least            state-H710 state-H711) ;own lemma
+       (relation-no-ideal-values-for-dishonest-keys state-H710 state-H711) ;own lemma for Send4
+       (relation-message-implies-mac state-H710 state-H711) ;own lemma for Send4
+       (relation-three-mac-implies-first state-H710 state-H711) ;own lemma for Send4
+))
 
 
 (define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-AtMost>
