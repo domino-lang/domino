@@ -13,7 +13,10 @@ use crate::{
     package::OracleSig,
     theorem::Theorem,
     transforms::{
-        samplify::SampleInfo, theorem_transforms::EquivalenceTransform, TheoremTransform,
+        sample_max_counter_extractor::MaxOffsets,
+        samplify::SampleInfo,
+        theorem_transforms::{EquivalenceTransform, GameInstAux},
+        TheoremTransform,
     },
     types::{CountSpec, Type, TypeKind},
     writers::smt::{
@@ -175,17 +178,18 @@ impl<'a> EquivalenceContext<'a> {
 }
 
 impl<'a> EquivalenceContext<'a> {
+    fn aux(&self, game_inst_name: &str) -> &'a GameInstAux {
+        let (_, aux) = self
+            .auxs
+            .iter()
+            .find(|(name, _aux)| name == game_inst_name)
+            .unwrap();
+        aux
+    }
+
     fn types(&self) -> Vec<Type> {
-        let (_, (types_left, _)) = self
-            .auxs
-            .iter()
-            .find(|(name, _aux)| name == self.equivalence().left_name())
-            .unwrap();
-        let (_, (types_right, _)) = self
-            .auxs
-            .iter()
-            .find(|(name, _aux)| name == self.equivalence().right_name())
-            .unwrap();
+        let types_left = &self.aux(self.equivalence().left_name()).types;
+        let types_right = &self.aux(self.equivalence().right_name()).types;
         let types_theorem: HashSet<Type> = self
             .theorem()
             .consts
@@ -219,21 +223,19 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn sample_info_left(&self) -> &'a SampleInfo {
-        let (_, (_, sample_info)) = self
-            .auxs
-            .iter()
-            .find(|(name, _aux)| name == self.equivalence().left_name())
-            .unwrap();
-        sample_info
+        &self.aux(self.equivalence().left_name()).sample_info
     }
 
     pub(crate) fn sample_info_right(&self) -> &'a SampleInfo {
-        let (_, (_, sample_info)) = self
-            .auxs
-            .iter()
-            .find(|(name, _aux)| name == self.equivalence().right_name())
-            .unwrap();
-        sample_info
+        &self.aux(self.equivalence().right_name()).sample_info
+    }
+
+    pub(crate) fn max_offsets_left(&self) -> &'a MaxOffsets {
+        &self.aux(self.equivalence().left_name()).max_offsets
+    }
+
+    pub(crate) fn max_offsets_right(&self) -> &'a MaxOffsets {
+        &self.aux(self.equivalence().right_name()).max_offsets
     }
 
     fn oracle_sig_by_exported_name(&'a self, oracle_name: &str) -> Option<&'a OracleSig> {

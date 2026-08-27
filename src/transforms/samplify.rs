@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::expressions::Expression;
-use crate::package::{Composition, Export, PackageInstance};
+use crate::package::Composition;
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
 use crate::types::{Type, TypeKind};
 use core::panic;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::convert::Infallible;
 use std::iter::FromIterator;
 
@@ -34,12 +34,6 @@ pub struct SampleInfo {
     pub tys: Vec<Type>,
     pub count: usize,
     pub positions: Vec<Position>,
-    // Each exported oracle is mapped to a list of sampling positions
-    // ordered based on the first time each sampling occurs in the control flow
-    // together with the maximum possible counter/offset that can be sampled.
-    // Instead of a new instance of Position, we use the index to the
-    // `positions` vector in order to make type look up fast as well.
-    pub max_offset: HashMap<Export, Vec<(usize, usize)>>,
 }
 
 impl super::Transformation for Transformation<'_> {
@@ -80,8 +74,6 @@ impl super::Transformation for Transformation<'_> {
             })
             .collect::<Result<Vec<_>, Infallible>>()?;
 
-        let max_offset = extract_max_offset(&insts, &self.0.exports, &positions);
-
         Ok((
             Composition {
                 pkgs: insts,
@@ -91,7 +83,6 @@ impl super::Transformation for Transformation<'_> {
                 tys: Vec::from_iter(samplings),
                 count: ctr,
                 positions,
-                max_offset,
             },
         ))
     }
@@ -215,153 +206,6 @@ pub fn samplify(
         }
     }
     Ok(CodeBlock(newcode))
-}
-
-type OffsetMap = Vec<(usize, usize)>;
-
-// add offsets but keep the order of elements in source and target
-fn add_offsets(target: &mut OffsetMap, source: &OffsetMap) {
-    for (pos, offset) in source {
-        if let Some(idx) = target.iter().position(|(p, _)| p == pos) {
-            target[idx].1 += offset;
-        } else {
-            target.push((*pos, *offset));
-        }
-    }
-}
-
-// Concatenates the given maps and for elements that exist in both maps
-// compute the maximum offset.
-fn max_offsets(left: &OffsetMap, right: &OffsetMap) -> OffsetMap {
-    let mut result = left.to_owned();
-
-    for (pos, offset) in right {
-        if let Some(idx) = left.iter().position(|(p, _)| p == pos) {
-            result[idx].1 = result[idx].1.max(*offset);
-        } else {
-            result.push((*pos, *offset));
-        }
-    }
-
-    result
-}
-
-fn oracle_offsets(
-    pkgs: &[PackageInstance],
-    pkg_idx: usize,
-    oracle_name: &str,
-    positions: &[Position],
-) -> OffsetMap {
-    let oracle = pkgs[pkg_idx]
-        .pkg
-        .oracles
-        .iter()
-        .find(|oracle| oracle.sig.name == oracle_name)
-        .unwrap_or_else(|| {
-            panic!(
-                "could not find oracle {oracle_name} in package instance {}",
-                pkgs[pkg_idx].name
-            )
-        });
-
-    codeblock_offsets(pkgs, pkg_idx, &oracle.code, positions)
-}
-
-fn codeblock_offsets(
-    pkgs: &[PackageInstance],
-    pkg_idx: usize,
-    code: &CodeBlock,
-    positions: &[Position],
-) -> OffsetMap {
-    let mut result = vec![];
-
-    for stmt in &code.0 {
-        add_offsets(
-            &mut result,
-            &statement_offsets(pkgs, pkg_idx, stmt, positions),
-        );
-    }
-
-    result
-}
-
-fn statement_offsets(
-    pkgs: &[PackageInstance],
-    pkg_idx: usize,
-    stmt: &Statement,
-    positions: &[Position],
-) -> OffsetMap {
-    match stmt {
-        Statement::Assignment(
-            Assignment {
-                rhs:
-                    AssignmentRhs::Sample {
-                        sample_id: Some(sample_id),
-                        ..
-                    },
-                ..
-            },
-            _,
-        ) => vec![(*sample_id, 1)],
-        Statement::Assignment(
-            Assignment {
-                rhs:
-                    AssignmentRhs::Sample {
-                        sample_id: None, ..
-                    },
-                ..
-            },
-            _,
-        ) => unreachable!("samplify should have assigned a sample_id to every sample statement"),
-        Statement::Assignment(
-            Assignment {
-                rhs:
-                    AssignmentRhs::Invoke {
-                        oracle_name, edge, ..
-                    },
-                ..
-            },
-            _,
-        ) => {
-            let edge = edge
-                .as_ref()
-                .unwrap_or_else(|| panic!("oracle invocation {oracle_name} is not resolved"));
-            oracle_offsets(pkgs, edge.to(), &edge.sig().name, positions)
-        }
-        Statement::InvokeOracle(invoke) => {
-            let edge = invoke.edge.as_ref().unwrap_or_else(|| {
-                panic!("oracle invocation {} is not resolved", invoke.oracle_name)
-            });
-            oracle_offsets(pkgs, edge.to(), &edge.sig().name, positions)
-        }
-        Statement::IfThenElse(ite) if ite.else_block.0.is_empty() => {
-            codeblock_offsets(pkgs, pkg_idx, &ite.then_block, positions)
-        }
-        Statement::IfThenElse(ite) => max_offsets(
-            &codeblock_offsets(pkgs, pkg_idx, &ite.then_block, positions),
-            &codeblock_offsets(pkgs, pkg_idx, &ite.else_block, positions),
-        ),
-        Statement::For(..) => panic!("cannot extract sample max offset for loops"),
-        Statement::Abort(_) | Statement::Return(_, _) | Statement::Assignment(_, _) => {
-            vec![]
-        }
-    }
-}
-
-fn extract_max_offset(
-    pkgs: &[PackageInstance],
-    exports: &[Export],
-    positions: &[Position],
-) -> HashMap<Export, OffsetMap> {
-    exports
-        .iter()
-        .map(|export| {
-            (
-                export.clone(),
-                oracle_offsets(pkgs, export.to(), &export.sig().name, positions),
-            )
-        })
-        .collect()
 }
 
 #[cfg(test)]

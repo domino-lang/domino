@@ -441,51 +441,36 @@ impl<'a> EquivalenceContext<'a> {
             .find(|export| export.name() == oracle_name)
             .unwrap_or_else(|| panic!("could not find right export {oracle_name}"));
 
-        let left_sample_info = self.sample_info_left();
-        let right_sample_info = self.sample_info_right();
-
-        let left_offsets = left_sample_info
-            .max_offset
+        let left_offsets = self
+            .max_offsets_left()
             .get(left_export)
             .unwrap_or_else(|| panic!("could not find max offsets for left export {oracle_name}"));
-        let right_offsets = right_sample_info
-            .max_offset
+        let right_offsets = self
+            .max_offsets_right()
             .get(right_export)
             .unwrap_or_else(|| panic!("could not find max offsets for right export {oracle_name}"));
 
         let mut left_entries: Vec<_> = left_offsets
             .iter()
             .flat_map(|(position, max_offset)| {
-                (0..*max_offset).map(move |offset| {
-                    (
-                        position,
-                        SmtExpr::from(&left_sample_info.positions[*position]),
-                        offset,
-                        &left_sample_info.positions[*position].ty,
-                    )
-                })
+                (0..*max_offset)
+                    .map(move |offset| (position, SmtExpr::from(position), offset, &position.ty))
             })
             .collect();
         let mut right_entries: Vec<_> = right_offsets
             .iter()
             .flat_map(|(position, max_offset)| {
-                (0..*max_offset).map(move |offset| {
-                    (
-                        position,
-                        SmtExpr::from(&right_sample_info.positions[*position]),
-                        offset,
-                        &right_sample_info.positions[*position].ty,
-                    )
-                })
+                (0..*max_offset)
+                    .map(move |offset| (position, SmtExpr::from(position), offset, &position.ty))
             })
             .collect();
 
-        left_entries.sort_by_key(|(sample_id, _, offset, _)| (*sample_id, *offset));
-        right_entries.sort_by_key(|(sample_id, _, offset, _)| (*sample_id, *offset));
+        left_entries.sort_by_key(|(position, _, offset, _)| (position.sample_id, *offset));
+        right_entries.sort_by_key(|(position, _, offset, _)| (position.sample_id, *offset));
 
         left_entries
             .iter()
-            .flat_map(|(_left_sample_id, sample_id_left, offset_left, ty_left)| {
+            .flat_map(|(_left_position, sample_id_left, offset_left, ty_left)| {
                 right_entries
                     .iter()
                     .filter(move |(_, _, _, ty_right)| ty_left.types_match(ty_right))

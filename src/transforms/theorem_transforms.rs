@@ -7,16 +7,25 @@ use crate::{theorem::GameInstance, types::Type};
 use super::{
     deconstructinvoke, loopunroll,
     resolveoracles::{self, ResolutionError},
-    returnify, samplify, tableinitialize, treeify, type_extract, unwrapify, GameTransform,
-    Transformation,
+    returnify, sample_max_counter_extractor, samplify, tableinitialize, treeify, type_extract,
+    unwrapify, GameTransform, Transformation,
 };
 
 pub struct EquivalenceTransform;
 
+// Bundles the per-game-instance data produced by the transform pipeline
+// below
+#[derive(Clone, Debug)]
+pub struct GameInstAux {
+    pub types: HashSet<Type>,
+    pub sample_info: samplify::SampleInfo,
+    pub max_offsets: sample_max_counter_extractor::MaxOffsets,
+}
+
 impl super::TheoremTransform for EquivalenceTransform {
     type Err = Infallible;
 
-    type Aux = Vec<(String, (HashSet<Type>, samplify::SampleInfo))>;
+    type Aux = Vec<(String, GameInstAux)>;
 
     fn transform_theorem<'a>(
         &self,
@@ -32,27 +41,25 @@ impl super::TheoremTransform for EquivalenceTransform {
 
 fn transform_game_inst(
     game_inst: &GameInstance,
-) -> Result<
-    (
-        GameInstance,
-        (String, (HashSet<Type>, samplify::SampleInfo)),
-    ),
-    Infallible,
-> {
+) -> Result<(GameInstance, (String, GameInstAux)), Infallible> {
     let comp = game_inst.game();
 
     let (comp, types) = type_extract::Transformation(comp)
         .transform()
         .expect("type extraction transformation failed unexpectedly");
     /*
-     * Note 1: we currently do samplify before treeify so a `if foo { stuff }
-     * else { other stuff } ... x <- Integer` gets the same sample
-     * counter for the x sampling after returnify (instead of
-     * different ones depending on which branch was taken)
-     * Note 2: In addition to compiling all sampling points and assigning
-     * identifiers to them, samplify computes the maximum possible counter/offset
-     * each sampling operation can be sampled from and this computation depends on
-     * oracle resolution.
+     * Note 1: we currently do samplify and sample_max_counter_extractor before
+     * treeify so a `if foo { stuff } else { other stuff } ... x <- Integer`
+     * gets the same sample counter for the x sampling after returnify (instead
+     * of different ones depending on which branch was taken)
+     * Note 2: samplify only compiles sampling points and assigns identifiers
+     * to them. The maximum possible counter/offset each sampling point can
+     * be sampled from is computed afterwards by `sample_max_counter_extractor`,
+     * which needs to run after loop unrolling (so samples inside bounded
+     * loops are counted once per unrolled iteration) and after oracle
+     * resolution (to follow resolved oracle invocations). samplify itself
+     * has to stay before loop unrolling because it is also used by the latex
+     * export, which must not unroll loops.
      */
     let (comp, _) = deconstructinvoke::Transformation(&comp)
         .transform()
@@ -65,7 +72,7 @@ fn transform_game_inst(
         .unwrap_or_else(|ResolutionError(failed_oracle_stmts)| {
             panic!("error resolving oracles: {failed_oracle_stmts:?}")
         });
-    let (comp, samplinginfo) = samplify::Transformation(&comp)
+    let (comp, sample_info) = samplify::Transformation(&comp)
         .transform()
         .expect("samplify transformation failed unexpectedly");
     let (comp, _) = returnify::TransformNg
@@ -74,6 +81,10 @@ fn transform_game_inst(
     let (comp, _) = loopunroll::Transformation(&comp)
         .transform()
         .expect("unroll transformation failed unexpectedly");
+    let (comp, max_offsets) =
+        sample_max_counter_extractor::Transformation(&comp, &sample_info.positions)
+            .transform()
+            .expect("sample max counter extraction failed unexpectedly");
     let (comp, _) = treeify::Transformation(&comp)
         .transform()
         .expect("treeify transformation failed unexpectedly");
@@ -83,6 +94,13 @@ fn transform_game_inst(
 
     Ok((
         game_inst.with_other_game(comp),
-        (game_inst.name().to_string(), (types, samplinginfo)),
+        (
+            game_inst.name().to_string(),
+            GameInstAux {
+                types,
+                sample_info,
+                max_offsets,
+            },
+        ),
     ))
 }
