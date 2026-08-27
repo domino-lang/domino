@@ -711,19 +711,19 @@
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                        (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
   Bool
-  (let ((zeron <0_n>))
-    (forall
-     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
+    (forall ((handle (Tuple5 Int Int Int Bits_n Bits_n)))
+;     ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
      (and
-      (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 ni 3)))))
+      (let ((handle_ (mk-tuple2 handle (mk-tuple2 (el5-4 handle) 3)))) ;check order of V and U
+      (let ((ctr (select ReverseMac handle_)))
         (=> (not (is-mk-none ctr))
             (let ((state (select State (maybe-get ctr))))
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
                     (=> (not (is-mk-none sid)) ;; same
-                        (not (is-mk-none (select First (maybe-get sid))))))))))
-
-      (let ((ctr (select ReverseMac (mk-tuple2 (mk-tuple5 kid U V ni nr) (mk-tuple2 zeron 4)))))
+                        (not (is-mk-none (select First (maybe-get sid)))))))))))
+      (let ((handle__ (mk-tuple2 handle (mk-tuple2 <0_n> 4))))
+      (let ((ctr (select ReverseMac handle__)))
         (=> (not (is-mk-none ctr))
             (let ((state (select State (maybe-get ctr))))
               (=> (not (is-mk-none state)) ;; should already be known
