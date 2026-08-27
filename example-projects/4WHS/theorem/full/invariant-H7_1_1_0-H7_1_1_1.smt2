@@ -721,11 +721,9 @@
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
                     (=> (not (is-mk-none sid)) ;; same
-                        (ite (= (mk-some true) (select Fresh (maybe-get ctr)))
-                             (not (is-mk-none (select First (maybe-get sid))))
-                             (or (not (is-mk-none (select First  (maybe-get sid))))
-                                 (not (is-mk-none (select Second (maybe-get sid)))))
-                             ))))))))
+                        (not (is-mk-none (select First  (maybe-get sid))))
+                                ))))
+                             )))
       (let ((handle__ (mk-tuple2 handle (mk-tuple2 <0_n> 4))))
       (let ((ctr (select ReverseMac handle__)))
         (=> (not (is-mk-none ctr))
@@ -733,9 +731,12 @@
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
                     (=> (not (is-mk-none sid)) ;; same
-                        (and (not (is-mk-none (select First  (maybe-get sid))))
-                             (not (is-mk-none (select Second (maybe-get sid))))))))))))
-)))
+                        (ite (= (mk-some true) (select Fresh (maybe-get ctr)))
+                             (and (not (is-mk-none (select First  (maybe-get sid))))
+                                  (not (is-mk-none (select Second (maybe-get sid)))))
+                             (not (is-mk-none (select First (maybe-get sid))))                   
+                             )))))))
+))))
 
 
 (define-state-relation relation-trivial-equalities
