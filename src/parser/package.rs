@@ -759,6 +759,9 @@ pub fn handle_expression(
             ExpressionKind::BitsLiteral(content.to_string(), Type::bits(cspec))
         }
 
+        Rule::literal_empty_bitstring => {
+            ExpressionKind::BitsLiteral("empty".to_string(), Type::bits(CountSpec::Any))
+        }
         Rule::literal_boolean => {
             let litval = ast.as_str().to_string();
             ExpressionKind::BooleanLiteral(litval)

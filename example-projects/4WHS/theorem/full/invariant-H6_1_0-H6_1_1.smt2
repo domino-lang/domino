@@ -290,8 +290,6 @@
        (=prf left.PRF.PRF right.PRF.PRF left.PRF.H)
 
        (no-overwriting-state left.KX.ctr_ left.KX.State)
-       (H-LTK-tables-empty-above-max left.PRF.kid_  left.PRF.H  left.PRF.LTK)
-       (H-LTK-tables-empty-above-max right.PRF.kid_ right.PRF.H right.PRF.LTK)
 
        (kmac-requires-nonces left.KX.State)
        (kmac-is-wellformed left.KX.State left.KX.Fresh left.PRF.LTK left.PRF.PRF)

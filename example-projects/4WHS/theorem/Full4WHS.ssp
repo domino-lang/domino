@@ -215,17 +215,6 @@ theorem Full4WHS {
         }
     }
 
-
-    instance H65 = H65 {
-        params {
-            b       : b ,
-            bprf    : true,
-            n       : n    ,
-            prf     : prf  ,
-            mac     : mac  ,
-        }
-    }
-
     instance H7_0 = H7 {
         params {
             btest   : true ,
@@ -800,9 +789,9 @@ theorem Full4WHS {
                 ]
 
                 lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
+                    equal-aborts:           []
+                    invariant:              [no-abort]
+                    same-output:            [no-abort, invariant]
                 }
             }
         }
@@ -1314,7 +1303,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1327,7 +1316,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1340,7 +1329,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1353,7 +1342,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1366,7 +1355,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1379,7 +1368,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1392,7 +1381,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1403,21 +1392,21 @@ theorem Full4WHS {
             }
             Test: {
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
-                    ./theorem/full/randomness-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
+                    ./theorem/full/randomness-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort] /*, lemma-randomness]*/
-                    same-output:  [no-abort] /*, lemma-randomness]*/
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
                 }
             }
             Reveal: {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1430,7 +1419,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1443,7 +1432,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1457,7 +1446,7 @@ theorem Full4WHS {
                 randomness: simple
 
                 invariant: [
-                    ./theorem/full/invariant-H6_1-H65.smt2
+                    ./theorem/full/invariant-H6_1_0-H6_1_1.smt2
                 ]
 
                 lemmas {
@@ -1568,8 +1557,8 @@ theorem Full4WHS {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort] /*, lemma-randomness]*/
-                    same-output:  [no-abort] /*, lemma-randomness]*/
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
                 }
             }
             Reveal: {
@@ -1919,7 +1908,8 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    same-state:                   [no-abort]
+                    relation-reverse-mac:         [no-abort, same-state]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities

@@ -1,0 +1,5 @@
+package P {
+    oracle Hello(b: Bits(*)) {
+        assert (b == empty-bitstring);
+    }
+}

@@ -27,17 +27,30 @@ pub(crate) struct Cli {
 #[derive(Error, Diagnostic, Debug)]
 #[error("Need to specify a proof when specifying a proofstep")]
 #[diagnostic(code(cli::incompatible_arguments))]
-pub struct IncompatibleArgumentsError;
+pub struct IncompatibleArguments;
+
+#[derive(Error, Diagnostic, Debug)]
+#[error("--oracle and --invariant-start cannot be used together")]
+#[diagnostic(help(
+    "--invariant-start restricts verification to the invariant start, which \
+        doesn't involve any oracle, so --oracle has no effect there. \
+        Pass only one of the two options."
+))]
+pub struct ReqOracleWithInvariantStart;
 
 #[allow(clippy::large_enum_variant)]
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error, Diagnostic)]
 enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
-    ProjectError(#[from] project::error::Error),
+    Project(#[from] project::error::Error),
     #[error(transparent)]
     #[diagnostic(transparent)]
-    IncompatibleArgumentsErrorError(#[from] IncompatibleArgumentsError),
+    IncompatibleArguments(#[from] IncompatibleArguments),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ReqOracleWithInvariantStart(#[from] ReqOracleWithInvariantStart),
 }
 
 fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
@@ -60,21 +73,25 @@ fn prove(p: &Prove) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
-    if p.proofstep.is_none() || p.proof.is_some() {
-        let smtsolver =
-            sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
-        project.prove(
-            &smtsolver,
-            p.transcript,
-            p.parallel,
-            &p.proof,
-            p.proofstep,
-            &p.oracle,
-            &p.claim,
-        )?;
-    } else {
-        return Err(IncompatibleArgumentsError.into());
+    if p.proofstep.is_some() && p.proof.is_none() {
+        return Err(IncompatibleArguments.into());
     }
+
+    if p.invariant_start && p.oracle.is_some() {
+        return Err(ReqOracleWithInvariantStart.into());
+    }
+
+    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
+    project.prove(
+        &smtsolver,
+        p.transcript,
+        p.parallel,
+        &p.proof,
+        p.proofstep,
+        &p.oracle,
+        &p.claim,
+        p.invariant_start,
+    )?;
     Ok(())
 }
 

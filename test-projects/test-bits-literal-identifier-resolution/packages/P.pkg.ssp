@@ -1,0 +1,8 @@
+package P {
+    params {
+        n2: Integer,
+    }
+    oracle Hello(b1: Bits(n2), b2: Bits(n2)) {
+        assert (b1 == 0_n2);
+    }
+}

@@ -49,6 +49,8 @@ pub(crate) struct Prove {
     #[clap(short, long)]
     pub(crate) transcript: bool,
     #[clap(long)]
+    pub(crate) invariant_start: bool,
+    #[clap(long)]
     pub(crate) proofstep: Option<usize>,
     #[clap(long)]
     pub(crate) proof: Option<String>,

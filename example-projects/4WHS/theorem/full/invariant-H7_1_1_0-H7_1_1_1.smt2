@@ -96,9 +96,10 @@
   Bool
   (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (msg Bits_n) (tag Int))
           (and
-           (= (> i kid)
+           (=> (or (> i kid) (< i 0))
+               (and
               (is-mk-none (select H i))
-              (is-mk-none (select Ltk i)))
+              (is-mk-none (select Ltk i))))
            (=> (> i kid)
                (and (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
                     (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
@@ -113,9 +114,10 @@
      (ctr Int))
   Bool
   (forall ((i Int))
-          (= (> i ctr)
+          (=> (or (> i ctr) (< i 0))
+          (and
              (is-mk-none (select fresh i))
-             (is-mk-none (select state i)))))
+             (is-mk-none (select state i))))))
 
 
 (define-fun kmac-and-tau-are-computed-correctly
@@ -450,16 +452,21 @@
 
 
 (define-fun reverse-mac-matches
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
+    ((Values     (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
      (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
      (H (Array Int (Maybe Bool))))
   Bool
-  (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
+  (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(mess_counter Int))
           (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                   (mk-tuple2 msg tag))))
-            (= (and (is-mk-none (select ReverseMac handle))
-                    (= (select H kid) (mk-some true)))
-               (is-mk-none (select Values handle))))))
+                                   (mk-tuple2 msg mess_counter))))
+          (and
+            (=>  (is-mk-none (select H kid))
+            (and (is-mk-none (select ReverseMac handle))
+                 (is-mk-none (select Values handle))))
+            (=> (= (select H kid) (mk-some true))
+            (= (is-mk-none (select ReverseMac handle))
+               (is-mk-none (select Values handle))))               
+               ))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -712,7 +719,8 @@
        (no-overwriting-prf right.PRF.kid_ right.PRF.PRF right.PRF.H right.MAC.Keys right.MAC.Values right.PRF.LTK)
 
        (no-overwriting-game left.KX.State left.KX.Fresh left.KX.ctr_)
-       (no-overwriting-game right.KX.State right.KX.Fresh right.KX.ctr_)))
+       (no-overwriting-game right.KX.State right.KX.Fresh right.KX.ctr_)
+))
 
 
 (define-state-relation relation-sids
@@ -761,12 +769,15 @@
 (define-state-relation relation-reverse-mac
     (left right)
   (and (reverse-mac-matches left.MAC.Values left.KX.ReverseMac left.PRF.H)
-       (reverse-mac-state-consistent left.KX.ReverseMac left.KX.State)))
+       (reverse-mac-state-consistent left.KX.ReverseMac left.KX.State)
+))
 
 
 (define-state-relation invariant
     (state-H710 state-H711)
-  (and (relation-trivial-equalities  state-H710 state-H711)
+  (and 
+       (>= state-H710.KX.ctr_ 0)
+       (relation-trivial-equalities  state-H710 state-H711)
        (relation-mac-implies-message state-H710 state-H711)
        (relation-no-overwriting      state-H710 state-H711)
        (relation-sids                state-H710 state-H711)
@@ -782,3 +793,16 @@
                             state-H710.KX.Fresh state-H710.KX.State)
        (three-mac-implies-first state-H710.KX.First state-H710.KX.Second
                                 state-H710.KX.ReverseMac state-H710.KX.State)))
+
+
+(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-AtMost>
+    (state-left-old state-right-old
+     ret-left       ret-right
+     (ctr1 Int)
+     (ctr2 Int)
+     (ctr3 Int))
+  (and
+  (= state-left-old  ret-left.state)
+  (= state-right-old ret-right.state)
+  )
+)

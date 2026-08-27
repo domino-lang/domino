@@ -18,11 +18,11 @@ mock! {
 
         fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str);
 
-        fn proofstep_set_oracles(&mut self, theorem_name: &str, proofstep_name: &str, num_oracles: u64);
+        fn proofstep_set_claim_groups_count(&mut self, theorem_name: &str, proofstep_name: &str, num_claim_groups: u64);
 
         fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
 
-        fn start_oracle(
+        fn start_claim_group(
             &mut self,
             theorem_name: &str,
             proofstep_name: &str,
@@ -30,9 +30,9 @@ mock! {
             num_lemmata: u64,
         );
 
-        fn finish_oracle(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
+        fn finish_claim_group(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
 
-        fn start_lemma(
+        fn start_claim(
             &mut self,
             theorem_name: &str,
             proofstep_name: &str,
@@ -40,7 +40,7 @@ mock! {
             lemma_name: &str,
         );
 
-        fn finish_lemma(
+        fn finish_claim(
             &mut self,
             theorem_name: &str,
             proofstep_name: &str,

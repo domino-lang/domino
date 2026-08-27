@@ -108,6 +108,7 @@ pub trait Project {
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
         req_claim: &Option<String>,
+        invariant_start: bool,
     ) -> Result<()>
     where
         Self: Sized + Sync,
@@ -160,6 +161,7 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                             parallel,
+                            invariant_start,
                         );
                         driver.verify(&mut ui)?;
                     }
@@ -178,6 +180,7 @@ pub trait Project {
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
                             parallel,
+                            invariant_start,
                         );
                         driver.verify(&mut ui)?;
                     }
@@ -236,7 +239,7 @@ pub trait Project {
         theorem_name: &str,
         left_game_name: &str,
         right_game_name: &str,
-        oracle_name: &str,
+        claim_group_name: &str,
         claim_name: &str,
     ) -> Result<std::fs::File> {
         let mut path = self.get_root_dir();
@@ -244,11 +247,10 @@ pub trait Project {
         path.push("_build/code_eq/");
         path.push(theorem_name);
         path.push(format!("{left_game_name}-{right_game_name}"));
-        path.push(oracle_name);
+        path.push(claim_group_name);
         std::fs::create_dir_all(&path)?;
 
         path.push(format!("{claim_name}.smt2"));
-
         let f = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
