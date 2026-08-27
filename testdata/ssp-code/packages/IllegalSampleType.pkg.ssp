@@ -1,0 +1,10 @@
+package IllegalSampleType {
+    params {
+        n: Integer,
+    }
+
+    oracle Sample() -> Maybe(Bits(n)) {
+        x <-$ Maybe(Bits(n));
+        return x;
+    }
+}

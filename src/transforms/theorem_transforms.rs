@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::{collections::HashSet, convert::Infallible};
+use std::collections::HashSet;
+
+use miette::Diagnostic;
+use thiserror::Error;
 
 use crate::{theorem::GameInstance, types::Type};
 
@@ -13,8 +16,20 @@ use super::{
 
 pub struct EquivalenceTransform;
 
+/// A failure raised while running the equivalence transform pipeline over a
+/// game instance.
+#[derive(Debug, Error, Diagnostic)]
+pub enum EquivalenceTransformError {
+    /// A sampling position is reachable through a loop `loopunroll` could not
+    /// unroll. This is the only pipeline failure a parser-accepted project can
+    /// still trigger; everything else the pipeline could hit is ruled out by
+    /// an earlier stage and panics via `unreachable!`.
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    UnboundedLoop(#[from] sample_max_counter_extractor::UnboundedLoopError),
+}
+
 // Bundles the per-game-instance data produced by the transform pipeline
-// below
 #[derive(Clone, Debug)]
 pub struct GameInstAux {
     pub types: HashSet<Type>,
@@ -23,7 +38,7 @@ pub struct GameInstAux {
 }
 
 impl super::TheoremTransform for EquivalenceTransform {
-    type Err = Infallible;
+    type Err = EquivalenceTransformError;
 
     type Aux = Vec<(String, GameInstAux)>;
 
@@ -41,7 +56,7 @@ impl super::TheoremTransform for EquivalenceTransform {
 
 fn transform_game_inst(
     game_inst: &GameInstance,
-) -> Result<(GameInstance, (String, GameInstAux)), Infallible> {
+) -> Result<(GameInstance, (String, GameInstAux)), EquivalenceTransformError> {
     let comp = game_inst.game();
 
     let (comp, types) = type_extract::Transformation(comp)
@@ -70,21 +85,22 @@ fn transform_game_inst(
     let (comp, _) = resolveoracles::Transformation(&comp)
         .transform()
         .unwrap_or_else(|ResolutionError(failed_oracle_stmts)| {
-            panic!("error resolving oracles: {failed_oracle_stmts:?}")
+            // The game parser rejects imported-but-unwired oracles
+            // (`missing_edge`) and invocations of unknown oracles
+            // (`no_such_oracle`), so resolution cannot fail on a parsed game.
+            unreachable!("resolveoracles should have caught this: {failed_oracle_stmts:?}")
         });
     let (comp, sample_info) = samplify::Transformation(&comp)
         .transform()
         .expect("samplify transformation failed unexpectedly");
-    let (comp, _) = returnify::TransformNg
-        .transform_game(&comp)
-        .expect("returnify transformation failed unexpectedly");
     let (comp, _) = loopunroll::Transformation(&comp)
         .transform()
         .expect("unroll transformation failed unexpectedly");
     let (comp, max_offsets) =
-        sample_max_counter_extractor::Transformation(&comp, &sample_info.positions)
-            .transform()
-            .expect("sample max counter extraction failed unexpectedly");
+        sample_max_counter_extractor::Transformation(&comp, &sample_info.positions).transform()?;
+    let (comp, _) = returnify::TransformNg
+        .transform_game(&comp)
+        .expect("returnify transformation failed unexpectedly");
     let (comp, _) = treeify::Transformation(&comp)
         .transform()
         .expect("treeify transformation failed unexpectedly");
