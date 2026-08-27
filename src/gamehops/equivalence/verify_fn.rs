@@ -6,6 +6,7 @@ use wildcard::Wildcard;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
+use crate::theorem::RandomnessMappingInjectivityCheck;
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
@@ -14,10 +15,7 @@ use crate::{
     theorem::{Claim, ClaimType},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
-    writers::smt::{
-        contexts::{EquivalenceContext, RandomnessMappingInjectivityCheck},
-        exprs::SmtExpr,
-    },
+    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
 
 pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
