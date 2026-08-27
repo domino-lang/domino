@@ -69,6 +69,9 @@
                        (kmac (el11-9  (maybe-get state)))
                        (sid  (el11-10 (maybe-get state))))
                   (=> (not (is-mk-none sid))
+                       (and
+                         (not (is-mk-none ni))
+                         (not (is-mk-none nr))
                       (let ((kmac (ite (= (select Fresh ctr) (mk-some true))
                                        (select Keys (mk-tuple5 kid U V
                                                                (maybe-get ni)
@@ -76,14 +79,12 @@
                                        kmac)))
                         (and
                          (not (is-mk-none kmac))
-                         (not (is-mk-none ni))
-                         (not (is-mk-none nr))
                          (let ((tau (<<func-mac>> (maybe-get kmac) (maybe-get nr) 2)))
                            (= (mk-tuple5 U V
                                          (maybe-get ni)
                                          (maybe-get nr)
                                          tau)
-                              (maybe-get sid)))))))))))
+                              (maybe-get sid))))))))))))
 
 
 (define-fun no-overwriting-prf
@@ -142,13 +143,15 @@
                          (nr   (el11-8  (maybe-get state)))
                          (kmac (el11-9  (maybe-get state))))
                     (and
-                     (not (= (select ltk kid) (as mk-none (Maybe Bits_n))))
-                     (not (= (select honesty kid) (as mk-none (Maybe Bool))))
+                     (not (is-mk-none (select ltk kid)))
+                     (not (is-mk-none (select honesty kid)))
                      (and
-                      (=> (and (not (= kmac (as mk-none (Maybe Bits_n))))
+                      (=> (and (not (is-mk-none kmac))
                                (= (select honesty kid) (mk-some false)))
-                          (= kmac (mk-some (<<func-prf>> (maybe-get (select ltk kid))
-                                                         (mk-tuple5 U V (maybe-get ni) (maybe-get nr) false)))))))))))))
+                      (and (not (is-mk-none ni))
+                           (not (is-mk-none nr))
+                           (= kmac (mk-some (<<func-prf>> (maybe-get (select ltk kid))
+                                                         (mk-tuple5 U V (maybe-get ni) (maybe-get nr) false))))))))))))))
 
 
 (define-fun time-of-acceptance
@@ -194,8 +197,8 @@
                                         (ite (= (select Fresh ctr) (mk-some true))
                                              (not (is-mk-none (select Keys (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr)))))
                                              (not (is-mk-none kmac)))
-                                        (not (= ni (as mk-none (Maybe Bits_n))))
-                                        (not (= nr (as mk-none (Maybe Bits_n)))))
+                                        (not (is-mk-none ni))
+                                        (not (is-mk-none nr)))
                                    (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))))
                                         (= ni nr kmac (as mk-none (Maybe Bits_n)))))
                               (ite (= mess 0)
@@ -270,9 +273,9 @@
                                           (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
                                           (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
     (forall ((ctr Int))
-            (let ((state (select state ctr)))
-              (=> (not (= state none))
-                  (let ((kid (el11-4  (maybe-get state))))
+            (let ((state_ (select state ctr)))
+              (=> (not (= state_ none))
+                  (let ((kid (el11-4  (maybe-get state_))))
                     (= (select fresh ctr)
                        (select honest kid))))))))
 
@@ -289,7 +292,7 @@
 
                  (=> (not (is-mk-none (select Values val-idx)))
                      (= (select Values val-idx)
-                        (mk-some (<<func-mac>> (maybe-get (select Keys idx))
+                        (mk-some (<<func-mac>> (maybe-get (select Keys idx)) ;implicitly guarded by previous clause in and
                                                msg1 msg2))))))))
 
 
@@ -327,10 +330,12 @@
                        (kmac (el11-9  (maybe-get state)))
                        (sid  (el11-10 (maybe-get state))))
                   (=> (not (is-mk-none sid))
+                  (and (not (is-mk-none ni))
+                       (not (is-mk-none nr))
                       (let ((tau (el5-5 (maybe-get sid))))
                         (= (mk-some tau)
                            (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                     (mk-tuple2 (maybe-get nr) 2)))))))))))
+                                                     (mk-tuple2 (maybe-get nr) 2))))))))))))
 
 
 (define-fun first-set-by-initiator
@@ -342,17 +347,20 @@
   Bool
   (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((sid (mk-tuple5 U V ni nr tau)))
-            (=> (not (is-mk-none (select First sid)))
+            (=> (not (is-mk-none (select First sid)))                     ; If there is an entry in First[sid] 
                 (let ((ctr (maybe-get (select First sid))))
-                  (let ((kid (el11-4 (maybe-get (select State ctr))))
+                   (and (not (is-mk-none  (select State ctr)))
+                        (let (
+                        (kid  (el11-4  (maybe-get (select State ctr))))
                         (acc  (el11-5  (maybe-get (select State ctr))))
                         (mess (el11-11 (maybe-get (select State ctr))))
-                        (u   (el11-2 (maybe-get (select State ctr)))))
-                    (=> (= (select Fresh ctr) (mk-some true))
-                        (and (= u false)
-                             (ite (= acc (mk-some true))
+                        (u    (el11-2  (maybe-get (select State ctr)))))
+                    (=> (= (select Fresh ctr) (mk-some true))             ; and if this entry ctr belongs to a Fresh session
+                        (and (= u false)                                  ; then this is an initiator session
+                             (ite (= acc (mk-some true))                  ; and if the session has accepted, mess is 3 and else, it is 2.
                                   (= mess 3)
-                                  (= mess 2))))))))))
+                                  (= mess 2))
+  )))))))))
 
 
 (define-fun three-mac-implies-two-mac
@@ -397,8 +405,11 @@
                          (nr   (el11-8  (maybe-get state))))
                     (=> (and (= u false)
                              (= acc (mk-some true)))
+                        (and
+                        (not (is-mk-none ni))
+                        (not (is-mk-none nr))
                         (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                                   (mk-tuple2 zeron 4))))))))))))
+                                                                   (mk-tuple2 zeron 4)))))))))))))
 
 
 (define-fun responder-accepts-with-mac-three-only
@@ -421,8 +432,10 @@
                        (nr   (el11-8  (maybe-get state))))
                   (=> (and (= u true)
                            (= acc (mk-some true)))
-                      (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                                 (mk-tuple2 (maybe-get ni) 3)))))))))))
+                      (and (not (is-mk-none ni))
+                           (not (is-mk-none nr))
+                           (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                                                 (mk-tuple2 (maybe-get ni) 3))))))))))))
 
 
 (define-fun reverse-mac-state-consistent
@@ -464,8 +477,8 @@
             (and (is-mk-none (select ReverseMac handle))
                  (is-mk-none (select Values handle))))
             (=> (= (select H kid) (mk-some true))
-            (= (is-mk-none (select ReverseMac handle))
-               (is-mk-none (select Values handle))))               
+            (=  (is-mk-none (select ReverseMac handle))
+                (is-mk-none (select Values handle))))               
                ))))
 
 
@@ -546,16 +559,22 @@
              (and
               (=> (= mess 3)
                   (and
+                   (not (is-mk-none ni))
+                   (not (is-mk-none nr))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 zeron 4)))))))
               (=> (and u (or (= mess 2) (= mess 3)) (= acc (mk-some true)))
                   (and
+                   (not (is-mk-none ni))
+                   (not (is-mk-none nr))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 (maybe-get ni) 3)))))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 zeron 4)))))))
               (=> (and (not u) (or (= mess 2) (= mess 3)))
                   (and
+                   (not (is-mk-none ni))
+                   (not (is-mk-none nr))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
                                                               (mk-tuple2 (maybe-get nr) 2)))))
                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
@@ -598,12 +617,13 @@
            (let  ((u    (el11-2  (maybe-get state)))
                   (acc  (el11-5  (maybe-get state)))
                   (sid  (el11-10 (maybe-get state))))
-             (let ((first (select First (maybe-get sid)))
+             (=> (is-mk-none sid)                  ;Chris: this is here to guard the maybe-get sid, but I am not sure whether this is right..
+             (let ((first  (select First  (maybe-get sid)))
                    (second (select Second (maybe-get sid))))
                (and (=> (and u (= first (mk-some ctr)))
                         (= acc (mk-some true)))
                     (=> (and u (= second (mk-some ctr)))
-                        (= acc (mk-some true)))))))))))
+                        (= acc (mk-some true))))))))))))
 
 
 (define-fun first-second-distinct
@@ -616,13 +636,14 @@
   (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((handle (mk-tuple5 U V ni nr tau)))
             (and (=> (not (is-mk-none (select Second handle)))
-                     (and (not (= (select First handle) (select Second handle)))
-                          (let ((state-first (select State (maybe-get (select First handle))))
+                     (and (not (=          (select First handle) (select Second handle)))
+                          (not (is-mk-none (select First handle) ))
+                          (let ((state-first  (select State (maybe-get (select First handle))))
                                 (state-second (select State (maybe-get (select Second handle)))))
                             (and (not (is-mk-none state-first))
                                  (not (is-mk-none state-second))
-                                 (not (= (el11-2 (maybe-get state-first))
-                                         (el11-2 (maybe-get state-second))))))))))))
+                                 (not (= (el11-2 (maybe-get state-first))              ; Chris: I am not sure why this is here.
+                                         (el11-2 (maybe-get state-second))))))))))))   ; Chris: Why should the states be equal?! How?
 
 
 (define-fun second-after-first
@@ -649,8 +670,8 @@
               (not (is-mk-none state2))
               (= (select Fresh ctr1) (mk-some true))
               (= (select Fresh ctr2) (mk-some true)))
-         (let ((u1    (el11-2 (maybe-get state1)))
-               (u2    (el11-2 (maybe-get state2)))
+         (let ((u1    (el11-2  (maybe-get state1)))
+               (u2    (el11-2  (maybe-get state2)))
                (sid1  (el11-10 (maybe-get state1)))
                (sid2  (el11-10 (maybe-get state2))))
            (=> (and (not (= ctr1 ctr2))
@@ -685,7 +706,7 @@
               (=> (not (is-mk-none state)) ;; should already be known
                   (let ((sid (el11-10 (maybe-get state))))
                     (=> (not (is-mk-none sid)) ;; same
-                        (and (not (is-mk-none (select First (maybe-get sid))))
+                        (and (not (is-mk-none (select First  (maybe-get sid))))
                              (not (is-mk-none (select Second (maybe-get sid)))))))))))))))
 
 
@@ -755,7 +776,8 @@
 
 (define-state-relation relation-first
     (left right)
-  (and (sessions-in-first-exist left.KX.First left.KX.State)
+  (and 
+       (sessions-in-first-exist left.KX.First left.KX.State)
        (sessions-in-first-exist left.KX.Second left.KX.State)
 
        (second-after-first left.KX.First left.KX.Second)
@@ -763,13 +785,16 @@
        (first-set-by-initiator left.KX.State left.KX.First left.KX.Fresh)
 
        (sessions-in-first-second-sufficiently-advanced left.KX.First left.KX.Fresh left.KX.State)
-       (sessions-in-first-second-sufficiently-advanced left.KX.Second left.KX.Fresh left.KX.State)))
+       (sessions-in-first-second-sufficiently-advanced left.KX.Second left.KX.Fresh left.KX.State)
+))
 
 
 (define-state-relation relation-reverse-mac
     (left right)
   (and (reverse-mac-matches left.MAC.Values left.KX.ReverseMac left.PRF.H)
        (reverse-mac-state-consistent left.KX.ReverseMac left.KX.State)
+       (reverse-mac-matches left.MAC.Values left.KX.ReverseMac right.PRF.H)
+       (reverse-mac-state-consistent left.KX.ReverseMac right.KX.State)
 ))
 
 
