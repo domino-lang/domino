@@ -296,7 +296,7 @@
                                                msg1 msg2))))))))
 
 
-(define-fun sessions-in-first-exist
+(define-fun sessions-in-first-exist ;We later re-use this code to assert the same on second
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
      (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
                                        (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
@@ -649,11 +649,35 @@
 (define-fun second-after-first
     ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
      (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
+     
   Bool
   (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
           (let ((handle (mk-tuple5 U V ni nr tau)))
             (and (=> (is-mk-none (select First handle))
                      (is-mk-none (select Second handle)))))))
+
+(define-fun at-least
+    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
+     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
+                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
+                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
+     (Fresh (Array Int (Maybe Bool))))
+  Bool
+  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
+          (let ((handle (mk-tuple5 U V ni nr tau)))
+                 (=> (and
+                        (not (is-mk-none (select First handle)))
+                        (let ((state (select State (maybe-get (select First handle)))))
+                        (and
+                        (not (is-mk-none state))
+                        (let  ((acc  (el11-5  (maybe-get state)))
+                               (sid  (el11-10 (maybe-get state))))
+                        (and
+                        (= (mk-some true) acc)
+                        (= (mk-some true) (select Fresh (maybe-get (select First handle))))
+                     )))))
+                     (not (is-mk-none (select Second handle)))))))
 
 
 (define-fun sids-unique
@@ -763,6 +787,12 @@
        (time-of-acceptance right.KX.State)
        (stuff-not-initialized-early left.KX.State left.KX.Fresh left.MAC.Keys)))
 
+(define-state-relation relation-at-least
+    (left right)
+  (and (at-least  left.KX.First  left.KX.Second  left.KX.State  left.KX.Fresh)
+       (at-least right.KX.First right.KX.Second right.KX.State right.KX.Fresh)
+))
+
 
 (define-state-relation relation-macs
     (left right)
@@ -777,7 +807,7 @@
 (define-state-relation relation-first
     (left right)
   (and 
-       (sessions-in-first-exist left.KX.First left.KX.State)
+       (sessions-in-first-exist left.KX.First  left.KX.State)
        (sessions-in-first-exist left.KX.Second left.KX.State)
 
        (second-after-first left.KX.First left.KX.Second)
@@ -793,8 +823,8 @@
     (left right)
   (and (reverse-mac-matches left.MAC.Values left.KX.ReverseMac left.PRF.H)
        (reverse-mac-state-consistent left.KX.ReverseMac left.KX.State)
-       (reverse-mac-matches left.MAC.Values left.KX.ReverseMac right.PRF.H)
-       (reverse-mac-state-consistent left.KX.ReverseMac right.KX.State)
+       (reverse-mac-matches right.MAC.Values right.KX.ReverseMac right.PRF.H)
+       (reverse-mac-state-consistent right.KX.ReverseMac right.KX.State)
 ))
 
 
@@ -810,7 +840,8 @@
        (relation-time                state-H710 state-H711)
        (relation-macs                state-H710 state-H711)
        (relation-reverse-mac         state-H710 state-H711)
-       (relation-first state-H710    state-H711)
+       (relation-first               state-H710 state-H711)
+       (relation-at-least            state-H710 state-H711)
 
        (no-ideal-values-for-dishonest-keys state-H710.PRF.H state-H710.PRF.PRF
                                            state-H710.MAC.Keys state-H710.MAC.Values)

@@ -1644,12 +1644,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
              Send2: {
@@ -1668,12 +1671,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
              Send3: {
@@ -1692,12 +1698,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             Send4: {
@@ -1716,12 +1725,17 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                    relation-at-least:            [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             Send5: {
@@ -1740,12 +1754,17 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                    relation-at-least:            [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
                                                   ,relation-first,relation-wellformedness,relation-reverse-mac]
+                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             NewKey: {
@@ -1764,12 +1783,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             NewSession: {
@@ -1788,12 +1810,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             Test: {
@@ -1812,12 +1837,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             Reveal: {
@@ -1836,12 +1864,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             SameKey: {
@@ -1860,12 +1891,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             AtLeast: {
@@ -1884,12 +1918,15 @@ theorem Full4WHS {
                     relation-wellformedness:      [no-abort]
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
             AtMost: {
@@ -1909,12 +1946,15 @@ theorem Full4WHS {
                     relation-first:               [no-abort]
                     relation-macs:                [no-abort]
                     same-state:                   [no-abort]
-                    relation-reverse-mac:         [no-abort, same-state]
+                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
+                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
+                                                  ,relation-first,relation-wellformedness, same-state]
                     relation-time:                [no-abort]
                     relation-sids:                [no-abort]
+                    relation-at-least:            [no-abort]
                     invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
                                                   ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
+                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
                 }
             }
         }
