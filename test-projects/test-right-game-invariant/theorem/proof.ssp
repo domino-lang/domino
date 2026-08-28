@@ -47,7 +47,7 @@ theorem Proof {
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]
-                    same-output:  [no-abort]
+                    same-output:  [no-abort, invariant]
                 }
             }
         }
