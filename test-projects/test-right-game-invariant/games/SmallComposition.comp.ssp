@@ -1,0 +1,18 @@
+composition SmallComposition {
+    const n: Integer;
+    const f: fn Integer -> Integer;
+
+
+    instance rand = Rand {
+        params {
+            n:   n,
+            f:   f,
+        }
+    }
+
+    compose {
+        adversary: {
+            UsefulOracle: rand,
+        },
+    }
+}
