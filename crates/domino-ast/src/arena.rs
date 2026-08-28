@@ -30,6 +30,7 @@ impl<T> Default for Arena<T> {
 /// The generic argument provides some type safety when looking up values in an arena.
 // PhantomData<fn() -> T> tags us with T for type safety without acting like we own a T:
 // it keeps Ref covariant in T but stays Send + Sync regardless of whether T is.
+#[repr(transparent)]
 pub struct Ref<T>(u32, PhantomData<fn() -> T>);
 
 impl<T> std::hash::Hash for Ref<T> {
@@ -82,6 +83,7 @@ impl<T> Ref<T> {
 /// The generic argument provides some type safety when looking up values in an arena.
 // PhantomData<fn() -> T> tags us with T for type safety without acting like we own a T:
 // it keeps Slice covariant in T but stays Send + Sync regardless of whether T is.
+#[repr(C)]
 pub struct Slice<T>(u32, u32, PhantomData<fn() -> T>);
 
 impl<T> Clone for Slice<T> {

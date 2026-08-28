@@ -185,6 +185,7 @@ impl<'arena> Resolver<'arena> {
             game_const_value_names: &mut self.game_const_value_names,
             pkg_inst_names: &mut self.pkg_inst_names,
             pkg_const_value_names: &mut self.pkg_const_value_names,
+            pkg_type_names: &mut self.pkg_type_names,
             pkg_names: &mut self.pkg_names,
             oracle_composition_def_names: &mut self.oracle_composition_def_names,
             oracle_composition_import_names: &mut self.oracle_composition_import_names,
@@ -337,7 +338,30 @@ macro_rules! fail_resolution {
     }};
 }
 
+/// If resolution fails, we emit a diagnostic and set an error resolution with a reference to the
+/// diagnostic on the node.
+///
+/// It would be nicer if this could be a function, but we need to put in the name of the table, so
+/// that doesn't work.
+///
+/// This one takes a Ref<Diagnostic>, i.e. it's already allocated. Useful for forwarding errors
+macro_rules! fail_resolution_ref {
+    ($self:expr, $node:expr, $diag:expr, $table:ident) => {
+        $crate::fail_resolution_ref!($self, $node, $diag, $table, then { return; })
+    };
+
+    ($self:expr, $node:expr, $diag:expr, $table:ident, then $blk:block ) => {{
+        $crate::fail_resolution_ref!($self, $node, $diag, $table, then err => $blk);
+    }};
+
+    ($self:expr, $node:expr, $diag:expr, $table:ident, then $err_name:ident => $blk:block ) => {{
+        $self.tables.$table.set($node, $diag.into());
+        $blk
+    }};
+}
+
 use fail_resolution;
+use fail_resolution_ref;
 
 macro_rules! print_missing {
     ($self:expr, $($name:ident),* ,) => { {

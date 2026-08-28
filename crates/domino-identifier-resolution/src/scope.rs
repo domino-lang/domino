@@ -87,7 +87,11 @@ impl<Decl: Declaration> Scope<Decl> {
     }
 
     fn which_frame(&self, name: &str) -> Option<usize> {
-        self.0.iter().rev().position(|f| f.has(name))
+        self.0
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(i, f)| f.has(name).then_some(i))
     }
 
     pub(crate) fn lookup(&self, name: &str) -> Option<&Decl> {

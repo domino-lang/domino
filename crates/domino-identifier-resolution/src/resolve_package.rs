@@ -394,9 +394,11 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             oracles::OracleSignature<identifier::OracleImportIdentifierKind>,
         >,
     ) {
+        self.scope.enter();
         let sig = *arenas.oracle_import_sig.get(node);
         sig.walk(self, arenas);
         self.declare_oracle_import(arenas, node, sig);
+        self.scope.leave();
     }
 
     fn oracle_def(&mut self, arenas: &Arenas, node: Ref<oracles::OracleDefinition>) {
@@ -493,17 +495,17 @@ impl<'a> PackageVisitor<'a> {
         arenas: &Arenas,
         node: Ref<identifier::PackageTypeIdentifier>,
     ) {
-        let dx = Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         if let Some(existing_decl) = self
             .scope
             .declare(name, PackageDeclaration::TypeParam(node))
         {
+            let dx = Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
             let err: diag::Diagnostic = match existing_decl.place() {
                 PackageDeclarationPlace::BuiltIn => diag::CantRedefineBuiltin::new(dx, node).into(),
                 PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
@@ -530,6 +532,30 @@ impl<'a> PackageVisitor<'a> {
         let decl = arenas.pkg_const_decl.get(node);
         let name = get_text(decl.name, self.locations, &arenas.source);
 
+        // This one needs to be set regardless of whether this one is duplicate
+        self.tables.is_state.set(node, false);
+
+        // fail if duplicate declaration
+        if let Some(existing_decl) = self.scope.declare(name, PackageDeclaration::Const(node)) {
+            let dx = Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                PackageDeclarationPlace::BuiltIn => {
+                    diag::CantRedefineBuiltin::new(dx, decl.name).into()
+                }
+                PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, decl.name, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, decl.name, err, const_value_names);
+        };
+
         self.info
             .as_mut()
             .unwrap()
@@ -539,14 +565,35 @@ impl<'a> PackageVisitor<'a> {
             decl.name,
             resolutions::PackageConstValueResolution::ConstParam(node),
         );
-        self.tables.is_state.set(node, false);
-
-        self.scope.declare(name, PackageDeclaration::Const(node));
     }
 
     fn declare_state_item(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {
         let decl = arenas.pkg_const_decl.get(node);
         let name = get_text(decl.name, self.locations, &arenas.source);
+
+        // This one needs to be set regardless of whether this one is duplicate
+        self.tables.is_state.set(node, true);
+
+        // fail if duplicate declaration
+        if let Some(existing_decl) = self.scope.declare(name, PackageDeclaration::State(node)) {
+            let dx = Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                PackageDeclarationPlace::BuiltIn => {
+                    diag::CantRedefineBuiltin::new(dx, decl.name).into()
+                }
+                PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, decl.name, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, decl.name, err, const_value_names);
+        };
 
         self.info
             .as_mut()
@@ -557,9 +604,6 @@ impl<'a> PackageVisitor<'a> {
             decl.name,
             resolutions::PackageConstValueResolution::ConstParam(node),
         );
-        self.tables.is_state.set(node, true);
-
-        self.scope.declare(name, PackageDeclaration::State(node));
     }
 
     fn declare_oracle_import(
@@ -570,6 +614,29 @@ impl<'a> PackageVisitor<'a> {
     ) {
         let name = get_text(sig.name, self.locations, &arenas.source);
 
+        if let Some(existing_decl) = self
+            .scope
+            .declare(name, PackageDeclaration::OracleImport(node))
+        {
+            let dx = Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                PackageDeclarationPlace::BuiltIn => {
+                    diag::CantRedefineBuiltin::new(dx, sig.name).into()
+                }
+                PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, sig.name, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, sig.name, err, oracle_import_names);
+        };
+
         self.info
             .as_mut()
             .unwrap()
@@ -578,9 +645,6 @@ impl<'a> PackageVisitor<'a> {
         self.tables
             .oracle_import_names
             .set(sig.name, OracleImportResolution::Import(node));
-
-        self.scope
-            .declare(name, PackageDeclaration::OracleImport(node));
     }
 
     fn declare_oracle_def(
@@ -607,12 +671,32 @@ impl<'a> PackageVisitor<'a> {
         let decl = arenas.oracle_value_arg_decl.get(decl_ref);
         let ident_name = get_text(decl.name, self.locations, &arenas.source);
 
+        if let Some(existing_decl) = self
+            .scope
+            .declare(ident_name, PackageDeclaration::OracleArg(decl_ref))
+        {
+            let dx = Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                PackageDeclarationPlace::BuiltIn => {
+                    diag::CantRedefineBuiltin::new(dx, decl.name).into()
+                }
+                PackageDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, decl.name, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, decl.name, err, oracle_value_names);
+        };
+
         self.tables
             .oracle_value_names
             .set(decl.name, OracleValueResolution::Arg(decl_ref));
-
-        self.scope
-            .declare(ident_name, PackageDeclaration::OracleArg(decl_ref));
     }
 
     fn resolve_oracle_import(

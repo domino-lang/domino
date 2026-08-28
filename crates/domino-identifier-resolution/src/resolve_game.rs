@@ -4,7 +4,7 @@ use domino_ast::{
     arena::Ref,
     ast_nodes::{game, identifier, NodeType},
     source::SourceLocation,
-    Arenas, GlobalTable, LocationTable, PartialDenseTable,
+    Arenas, GlobalRefId, GlobalTable, LocationTable, PartialDenseTable,
 };
 
 use crate::{
@@ -56,6 +56,8 @@ pub struct GameVisitorPartialTables<'a> {
         identifier::OracleCompositionIdentifier,
         OracleCompositionDefinitionResolution,
     >,
+    pub pkg_type_names:
+        &'a mut PartialDenseTable<identifier::PackageTypeIdentifier, PackageTypeResolution>,
 }
 
 #[derive(Debug, Clone)]
@@ -191,12 +193,14 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game_inst_block(&mut self, arenas: &Arenas, node: Ref<game::InstanceBlock>) {
         let inst = arenas.game_inst_block.get(node);
 
+        self.resolve_pkg(arenas, inst.instantiated_name);
+
         self.position = match self.prepare_pkg_inst_info(arenas, node) {
             Ok(pkg_inst_info) => Position::PackageInstance(pkg_inst_info),
             Err(diag) => Position::UnresolvedPackageInstance(diag),
         };
 
-        self.resolve_pkg(arenas, inst.instantiated_name);
+        // this needs to be after setting the position
         self.game_inst_item_list(arenas, inst.items);
 
         // Consume the resolved package instance and store it - if we are
@@ -224,14 +228,16 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         // Recursing would reach `pkg_const_value_ident`, which this visitor doesn't handle.
         self.resolve_pkg_const_param(arenas, item.ident);
         self.game_expr(arenas, item.expr);
+    }
 
-        let const_name = get_text(item.ident, self.locations, &arenas.source);
-
-        self.position
-            .pkg_inst_mut()
-            .unwrap()
-            .const_assignments
-            .insert(const_name.to_string(), node);
+    fn game_inst_type_item(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<game::InstanceTypeAssignmentItem>,
+    ) {
+        let item = arenas.game_inst_type_item.get(node);
+        self.resolve_pkg_type_param(arenas, item.ident);
+        self.game_type(arenas, item.ty);
     }
 
     fn game_const_value_ident(
@@ -355,17 +361,59 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
 
     fn declare_type_param(&mut self, arenas: &Arenas, ty: Ref<identifier::GameTypeIdentifier>) {
         let ident_name = get_text(ty, self.locations, &arenas.source);
+
+        // fail if duplicate declaration
+        if let Some(existing_decl) = self
+            .scope
+            .declare(ident_name, GameDeclaration::TypeParam(ty))
+        {
+            let dx = domino_diagnostic::Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                GameDeclarationPlace::BuiltIn => diag::CantRedefineBuiltin::new(dx, ty).into(),
+                GameDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, ty, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, ty, err, game_type_names);
+        };
+
         self.tables
             .game_type_names
             .set(ty, GameTypeResolution::TypeParam(ty));
-        self.scope
-            .declare(ident_name, GameDeclaration::TypeParam(ty));
     }
 
     fn declare_const_param(&mut self, arenas: &Arenas, node: Ref<game::GameConstDecl>) {
         let decl = arenas.game_const_decl.get(node);
         let name = get_text(decl.name, self.locations, &arenas.source);
-        self.scope.declare(name, GameDeclaration::GameConst(node));
+
+        // fail if duplicate declaration
+        if let Some(existing_decl) = self.scope.declare(name, GameDeclaration::GameConst(node)) {
+            let dx = domino_diagnostic::Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                GameDeclarationPlace::BuiltIn => {
+                    diag::CantRedefineBuiltin::new(dx, decl.name).into()
+                }
+                GameDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, decl.name, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, decl.name, err, game_const_value_names);
+        };
+
         self.tables
             .game_const_value_names
             .set(decl.name, GameConstValueResolution::ConstParam(node));
@@ -380,10 +428,29 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         let block = arenas.game_inst_block.get(node);
         let name = get_text(info.name, self.locations, &arenas.source);
 
-        let declare_scope_ok = self
+        // fail if duplicate declaration
+        if let Some(existing_decl) = self
             .scope
             .declare(name, GameDeclaration::PackageInstance(info.clone()))
-            .is_none();
+        {
+            let dx = domino_diagnostic::Resolver {
+                arenas,
+                locations: self.locations,
+            };
+
+            let err: diag::Diagnostic = match existing_decl.place() {
+                GameDeclarationPlace::BuiltIn => {
+                    diag::CantRedefineBuiltin::new(dx, block.instance_name).into()
+                }
+                GameDeclarationPlace::UserDeclaration(global_ref_id) => {
+                    domino_ast::with_global_ref_id!(global_ref_id, |r| {
+                        diag::AlreadyDefined::new(dx, block.instance_name, r).into()
+                    })
+                }
+            };
+
+            crate::fail_resolution!(self, block.instance_name, err, pkg_inst_names);
+        };
 
         let declare_info_ok = self
             .info
@@ -394,7 +461,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             .is_none();
 
         // ensure that the scope and the info table agree
-        debug_assert_eq!(declare_scope_ok, declare_info_ok);
+        debug_assert!(declare_info_ok);
 
         self.tables.pkg_inst_names.set(
             block.instance_name,
@@ -407,26 +474,27 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         arenas: &Arenas,
         pkg_inst: Ref<game::InstanceBlock>,
     ) -> Result<PackageInstanceInfo, Ref<diag::Diagnostic>> {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let inst = arenas.game_inst_block.get(pkg_inst);
         let name = inst.instance_name;
         let pkg_name = inst.instantiated_name;
 
-        let pkg_name_str = get_text(pkg_name, self.locations, &arenas.source);
-        let Some(resolved_pkg) = self.packages.get(pkg_name_str) else {
-            // TODO: Also report that we are ignoring the instance because the package is not found?
-            //       Maybe not needed.
-            crate::fail_resolution!(
-                self,
-                pkg_name,
-                diag::UndefinedIdentifier::new(dx, pkg_name),
-                pkg_names,
-                then err => { return Err(err)  }
-            );
+        let resolved_pkg = match self
+            .tables
+            .pkg_names
+            .get(pkg_name)
+            .expect("the caller must set this first")
+        {
+            PackageResolution::Package(_) => {
+                // we know the package can be resolved, but we need the PackageInfo instead. So we
+                // just look it up - we know it'll succeed.
+
+                let pkg_name = get_text(pkg_name, self.locations, &arenas.source);
+
+                self.packages
+                    .get(&pkg_name)
+                    .expect("looking up a resolved package should have succeeded")
+            }
+            PackageResolution::Error(diag) => return Err(diag),
         };
 
         Ok(PackageInstanceInfo {
@@ -538,6 +606,56 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         resolution
     }
 
+    fn resolve_pkg_type_param(
+        &mut self,
+        arenas: &Arenas,
+        node: Ref<identifier::PackageTypeIdentifier>,
+    ) {
+        let dx = domino_diagnostic::Resolver {
+            arenas,
+            locations: self.locations,
+        };
+
+        // SAFETY: this function is only called when we are inside a package instance block, so this is set
+        let pkg_inst_info = match &mut self.position {
+            Position::PackageInstance(pkg_inst_info) => pkg_inst_info,
+            Position::UnresolvedPackageInstance(diag) => {
+                crate::fail_resolution_ref!(self, node, *diag, pkg_type_names)
+            }
+            other => {
+                unreachable!("expected to be in Position::PackageInstance, but am in {other:?}",)
+            }
+        };
+
+        let in_package_instance = *arenas.game_inst_block.get(pkg_inst_info.pkg_inst);
+
+        let ty_name = get_text(node, self.locations, &arenas.source);
+        let pkg_name = get_text(
+            in_package_instance.instantiated_name,
+            self.locations,
+            &arenas.source,
+        );
+
+        let Some(pkg) = self.packages.get(pkg_name) else {
+            // We do not traverse instantiation code if the pacAge can not be resolved, so we only
+            // should end up here if that failed.
+            unreachable!();
+        };
+
+        let Some(decl) = pkg.type_params.get(ty_name) else {
+            crate::fail_resolution!(
+                self,
+                node,
+                diag::UndefinedIdentifier::new(dx, node),
+                pkg_type_names
+            );
+        };
+
+        self.tables
+            .pkg_type_names
+            .set(node, PackageTypeResolution::TypeParam(*decl));
+    }
+
     fn resolve_pkg_const_param(
         &mut self,
         arenas: &Arenas,
@@ -549,7 +667,16 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         };
 
         // SAFETY: this function is only called when we are inside a package instance block, so this is set
-        let pkg_inst_info = self.position.pkg_inst_mut().unwrap();
+        let pkg_inst_info = match &mut self.position {
+            Position::PackageInstance(pkg_inst_info) => pkg_inst_info,
+            Position::UnresolvedPackageInstance(diag) => {
+                crate::fail_resolution_ref!(self, node, *diag, pkg_const_value_names)
+            }
+            other => {
+                unreachable!("expected to be in Position::PackageInstance, but am in {other:?}",)
+            }
+        };
+
         let in_package_instance = *arenas.game_inst_block.get(pkg_inst_info.pkg_inst);
 
         let const_name = get_text(node, self.locations, &arenas.source);
@@ -719,6 +846,29 @@ enum GameDeclaration<'res> {
     GameConst(Ref<game::GameConstDecl>),
 
     BuiltinValue(BuiltinValue),
+}
+
+impl<'res> GameDeclaration<'res> {
+    fn place(&self) -> GameDeclarationPlace {
+        let ref_id = match self {
+            GameDeclaration::BuiltinType(_) | GameDeclaration::BuiltinValue(_) => {
+                return GameDeclarationPlace::BuiltIn
+            }
+
+            GameDeclaration::Package(info) => info.pkg.global_ref_id(),
+            GameDeclaration::PackageInstance(info) => info.pkg_inst.global_ref_id(),
+
+            GameDeclaration::TypeParam(r) => r.global_ref_id(),
+            GameDeclaration::GameConst(r) => r.global_ref_id(),
+        };
+
+        GameDeclarationPlace::UserDeclaration(ref_id)
+    }
+}
+
+enum GameDeclarationPlace {
+    BuiltIn,
+    UserDeclaration(GlobalRefId),
 }
 
 impl From<BuiltinType> for GameDeclaration<'_> {
