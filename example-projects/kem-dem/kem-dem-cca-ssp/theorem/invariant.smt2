@@ -33,51 +33,39 @@
             (not (is-mk-none right.Key.k))
             (= (maybe-get right.Key.k) (<<func-kem_decaps>> (maybe-get right.KEM.sk) (maybe-get right.KEM.c)))
         )
-    )
-)
-
-(define-fun kem-correctness
-    (
-        (pk (Maybe Bits_pkeyl))
-        (sk (Maybe Bits_skeyl))
-    )
-    Bool
-    (=>
-        (not (is-mk-none pk))
-        (forall 
-            (
-                (r Bits_kencr)
-            )
-            (let
-                (
-                    (k (el2-1 (<<func-kem_encaps>> r (maybe-get pk))))
-                    (ek (el2-2 (<<func-kem_encaps>> r (maybe-get pk))))
-                )
-                (= k (<<func-kem_decaps>> (maybe-get sk) ek))
+        (=> 
+            (not (is-mk-none right.KEM.pk))
+            (and 
+                (= (maybe-get right.KEM.pk) (el2-1 (<<func-kem_gen>> right.Scheme_KEM.ghost)))
+                (= (maybe-get right.KEM.sk) (el2-2 (<<func-kem_gen>> right.Scheme_KEM.ghost)))
             )
         )
     )
 )
 
-(define-lemma <relation-lemma-kem-correctness-Game_MON_CCA_PKE-Game_MOD_CCA_PKE_Real_KEM-PKENC>
-    (
-        old-state-left
-        old-state-right
-        return-left
-        return-right
-        (m0 Bits_ptl)
-        (m1 Bits_ptl)
+; kem correctness property
+(assert 
+    (forall 
+        (
+            (r Bits_kgenr)
+        )
+        (let 
+            (
+                (pk (el2-1 (<<func-kem_gen>> r)))
+                (sk (el2-2 (<<func-kem_gen>> r)))
+            )
+            (forall 
+                (
+                    (r Bits_kencr)
+                )
+                (let
+                    (
+                        (k (el2-1 (<<func-kem_encaps>> r pk)))
+                        (ek (el2-2 (<<func-kem_encaps>> r pk)))
+                    )
+                    (= k (<<func-kem_decaps>> sk ek))
+                )
+            )
+        )
     )
-    (kem-correctness old-state-right.KEM.pk old-state-right.KEM.sk)
-)
-
-(define-lemma <relation-lemma-kem-correctness-Game_MON_CCA_PKE-Game_MOD_CCA_PKE_Real_KEM-PKDEC>
-    (
-        old-state-left
-        old-state-right
-        return-left
-        return-right
-        (ek_ctxt (Tuple2 Bits_kctl Bits_dctl))
-    )
-    (kem-correctness old-state-right.KEM.pk old-state-right.KEM.sk)
 )

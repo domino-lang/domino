@@ -11,8 +11,13 @@ package Scheme_KEM {
         kem_decaps: fn Bits(skeyl), Bits(kctl) -> Bits(dkeyl),
     }
 
+    state {
+        ghost: Bits(kgenr)
+    }
+
     oracle KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)) {
         r <-$ Bits(kgenr) sample-name kem_gen;
+        ghost <- r;
         return kem_gen(r);
     }
 
