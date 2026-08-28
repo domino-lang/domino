@@ -4,8 +4,8 @@ use crate::{
     parser::{
         common::HandleTypeError,
         error::{
-            MissingReturnError, NoSuchTypeError, ParseNonTupleError, TypeMismatchError,
-            UndefinedIdentifierError, WrongArgumentCountInInvocationError,
+            IllegalSampleTypeError, MissingReturnError, NoSuchTypeError, ParseNonTupleError,
+            TypeMismatchError, UndefinedIdentifierError, WrongArgumentCountInInvocationError,
         },
         package::{ParseExpressionError, ParsePackageError},
         tests::{packages, slice_source_span},
@@ -46,6 +46,19 @@ fn undefined_type_in_pkg_state() {
             }))
             if &type_name == "ThisTypeDoesNotExist"
         )
+    )
+}
+
+#[test]
+fn illegal_sample_type() {
+    let err = packages::parse_file_fails("IllegalSampleType.pkg.ssp");
+    assert!(
+        matches!(
+            &err,
+            ParsePackageError::IllegalSampleType(IllegalSampleTypeError { type_name, .. })
+                if type_name.starts_with("Maybe(")
+        ),
+        "expected IllegalSampleType error, got {err:?}"
     )
 }
 

@@ -148,8 +148,7 @@ pub trait Project {
                         ui.proofstep_is_reduction(&theorem.name, &format!("{game_hop}"));
                     }
                     GameHop::Equivalence(eq) => {
-                        let (theorem, auxs) =
-                            EquivalenceTransform.transform_theorem(theorem).unwrap();
+                        let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
 
                         let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
                         eqctx.load_invariants(self)?;
@@ -168,8 +167,7 @@ pub trait Project {
                         driver.verify(&mut ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
-                        let (theorem, auxs) =
-                            EquivalenceTransform.transform_theorem(theorem).unwrap();
+                        let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
 
                         let mut eqctx = EquivalenceContext::new(hyb.equivalence(), &theorem, &auxs);
                         eqctx.load_invariants(self)?;
@@ -204,10 +202,10 @@ pub trait Project {
 
         for name in self.games() {
             let game = self.get_game(name).unwrap();
-            let (transformed, _) = crate::transforms::samplify::Transformation(game)
+            let (transformed, _) = crate::transforms::resolveoracles::Transformation(game)
                 .transform()
                 .unwrap();
-            let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
+            let (transformed, _) = crate::transforms::samplify::Transformation(&transformed)
                 .transform()
                 .unwrap();
             for lossy in [true, false] {

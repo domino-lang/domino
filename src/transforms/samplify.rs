@@ -3,7 +3,7 @@
 use crate::expressions::Expression;
 use crate::package::Composition;
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, IfThenElse, Pattern, Statement};
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 use std::collections::HashSet;
 use std::convert::Infallible;
 use std::iter::FromIterator;
@@ -12,7 +12,7 @@ use std::iter::FromIterator;
 
 pub struct Transformation<'a>(pub &'a Composition);
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Position {
     pub game_name: String,
     pub inst_name: String,
@@ -29,6 +29,7 @@ pub struct Position {
 
 #[derive(Clone, Debug, Default)]
 pub struct SampleInfo {
+    // collection of all types of sample operations (without duplicates)
     pub tys: Vec<Type>,
     pub count: usize,
     pub positions: Vec<Position>,
@@ -45,7 +46,7 @@ impl super::Transformation for Transformation<'_> {
 
         let game_name = self.0.name.as_str();
 
-        let insts: Result<Vec<_>, Infallible> = self
+        let insts = self
             .0
             .pkgs
             .iter()
@@ -70,10 +71,11 @@ impl super::Transformation for Transformation<'_> {
                 }
                 Ok(newinst)
             })
-            .collect();
+            .collect::<Result<Vec<_>, Infallible>>()?;
+
         Ok((
             Composition {
-                pkgs: insts?,
+                pkgs: insts,
                 ..self.0.clone()
             },
             SampleInfo {
@@ -156,6 +158,15 @@ pub fn samplify(
                 },
                 file_pos,
             ) => {
+                if !matches!(
+                    ty.kind(),
+                    TypeKind::Boolean | TypeKind::Integer | TypeKind::Bits(_)
+                ) {
+                    // The parser (`handle_assign_rhs`) rejects sampling of any
+                    // other type with an `IllegalSampleTypeError`, so this is
+                    // unreachable for parsed input.
+                    unreachable!("only bits, bools, and integers are allowed for sampling");
+                }
                 let dst_index = match &pattern {
                     Pattern::Table { index, .. } => Some(index.clone()),
                     _ => None,
