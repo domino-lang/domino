@@ -194,6 +194,28 @@ pub trait Project {
         Ok(())
     }
 
+    fn html(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
+        let mut path = self.get_root_dir();
+        path.push("_build/html/");
+        std::fs::create_dir_all(&path)?;
+
+        for name in self.games() {
+            let game = self.get_game(name).unwrap();
+            let (transformed, _) = crate::transforms::samplify::Transformation(game)
+                .transform()
+                .unwrap();
+            let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
+                .transform()
+                .unwrap();
+            crate::writers::html::write_game_instance(&path, backend, &transformed)?;
+        }
+        for name in self.theorems() {
+            let theorem = self.get_theorem(name).unwrap();
+            crate::writers::html::write_theorem(&path, backend, theorem)?;
+        }
+        Ok(())
+    }
+
     fn latex(&self, backend: &Option<impl SmtSolverBackend>) -> Result<()> {
         let mut path = self.get_root_dir();
         path.push("_build/latex/");

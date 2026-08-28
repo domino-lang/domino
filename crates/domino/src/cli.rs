@@ -8,6 +8,9 @@ pub(crate) enum Commands {
     /// Export to LaTeX
     Latex(Latex),
 
+    /// Export to HTML
+    Html(Html),
+
     /// Prove the whole project.
     Prove(Prove),
 
@@ -35,6 +38,15 @@ pub(crate) struct Latex {
     /// directory and its ancestors for an `ssp.toml`.
     #[clap(long)]
     pub(crate) path: Option<std::path::PathBuf>,
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Html {
+    /// Solver for graph layouting
+    #[clap(short, long, default_value = "z3")]
+    pub(crate) smtsolver: Option<SolverVariant>,
+    // TODO: given we have a default here, it seems impossible to choose none
 }
 
 #[derive(clap::Args, Debug)]
