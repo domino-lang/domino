@@ -260,8 +260,8 @@ impl<'a> EquivalenceContext<'a> {
                 match claim_type {
                     ClaimType::Lemma => build_lemma_call.clone()(dep_name),
                     ClaimType::Relation => build_relation_call(dep_name),
-                    ClaimType::Invariant
-                    | ClaimType::LeftPackageInvariant
+                    ClaimType::Invariant => build_invariant_new_call(dep_name),
+                    ClaimType::LeftPackageInvariant
                     | ClaimType::RightPackageInvariant
                     | ClaimType::LeftGameInvariant
                     | ClaimType::RightGameInvariant => unreachable!(),
