@@ -39,6 +39,16 @@
                 (= (maybe-get right.KEM.pk) (el2-1 (<<func-kem_gen>> right.Scheme_KEM.ghost)))
                 (= (maybe-get right.KEM.sk) (el2-2 (<<func-kem_gen>> right.Scheme_KEM.ghost)))
             )
+            ; the following also works; no need for ghost but exists :D
+            ;(exists 
+            ;    (
+            ;        (r Bits_kgenr)
+            ;    )
+            ;    (and 
+            ;        (= (maybe-get right.KEM.pk) (el2-1 (<<func-kem_gen>> r)))
+            ;        (= (maybe-get right.KEM.sk) (el2-2 (<<func-kem_gen>> r)))
+            ;    )
+            ;)
         )
     )
 )
