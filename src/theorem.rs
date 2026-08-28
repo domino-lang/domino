@@ -274,6 +274,23 @@ pub enum RandomnessType {
     None,
 }
 
+#[derive(Clone, Copy)]
+pub enum RandomnessMappingInjectivityCheck {
+    Left,
+    Right,
+}
+
+impl RandomnessMappingInjectivityCheck {
+    pub(crate) const ALL: [Self; 2] = [Self::Left, Self::Right];
+
+    pub(crate) fn name(self) -> &'static str {
+        match self {
+            Self::Left => "!injective-randmap-left!",
+            Self::Right => "!injective-randmap-right!",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Theorem<'a> {
     pub name: String,
@@ -286,7 +303,7 @@ pub struct Theorem<'a> {
 }
 
 impl<'a> Theorem<'a> {
-    pub(crate) fn with_new_instances(&self, instances: Vec<GameInstance>) -> Theorem<'a> {
+    pub fn with_new_instances(&self, instances: Vec<GameInstance>) -> Theorem<'a> {
         Theorem {
             instances,
             ..self.clone()
