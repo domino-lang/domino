@@ -246,12 +246,16 @@ fn specialize<'a>(
             .consts
             .into_iter()
             .map(|(var, val)| {
-                if let ExpressionKind::Identifier(_) = val.kind() {
+                if let ExpressionKind::Identifier(ident) = val.kind() {
                     if let Some(assignment) = match_assignments
                         .iter()
                         .find(|assign| assign.original_value == val)
                     {
-                        (var, assignment.assigned_value.clone())
+                        if ident.ident() == "hybrid$loop" {
+                            (var, val)
+                        } else {
+                            (var, assignment.assigned_value.clone())
+                        }
                     } else {
                         (var, val)
                     }
