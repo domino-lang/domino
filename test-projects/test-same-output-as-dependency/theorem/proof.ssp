@@ -46,8 +46,8 @@ theorem Proof {
 
                 lemmas {
                     equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort, invariant, game-invariant!medium_composition!, package-invariant!small_composition-rand!]
+                    invariant:    [no-abort, same-output]
+                    same-output:  [no-abort]
                 }
             }
         }
