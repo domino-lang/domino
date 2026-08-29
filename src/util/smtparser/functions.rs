@@ -87,7 +87,7 @@ impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
 
 pub fn extract(content: &str) -> Vec<ExtractedFunction> {
     let mut extractor = FunctionExtractor::new();
-    if extractor.parse_sexps(content).is_err() {
+    if extractor.parse_stmts(content).is_err() {
         Vec::new()
     } else {
         extractor.functions
