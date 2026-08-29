@@ -85,23 +85,24 @@ where
         self.handle_list(list)
     }
 
-    fn parse_sexp(&mut self, from: &str) -> Result<usize, E> {
-        let parse_result = PestSmtParser::parse(Rule::sexp, from)?.next().unwrap();
-        let parsed = self.rule_sexp(&parse_result)?;
+    fn parse_stmt_list(&mut self, from: &str) -> Result<usize, E> {
+        let parse_result = PestSmtParser::parse(Rule::stmtlist, from)?.next().unwrap();
+        let end = parse_result.as_span().end();
+        let parsed = self.rule_sexp(parse_result)?;
 
         self.handle_sexp(parsed)?;
 
-        Ok(parse_result.as_span().end())
+        Ok(end)
     }
 
-    fn parse_sexps(&mut self, from: &str) -> Result<(), E> {
-        let sexps = PestSmtParser::parse(Rule::sexps, from)?.next().unwrap();
+    fn parse_stmts(&mut self, from: &str) -> Result<(), E> {
+        let sexps = PestSmtParser::parse(Rule::stmts, from)?.next().unwrap();
         for sexp in sexps.into_inner() {
-            if !matches!(sexp.as_rule(), Rule::sexp) {
+            if !matches!(sexp.as_rule(), Rule::stmt) {
                 continue;
             };
 
-            let parsed = self.rule_sexp(&sexp)?;
+            let parsed = self.rule_sexp(sexp.into_inner().next().unwrap())?;
 
             self.handle_sexp(parsed)?;
         }
@@ -109,82 +110,81 @@ where
         Ok(())
     }
 
-    fn rule_sexp(&mut self, p: &Pair<Rule>) -> Result<T, E> {
-        debug_assert_matches!(p.as_rule(), Rule::sexp);
-        let inner = p.clone().into_inner().next().unwrap();
-        match inner.as_rule() {
-            Rule::atom => self.handle_atom(inner.as_str()),
-            Rule::integer => self.handle_integer(inner.as_str()),
-            Rule::boolean => self.handle_boolean(inner.as_str()),
-            Rule::string => self.handle_string(inner.as_str()),
-            Rule::list => {
-                let list = inner
+    fn rule_sexp(&mut self, p: Pair<Rule>) -> Result<T, E> {
+        match p.as_rule() {
+            Rule::atom => self.handle_atom(p.as_str()),
+            Rule::integer => self.handle_integer(p.as_str()),
+            Rule::boolean => self.handle_boolean(p.as_str()),
+            Rule::string => self.handle_string(p.as_str()),
+            Rule::list | Rule::stmtlist => {
+                let list = p
                     .into_inner()
-                    .map(|x| self.rule_sexp(&x))
+                    .map(|x| self.rule_sexp(x))
                     .collect::<Result<Vec<_>, _>>()?;
                 self.handle_list(list)
             }
             Rule::sampleid => {
-                let mut inner = inner.into_inner();
-                let pkgname = inner.next().unwrap().as_str();
-                let oraclename = inner.next().unwrap().as_str();
-                let samplename = inner.next().unwrap().as_str();
+                let mut p = p.into_inner();
+                let pkgname = p.next().unwrap().as_str();
+                let oraclename = p.next().unwrap().as_str();
+                let samplename = p.next().unwrap().as_str();
                 self.handle_sampleid(pkgname, oraclename, samplename)
             }
             Rule::defun => {
-                let mut inner = inner.into_inner();
-                let funname = inner.next().unwrap().as_str();
-                let args = inner.next().unwrap();
+                let mut p = p.into_inner();
+                let funname = p.next().unwrap().as_str();
+                let args = p.next().unwrap();
                 debug_assert_matches!(args.as_rule(), Rule::list);
                 let args = args
                     .into_inner()
-                    .map(|sexp| self.rule_sexp(&sexp))
+                    .map(|sexp| self.rule_sexp(sexp))
                     .collect::<Result<Vec<_>, _>>()?;
-                let ty = inner.next().unwrap().as_str();
-                let body = self.rule_sexp(&inner.next().unwrap())?;
+                let ty = p.next().unwrap().as_str();
+                let body = self.rule_sexp(p.next().unwrap())?;
 
                 self.handle_definefun(funname, args, ty, body)
             }
             Rule::define_package_invariant => {
-                let mut inner = inner.into_inner();
-                let body = self.rule_sexp(&inner.next().unwrap())?;
+                let mut p = p.into_inner();
+                let body = self.rule_sexp(p.next().unwrap())?;
 
                 self.handle_define_package_invariant(body)
             }
             Rule::define_game_invariant => {
-                let mut inner = inner.into_inner();
-                let body = self.rule_sexp(&inner.next().unwrap())?;
+                let mut p = p.into_inner();
+                let body = self.rule_sexp(p.next().unwrap())?;
 
                 self.handle_define_game_invariant(body)
             }
             Rule::define_state_relation => {
-                let mut inner = inner.into_inner();
-                let funname = inner.next().unwrap().as_str();
-                let args = inner.next().unwrap();
+                let mut p = p.into_inner();
+                let funname = p.next().unwrap().as_str();
+                let args = p.next().unwrap();
                 debug_assert_matches!(args.as_rule(), Rule::list);
                 let args = args
                     .into_inner()
-                    .map(|sexp| self.rule_sexp(&sexp))
+                    .map(|sexp| self.rule_sexp(sexp))
                     .collect::<Result<Vec<_>, _>>()?;
-                let body = self.rule_sexp(&inner.next().unwrap())?;
+                let body = self.rule_sexp(p.next().unwrap())?;
 
                 self.handle_define_state_relation(funname, args, body)
             }
             Rule::define_lemma => {
-                let mut inner = inner.into_inner();
-                let funname = inner.next().unwrap().as_str();
-                let args = inner.next().unwrap();
+                let mut p = p.into_inner();
+                let funname = p.next().unwrap().as_str();
+                let args = p.next().unwrap();
                 debug_assert_matches!(args.as_rule(), Rule::list);
                 let args = args
                     .into_inner()
-                    .map(|sexp| self.rule_sexp(&sexp))
+                    .map(|sexp| self.rule_sexp(sexp))
                     .collect::<Result<Vec<_>, _>>()?;
-                let body = self.rule_sexp(&inner.next().unwrap())?;
+                let body = self.rule_sexp(p.next().unwrap())?;
 
                 self.handle_define_lemma(funname, args, body)
             }
+            Rule::stmt => self.rule_sexp(p.into_inner().next().unwrap()),
             _ => {
-                todo!("{inner}")
+                todo!("{p:?}")
             }
         }
     }

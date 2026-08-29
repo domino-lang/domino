@@ -21,7 +21,9 @@ ty = { "Int" | "Bool" | sexp }
 list = { "(" ~ sexp*~ ")" }
 
 // Big Or, Fallback Entries last!
-sexp = { sampleid | defun | define_game_invariant | define_package_invariant | define_state_relation | define_lemma | list | integer | boolean | stringlit | atom }
-sexps = { SOI ~ sexp+ ~ EOI }
+sexp = _{ sampleid | list | integer | boolean | stringlit | atom }
 
+stmt = { defun | define_game_invariant | define_package_invariant | define_state_relation | define_lemma | sexp }
+stmts = { SOI ~ stmt+ ~ EOI }
+stmtlist = { "(" ~ stmt+ ~ ")" }
 

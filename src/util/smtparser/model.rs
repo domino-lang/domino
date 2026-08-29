@@ -2,6 +2,7 @@ use super::{Result, SmtParser};
 use crate::util::smtmodel::{SmtModel, SmtModelEntry};
 use crate::writers::smt::exprs::SmtExpr;
 
+#[derive(Debug)]
 enum ModelExtractorState {
     SmtExpr(SmtExpr),
     Integer(i32),
@@ -83,7 +84,7 @@ impl SmtParser<ModelExtractorState> for SmtModel {
 
 pub fn parse(content: &str) -> Result<(SmtModel, usize)> {
     let mut model = SmtModel { values: Vec::new() };
-    let length = model.parse_sexp(content)?;
+    let length = model.parse_stmt_list(content)?;
 
     Ok((model, length))
 }
