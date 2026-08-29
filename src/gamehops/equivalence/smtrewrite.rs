@@ -1,3 +1,6 @@
+use miette::Diagnostic;
+use thiserror::Error;
+
 use super::EquivalenceContext;
 use crate::package::Export;
 use crate::packageinstance::PackageInstance;
@@ -13,11 +16,58 @@ use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 use crate::gamehops::equivalence::error::{Error, Result};
 use itertools::Itertools;
 
+#[derive(Error, Diagnostic, Debug)]
+#[error("custom smt in invariant file:\n{expr}")]
+#[diagnostic(code(domino::theorem::custom_smt), severity(Warning))]
+pub struct CustomSmtWarning {
+    pub expr: SmtExpr,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum SmtStatementSort {
+    StateRelation,
+    GeneralRelation,
+    PackageInvariant,
+    GameInvariant,
+    Function,
+    Other,
+}
+
+#[derive(Clone, Debug)]
+pub struct SmtStmt {
+    pub sort: SmtStatementSort,
+    pub expr: SmtExpr,
+}
+
+#[derive(Clone, Debug)]
+enum SmtObject {
+    Statement(SmtStmt),
+    Expression(SmtExpr),
+}
+
+impl std::fmt::Display for SmtObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SmtObject::Expression(e) => write!(f, "{e}"),
+            _ => todo!(),
+        }
+    }
+}
+
+impl SmtObject {
+    fn as_expression(&self) -> Option<&SmtExpr> {
+        match self {
+            SmtObject::Expression(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
 struct SmtRewrite<'a> {
     context: &'a EquivalenceContext<'a>,
     package: Option<&'a PackageInstance>,
     game: Option<&'a GameInstance>,
-    content: Vec<SmtExpr>,
+    content: Vec<SmtStmt>,
 }
 
 impl<'a> SmtRewrite<'a> {
@@ -140,21 +190,69 @@ impl SmtRewrite<'_> {
     }
 }
 
-impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
-    fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
-        Ok(SmtExpr::Atom(content.to_string()))
+impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
+    fn handle_atom(&mut self, content: &str) -> Result<SmtObject> {
+        Ok(SmtObject::Expression(SmtExpr::Atom(content.to_string())))
     }
 
-    fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
-        Ok(SmtExpr::List(content))
+    fn handle_list(&mut self, content: Vec<SmtObject>) -> Result<SmtObject> {
+        Ok(SmtObject::Expression(SmtExpr::List(
+            content
+                .iter()
+                .map(|smt| smt.as_expression().unwrap())
+                .cloned()
+                .collect(),
+        )))
     }
 
-    fn handle_sexp(&mut self, parsed: SmtExpr) -> Result<()> {
+    fn handle_sexp(&mut self, parsed: SmtObject) -> Result<()> {
+        let parsed = match parsed {
+            SmtObject::Statement(s) => s,
+            SmtObject::Expression(expr) => {
+                eprintln!(
+                    "{:?}",
+                    miette::Report::new(CustomSmtWarning { expr: expr.clone() })
+                );
+                SmtStmt {
+                    expr,
+                    sort: SmtStatementSort::Other,
+                }
+            }
+        };
+
         self.content.push(parsed);
         Ok(())
     }
 
-    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+    fn handle_definefun(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtObject>,
+        ty: &str,
+        body: SmtObject,
+    ) -> Result<SmtObject> {
+        let SmtObject::Expression(body) = body else {
+            unreachable!()
+        };
+        let args: Vec<_> = args
+            .iter()
+            .map(|smt| smt.as_expression().unwrap())
+            .cloned()
+            .collect();
+
+        let expr = ("define-fun", funname, args, ty, body).into();
+
+        Ok(SmtObject::Statement(SmtStmt {
+            sort: SmtStatementSort::Function,
+            expr,
+        }))
+    }
+
+    fn handle_define_game_invariant(&mut self, body: SmtObject) -> Result<SmtObject> {
+        let SmtObject::Expression(body) = body else {
+            unreachable!()
+        };
+
         if self.game.is_none() {
             return Err(Error::RewriteNeedsGameContext {
                 defn: format!("(define-game-invariant {body})"),
@@ -180,12 +278,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             body,
         };
 
-        let bindpackages = SmtLet {
+        let bindpackages: SmtExpr = SmtLet {
             bindings: pkgbindings,
             body: bindvars,
-        };
+        }
+        .into();
 
-        self.handle_definefun(
+        let expr = (
+            "define-fun",
             &format!("game-invariant!{}!", self.game.unwrap().name()),
             vec![(
                 SmtExpr::Atom("game".to_string()),
@@ -193,11 +293,21 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             )
                 .into()],
             "Bool",
-            bindpackages.into(),
+            bindpackages,
         )
+            .into();
+
+        Ok(SmtObject::Statement(SmtStmt {
+            sort: SmtStatementSort::GameInvariant,
+            expr,
+        }))
     }
 
-    fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtExpr> {
+    fn handle_define_package_invariant(&mut self, body: SmtObject) -> Result<SmtObject> {
+        let SmtObject::Expression(body) = body else {
+            unreachable!()
+        };
+
         if self.game.is_none() || self.package.is_none() {
             return Err(Error::RewriteNeedsPackageContext {
                 defn: format!("(define-package-invariant {body})"),
@@ -213,7 +323,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             bindings: varbindings,
             body,
         };
-        let bindpkg = SmtLet {
+        let bindpkg: SmtExpr = SmtLet {
             bindings: vec![(
                 "pkg".to_string(),
                 gamestate_context
@@ -221,9 +331,11 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                     .unwrap(),
             )],
             body: bindvars,
-        };
+        }
+        .into();
 
-        self.handle_definefun(
+        let expr = (
+            "define-fun",
             &format!(
                 "package-invariant!{}-{}!",
                 self.game.unwrap().name(),
@@ -235,16 +347,26 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             )
                 .into()],
             "Bool",
-            bindpkg.into(),
+            bindpkg,
         )
+            .into();
+
+        Ok(SmtObject::Statement(SmtStmt {
+            sort: SmtStatementSort::PackageInvariant,
+            expr,
+        }))
     }
 
     fn handle_define_state_relation(
         &mut self,
         funname: &str,
-        args: Vec<SmtExpr>,
-        body: SmtExpr,
-    ) -> Result<SmtExpr> {
+        args: Vec<SmtObject>,
+        body: SmtObject,
+    ) -> Result<SmtObject> {
+        let SmtObject::Expression(body) = body else {
+            unreachable!()
+        };
+
         let left_game_inst = self
             .context
             .theorem()
@@ -268,19 +390,21 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             return Err(Error::IncorrectNumberOfArguments {
                 argument: format!(
                     "({})",
-                    args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
+                    args.iter()
+                        .map(|sexpr| format!("{}", sexpr.as_expression().unwrap()))
+                        .join(" ")
                 ),
                 expected: "2".to_string(),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(left_arg_name) = left_arg else {
+        let SmtExpr::Atom(left_arg_name) = left_arg.as_expression().unwrap() else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{left_arg}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(right_arg_name) = right_arg else {
+        let SmtExpr::Atom(right_arg_name) = right_arg.as_expression().unwrap() else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{right_arg}",),
                 equivalence: self.equivalence_name(),
@@ -312,27 +436,39 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             body,
         };
 
-        let bindpackages = SmtLet {
+        let bindpackages: SmtExpr = SmtLet {
             bindings: pkgbindings,
             body: bindvars,
-        };
-        self.handle_definefun(
+        }
+        .into();
+        let expr = (
+            "define-fun",
             funname,
             vec![
                 (left_arg_name.clone(), left_game_state_pattern.sort_name()).into(),
                 (right_arg_name.clone(), right_game_state_pattern.sort_name()).into(),
             ],
             "Bool",
-            bindpackages.into(),
+            bindpackages,
         )
+            .into();
+
+        Ok(SmtObject::Statement(SmtStmt {
+            sort: SmtStatementSort::StateRelation,
+            expr,
+        }))
     }
 
     fn handle_define_lemma(
         &mut self,
         funname: &str,
-        args: Vec<SmtExpr>,
-        body: SmtExpr,
-    ) -> Result<SmtExpr> {
+        args: Vec<SmtObject>,
+        body: SmtObject,
+    ) -> Result<SmtObject> {
+        let SmtObject::Expression(body) = body else {
+            unreachable!()
+        };
+
         let left_game_inst = self
             .context
             .theorem()
@@ -409,25 +545,25 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(left_old_name) = left_old else {
+        let SmtExpr::Atom(left_old_name) = left_old.as_expression().unwrap() else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{left_old}"),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(right_old_name) = right_old else {
+        let SmtExpr::Atom(right_old_name) = right_old.as_expression().unwrap() else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{right_old}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(left_return_name) = left_return else {
+        let SmtExpr::Atom(left_return_name) = left_return.as_expression().unwrap() else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{left_return}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(right_return_name) = right_return else {
+        let SmtExpr::Atom(right_return_name) = right_return.as_expression().unwrap() else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{right_return}",),
                 equivalence: self.equivalence_name(),
@@ -489,11 +625,12 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             bindings: pkgbindings,
             body: bindvars,
         };
-        let bindreturn = SmtLet {
+        let bindreturn: SmtExpr = SmtLet {
             bindings: retbindings,
             body: bindpackages,
-        };
-        let mut newargs = vec![
+        }
+        .into();
+        let mut newargs: Vec<SmtExpr> = vec![
             (left_old_name.clone(), left_game_state_pattern.sort_name()).into(),
             (right_old_name.clone(), right_game_state_pattern.sort_name()).into(),
             (
@@ -507,23 +644,32 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
             )
                 .into(),
         ];
-        newargs.extend(args.into_iter().skip(4));
-        self.handle_definefun(funname, newargs, "Bool", bindreturn.into())
+        newargs.extend(
+            args.into_iter()
+                .skip(4)
+                .map(|smt| smt.as_expression().unwrap().clone()),
+        );
+        let expr = ("define-fun", funname, newargs, "Bool", bindreturn).into();
+
+        Ok(SmtObject::Statement(SmtStmt {
+            sort: SmtStatementSort::GeneralRelation,
+            expr,
+        }))
     }
 }
 
-pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtExpr>> {
+pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtStmt>> {
     let mut rewriter: SmtRewrite = SmtRewrite::new(context);
-    rewriter.parse_sexps(content)?;
+    rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }
 pub fn rewrite_game(
     context: &EquivalenceContext,
     game: &GameInstance,
     content: &str,
-) -> Result<Vec<SmtExpr>> {
+) -> Result<Vec<SmtStmt>> {
     let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game);
-    rewriter.parse_sexps(content)?;
+    rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }
 pub fn rewrite_package(
@@ -531,8 +677,8 @@ pub fn rewrite_package(
     game: &GameInstance,
     package: &PackageInstance,
     content: &str,
-) -> Result<Vec<SmtExpr>> {
+) -> Result<Vec<SmtStmt>> {
     let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package);
-    rewriter.parse_sexps(content)?;
+    rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }

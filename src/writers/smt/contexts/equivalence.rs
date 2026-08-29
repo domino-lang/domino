@@ -5,7 +5,7 @@ use std::collections::HashSet;
 mod emit;
 
 use crate::{
-    gamehops::equivalence::Equivalence,
+    gamehops::equivalence::{smtrewrite::SmtStmt, Equivalence},
     identifier::{
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
         Identifier,
@@ -33,7 +33,7 @@ pub struct EquivalenceContext<'a> {
     equivalence: &'a Equivalence,
     theorem: &'a Theorem<'a>,
     auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
-    invariants: Vec<SmtExpr>,
+    invariants: Vec<SmtStmt>,
 }
 
 // simple getters
@@ -59,7 +59,7 @@ impl<'a> EquivalenceContext<'a> {
         self.equivalence
     }
 
-    pub(crate) fn append_invariants(&mut self, mut new_invariants: Vec<SmtExpr>) {
+    pub(crate) fn append_invariants(&mut self, mut new_invariants: Vec<SmtStmt>) {
         self.invariants.append(&mut new_invariants);
     }
 }
