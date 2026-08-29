@@ -1,0 +1,9 @@
+package A {
+    state {
+        foo: Table(Integer, Integer),
+    }
+
+    oracle Test() {
+        foo[12] <-$ Integer;
+    }
+}
