@@ -30,7 +30,10 @@ use crate::{
 
 impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_invariant(&self) -> Vec<SmtExpr> {
-        self.invariants.clone()
+        self.invariants
+            .iter()
+            .map(|stmt| stmt.expr.clone())
+            .collect()
     }
 
     pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
