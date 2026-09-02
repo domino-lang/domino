@@ -42,15 +42,18 @@ use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::Identifier;
 use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
-use crate::types::Type;
+use crate::types::{Type, TypeKind};
 use crate::writers::smt::contexts::{
     GameInstanceContext, GenericOracleContext, OracleContext, PackageInstanceContext,
 };
 use crate::writers::smt::declare::declare_const;
 use crate::writers::smt::exprs::{SmtAs, SmtAssert, SmtEq2, SmtExpr, SmtNot};
 use crate::writers::smt::names;
-use crate::writers::smt::patterns::oracle_args::{GameStateOracleArgPattern, OracleArgPattern};
-use crate::writers::smt::patterns::{DatastructurePattern, PackageStateSelector};
+use crate::writers::smt::patterns::oracle_args::{
+    GameStateOracleArgPattern, OracleArgPattern, UnitOracleArgPattern,
+};
+use crate::writers::smt::patterns::pkg_consts::PackageConstsSelector;
+use crate::writers::smt::patterns::{DatastructurePattern, FunctionPattern, PackageStateSelector};
 use crate::writers::smt::sorts::Sort;
 
 /// Which game instance is being executed. Only namespaces SSA names and picks
@@ -162,6 +165,11 @@ struct SymState {
     /// `(pkg_inst, field)` → its current SSA constant. Not frame-scoped, exactly
     /// like the prover's global package-state encoding.
     pkg_state: HashMap<(String, String), Identifier>,
+    /// `(pkg_inst, const_name)` → the SSA constant it was seeded to. Package
+    /// consts are read once out of the global game-consts constant, mirroring the
+    /// `let` binding the prover wraps every oracle body in
+    /// (`bind_pkg_consts` in `smt_define_nonsplit_oracle_fn`).
+    pkg_consts: HashMap<(String, String), Identifier>,
     /// `sample_id` → how many times it has been drawn so far. Starts at 0 and
     /// only increments; materialised into the game state at the terminal.
     rand_ctr: HashMap<usize, usize>,
@@ -184,6 +192,13 @@ impl SymState {
                     .clone()
                     .unwrap_or_else(|| s.pkg_name.clone());
                 self.pkg_state.get(&(inst, s.name.clone())).cloned()
+            }
+            Identifier::PackageIdentifier(PackageIdentifier::Const(c)) => {
+                let inst = c
+                    .pkg_inst_name
+                    .clone()
+                    .unwrap_or_else(|| c.pkg_name.clone());
+                self.pkg_consts.get(&(inst, c.name.clone())).cloned()
             }
             _ => None,
         }
@@ -287,6 +302,50 @@ fn collect_call_pkg_insts(block: &InlBlock, out: &mut BTreeSet<String>) {
     }
 }
 
+/// Every `(pkg_inst, const_name)` a `PackageIdentifier::Const` in any expression
+/// of `block` refers to (recursively). Only these need seeding into the store —
+/// seeding all of a package's consts would bloat every path with unused decls.
+fn collect_referenced_pkg_consts(block: &InlBlock, out: &mut BTreeSet<(String, String)>) {
+    fn visit_expr(e: &Expression, out: &mut BTreeSet<(String, String)>) {
+        let found = std::cell::RefCell::new(Vec::new());
+        e.map(|sub| {
+            if let ExpressionKind::Identifier(Identifier::PackageIdentifier(
+                PackageIdentifier::Const(c),
+            )) = sub.kind()
+            {
+                let inst = c
+                    .pkg_inst_name
+                    .clone()
+                    .unwrap_or_else(|| c.pkg_name.clone());
+                found.borrow_mut().push((inst, c.name.clone()));
+            }
+            sub
+        });
+        out.extend(found.into_inner());
+    }
+    for stmt in &block.0 {
+        match stmt {
+            InlStmt::Assign { rhs, .. } => visit_expr(rhs, out),
+            InlStmt::Unwrap { inner, .. } => visit_expr(inner, out),
+            InlStmt::Return { value: Some(e), .. } => visit_expr(e, out),
+            InlStmt::Branch {
+                cond, then, els, ..
+            } => {
+                visit_expr(cond, out);
+                collect_referenced_pkg_consts(then, out);
+                collect_referenced_pkg_consts(els, out);
+            }
+            InlStmt::Call { frame, body, .. } => {
+                for (_, _, e) in &frame.arg_bindings {
+                    visit_expr(e, out);
+                }
+                collect_referenced_pkg_consts(body, out);
+            }
+            InlStmt::Sample { .. } | InlStmt::Return { value: None, .. } | InlStmt::Abort { .. } => {}
+        }
+    }
+}
+
 /// A position in the walk: a block plus how far into it we are. `kind` records
 /// whether a `Return` here resumes a caller.
 #[derive(Clone)]
@@ -317,6 +376,9 @@ struct Executor<'a> {
     /// Package instances whose state is reconstructed and folded back at each
     /// terminal, in `game().pkgs` order.
     fold_pkgs: Vec<String>,
+    /// `(pkg_inst, const_name)` pairs actually referenced by an oracle-body
+    /// expression — the only package consts seeded into the store.
+    referenced_consts: BTreeSet<(String, String)>,
     ssa: usize,
     path_count: usize,
     max_paths: Option<usize>,
@@ -364,8 +426,12 @@ impl<'a> Executor<'a> {
             .filter(|n| wanted.contains(n))
             .collect();
 
+        let mut referenced_consts = BTreeSet::new();
+        collect_referenced_pkg_consts(&inlined.body, &mut referenced_consts);
+
         Ok(Executor {
             inlined,
+            referenced_consts,
             gctx,
             octx,
             sample_info,
@@ -762,7 +828,15 @@ impl<'a> Executor<'a> {
                 .insert(format!("{}#0::{}", self.inlined.entry_pkg_inst, name), id);
         }
 
-        // package state fields, read out of the old game state.
+        // The global game-consts constant (`<<game-consts-{GI}>>`), the same
+        // term the prover passes as the oracle function's consts argument.
+        let game_consts_const = self
+            .octx
+            .oracle_arg_game_consts_pattern()
+            .unit_global_const_name(self.game_inst_name);
+
+        // package state fields, read out of the old game state; and package
+        // consts, read out of the global game-consts constant.
         let fold_pkgs = self.fold_pkgs.clone();
         for name in &fold_pkgs {
             let pctx = self
@@ -786,6 +860,32 @@ impl<'a> Executor<'a> {
                 let id = self.fresh(&mut st, field, ty);
                 self.define(&mut st, &id, access);
                 st.pkg_state.insert((name.clone(), field.clone()), id);
+            }
+
+            // package consts: `(<pkg-consts-{Pkg}-{c}> (<pkgconsts-{game}-{inst}>
+            // <<game-consts-{GI}>>))`, matching `bind_pkg_consts`.
+            let consts_pattern = pctx.datastructure_pkg_consts_pattern();
+            let mapped = pctx
+                .function_pkg_const_pattern()
+                .call(&[SmtExpr::Atom(game_consts_const.clone())])
+                .expect("package const mapping fn takes exactly one argument");
+            let params: Vec<(String, Type)> = pctx
+                .pkg()
+                .params
+                .iter()
+                .filter(|(_, ty, _)| !matches!(ty.kind(), TypeKind::Fn(_, _)))
+                .filter(|(n, _, _)| self.referenced_consts.contains(&(name.clone(), n.clone())))
+                .map(|(n, ty, _)| (n.clone(), ty.clone()))
+                .collect();
+            for (cname, cty) in &params {
+                let selector = PackageConstsSelector {
+                    name: cname,
+                    ty: cty,
+                };
+                let access = consts_pattern.access_unchecked(&selector, mapped.clone());
+                let id = self.fresh(&mut st, cname, cty);
+                self.define(&mut st, &id, access);
+                st.pkg_consts.insert((name.clone(), cname.clone()), id);
             }
         }
 

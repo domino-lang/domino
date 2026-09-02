@@ -256,7 +256,10 @@ impl SmtSolver for Cvc5LibSolver {
         match self.last_output.trim() {
             "sat" => Ok(SmtSolverResponse::Sat),
             "unsat" => Ok(SmtSolverResponse::Unsat),
-            "unknown" => Ok(SmtSolverResponse::Unknown),
+            // cvc5 reports `unknown` on its own, and `unknown (TIMEOUT)` /
+            // `unknown (INCOMPLETE)` etc. when it can name the reason (e.g. a
+            // `tlimit-per` timeout).
+            s if s == "unknown" || s.starts_with("unknown (") => Ok(SmtSolverResponse::Unknown),
             other => Err(Error::SolverError(format!(
                 "unexpected (check-sat) output: {other:?}"
             ))),

@@ -31,13 +31,29 @@ consumes the same `trace.json`.
   [--timeout] [--max-paths] [--out]`.
 - Artifacts under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`:
   `transcript.smt2`, `inlined.txt`, `models/<path-id>.smt2`.
-- A plain, serialisable run structure (`DebugRun` or whatever story 06 named it) holding:
-  theorem/proofstep/oracle/claim identity; both listings with their `sites` maps; ordered left
-  paths with their `Step`s; nested right paths with `Step`s and `Verdict`s; model file paths;
-  per-node the SMT that was asserted; summary counts.
-- `Verdict::{Verified, Unreachable, GoalFails { model }, Inconclusive { model }}`.
-- Path ids `#3` and `#3.1`; decisions rendered as `then` / `else` / `assert-holds` /
-  `assert-fails` / `unwrap-some` / `unwrap-none`.
+- A plain run structure in `src/debug/driver.rs` (see
+  `06-…-IMPLEMENTATION-REPORT.md`): `DebugRun { theorem, proofstep, left_game, right_game,
+  oracle, claim, admitted, out_dir, left_listing, right_listing, left_paths: Vec<LeftPath>,
+  summary: Summary, partial }`. `LeftPath { id, steps: Vec<StepView>, terminal: TerminalView,
+  reachable, smt: Vec<String>, right_paths: Vec<RightPath> }`;
+  `RightPath { id, steps, terminal, verdict, smt }`;
+  `StepView { label: usize, line: String, decision: String }`;
+  `TerminalView { label, line, is_abort }`;
+  `Summary { left_paths, left_pruned, right_paths, verified, unreachable, goal_fails,
+  inconclusive }`. **`DebugRun` has no `serde` derives yet** — story 07 adds
+  `#[derive(Serialize)]` (via `serde_derive`, the crate has it) and `serde_json`, then writes
+  `trace.json` next to the other artifacts and (probably) `index.html`.
+  `driver::render_tree(&DebugRun) -> String` is the stdout text tree; the HTML renderer is
+  additive, not a replacement.
+- The `smt: Vec<String>` on each path is the exact asserted SMT (`decls` ++ `constraints` ++
+  `return_constraint`, rendered) — the per-node "page of SMT" the plan asks for. The base frame
+  is not stored on the run; it is the head of `transcript.smt2` (up to the first `(push 1)`).
+- `Verdict::{Verified, Unreachable, GoalFails { model: String }, Inconclusive { model: Option<String> }}`;
+  `model` is a path **relative to `out_dir`** (`"models/3.1.smt2"`).
+- Path ids are the bare strings `"3"` / `"3.1"` (render as `#3` / `#3.1`); decisions are
+  `then` / `else` / `assert-holds` / `assert-fails` / `unwrap-some` / `unwrap-none`.
+- `render::side_by_side(left_listing, right_listing) -> String` (in `src/debug/render.rs`) is
+  what wrote `inlined.txt`; reuse or replace it. `domino inline` (story 03) is still unbuilt.
 - From story 02, `Label` is a **1-based line number** into `InlinedOracle::listing.text`, and
   `listing.sites: BTreeMap<Label, SiteInfo>` with
   `SiteInfo { kind, line, span, pkg_inst_name, oracle_name, depth }`.

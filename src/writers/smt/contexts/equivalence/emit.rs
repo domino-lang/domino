@@ -467,6 +467,77 @@ impl<'a> EquivalenceContext<'a> {
         crate::writers::smt::exprs::SmtAssert(SmtNot(goal)).into()
     }
 
+    /// The generated package- and game-invariant claims for this equivalence, i.e. the claims
+    /// that are not written by the user but derived from the presence of `invariant:` files on
+    /// the packages and games.
+    ///
+    /// Lifted out of `EquivalenceSmtDriver` so `domino debug` (story 06) can enumerate the same
+    /// claim set the prover checks without duplicating the logic.
+    pub(crate) fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
+        fn package_invariant_claims(
+            gctx: GameInstanceContext<'_>,
+            claim_type: ClaimType,
+        ) -> Vec<Claim> {
+            gctx.game()
+                .pkgs
+                .iter()
+                .filter_map(|pkg| {
+                    if pkg.pkg.invariants.is_empty() {
+                        None
+                    } else {
+                        Some(Claim {
+                            admitted: false,
+                            dependencies: vec!["no-abort".to_string()],
+                            ty: claim_type,
+                            name: format!(
+                                "package-invariant!{}-{}!",
+                                gctx.game_inst_name(),
+                                pkg.name()
+                            ),
+                        })
+                    }
+                })
+                .collect()
+        }
+
+        fn game_invariant_claim(
+            gctx: GameInstanceContext<'_>,
+            claim_type: ClaimType,
+        ) -> Option<Claim> {
+            if gctx.game().invariants.is_empty() {
+                None
+            } else {
+                Some(Claim {
+                    admitted: false,
+                    dependencies: vec!["no-abort".to_string()],
+                    ty: claim_type,
+                    name: format!("game-invariant!{}!", gctx.game_inst_name()),
+                })
+            }
+        }
+
+        let mut claims = vec![];
+        claims.extend(package_invariant_claims(
+            self.left_game_inst_ctx(),
+            ClaimType::LeftPackageInvariant,
+        ));
+        claims.extend(package_invariant_claims(
+            self.right_game_inst_ctx(),
+            ClaimType::RightPackageInvariant,
+        ));
+        if let Some(claim) =
+            game_invariant_claim(self.left_game_inst_ctx(), ClaimType::LeftGameInvariant)
+        {
+            claims.push(claim);
+        }
+        if let Some(claim) =
+            game_invariant_claim(self.right_game_inst_ctx(), ClaimType::RightGameInvariant)
+        {
+            claims.push(claim);
+        }
+        claims
+    }
+
     fn randomness_mapping_candidates(&self, oracle_name: &str) -> Vec<RandomnessMappingEntry> {
         let left_export = self
             .left_game_inst_ctx()

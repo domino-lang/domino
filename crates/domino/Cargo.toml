@@ -4,6 +4,10 @@ version.workspace = true
 edition.workspace = true
 readme = { workspace = true }
 
+[features]
+# Forwards to sspverif's `cvc5-lib`; required for `domino debug`.
+cvc5-lib = ["sspverif/cvc5-lib"]
+
 [dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }

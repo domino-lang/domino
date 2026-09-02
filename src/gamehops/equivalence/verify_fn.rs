@@ -7,12 +7,11 @@ use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
 use crate::theorem::RandomnessMappingInjectivityCheck;
-use crate::writers::smt::contexts::GameInstanceContext;
 use crate::{
     gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
     package::Export,
     project::Project,
-    theorem::{Claim, ClaimType},
+    theorem::Claim,
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
@@ -209,7 +208,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     }
 
     fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
-        self.generate_game_or_package_invariant_claims()
+        self.eqctx
+            .generate_game_or_package_invariant_claims()
             .iter()
             .map(|claim| {
                 let smt = self
@@ -254,76 +254,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         })
     }
 
-    fn generate_package_invariant_claims(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Vec<Claim> {
-        gctx.game()
-            .pkgs
-            .iter()
-            .filter_map(|pkg| {
-                if pkg.pkg.invariants.is_empty() {
-                    None
-                } else {
-                    Some(Claim {
-                        admitted: false,
-                        dependencies: vec!["no-abort".to_string()],
-                        ty: claim_type,
-                        name: format!(
-                            "package-invariant!{}-{}!",
-                            gctx.game_inst_name(),
-                            pkg.name()
-                        ),
-                    })
-                }
-            })
-            .collect()
-    }
-
-    fn generate_game_invariant_claim_if_exists(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Option<Claim> {
-        if !gctx.game().invariants.is_empty() {
-            Some(Claim {
-                admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: claim_type,
-                name: format!("game-invariant!{}!", gctx.game_inst_name(),),
-            })
-        } else {
-            None
-        }
-    }
-
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
-        let mut claims = vec![];
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftPackageInvariant,
-        ));
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightPackageInvariant,
-        ));
-
-        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftGameInvariant,
-        ) {
-            claims.push(claim);
-        }
-        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightGameInvariant,
-        ) {
-            claims.push(claim);
-        }
-        claims
-    }
-
     fn verify_randomness_mapping_injectivity<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
@@ -360,7 +290,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .equivalence()
             .proof_tree_by_oracle_name(oracle.name());
 
-        claims.append(&mut self.generate_game_or_package_invariant_claims());
+        claims.append(&mut self.eqctx.generate_game_or_package_invariant_claims());
 
         let claim_group = ClaimGroup::Oracle {
             oracle_name: oracle.name().to_string(),

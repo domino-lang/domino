@@ -15,6 +15,49 @@ pub(crate) enum Commands {
     Format(Format),
 
     Proofsteps(Proofsteps),
+
+    /// Symbolically execute both sides of an equivalence proofstep and debug one claim.
+    Debug(Debug),
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Debug {
+    /// Path to the Domino project. Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long)]
+    pub(crate) path: Option<std::path::PathBuf>,
+    /// Name of the theorem.
+    #[clap(long)]
+    pub(crate) proof: String,
+    /// Index (starting at 0) of the equivalence proofstep, as printed by `domino proofsteps`.
+    #[clap(long)]
+    pub(crate) proofstep: usize,
+    /// Exported oracle name.
+    #[clap(long)]
+    pub(crate) oracle: String,
+    /// Claim to debug. Required — one claim per run.
+    #[clap(long)]
+    pub(crate) claim: String,
+    /// Ask the solver which branches of the LEFT oracle are reachable (default: explore all).
+    #[clap(long)]
+    pub(crate) check_left: bool,
+    /// Do NOT ask the solver about the RIGHT oracle's branches (default: it does ask).
+    /// Skips the vacuity check, so unreachable pairs fall through to "verified" — a
+    /// diagnostic escape hatch, not the recommended mode.
+    #[clap(long)]
+    pub(crate) no_check_right: bool,
+    /// Per-query solver timeout in milliseconds (cvc5 `tlimit-per`). A timeout counts
+    /// as `unknown` (explored, never pruned, never "verified").
+    #[clap(long)]
+    pub(crate) timeout: Option<u64>,
+    /// Give up after this many explored paths (left paths + right paths per left path).
+    #[clap(long, default_value_t = 1000)]
+    pub(crate) max_paths: usize,
+    /// Output directory. Defaults to
+    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`.
+    #[clap(long)]
+    pub(crate) out: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
