@@ -46,13 +46,13 @@ impl RandomnessMappingInjectivityCheck {
         oracle_name: &str,
     ) -> Vec<SmtExpr> {
         // the two sampling points on the component we check injectivity on
-        const FIRST_ID: &str = "<randmap-inj-first-id>";
-        const FIRST_CTR: &str = "<randmap-inj-first-ctr>";
-        const SECOND_ID: &str = "<randmap-inj-second-id>";
-        const SECOND_CTR: &str = "<randmap-inj-second-ctr>";
+        const FIRST_ID: &str = "<injective-randmap-first-id>";
+        const FIRST_CTR: &str = "<injective-randmap-first-ctr>";
+        const SECOND_ID: &str = "<injective-randmap-second-id>";
+        const SECOND_CTR: &str = "<injective-randmap-second-ctr>";
         // the sampling point on the other component that both are related to
-        const SHARED_ID: &str = "<randmap-inj-shared-id>";
-        const SHARED_CTR: &str = "<randmap-inj-shared-ctr>";
+        const SHARED_ID: &str = "<injective-randmap-shared-id>";
+        const SHARED_CTR: &str = "<injective-randmap-shared-ctr>";
 
         let sample_id_sort = || Sort::Other("SampleId".to_string(), vec![]);
 
