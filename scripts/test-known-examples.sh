@@ -61,6 +61,16 @@ sed -e 's/[[:space:]]*#.*// ; /^[[:space:]]*$/d' "example-projects/known-good-sl
     echo "## Checking $project parses..."
     cd $project_path
     $DOMINO proofsteps || fail "expected success, but failed: $project_path"
+
+    $DOMINO latex || fail "expected success, but failed: $project_path"
+    (
+      cd _build/latex
+      for file in Theorem_*.tex; do
+        TEMPFILE=$(mktemp)
+        echo "### Running latex on $file"
+        pdflatex "$file" >$TEMPFILE 2>&1 || fail "$(tail -n 20 $TEMPFILE)"
+      done
+    )
   )
 done
 
