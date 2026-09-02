@@ -248,20 +248,18 @@ theorem kem_dem_cca_ssp {
             PKENC: {
                 randomness: simple
                 lemmas {
-                    lemma-kem-correctness: admit []
-                    invariant:      [no-abort, lemma-kem-correctness]
-                    same-output:    [no-abort]
-                    equal-aborts:   []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
                 }
             }
 
             PKDEC: {
                 randomness: none
                 lemmas {
-                    lemma-kem-correctness: admit []
-                    invariant:      [no-abort]
-                    same-output:    [no-abort, lemma-kem-correctness]
-                    equal-aborts:   []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                    equal-aborts: []
                 }
             }
         }
