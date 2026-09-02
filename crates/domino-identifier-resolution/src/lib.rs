@@ -63,6 +63,10 @@ pub struct Resolver<'arena> {
     game_names: PartialDenseTable<identifier::GameIdentifier, resolutions::GameResolution>,
     game_type_names:
         PartialDenseTable<identifier::GameTypeIdentifier, resolutions::GameTypeResolution>,
+    game_type_arg_names: PartialDenseTable<
+        identifier::GameTypeArgumentIdentifier,
+        resolutions::GameTypeArgResolution,
+    >,
     game_const_value_names: PartialDenseTable<
         identifier::GameConstValueIdentifier,
         resolutions::GameConstValueResolution,
@@ -142,6 +146,8 @@ pub struct IdentifierResolution<'arena> {
     pub game_names: DenseTable<identifier::GameIdentifier, resolutions::GameResolution>,
     pub game_type_names:
         DenseTable<identifier::GameTypeIdentifier, resolutions::GameTypeResolution>,
+    pub game_type_arg_names:
+        DenseTable<identifier::GameTypeArgumentIdentifier, resolutions::GameTypeArgResolution>,
     pub game_const_value_names:
         DenseTable<identifier::GameConstValueIdentifier, resolutions::GameConstValueResolution>,
     pub pkg_inst_names:
@@ -186,6 +192,7 @@ impl<'arena> Resolver<'arena> {
             pkg_names: PartialDenseTable::with_sizes_from_arena(arenas),
             game_names: PartialDenseTable::with_sizes_from_arena(arenas),
             game_type_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            game_type_arg_names: PartialDenseTable::with_sizes_from_arena(arenas),
             game_const_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
             pkg_inst_names: PartialDenseTable::with_sizes_from_arena(arenas),
 
@@ -236,6 +243,7 @@ impl<'arena> Resolver<'arena> {
         let tables = resolve_game::GameVisitorPartialTables {
             game_names: &mut self.game_names,
             game_type_names: &mut self.game_type_names,
+            game_type_arg_names: &mut self.game_type_arg_names,
             game_const_value_names: &mut self.game_const_value_names,
             pkg_inst_names: &mut self.pkg_inst_names,
             pkg_const_value_names: &mut self.pkg_const_value_names,
@@ -322,6 +330,7 @@ impl<'arena> Resolver<'arena> {
             is_state,
             game_names,
             game_type_names,
+            game_type_arg_names,
             game_const_value_names,
             pkg_inst_names,
             theorem_names,
@@ -384,6 +393,10 @@ impl<'arena> Resolver<'arena> {
                 .game_type_names
                 .finish()
                 .expect("error finishing game_type_names"),
+            game_type_arg_names: self
+                .game_type_arg_names
+                .finish()
+                .expect("error finishing game_type_arg_names"),
             game_const_value_names: self
                 .game_const_value_names
                 .finish()

@@ -39,6 +39,8 @@ pub struct GameVisitorPartialTables<'a> {
     pub game_names: &'a mut PartialDenseTable<identifier::GameIdentifier, GameResolution>,
     pub game_type_names:
         &'a mut PartialDenseTable<identifier::GameTypeIdentifier, GameTypeResolution>,
+    pub game_type_arg_names:
+        &'a mut PartialDenseTable<identifier::GameTypeArgumentIdentifier, GameTypeArgResolution>,
     pub game_const_value_names:
         &'a mut PartialDenseTable<identifier::GameConstValueIdentifier, GameConstValueResolution>,
     pub pkg_inst_names:
@@ -188,6 +190,14 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
         node: domino_ast::arena::Ref<identifier::GameTypeIdentifier>,
     ) {
         self.resolve_type(arenas, node);
+    }
+
+    fn game_type_arg_ident(
+        &mut self,
+        arenas: &domino_ast::Arenas,
+        node: domino_ast::arena::Ref<identifier::GameTypeArgumentIdentifier>,
+    ) {
+        self.resolve_type_arg(arenas, node);
     }
 
     fn game_inst_block(&mut self, arenas: &Arenas, node: Ref<game::InstanceBlock>) {
@@ -548,6 +558,43 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         };
 
         self.tables.game_type_names.set(node, resolution);
+    }
+
+    fn resolve_type_arg(
+        &mut self,
+        arenas: &Arenas,
+        node: Ref<identifier::GameTypeArgumentIdentifier>,
+    ) {
+        let dx = domino_diagnostic::Resolver {
+            arenas,
+            locations: self.locations,
+        };
+
+        let name = get_text(node, self.locations, &arenas.source);
+
+        let resolution = match self.scope.lookup(name).cloned() {
+            Some(GameDeclaration::BuiltinType(ty)) => GameTypeArgResolution::Builtin(ty),
+            Some(GameDeclaration::TypeParam(_)) => GameTypeArgResolution::TypeParam(node),
+            Some(GameDeclaration::GameConst(decl)) => GameTypeArgResolution::Consts(decl),
+            None => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::UndefinedIdentifier::new(dx, node),
+                    game_type_arg_names
+                );
+            }
+            Some(other) => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::ExpectedTypeArgIdentifier::new(dx, node, other),
+                    game_type_arg_names
+                );
+            }
+        };
+
+        self.tables.game_type_arg_names.set(node, resolution);
     }
 
     fn resolve_pkg(&mut self, arenas: &Arenas, node: Ref<identifier::PackageIdentifier>) {
