@@ -1,0 +1,5 @@
+composition A {
+    const a: Integer;
+
+    instance a = A {}
+}
