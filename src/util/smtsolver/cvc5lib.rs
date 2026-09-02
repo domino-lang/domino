@@ -102,6 +102,11 @@ impl Cvc5LibSolver {
             if produce_models { "true" } else { "false" },
         );
         solver.set_option("incremental", "true");
+        // Match the process backend's `--arrays-exp` (see `super::process::Communicator::new_cvc5`).
+        // Games with tables/arrays emit constant arrays (`(as const (Array ...))`, kind STORE_ALL);
+        // without this cvc5 rejects them with "Cannot handle assertion with term of kind STORE_ALL".
+        // Must be set before `(set-logic ...)`, which is the first thing the emitted SMT does.
+        solver.set_option("arrays-exp", "true");
         if let Some(ms) = tlimit_per_ms {
             solver.set_option("tlimit-per", &ms.to_string());
         }
