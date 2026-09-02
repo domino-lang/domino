@@ -33,14 +33,24 @@ where
         self.handle_atom(&format!("\"{content}\""))
     }
 
-    fn handle_define_game_invariant(&mut self, body: Self::Expr) -> Result<Self::Stmt, E> {
+    fn handle_define_game_invariant(
+        &mut self,
+        invname: &str,
+        body: Self::Expr,
+    ) -> Result<Self::Stmt, E> {
         let defun = self.handle_atom("define-game-invariant")?;
-        self.handle_list(vec![defun, body]).map(Into::into)
+        let invname = self.handle_atom(invname)?;
+        self.handle_list(vec![defun, invname, body]).map(Into::into)
     }
 
-    fn handle_define_package_invariant(&mut self, body: Self::Expr) -> Result<Self::Stmt, E> {
+    fn handle_define_package_invariant(
+        &mut self,
+        invname: &str,
+        body: Self::Expr,
+    ) -> Result<Self::Stmt, E> {
         let defun = self.handle_atom("define-package-invariant")?;
-        self.handle_list(vec![defun, body]).map(Into::into)
+        let invname = self.handle_atom(invname)?;
+        self.handle_list(vec![defun, invname, body]).map(Into::into)
     }
 
     fn handle_define_state_relation(
@@ -147,15 +157,17 @@ where
             }
             Rule::define_package_invariant => {
                 let mut p = p.into_inner();
+                let invname = p.next().unwrap().as_str();
                 let body = self.rule_expr(p.next().unwrap())?;
 
-                self.handle_define_package_invariant(body)
+                self.handle_define_package_invariant(invname, body)
             }
             Rule::define_game_invariant => {
                 let mut p = p.into_inner();
+                let invname = p.next().unwrap().as_str();
                 let body = self.rule_expr(p.next().unwrap())?;
 
-                self.handle_define_game_invariant(body)
+                self.handle_define_game_invariant(invname, body)
             }
             Rule::define_state_relation => {
                 let mut p = p.into_inner();
