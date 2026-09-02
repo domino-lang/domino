@@ -129,6 +129,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.append(&mut self.eqctx.emit_constant_declarations());
 
+        smt.append(&mut self.eqctx.emit_invariant());
+
         let proofstep_name = format!("{} == {}", eq.left_name(), eq.right_name());
         let oracle_sequence = self.oracle_sequence();
 
@@ -198,7 +200,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         log::info!("verify: invariants at initial state");
 
         let mut base_smt = equivalence_smt.to_owned();
-        base_smt.append(&mut self.eqctx.emit_invariant());
         base_smt.append(&mut self.eqctx.emit_initial_state_values());
 
         let mut checks: Vec<(String, SmtExpr)> = vec![(
@@ -352,7 +353,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
         log::info!("verify: oracle:{oracle:?}");
         smt.append(&mut self.eqctx.emit_auto_randomness(oracle.name()));
-        smt.append(&mut self.eqctx.emit_invariant());
 
         self.verify_as_ui_claim_group(ui.clone(), &claim_group, num_claims, || {
             self.do_verify_oracle(ui.clone(), &smt, oracle, &claims, &claim_group)
