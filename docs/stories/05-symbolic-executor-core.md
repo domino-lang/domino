@@ -345,5 +345,32 @@ Story 06 will rely on:
   that one path.
 - The `Decision` names, which story 06 and 07 render as `then` / `else` / `assert-holds` /
   `assert-fails` / `unwrap-some` / `unwrap-none`.
-- Whatever you learned about the terminal reconstruction — write it down here, it is the part a
-  cold session is most likely to get wrong.
+
+### Done — see `docs/stories/05-symbolic-executor-core-IMPLEMENTATION-REPORT.md`
+
+`src/debug/exec.rs` implements exactly the surface above (`execute` / `execute_streaming` /
+`Side` / `Step` / `Decision` / `Terminal` / `TerminalPath` / `ExecError`). `TerminalPath.id` is
+left `""` for the driver to fill.
+
+**Terminal reconstruction — what a cold session gets wrong (report §4):**
+
+1. **Thread the game state through fresh SSA constants** (`<v!{side}!{n}!gamestate>`), one per
+   step. Folding into a single term blows up: `smt_increment_gamestate_rand` /
+   `smt_update_gamestate_pkgstate` each re-read the *entire* accumulator per field copied.
+2. Order: `old` → `smt_increment_gamestate_rand` once per draw per non-zero counter (sorted by
+   `sample_id`) → `smt_update_gamestate_pkgstate` once per folded instance (`game().pkgs`
+   order). The prover interleaves these but the selectors are disjoint and re-folding an
+   instance with final values is idempotent, so the net terminal state is identical.
+3. Fold (and seed package state for) **exactly** entry ∪ every `Call` callee instance — the
+   prover's unconditional-caller-write-back set. Untouched instances keep the old value.
+4. `Sample` uses the **literal** counter from 0; this equals the prover's `(access-rand
+   old)+k` term **only** under `build_rands`' `(assert (= (access-rand old) 0))`, which story 06
+   emits. A standalone consistency check must add that assert.
+5. `<return-{GI}-{O}>` name = `format!("<return-{}-{}>", game_inst.name(), inlined.oracle_name)`
+   (`oracle_name` is the exported name). Apply `octx.set_renamed(export.alias())` before
+   `smt_arg_name`.
+
+**Consistency check (§5 "the important one") is deferred to story 06's `domino prove`
+cross-check** (report §6) — story 06 must, first thing, verify per path that
+`(=> (and constraints) (= <return-{GI}-{O}> <oracle-fn old consts args>))` holds for one small
+oracle.

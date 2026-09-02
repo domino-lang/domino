@@ -54,13 +54,32 @@ The shape, from `docs/symbolic-execution-plan.md`:
   `Some(oracle)`, `<return-oracle>` is **declared but unconstrained** on both sides, while
   `<return-value-…>`, `<is-abort-…>` and `<new-state-…>` stay constrained off it.
 
-### From story 05 — `src/debug/exec.rs`
+### From story 05 — `src/debug/exec.rs` (DONE — see `05-…-IMPLEMENTATION-REPORT.md`)
 
-- `execute` / `execute_streaming` producing
-  `TerminalPath { id, steps, decls, constraints, return_constraint, terminal }`.
-- Asserting `decls + constraints + return_constraint` on top of the base declarations is a
-  complete, sound encoding of exactly that one path.
-- `Decision::{Then, Else, AssertHolds, AssertFails, UnwrapSome, UnwrapNone}`.
+- `execute(inlined, game_inst, sample_info, side, max_paths) -> Result<Vec<TerminalPath>, ExecError>`
+  and `execute_streaming(…, on_path: &mut dyn FnMut(&TerminalPath) -> ControlFlow<()>)`.
+  `game_inst` must be the `DebugTransform` output; `sample_info` its `GameInstAux::sample_info`.
+- `TerminalPath { id: String /* "" — you assign it */, steps: Vec<Step>, decls: Vec<SmtExpr>,
+  constraints: Vec<SmtExpr>, return_constraint: SmtExpr, terminal: Terminal }`.
+  `decls` and `constraints` are separate, both in dependency order; emit all `decls`, then all
+  `constraints`, then `return_constraint`, in one `push`/`pop` scope.
+- Asserting `decls ++ constraints ++ return_constraint` on top of your base
+  (`… + emit_constant_declarations(Some(O)) + randomness mapping + invariant + claim
+  assumptions`) is a complete, sound, **flat** encoding of exactly that one path — it constrains
+  the `<return-{GI}-{O}>` slot `emit_constant_declarations(Some(O))` left free.
+- `Side::{Left, Right}` (`.as_str()`), `Step { label, decision }`,
+  `Decision::{Then, Else, AssertHolds, AssertFails, UnwrapSome, UnwrapNone}` (`.as_str()` →
+  `"then"` / `"else"` / `"assert-holds"` / `"assert-fails"` / `"unwrap-some"` / `"unwrap-none"`),
+  `Terminal::{Return { label, value }, Abort { label }}` (`.label()`, `.is_abort()`).
+- `ExecError::MaxPathsExceeded { explored, limit }` when `max_paths` is hit (`explored == limit`,
+  `on_path` not called for the tripping path); `ExecError::OracleNotExported { .. }`.
+- **The `Sample` encoding counts randomness from literal `0`; this is only equisatisfiable with
+  the oracle function under `build_rands`' `(assert (= (access-rand old) 0))`, which
+  `emit_constant_declarations` emits — make sure your base includes it.**
+- **FIRST cross-check to write (story 05 deferred it):** for one small oracle, verify per path
+  that `(=> (and constraints) (= <return-{GI}-{O}> <oracle-fn old consts args>))` cannot be
+  negated (`unsat`). If it fails, the bug is in the terminal game-state reconstruction — see
+  `05-…-IMPLEMENTATION-REPORT.md` §4.
 
 ### From story 02 — `src/debug/ir.rs`
 
