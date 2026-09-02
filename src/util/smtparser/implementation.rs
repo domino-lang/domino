@@ -61,6 +61,19 @@ where
         self.handle_list(vec![defun, funname, args, body])
     }
 
+    fn handle_define_randomness_mapping(
+        &mut self,
+        oracle_name: &str,
+        args: Vec<T>,
+        body: T,
+    ) -> Result<T, E> {
+        let oracle_name = self.handle_atom(oracle_name)?;
+        let args = self.handle_list(args)?;
+        let defun = self.handle_atom("define-randomness-mapping")?;
+
+        self.handle_list(vec![defun, oracle_name, args, body])
+    }
+
     fn handle_definefun(&mut self, funname: &str, args: Vec<T>, ty: &str, body: T) -> Result<T, E> {
         let funname = self.handle_atom(funname)?;
         let args = self.handle_list(args)?;
@@ -182,6 +195,19 @@ where
                 let body = self.rule_sexp(&inner.next().unwrap())?;
 
                 self.handle_define_lemma(funname, args, body)
+            }
+            Rule::define_randomness_mapping => {
+                let mut inner = inner.into_inner();
+                let oracle_name = inner.next().unwrap().as_str();
+                let args = inner.next().unwrap();
+                debug_assert_matches!(args.as_rule(), Rule::list);
+                let args = args
+                    .into_inner()
+                    .map(|sexp| self.rule_sexp(&sexp))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let body = self.rule_sexp(&inner.next().unwrap())?;
+
+                self.handle_define_randomness_mapping(oracle_name, args, body)
             }
             _ => {
                 todo!("{inner}")

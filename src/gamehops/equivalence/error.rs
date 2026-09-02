@@ -89,6 +89,8 @@ pub enum Error {
         lemma_name: String,
         oracle_name: String,
     },
+    #[error("found define-randomness-mapping for unknown oracle \"{oracle_name}\"")]
+    UnknownOracleRandomnessMapping { oracle_name: String },
     #[error("{equivalence}: Expected symbol name for argument but got {argument}")]
     IncorrectArgument {
         argument: String,
