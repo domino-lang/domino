@@ -454,6 +454,7 @@ pub enum BuiltinValue {
     False,
     Some,
     None,
+    EmptyTable,
 }
 
 /// If resolution fails, we emit a diagnostic and set an error resolution with a reference to the

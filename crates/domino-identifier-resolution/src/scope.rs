@@ -38,6 +38,7 @@ impl<Decl: Declaration> Frame<Decl> {
         frame.set("false", crate::BuiltinValue::False.into());
         frame.set("None", crate::BuiltinValue::None.into());
         frame.set("Some", crate::BuiltinValue::Some.into());
+        frame.set("EmptyTable", crate::BuiltinValue::EmptyTable.into());
 
         frame
     }

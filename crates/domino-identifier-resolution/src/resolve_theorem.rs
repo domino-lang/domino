@@ -1233,6 +1233,7 @@ impl crate::Declaration for TheoremDeclaration<'_> {
             TheoremDeclaration::BuiltinValue(BuiltinValue::True) => DeclarationType::PureValue,
             TheoremDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
             TheoremDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
+            TheoremDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => DeclarationType::PureValue,
             TheoremDeclaration::TheoremConst(_) => DeclarationType::PureValue,
 
             TheoremDeclaration::BuiltinValue(BuiltinValue::Some) => DeclarationType::Value,

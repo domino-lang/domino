@@ -93,6 +93,7 @@ impl crate::Declaration for PackageDeclaration {
             PackageDeclaration::BuiltinValue(BuiltinValue::True) => DeclarationType::PureValue,
             PackageDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
             PackageDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
+            PackageDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => DeclarationType::PureValue,
             PackageDeclaration::Const(_) => DeclarationType::PureValue,
             PackageDeclaration::State(_) => DeclarationType::Value,
 
@@ -927,7 +928,7 @@ impl<'a> PackageVisitor<'a> {
             }
             statements::Pattern::Table(tab_ref) => {
                 let tab = arenas.pat_table.get(tab_ref);
-                self.resolve_or_declare_value_ident(arenas, tab.table_name, assign);
+                self.resolve_oracle_value_ident(arenas, tab.table_name);
                 self.oracle_expr(arenas, tab.index);
             }
             statements::Pattern::Tuple(tup_ref) => {

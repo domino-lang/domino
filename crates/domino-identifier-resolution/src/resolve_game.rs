@@ -954,6 +954,7 @@ impl crate::Declaration for GameDeclaration<'_> {
             GameDeclaration::BuiltinValue(BuiltinValue::True) => DeclarationType::PureValue,
             GameDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
             GameDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
+            GameDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => DeclarationType::PureValue,
             GameDeclaration::GameConst(_) => DeclarationType::PureValue,
 
             // TODO: Actually, whether this is pure or not depends on whether the inner expression
