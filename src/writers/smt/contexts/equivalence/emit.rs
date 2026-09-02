@@ -216,7 +216,21 @@ impl<'a> EquivalenceContext<'a> {
         SmtAssert(SmtNot((claim.name(), initial_state.clone()))).into()
     }
 
-    pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
+    /// The claim's assumptions (each an SMT *term*, not an assert) and its goal term.
+    ///
+    /// `emit_oracle_claim_assert` combines them into the single refutation
+    /// `(assert (not (=> (and <deps>) <goal>)))` that `prove` fires one `check-sat` on.
+    /// The debugger instead asserts the assumptions positively and up front (via
+    /// [`emit_claim_assumptions`](Self::emit_claim_assumptions)) so they constrain the
+    /// branch-reachability queries it makes while walking the execution tree, and only adds
+    /// the negated goal (via [`emit_claim_goal_negated`](Self::emit_claim_goal_negated)) at a
+    /// terminal pair. `assert(d1) … assert(dn)` plus `assert(not goal)` is equisatisfiable
+    /// with the single combined refutation.
+    pub(crate) fn claim_assumptions_and_goal(
+        &self,
+        claim: &Claim,
+        oracle_name: &str,
+    ) -> (Vec<SmtExpr>, SmtExpr) {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -417,11 +431,40 @@ impl<'a> EquivalenceContext<'a> {
             dependencies_code.push(dep)
         }
 
-        crate::writers::smt::exprs::SmtAssert(SmtNot(SmtImplies(
-            SmtAnd(dependencies_code),
-            postcond_call,
-        )))
-        .into()
+        (dependencies_code, postcond_call)
+    }
+
+    /// The single-refutation claim assertion `prove` uses:
+    /// `(assert (not (=> (and <deps>) <goal>)))`.
+    pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
+        let (deps, goal) = self.claim_assumptions_and_goal(claim, oracle_name);
+        crate::writers::smt::exprs::SmtAssert(SmtNot(SmtImplies(SmtAnd(deps), goal))).into()
+    }
+
+    /// One `(assert <dep>)` per assumption, in the same order
+    /// [`claim_assumptions_and_goal`](Self::claim_assumptions_and_goal) returns them. The
+    /// debugger asserts these up front so they constrain intermediate reachability queries.
+    ///
+    /// `emit_claim_assumptions(..)` followed by `emit_claim_goal_negated(..)` is
+    /// equisatisfiable with the single `(assert (not (=> (and d1..dn) goal)))` that
+    /// [`emit_oracle_claim_assert`](Self::emit_oracle_claim_assert) produces.
+    // Consumed by `domino debug` (story 06); no non-test caller on this branch yet.
+    #[allow(dead_code)]
+    pub(crate) fn emit_claim_assumptions(&self, claim: &Claim, oracle_name: &str) -> Vec<SmtExpr> {
+        let (deps, _goal) = self.claim_assumptions_and_goal(claim, oracle_name);
+        deps.into_iter()
+            .map(|dep| crate::writers::smt::exprs::SmtAssert(dep).into())
+            .collect()
+    }
+
+    /// `(assert (not <goal>))` — the refutation the debugger checks at a terminal pair,
+    /// once the assumptions from [`emit_claim_assumptions`](Self::emit_claim_assumptions)
+    /// are already on the stack.
+    // Consumed by `domino debug` (story 06); no non-test caller on this branch yet.
+    #[allow(dead_code)]
+    pub(crate) fn emit_claim_goal_negated(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
+        let (_deps, goal) = self.claim_assumptions_and_goal(claim, oracle_name);
+        crate::writers::smt::exprs::SmtAssert(SmtNot(goal)).into()
     }
 
     fn randomness_mapping_candidates(&self, oracle_name: &str) -> Vec<RandomnessMappingEntry> {
@@ -776,7 +819,15 @@ impl<'a> EquivalenceContext<'a> {
         // out
     }
 
-    pub(crate) fn emit_constant_declarations(&self) -> Vec<SmtExpr> {
+    /// Declares (and mostly constrains) the base constants for the equivalence check.
+    ///
+    /// `skip_return_constraint_for` is threaded to [`build_returns`]: with `Some(o)` the
+    /// `<return-o>` constant is declared but left unconstrained on both sides, for the
+    /// debugger to constrain from its per-path DSA encoding. `prove` passes `None`.
+    pub(crate) fn emit_constant_declarations(
+        &self,
+        skip_return_constraint_for: Option<&str>,
+    ) -> Vec<SmtExpr> {
         /*
          *
          * things being declared here:
@@ -1057,15 +1108,8 @@ impl<'a> EquivalenceContext<'a> {
 
         ////// return values
 
-        for (decl_ret, constrain) in build_returns(left) {
-            out.push(decl_ret);
-            out.push(constrain);
-        }
-
-        for (decl_ret, constrain) in build_returns(right) {
-            out.push(decl_ret);
-            out.push(constrain);
-        }
+        out.extend(build_returns(left, skip_return_constraint_for));
+        out.extend(build_returns(right, skip_return_constraint_for));
 
         /////// randomess counters
 
@@ -1312,7 +1356,20 @@ impl<'a> EquivalenceContext<'a> {
     }
 }
 
-fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
+/// Emits, for every exported oracle of `game_inst`, the four declare/constrain pairs the
+/// claim machinery relies on: `<return-…>`, `return-value-…`, `<return-is-abort-…>` and the
+/// new game state, each declared then constrained, interleaved in that order.
+///
+/// When `skip_return_constraint_for == Some(o)` and the export's adversary-visible name is
+/// `o`, the `<return-o>` **declaration** is still emitted but its constraint
+/// `(= <return-o> (<oracle-fn> …))` is **not**. The debugger supplies that constraint itself
+/// from its per-path DSA encoding; `return-value-o`, `<return-is-abort-o>` and the new state
+/// stay constrained off `<return-o>` exactly as before, so `emit_oracle_claim_assert`, the
+/// invariants and the relations keep working unchanged.
+fn build_returns(
+    game_inst: &GameInstance,
+    skip_return_constraint_for: Option<&str>,
+) -> Vec<SmtExpr> {
     let gctx = GameInstanceContext::new(game_inst);
     let game_name = &game_inst.game().name;
     let game_inst_name = &game_inst.name();
@@ -1422,13 +1479,16 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
             rhs: is_abort_const_pattern.value(return_value_const.name()),
         });
 
-        out.push((return_const.declare(), constrain_return.into()));
-        out.push((return_value_const.declare(), constrain_return_value.into()));
-        out.push((is_abort_const_pattern.declare(), constrain_is_abort.into()));
-        out.push((
-            state.declare_new(game_inst_name, oracle_import_name.to_string()),
-            constrain_new_state.into(),
-        ));
+        out.push(return_const.declare());
+        if skip_return_constraint_for != Some(oracle_import_name) {
+            out.push(constrain_return.into());
+        }
+        out.push(return_value_const.declare());
+        out.push(constrain_return_value.into());
+        out.push(is_abort_const_pattern.declare());
+        out.push(constrain_is_abort.into());
+        out.push(state.declare_new(game_inst_name, oracle_import_name.to_string()));
+        out.push(constrain_new_state.into());
     }
 
     out
@@ -1475,4 +1535,172 @@ fn build_rands(
             (decl_randctr, constrain_randctr, zero_constrain_randctr)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod story04_tests {
+    //! Story 04 — assumptions/goal split + skippable return constraint.
+    //!
+    //! These pin the `prove`-facing output (`emit_oracle_claim_assert`,
+    //! `emit_constant_declarations(None)`) against committed goldens and check the two new
+    //! debugger-facing emitters compose back to the single refutation `prove` uses.
+
+    use crate::gamehops::GameHop;
+    use crate::project::Project as _;
+    use crate::theorem::{Claim, ClaimType};
+    use crate::transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform};
+    use crate::writers::smt::contexts::EquivalenceContext;
+    use crate::writers::smt::exprs::{SmtAnd, SmtAssert, SmtExpr, SmtImplies, SmtNot};
+
+    const PROJECT: &str = "example-projects/kem-dem/kem-dem-cca-ssp";
+    const THEOREM: &str = "kem_dem_cca_ssp";
+    const ORACLE: &str = "PKENC";
+
+    /// A claim that exercises every arm of `claim_assumptions_and_goal`: a `Lemma` goal, a
+    /// `Relation` dependency (name starts with `relation`) and a `Lemma` dependency.
+    fn mixed_claim() -> Claim {
+        Claim {
+            name: "same-output".to_string(),
+            ty: ClaimType::Lemma,
+            dependencies: vec![
+                "relation-no-abort".to_string(),
+                "lemma-kem-correctness".to_string(),
+            ],
+            admitted: false,
+        }
+    }
+
+    fn with_eqctx(f: impl FnOnce(&EquivalenceContext<'_>)) {
+        let files =
+            crate::project::DirectoryFiles::load(std::path::Path::new(PROJECT)).unwrap();
+        let project =
+            crate::project::DirectoryProject::load(std::path::PathBuf::from(PROJECT), &files)
+                .unwrap();
+        let theorem = project.get_theorem(THEOREM).unwrap();
+        let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+
+        let eq = theorem
+            .game_hops
+            .iter()
+            .find_map(|hop| match hop {
+                GameHop::Equivalence(eq) => Some(eq),
+                _ => None,
+            })
+            .expect("proofstep 0 is an equivalence");
+
+        let eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+        f(&eqctx);
+    }
+
+    /// Compares `actual` against `testdata/story04/<name>`. If the golden file is missing it
+    /// is written and the test fails, asking for a re-run — so the first run bootstraps it.
+    fn check_golden(name: &str, actual: &str) {
+        let path = std::path::Path::new("testdata/story04").join(name);
+        match std::fs::read_to_string(&path) {
+            Ok(expected) => assert_eq!(actual, expected, "golden mismatch for {name}"),
+            Err(_) => {
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(&path, actual).unwrap();
+                panic!("wrote new golden {}; re-run the test", path.display());
+            }
+        }
+    }
+
+    fn render(exprs: &[SmtExpr]) -> String {
+        exprs
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn emit_oracle_claim_assert_matches_golden() {
+        with_eqctx(|eqctx| {
+            let out = eqctx.emit_oracle_claim_assert(&mixed_claim(), ORACLE);
+            check_golden("emit_oracle_claim_assert.smt2", &out.to_string());
+        });
+    }
+
+    #[test]
+    fn emit_constant_declarations_none_matches_golden() {
+        with_eqctx(|eqctx| {
+            let out = eqctx.emit_constant_declarations(None);
+            check_golden("emit_constant_declarations_none.smt2", &render(&out));
+        });
+    }
+
+    /// The wrappers compose back to exactly the single refutation `prove` emits.
+    #[test]
+    fn assumptions_and_negated_goal_compose_to_claim_assert() {
+        with_eqctx(|eqctx| {
+            let claim = mixed_claim();
+            let (deps, goal) = eqctx.claim_assumptions_and_goal(&claim, ORACLE);
+
+            let recombined: SmtExpr = SmtAssert(SmtNot(SmtImplies(
+                SmtAnd(deps.clone()),
+                goal.clone(),
+            )))
+            .into();
+            assert_eq!(
+                recombined.to_string(),
+                eqctx.emit_oracle_claim_assert(&claim, ORACLE).to_string(),
+            );
+
+            // one `(assert <dep>)` per assumption, same order
+            let assumptions = eqctx.emit_claim_assumptions(&claim, ORACLE);
+            assert_eq!(assumptions.len(), deps.len());
+            for (asserted, term) in assumptions.iter().zip(&deps) {
+                let expected: SmtExpr = SmtAssert(term.clone()).into();
+                assert_eq!(asserted.to_string(), expected.to_string());
+            }
+
+            // `(assert (not <goal>))`
+            let negated = eqctx.emit_claim_goal_negated(&claim, ORACLE);
+            let expected: SmtExpr = SmtAssert(SmtNot(goal)).into();
+            assert_eq!(negated.to_string(), expected.to_string());
+        });
+    }
+
+    /// `emit_constant_declarations(Some(o))` differs from `None` by exactly the two
+    /// `constrain_return` asserts for `o` (left + right) and nothing else.
+    #[test]
+    fn skip_return_constraint_drops_exactly_two_asserts() {
+        with_eqctx(|eqctx| {
+            let none: Vec<String> = eqctx
+                .emit_constant_declarations(None)
+                .iter()
+                .map(|e| e.to_string())
+                .collect();
+            let some: Vec<String> = eqctx
+                .emit_constant_declarations(Some(ORACLE))
+                .iter()
+                .map(|e| e.to_string())
+                .collect();
+
+            // `some` is `none` with two entries removed, order otherwise preserved.
+            let mut some_iter = some.iter();
+            let mut removed = Vec::new();
+            let mut cursor = some_iter.next();
+            for line in &none {
+                if cursor == Some(line) {
+                    cursor = some_iter.next();
+                } else {
+                    removed.push(line.clone());
+                }
+            }
+            assert_eq!(cursor, None, "`some` is not a subsequence of `none`");
+            assert_eq!(removed.len(), 2, "expected exactly two dropped asserts");
+            for r in &removed {
+                let flat: String = r.split_whitespace().collect::<Vec<_>>().join(" ");
+                assert!(
+                    flat.starts_with("(assert (= <return-")
+                        && flat.contains(&format!("-{ORACLE}> (<oracle-")),
+                    "unexpected dropped line: {r}"
+                );
+            }
+            // one for the left game instance, one for the right
+            assert_ne!(removed[0], removed[1]);
+        });
+    }
 }

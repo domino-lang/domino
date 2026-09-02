@@ -244,3 +244,55 @@ Story 06 will rely on:
 
 Record here the exact names of the constants involved (`<return-…>` etc. as produced by
 `patterns::ReturnConst::name()`), since story 05 and 06 have to reference them.
+
+## 8. Implementation notes (filled in by the story-04 session)
+
+**Status: done.** Branch `amir/symbolic-execution-debugger`. See
+`docs/stories/04-claim-assumptions-and-goal-split-IMPLEMENTATION-REPORT.md` for the full handover.
+
+### Final signatures
+
+```rust
+// src/writers/smt/contexts/equivalence/emit.rs — impl EquivalenceContext<'a>
+pub(crate) fn claim_assumptions_and_goal(&self, claim: &Claim, oracle_name: &str)
+    -> (Vec<SmtExpr>, SmtExpr);                       // (assumption terms, goal term)
+pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr;
+pub(crate) fn emit_claim_assumptions(&self, claim: &Claim, oracle_name: &str) -> Vec<SmtExpr>;
+pub(crate) fn emit_claim_goal_negated(&self, claim: &Claim, oracle_name: &str) -> SmtExpr;
+pub(crate) fn emit_constant_declarations(&self, skip_return_constraint_for: Option<&str>)
+    -> Vec<SmtExpr>;
+
+// free fn in the same file
+fn build_returns(game_inst: &GameInstance, skip_return_constraint_for: Option<&str>) -> Vec<SmtExpr>;
+```
+
+`build_returns` now returns a **flat** `Vec<SmtExpr>` of interleaved
+declare/constrain statements (not `Vec<(SmtExpr, SmtExpr)>`), so the skipped constraint is
+simply not pushed. `emit_constant_declarations` `out.extend(build_returns(...))`.
+
+### Exact constant names (per exported oracle `O`, game instance `GI`, exporting package instance `PI`)
+
+| constant | render | with `skip_return_constraint_for == Some(O)` |
+|---|---|---|
+| return         | `<return-{GI}-{O}>`                    | **declared, NOT constrained** (debugger supplies `(assert (= <return-{GI}-{O}> …))`) |
+| return value   | `return-value-{GI}-{PI}-{O}`           | declared + `(= … (…-return-value-or-abort <return-{GI}-{O}>))` — unchanged |
+| is-abort       | `<return-is-abort-{GI}-{PI}-{O}>`      | declared + `(= … (match return-value-{GI}-{PI}-{O} …))` — unchanged |
+| new game state | `<<game-state-{GI}-new-{O}>>`          | declared + `(= … (…-game-state <return-{GI}-{O}>))` — unchanged |
+
+`{GI}` is `equivalence.left_name()` / `right_name()`; for kem-dem-cca-ssp proofstep 0 those
+are `Game_MON_CCA_PKE` and `Game_MOD_CCA_PKE_Real_KEM`. Old game state (input to the oracle
+fn) is `<<game-state-{GI}-old>>`; oracle args are `<arg-{GI}-{O}-{argname}>`.
+
+### Assumption list order (what `claim_assumptions_and_goal` returns as `.0`)
+
+1. `<randomness-mapping>` (bare const ref; defined/asserted elsewhere by
+   `emit_randomness_mapping_condition` / `emit_auto_randomness`)
+2. `(invariant <<game-state-L-old>> <<game-state-R-old>>)`
+3. one `(package-invariant!{GI}-{pkg}!  <<game-state-{GI}-old>>)` per side **per package that
+   has a non-empty `invariants`** (none in kem-dem-cca-ssp), left side first then right
+4. one `(game-invariant!{GI}!  <<game-state-{GI}-old>>)` per side that has game invariants
+5. the claim's `dependencies()`, in declared order, each dispatched by
+   `ClaimType::guess_from_name`: `relation*` → `(dep <<game-state-L-new-{O}>> <<game-state-R-new-{O}>>)`,
+   anything else → lemma-style `(<relation-{dep}-{L}-{R}-{O}> <old-L> <old-R> <return-L> <return-R> <args…>)`.
+
+The goal term (`.1`) is the claim itself dispatched on `claim.ty` (same builders).

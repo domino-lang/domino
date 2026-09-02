@@ -155,7 +155,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             eq.left_name,
             eq.right_name
         );
-        smt.append(&mut self.eqctx.emit_constant_declarations());
+        smt.append(&mut self.eqctx.emit_constant_declarations(None));
 
         smt.append(&mut self.eqctx.emit_invariant());
 
