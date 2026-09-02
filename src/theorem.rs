@@ -285,8 +285,8 @@ impl RandomnessMappingInjectivityCheck {
 
     pub(crate) fn name(self) -> &'static str {
         match self {
-            Self::Left => "!injective-randmap-left!",
-            Self::Right => "!injective-randmap-right!",
+            Self::Left => "!injective-randmap-2-to-1!",
+            Self::Right => "!injective-randmap-1-to-2!",
         }
     }
 }
