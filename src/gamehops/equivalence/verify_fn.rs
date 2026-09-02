@@ -158,7 +158,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .map(|oracle| self.verify_oracle(ui.clone(), &smt, oracle))
                     .flatten();
 
-                if self.req_oracle.is_some() {
+                if self.req_oracle.is_some() || self.injective_randmap {
                     return verify_oracle_claims.collect();
                 }
 
