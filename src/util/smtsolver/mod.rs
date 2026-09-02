@@ -8,6 +8,9 @@ pub mod error;
 #[cfg(feature = "process-solver")]
 pub mod process;
 
+#[cfg(feature = "cvc5-lib")]
+pub mod cvc5lib;
+
 pub use error::{Error, Result};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +34,13 @@ pub trait SmtSolver: fmt::Write {
     fn write_smt<I: Into<SmtExpr>>(&mut self, expr: I) -> Result<()>;
     fn check_sat(&mut self) -> Result<SmtSolverResponse>;
     fn get_model(&mut self) -> Result<(String, SmtModel)>;
+
+    /// Push one assertion level (`(push 1)`).
+    fn push(&mut self) -> Result<()>;
+    /// Pop one assertion level (`(pop 1)`).
+    fn pop(&mut self) -> Result<()>;
+    /// `(set-option :<key> <value>)`.
+    fn set_option(&mut self, key: &str, value: &str) -> Result<()>;
 
     fn close(&mut self);
 }

@@ -28,6 +28,7 @@ debug = true
 [features]
 default = ["process-solver"]
 process-solver = ["dep:clap", "dep:expectrl", "dep:subprocess"]
+cvc5-lib = ["dep:cvc5"]
 zipfile = ["dep:zip"]
 
 [dependencies]
@@ -54,6 +55,11 @@ wildcard = "0.3"
 zip = { version = "8", features = [
   "deflate",
 ], default-features = false, optional = true }
+
+# Feature: cvc5-lib (native cvc5 backend for `domino debug`)
+# Building this needs a prebuilt static cvc5 and libclang; see scripts/setup-cvc5-lib.sh
+# and the "cvc5-lib feature" section of Readme.md. The default build does not pull this in.
+cvc5 = { version = "0.4", features = ["static", "parser"], optional = true }
 
 # Feature: process solver
 subprocess = { version = "0.2", optional = true }

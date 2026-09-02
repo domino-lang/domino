@@ -23,6 +23,33 @@ Requirements:
 Install the tool using `cargo install --git https://github.com/domino-lang/domino domino`.
 Ensure that the installed binary is in your `PATH`. (By default, Cargo installs to (`~/.cargo/bin`).)
 
+### `cvc5-lib` feature (native cvc5 backend)
+
+The interactive `domino debug` command talks to cvc5 through the [`cvc5`](https://crates.io/crates/cvc5)
+crate (in-process bindings) instead of a child process. This lives behind the **optional
+`cvc5-lib` cargo feature** and is **not** part of a default build — `cargo build --workspace` needs
+nothing extra and does not pull in `cvc5`.
+
+Building `--features cvc5-lib` needs two things bindgen and the linker have to find:
+
+1. a prebuilt **static cvc5** (`libcvc5.a`, `libcvc5parser.a` and the C API headers), pointed at by
+   `CVC5_LIB_DIR` / `CVC5_INCLUDE_DIR`. We use the crate's `static` feature but *skip* its
+   build-from-source path (which would need CMake and a cvc5 checkout) by setting `CVC5_LIB_DIR`.
+2. a working **libclang** for bindgen (`LIBCLANG_PATH`, plus `BINDGEN_EXTRA_CLANG_ARGS` if the
+   libclang you use ships no builtin headers).
+
+The helper script fetches both into `~/.cache/domino` and writes an env file:
+
+```bash
+scripts/setup-cvc5-lib.sh
+source ~/.cache/domino/cvc5-lib-env.sh
+cargo build --workspace --features cvc5-lib
+cargo test  --workspace --features cvc5-lib
+```
+
+Nix users: `nix develop .#cvc5-lib` provides the toolchain + libclang (and sets `LIBCLANG_PATH`);
+still run `scripts/setup-cvc5-lib.sh` once for the prebuilt static cvc5.
+
 ## Usage
 
 Enter a project directory and run `domino prove`.

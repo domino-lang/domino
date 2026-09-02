@@ -161,6 +161,22 @@
           packages = devShellBasePackages;
         };
 
+        # Dev shell for building with `--features cvc5-lib` (the native cvc5 backend used by
+        # `domino debug`). It adds a C/C++ toolchain + libclang for bindgen and exports
+        # LIBCLANG_PATH. The prebuilt static cvc5 itself is fetched by `scripts/setup-cvc5-lib.sh`
+        # (into ~/.cache/domino); run that once and `source ~/.cache/domino/cvc5-lib-env.sh`.
+        cvc5LibDevShell = pkgs.mkShell {
+          packages = devShellPackages ++ [
+            pkgs.cmake
+            pkgs.llvmPackages.libclang
+          ];
+          LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
+          shellHook = ''
+            echo "cvc5-lib dev shell: run 'scripts/setup-cvc5-lib.sh' then"
+            echo "  source ~/.cache/domino/cvc5-lib-env.sh"
+          '';
+        };
+
         texlive = pkgs.texlive.combine {
           inherit (pkgs.texlive)
             scheme-small
@@ -208,6 +224,7 @@
 
         devShells.default = defaultDevShell;
         devShells.dev = devDevShell;
+        devShells.cvc5-lib = cvc5LibDevShell;
       }
     );
 }

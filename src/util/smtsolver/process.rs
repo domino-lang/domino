@@ -233,6 +233,21 @@ impl SmtSolver for Communicator {
         Ok(())
     }
 
+    fn push(&mut self) -> Result<()> {
+        writeln!(self, "\n(push 1)")?;
+        Ok(())
+    }
+
+    fn pop(&mut self) -> Result<()> {
+        writeln!(self, "\n(pop 1)")?;
+        Ok(())
+    }
+
+    fn set_option(&mut self, key: &str, value: &str) -> Result<()> {
+        writeln!(self, "\n(set-option :{key} {value})")?;
+        Ok(())
+    }
+
     fn close(&mut self) {
         self.0.close();
     }
