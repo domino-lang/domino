@@ -1,0 +1,13 @@
+theorem Proof, proofstep 0 (medium_composition == small_composition), oracle UsefulOracle
+(left and right line numbers are independent — they index different columns)
+
+   1 | // game instance: medium_composition   (package instance: fwd, package: Fwd)  |     1 | // game instance: small_composition   (package instance: rand, package: Rand)
+   2 | UsefulOracle() -> (Integer, Bits(n)) {                                        |     2 | UsefulOracle() -> (Integer, Bits(n)) {
+   3 |     y <- invoke UsefulOracle()      // rand.UsefulOracle                      |     3 |     rand.ctr <- (rand.ctr + 1);
+   4 |     {                                                                         |     4 |     rand <-$ Bits(n) sample-name samplepoint;
+   5 |         rand.ctr <- (rand.ctr + 1);                                           |     5 |     return (rand.ctr, rand);
+   6 |         rand <-$ Bits(n) sample-name samplepoint;                             |     6 | }
+   7 |         y <- (rand.ctr, rand);  // return from rand.UsefulOracle              |  
+   8 |     }                                                                         |  
+   9 |     return y;                                                                 |  
+  10 | }                                                                             |  

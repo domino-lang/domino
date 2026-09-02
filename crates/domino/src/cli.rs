@@ -18,6 +18,31 @@ pub(crate) enum Commands {
 
     /// Symbolically execute both sides of an equivalence proofstep and debug one claim.
     Debug(Debug),
+
+    /// Inline the code of an oracle for both sides of an equivalence proofstep, side by side.
+    Inline(Inline),
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Inline {
+    /// Path to the Domino project. Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long)]
+    pub(crate) path: Option<std::path::PathBuf>,
+    /// Name of the theorem the equivalence proofstep belongs to.
+    #[clap(long)]
+    pub(crate) proof: String,
+    /// Index (starting at 0) of the equivalence proofstep within the theorem,
+    /// as printed by `domino proofsteps`.
+    #[clap(long)]
+    pub(crate) proofstep: usize,
+    /// Name of the oracle to inline, as exported by the games in the proofstep.
+    #[clap(long)]
+    pub(crate) oracle: String,
+    /// Print without line numbers (useful for diffing two runs).
+    #[clap(long)]
+    pub(crate) no_line_numbers: bool,
 }
 
 #[derive(clap::Args, Debug)]

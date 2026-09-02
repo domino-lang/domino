@@ -45,6 +45,11 @@ pub struct Cvc5LibNotEnabled;
 pub struct DebugNotVerified;
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("theorem `{0}` not found")]
+#[diagnostic(code(cli::theorem_not_found))]
+pub struct TheoremNotFound(pub String);
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("--oracle and --invariant-start cannot be used together")]
 #[diagnostic(help(
     "--invariant-start restricts verification to the invariant start, which \
@@ -72,6 +77,12 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     DebugNotVerified(#[from] DebugNotVerified),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    TheoremNotFound(#[from] TheoremNotFound),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    InlineRender(#[from] sspverif::debug::render::RenderError),
     #[cfg(feature = "cvc5-lib")]
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -170,6 +181,30 @@ fn debug(_d: &Debug) -> Result<(), Error> {
     Err(Cvc5LibNotEnabled.into())
 }
 
+fn inline(i: &Inline) -> Result<(), Error> {
+    // NB: match rather than `unwrap_or` so `find_project_root()?` is not
+    // evaluated (and its error propagated) when `--path` is given.
+    let project_root = match &i.path {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(project_root, &files)?;
+
+    let theorem = project
+        .get_theorem(&i.proof)
+        .ok_or_else(|| TheoremNotFound(i.proof.clone()))?;
+
+    let listing = sspverif::debug::render::render_side_by_side(
+        theorem,
+        i.proofstep,
+        &i.oracle,
+        !i.no_line_numbers,
+    )?;
+    print!("{listing}");
+    Ok(())
+}
+
 fn latex(l: &Latex) -> Result<(), Error> {
     let project_root = l
         .path
@@ -213,6 +248,7 @@ fn main() -> miette::Result<()> {
         Commands::Latex(l) => latex(l),
         Commands::Format(f) => format(f),
         Commands::Debug(d) => debug(d),
+        Commands::Inline(i) => inline(i),
     };
 
     result.map_err(miette::Report::new)

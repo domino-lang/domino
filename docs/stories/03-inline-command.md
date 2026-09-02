@@ -207,11 +207,15 @@ this epic: real branching, sampling and cross-package invokes, and it renders in
 
 ## 8. State handed to the next story
 
-Story 06 will rely on:
+**Done — see `03-inline-command-IMPLEMENTATION-REPORT.md`.** This was the last story of the
+epic; nothing depends on it. Stories 06/07 had already shipped `src/debug/render.rs::side_by_side`
+as the `inlined.txt` renderer, so story 03 built `render_side_by_side` on top of it and left
+`side_by_side` byte-for-byte unchanged.
 
-- `crate::debug::render::render_side_by_side(...)` — it writes the same listing to
-  `_build/debug/.../inlined.txt` so the labels in the debug tree can be looked up.
-- The convention that left and right line numbers are independent.
+Rendering decisions locked in (unchanged from what 06/07 already relied on):
 
-Record here any rendering decision you made that story 06 or 07 must match (column separator,
-header format, how you numbered blank/structural lines).
+- Column separator `"  |  "`; left column space-padded to its widest line; every row emitted
+  even past the shorter side's end.
+- Gutter `format!("{:>4} | {}", n, line)`, 1-based, independent per column;
+  `--no-line-numbers` drops only the gutter.
+- `render_side_by_side` prepends a 2-line header + blank line; `side_by_side`/`columns` do not.
