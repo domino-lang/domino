@@ -1375,6 +1375,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_derive",
+ "serde_json",
  "sspverif-smtlib",
  "subprocess",
  "tempfile",

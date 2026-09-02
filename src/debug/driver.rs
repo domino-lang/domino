@@ -38,13 +38,18 @@
 //!
 //! Only `unsat` ever prunes. `unknown` and timeouts are always explored.
 
+use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
+use serde_derive::Serialize;
 
 use crate::debug::exec::{execute_streaming, ExecError, Side, Step, Terminal, TerminalPath};
-use crate::debug::ir::{inline_oracle, InlineError, InlinedOracle, Listing};
+use crate::debug::ir::{
+    inline_oracle, InlineError, InlinedOracle, Label, Listing, SiteInfo, SiteKind,
+};
 use crate::debug::render;
+use crate::debug::report;
 use crate::gamehops::GameHop;
 use crate::project::Project;
 use crate::theorem::{Claim, GameInstance};
@@ -132,8 +137,14 @@ pub enum DebugError {
 // The serialisable run structure (story 07 serialises exactly this to trace.json)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone)]
+/// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
+/// breaking change to the serialised shape.
+pub const TRACE_SCHEMA: u32 = 1;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DebugRun {
+    /// `trace.json` schema version. Always [`TRACE_SCHEMA`].
+    pub schema: u32,
     pub theorem: String,
     pub proofstep: usize,
     pub left_game: String,
@@ -142,11 +153,24 @@ pub struct DebugRun {
     pub claim: String,
     /// The claim is admitted — there is nothing to check.
     pub admitted: bool,
+    /// The output directory. Absolute — **skipped** in `trace.json` so two runs
+    /// on the same project produce byte-identical output.
+    #[serde(skip)]
     pub out_dir: String,
+    /// The options this run was launched with.
+    pub options: OptionsView,
+    /// The base declarations asserted once at solver level 0, rendered. This is
+    /// also the head of `transcript.smt2` up to the first `(push 1)`; kept here
+    /// so `index.html` is self-contained. Empty for an admitted claim.
+    pub base_frame_smt: String,
     /// The left game instance's inlined listing (line `n` == `Label` `n`).
     pub left_listing: String,
     /// The right game instance's inlined listing (numbered independently).
     pub right_listing: String,
+    /// Per-label metadata for the left listing (branch/assert/return/... sites).
+    pub left_sites: BTreeMap<Label, SiteView>,
+    /// Per-label metadata for the right listing.
+    pub right_sites: BTreeMap<Label, SiteView>,
     pub left_paths: Vec<LeftPath>,
     pub summary: Summary,
     /// Exploration stopped early (`--max-paths` or an executor cap). Results are
@@ -154,7 +178,73 @@ pub struct DebugRun {
     pub partial: bool,
 }
 
-#[derive(Debug, Clone)]
+/// The CLI knobs, in a shape that serialises cleanly into `trace.json`.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct OptionsView {
+    pub check_left: bool,
+    pub check_right: bool,
+    pub timeout_ms: Option<u64>,
+    pub max_paths: usize,
+}
+
+impl From<&DebugOptions> for OptionsView {
+    fn from(o: &DebugOptions) -> Self {
+        Self {
+            check_left: o.check_left,
+            check_right: o.check_right,
+            timeout_ms: o.timeout_ms,
+            max_paths: o.max_paths,
+        }
+    }
+}
+
+/// One entry of [`Listing::sites`], flattened for serialisation (the
+/// `SourceSpan` back-reference is dropped — the viewer works off line numbers).
+#[derive(Debug, Clone, Serialize)]
+pub struct SiteView {
+    /// `assign` / `sample` / `unwrap` / `branch` / `assert` / `call` / `return` /
+    /// `abort`.
+    pub kind: String,
+    /// The rendered source line, trimmed.
+    pub line: String,
+    pub pkg_inst: String,
+    pub oracle: String,
+    /// Frame depth: 0 for the entry oracle's own body, 1 for a directly inlined
+    /// callee, and so on.
+    pub depth: usize,
+}
+
+impl From<&SiteInfo> for SiteView {
+    fn from(s: &SiteInfo) -> Self {
+        let kind = match s.kind {
+            SiteKind::Assign => "assign",
+            SiteKind::Sample => "sample",
+            SiteKind::Unwrap => "unwrap",
+            SiteKind::Branch => "branch",
+            SiteKind::Assert => "assert",
+            SiteKind::Call => "call",
+            SiteKind::Return => "return",
+            SiteKind::Abort => "abort",
+        };
+        Self {
+            kind: kind.to_string(),
+            line: s.line.clone(),
+            pkg_inst: s.pkg_inst_name.clone(),
+            oracle: s.oracle_name.clone(),
+            depth: s.depth,
+        }
+    }
+}
+
+fn sites_view(listing: &Listing) -> BTreeMap<Label, SiteView> {
+    listing
+        .sites
+        .iter()
+        .map(|(label, info)| (*label, SiteView::from(info)))
+        .collect()
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct LeftPath {
     /// `"1"`, `"2"`, … in exploration order. Rendered `#1`.
     pub id: String,
@@ -168,17 +258,21 @@ pub struct LeftPath {
     pub right_paths: Vec<RightPath>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RightPath {
     /// `"1.1"`, `"1.2"`, … Rendered `#1.1`.
     pub id: String,
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
     pub verdict: Verdict,
+    /// The solver model, inline, for `goal-fails` / `inconclusive` pairs — so
+    /// `index.html` needs no sidecar files. `None` otherwise. The same text is
+    /// also written to `models/<id>.smt2` (referenced by [`Verdict`]).
+    pub model_smt: Option<String>,
     pub smt: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StepView {
     pub label: usize,
     pub line: String,
@@ -187,14 +281,15 @@ pub struct StepView {
     pub decision: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TerminalView {
     pub label: usize,
     pub line: String,
     pub is_abort: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Verdict {
     /// Goal check `unsat` — the claim holds on this pair.
     Verified,
@@ -208,7 +303,7 @@ pub enum Verdict {
     Inconclusive { model: Option<String> },
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct Summary {
     pub left_paths: usize,
     pub left_pruned: usize,
@@ -356,6 +451,7 @@ where
     let right_inl = inline_oracle(right_inst, oracle)?;
 
     let mut run = DebugRun {
+        schema: TRACE_SCHEMA,
         theorem: eq.theorem_name().to_string(),
         proofstep: req_proofstep,
         left_game: eq.left_name().to_string(),
@@ -364,8 +460,12 @@ where
         claim: claim_name.to_string(),
         admitted: claim.is_admitted(),
         out_dir: out_dir.display().to_string(),
+        options: OptionsView::from(opts),
+        base_frame_smt: String::new(),
         left_listing: left_inl.listing.text.clone(),
         right_listing: right_inl.listing.text.clone(),
+        left_sites: sites_view(&left_inl.listing),
+        right_sites: sites_view(&right_inl.listing),
         left_paths: Vec::new(),
         summary: Summary::default(),
         partial: false,
@@ -373,6 +473,11 @@ where
 
     if !claim.is_admitted() {
         let base = base_frame(&eqctx, oracle, &claim);
+        run.base_frame_smt = base
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<_>>()
+            .join("\n");
 
         let transcript = std::fs::File::create(out_dir.join("transcript.smt2"))?;
         let mut solver = backend.new_smtsolver_with_transcript(transcript)?;
@@ -395,6 +500,8 @@ where
         out_dir.join("inlined.txt"),
         render::side_by_side(&run.left_listing, &run.right_listing),
     )?;
+    report::write_trace_json(&run, &out_dir)?;
+    report::write_html(&run, &out_dir)?;
 
     Ok(run)
 }
@@ -498,7 +605,8 @@ fn explore_paths<S: SmtSolver>(
 
                 solver.push()?;
                 write_path(solver, rp)?;
-                let verdict = check_pair(solver, eqctx, claim, oracle, &rid, opts, out_dir)?;
+                let (verdict, model_smt) =
+                    check_pair(solver, eqctx, claim, oracle, &rid, opts, out_dir)?;
                 solver.pop()?;
 
                 left_view.right_paths.push(RightPath {
@@ -506,6 +614,7 @@ fn explore_paths<S: SmtSolver>(
                     steps: steps_view(&right_inl.listing, &rp.steps),
                     terminal: terminal_view(&right_inl.listing, &rp.terminal),
                     verdict,
+                    model_smt,
                     smt: render_path_smt(rp),
                 });
             }
@@ -519,7 +628,9 @@ fn explore_paths<S: SmtSolver>(
     Ok(())
 }
 
-/// At a (left, right) terminal pair: vacuity, then the negated goal.
+/// At a (left, right) terminal pair: vacuity, then the negated goal. Returns the
+/// verdict and, for `goal-fails` / `inconclusive`, the model text (also written
+/// to `models/<rid>.smt2`).
 fn check_pair<S: SmtSolver>(
     solver: &mut S,
     eqctx: &EquivalenceContext<'_>,
@@ -528,25 +639,27 @@ fn check_pair<S: SmtSolver>(
     rid: &str,
     opts: &DebugOptions,
     out_dir: &Path,
-) -> Result<Verdict, DebugError> {
+) -> Result<(Verdict, Option<String>), DebugError> {
     // Vacuity (overview §3). Skipped only with `--no-check-right`.
     if opts.check_right && matches!(solver.check_sat()?, SmtSolverResponse::Unsat) {
-        return Ok(Verdict::Unreachable);
+        return Ok((Verdict::Unreachable, None));
     }
 
     solver.push()?;
     solver.write_smt(eqctx.emit_claim_goal_negated(claim, oracle))?;
-    let verdict = match solver.check_sat()? {
-        SmtSolverResponse::Unsat => Verdict::Verified,
-        SmtSolverResponse::Sat => Verdict::GoalFails {
-            model: write_model(solver, out_dir, rid)?,
-        },
-        SmtSolverResponse::Unknown => Verdict::Inconclusive {
-            model: write_model(solver, out_dir, rid).ok(),
+    let outcome = match solver.check_sat()? {
+        SmtSolverResponse::Unsat => (Verdict::Verified, None),
+        SmtSolverResponse::Sat => {
+            let (rel, text) = write_model(solver, out_dir, rid)?;
+            (Verdict::GoalFails { model: rel }, Some(text))
+        }
+        SmtSolverResponse::Unknown => match write_model(solver, out_dir, rid) {
+            Ok((rel, text)) => (Verdict::Inconclusive { model: Some(rel) }, Some(text)),
+            Err(_) => (Verdict::Inconclusive { model: None }, None),
         },
     };
     solver.pop()?;
-    Ok(verdict)
+    Ok(outcome)
 }
 
 fn write_path<S: SmtSolver>(solver: &mut S, path: &TerminalPath) -> Result<(), DebugError> {
@@ -560,15 +673,17 @@ fn write_path<S: SmtSolver>(solver: &mut S, path: &TerminalPath) -> Result<(), D
     Ok(())
 }
 
+/// Writes the current model to `models/<rid>.smt2` and returns
+/// `(relative path, model text)`.
 fn write_model<S: SmtSolver>(
     solver: &mut S,
     out_dir: &Path,
     rid: &str,
-) -> Result<String, DebugError> {
+) -> Result<(String, String), DebugError> {
     let (model, _) = solver.get_model()?;
     let rel = format!("models/{rid}.smt2");
-    std::fs::write(out_dir.join(&rel), model)?;
-    Ok(rel)
+    std::fs::write(out_dir.join(&rel), &model)?;
+    Ok((rel, model))
 }
 
 /// Collect up to `cap` terminal paths; the `bool` says the cap was hit.

@@ -218,9 +218,21 @@ Smaller projects for iterating on the rendering: `example-projects/hello-world`,
 
 ## 7. State handed to the next story
 
-This is the last story of the epic. Record here:
+This is the last story of the epic. **Done** — full handover in
+`docs/stories/07-html-execution-tree-viewer-IMPLEMENTATION-REPORT.md`. Summary:
 
-- The final `trace.json` schema (bump `"schema"` if you deviated from §3.1).
-- Anything about the viewer a follow-up (a TUI, a CI gate, a diff between two runs) would need.
-- Any part of `docs/symbolic-execution-plan.md` that ended up **not** implemented, so it is
-  visible rather than quietly dropped.
+- **`trace.json` schema `1`, flat** (1:1 with `DebugRun`), *not* the nested §3.1 draft. Keys:
+  `left_game`/`right_game` (not `*_game_inst`), top-level `left_listing`/`right_listing` +
+  `left_sites`/`right_sites`, `options`, `base_frame_smt`, `left_paths[].{id,steps,terminal,
+  reachable,smt,right_paths}`, `right_paths[].{…,verdict,model_smt,smt}`, `summary`, `partial`.
+  `verdict` is internally tagged: `{"kind":"verified|unreachable|goal-fails|inconclusive", …}`.
+  `out_dir` is deliberately not serialised. Bump `TRACE_SCHEMA` in `src/debug/driver.rs` on any
+  change. No `pruned_branches` — see below.
+- **Viewer** = `src/debug/report.rs::{write_trace_json, write_html}`, called at the end of
+  `run_debug_command`. `index.html` is one dependency-free file with the trace embedded as
+  JSON; a TUI / CI gate / run-diff consumes `trace.json` directly.
+- **Not implemented from `docs/symbolic-execution-plan.md`** (all pre-existing, from earlier
+  stories): per-*branch* solver guidance/pruning (story 06 checks per terminal *pair* — story
+  05 streams terminals only, so the viewer can only show whole-left-path pruning via
+  `reachable`); `GameIdentifier::Const` / table-index consts used directly in an oracle
+  expression; **`domino inline` (story 03) is still unbuilt**.

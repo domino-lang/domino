@@ -155,6 +155,9 @@ fn debug(d: &Debug) -> Result<(), Error> {
     )?;
 
     print!("{}", render_tree(&run));
+    if !run.admitted {
+        println!("\nviewer: {}/index.html", run.out_dir);
+    }
 
     if !run.is_ok() {
         return Err(DebugNotVerified.into());
