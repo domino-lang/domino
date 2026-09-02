@@ -54,7 +54,7 @@ breaks the claim. Debugging means reading SMT by hand.
 | **Guardrails** | `--timeout <ms>` (mapped to cvc5's `tlimit-per`; a timeout counts as *unknown*, i.e. explored, never pruned) and `--max-paths <n>`. No depth limit and no first-failure flag in v1. |
 | **Labels** | **Line numbers in the emitted inlined listing**: `L12:then`, `L19:assert-holds`, `L27:return`. The listing is the single source of truth for labels. |
 | **`domino inline`** | In scope, as its own story, built on the new IR. |
-| **Vacuity** | Yes. Before checking the goal at a terminal pair, one extra `check-sat` of the assumptions plus both path conditions. `unsat` there means the pair is **unreachable**, not **verified**. |
+| **Vacuity** | Yes. Before checking the goal at a terminal pair, one extra `check-sat` of the assumptions plus both path conditions. `unsat` there means the pair is **unreachable**, not **verified**. As of story 08 this check is **unconditional** — it is what makes the four verdicts distinguishable, and it is not tied to the `--no-check-left` / `--no-check-right` pruning flags. |
 
 ### Label format (agreed with the owner)
 
@@ -105,6 +105,7 @@ left path #3:
 | 05 | Symbolic executor core (no solver) | `05-symbolic-executor-core.md` | 02 |
 | 06 | `domino debug`: solver-guided exploration and claim checking | `06-debug-command-solver-guided.md` | 01, 04, 05 |
 | 07 | HTML execution-tree viewer + `trace.json` | `07-html-execution-tree-viewer.md` | 06 |
+| 08 | Branch-level pruning on both sides | `08-branch-level-pruning.md` | 05, 06, 07 |
 
 Stories 01, 02 and 04 are independent and may be done in any order (or in parallel).
 
