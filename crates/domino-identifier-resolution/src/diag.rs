@@ -57,6 +57,18 @@ pub enum Diagnostic {
 
     #[error(transparent)]
     #[diagnostic(transparent)]
+    ExpectedGameIdentifier(#[from] ExpectedGameIdentifier),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ExpectedGameInstanceIdentifier(#[from] ExpectedGameInstanceIdentifier),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ExpectedAssumptionIdentifier(#[from] ExpectedAssumptionIdentifier),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
     AssignToConst(#[from] AssignToConst),
 
     #[error(transparent)]
@@ -92,6 +104,9 @@ impl Diagnostic {
             Diagnostic::ExpectedOracleIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedPackageIdentifier(node) => node.global_ref,
             Diagnostic::ExpectedPackageInstanceIdentifier(node) => node.global_ref,
+            Diagnostic::ExpectedGameIdentifier(node) => node.global_ref,
+            Diagnostic::ExpectedGameInstanceIdentifier(node) => node.global_ref,
+            Diagnostic::ExpectedAssumptionIdentifier(node) => node.global_ref,
             Diagnostic::AssignToConst(node) => node.global_ref,
             Diagnostic::PackageDoesNotImportOracle(node) => node.global_ref,
             Diagnostic::PackageDoesNotDefineOracle(node) => node.global_ref,
@@ -450,6 +465,111 @@ pub struct ExpectedPackageInstanceIdentifier {
 }
 
 impl ExpectedPackageInstanceIdentifier {
+    pub fn new<IK: IdentifierKind>(
+        dx: Resolver,
+        ident: Ref<AstIdentifier<IK>>,
+        decl: impl crate::Declaration,
+    ) -> Self
+    where
+        AstIdentifier<IK>: InArena + NodeType,
+    {
+        let at = dx.span(ident);
+        let source_code = dx.named_source(ident);
+        Self {
+            at,
+            global_ref: ident.global_ref_id(),
+            source_code,
+            decl_type: decl.decl_type(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("expected a game identifier, got a {decl_type}")]
+#[diagnostic(code(domino::resolve::idents::expected_game))]
+pub struct ExpectedGameIdentifier {
+    #[label("this identifier")]
+    pub at: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    pub decl_type: DeclarationType,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl ExpectedGameIdentifier {
+    pub fn new<IK: IdentifierKind>(
+        dx: Resolver,
+        ident: Ref<AstIdentifier<IK>>,
+        decl: impl crate::Declaration,
+    ) -> Self
+    where
+        AstIdentifier<IK>: InArena + NodeType,
+    {
+        let at = dx.span(ident);
+        let source_code = dx.named_source(ident);
+        Self {
+            at,
+            global_ref: ident.global_ref_id(),
+            source_code,
+            decl_type: decl.decl_type(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("expected a game instance identifier, got a {decl_type}")]
+#[diagnostic(code(domino::resolve::idents::expected_game_instance))]
+pub struct ExpectedGameInstanceIdentifier {
+    #[label("this identifier")]
+    pub at: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    pub decl_type: DeclarationType,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl ExpectedGameInstanceIdentifier {
+    pub fn new<IK: IdentifierKind>(
+        dx: Resolver,
+        ident: Ref<AstIdentifier<IK>>,
+        decl: impl crate::Declaration,
+    ) -> Self
+    where
+        AstIdentifier<IK>: InArena + NodeType,
+    {
+        let at = dx.span(ident);
+        let source_code = dx.named_source(ident);
+        Self {
+            at,
+            global_ref: ident.global_ref_id(),
+            source_code,
+            decl_type: decl.decl_type(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("expected an assumption identifier, got a {decl_type}")]
+#[diagnostic(code(domino::resolve::idents::expected_assumption))]
+pub struct ExpectedAssumptionIdentifier {
+    #[label("this identifier")]
+    pub at: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    pub decl_type: DeclarationType,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl ExpectedAssumptionIdentifier {
     pub fn new<IK: IdentifierKind>(
         dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,

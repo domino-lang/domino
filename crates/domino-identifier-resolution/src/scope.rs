@@ -13,6 +13,8 @@ pub enum DeclarationType {
     Game,
     Package,
     PackageInstance,
+    GameInstance,
+    Assumption,
     Oracle,
     Type,
     PureValue,
@@ -120,6 +122,8 @@ impl core::fmt::Display for DeclarationType {
             DeclarationType::Package => f.write_str("package"),
             DeclarationType::PackageInstance => f.write_str("package instance"),
             DeclarationType::Game => f.write_str("game"),
+            DeclarationType::GameInstance => f.write_str("game instance"),
+            DeclarationType::Assumption => f.write_str("assumption"),
             DeclarationType::Oracle => f.write_str("oracle"),
 
             DeclarationType::Type => f.write_str("type"),

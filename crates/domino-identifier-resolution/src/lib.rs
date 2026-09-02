@@ -4,6 +4,7 @@ mod util;
 
 mod resolve_game;
 mod resolve_package;
+mod resolve_theorem;
 
 mod resolutions;
 
@@ -11,7 +12,7 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::{Arena, Ref},
-    ast_nodes::{game, identifier, package},
+    ast_nodes::{game, identifier, package, theorem},
     Arenas, DenseTable, LocationTable, PartialDenseTable, Visitor as _,
 };
 use scope::{Declaration, DeclarationType};
@@ -74,6 +75,28 @@ pub struct Resolver<'arena> {
     // indexed games
     game_infos: HashMap<&'arena str, resolve_game::GameInfo>,
 
+    // side tables for theorems
+    theorem_names:
+        PartialDenseTable<identifier::TheoremIdentifier, resolutions::TheoremResolution>,
+    theorem_type_names:
+        PartialDenseTable<identifier::TheoremTypeIdentifier, resolutions::TheoremTypeResolution>,
+    theorem_type_arg_names: PartialDenseTable<
+        identifier::TheoremTypeArgumentIdentifier,
+        resolutions::TheoremTypeArgResolution,
+    >,
+    theorem_const_value_names: PartialDenseTable<
+        identifier::TheoremConstValueIdentifier,
+        resolutions::TheoremConstValueResolution,
+    >,
+    game_inst_names:
+        PartialDenseTable<identifier::GameInstanceIdentifier, resolutions::GameInstanceResolution>,
+    assumption_names:
+        PartialDenseTable<identifier::AssumptionIdentifier, resolutions::AssumptionResolution>,
+    lemma_names: PartialDenseTable<identifier::LemmaIdentifier, resolutions::LemmaResolution>,
+
+    // indexed theorems
+    theorem_infos: HashMap<&'arena str, resolve_theorem::TheoremInfo>,
+
     diagnostics: Arena<diag::Diagnostic>,
 }
 
@@ -83,6 +106,9 @@ pub struct IdentifierResolution<'arena> {
     //
     // indexed games
     pub game_infos: HashMap<&'arena str, resolve_game::GameInfo>,
+    //
+    // indexed theorems
+    pub theorem_infos: HashMap<&'arena str, resolve_theorem::TheoremInfo>,
 
     // side tables for packages
     pub pkg_names: DenseTable<identifier::PackageIdentifier, resolutions::PackageResolution>,
@@ -120,6 +146,25 @@ pub struct IdentifierResolution<'arena> {
         DenseTable<identifier::GameConstValueIdentifier, resolutions::GameConstValueResolution>,
     pub pkg_inst_names:
         DenseTable<identifier::PackageInstanceIdentifier, resolutions::PackageInstanceResolution>,
+
+    // side tables for theorems
+    pub theorem_names:
+        DenseTable<identifier::TheoremIdentifier, resolutions::TheoremResolution>,
+    pub theorem_type_names:
+        DenseTable<identifier::TheoremTypeIdentifier, resolutions::TheoremTypeResolution>,
+    pub theorem_type_arg_names: DenseTable<
+        identifier::TheoremTypeArgumentIdentifier,
+        resolutions::TheoremTypeArgResolution,
+    >,
+    pub theorem_const_value_names: DenseTable<
+        identifier::TheoremConstValueIdentifier,
+        resolutions::TheoremConstValueResolution,
+    >,
+    pub game_inst_names:
+        DenseTable<identifier::GameInstanceIdentifier, resolutions::GameInstanceResolution>,
+    pub assumption_names:
+        DenseTable<identifier::AssumptionIdentifier, resolutions::AssumptionResolution>,
+    pub lemma_names: DenseTable<identifier::LemmaIdentifier, resolutions::LemmaResolution>,
 }
 
 impl<'arena> Resolver<'arena> {
@@ -144,9 +189,18 @@ impl<'arena> Resolver<'arena> {
             game_const_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
             pkg_inst_names: PartialDenseTable::with_sizes_from_arena(arenas),
 
+            theorem_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            theorem_type_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            theorem_type_arg_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            theorem_const_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            game_inst_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            assumption_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            lemma_names: PartialDenseTable::with_sizes_from_arena(arenas),
+
             diagnostics: Default::default(),
             pkg_infos: Default::default(),
             game_infos: Default::default(),
+            theorem_infos: Default::default(),
         }
     }
 
@@ -209,6 +263,42 @@ impl<'arena> Resolver<'arena> {
         }
     }
 
+    pub fn process_theorem(&mut self, thm: Ref<theorem::Theorem>) {
+        let tables = resolve_theorem::TheoremVisitorPartialTables {
+            theorem_names: &mut self.theorem_names,
+            theorem_type_names: &mut self.theorem_type_names,
+            theorem_type_arg_names: &mut self.theorem_type_arg_names,
+            theorem_const_value_names: &mut self.theorem_const_value_names,
+            game_inst_names: &mut self.game_inst_names,
+            assumption_names: &mut self.assumption_names,
+            lemma_names: &mut self.lemma_names,
+            game_names: &mut self.game_names,
+            game_type_names: &mut self.game_type_names,
+            game_const_value_names: &mut self.game_const_value_names,
+            pkg_inst_names: &mut self.pkg_inst_names,
+            oracle_composition_import_names: &mut self.oracle_composition_import_names,
+            oracle_composition_def_names: &mut self.oracle_composition_def_names,
+        };
+
+        let mut info = None;
+
+        let mut visitor = resolve_theorem::TheoremVisitor::new(
+            self.locations,
+            &mut self.diagnostics,
+            tables,
+            &mut info,
+            &self.game_infos,
+            &self.pkg_infos,
+        );
+
+        visitor.thm(self.arenas, thm);
+
+        if let Some(theorem_info) = info {
+            let name = get_text(theorem_info.name, self.locations, &self.arenas.source);
+            self.theorem_infos.insert(name, theorem_info);
+        }
+    }
+
     pub fn diagnostics(&self) -> &Arena<diag::Diagnostic> {
         &self.diagnostics
     }
@@ -234,6 +324,13 @@ impl<'arena> Resolver<'arena> {
             game_type_names,
             game_const_value_names,
             pkg_inst_names,
+            theorem_names,
+            theorem_type_names,
+            theorem_type_arg_names,
+            theorem_const_value_names,
+            game_inst_names,
+            assumption_names,
+            lemma_names,
         };
 
         if failed {
@@ -243,6 +340,7 @@ impl<'arena> Resolver<'arena> {
         IdentifierResolution {
             pkg_infos: self.pkg_infos,
             game_infos: self.game_infos,
+            theorem_infos: self.theorem_infos,
 
             pkg_names: self.pkg_names.finish().expect("error finishing pkg_names"),
             oracle_def_names: self
@@ -294,6 +392,34 @@ impl<'arena> Resolver<'arena> {
                 .pkg_inst_names
                 .finish()
                 .expect("error finishing pkg_inst_names"),
+            theorem_names: self
+                .theorem_names
+                .finish()
+                .expect("error finishing theorem_names"),
+            theorem_type_names: self
+                .theorem_type_names
+                .finish()
+                .expect("error finishing theorem_type_names"),
+            theorem_type_arg_names: self
+                .theorem_type_arg_names
+                .finish()
+                .expect("error finishing theorem_type_arg_names"),
+            theorem_const_value_names: self
+                .theorem_const_value_names
+                .finish()
+                .expect("error finishing theorem_const_value_names"),
+            game_inst_names: self
+                .game_inst_names
+                .finish()
+                .expect("error finishing game_inst_names"),
+            assumption_names: self
+                .assumption_names
+                .finish()
+                .expect("error finishing assumption_names"),
+            lemma_names: self
+                .lemma_names
+                .finish()
+                .expect("error finishing lemma_names"),
         }
     }
 }

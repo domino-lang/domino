@@ -1,6 +1,6 @@
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{game, identifier, oracles, package, statements},
+    ast_nodes::{game, identifier, oracles, package, statements, theorem},
 };
 
 use crate::{diag, BuiltinType, BuiltinValue};
@@ -28,6 +28,11 @@ pub enum OracleCompositionImportResolution {
         sig: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
         pkg_inst: Ref<game::InstanceBlock>,
     },
+    EquivalenceOracle {
+        sig: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
+        pkg_inst: Ref<game::InstanceBlock>,
+        game_inst: Ref<theorem::InstanceBlock>,
+    },
     Error(Ref<diag::Diagnostic>),
 }
 
@@ -38,6 +43,11 @@ pub enum OracleCompositionDefinitionResolution {
     Definition {
         def: Ref<oracles::OracleDefinition>,
         pkg_inst: Ref<game::InstanceBlock>,
+    },
+    EquivalenceOracle {
+        def: Ref<oracles::OracleDefinition>,
+        pkg_inst: Ref<game::InstanceBlock>,
+        game_inst: Ref<theorem::InstanceBlock>,
     },
     Error(Ref<diag::Diagnostic>),
 }
@@ -115,6 +125,49 @@ pub enum PackageResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum TheoremResolution {
+    Theorem(Ref<theorem::Theorem>),
+    Error(Ref<diag::Diagnostic>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TheoremTypeResolution {
+    Builtin(BuiltinType),
+    Error(Ref<diag::Diagnostic>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TheoremTypeArgResolution {
+    Builtin(BuiltinType),
+    Error(Ref<diag::Diagnostic>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum TheoremConstValueResolution {
+    ConstParam(Ref<theorem::TheoremConstDecl>),
+    Builtin(BuiltinValue),
+    Error(Ref<diag::Diagnostic>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum GameInstanceResolution {
+    GameInstance(Ref<theorem::InstanceBlock>),
+    Error(Ref<diag::Diagnostic>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AssumptionResolution {
+    Assumption(Ref<theorem::AssumptionsItem>),
+    Error(Ref<diag::Diagnostic>),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum LemmaResolution {
+    Lemma(Ref<theorem::LemmaItem>),
+    Error(Ref<diag::Diagnostic>),
+}
+
 macro_rules! impl_from_diag {
     ($resolution:ty) => {
         impl From<Ref<diag::Diagnostic>> for $resolution {
@@ -139,3 +192,10 @@ impl_from_diag!(GameConstValueResolution);
 impl_from_diag!(PackageConstValueResolution);
 impl_from_diag!(PackageInstanceResolution);
 impl_from_diag!(PackageResolution);
+impl_from_diag!(TheoremResolution);
+impl_from_diag!(TheoremTypeResolution);
+impl_from_diag!(TheoremTypeArgResolution);
+impl_from_diag!(TheoremConstValueResolution);
+impl_from_diag!(GameInstanceResolution);
+impl_from_diag!(AssumptionResolution);
+impl_from_diag!(LemmaResolution);
