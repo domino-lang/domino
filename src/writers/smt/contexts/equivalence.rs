@@ -34,6 +34,8 @@ pub struct EquivalenceContext<'a> {
     theorem: &'a Theorem<'a>,
     auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
     invariants: Vec<SmtStmt>,
+    left_invariants: Vec<SmtStmt>,
+    right_invariants: Vec<SmtStmt>,
 }
 
 // simple getters
@@ -48,6 +50,8 @@ impl<'a> EquivalenceContext<'a> {
             theorem,
             auxs,
             invariants: Vec::new(),
+            left_invariants: Vec::new(),
+            right_invariants: Vec::new(),
         }
     }
 
@@ -61,6 +65,22 @@ impl<'a> EquivalenceContext<'a> {
 
     pub(crate) fn append_invariants(&mut self, mut new_invariants: Vec<SmtStmt>) {
         self.invariants.append(&mut new_invariants);
+    }
+
+    pub(crate) fn append_left_invariants(&mut self, mut new_invariants: Vec<SmtStmt>) {
+        self.left_invariants.append(&mut new_invariants);
+    }
+
+    pub(crate) fn left_invariants(&self) -> &[SmtStmt] {
+        &self.left_invariants
+    }
+
+    pub(crate) fn append_right_invariants(&mut self, mut new_invariants: Vec<SmtStmt>) {
+        self.right_invariants.append(&mut new_invariants);
+    }
+
+    pub(crate) fn right_invariants(&self) -> &[SmtStmt] {
+        &self.right_invariants
     }
 }
 

@@ -225,8 +225,6 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn load_invariants(&mut self, project: &impl Project) -> Result<()> {
-        let mut out = Vec::new();
-
         let left_gctx = self.left_game_inst_ctx();
         let right_gctx = self.right_game_inst_ctx();
 
@@ -237,12 +235,11 @@ impl<'a> EquivalenceContext<'a> {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_package(
-                    self,
-                    left_gctx.game_inst(),
-                    pkg,
-                    &file_contents,
-                )?);
+
+                let stmts =
+                    smtrewrite::rewrite_package(self, left_gctx.game_inst(), pkg, &file_contents)?;
+
+                self.append_left_invariants(stmts);
             }
         }
         for pkg in &right_gctx.game().pkgs {
@@ -251,12 +248,11 @@ impl<'a> EquivalenceContext<'a> {
                     let file_name = file_name.to_string();
                     error::new_invariant_file_read_error(file_name, err)
                 })?;
-                out.append(&mut smtrewrite::rewrite_package(
-                    self,
-                    right_gctx.game_inst(),
-                    pkg,
-                    &file_contents,
-                )?);
+
+                let stmts =
+                    smtrewrite::rewrite_package(self, right_gctx.game_inst(), pkg, &file_contents)?;
+
+                self.append_right_invariants(stmts);
             }
         }
 
@@ -266,22 +262,20 @@ impl<'a> EquivalenceContext<'a> {
                 let file_name = file_name.to_string();
                 error::new_invariant_file_read_error(file_name, err)
             })?;
-            out.append(&mut smtrewrite::rewrite_game(
-                self,
-                left_gctx.game_inst(),
-                &file_contents,
-            )?);
+
+            let stmts = smtrewrite::rewrite_game(self, left_gctx.game_inst(), &file_contents)?;
+
+            self.append_left_invariants(stmts);
         }
         for file_name in &right_gctx.game().invariants {
             let file_contents = project.read_input_file(file_name).map_err(|err| {
                 let file_name = file_name.to_string();
                 error::new_invariant_file_read_error(file_name, err)
             })?;
-            out.append(&mut smtrewrite::rewrite_game(
-                self,
-                right_gctx.game_inst(),
-                &file_contents,
-            )?);
+
+            let stmts = smtrewrite::rewrite_game(self, right_gctx.game_inst(), &file_contents)?;
+
+            self.append_right_invariants(stmts);
         }
 
         // Load the main Invariant
@@ -292,9 +286,8 @@ impl<'a> EquivalenceContext<'a> {
                 error::new_invariant_file_read_error(file_name, err)
             })?;
             log::info!("read file {file_name}");
-            out.append(&mut smtrewrite::rewrite(self, &file_contents)?);
+            self.append_invariants(smtrewrite::rewrite(self, &file_contents)?);
         }
-        self.append_invariants(out);
 
         Ok(())
     }

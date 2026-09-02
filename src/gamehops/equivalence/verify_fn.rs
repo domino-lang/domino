@@ -6,9 +6,11 @@ use wildcard::Wildcard;
 use std::io::Write as _;
 use std::sync::{Arc, Mutex};
 
-use crate::writers::smt::contexts::GameInstanceContext;
 use crate::{
-    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
+    gamehops::equivalence::{
+        error::{ClaimTheoremFailedError, Error, Result},
+        smtrewrite::SmtStatementSort,
+    },
     package::Export,
     project::Project,
     theorem::{Claim, ClaimType},
@@ -238,74 +240,43 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         result
     }
 
-    fn generate_package_invariant_claims(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Vec<Claim> {
-        gctx.game()
-            .pkgs
-            .iter()
-            .filter_map(|pkg| {
-                if pkg.pkg.invariants.is_empty() {
-                    None
-                } else {
-                    Some(Claim {
-                        admitted: false,
-                        dependencies: vec!["no-abort".to_string()],
-                        ty: claim_type,
-                        name: format!(
-                            "package-invariant!{}-{}!",
-                            gctx.game_inst_name(),
-                            pkg.name()
-                        ),
-                    })
-                }
-            })
-            .collect()
-    }
-
-    fn generate_game_invariant_claim_if_exists(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Option<Claim> {
-        if !gctx.game().invariants.is_empty() {
+    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
+        fn new_claim(ty: ClaimType, name: &str) -> Option<Claim> {
             Some(Claim {
                 admitted: false,
                 dependencies: vec!["no-abort".to_string()],
-                ty: claim_type,
-                name: format!("game-invariant!{}!", gctx.game_inst_name(),),
+                ty,
+                name: name.to_string(),
             })
-        } else {
-            None
         }
-    }
 
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
-        let mut claims = vec![];
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftPackageInvariant,
-        ));
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightPackageInvariant,
-        ));
-
-        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftGameInvariant,
-        ) {
-            claims.push(claim);
-        }
-        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightGameInvariant,
-        ) {
-            claims.push(claim);
-        }
-        claims
+        self.eqctx
+            .left_invariants()
+            .iter()
+            .filter_map(|stmt| match stmt.sort {
+                SmtStatementSort::PackageInvariant => {
+                    new_claim(ClaimType::LeftPackageInvariant, &stmt.name)
+                }
+                SmtStatementSort::GameInvariant => {
+                    new_claim(ClaimType::LeftGameInvariant, &stmt.name)
+                }
+                _ => None,
+            })
+            .chain(
+                self.eqctx
+                    .right_invariants()
+                    .iter()
+                    .filter_map(|stmt| match stmt.sort {
+                        SmtStatementSort::PackageInvariant => {
+                            new_claim(ClaimType::RightPackageInvariant, &stmt.name)
+                        }
+                        SmtStatementSort::GameInvariant => {
+                            new_claim(ClaimType::RightGameInvariant, &stmt.name)
+                        }
+                        _ => None,
+                    }),
+            )
+            .collect()
     }
 
     fn verify_oracle<UI: TheoremUI + Send>(
