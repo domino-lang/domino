@@ -61,12 +61,12 @@
             )
             (forall 
                 (
-                    (r Bits_kencr)
+                    (rand Bits_kencr)
                 )
                 (let
                     (
-                        (k (el2-1 (<<func-kem_encaps>> r pk)))
-                        (ek (el2-2 (<<func-kem_encaps>> r pk)))
+                        (k (el2-1 (<<func-kem_encaps>> rand pk)))
+                        (ek (el2-2 (<<func-kem_encaps>> rand pk)))
                     )
                     (= k (<<func-kem_decaps>> sk ek))
                 )
