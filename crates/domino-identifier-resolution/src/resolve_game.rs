@@ -384,6 +384,12 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             crate::fail_resolution!(self, ty, err, game_type_names);
         };
 
+        self.info
+            .as_mut()
+            .expect("game info not set")
+            .type_params
+            .insert(ident_name.to_string(), ty);
+
         self.tables
             .game_type_names
             .set(ty, GameTypeResolution::TypeParam(ty));
@@ -413,6 +419,12 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
 
             crate::fail_resolution!(self, decl.name, err, game_const_value_names);
         };
+
+        self.info
+            .as_mut()
+            .expect("game info not set")
+            .const_params
+            .insert(name.to_string(), node);
 
         self.tables
             .game_const_value_names
