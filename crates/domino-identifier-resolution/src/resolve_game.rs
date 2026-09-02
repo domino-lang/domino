@@ -80,14 +80,6 @@ enum Position {
 }
 
 impl Position {
-    fn pkg_inst_mut(&mut self) -> Option<&mut PackageInstanceInfo> {
-        if let Position::PackageInstance(ref mut pkg_inst_info) = self {
-            Some(pkg_inst_info)
-        } else {
-            None
-        }
-    }
-
     fn replace_with(&mut self, mut new_position: Self) -> Self {
         core::mem::swap(self, &mut new_position);
         new_position
