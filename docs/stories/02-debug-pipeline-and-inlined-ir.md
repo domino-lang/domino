@@ -361,3 +361,29 @@ Stories 03 and 05 will rely on:
 
 Record here anything you had to decide that is not written above (e.g. how you handled
 `Pattern::Table` targets inside inlined frames, or comment/`SourceSpan` quirks).
+
+---
+
+## 8. Implemented — see `02-debug-pipeline-and-inlined-ir-IMPLEMENTATION-REPORT.md`
+
+**Status: done (uncommitted).** Full handover in that report; the decisions the section above
+asked for, in brief:
+
+1. **`Place` gained a `Tuple(Vec<Place>)` variant.** Tuple patterns reach the IR via
+   `deconstructinvoke`'s `(a,b) <- _invoke-result-N` second statement (an `AssignmentRhs::Expression`,
+   not an invoke). The AST has no tuple-projection expr to desugar into, so `Place::Tuple` it is.
+   Story 05: eval RHS to a tuple, bind component-wise.
+2. **`assert (c)` renders as one line**; its `InlStmt::Branch { is_assert: true }` has
+   `els = [Abort { label }]` sharing the assert's label, with a single `SiteInfo` (kind `Assert`).
+   So the "one `InlStmt` per `sites` key" invariant holds for assert-free oracles only; the
+   acceptance test scopes itself to `hello-world` accordingly.
+3. `Pattern::Table` target → `Place::Index { base: <Local|State>, index: <rewritten> }`.
+4. Per-frame **argument-binding lines are unlabelled** (they live in `FrameInfo.arg_bindings`);
+   they render with bare param names, RHS in the caller's namespace.
+5. `Expression::map` still `panic!`s on `Neg/Inv/Pow/Mod/Concat/Sum/Prod/Any/All/Union/Cut/SetDiff`
+   (pre-existing, shared with `unwrapify`); no corpus project hits it.
+6. `SiteInfo.span` is the raw `Statement::file_pos()` — points into the package source, not remapped.
+7. Text renderer (`render_expr`/`render_type`/`ident_repr`/`resolve_const`/…) is a near-verbatim
+   port of `amir/ty-params-features:src/inline.rs`, kept as free fns in `src/debug/ir.rs`.
+8. Entry-oracle args are frame-`0` locals keyed `"{entry_pkg_inst}#0::{arg_name}"`;
+   `InlinedOracle.args` keeps the bare signature pairs.

@@ -46,7 +46,10 @@ impl super::TheoremTransform for EquivalenceTransform {
         &self,
         theorem: &'a crate::theorem::Theorem<'a>,
     ) -> Result<(crate::theorem::Theorem<'a>, Self::Aux), Self::Err> {
-        let results = theorem.instances.iter().map(transform_game_inst);
+        let results = theorem
+            .instances
+            .iter()
+            .map(|game_inst| transform_game_inst_common(game_inst, true));
         let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
         let theorem = theorem.with_new_instances(instances);
 
@@ -54,8 +57,48 @@ impl super::TheoremTransform for EquivalenceTransform {
     }
 }
 
-fn transform_game_inst(
+/// Like [`EquivalenceTransform`], but prepares game instances for the
+/// symbolic-execution debugger (`domino debug` / `domino inline`) instead of the
+/// monolithic SMT writer.
+///
+/// It runs the exact same pipeline as [`EquivalenceTransform`] **minus
+/// `treeify`**: `treeify` only exists so the SMT writer can emit `ite` by pushing
+/// every statement that follows an `if` into both branches. For symbolic
+/// execution that duplication is harmful — it multiplies the number of syntactic
+/// paths and breaks the 1:1 relationship between a source statement and an IR
+/// statement that the debugger's line labels depend on.
+///
+/// The `Aux` type is identical to [`EquivalenceTransform`]'s so downstream
+/// consumers (`EquivalenceContext::new`, every `emit_*` in
+/// `writers::smt::contexts::equivalence::emit`) keep working unchanged.
+pub struct DebugTransform;
+
+impl super::TheoremTransform for DebugTransform {
+    type Err = EquivalenceTransformError;
+
+    type Aux = Vec<(String, GameInstAux)>;
+
+    fn transform_theorem<'a>(
+        &self,
+        theorem: &'a crate::theorem::Theorem<'a>,
+    ) -> Result<(crate::theorem::Theorem<'a>, Self::Aux), Self::Err> {
+        let results = theorem
+            .instances
+            .iter()
+            .map(|game_inst| transform_game_inst_common(game_inst, false));
+        let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
+        let theorem = theorem.with_new_instances(instances);
+
+        Ok((theorem, auxs))
+    }
+}
+
+/// Shared pipeline for [`EquivalenceTransform`] (`run_treeify = true`) and
+/// [`DebugTransform`] (`run_treeify = false`). The two must never drift, so the
+/// only difference between them lives here.
+fn transform_game_inst_common(
     game_inst: &GameInstance,
+    run_treeify: bool,
 ) -> Result<(GameInstance, (String, GameInstAux)), EquivalenceTransformError> {
     let comp = game_inst.game();
 
@@ -101,9 +144,14 @@ fn transform_game_inst(
     let (comp, _) = returnify::TransformNg
         .transform_game(&comp)
         .expect("returnify transformation failed unexpectedly");
-    let (comp, _) = treeify::Transformation(&comp)
-        .transform()
-        .expect("treeify transformation failed unexpectedly");
+    let comp = if run_treeify {
+        treeify::Transformation(&comp)
+            .transform()
+            .expect("treeify transformation failed unexpectedly")
+            .0
+    } else {
+        comp
+    };
     let (comp, _) = tableinitialize::Transformation(&comp)
         .transform()
         .expect("tableinitialize transformation failed unexpectedly");
