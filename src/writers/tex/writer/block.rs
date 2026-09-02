@@ -85,6 +85,12 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ExpressionKind::Bot => "\\bot".to_string(),
             ExpressionKind::IntegerLiteral(val) => format!("{val}"),
             ExpressionKind::BooleanLiteral(val) => format!("\\lit{{{val}}}"),
+            ExpressionKind::BitsLiteral(val, ty) => {
+                let TypeKind::Bits(n) = ty.kind() else {
+                    unreachable!("bits literals always have Bits type")
+                };
+                format!("\\lit{{{val}^{}}}", self.countspec_to_tex(n))
+            }
             ExpressionKind::Identifier(ident) => util::ident_to_tex(ident),
             ExpressionKind::Not(expr) if matches!(expr.kind(), ExpressionKind::Equals(exprs) if exprs.len() == 2) => {
                 if let ExpressionKind::Equals(exprs) = expr.kind() {
