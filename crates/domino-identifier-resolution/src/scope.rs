@@ -76,6 +76,11 @@ impl<Decl: Declaration> Scope<Decl> {
         self.0.pop();
     }
 
+    /// Check whether a name is defined in the base (builtins) frame.
+    pub(crate) fn is_builtin(&self, name: &str) -> bool {
+        self.0.first().unwrap().has(name)
+    }
+
     pub(crate) fn declare(&mut self, name: &str, decl: Decl) -> Option<&Decl> {
         debug_assert!(is_identifier(name));
 

@@ -92,7 +92,6 @@ impl Position {
 
 pub struct GameVisitor<'arena, 'res> {
     // inputs: read only
-    packages: &'res HashMap<&'arena str, PackageInfo>,
     locations: &'arena LocationTable,
 
     // outputs: this is what is being populated
@@ -113,11 +112,25 @@ impl<'arena, 'res> GameVisitor<'arena, 'res> {
         info: &'arena mut Option<GameInfo>,
         packages: &'res HashMap<&'arena str, PackageInfo>,
     ) -> Self {
-        let scope = Scope::new();
+        let mut scope = Scope::new();
+
+        // Frame 1: imported packages
+        scope.enter();
+        for (name, pkg_info) in packages {
+            // Safe to assert: declare_package in resolve_package.rs already rejects
+            // package names that collide with builtins, so no collision can occur here.
+            assert!(
+                scope.declare(name, GameDeclaration::Package(pkg_info)).is_none(),
+                "package `{name}` collides with an existing declaration"
+            );
+        }
+
+        // Frame 2: game's own declarations (type params, consts, instances)
+        scope.enter();
+
         let position = Position::TopLevel;
 
         Self {
-            packages,
             locations,
             diagnostics,
             tables,
@@ -128,7 +141,7 @@ impl<'arena, 'res> GameVisitor<'arena, 'res> {
     }
 }
 
-impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
+impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game(&mut self, arenas: &domino_ast::Arenas, node: domino_ast::arena::Ref<game::Game>) {
         let game = arenas.game.get(node);
 
@@ -347,6 +360,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for GameVisitor<'a, 'res> {
 impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
     fn declare_game(&mut self, arenas: &Arenas, decl_ref: Ref<game::Game>) {
         let game = arenas.game.get(decl_ref);
+        let name = get_text(game.name, self.locations, &arenas.source);
 
         *self.info = Some(GameInfo {
             game: decl_ref,
@@ -355,6 +369,19 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             type_params: Default::default(),
             instances: Default::default(),
         });
+
+        if self.scope.is_builtin(name) {
+            let dx = domino_diagnostic::Resolver {
+                arenas,
+                locations: self.locations,
+            };
+            crate::fail_resolution!(
+                self,
+                game.name,
+                diag::CantRedefineBuiltin::new(dx, game.name),
+                game_names
+            );
+        }
 
         self.tables
             .game_names
@@ -504,8 +531,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
 
                 let pkg_name = get_text(pkg_name, self.locations, &arenas.source);
 
-                self.packages
-                    .get(&pkg_name)
+                self.lookup_package_info(pkg_name)
                     .expect("looking up a resolved package should have succeeded")
             }
             PackageResolution::Error(diag) => return Err(diag),
@@ -589,6 +615,13 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         self.tables.game_type_arg_names.set(node, resolution);
     }
 
+    fn lookup_package_info(&self, name: &str) -> Option<&'res PackageInfo> {
+        match self.scope.lookup(name) {
+            Some(GameDeclaration::Package(info)) => Some(info),
+            _ => None,
+        }
+    }
+
     fn resolve_pkg(&mut self, arenas: &Arenas, node: Ref<identifier::PackageIdentifier>) {
         let dx = domino_diagnostic::Resolver {
             arenas,
@@ -596,18 +629,28 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         };
 
         let name = get_text(node, self.locations, &arenas.source);
-        let Some(pkg_info) = self.packages.get(name) else {
-            crate::fail_resolution!(
-                self,
-                node,
-                diag::UndefinedIdentifier::new(dx, node),
-                pkg_names
-            );
+
+        let resolution = match self.scope.lookup(name) {
+            Some(GameDeclaration::Package(pkg_info)) => PackageResolution::Package(pkg_info.pkg),
+            None => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::UndefinedIdentifier::new(dx, node),
+                    pkg_names
+                );
+            }
+            Some(_) => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::UndefinedIdentifier::new(dx, node),
+                    pkg_names
+                );
+            }
         };
 
-        self.tables
-            .pkg_names
-            .set(node, PackageResolution::Package(pkg_info.pkg));
+        self.tables.pkg_names.set(node, resolution);
     }
 
     fn resolve_pkg_inst(
@@ -687,8 +730,8 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             &arenas.source,
         );
 
-        let Some(pkg) = self.packages.get(pkg_name) else {
-            // We do not traverse instantiation code if the pacAge can not be resolved, so we only
+        let Some(pkg) = self.lookup_package_info(pkg_name) else {
+            // We do not traverse instantiation code if the package can not be resolved, so we only
             // should end up here if that failed.
             unreachable!();
         };
@@ -737,8 +780,8 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             &arenas.source,
         );
 
-        let Some(pkg) = self.packages.get(pkg_name) else {
-            // We do not traverse instantiation code if the pacAge can not be resolved, so we only
+        let Some(pkg) = self.lookup_package_info(pkg_name) else {
+            // We do not traverse instantiation code if the package can not be resolved, so we only
             // should end up here if that failed.
             unreachable!();
         };
@@ -774,11 +817,10 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         let pkg_name = get_text(pkg_inst.instantiated_name, self.locations, &arenas.source);
         // SAFETY: The indexing is fine, because we only put a package name into a
         //         PackageInstanceInfo if it exists, so we can assume it is set.
-        let Some(oracle) = self.packages[pkg_name]
-            .oracle_definitions
-            .get(oracle_name)
-            .copied()
-        else {
+        let pkg = self
+            .lookup_package_info(pkg_name)
+            .expect("resolved package should be in scope");
+        let Some(oracle) = pkg.oracle_definitions.get(oracle_name).copied() else {
             // TODO: maybe use a more specific diagnostic here
             crate::fail_resolution!(
                 self,
@@ -814,11 +856,10 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         let pkg_name = get_text(pkg_inst.instantiated_name, self.locations, &arenas.source);
         // SAFETY: The indexing is fine, because we only put a package name into a
         //         PackageInstanceInfo if it exists, so we can assume it is set.
-        let Some(oracle) = self.packages[pkg_name]
-            .oracle_imports
-            .get(oracle_name)
-            .copied()
-        else {
+        let pkg = self
+            .lookup_package_info(pkg_name)
+            .expect("resolved package should be in scope");
+        let Some(oracle) = pkg.oracle_imports.get(oracle_name).copied() else {
             // TODO: maybe use a more specific diagnostic here
             crate::fail_resolution!(
                 self,

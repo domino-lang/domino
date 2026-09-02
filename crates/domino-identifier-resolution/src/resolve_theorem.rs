@@ -104,7 +104,6 @@ impl Position {
 
 pub struct TheoremVisitor<'arena, 'res> {
     // inputs: read only
-    games: &'res HashMap<&'arena str, GameInfo>,
     packages: &'res HashMap<&'arena str, PackageInfo>,
     locations: &'arena LocationTable,
 
@@ -127,11 +126,25 @@ impl<'arena, 'res> TheoremVisitor<'arena, 'res> {
         games: &'res HashMap<&'arena str, GameInfo>,
         packages: &'res HashMap<&'arena str, PackageInfo>,
     ) -> Self {
-        let scope = Scope::new();
+        let mut scope = Scope::new();
+
+        // Frame 1: imported games
+        scope.enter();
+        for (name, game_info) in games {
+            // Safe to assert: declare_game in resolve_game.rs already rejects
+            // game names that collide with builtins, so no collision can occur here.
+            assert!(
+                scope.declare(name, TheoremDeclaration::Game(game_info)).is_none(),
+                "game `{name}` collides with an existing declaration"
+            );
+        }
+
+        // Frame 2: theorem's own declarations (consts, game instances, assumptions)
+        scope.enter();
+
         let position = Position::TopLevel;
 
         Self {
-            games,
             packages,
             locations,
             diagnostics,
@@ -471,6 +484,7 @@ impl<'a, 'res: 'a> domino_ast::Visitor for TheoremVisitor<'a, 'res> {
 impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
     fn declare_theorem(&mut self, arenas: &Arenas, decl_ref: Ref<theorem::Theorem>) {
         let thm = arenas.thm.get(decl_ref);
+        let name = get_text(thm.name, self.locations, &arenas.source);
 
         *self.info = Some(TheoremInfo {
             theorem: decl_ref,
@@ -479,6 +493,19 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             instances: Default::default(),
             assumptions: Default::default(),
         });
+
+        if self.scope.is_builtin(name) {
+            let dx = domino_diagnostic::Resolver {
+                arenas,
+                locations: self.locations,
+            };
+            crate::fail_resolution!(
+                self,
+                thm.name,
+                diag::CantRedefineBuiltin::new(dx, thm.name),
+                theorem_names
+            );
+        }
 
         self.tables
             .theorem_names
@@ -665,8 +692,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             GameResolution::Game(_) => {
                 let game_name = get_text(game_name_ref, self.locations, &arenas.source);
 
-                self.games
-                    .get(&game_name)
+                self.lookup_game_info(game_name)
                     .expect("looking up a resolved game should have succeeded")
             }
             GameResolution::Error(diag) => return Err(diag),
@@ -747,6 +773,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         self.tables.theorem_type_arg_names.set(node, resolution);
     }
 
+    fn lookup_game_info(&self, name: &str) -> Option<&'res GameInfo> {
+        match self.scope.lookup(name) {
+            Some(TheoremDeclaration::Game(info)) => Some(info),
+            _ => None,
+        }
+    }
+
     fn resolve_game(&mut self, arenas: &Arenas, node: Ref<identifier::GameIdentifier>) {
         let dx = domino_diagnostic::Resolver {
             arenas,
@@ -754,18 +787,28 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         };
 
         let name = get_text(node, self.locations, &arenas.source);
-        let Some(game_info) = self.games.get(name) else {
-            crate::fail_resolution!(
-                self,
-                node,
-                diag::UndefinedIdentifier::new(dx, node),
-                game_names
-            );
+
+        let resolution = match self.scope.lookup(name) {
+            Some(TheoremDeclaration::Game(game_info)) => GameResolution::Game(game_info.game),
+            None => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::UndefinedIdentifier::new(dx, node),
+                    game_names
+                );
+            }
+            Some(_) => {
+                crate::fail_resolution!(
+                    self,
+                    node,
+                    diag::UndefinedIdentifier::new(dx, node),
+                    game_names
+                );
+            }
         };
 
-        self.tables
-            .game_names
-            .set(node, GameResolution::Game(game_info.game));
+        self.tables.game_names.set(node, resolution);
     }
 
     fn resolve_game_inst(
@@ -948,7 +991,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             &arenas.source,
         );
 
-        let Some(game) = self.games.get(game_name) else {
+        let Some(game) = self.lookup_game_info(game_name) else {
             unreachable!();
         };
 
@@ -994,7 +1037,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             &arenas.source,
         );
 
-        let Some(game) = self.games.get(game_name) else {
+        let Some(game) = self.lookup_game_info(game_name) else {
             unreachable!();
         };
 
@@ -1027,7 +1070,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         let inst = arenas.thm_inst_block.get(game_inst_ref);
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
 
-        let Some(game_info) = self.games.get(game_name) else {
+        let Some(game_info) = self.lookup_game_info(game_name) else {
             crate::fail_resolution!(
                 self,
                 node,
@@ -1076,7 +1119,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
         let oracle_name = self.get_text(arenas, node);
 
-        let Some(game_info) = self.games.get(game_name) else {
+        let Some(game_info) = self.lookup_game_info(game_name) else {
             crate::fail_resolution!(
                 self,
                 node,
@@ -1128,7 +1171,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
         let oracle_name = self.get_text(arenas, node);
 
-        let Some(game_info) = self.games.get(game_name) else {
+        let Some(game_info) = self.lookup_game_info(game_name) else {
             crate::fail_resolution!(
                 self,
                 node,
@@ -1233,7 +1276,9 @@ impl crate::Declaration for TheoremDeclaration<'_> {
             TheoremDeclaration::BuiltinValue(BuiltinValue::True) => DeclarationType::PureValue,
             TheoremDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
             TheoremDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
-            TheoremDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => DeclarationType::PureValue,
+            TheoremDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => {
+                DeclarationType::PureValue
+            }
             TheoremDeclaration::TheoremConst(_) => DeclarationType::PureValue,
 
             TheoremDeclaration::BuiltinValue(BuiltinValue::Some) => DeclarationType::Value,

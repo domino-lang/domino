@@ -270,7 +270,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn package(&mut self, arenas: &Arenas, node: Ref<package::Package>) {
         let package = arenas.package.get(node);
 
-        self.declare_package(node, *package);
+        self.declare_package(arenas, node, *package);
 
         self.scope.enter();
         self.pkg_item_list(arenas, package.items);
@@ -484,8 +484,23 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 }
 
 impl<'a> PackageVisitor<'a> {
-    fn declare_package(&mut self, node: Ref<package::Package>, package: package::Package) {
+    fn declare_package(&mut self, arenas: &Arenas, node: Ref<package::Package>, package: package::Package) {
+        let name = get_text(package.name, self.locations, &arenas.source);
+
         *self.info = Some(PackageInfo::new(node, package.name));
+
+        if self.scope.is_builtin(name) {
+            let dx = Resolver {
+                arenas,
+                locations: self.locations,
+            };
+            crate::fail_resolution!(
+                self,
+                package.name,
+                diag::CantRedefineBuiltin::new(dx, package.name),
+                pkg_names
+            );
+        }
         self.tables
             .pkg_names
             .set(package.name, resolutions::PackageResolution::Package(node));
