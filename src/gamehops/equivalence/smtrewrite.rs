@@ -23,19 +23,51 @@ pub struct CustomSmtWarning {
     pub expr: SmtExpr,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum SmtStatementKind {
-    StateRelation,
-    GeneralRelation,
-    PackageInvariant,
-    GameInvariant,
-    Function,
+    StateRelation {
+        name: String,
+    },
+    GeneralRelation {
+        name: String,
+    },
+    PackageInvariant {
+        name: String,
+        package: String,
+        game: String,
+    },
+    GameInvariant {
+        name: String,
+        game: String,
+    },
+    Function {
+        name: String,
+    },
     Other,
+}
+
+impl SmtStatementKind {
+    pub fn name(&self) -> String {
+        match self {
+            SmtStatementKind::StateRelation { name }
+            | SmtStatementKind::Function { name }
+            | SmtStatementKind::GeneralRelation { name } => name.to_string(),
+            SmtStatementKind::GameInvariant { name, game } => {
+                format!("game-invariant!{name}!{game}!")
+            }
+            SmtStatementKind::PackageInvariant {
+                name,
+                package,
+                game,
+            } => format!("package-invariant!{name}!{game}-{package}!"),
+            SmtStatementKind::Other => String::new(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct SmtStmt {
-    pub sort: SmtStatementKind,
+    pub kind: SmtStatementKind,
     pub expr: SmtExpr,
 }
 
@@ -60,7 +92,7 @@ impl From<SmtExpr> for SmtStmt {
         );
 
         SmtStmt {
-            sort: SmtStatementKind::Other,
+            kind: SmtStatementKind::Other,
             expr: value,
         }
     }
@@ -220,12 +252,14 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let expr = ("define-fun", funname, args, ty, body).into();
 
         Ok(SmtStmt {
-            sort: SmtStatementKind::Function,
+            kind: SmtStatementKind::Function {
+                name: funname.to_string(),
+            },
             expr,
         })
     }
 
-    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtStmt> {
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
         if self.game.is_none() {
             return Err(Error::RewriteNeedsGameContext {
                 defn: format!("(define-game-invariant {body})"),
@@ -257,9 +291,14 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         }
         .into();
 
+        let kind = SmtStatementKind::GameInvariant {
+            name: invname.to_string(),
+            game: self.game.unwrap().name().to_string(),
+        };
+
         let expr = (
             "define-fun",
-            &format!("game-invariant!{}!", self.game.unwrap().name()),
+            &kind.name(),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -270,13 +309,10 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         )
             .into();
 
-        Ok(SmtStmt {
-            sort: SmtStatementKind::GameInvariant,
-            expr,
-        })
+        Ok(SmtStmt { kind, expr })
     }
 
-    fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtStmt> {
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
         if self.game.is_none() || self.package.is_none() {
             return Err(Error::RewriteNeedsPackageContext {
                 defn: format!("(define-package-invariant {body})"),
@@ -303,13 +339,15 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         }
         .into();
 
+        let kind = SmtStatementKind::PackageInvariant {
+            name: invname.to_string(),
+            package: self.package.unwrap().name().to_string(),
+            game: self.game.unwrap().name().to_string(),
+        };
+
         let expr = (
             "define-fun",
-            &format!(
-                "package-invariant!{}-{}!",
-                self.game.unwrap().name(),
-                self.package.unwrap().name()
-            ),
+            &kind.name(),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -320,10 +358,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         )
             .into();
 
-        Ok(SmtStmt {
-            sort: SmtStatementKind::PackageInvariant,
-            expr,
-        })
+        Ok(SmtStmt { kind, expr })
     }
 
     fn handle_define_state_relation(
@@ -417,7 +452,9 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             .into();
 
         Ok(SmtStmt {
-            sort: SmtStatementKind::StateRelation,
+            kind: SmtStatementKind::StateRelation {
+                name: funname.to_string(),
+            },
             expr,
         })
     }
@@ -607,7 +644,9 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let expr = ("define-fun", funname, newargs, "Bool", bindreturn).into();
 
         Ok(SmtStmt {
-            sort: SmtStatementKind::GeneralRelation,
+            kind: SmtStatementKind::GeneralRelation {
+                name: funname.to_string(),
+            },
             expr,
         })
     }
