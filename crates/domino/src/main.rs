@@ -218,8 +218,9 @@ fn debug(d: &Debug) -> Result<(), Error> {
     )?;
 
     print!("{}", render_tree(&run));
+    println!("\nsummary: {}/summary.txt", run.out_dir);
     if !run.admitted {
-        println!("\nviewer: {}/index.html", run.out_dir);
+        println!("viewer: {}/index.html", run.out_dir);
         if !matches!(opts.smt_out, SmtOut::None) {
             println!("smt: {}/smt/", run.out_dir);
         }

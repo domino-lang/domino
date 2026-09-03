@@ -14,9 +14,11 @@
 //! [`DebugRun`](crate::debug::driver::DebugRun) uses `BTreeMap` for its site
 //! maps, and the absolute `out_dir` is `#[serde(skip)]`ped.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use crate::debug::driver::DebugRun;
+use crate::debug::driver::{DebugRun, StepView, StopReason, TerminalView, Verdict};
 
 /// Write `trace.json` into `out_dir`. Returns the path written.
 pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
@@ -28,18 +30,21 @@ pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathB
     Ok(path)
 }
 
-/// Write both `trace.json` and `index.html` for the run so far.
+/// Write `trace.json`, `index.html` and `summary.txt` for the run so far.
 ///
 /// Called after every left path (story 09's incremental flush, so a `Ctrl-C` or
 /// `--max-paths` leaves a usable partial trace + viewer) and once at the end.
-/// Both files truncate-write, so an intermediate flush is simply overwritten by
-/// the next one; the *final* bytes are byte-identical to a single end-of-run
-/// write (story 07's determinism guarantee — no timestamps enter `DebugRun`).
+/// All files truncate-write, so an intermediate flush is simply overwritten by
+/// the next one; the *final* `trace.json` / `index.html` bytes are byte-identical
+/// to a single end-of-run write (story 07's determinism guarantee — no
+/// timestamps enter `DebugRun`). `summary.txt` is **excluded** from that
+/// guarantee: it carries `elapsed` (story 12).
 /// Errors are surfaced: a failing flush is a real problem (out of disk, bad
 /// path).
-pub fn flush(run: &DebugRun, out_dir: &Path) -> std::io::Result<()> {
+pub fn flush(run: &DebugRun, elapsed: Duration, out_dir: &Path) -> std::io::Result<()> {
     write_trace_json(run, out_dir)?;
     write_html(run, out_dir)?;
+    write_summary(run, elapsed, out_dir)?;
     Ok(())
 }
 
@@ -51,6 +56,212 @@ pub fn write_html(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
         .map_err(std::io::Error::other)?;
     std::fs::write(&path, render_html(&json))?;
     Ok(path)
+}
+
+/// Write the concise run report to `<out_dir>/summary.txt` (story 12).
+///
+/// This is the file that answers "did it finish, and what did it find?" without
+/// scrolling back through a thousand-line `render_tree` dump. It is rewritten on
+/// every [`flush`] (once per left path) so an interrupted run still has a current
+/// summary.
+///
+/// Unlike `trace.json` / `index.html` this file is **not** byte-deterministic:
+/// it carries the wall-clock `elapsed` line. Everything else on it is a function
+/// of `run` alone, so two identical runs produce a `summary.txt` that differs
+/// only in that one line.
+pub fn write_summary(
+    run: &DebugRun,
+    elapsed: Duration,
+    out_dir: &Path,
+) -> std::io::Result<PathBuf> {
+    let path = out_dir.join("summary.txt");
+    std::fs::write(&path, render_summary(run, elapsed))?;
+    Ok(path)
+}
+
+/// `1h 02m 03s` / `2m 04s` / `4.3s` / `0.2s`.
+fn format_elapsed(d: Duration) -> String {
+    let total = d.as_secs();
+    if total >= 3600 {
+        format!("{}h {:02}m {:02}s", total / 3600, (total % 3600) / 60, total % 60)
+    } else if total >= 60 {
+        format!("{}m {:02}s", total / 60, total % 60)
+    } else {
+        format!("{:.1}s", d.as_secs_f64())
+    }
+}
+
+/// `L14 else → L20 then → L36 return` — the branch decisions that pin this path,
+/// then the terminal. `assert-holds` / `unwrap-some` steps are dropped: they are
+/// the *non*-events (the assert passed, the value was present), so a chain of
+/// them adds width without telling you where the two sides diverged.
+fn chain_str(steps: &[StepView], terminal: &TerminalView) -> String {
+    let mut parts: Vec<String> = steps
+        .iter()
+        .filter(|s| !matches!(s.decision.as_str(), "assert-holds" | "unwrap-some"))
+        .map(|s| format!("L{} {}", s.label, s.decision))
+        .collect();
+    parts.push(format!(
+        "L{} {}",
+        terminal.label,
+        if terminal.is_abort { "abort" } else { "return" }
+    ));
+    parts.join(" → ")
+}
+
+fn render_summary(run: &DebugRun, elapsed: Duration) -> String {
+    let o = &run.options;
+    let mut s = String::new();
+
+    // ---- header block -----------------------------------------------------
+    s.push_str("domino debug — summary\n");
+    s.push_str("======================\n");
+    let _ = writeln!(s, "{:<14}{}, proofstep {}", "theorem", run.theorem, run.proofstep);
+    let _ = writeln!(s, "{:<14}{}  ==  {}", "games", run.left_game, run.right_game);
+    let _ = writeln!(s, "{:<14}{}", "oracle", run.oracle);
+    let _ = writeln!(s, "{:<14}{}", "claim", run.claim);
+    let _ = writeln!(
+        s,
+        "{:<14}check-left={} check-right={} timeout={} max-paths={} jobs=1 smt={}",
+        "options",
+        if o.check_left { "on" } else { "off" },
+        if o.check_right { "on" } else { "off" },
+        match o.timeout_ms {
+            Some(ms) => format!("{ms}ms"),
+            None => "none".to_string(),
+        },
+        match o.max_paths {
+            Some(n) => n.to_string(),
+            None => "unlimited".to_string(),
+        },
+        o.smt.as_str(),
+    );
+    s.push('\n');
+
+    // ---- status ---------------------------------------------------------
+    let status = if run.admitted {
+        "ADMITTED — nothing to check".to_string()
+    } else if !run.partial() {
+        "COMPLETE — all paths explored".to_string()
+    } else {
+        match run.stop_reason {
+            StopReason::Interrupted => "STOPPED EARLY (interrupted by Ctrl-C)".to_string(),
+            StopReason::MaxPaths { limit } => {
+                format!("STOPPED EARLY (--max-paths {limit} reached)")
+            }
+            StopReason::Completed => "COMPLETE — all paths explored".to_string(),
+        }
+    };
+    let _ = writeln!(s, "{:<14}{}", "status", status);
+    let _ = writeln!(s, "{:<14}{}", "elapsed", format_elapsed(elapsed));
+
+    if run.admitted {
+        return s;
+    }
+
+    let sm = &run.summary;
+
+    // ---- paths ---------------------------------------------------------
+    s.push_str("\npaths\n");
+    let of_syntactic = if run.left_syntactic > 0 {
+        format!(" of {} syntactic", run.left_syntactic)
+    } else {
+        String::new()
+    };
+    let left_note = if sm.left_pruned > 0 {
+        format!("   ({} unreachable, pruned at its terminal)", sm.left_pruned)
+    } else {
+        String::new()
+    };
+    let _ = writeln!(
+        s,
+        "  {:<13}{} explored{}{}",
+        "left", sm.left_paths, of_syntactic, left_note
+    );
+    let right_note = if sm.right_pruned_branches > 0 {
+        format!("   ({} branches pruned)", sm.right_pruned_branches)
+    } else {
+        String::new()
+    };
+    let _ = writeln!(s, "  {:<13}{} explored{}", "right", sm.right_paths, right_note);
+    let _ = writeln!(
+        s,
+        "  {:<13}{} left / {} right pruned as unreachable",
+        "branches", sm.left_pruned_branches, sm.right_pruned_branches
+    );
+    let _ = writeln!(s, "  {:<13}{} checked", "pairs", sm.right_paths);
+
+    // ---- verdicts ----------------------------------------------------
+    s.push_str("\nverdicts\n");
+    let _ = writeln!(s, "  {:<14}{}", "verified", sm.verified);
+    let _ = writeln!(s, "  {:<14}{}", "unreachable", sm.unreachable);
+    let _ = writeln!(s, "  {:<14}{}", "GOAL FAILS", sm.goal_fails);
+    let _ = writeln!(s, "  {:<14}{}", "inconclusive", sm.inconclusive);
+
+    // ---- failing / inconclusive pairs --------------------------------
+    let mut goal_fails: Vec<(String, String, Option<String>)> = Vec::new();
+    let mut inconclusive: Vec<(String, String, Option<String>)> = Vec::new();
+    for lp in &run.left_paths {
+        for rp in &lp.right_paths {
+            let chain = chain_str(&rp.steps, &rp.terminal);
+            match &rp.verdict {
+                Verdict::GoalFails { model } => {
+                    goal_fails.push((rp.id.clone(), chain, Some(model.clone())))
+                }
+                Verdict::Inconclusive { model } => {
+                    inconclusive.push((rp.id.clone(), chain, model.clone()))
+                }
+                _ => {}
+            }
+        }
+    }
+    write_pair_block(&mut s, "goal failures", &goal_fails);
+    write_pair_block(&mut s, "inconclusive", &inconclusive);
+
+    // ---- artifacts -------------------------------------------------
+    s.push_str("\nartifacts\n");
+    let mut artifact = |label: &str, target: &str| {
+        let _ = writeln!(s, "  {label:<14}{target}");
+    };
+    artifact("tree", "index.html");
+    artifact("trace", "trace.json");
+    artifact("listing", "inlined.txt");
+    if o.smt.as_str() != "none" {
+        artifact("smt", &format!("smt/            ({})", o.smt.as_str()));
+    }
+    if o.transcript {
+        artifact("transcript", "transcript.smt2");
+    }
+
+    s
+}
+
+/// A `goal failures` / `inconclusive` block: heading, up to 20 entries, then a
+/// `… and N more` line. Nothing at all when the list is empty.
+fn write_pair_block(
+    s: &mut String,
+    heading: &str,
+    entries: &[(String, String, Option<String>)],
+) {
+    if entries.is_empty() {
+        return;
+    }
+    let _ = writeln!(s, "\n{heading}");
+    const CAP: usize = 20;
+    for (id, chain, model) in entries.iter().take(CAP) {
+        let id = format!("#{id}");
+        match model {
+            Some(m) => {
+                let _ = writeln!(s, "  {id:<7} {chain:<40}  {m}");
+            }
+            None => {
+                let _ = writeln!(s, "  {id:<7} {chain}");
+            }
+        }
+    }
+    if entries.len() > CAP {
+        let _ = writeln!(s, "  … and {} more (see index.html)", entries.len() - CAP);
+    }
 }
 
 /// Splice the trace JSON into the static template.
@@ -313,7 +524,16 @@ addChip("unreach", `${s.unreachable} unreachable`);
 addChip(s.goal_fails ? "fail" : "", `${s.goal_fails} goal fails`);
 addChip(s.inconclusive ? "amber" : "", `${s.inconclusive} inconclusive`);
 if (s.sibling_shortcuts) addChip("", `${s.sibling_shortcuts} sibling shortcuts`);
-if (T.partial) addChip("fail", "PARTIAL — exploration stopped early");
+// story 12: `partial: bool` became `stop_reason: {kind, …}`. Read the new shape,
+// fall back to the old flag so a schema-4 trace still renders.
+const stopReason = T.stop_reason || null;
+const partial = stopReason ? stopReason.kind !== "completed" : !!T.partial;
+if (partial) {
+  let why = "";
+  if (stopReason && stopReason.kind === "interrupted") why = " (interrupted by Ctrl-C)";
+  else if (stopReason && stopReason.kind === "max-paths") why = ` (--max-paths ${stopReason.limit} reached)`;
+  addChip("fail", "PARTIAL — exploration stopped early" + why);
+}
 
 // ---- verdict toggles ----------------------------------------------------
 const VERDICTS = ["verified", "unreachable", "goal-fails", "inconclusive", "pruned"];
@@ -591,10 +811,18 @@ applyFilter();
 mod tests {
     use super::*;
     use crate::debug::driver::{
-        DebugRun, LeftPath, OptionsView, PrunedBranch, RightPath, SiteView, StepView, Summary,
-        TerminalView, Verdict, TRACE_SCHEMA,
+        DebugRun, LeftPath, OptionsView, PrunedBranch, RightPath, SiteView, StepView, StopReason,
+        Summary, TerminalView, Verdict, TRACE_SCHEMA,
     };
     use std::collections::BTreeMap;
+    use std::time::Duration;
+
+    fn summary_of(run: &DebugRun, elapsed: Duration) -> String {
+        let dir = tempfile::tempdir().unwrap();
+        let p = write_summary(run, elapsed, dir.path()).unwrap();
+        assert_eq!(p.file_name().unwrap(), "summary.txt");
+        std::fs::read_to_string(&p).unwrap()
+    }
 
     fn synthetic_run(out_dir: &str) -> DebugRun {
         let mut left_sites = BTreeMap::new();
@@ -709,7 +937,8 @@ mod tests {
                 goal_fails: 1,
                 inconclusive: 0,
             },
-            partial: false,
+            left_syntactic: 3,
+            stop_reason: StopReason::Completed,
         }
     }
 
@@ -728,7 +957,7 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 4);
+        assert_eq!(parsed["schema"], 5);
         assert_eq!(parsed["options"]["max_paths"], 1000);
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
         assert_eq!(parsed["summary"]["goal_fails"], 1);
@@ -746,7 +975,7 @@ mod tests {
         let p = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(parsed["schema"], 4);
+        assert_eq!(parsed["schema"], 5);
         assert!(parsed["options"]["max_paths"].is_null());
     }
 
@@ -776,5 +1005,94 @@ mod tests {
         write_html(&synthetic_run("/two"), dir.path()).unwrap();
         let second = std::fs::read_to_string(&a).unwrap();
         assert_eq!(first, second);
+    }
+
+    // ---- story 12: summary.txt -----------------------------------------
+
+    #[test]
+    fn summary_txt_completed_run_shape() {
+        let txt = summary_of(&synthetic_run("/x"), Duration::from_secs(64));
+        assert!(txt.starts_with("domino debug — summary\n======================\n"));
+        assert!(txt.contains("\nstatus        COMPLETE — all paths explored\n"), "{txt}");
+        assert!(txt.contains("\nelapsed       1m 04s\n"), "{txt}");
+        // options line is greppable and stable
+        assert!(
+            txt.contains("options       check-left=off check-right=on timeout=none max-paths=1000 jobs=1 smt=failures\n"),
+            "{txt}"
+        );
+        // verdict counts equal run.summary
+        assert!(txt.contains("  verified      1\n"), "{txt}");
+        assert!(txt.contains("  GOAL FAILS    1\n"), "{txt}");
+        assert!(txt.contains("  inconclusive  0\n"), "{txt}");
+        // the one goal-fail pair is listed with its id + model
+        assert!(txt.contains("goal failures\n"), "{txt}");
+        assert!(txt.contains("#1.2"), "{txt}");
+        assert!(txt.contains("models/1.2.smt2"), "{txt}");
+        // left-path line carries the syntactic denominator
+        assert!(txt.contains("explored of 3 syntactic"), "{txt}");
+        // no empty inconclusive block
+        assert!(!txt.contains("\ninconclusive\n"), "{txt}");
+    }
+
+    #[test]
+    fn summary_txt_stop_reason_status_lines() {
+        let mut run = synthetic_run("/x");
+        run.stop_reason = StopReason::MaxPaths { limit: 20 };
+        assert!(summary_of(&run, Duration::from_secs(1))
+            .contains("status        STOPPED EARLY (--max-paths 20 reached)\n"));
+
+        run.stop_reason = StopReason::Interrupted;
+        assert!(summary_of(&run, Duration::from_secs(1))
+            .contains("status        STOPPED EARLY (interrupted by Ctrl-C)\n"));
+    }
+
+    #[test]
+    fn summary_txt_admitted_is_header_plus_status() {
+        let mut run = synthetic_run("/x");
+        run.admitted = true;
+        let txt = summary_of(&run, Duration::from_secs(1));
+        assert!(txt.contains("status        ADMITTED — nothing to check\n"), "{txt}");
+        assert!(!txt.contains("\nverdicts\n"), "{txt}");
+        assert!(!txt.contains("\npaths\n"), "{txt}");
+    }
+
+    #[test]
+    fn summary_txt_differs_only_in_the_elapsed_line() {
+        let run = synthetic_run("/x");
+        let a = summary_of(&run, Duration::from_secs(3));
+        let b = summary_of(&run, Duration::from_secs(9999));
+        let diffs: Vec<_> = a
+            .lines()
+            .zip(b.lines())
+            .filter(|(x, y)| x != y)
+            .collect();
+        assert_eq!(a.lines().count(), b.lines().count());
+        assert_eq!(diffs.len(), 1, "{diffs:?}");
+        assert!(diffs[0].0.starts_with("elapsed"), "{diffs:?}");
+    }
+
+    #[test]
+    fn summary_txt_goal_fail_ids_match_the_trace() {
+        let dir = tempfile::tempdir().unwrap();
+        let run = synthetic_run("/x");
+        let txt = summary_of(&run, Duration::from_secs(1));
+        let tp = write_trace_json(&run, dir.path()).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&tp).unwrap()).unwrap();
+
+        let mut trace_ids: Vec<String> = Vec::new();
+        for lp in parsed["left_paths"].as_array().unwrap() {
+            for rp in lp["right_paths"].as_array().unwrap() {
+                if rp["verdict"]["kind"] == "goal-fails" {
+                    trace_ids.push(rp["id"].as_str().unwrap().to_string());
+                }
+            }
+        }
+        assert_eq!(trace_ids, vec!["1.2".to_string()]);
+        for id in &trace_ids {
+            assert!(txt.contains(&format!("#{id}")), "summary must list {id}:\n{txt}");
+        }
+        assert_eq!(parsed["stop_reason"]["kind"], "completed");
+        assert!(parsed.get("partial").is_none(), "partial must be gone from trace.json");
     }
 }

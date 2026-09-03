@@ -169,7 +169,36 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 4;
+pub const TRACE_SCHEMA: u32 = 5;
+
+/// Why exploration ended. Serialised into `trace.json` (replacing the old bare
+/// `partial: bool`); `summary.txt` prints the human-readable form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum StopReason {
+    /// Every path the pruner did not cut was explored.
+    Completed,
+    /// `--max-paths <n>` was reached.
+    MaxPaths { limit: usize },
+    /// `Ctrl-C`.
+    Interrupted,
+}
+
+impl StopReason {
+    /// `true` unless the run explored everything it set out to.
+    pub fn is_partial(self) -> bool {
+        !matches!(self, StopReason::Completed)
+    }
+
+    /// One-clause description for `summary.txt` / `render_tree` / the viewer.
+    pub fn phrase(self) -> String {
+        match self {
+            StopReason::Completed => "complete".to_string(),
+            StopReason::MaxPaths { limit } => format!("--max-paths {limit} reached"),
+            StopReason::Interrupted => "interrupted by Ctrl-C".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DebugRun {
@@ -206,9 +235,14 @@ pub struct DebugRun {
     /// reached. Rendered as top-level rows alongside `left_paths`.
     pub left_pruned_branches: Vec<PrunedBranch>,
     pub summary: Summary,
-    /// Exploration stopped early (`--max-paths` or an executor cap). Results are
-    /// partial.
-    pub partial: bool,
+    /// Number of syntactic left terminals (`ir::count_terminals`) — the "of N"
+    /// denominator in `summary.txt`'s left-path line. `0` for an admitted claim.
+    /// Deterministic; safe in `trace.json`.
+    pub left_syntactic: u64,
+    /// Why exploration ended (story 12). Replaces the old `partial: bool` — kept
+    /// at the same field position so the serialised order stays predictable.
+    /// `Completed` unless `--max-paths` fired or a `Ctrl-C` landed.
+    pub stop_reason: StopReason,
 }
 
 /// One fork the solver proved unreachable, so its subtree was never explored.
@@ -385,10 +419,17 @@ pub struct Summary {
 }
 
 impl DebugRun {
+    /// Exploration stopped early (`--max-paths` or `Ctrl-C`) — results are
+    /// partial. Thin accessor over [`StopReason::is_partial`] so the many old
+    /// `run.partial` call sites need only a one-character change.
+    pub fn partial(&self) -> bool {
+        self.stop_reason.is_partial()
+    }
+
     /// Every explored pair is `Verified` or `Unreachable` and exploration
     /// finished. This is the process exit-code criterion.
     pub fn is_ok(&self) -> bool {
-        !self.partial && self.summary.goal_fails == 0 && self.summary.inconclusive == 0
+        !self.partial() && self.summary.goal_fails == 0 && self.summary.inconclusive == 0
     }
 }
 
@@ -417,6 +458,10 @@ where
     P: Project,
     B: SmtSolverBackend,
 {
+    // Wall-clock, for `summary.txt` only — never enters `DebugRun` /
+    // `trace.json` (story 07 determinism).
+    let started = Instant::now();
+
     let theorem = project
         .get_theorem(req_proof)
         .ok_or_else(|| DebugError::TheoremNotFound {
@@ -517,23 +562,27 @@ where
     let right_inl = inline_oracle(right_inst, oracle)?;
 
     // Solver-free syntactic path counts — upper bounds the progress display
-    // shows as `k/N`. Skipped for an admitted claim (nothing between
-    // `Started { admitted }` and `Finished`).
+    // shows as `k/N` and the "of N syntactic" denominator in `summary.txt`.
+    // Skipped for an admitted claim (nothing between `Started { admitted }` and
+    // `Finished`).
+    let (left_syntactic, right_syntactic) = if claim.is_admitted() {
+        (0, 0)
+    } else {
+        (count_terminals(&left_inl), count_terminals(&right_inl))
+    };
     if !claim.is_admitted() {
-        let left_total = count_terminals(&left_inl);
-        let right_total = count_terminals(&right_inl);
         observer.on_event(&DebugEvent::Totals {
-            left_total,
-            right_total,
+            left_total: left_syntactic,
+            right_total: right_syntactic,
         });
         // Story 11 §6: `--smt all` writes one full base frame per pair. Warn
         // once, up front, when that is likely to be large.
-        if opts.smt_out == SmtOut::All && left_total.saturating_mul(right_total) > 50 {
+        if opts.smt_out == SmtOut::All && left_syntactic.saturating_mul(right_syntactic) > 50 {
             eprintln!(
                 "debug: --smt all writes a self-contained copy of the base frame for every \
                  explored pair (up to {} × {} here) — this can be hundreds of MB; consider \
                  --smt failures or --smt deltas",
-                left_total, right_total
+                left_syntactic, right_syntactic
             );
         }
     }
@@ -570,7 +619,8 @@ where
         left_paths: Vec::new(),
         left_pruned_branches: Vec::new(),
         summary: Summary::default(),
-        partial: false,
+        left_syntactic,
+        stop_reason: StopReason::Completed,
     };
 
     if !claim.is_admitted() {
@@ -610,7 +660,7 @@ where
         let solver = RefCell::new(solver);
         explore_paths(
             &solver, &left_inl, &right_inl, left_inst, right_inst, left_si, right_si, opts,
-            &out_dir, &observer, stop, &smt_writer, &goal_negated, &goal_smt, &mut run,
+            &out_dir, &observer, stop, &smt_writer, &goal_negated, &goal_smt, started, &mut run,
         )?;
 
         solver.into_inner().close();
@@ -620,11 +670,11 @@ where
         out_dir.join("inlined.txt"),
         render::side_by_side(&run.left_listing, &run.right_listing),
     )?;
-    report::flush(&run, &out_dir)?;
+    report::flush(&run, started.elapsed(), &out_dir)?;
 
     observer.borrow_mut().on_event(&DebugEvent::Finished {
         summary: run.summary,
-        partial: run.partial,
+        stop_reason: run.stop_reason,
     });
 
     Ok(run)
@@ -676,6 +726,7 @@ fn explore_paths<'o, S: SmtSolver>(
     smt_writer: &SmtWriter,
     goal_negated: &SmtExpr,
     goal_smt: &str,
+    started: Instant,
     run: &mut DebugRun,
 ) -> Result<(), DebugError> {
     let mut left_pruner = SolverPruner::new(
@@ -702,14 +753,16 @@ fn explore_paths<'o, S: SmtSolver>(
 
         let mut on_left = |lp: &TerminalPath| -> ControlFlow<()> {
             if stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
-                run.partial = true;
+                run.stop_reason = StopReason::Interrupted;
                 return ControlFlow::Break(());
             }
             *explored += 1;
             *left_counter += 1;
-            if opts.max_paths.is_some_and(|m| *explored > m) {
-                run.partial = true;
-                return ControlFlow::Break(());
+            if let Some(m) = opts.max_paths {
+                if *explored > m {
+                    run.stop_reason = StopReason::MaxPaths { limit: m };
+                    return ControlFlow::Break(());
+                }
             }
             let index = *left_counter;
             let lid = format!("{index}");
@@ -748,7 +801,7 @@ fn explore_paths<'o, S: SmtSolver>(
                         index,
                         running: run.summary,
                     });
-                    if let Err(e) = report::flush(run, out_dir) {
+                    if let Err(e) = report::flush(run, started.elapsed(), out_dir) {
                         *fatal = Some(DebugError::Io(e));
                         return ControlFlow::Break(());
                     }
@@ -779,7 +832,7 @@ fn explore_paths<'o, S: SmtSolver>(
         }
     }
     if cancelled {
-        run.partial = true;
+        run.stop_reason = StopReason::Interrupted;
     }
 
     if let Some(e) = left_pruner.err.take() {
@@ -885,13 +938,15 @@ fn handle_left_path<'o, S: SmtSolver>(
 
             let mut on_right = |rp: &TerminalPath| -> ControlFlow<()> {
                 if stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
-                    run.partial = true;
+                    run.stop_reason = StopReason::Interrupted;
                     return ControlFlow::Break(());
                 }
                 *explored += 1;
-                if opts.max_paths.is_some_and(|m| *explored > m) {
-                    run.partial = true;
-                    return ControlFlow::Break(());
+                if let Some(m) = opts.max_paths {
+                    if *explored > m {
+                        run.stop_reason = StopReason::MaxPaths { limit: m };
+                        return ControlFlow::Break(());
+                    }
                 }
                 *right_counter += 1;
                 let rid = format!("{lid}.{}", *right_counter);
@@ -936,7 +991,7 @@ fn handle_left_path<'o, S: SmtSolver>(
             }
         }
         if cancelled {
-            run.partial = true;
+            run.stop_reason = StopReason::Interrupted;
         }
 
         if let Some(e) = right_pruner.err.take() {
@@ -1444,10 +1499,13 @@ pub fn render_tree(run: &DebugRun) -> String {
         s.verified,
         s.unreachable,
         s.inconclusive,
-        if run.partial {
-            "\n(PARTIAL: exploration stopped early — results are incomplete)"
+        if run.partial() {
+            format!(
+                "\n(PARTIAL: {} — results are incomplete)",
+                run.stop_reason.phrase()
+            )
         } else {
-            ""
+            String::new()
         },
     );
 
@@ -2082,7 +2140,8 @@ mod tests {
             "same-output",
             opts,
         );
-        assert!(run.partial);
+        assert!(run.partial());
+        assert_eq!(run.stop_reason, StopReason::MaxPaths { limit: 1 });
         assert!(!run.is_ok());
     }
 
@@ -2196,7 +2255,8 @@ mod tests {
             Some(&stop),
         );
 
-        assert!(run.partial, "{}", render_tree(&run));
+        assert!(run.partial(), "{}", render_tree(&run));
+        assert_eq!(run.stop_reason, StopReason::Interrupted);
         assert!(!run.is_ok());
         assert!(run.summary.left_paths <= 1);
         // The pre-set flag is caught by `SolverPruner::enter` returning
@@ -2208,14 +2268,16 @@ mod tests {
         assert_eq!(obs.events.first().map(String::as_str), Some("Started"));
         assert_eq!(obs.events.last().map(String::as_str), Some("Finished"));
 
-        // partial artifacts exist, parse, and carry `"partial": true`.
+        // partial artifacts exist, parse, and carry the stop reason.
         let trace = std::fs::read_to_string(
             std::path::Path::new(&run.out_dir).join("trace.json"),
         )
         .unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&trace).unwrap();
-        assert_eq!(parsed["partial"], true);
+        assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
+        assert!(parsed.get("partial").is_none());
         assert!(std::path::Path::new(&run.out_dir).join("index.html").exists());
+        assert!(std::path::Path::new(&run.out_dir).join("summary.txt").exists());
     }
 
     /// Story 10: a `Ctrl-C` that lands *after* exploration has started (here the
@@ -2253,7 +2315,8 @@ mod tests {
             Some(&stop),
         );
 
-        assert!(run.partial, "{}", render_tree(&run));
+        assert!(run.partial(), "{}", render_tree(&run));
+        assert_eq!(run.stop_reason, StopReason::Interrupted);
         assert!(!run.is_ok());
         // At least one pair was checked before the stop took effect, and the
         // run still produced a well-formed, flushed trace.
@@ -2262,7 +2325,17 @@ mod tests {
             &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(parsed["partial"], true);
-        assert_eq!(parsed["schema"], 4);
+        assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
+        assert_eq!(parsed["schema"], 5);
+
+        // story 12: the summary.txt written by the same (interrupted) flush
+        // agrees with trace.json on the verdict + path counts.
+        let summary =
+            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("summary.txt")).unwrap();
+        assert!(summary.contains("STOPPED EARLY (interrupted by Ctrl-C)"), "{summary}");
+        let sm = &run.summary;
+        assert!(summary.contains(&format!("  verified      {}\n", sm.verified)), "{summary}");
+        assert!(summary.contains(&format!("  GOAL FAILS    {}\n", sm.goal_fails)), "{summary}");
+        assert!(summary.contains(&format!("  {:<13}{} checked\n", "pairs", sm.right_paths)), "{summary}");
     }
 }

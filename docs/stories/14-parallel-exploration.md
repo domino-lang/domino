@@ -43,6 +43,17 @@ Settled (do not relitigate):
   `execute_streaming_with_oracle(left_inl, left_inst, left_si, Side::Left, None, Some(&mut left_pruner), &mut on_left)`.
   Its `on_left` closure numbers the left path, calls `handle_left_path` (`:748`), pushes the
   `LeftPath`, re-`summarize`s (`:1220`), emits `LeftPathFinished` and `report::flush`es.
+
+- **Story 12 changed two signatures the parallel driver touches.**
+  `report::flush(run, elapsed: Duration, out_dir)` now takes the elapsed time
+  (`write_summary` writes `summary.txt` from it); `run_debug_command` holds
+  `let started = Instant::now();` at the top and passes `started` into `explore_paths` and
+  `started.elapsed()` into every flush — thread the same value into the message-loop.
+  `DebugRun.partial: bool` is **gone**: it is `stop_reason: StopReason`
+  (`Completed | MaxPaths { limit } | Interrupted`), set on the main thread; `run.partial()` is
+  the accessor. `DebugEvent::Finished` carries `stop_reason`, not `partial`.
+  `summary.txt`'s `options` line already prints `jobs=1` literally in `render_summary`
+  (`report.rs`) — make it `jobs={n}` when you add `--jobs`.
 - `handle_left_path` pushes a solver level, `write_path_delta`s the left terminal (`:954`),
   optionally checks reachability (`--check-left`), then builds a **right** `SolverPruner` and runs
   the right side streaming, with `on_right` → `handle_right_path` (`:881`) → `check_pair` (`:920`)

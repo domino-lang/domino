@@ -47,6 +47,7 @@ breaks the claim. Debugging means reading SMT by hand.
 | **Solver** | `cvc5-rs` (crates.io crate `cvc5` 0.4, features `static` + `parser`). Its `InputParser` incremental-string mode consumes SMT-LIB text, so the existing `SmtExpr` output is fed verbatim — no rewrite to a term-building API. `Solver`/`Command` are `!Send`/`!Sync`, so a cvc5 instance never crosses a thread; story 14 parallelises `debug` across left paths with **one instance per worker thread** instead. `prove` keeps the process backend and its rayon fan-out. |
 | **Inlining** | A new **AST-level** inline transform producing a labelled inlined IR. The textual `src/inline.rs` on branch `amir/ty-params-features` is a pretty-printer only; it is re-implemented on top of the new IR, not ported as-is. |
 | **Pipeline** | A debug-specific pipeline **without `treeify`**. `treeify` duplicates every statement following an `if` into both branches purely so the SMT writer can emit `ite`; that would multiply path counts and destroy statement identity, which the labels depend on. |
+| **Base frame** | The debugger's base frame carries **datatypes and constants only** — no `(define-fun <oracle-…>)` bodies and no return constraint for any export but the debugged oracle (story 15). Nothing in the run evaluates an oracle function: story 05's per-path DSA encoding replaced it. Since those bodies were the only consumer of `treeify`, `domino debug` runs `DebugTransform` **once** by default; `--with-oracle-functions` restores the full `prove`-shaped frame (and the treeified transform) for cross-checking a verdict. |
 | **Claim scope** | `--claim` is **required**. One claim per run. |
 | **Assumptions** | The randomness-mapping condition, the invariants on the old game states (main + per-game + per-package) and **all of the claim's dependencies** are asserted up front, before the left oracle is executed. A dependency like `no-abort` will therefore make left abort paths `unsat` — that is intended and visible. |
 | **Per-path encoding** | The per-path DSA encoding **replaces** the monolithic `(assert (= <return-X> (oracle-X <old-state> <consts> <args>)))`. `<return-value-X>`, `<is-abort-X>` and `<new-state-X>` stay constrained off `<return-X>`, so `emit_oracle_claim_assert` and the invariant/relation machinery keep working unchanged. |
@@ -112,15 +113,17 @@ left path #3:
 | 12 | Concise run report (`summary.txt`) + explicit stop reason | `12-run-summary-report.md` | 06, 09, 10 |
 | 13 | Collapsible HTML detail pane + the claim assertion | `13-html-collapsible-and-goal-assertion.md` | 06, 07 |
 | 14 | Parallel path exploration (`--jobs`) | `14-parallel-exploration.md` | 06, 08, 09, 10, 12 |
+| 15 | No oracle function definitions in the debugger's base frame | `15-no-oracle-functions-in-debug-frame.md` | 04, 05, 06, 11 |
 
 Stories 01, 02 and 04 are independent and may be done in any order (or in parallel). Stories 08
 and 09 are independent of each other; whichever lands second wires a one-way hook (see `09` §3.6).
 
-Stories 01–09 are **done** (each has an `-IMPLEMENTATION-REPORT.md` next to it). Stories 10–14 are
-a second wave from the owner's follow-up review of `domino debug`. 10–13 are independent of each
-other and may land in any order; each bumps `TRACE_SCHEMA` by one, so whichever lands second
+Stories 01–09 are **done** (each has an `-IMPLEMENTATION-REPORT.md` next to it). Stories 10–15 are
+a second wave from the owner's follow-up review of `domino debug`. 10–13 and 15 are independent of
+each other and may land in any order; each bumps `TRACE_SCHEMA` by one, so whichever lands second
 bumps from whatever it finds and records the number in its report. **Story 14 goes last** — it
-reuses 10's events and cancellation, 12's `StopReason`, 11's `SmtWriter` and 13's `goal_smt`.
+reuses 10's events and cancellation, 12's `StopReason`, 11's `SmtWriter` and 13's `goal_smt`, and it
+benefits from 15 making the per-worker base frame ~4× smaller.
 
 ## 6. Working agreement (important)
 

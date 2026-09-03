@@ -65,6 +65,17 @@ impl SmtOut {
         !matches!(self, SmtOut::None)
     }
 
+    /// The kebab-case name (matches the `Serialize` output). For `summary.txt`
+    /// and the CLI trailer.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SmtOut::None => "none",
+            SmtOut::Failures => "failures",
+            SmtOut::All => "all",
+            SmtOut::Deltas => "deltas",
+        }
+    }
+
     /// Does a pair with this verdict get a `.smt2` file in this mode?
     fn covers(self, verdict: &Verdict) -> bool {
         match self {

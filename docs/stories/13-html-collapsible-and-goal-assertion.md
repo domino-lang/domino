@@ -63,10 +63,17 @@ Settled (do not relitigate):
 
 `DebugRun` (`driver.rs:165`): `base_frame_smt`, `left_listing`, `right_listing`,
 `left_sites` / `right_sites` (`BTreeMap<Label, SiteView>`), `left_paths: Vec<LeftPath>`,
-`left_pruned_branches`, `summary`, and `partial` (a `stop_reason` after story 12).
+`left_pruned_branches`, `summary`, `left_syntactic: u64`, and `stop_reason: StopReason`
+(story 12 — `partial: bool` is **gone**; `run.partial()` is now an accessor).
 `LeftPath` (`:288`): `id`, `steps`, `terminal`, `reachable`, `smt: Vec<String>`, `right_paths`,
 `pruned_branches`. `RightPath` (`:306`): `id`, `steps`, `terminal`, `verdict`, `model_smt`,
-`smt: Vec<String>`. `TRACE_SCHEMA` at `:162` — bump by one from whatever you find.
+`smt: Vec<String>`. `TRACE_SCHEMA` at `:162` — **now 5** after story 12; bump to 6.
+
+> **Story 12 already migrated the viewer's `partial` chip.** The template reads
+> `T.stop_reason` (falling back to `T.partial` for old traces) and renders
+> `PARTIAL — exploration stopped early (interrupted by Ctrl-C)` / `(--max-paths N reached)`.
+> The "two places" the old spec mentioned are one place on this branch; it is done — do not
+> redo it.
 
 ### 2.3 The goal assertion
 

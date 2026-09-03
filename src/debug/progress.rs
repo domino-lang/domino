@@ -56,7 +56,7 @@ use std::time::Duration;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::debug::driver::{Summary, Verdict};
+use crate::debug::driver::{StopReason, Summary, Verdict};
 use crate::debug::exec::Side;
 
 /// A structured event emitted by `run_debug_command` as it explores.
@@ -108,7 +108,7 @@ pub enum DebugEvent<'a> {
     LeftPathFinished { index: usize, running: Summary },
 
     /// Exploration stopped — naturally, by `--max-paths`, or by `Ctrl-C`.
-    Finished { summary: Summary, partial: bool },
+    Finished { summary: Summary, stop_reason: StopReason },
 }
 
 /// Consumes [`DebugEvent`]s. Implementations must tolerate unknown future
@@ -214,15 +214,19 @@ fn plain_line(ev: &DebugEvent<'_>, left_total: u64, right_total: u64) -> Option<
             "debug:   left {index} done — running: {} verified, {} unreachable, {} GOAL FAILS, {} inconclusive",
             running.verified, running.unreachable, running.goal_fails, running.inconclusive
         ),
-        DebugEvent::Finished { summary, partial } => format!(
-            "debug: done — {} left, {} right; {} verified, {} unreachable, {} GOAL FAILS, {} inconclusive (partial: {})",
+        DebugEvent::Finished { summary, stop_reason } => format!(
+            "debug: done — {} left, {} right; {} verified, {} unreachable, {} GOAL FAILS, {} inconclusive ({})",
             summary.left_paths,
             summary.right_paths,
             summary.verified,
             summary.unreachable,
             summary.goal_fails,
             summary.inconclusive,
-            if *partial { "yes" } else { "no" }
+            match stop_reason {
+                StopReason::Completed => "complete".to_string(),
+                StopReason::Interrupted => "stopped: interrupted".to_string(),
+                StopReason::MaxPaths { limit } => format!("stopped: max-paths {limit}"),
+            }
         ),
         _ => return None,
     })
@@ -478,7 +482,7 @@ mod tests {
         });
         o.on_event(&DebugEvent::Finished {
             summary: Summary::default(),
-            partial: false,
+            stop_reason: StopReason::Completed,
         });
     }
 
@@ -555,7 +559,7 @@ mod tests {
                     goal_fails: 1,
                     ..Summary::default()
                 },
-                partial: false,
+                stop_reason: StopReason::Completed,
             },
             6,
             12,
@@ -563,7 +567,7 @@ mod tests {
         .unwrap();
         assert!(done.contains("6 left, 96 right"), "{done}");
         assert!(done.contains("1 GOAL FAILS"), "{done}");
-        assert!(done.ends_with("(partial: no)"), "{done}");
+        assert!(done.ends_with("(complete)"), "{done}");
 
         assert_eq!(
             plain_line(
