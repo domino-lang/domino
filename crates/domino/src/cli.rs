@@ -90,9 +90,10 @@ pub(crate) struct Debug {
     /// as `unknown` (explored, never pruned, never "verified").
     #[clap(long)]
     pub(crate) timeout: Option<u64>,
-    /// Give up after this many explored paths (left paths + right paths per left path).
-    #[clap(long, default_value_t = 1000)]
-    pub(crate) max_paths: usize,
+    /// Stop after this many explored paths (left paths + right paths per left
+    /// path). Unlimited by default; `Ctrl-C` is the interactive stop.
+    #[clap(long)]
+    pub(crate) max_paths: Option<usize>,
     /// Live progress while exploring, on stderr (stdout stays the final tree):
     /// `auto` shows a bar on a terminal and plain log lines when piped; `plain`
     /// and `bar` force one; `none` is silent.

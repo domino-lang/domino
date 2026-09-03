@@ -135,7 +135,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
 #[cfg(feature = "cvc5-lib")]
 fn debug(d: &Debug) -> Result<(), Error> {
     use std::io::IsTerminal;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
 
     use sspverif::debug::driver::{render_tree, run_debug_command, DebugOptions};
@@ -172,13 +172,28 @@ fn debug(d: &Debug) -> Result<(), Error> {
         }
     };
 
-    // Best-effort Ctrl-C handling: a set flag stops the driver at the next pair
-    // boundary, leaving partial `trace.json` / `index.html`. If a handler is
-    // already installed the run just is not interruptible — not fatal.
+    // Best-effort Ctrl-C handling. The first press sets a flag the driver checks
+    // at every fork (inside branch-pruning sweeps too) and at every pair
+    // boundary; it then finishes the in-flight cvc5 query — which is a blocking
+    // FFI call and cannot itself be cancelled, so `--timeout` bounds how long
+    // that takes — and writes partial `trace.json` / `index.html`. A second
+    // press exits immediately with 130. If a handler is already installed the
+    // run just is not interruptible — not fatal.
     let stop = Arc::new(AtomicBool::new(false));
     {
         let stop = stop.clone();
-        let _ = ctrlc::try_set_handler(move || stop.store(true, Ordering::Relaxed));
+        let hits = Arc::new(AtomicUsize::new(0));
+        let _ = ctrlc::try_set_handler(move || {
+            if hits.fetch_add(1, Ordering::Relaxed) == 0 {
+                stop.store(true, Ordering::Relaxed);
+                eprintln!(
+                    "\ndebug: interrupt — finishing the current solver query, then writing \
+                     partial results (Ctrl-C again to abort now)"
+                );
+            } else {
+                std::process::exit(130);
+            }
+        });
     }
 
     let run = run_debug_command(

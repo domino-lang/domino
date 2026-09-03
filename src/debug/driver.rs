@@ -63,7 +63,7 @@ use crate::debug::exec::{
     Terminal, TerminalPath,
 };
 use crate::debug::ir::{
-    inline_oracle, InlineError, InlinedOracle, Label, Listing, SiteInfo, SiteKind,
+    count_terminals, inline_oracle, InlineError, InlinedOracle, Label, Listing, SiteInfo, SiteKind,
 };
 use crate::debug::progress::{DebugEvent, DebugObserver, SharedObserver};
 use crate::debug::render;
@@ -95,8 +95,9 @@ pub struct DebugOptions {
     /// counts as `unknown` — explored, never pruned.
     pub timeout_ms: Option<u64>,
     /// Give up after this many explored paths (left paths + right paths per left
-    /// path).
-    pub max_paths: usize,
+    /// path). `None` (the default as of story 10) means unlimited — `Ctrl-C` is
+    /// then the interactive stop.
+    pub max_paths: Option<usize>,
 }
 
 impl Default for DebugOptions {
@@ -105,7 +106,7 @@ impl Default for DebugOptions {
             check_left: true,
             check_right: true,
             timeout_ms: None,
-            max_paths: 1000,
+            max_paths: None,
         }
     }
 }
@@ -159,7 +160,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 2;
+pub const TRACE_SCHEMA: u32 = 3;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DebugRun {
@@ -224,7 +225,8 @@ pub struct OptionsView {
     pub check_left: bool,
     pub check_right: bool,
     pub timeout_ms: Option<u64>,
-    pub max_paths: usize,
+    /// `null` in `trace.json` when unlimited (story 10).
+    pub max_paths: Option<usize>,
 }
 
 impl From<&DebugOptions> for OptionsView {
@@ -494,6 +496,19 @@ where
         claim: claim_name,
         admitted: claim.is_admitted(),
     });
+
+    let left_inl = inline_oracle(left_inst, oracle)?;
+    let right_inl = inline_oracle(right_inst, oracle)?;
+
+    // Solver-free syntactic path counts — upper bounds the progress display
+    // shows as `k/N`. Skipped for an admitted claim (nothing between
+    // `Started { admitted }` and `Finished`).
+    if !claim.is_admitted() {
+        observer.on_event(&DebugEvent::Totals {
+            left_total: count_terminals(&left_inl),
+            right_total: count_terminals(&right_inl),
+        });
+    }
     let observer: SharedObserver = RefCell::new(observer);
 
     let out_dir = out.unwrap_or_else(|| {
@@ -507,9 +522,6 @@ where
     });
     std::fs::create_dir_all(&out_dir)?;
     std::fs::create_dir_all(out_dir.join("models"))?;
-
-    let left_inl = inline_oracle(left_inst, oracle)?;
-    let right_inl = inline_oracle(right_inst, oracle)?;
 
     let mut run = DebugRun {
         schema: TRACE_SCHEMA,
@@ -631,11 +643,13 @@ fn explore_paths<'o, S: SmtSolver>(
         String::new(),
         observer,
         Side::Left,
+        stop,
     );
     let mut explored = 0usize;
     let mut left_counter = 0usize;
     let mut right_shortcuts = 0usize;
     let mut fatal: Option<DebugError> = None;
+    let mut cancelled = false;
 
     {
         let fatal = &mut fatal;
@@ -651,7 +665,7 @@ fn explore_paths<'o, S: SmtSolver>(
             }
             *explored += 1;
             *left_counter += 1;
-            if *explored > opts.max_paths {
+            if opts.max_paths.is_some_and(|m| *explored > m) {
                 run.partial = true;
                 return ControlFlow::Break(());
             }
@@ -705,7 +719,10 @@ fn explore_paths<'o, S: SmtSolver>(
             }
         };
 
-        execute_streaming_with_oracle(
+        // `ExecError::Cancelled` (a `Ctrl-C` caught inside the left pruning
+        // sweep) is a stop, not a failure — record it and fall through to the
+        // partial-run handling like `--max-paths` does.
+        match execute_streaming_with_oracle(
             left_inl,
             left_inst,
             left_si,
@@ -713,7 +730,14 @@ fn explore_paths<'o, S: SmtSolver>(
             None,
             Some(&mut left_pruner),
             &mut on_left,
-        )?;
+        ) {
+            Ok(()) => {}
+            Err(ExecError::Cancelled) => cancelled = true,
+            Err(e) => return Err(e.into()),
+        }
+    }
+    if cancelled {
+        run.partial = true;
     }
 
     if let Some(e) = left_pruner.err.take() {
@@ -799,9 +823,11 @@ fn handle_left_path<'o, S: SmtSolver>(
             format!("{lid}."),
             observer,
             Side::Right,
+            stop,
         );
         let mut right_counter = 0usize;
         let mut fatal: Option<DebugError> = None;
+        let mut cancelled = false;
 
         {
             let left_view = &mut left_view;
@@ -816,7 +842,7 @@ fn handle_left_path<'o, S: SmtSolver>(
                     return ControlFlow::Break(());
                 }
                 *explored += 1;
-                if *explored > opts.max_paths {
+                if opts.max_paths.is_some_and(|m| *explored > m) {
                     run.partial = true;
                     return ControlFlow::Break(());
                 }
@@ -844,7 +870,7 @@ fn handle_left_path<'o, S: SmtSolver>(
                 }
             };
 
-            execute_streaming_with_oracle(
+            match execute_streaming_with_oracle(
                 right_inl,
                 right_inst,
                 right_si,
@@ -852,7 +878,14 @@ fn handle_left_path<'o, S: SmtSolver>(
                 None,
                 Some(&mut right_pruner),
                 &mut on_right,
-            )?;
+            ) {
+                Ok(()) => {}
+                Err(ExecError::Cancelled) => cancelled = true,
+                Err(e) => return Err(e.into()),
+            }
+        }
+        if cancelled {
+            run.partial = true;
         }
 
         if let Some(e) = right_pruner.err.take() {
@@ -991,6 +1024,11 @@ struct SolverPruner<'s, 'o, S: SmtSolver> {
     observer: &'s SharedObserver<'o>,
     /// Which side this pruner runs on, for [`DebugEvent::BranchPruned`].
     side: Side,
+    /// `Ctrl-C` flag (story 10). Checked at the top of every `enter`, so an
+    /// interrupt lands *inside* a branch-pruning sweep, not only at path
+    /// boundaries. `enter` returns [`ExecError::Cancelled`] before opening its
+    /// scope, so the solver stack still unwinds balanced.
+    stop: Option<&'s AtomicBool>,
     /// Per open scope: was this context a definite `Sat`? (`false` for `Unknown`,
     /// disabled, or a stashed error.)
     known_sat: Vec<bool>,
@@ -1016,6 +1054,7 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
         id_prefix: String,
         observer: &'s SharedObserver<'o>,
         side: Side,
+        stop: Option<&'s AtomicBool>,
     ) -> Self {
         Self {
             solver,
@@ -1024,6 +1063,7 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
             id_prefix,
             observer,
             side,
+            stop,
             known_sat: Vec::new(),
             scope_pruned: Vec::new(),
             last_sibling_pruned: false,
@@ -1087,6 +1127,13 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
 
 impl<S: SmtSolver> BranchOracle for SolverPruner<'_, '_, S> {
     fn enter(&mut self, query: &BranchQuery<'_>) -> Result<Feasibility, ExecError> {
+        // Story 10: a set `Ctrl-C` flag stops the walk here — before any `push`
+        // or `check-sat`, so the solver stack stays balanced and the driver can
+        // treat this as `partial`, not an error.
+        if self.stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
+            return Err(ExecError::Cancelled);
+        }
+
         let parent_sat = self.known_sat.last().copied();
         let prev_sibling_pruned = self.last_sibling_pruned;
 
@@ -1421,6 +1468,7 @@ mod tests {
         left_started: Vec<usize>,
         left_finished: Vec<usize>,
         last_summary: Option<Summary>,
+        totals: Option<(u64, u64)>,
     }
 
     impl DebugObserver for RecordingObserver {
@@ -1428,6 +1476,13 @@ mod tests {
             #[allow(unreachable_patterns)] // `DebugEvent` is `#[non_exhaustive]`
             match ev {
                 DebugEvent::Started { .. } => self.events.push("Started".into()),
+                DebugEvent::Totals {
+                    left_total,
+                    right_total,
+                } => {
+                    self.totals = Some((*left_total, *right_total));
+                    self.events.push("Totals".into());
+                }
                 DebugEvent::LeftPathStarted { index, .. } => {
                     self.left_started.push(*index);
                     self.events.push("LeftPathStarted".into());
@@ -1688,7 +1743,7 @@ mod tests {
     #[test]
     fn max_paths_stops_early_and_flags_partial() {
         let opts = DebugOptions {
-            max_paths: 1,
+            max_paths: Some(1),
             ..DebugOptions::default()
         };
         let run = run_in_tmp(
@@ -1750,6 +1805,14 @@ mod tests {
         assert_eq!(obs.events.first().map(String::as_str), Some("Started"));
         assert_eq!(obs.events.last().map(String::as_str), Some("Finished"));
 
+        // Totals is emitted exactly once, right after Started, before any pair.
+        assert_eq!(obs.events.get(1).map(String::as_str), Some("Totals"));
+        assert_eq!(obs.events.iter().filter(|e| *e == "Totals").count(), 1);
+        // Both are syntactic upper bounds: the run reaches no more than promised.
+        let (lt, rt) = obs.totals.expect("Totals seen");
+        assert!(lt > 0 && rt > 0);
+        assert!(lt as usize >= run.summary.left_paths);
+
         // exactly one Started and one Finished
         assert_eq!(obs.events.iter().filter(|e| *e == "Started").count(), 1);
         assert_eq!(obs.events.iter().filter(|e| *e == "Finished").count(), 1);
@@ -1807,6 +1870,11 @@ mod tests {
         assert!(run.partial, "{}", render_tree(&run));
         assert!(!run.is_ok());
         assert!(run.summary.left_paths <= 1);
+        // The pre-set flag is caught by `SolverPruner::enter` returning
+        // `ExecError::Cancelled`; the driver converted it to `partial` rather
+        // than propagating (this call `.unwrap()`s the `Result`) and the
+        // solver-stack balance `debug_assert`s in `explore_paths` /
+        // `handle_left_path` did not fire.
         // Started + Finished still bracket the (empty) exploration.
         assert_eq!(obs.events.first().map(String::as_str), Some("Started"));
         assert_eq!(obs.events.last().map(String::as_str), Some("Finished"));
@@ -1819,5 +1887,53 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&trace).unwrap();
         assert_eq!(parsed["partial"], true);
         assert!(std::path::Path::new(&run.out_dir).join("index.html").exists());
+    }
+
+    /// Story 10: a `Ctrl-C` that lands *after* exploration has started (here the
+    /// flag is set from inside the observer, on the first `PairChecked`) still
+    /// stops cleanly — `SolverPruner::enter` returns `ExecError::Cancelled` on
+    /// the next fork, the driver records `partial` without erroring, and the
+    /// solver-stack `debug_assert`s hold.
+    #[test]
+    fn stop_flag_set_mid_sweep_stops_cleanly() {
+        struct Tripwire<'a> {
+            stop: &'a AtomicBool,
+            pairs: usize,
+        }
+        impl DebugObserver for Tripwire<'_> {
+            fn on_event(&mut self, ev: &DebugEvent<'_>) {
+                if let DebugEvent::PairChecked { .. } = ev {
+                    self.pairs += 1;
+                    self.stop.store(true, Ordering::Relaxed);
+                }
+            }
+        }
+
+        let stop = AtomicBool::new(false);
+        let mut obs = Tripwire {
+            stop: &stop,
+            pairs: 0,
+        };
+        let run = run_in_tmp_with(
+            "example-projects/simple-KEM-example",
+            "KEM_Proof",
+            "TestSender",
+            "same-output",
+            DebugOptions::default(),
+            &mut obs,
+            Some(&stop),
+        );
+
+        assert!(run.partial, "{}", render_tree(&run));
+        assert!(!run.is_ok());
+        // At least one pair was checked before the stop took effect, and the
+        // run still produced a well-formed, flushed trace.
+        assert!(obs.pairs >= 1);
+        let parsed: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(parsed["partial"], true);
+        assert_eq!(parsed["schema"], 3);
     }
 }

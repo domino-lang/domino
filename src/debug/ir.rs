@@ -296,6 +296,45 @@ pub fn inline_oracle(
     })
 }
 
+/// Number of syntactic terminals reachable through this oracle's IR: every
+/// `return` at the entry frame, every `abort`, and the implicit abort of every
+/// `unwrap` (its `none` child).
+///
+/// Purely structural and solver-free — an **upper bound** on the paths a
+/// `domino debug` run explores, since branch pruning (story 08) and
+/// `--check-left` cut infeasible branches. `loopunroll` has already run, so the
+/// IR has no loops and this is a finite fold over the statement tree. Saturating,
+/// so a pathological composition cannot overflow it.
+///
+/// With no [`BranchOracle`] the symbolic executor walks exactly these paths, so
+/// `count_terminals(inl) == exec::execute(inl, …).len()` exactly.
+pub fn count_terminals(inlined: &InlinedOracle) -> u64 {
+    /// `k_fall`: terminals reachable if control falls off the end of `stmts`
+    /// (resuming whatever encloses this block). `k_ret`: terminals reachable
+    /// from a `return` in `stmts` — the caller's continuation for a `Call` body,
+    /// `1` (the oracle really returns) at the entry frame.
+    fn f(stmts: &[InlStmt], k_fall: u64, k_ret: u64) -> u64 {
+        let Some((head, rest)) = stmts.split_first() else {
+            return k_fall;
+        };
+        match head {
+            InlStmt::Assign { .. } | InlStmt::Sample { .. } => f(rest, k_fall, k_ret),
+            InlStmt::Unwrap { .. } => 1u64.saturating_add(f(rest, k_fall, k_ret)),
+            InlStmt::Branch { then, els, .. } => {
+                let k = f(rest, k_fall, k_ret);
+                f(&then.0, k, k_ret).saturating_add(f(&els.0, k, k_ret))
+            }
+            InlStmt::Call { body, .. } => {
+                let k = f(rest, k_fall, k_ret);
+                f(&body.0, k, k)
+            }
+            InlStmt::Return { .. } => k_ret,
+            InlStmt::Abort { .. } => 1,
+        }
+    }
+    f(&inlined.body.0, 1, 1)
+}
+
 /// Rendering context for one stack frame.
 struct Frame {
     frame_id: usize,

@@ -218,6 +218,14 @@ pub enum ExecError {
 
     #[error("path limit of {limit} exceeded (explored {explored} complete paths)")]
     MaxPathsExceeded { explored: usize, limit: usize },
+
+    /// A [`BranchOracle`] asked the walk to stop (story 10: `Ctrl-C` during a
+    /// branch-pruning sweep). Not a failure — the driver converts it to a
+    /// `partial` run. The `enter`/`leave` contract still holds: the oracle
+    /// returns this *before* opening its scope, so the solver stack unwinds
+    /// balanced.
+    #[error("exploration cancelled")]
+    Cancelled,
 }
 
 /// The symbolic store for one in-progress path. Cloned at every fork.
@@ -1620,5 +1628,54 @@ mod tests {
         .unwrap_err();
         assert!(matches!(err, ExecError::MaxPathsExceeded { limit: 2, .. }));
         assert!(br.balanced_and_paired(), "events: {:?}", br.events);
+    }
+
+    // ----- story 10: syntactic terminal count -----------------------------
+
+    /// `ir::count_terminals` is a purely syntactic upper bound; with no
+    /// `BranchOracle` the executor walks exactly the syntactic paths, so the two
+    /// must agree exactly on every side of every proofstep listed in the story.
+    #[test]
+    fn count_terminals_equals_unpruned_path_count() {
+        use crate::debug::ir::count_terminals;
+
+        let cases: &[(&str, &str, &[&str], &[&str])] = &[
+            (
+                "test-projects/test-splitinvoke",
+                "SplitInvokeProof",
+                &["game_split", "game_tmp"],
+                &["Query"],
+            ),
+            (
+                "example-projects/hello-world",
+                "Proof",
+                &["medium_composition", "small_composition"],
+                &["UsefulOracle"],
+            ),
+            (
+                "example-projects/kem-dem/kem-dem-cca-ssp",
+                "kem_dem_cca_ssp",
+                &["Game_MON_CCA_PKE", "Game_MOD_CCA_PKE_Real_KEM"],
+                &["PKGEN", "PKENC", "PKDEC"],
+            ),
+        ];
+
+        for (dir, theorem, game_insts, oracles) in cases {
+            with_debug(dir, theorem, |th, auxs| {
+                for gi_name in *game_insts {
+                    let gi = th.find_game_instance(gi_name).unwrap();
+                    let si = sample_info_for(auxs, gi_name);
+                    for oracle in *oracles {
+                        let inl = crate::debug::ir::inline_oracle(gi, oracle).unwrap();
+                        let n = execute(&inl, gi, si, Side::Left, None).unwrap().len() as u64;
+                        assert_eq!(
+                            count_terminals(&inl),
+                            n,
+                            "{dir} / {gi_name} / {oracle}: count_terminals disagrees with execute()",
+                        );
+                    }
+                }
+            });
+        }
     }
 }

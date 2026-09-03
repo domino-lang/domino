@@ -25,6 +25,7 @@
 //!
 //! ```text
 //! Started
+//! Totals                         // skipped for an admitted claim
 //!   ( LeftPathStarted
 //!       ( PairChecked | BranchPruned )*
 //!       LeftPathPruned?          // only when `--check-left` cut the terminal
@@ -36,12 +37,17 @@
 //! increasing. An admitted claim emits `Started { admitted: true }` then
 //! `Finished` and nothing between.
 //!
+//! [`DebugEvent::Totals`] (story 10) carries the syntactic terminal counts of
+//! both oracles ([`crate::debug::ir::count_terminals`]) — solver-free upper
+//! bounds computed once, right after inlining. Branch pruning (story 08) and
+//! `--check-left` mean a run reaches fewer paths than the totals promise, so the
+//! bars label the numbers as bounds and never claim `N/N` is exact.
+//!
 //! Note (divergence from the story spec): the spec's `LeftPathsCollected` /
 //! `RightPathsCollected` events assumed both sides were fully enumerated up
-//! front. Story 08 made both sides stream (so branch pruning can cut subtrees
-//! before their terminals are reached), so there is no up-front total on either
-//! side and those two events were dropped. The bars are spinners with a running
-//! pair counter instead of fixed-length progress bars.
+//! front. Story 08 made both sides stream, so those were dropped; story 10's
+//! `Totals` replaces them with a purely structural count that needs no
+//! enumeration pass.
 
 use std::cell::RefCell;
 use std::io::Write as _;
@@ -63,6 +69,14 @@ pub enum DebugEvent<'a> {
         claim: &'a str,
         admitted: bool,
     },
+
+    /// Syntactic terminal counts for both sides, from
+    /// [`crate::debug::ir::count_terminals`]. Emitted once, after
+    /// [`DebugEvent::Started`] and before any solver work; skipped for an
+    /// admitted claim. Both are **upper bounds** — branch pruning and
+    /// `--check-left` cut the real numbers down. `right_total` is per left path
+    /// (the right oracle is the same under each left terminal).
+    Totals { left_total: u64, right_total: u64 },
 
     /// Starting to explore left path `index` (1-based).
     LeftPathStarted { index: usize, id: &'a str },
@@ -140,7 +154,11 @@ fn side_label(side: &Side) -> &'static str {
 
 /// One `debug: …` line for an event, or `None` for events that do not get their
 /// own line. Factored out so it can be unit-tested without capturing stderr.
-fn plain_line(ev: &DebugEvent<'_>) -> Option<String> {
+///
+/// `left_total` / `right_total` are the last [`DebugEvent::Totals`] the observer
+/// saw (`0` before it arrives); the per-path lines carry `k/N` when they are
+/// known, plain `k` otherwise. Pure function of `(event, remembered totals)`.
+fn plain_line(ev: &DebugEvent<'_>, left_total: u64, right_total: u64) -> Option<String> {
     // `DebugEvent` is `#[non_exhaustive]`; the trailing arm is dead within this
     // crate but load-bearing for future variants added by a later story.
     #[allow(unreachable_patterns)]
@@ -156,8 +174,19 @@ fn plain_line(ev: &DebugEvent<'_>) -> Option<String> {
                 format!("debug: {oracle} / {claim} — exploring")
             }
         }
+        DebugEvent::Totals {
+            left_total,
+            right_total,
+        } => format!(
+            "debug: {left_total} left paths, ≤{right_total} right paths per left path \
+             (syntactic upper bounds)"
+        ),
         DebugEvent::LeftPathStarted { index, id } => {
-            format!("debug: left {index} (#{id}) …")
+            if left_total > 0 {
+                format!("debug: left {index}/{left_total} (#{id}) …")
+            } else {
+                format!("debug: left {index} (#{id}) …")
+            }
         }
         DebugEvent::LeftPathPruned { id } => {
             format!("debug:   left path #{id} unreachable — pruned")
@@ -166,11 +195,18 @@ fn plain_line(ev: &DebugEvent<'_>) -> Option<String> {
             id,
             verdict,
             elapsed,
-        } => format!(
-            "debug:   #{id}  {:<12}  {:.2}s",
-            verdict_label(verdict),
-            elapsed.as_secs_f64()
-        ),
+        } => {
+            let scope = if right_total > 0 {
+                format!("#{id}/{right_total}")
+            } else {
+                format!("#{id}")
+            };
+            format!(
+                "debug:   {scope}  {:<12}  {:.2}s",
+                verdict_label(verdict),
+                elapsed.as_secs_f64()
+            )
+        }
         DebugEvent::BranchPruned { side, id, label } => {
             format!("debug:   pruned #{id} at L{label} ({})", side_label(side))
         }
@@ -199,12 +235,16 @@ fn plain_line(ev: &DebugEvent<'_>) -> Option<String> {
 /// One terse, greppable line per event on stderr. For logs, CI and pipes.
 pub struct PlainObserver {
     err: std::io::Stderr,
+    left_total: u64,
+    right_total: u64,
 }
 
 impl PlainObserver {
     pub fn new() -> Self {
         Self {
             err: std::io::stderr(),
+            left_total: 0,
+            right_total: 0,
         }
     }
 }
@@ -217,7 +257,15 @@ impl Default for PlainObserver {
 
 impl DebugObserver for PlainObserver {
     fn on_event(&mut self, ev: &DebugEvent<'_>) {
-        if let Some(line) = plain_line(ev) {
+        if let DebugEvent::Totals {
+            left_total,
+            right_total,
+        } = ev
+        {
+            self.left_total = *left_total;
+            self.right_total = *right_total;
+        }
+        if let Some(line) = plain_line(ev, self.left_total, self.right_total) {
             let _ = writeln!(self.err, "{line}");
         }
         // Surface a failing goal the moment it is found, not only in the tree.
@@ -260,12 +308,17 @@ impl Tally {
     }
 }
 
-/// A two-line `indicatif` display on stderr:
+/// A two-line `indicatif` display on stderr. Spinners until
+/// [`DebugEvent::Totals`] arrives, then two bounded bars:
 ///
 /// ```text
-/// ⠹ left #3 (path 3)
-/// ⠹ pairs   71  ✓2 ·68 ✗1 ?0 ✂12  [0:00:38]
+/// left   ▕████████░░░░░░░░▏ 3/6    PKENC / same-output
+/// pairs  ▕██████████████░░▏ 71/96  ✓2 ·68 ✗1 ?0 ✂12   [0:00:38]
 /// ```
+///
+/// Both totals are syntactic upper bounds; the `pairs` bar resets to `0` at
+/// every `LeftPathStarted` and is snapped to full at `LeftPathFinished` (a
+/// sweep that pruned its way to the end would otherwise stall part-way).
 ///
 /// `indicatif` draws nothing when stderr is not a terminal; `main.rs` only
 /// constructs this for `--progress bar` or `--progress auto` on a TTY.
@@ -276,25 +329,32 @@ pub struct BarObserver {
     tally: Tally,
 }
 
+const SPINNER_LEFT: &str = "{spinner:.cyan} {msg}";
+const SPINNER_PAIRS: &str = "{spinner:.green} pairs {pos:>4}  {msg}  [{elapsed_precise}]";
+const BAR_LEFT: &str = "left   {bar:24.cyan/blue} {pos}/{len}  {msg}";
+const BAR_PAIRS: &str = "pairs  {bar:24.green/blue} {pos}/{len}  {msg}  [{elapsed_precise}]";
+
+fn style(template: &str, fallback_spinner: bool) -> ProgressStyle {
+    ProgressStyle::with_template(template).unwrap_or_else(|_| {
+        if fallback_spinner {
+            ProgressStyle::default_spinner()
+        } else {
+            ProgressStyle::default_bar()
+        }
+    })
+}
+
 impl BarObserver {
     pub fn new() -> Self {
         let mp = MultiProgress::new();
 
         let left = mp.add(ProgressBar::new_spinner());
-        left.set_style(
-            ProgressStyle::with_template("{spinner:.cyan} {msg}")
-                .unwrap_or_else(|_| ProgressStyle::default_spinner()),
-        );
+        left.set_style(style(SPINNER_LEFT, true));
         left.set_message("left: starting…");
         left.enable_steady_tick(Duration::from_millis(120));
 
         let pairs = mp.add(ProgressBar::new_spinner());
-        pairs.set_style(
-            ProgressStyle::with_template(
-                "{spinner:.green} pairs {pos:>4}  {msg}  [{elapsed_precise}]",
-            )
-            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
-        );
+        pairs.set_style(style(SPINNER_PAIRS, true));
         pairs.enable_steady_tick(Duration::from_millis(120));
 
         // Keep `log::` output from tearing the bars. `prove` in the same process
@@ -308,6 +368,15 @@ impl BarObserver {
             left,
             pairs,
             tally: Tally::default(),
+        }
+    }
+
+    /// Keep the bar from looking stuck if a `Prune`-free re-entry ever pushes
+    /// `pos` past `len` (`indicatif` clamps silently otherwise).
+    fn clamp_len(bar: &ProgressBar) {
+        let pos = bar.position();
+        if bar.length().is_some_and(|len| pos > len) {
+            bar.set_length(pos);
         }
     }
 }
@@ -335,8 +404,27 @@ impl DebugObserver for BarObserver {
                     format!("{oracle} / {claim}")
                 });
             }
+            DebugEvent::Totals {
+                left_total,
+                right_total,
+            } => {
+                // Switch both lines from spinner to a bounded bar. `indicatif`
+                // needs a non-zero length; a genuinely path-free oracle (0) is
+                // clamped to 1 so the bar renders rather than divide-by-zero.
+                self.left.disable_steady_tick();
+                self.pairs.disable_steady_tick();
+                self.left.set_style(style(BAR_LEFT, false));
+                self.pairs.set_style(style(BAR_PAIRS, false));
+                self.left.set_length((*left_total).max(1));
+                self.pairs.set_length((*right_total).max(1));
+                self.left.set_position(0);
+                self.pairs.set_position(0);
+                self.pairs.set_message(self.tally.render());
+            }
             DebugEvent::LeftPathStarted { index, id } => {
-                self.left.set_message(format!("left #{id} (path {index})"));
+                self.left
+                    .set_position((*index as u64).saturating_sub(1));
+                self.left.set_message(format!("#{id}"));
                 self.pairs.set_position(0);
                 self.pairs.set_message(self.tally.render());
             }
@@ -347,6 +435,7 @@ impl DebugObserver for BarObserver {
             DebugEvent::PairChecked { id, verdict, .. } => {
                 self.tally.bump(verdict);
                 self.pairs.inc(1);
+                Self::clamp_len(&self.pairs);
                 self.pairs.set_message(self.tally.render());
                 if matches!(verdict, Verdict::GoalFails { .. }) {
                     let _ = self.mp.println(format!("⚠ GOAL FAILS at #{id}"));
@@ -356,7 +445,15 @@ impl DebugObserver for BarObserver {
                 self.tally.pruned += 1;
                 self.pairs.set_message(self.tally.render());
             }
-            DebugEvent::LeftPathFinished { .. } => {}
+            DebugEvent::LeftPathFinished { index, .. } => {
+                self.left.set_position(*index as u64);
+                Self::clamp_len(&self.left);
+                // A sweep that pruned its way to the end reads as complete
+                // rather than stalling at 60 %.
+                if let Some(len) = self.pairs.length() {
+                    self.pairs.set_position(len);
+                }
+            }
             DebugEvent::Finished { .. } => {
                 self.left.finish_and_clear();
                 self.pairs.finish_and_clear();
@@ -388,49 +485,108 @@ mod tests {
     #[test]
     fn plain_lines_are_terse_and_greppable() {
         assert_eq!(
-            plain_line(&DebugEvent::Started {
-                oracle: "PKENC",
-                claim: "same-output",
-                admitted: false,
-            })
+            plain_line(
+                &DebugEvent::Started {
+                    oracle: "PKENC",
+                    claim: "same-output",
+                    admitted: false,
+                },
+                0,
+                0
+            )
             .unwrap(),
             "debug: PKENC / same-output — exploring"
         );
+
+        // Before Totals: no `k/N`, exactly the pre-story-10 format.
         assert_eq!(
-            plain_line(&DebugEvent::LeftPathStarted { index: 2, id: "2" }).unwrap(),
+            plain_line(&DebugEvent::LeftPathStarted { index: 2, id: "2" }, 0, 0).unwrap(),
             "debug: left 2 (#2) …"
         );
-        let pc = plain_line(&DebugEvent::PairChecked {
-            id: "2.5",
-            verdict: &Verdict::Verified,
-            elapsed: Duration::from_millis(240),
-        })
+        let pc = plain_line(
+            &DebugEvent::PairChecked {
+                id: "2.5",
+                verdict: &Verdict::Verified,
+                elapsed: Duration::from_millis(240),
+            },
+            0,
+            0,
+        )
         .unwrap();
         assert!(pc.starts_with("debug:   #2.5  verified"), "{pc}");
         assert!(pc.ends_with("0.24s"), "{pc}");
 
-        let done = plain_line(&DebugEvent::Finished {
-            summary: Summary {
-                left_paths: 6,
-                right_paths: 96,
-                goal_fails: 1,
-                ..Summary::default()
+        // The Totals line itself.
+        assert_eq!(
+            plain_line(
+                &DebugEvent::Totals {
+                    left_total: 6,
+                    right_total: 12,
+                },
+                0,
+                0
+            )
+            .unwrap(),
+            "debug: 6 left paths, ≤12 right paths per left path (syntactic upper bounds)"
+        );
+
+        // After Totals: per-path lines carry `k/N` / `j/M`.
+        assert_eq!(
+            plain_line(&DebugEvent::LeftPathStarted { index: 3, id: "3" }, 6, 12).unwrap(),
+            "debug: left 3/6 (#3) …"
+        );
+        let pc = plain_line(
+            &DebugEvent::PairChecked {
+                id: "3.7",
+                verdict: &Verdict::Verified,
+                elapsed: Duration::from_millis(240),
             },
-            partial: false,
-        })
+            6,
+            12,
+        )
+        .unwrap();
+        assert!(pc.starts_with("debug:   #3.7/12  verified"), "{pc}");
+
+        let done = plain_line(
+            &DebugEvent::Finished {
+                summary: Summary {
+                    left_paths: 6,
+                    right_paths: 96,
+                    goal_fails: 1,
+                    ..Summary::default()
+                },
+                partial: false,
+            },
+            6,
+            12,
+        )
         .unwrap();
         assert!(done.contains("6 left, 96 right"), "{done}");
         assert!(done.contains("1 GOAL FAILS"), "{done}");
         assert!(done.ends_with("(partial: no)"), "{done}");
 
         assert_eq!(
-            plain_line(&DebugEvent::BranchPruned {
-                side: Side::Right,
-                id: "3.p1",
-                label: 14,
-            })
+            plain_line(
+                &DebugEvent::BranchPruned {
+                    side: Side::Right,
+                    id: "3.p1",
+                    label: 14,
+                },
+                6,
+                12
+            )
             .unwrap(),
             "debug:   pruned #3.p1 at L14 (right)"
         );
+    }
+
+    #[test]
+    fn plain_observer_remembers_totals_across_events() {
+        let mut o = PlainObserver::new();
+        o.on_event(&DebugEvent::Totals {
+            left_total: 4,
+            right_total: 9,
+        });
+        assert_eq!((o.left_total, o.right_total), (4, 9));
     }
 }
