@@ -53,6 +53,8 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use serde_derive::Serialize;
 
@@ -63,6 +65,7 @@ use crate::debug::exec::{
 use crate::debug::ir::{
     inline_oracle, InlineError, InlinedOracle, Label, Listing, SiteInfo, SiteKind,
 };
+use crate::debug::progress::{DebugEvent, DebugObserver, SharedObserver};
 use crate::debug::render;
 use crate::debug::report;
 use crate::gamehops::GameHop;
@@ -344,7 +347,7 @@ pub enum Verdict {
     Inconclusive { model: Option<String> },
 }
 
-#[derive(Debug, Clone, Copy, Default, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct Summary {
     pub left_paths: usize,
     /// Whole left paths cut at their terminal (`check_left`).
@@ -389,6 +392,8 @@ pub fn run_debug_command<P, B>(
     opts: &DebugOptions,
     backend: &B,
     out: Option<PathBuf>,
+    observer: &mut dyn DebugObserver,
+    stop: Option<&AtomicBool>,
 ) -> Result<DebugRun, DebugError>
 where
     P: Project,
@@ -484,6 +489,13 @@ where
             available: claims.iter().map(|c| c.name().to_string()).collect(),
         })?;
 
+    observer.on_event(&DebugEvent::Started {
+        oracle,
+        claim: claim_name,
+        admitted: claim.is_admitted(),
+    });
+    let observer: SharedObserver = RefCell::new(observer);
+
     let out_dir = out.unwrap_or_else(|| {
         let mut path = project.get_root_dir();
         path.push("_build/debug");
@@ -544,7 +556,7 @@ where
         let solver = RefCell::new(solver);
         explore_paths(
             &eqctx, &solver, oracle, &claim, &left_inl, &right_inl, left_inst, right_inst,
-            left_si, right_si, opts, &out_dir, &mut run,
+            left_si, right_si, opts, &out_dir, &observer, stop, &mut run,
         )?;
 
         solver.into_inner().close();
@@ -554,8 +566,12 @@ where
         out_dir.join("inlined.txt"),
         render::side_by_side(&run.left_listing, &run.right_listing),
     )?;
-    report::write_trace_json(&run, &out_dir)?;
-    report::write_html(&run, &out_dir)?;
+    report::flush(&run, &out_dir)?;
+
+    observer.borrow_mut().on_event(&DebugEvent::Finished {
+        summary: run.summary,
+        partial: run.partial,
+    });
 
     Ok(run)
 }
@@ -591,7 +607,7 @@ fn base_frame<'a>(
 // ---------------------------------------------------------------------------
 
 #[allow(clippy::too_many_arguments)]
-fn explore_paths<S: SmtSolver>(
+fn explore_paths<'o, S: SmtSolver>(
     eqctx: &EquivalenceContext<'_>,
     solver: &RefCell<S>,
     oracle: &str,
@@ -604,10 +620,18 @@ fn explore_paths<S: SmtSolver>(
     right_si: &SampleInfo,
     opts: &DebugOptions,
     out_dir: &Path,
+    observer: &SharedObserver<'o>,
+    stop: Option<&AtomicBool>,
     run: &mut DebugRun,
 ) -> Result<(), DebugError> {
-    let mut left_pruner =
-        SolverPruner::new(solver, opts.check_left, &left_inl.listing, String::new());
+    let mut left_pruner = SolverPruner::new(
+        solver,
+        opts.check_left,
+        &left_inl.listing,
+        String::new(),
+        observer,
+        Side::Left,
+    );
     let mut explored = 0usize;
     let mut left_counter = 0usize;
     let mut right_shortcuts = 0usize;
@@ -621,13 +645,22 @@ fn explore_paths<S: SmtSolver>(
         let run = &mut *run;
 
         let mut on_left = |lp: &TerminalPath| -> ControlFlow<()> {
+            if stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
+                run.partial = true;
+                return ControlFlow::Break(());
+            }
             *explored += 1;
             *left_counter += 1;
             if *explored > opts.max_paths {
                 run.partial = true;
                 return ControlFlow::Break(());
             }
-            let lid = format!("{}", *left_counter);
+            let index = *left_counter;
+            let lid = format!("{index}");
+            observer.borrow_mut().on_event(&DebugEvent::LeftPathStarted {
+                index,
+                id: &lid,
+            });
             match handle_left_path(
                 solver,
                 eqctx,
@@ -641,12 +674,28 @@ fn explore_paths<S: SmtSolver>(
                 &left_inl.listing,
                 &lid,
                 lp,
+                observer,
+                stop,
                 explored,
                 run,
             ) {
                 Ok((lv, shortcuts)) => {
                     *right_shortcuts += shortcuts;
+                    if !lv.reachable {
+                        observer
+                            .borrow_mut()
+                            .on_event(&DebugEvent::LeftPathPruned { id: &lid });
+                    }
                     run.left_paths.push(lv);
+                    run.summary = summarize(&run.left_paths, &run.left_pruned_branches);
+                    observer.borrow_mut().on_event(&DebugEvent::LeftPathFinished {
+                        index,
+                        running: run.summary,
+                    });
+                    if let Err(e) = report::flush(run, out_dir) {
+                        *fatal = Some(DebugError::Io(e));
+                        return ControlFlow::Break(());
+                    }
                     ControlFlow::Continue(())
                 }
                 Err(e) => {
@@ -696,7 +745,7 @@ fn explore_paths<S: SmtSolver>(
 /// back there (one extra `push`/`pop` wraps the whole terminal so sibling left
 /// paths do not inherit it).
 #[allow(clippy::too_many_arguments)]
-fn handle_left_path<S: SmtSolver>(
+fn handle_left_path<'o, S: SmtSolver>(
     solver: &RefCell<S>,
     eqctx: &EquivalenceContext<'_>,
     claim: &Claim,
@@ -709,6 +758,8 @@ fn handle_left_path<S: SmtSolver>(
     left_listing: &Listing,
     lid: &str,
     lp: &TerminalPath,
+    observer: &SharedObserver<'o>,
+    stop: Option<&AtomicBool>,
     explored: &mut usize,
     run: &mut DebugRun,
 ) -> Result<(LeftPath, usize), DebugError> {
@@ -746,6 +797,8 @@ fn handle_left_path<S: SmtSolver>(
             opts.check_right,
             &right_inl.listing,
             format!("{lid}."),
+            observer,
+            Side::Right,
         );
         let mut right_counter = 0usize;
         let mut fatal: Option<DebugError> = None;
@@ -758,6 +811,10 @@ fn handle_left_path<S: SmtSolver>(
             let right_counter = &mut right_counter;
 
             let mut on_right = |rp: &TerminalPath| -> ControlFlow<()> {
+                if stop.is_some_and(|s| s.load(Ordering::Relaxed)) {
+                    run.partial = true;
+                    return ControlFlow::Break(());
+                }
                 *explored += 1;
                 if *explored > opts.max_paths {
                     run.partial = true;
@@ -774,6 +831,7 @@ fn handle_left_path<S: SmtSolver>(
                     &right_inl.listing,
                     &rid,
                     rp,
+                    observer,
                 ) {
                     Ok(rv) => {
                         left_view.right_paths.push(rv);
@@ -820,7 +878,7 @@ fn handle_left_path<S: SmtSolver>(
 /// One right terminal, under the current left path: assert its (delta) encoding
 /// and run the terminal-pair checks.
 #[allow(clippy::too_many_arguments)]
-fn handle_right_path<S: SmtSolver>(
+fn handle_right_path<'o, S: SmtSolver>(
     solver: &RefCell<S>,
     eqctx: &EquivalenceContext<'_>,
     claim: &Claim,
@@ -829,12 +887,23 @@ fn handle_right_path<S: SmtSolver>(
     right_listing: &Listing,
     rid: &str,
     rp: &TerminalPath,
+    observer: &SharedObserver<'o>,
 ) -> Result<RightPath, DebugError> {
-    let mut s = solver.borrow_mut();
-    s.push()?;
-    write_path_delta(&mut *s, rp)?;
-    let (verdict, model_smt) = check_pair(&mut *s, eqctx, claim, oracle, rid, out_dir)?;
-    s.pop()?;
+    let (verdict, model_smt) = {
+        let mut s = solver.borrow_mut();
+        s.push()?;
+        write_path_delta(&mut *s, rp)?;
+        let t0 = Instant::now();
+        let (verdict, model_smt) = check_pair(&mut *s, eqctx, claim, oracle, rid, out_dir)?;
+        s.pop()?;
+        drop(s);
+        observer.borrow_mut().on_event(&DebugEvent::PairChecked {
+            id: rid,
+            verdict: &verdict,
+            elapsed: t0.elapsed(),
+        });
+        (verdict, model_smt)
+    };
     Ok(RightPath {
         id: rid.to_string(),
         steps: steps_view(right_listing, &rp.steps),
@@ -908,7 +977,7 @@ fn write_path_delta<S: SmtSolver>(
 ///
 /// **Only `unsat` prunes.** `Sat`, `Unknown`, timeouts and stashed solver errors
 /// are all `Explore`.
-struct SolverPruner<'s, S: SmtSolver> {
+struct SolverPruner<'s, 'o, S: SmtSolver> {
     solver: &'s RefCell<S>,
     /// `false` ⇒ never query, never prune. Still `push`es/`pop`s and writes the
     /// per-branch delta, so the stack stays in lockstep and the terminal
@@ -917,6 +986,11 @@ struct SolverPruner<'s, S: SmtSolver> {
     listing: &'s Listing,
     /// `""` for the left pruner, `"<lid>."` for a per-left-path right pruner.
     id_prefix: String,
+    /// Progress observer — a [`DebugEvent::BranchPruned`] is emitted for every
+    /// fork this pruner cuts (story 09 / story 08 §3.6 hook).
+    observer: &'s SharedObserver<'o>,
+    /// Which side this pruner runs on, for [`DebugEvent::BranchPruned`].
+    side: Side,
     /// Per open scope: was this context a definite `Sat`? (`false` for `Unknown`,
     /// disabled, or a stashed error.)
     known_sat: Vec<bool>,
@@ -934,18 +1008,22 @@ struct SolverPruner<'s, S: SmtSolver> {
     err: Option<crate::util::smtsolver::error::Error>,
 }
 
-impl<'s, S: SmtSolver> SolverPruner<'s, S> {
+impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
     fn new(
         solver: &'s RefCell<S>,
         enabled: bool,
         listing: &'s Listing,
         id_prefix: String,
+        observer: &'s SharedObserver<'o>,
+        side: Side,
     ) -> Self {
         Self {
             solver,
             enabled,
             listing,
             id_prefix,
+            observer,
+            side,
             known_sat: Vec::new(),
             scope_pruned: Vec::new(),
             last_sibling_pruned: false,
@@ -986,8 +1064,14 @@ impl<'s, S: SmtSolver> SolverPruner<'s, S> {
             .get(&query.label)
             .map(|s| s.line.clone())
             .unwrap_or_default();
+        let id = format!("{}p{}", self.id_prefix, self.n_pruned);
+        self.observer.borrow_mut().on_event(&DebugEvent::BranchPruned {
+            side: self.side,
+            id: &id,
+            label: query.label,
+        });
         self.pruned.push(PrunedBranch {
-            id: format!("{}p{}", self.id_prefix, self.n_pruned),
+            id,
             steps: steps_view(self.listing, query.steps),
             label: query.label,
             line,
@@ -1001,7 +1085,7 @@ impl<'s, S: SmtSolver> SolverPruner<'s, S> {
     }
 }
 
-impl<S: SmtSolver> BranchOracle for SolverPruner<'_, S> {
+impl<S: SmtSolver> BranchOracle for SolverPruner<'_, '_, S> {
     fn enter(&mut self, query: &BranchQuery<'_>) -> Result<Feasibility, ExecError> {
         let parent_sat = self.known_sat.last().copied();
         let prev_sibling_pruned = self.last_sibling_pruned;
@@ -1287,8 +1371,10 @@ fn render_verdict(verdict: &Verdict) -> String {
 #[cfg(all(test, feature = "cvc5-lib"))]
 mod tests {
     use super::*;
+    use crate::debug::progress::{DebugEvent, NopObserver};
     use crate::project::{DirectoryFiles, DirectoryProject};
     use crate::util::smtsolver::cvc5lib::Cvc5LibBackend;
+    use std::sync::atomic::AtomicBool;
 
     fn with_project<R>(dir: &str, f: impl FnOnce(&DirectoryProject) -> R) -> R {
         let files = DirectoryFiles::load(std::path::Path::new(dir)).unwrap();
@@ -1303,16 +1389,64 @@ mod tests {
         claim: &str,
         opts: DebugOptions,
     ) -> DebugRun {
+        run_in_tmp_with(dir, theorem, oracle, claim, opts, &mut NopObserver, None)
+    }
+
+    fn run_in_tmp_with(
+        dir: &str,
+        theorem: &str,
+        oracle: &str,
+        claim: &str,
+        opts: DebugOptions,
+        observer: &mut dyn DebugObserver,
+        stop: Option<&AtomicBool>,
+    ) -> DebugRun {
         with_project(dir, |proj| {
             // `into_path` keeps the dir around after the test so artifacts can be
             // inspected on failure (and so `run.out_dir` stays valid).
             let out = tempfile::tempdir().unwrap().into_path();
             let backend = Cvc5LibBackend::new(true, opts.timeout_ms);
             run_debug_command(
-                proj, theorem, 0, oracle, claim, &opts, &backend, Some(out),
+                proj, theorem, 0, oracle, claim, &opts, &backend, Some(out), observer, stop,
             )
             .unwrap()
         })
+    }
+
+    /// Records events as owned, comparable summaries — `DebugEvent` borrows from
+    /// the in-flight `DebugRun`, so a keep-around observer must project.
+    #[derive(Default)]
+    struct RecordingObserver {
+        events: Vec<String>,
+        left_started: Vec<usize>,
+        left_finished: Vec<usize>,
+        last_summary: Option<Summary>,
+    }
+
+    impl DebugObserver for RecordingObserver {
+        fn on_event(&mut self, ev: &DebugEvent<'_>) {
+            #[allow(unreachable_patterns)] // `DebugEvent` is `#[non_exhaustive]`
+            match ev {
+                DebugEvent::Started { .. } => self.events.push("Started".into()),
+                DebugEvent::LeftPathStarted { index, .. } => {
+                    self.left_started.push(*index);
+                    self.events.push("LeftPathStarted".into());
+                }
+                DebugEvent::LeftPathPruned { .. } => self.events.push("LeftPathPruned".into()),
+                DebugEvent::PairChecked { .. } => self.events.push("PairChecked".into()),
+                DebugEvent::BranchPruned { .. } => self.events.push("BranchPruned".into()),
+                DebugEvent::LeftPathFinished { index, running } => {
+                    self.left_finished.push(*index);
+                    self.last_summary = Some(*running);
+                    self.events.push("LeftPathFinished".into());
+                }
+                DebugEvent::Finished { summary, .. } => {
+                    self.last_summary = Some(*summary);
+                    self.events.push("Finished".into());
+                }
+                _ => {}
+            }
+        }
     }
 
     /// story 05 deferred this: per left path the DSA encoding must agree with the
@@ -1597,4 +1731,93 @@ mod tests {
         assert_eq!(base.summary.verified, pruned.summary.verified);
     }
 
+    /// Story 09: the observer sees a well-formed event stream —
+    /// `Started` → (`LeftPathStarted` → …pairs… → `LeftPathFinished`)* →
+    /// `Finished` — with `index` monotonic and `Finished.summary == run.summary`.
+    #[test]
+    fn observer_sees_a_well_formed_event_stream() {
+        let mut obs = RecordingObserver::default();
+        let run = run_in_tmp_with(
+            "example-projects/hello-world",
+            "Proof",
+            "UsefulOracle",
+            "same-output",
+            DebugOptions::default(),
+            &mut obs,
+            None,
+        );
+
+        assert_eq!(obs.events.first().map(String::as_str), Some("Started"));
+        assert_eq!(obs.events.last().map(String::as_str), Some("Finished"));
+
+        // exactly one Started and one Finished
+        assert_eq!(obs.events.iter().filter(|e| *e == "Started").count(), 1);
+        assert_eq!(obs.events.iter().filter(|e| *e == "Finished").count(), 1);
+
+        // one LeftPathStarted / LeftPathFinished per left path, indices 1..=n
+        let n = run.summary.left_paths;
+        assert!(n > 0);
+        assert_eq!(obs.left_started, (1..=n).collect::<Vec<_>>());
+        assert_eq!(obs.left_finished, (1..=n).collect::<Vec<_>>());
+
+        // every LeftPathStarted is eventually matched by a LeftPathFinished, in
+        // order, with only pair-level events (or a prune) in between.
+        let mut depth = 0i32;
+        for e in &obs.events {
+            match e.as_str() {
+                "LeftPathStarted" => {
+                    assert_eq!(depth, 0, "nested left paths");
+                    depth = 1;
+                }
+                "LeftPathFinished" => {
+                    assert_eq!(depth, 1, "LeftPathFinished without a start");
+                    depth = 0;
+                }
+                "PairChecked" | "BranchPruned" | "LeftPathPruned" => {
+                    assert_eq!(depth, 1, "pair event outside a left path");
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(depth, 0);
+
+        assert_eq!(obs.last_summary, Some(run.summary));
+        assert_eq!(
+            obs.events.iter().filter(|e| *e == "PairChecked").count(),
+            run.summary.right_paths
+        );
+    }
+
+    /// Story 09: a pre-set stop flag makes `explore_paths` bail immediately with
+    /// a well-formed, `partial` `DebugRun` and usable artifacts.
+    #[test]
+    fn stop_flag_bails_with_a_partial_run() {
+        let stop = AtomicBool::new(true);
+        let mut obs = RecordingObserver::default();
+        let run = run_in_tmp_with(
+            "example-projects/simple-KEM-example",
+            "KEM_Proof",
+            "TestSender",
+            "same-output",
+            DebugOptions::default(),
+            &mut obs,
+            Some(&stop),
+        );
+
+        assert!(run.partial, "{}", render_tree(&run));
+        assert!(!run.is_ok());
+        assert!(run.summary.left_paths <= 1);
+        // Started + Finished still bracket the (empty) exploration.
+        assert_eq!(obs.events.first().map(String::as_str), Some("Started"));
+        assert_eq!(obs.events.last().map(String::as_str), Some("Finished"));
+
+        // partial artifacts exist, parse, and carry `"partial": true`.
+        let trace = std::fs::read_to_string(
+            std::path::Path::new(&run.out_dir).join("trace.json"),
+        )
+        .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&trace).unwrap();
+        assert_eq!(parsed["partial"], true);
+        assert!(std::path::Path::new(&run.out_dir).join("index.html").exists());
+    }
 }

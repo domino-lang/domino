@@ -544,3 +544,11 @@ There is no next story planned. Record in
 - Whether the sibling shortcut (§3.2 step 3) ever fired, and on what.
 - Any place where pruning changed a verdict — there should be none; if there is, stop and
   escalate rather than adjusting the expectation.
+
+### Story 09 follow-up (done)
+
+Story 09 landed after this one and wired the §3.6 hook: `SolverPruner` now carries an
+`observer: &SharedObserver` and a `side: Side`, and `record_prune` emits
+`DebugEvent::BranchPruned { side, id, label }` the moment a fork is cut. Both observers
+(`PlainObserver`, `BarObserver`) fold it into a `✂` tally. No behaviour change — the event is
+emitted from the existing `record_prune` call site.

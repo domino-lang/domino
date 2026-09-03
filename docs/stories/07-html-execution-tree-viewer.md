@@ -232,9 +232,13 @@ This is the last story of the epic. **Done** — full handover in
   - **Schema `1` → `2` (story 08):** added `left_pruned_branches` (top level) and
     `left_paths[].pruned_branches`, each `[{id, steps, label, line, decision}]` — the solver-cut
     forks; `summary` gained `left_pruned_branches`, `right_pruned_branches`, `sibling_shortcuts`.
-- **Viewer** = `src/debug/report.rs::{write_trace_json, write_html}`, called at the end of
-  `run_debug_command`. `index.html` is one dependency-free file with the trace embedded as
-  JSON; a TUI / CI gate / run-diff consumes `trace.json` directly.
+- **Viewer** = `src/debug/report.rs::{write_trace_json, write_html}`. **As of story 09 these are
+  called incrementally** — via `report::flush` after every left path and once at the end — so a
+  `Ctrl-C` / `--max-paths` stop leaves a usable partial `trace.json` + `index.html`. Each flush
+  truncate-writes; the *final* bytes are unchanged, so the byte-identical-across-runs guarantee
+  still holds (no timestamps entered `DebugRun` — elapsed times live only in story 09's
+  `DebugEvent`s). `index.html` is one dependency-free file with the trace embedded as JSON; a TUI
+  / CI gate / run-diff consumes `trace.json` directly.
 - **Not implemented from `docs/symbolic-execution-plan.md`** (all pre-existing, from earlier
   stories): per-*branch* solver guidance/pruning (story 06 checks per terminal *pair* — story
   05 streams terminals only, so the viewer can only show whole-left-path pruning via

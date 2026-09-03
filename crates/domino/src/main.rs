@@ -134,7 +134,12 @@ fn prove(p: &Prove) -> Result<(), Error> {
 
 #[cfg(feature = "cvc5-lib")]
 fn debug(d: &Debug) -> Result<(), Error> {
+    use std::io::IsTerminal;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
     use sspverif::debug::driver::{render_tree, run_debug_command, DebugOptions};
+    use sspverif::debug::progress::{BarObserver, DebugObserver, NopObserver, PlainObserver};
 
     // NB: `unwrap_or` would evaluate `find_project_root()?` eagerly even when
     // `--path` is given (and propagate its error). Match instead.
@@ -154,6 +159,28 @@ fn debug(d: &Debug) -> Result<(), Error> {
 
     let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, d.timeout);
 
+    let mut observer: Box<dyn DebugObserver> = match d.progress {
+        ProgressMode::None => Box::new(NopObserver),
+        ProgressMode::Plain => Box::new(PlainObserver::new()),
+        ProgressMode::Bar => Box::new(BarObserver::new()),
+        ProgressMode::Auto => {
+            if std::io::stderr().is_terminal() {
+                Box::new(BarObserver::new())
+            } else {
+                Box::new(PlainObserver::new())
+            }
+        }
+    };
+
+    // Best-effort Ctrl-C handling: a set flag stops the driver at the next pair
+    // boundary, leaving partial `trace.json` / `index.html`. If a handler is
+    // already installed the run just is not interruptible — not fatal.
+    let stop = Arc::new(AtomicBool::new(false));
+    {
+        let stop = stop.clone();
+        let _ = ctrlc::try_set_handler(move || stop.store(true, Ordering::Relaxed));
+    }
+
     let run = run_debug_command(
         &project,
         &d.proof,
@@ -163,6 +190,8 @@ fn debug(d: &Debug) -> Result<(), Error> {
         &opts,
         &backend,
         d.out.clone(),
+        observer.as_mut(),
+        Some(&stop),
     )?;
 
     print!("{}", render_tree(&run));

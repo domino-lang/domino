@@ -3,6 +3,19 @@
 use clap::Subcommand;
 use sspverif::util::smtsolver::process::SolverVariant;
 
+/// How `domino debug` renders its live exploration progress (on stderr).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ProgressMode {
+    /// An `indicatif` bar on a terminal, plain stderr log lines when piped.
+    Auto,
+    /// One terse stderr line per `(left, right)` pair. For logs and CI.
+    Plain,
+    /// A live `indicatif` two-bar display (goes quiet when stderr is not a TTY).
+    Bar,
+    /// No progress output at all.
+    None,
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
     /// Export to LaTeX
@@ -80,6 +93,11 @@ pub(crate) struct Debug {
     /// Give up after this many explored paths (left paths + right paths per left path).
     #[clap(long, default_value_t = 1000)]
     pub(crate) max_paths: usize,
+    /// Live progress while exploring, on stderr (stdout stays the final tree):
+    /// `auto` shows a bar on a terminal and plain log lines when piped; `plain`
+    /// and `bar` force one; `none` is silent.
+    #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
+    pub(crate) progress: ProgressMode,
     /// Output directory. Defaults to
     /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`.
     #[clap(long)]

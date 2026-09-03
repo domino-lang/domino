@@ -525,8 +525,12 @@ latter does not relink the `domino` binary in `crates/domino`.
 
 ## 7. State handed to the next story
 
-There is no next story planned. Record in
-`docs/stories/09-live-progress-IMPLEMENTATION-REPORT.md`:
+**Done** — full handover in `docs/stories/09-live-progress-IMPLEMENTATION-REPORT.md`. In brief:
+`DebugEvent`/`DebugObserver`/`NopObserver`/`PlainObserver`/`BarObserver` in
+`src/debug/progress.rs`; `run_debug_command` takes `&mut dyn DebugObserver` + `Option<&AtomicBool>`;
+`report::flush` runs after every left path; `ctrlc` added; story 08's `BranchPruned` hook wired.
+The spec's `LeftPathsCollected` / `RightPathsCollected` events were dropped (story 08 made both
+sides stream — no up-front totals). Report records:
 
 - The final `DebugEvent` variant list and the exact emission order (the acceptance test pins it —
   copy it in).

@@ -28,6 +28,21 @@ pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathB
     Ok(path)
 }
 
+/// Write both `trace.json` and `index.html` for the run so far.
+///
+/// Called after every left path (story 09's incremental flush, so a `Ctrl-C` or
+/// `--max-paths` leaves a usable partial trace + viewer) and once at the end.
+/// Both files truncate-write, so an intermediate flush is simply overwritten by
+/// the next one; the *final* bytes are byte-identical to a single end-of-run
+/// write (story 07's determinism guarantee — no timestamps enter `DebugRun`).
+/// Errors are surfaced: a failing flush is a real problem (out of disk, bad
+/// path).
+pub fn flush(run: &DebugRun, out_dir: &Path) -> std::io::Result<()> {
+    write_trace_json(run, out_dir)?;
+    write_html(run, out_dir)?;
+    Ok(())
+}
+
 /// Write the self-contained `index.html` viewer into `out_dir`. Returns the path
 /// written.
 pub fn write_html(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {

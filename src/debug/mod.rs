@@ -9,5 +9,6 @@
 pub mod driver;
 pub mod exec;
 pub mod ir;
+pub mod progress;
 pub mod render;
 pub mod report;

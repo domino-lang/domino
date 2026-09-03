@@ -11,6 +11,7 @@ cvc5-lib = ["sspverif/cvc5-lib"]
 [dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
+ctrlc = "3"
 miette = { version = "7.6.0", features = ["fancy"] }
 env_logger = "0.11"
 shadow-rs = { version = "1.7", default-features = false }
