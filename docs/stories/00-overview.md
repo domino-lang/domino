@@ -44,14 +44,14 @@ breaks the claim. Debugging means reading SMT by hand.
 
 | Topic | Decision |
 |---|---|
-| **Solver** | `cvc5-rs` (crates.io crate `cvc5` 0.4, features `static` + `parser`). Its `InputParser` incremental-string mode consumes SMT-LIB text, so the existing `SmtExpr` output is fed verbatim — no rewrite to a term-building API. `Solver`/`Command` are `!Send`/`!Sync`, so `debug` is single-threaded; `prove` keeps the process backend and its rayon fan-out. |
+| **Solver** | `cvc5-rs` (crates.io crate `cvc5` 0.4, features `static` + `parser`). Its `InputParser` incremental-string mode consumes SMT-LIB text, so the existing `SmtExpr` output is fed verbatim — no rewrite to a term-building API. `Solver`/`Command` are `!Send`/`!Sync`, so a cvc5 instance never crosses a thread; story 14 parallelises `debug` across left paths with **one instance per worker thread** instead. `prove` keeps the process backend and its rayon fan-out. |
 | **Inlining** | A new **AST-level** inline transform producing a labelled inlined IR. The textual `src/inline.rs` on branch `amir/ty-params-features` is a pretty-printer only; it is re-implemented on top of the new IR, not ported as-is. |
 | **Pipeline** | A debug-specific pipeline **without `treeify`**. `treeify` duplicates every statement following an `if` into both branches purely so the SMT writer can emit `ite`; that would multiply path counts and destroy statement identity, which the labels depend on. |
 | **Claim scope** | `--claim` is **required**. One claim per run. |
 | **Assumptions** | The randomness-mapping condition, the invariants on the old game states (main + per-game + per-package) and **all of the claim's dependencies** are asserted up front, before the left oracle is executed. A dependency like `no-abort` will therefore make left abort paths `unsat` — that is intended and visible. |
 | **Per-path encoding** | The per-path DSA encoding **replaces** the monolithic `(assert (= <return-X> (oracle-X <old-state> <consts> <args>)))`. `<return-value-X>`, `<is-abort-X>` and `<new-state-X>` stay constrained off `<return-X>`, so `emit_oracle_claim_assert` and the invariant/relation machinery keep working unchanged. |
-| **Output** | `index.html` (self-contained, collapsible left→right tree) + `transcript.smt2` + labelled `inlined.txt` + `trace.json` + per-failure models, under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`. |
-| **Guardrails** | `--timeout <ms>` (mapped to cvc5's `tlimit-per`; a timeout counts as *unknown*, i.e. explored, never pruned) and `--max-paths <n>`. No depth limit and no first-failure flag in v1. |
+| **Output** | `index.html` (self-contained, collapsible left→right tree) + labelled `inlined.txt` + `trace.json` + `summary.txt` + per-failure models + a `smt/` tree of runnable per-path queries, under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`. The monolithic `transcript.smt2` is opt-in (`--transcript`) as of story 11. |
+| **Guardrails** | `--timeout <ms>` (mapped to cvc5's `tlimit-per`; a timeout counts as *unknown*, i.e. explored, never pruned) and `--max-paths <n>` — **unlimited by default** as of story 10, with `Ctrl-C` as the interactive stop. No depth limit and no first-failure flag. |
 | **Labels** | **Line numbers in the emitted inlined listing**: `L12:then`, `L19:assert-holds`, `L27:return`. The listing is the single source of truth for labels. |
 | **`domino inline`** | In scope, as its own story, built on the new IR. |
 | **Vacuity** | Yes. Before checking the goal at a terminal pair, one extra `check-sat` of the assumptions plus both path conditions. `unsat` there means the pair is **unreachable**, not **verified**. As of story 08 this check is **unconditional** — it is what makes the four verdicts distinguishable, and it is not tied to the `--no-check-left` / `--no-check-right` pruning flags. |
@@ -107,9 +107,20 @@ left path #3:
 | 07 | HTML execution-tree viewer + `trace.json` | `07-html-execution-tree-viewer.md` | 06 |
 | 08 | Branch-level pruning on both sides | `08-branch-level-pruning.md` | 05, 06, 07 |
 | 09 | Live exploration progress + partial artifacts | `09-live-progress.md` | 06, 07 |
+| 10 | Path totals, honest bars, unlimited `--max-paths`, responsive `Ctrl-C` | `10-path-totals-and-interruption.md` | 05, 06, 08, 09 |
+| 11 | Per-path SMT files instead of one huge transcript | `11-per-path-smt-files.md` | 06, 09 |
+| 12 | Concise run report (`summary.txt`) + explicit stop reason | `12-run-summary-report.md` | 06, 09, 10 |
+| 13 | Collapsible HTML detail pane + the claim assertion | `13-html-collapsible-and-goal-assertion.md` | 06, 07 |
+| 14 | Parallel path exploration (`--jobs`) | `14-parallel-exploration.md` | 06, 08, 09, 10, 12 |
 
 Stories 01, 02 and 04 are independent and may be done in any order (or in parallel). Stories 08
 and 09 are independent of each other; whichever lands second wires a one-way hook (see `09` §3.6).
+
+Stories 01–09 are **done** (each has an `-IMPLEMENTATION-REPORT.md` next to it). Stories 10–14 are
+a second wave from the owner's follow-up review of `domino debug`. 10–13 are independent of each
+other and may land in any order; each bumps `TRACE_SCHEMA` by one, so whichever lands second
+bumps from whatever it finds and records the number in its report. **Story 14 goes last** — it
+reuses 10's events and cancellation, 12's `StopReason`, 11's `SmtWriter` and 13's `goal_smt`.
 
 ## 6. Working agreement (important)
 
