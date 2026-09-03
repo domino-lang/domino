@@ -146,7 +146,7 @@ fn debug(d: &Debug) -> Result<(), Error> {
     let project = project::DirectoryProject::load(project_root, &files)?;
 
     let opts = DebugOptions {
-        check_left: d.check_left,
+        check_left: !d.no_check_left,
         check_right: !d.no_check_right,
         timeout_ms: d.timeout,
         max_paths: d.max_paths,

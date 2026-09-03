@@ -106,8 +106,10 @@ left path #3:
 | 06 | `domino debug`: solver-guided exploration and claim checking | `06-debug-command-solver-guided.md` | 01, 04, 05 |
 | 07 | HTML execution-tree viewer + `trace.json` | `07-html-execution-tree-viewer.md` | 06 |
 | 08 | Branch-level pruning on both sides | `08-branch-level-pruning.md` | 05, 06, 07 |
+| 09 | Live exploration progress + partial artifacts | `09-live-progress.md` | 06, 07 |
 
-Stories 01, 02 and 04 are independent and may be done in any order (or in parallel).
+Stories 01, 02 and 04 are independent and may be done in any order (or in parallel). Stories 08
+and 09 are independent of each other; whichever lands second wires a one-way hook (see `09` §3.6).
 
 ## 6. Working agreement (important)
 

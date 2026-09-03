@@ -250,9 +250,24 @@ const el = (tag, cls, txt) => {
 };
 const verdictKind = v => (v && v.kind) || "verified";
 const badgeClass = k => ({ "verified":"verified", "unreachable":"unreachable",
-  "goal-fails":"goalfails", "inconclusive":"inconclusive" }[k] || "verified");
+  "goal-fails":"goalfails", "inconclusive":"inconclusive", "pruned":"pruned" }[k] || "verified");
 const badgeText = k => ({ "verified":"verified", "unreachable":"unreachable",
-  "goal-fails":"GOAL FAILS", "inconclusive":"inconclusive" }[k] || k);
+  "goal-fails":"GOAL FAILS", "inconclusive":"inconclusive", "pruned":"pruned (unsat)" }[k] || k);
+
+// A pruned branch is rendered with the same machinery as a path: a synthetic
+// row whose "terminal" is the cut fork line and whose verdict is "pruned".
+const PRUNED = { kind: "pruned" };
+const prunedRow = (pb, parentId) => ({
+  id: pb.id,
+  steps: pb.steps,
+  terminal: { label: pb.label, line: pb.line, is_abort: false },
+  verdict: PRUNED,
+  pruned: true,
+  decision: pb.decision,
+  model_smt: null,
+  smt: [],
+  _parent: parentId,
+});
 
 // ---- header ---------------------------------------------------------------
 document.getElementById("h-title").textContent =
@@ -273,10 +288,14 @@ const sc = document.getElementById("h-summary");
 const addChip = (cls, txt) => sc.appendChild(el("span", "chip " + cls, txt));
 addChip("", `${s.left_paths} left paths` + (s.left_pruned ? ` (${s.left_pruned} pruned)` : ""));
 addChip("", `${s.right_paths} right paths`);
+if (s.left_pruned_branches || s.right_pruned_branches)
+  addChip("unreach", `${s.left_pruned_branches + s.right_pruned_branches} branches pruned` +
+    ` (${s.left_pruned_branches}L / ${s.right_pruned_branches}R)`);
 addChip("ok", `${s.verified} verified`);
 addChip("unreach", `${s.unreachable} unreachable`);
 addChip(s.goal_fails ? "fail" : "", `${s.goal_fails} goal fails`);
 addChip(s.inconclusive ? "amber" : "", `${s.inconclusive} inconclusive`);
+if (s.sibling_shortcuts) addChip("", `${s.sibling_shortcuts} sibling shortcuts`);
 if (T.partial) addChip("fail", "PARTIAL — exploration stopped early");
 
 // ---- verdict toggles ----------------------------------------------------
@@ -295,25 +314,45 @@ VERDICTS.forEach(k => {
 });
 
 // ---- tree ---------------------------------------------------------------
-const chainSpan = (steps, terminal) => {
+const chainSpan = (steps, terminal, pruned) => {
   const c = el("span", "chain");
   steps.forEach(st => {
     c.appendChild(document.createTextNode(`L${st.label} `));
     c.appendChild(el("span", "dec", st.decision));
     c.appendChild(document.createTextNode(" → "));
   });
-  c.appendChild(document.createTextNode(`L${terminal.label} ${terminal.is_abort ? "abort" : "return"}`));
+  if (pruned) {
+    c.appendChild(document.createTextNode(`L${terminal.label} `));
+    c.appendChild(el("span", "dec", "✂ branch pruned"));
+  } else {
+    c.appendChild(document.createTextNode(`L${terminal.label} ${terminal.is_abort ? "abort" : "return"}`));
+  }
   return c;
 };
 
 let selected = null;
 const tree = document.getElementById("tree");
 
+const rpRow = (lp, rp) => {
+  const k = verdictKind(rp.verdict);
+  const row = el("div", "rp");
+  row._lp = lp; row._rp = rp; row._vk = k;
+  row.appendChild(el("span", "twist", ""));
+  row.appendChild(el("span", "pid", "#" + rp.id));
+  row.appendChild(chainSpan(rp.steps, rp.terminal, rp.pruned));
+  const bt = rp.pruned ? `pruned at L${rp.terminal.label} (unsat)` : badgeText(k);
+  row.appendChild(el("span", "badge " + badgeClass(k), bt));
+  row.onclick = () => select(row, lp, rp);
+  return row;
+};
+
 T.left_paths.forEach(lp => {
+  const prunes = (lp.pruned_branches || []).map(pb => prunedRow(pb, lp.id));
+  const kids = lp.reachable ? lp.right_paths.concat(prunes) : [];
   const node = el("div", "node lp");
   node._lp = lp;
   const head = el("div", "lp-head");
-  const twist = el("span", "twist", lp.reachable && lp.right_paths.length ? "▾" : "");
+  const twist = el("span", "twist", kids.length ? "▾" : "");
   head.appendChild(twist);
   head.appendChild(el("span", "pid", "#" + lp.id));
   head.appendChild(chainSpan(lp.steps, lp.terminal));
@@ -322,7 +361,7 @@ T.left_paths.forEach(lp => {
     head.appendChild(el("span", "badge pruned", "pruned (unsat)"));
   } else {
     const counts = {};
-    lp.right_paths.forEach(rp => {
+    kids.forEach(rp => {
       const k = verdictKind(rp.verdict);
       counts[k] = (counts[k] || 0) + 1;
     });
@@ -336,21 +375,26 @@ T.left_paths.forEach(lp => {
   };
   node.appendChild(head);
 
-  if (lp.reachable) {
+  if (kids.length) {
     const list = el("div", "rp-list");
-    lp.right_paths.forEach(rp => {
-      const k = verdictKind(rp.verdict);
-      const row = el("div", "rp");
-      row._lp = lp; row._rp = rp; row._vk = k;
-      row.appendChild(el("span", "twist", ""));
-      row.appendChild(el("span", "pid", "#" + rp.id));
-      row.appendChild(chainSpan(rp.steps, rp.terminal));
-      row.appendChild(el("span", "badge " + badgeClass(k), badgeText(k)));
-      row.onclick = () => select(row, lp, rp);
-      list.appendChild(row);
-    });
+    kids.forEach(rp => list.appendChild(rpRow(lp, rp)));
     node.appendChild(list);
   }
+  tree.appendChild(node);
+});
+
+// Left branches cut before any terminal below them — top-level rows.
+(T.left_pruned_branches || []).forEach(pb => {
+  const rp = prunedRow(pb, null);
+  const node = el("div", "node lp");
+  node._lp = null; node._leftPrune = rp;
+  const head = el("div", "lp-head");
+  head.appendChild(el("span", "twist", ""));
+  head.appendChild(el("span", "pid", "#" + rp.id));
+  head.appendChild(chainSpan(rp.steps, rp.terminal, true));
+  head.appendChild(el("span", "badge pruned", `pruned at L${rp.terminal.label} (unsat)`));
+  head.onclick = () => select(node, rp, null);
+  node.appendChild(head);
   tree.appendChild(node);
 });
 
@@ -405,17 +449,33 @@ function stepsTable(steps, sites) {
 
 function renderDetail(lp, rp) {
   detail.innerHTML = "";
-  const node = rp || lp;
+
+  // A top-level left-branch prune is passed as `lp` with `.pruned`.
+  if (lp && lp.pruned && !rp) {
+    detail.appendChild(el("h2", null, "Left branch prune #" + lp.id));
+    detail.appendChild(el("div", "path-sub",
+      `cut at L${lp.terminal.label} ${lp.decision} — prefix unsat, subtree not explored`));
+    detail.appendChild(sec("Path — left", stepsTable(lp.steps, T.left_sites)));
+    detail.appendChild(sec("Listing — left (" + T.left_game + ")",
+      listingBlock(T.left_listing, lp.steps, lp.terminal)));
+    return;
+  }
+
   const isRight = !!rp;
-  detail.appendChild(el("h2", null, (isRight ? "Right path #" : "Left path #") + node.id));
+  const node = rp || lp;
+  const rightPruned = isRight && rp.pruned;
+  detail.appendChild(el("h2", null,
+    (rightPruned ? "Right branch prune #" : isRight ? "Right path #" : "Left path #") + node.id));
 
   const sub = el("div", "path-sub");
-  if (isRight) {
+  if (rightPruned) {
+    sub.textContent = `under left path #${lp.id} — cut at L${rp.terminal.label} ${rp.decision}, prefix unsat`;
+  } else if (isRight) {
     sub.textContent = `under left path #${lp.id} — verdict: ${badgeText(verdictKind(rp.verdict))}`;
   } else {
     sub.textContent = lp.reachable
       ? `${lp.right_paths.length} right path(s) explored`
-      : "unreachable — pruned by --check-left, right side not explored";
+      : "unreachable — pruned by check-left, right side not explored";
   }
   detail.appendChild(sub);
 
@@ -430,6 +490,7 @@ function renderDetail(lp, rp) {
     detail.appendChild(sec("Listing — right (" + T.right_game + ")",
       listingBlock(T.right_listing, rp.steps, rp.terminal)));
   }
+  if (rightPruned) return;
 
   // SMT
   const smtWrap = el("div");
@@ -473,19 +534,29 @@ function applyFilter() {
 
   tree.querySelectorAll(".lp").forEach(node => {
     const lp = node._lp;
+
+    // top-level left-branch prune row
+    if (!lp) {
+      const rp = node._leftPrune;
+      const show = active.has("pruned") && matchText(rp.steps, rp.terminal, rp.id);
+      node.classList.toggle("hidden", !show);
+      return;
+    }
+
     let anyChild = false;
     node.querySelectorAll(".rp").forEach(row => {
       const rp = row._rp;
-      const vOk = active.has(row._vk === "goal-fails" ? "goal-fails" : row._vk);
+      const vOk = active.has(row._vk);
       const tOk = matchText(rp.steps, rp.terminal, rp.id) || matchText(lp.steps, lp.terminal, lp.id);
       const show = vOk && tOk;
       row.classList.toggle("hidden", !show);
       if (show) anyChild = true;
     });
+    const kidCount = lp.right_paths.length + (lp.pruned_branches || []).length;
     let showNode;
     if (!lp.reachable) {
       showNode = active.has("pruned") && matchText(lp.steps, lp.terminal, lp.id);
-    } else if (lp.right_paths.length === 0) {
+    } else if (kidCount === 0) {
       showNode = matchText(lp.steps, lp.terminal, lp.id);
     } else {
       showNode = anyChild;
@@ -503,8 +574,8 @@ applyFilter();
 mod tests {
     use super::*;
     use crate::debug::driver::{
-        DebugRun, LeftPath, OptionsView, RightPath, SiteView, StepView, Summary, TerminalView,
-        Verdict, TRACE_SCHEMA,
+        DebugRun, LeftPath, OptionsView, PrunedBranch, RightPath, SiteView, StepView, Summary,
+        TerminalView, Verdict, TRACE_SCHEMA,
     };
     use std::collections::BTreeMap;
 
@@ -556,6 +627,17 @@ mod tests {
                 },
                 reachable: true,
                 smt: vec!["(assert true)".into()],
+                pruned_branches: vec![PrunedBranch {
+                    id: "1.p1".into(),
+                    steps: vec![StepView {
+                        label: 2,
+                        line: "if (k != bot) {".into(),
+                        decision: "else".into(),
+                    }],
+                    label: 2,
+                    line: "if (k != bot) {".into(),
+                    decision: "else".into(),
+                }],
                 right_paths: vec![
                     RightPath {
                         id: "1.1".into(),
@@ -585,10 +667,24 @@ mod tests {
                     },
                 ],
             }],
+            left_pruned_branches: vec![PrunedBranch {
+                id: "p1".into(),
+                steps: vec![StepView {
+                    label: 2,
+                    line: "if (k != bot) {".into(),
+                    decision: "then".into(),
+                }],
+                label: 2,
+                line: "if (k != bot) {".into(),
+                decision: "then".into(),
+            }],
             summary: Summary {
                 left_paths: 1,
                 left_pruned: 0,
+                left_pruned_branches: 1,
                 right_paths: 2,
+                right_pruned_branches: 1,
+                sibling_shortcuts: 0,
                 verified: 1,
                 unreachable: 0,
                 goal_fails: 1,
@@ -613,10 +709,13 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 1);
+        assert_eq!(parsed["schema"], 2);
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
         assert_eq!(parsed["summary"]["goal_fails"], 1);
         assert_eq!(parsed["left_sites"]["12"]["kind"], "branch");
+        assert_eq!(parsed["left_pruned_branches"][0]["id"], "p1");
+        assert_eq!(parsed["left_paths"][0]["pruned_branches"][0]["id"], "1.p1");
+        assert_eq!(parsed["summary"]["right_pruned_branches"], 1);
     }
 
     #[test]

@@ -11,10 +11,29 @@
 //! fills the `<return-{GI}-{O}>` slot story 04 left unconstrained
 //! (`emit_constant_declarations(Some(O))`).
 //!
-//! No solver is involved: every branch is explored, `abort` and `unwrap`-none
-//! terminate the path, and a callee `return` resumes the caller after the
-//! [`crate::debug::ir::InlStmt::Call`]. Story 06 layers solver-guided pruning on
-//! top of [`execute_streaming`] without changing anything here.
+//! No solver is involved by default: every branch is explored, `abort` and
+//! `unwrap`-none terminate the path, and a callee `return` resumes the caller
+//! after the [`crate::debug::ir::InlStmt::Call`]. Story 06 layers solver-guided
+//! *terminal-pair* checking on top of [`execute_streaming`] without changing
+//! anything here.
+//!
+//! # Branch-level pruning (story 08)
+//!
+//! [`execute_streaming_with_oracle`] additionally consults a [`BranchOracle`] at
+//! **every fork**, before descending into a child. Answering [`Feasibility::Prune`]
+//! cuts that subtree. This is sound only because the per-path SMT encoding is a
+//! plain **conjunction** — `decls ++ constraints ++ return_constraint` — so a
+//! branch only ever *adds* a conjunct:
+//!
+//! > if `base ∧ prefix` is `unsat`, then `base ∧ prefix ∧ rest` is `unsat` for
+//! > every `rest`.
+//!
+//! Cutting an `unsat` prefix therefore removes only pairs that would have been
+//! `Unreachable`; it can never hide a `GoalFails`. The converse does not hold, so
+//! the driver's terminal-pair vacuity check stays. **Only `unsat` prunes** —
+//! `unknown` / timeouts are always explored (the safety property of the whole
+//! tool). If anything in the per-path encoding ever stops being a plain
+//! conjunction, this breaks.
 //!
 //! # Mirroring the prover
 //!
@@ -145,6 +164,51 @@ pub struct TerminalPath {
     /// `(assert (= <return-{GI}-{O}> <constructed return/abort>))`.
     pub return_constraint: SmtExpr,
     pub terminal: Terminal,
+    /// How many leading entries of [`decls`](Self::decls) were already handed to
+    /// a [`BranchOracle`] (and so already asserted on the solver stack when this
+    /// path is reached through [`execute_streaming_with_oracle`]). `0` when no
+    /// oracle was supplied — the driver then asserts the whole path.
+    pub reported_decls: usize,
+    /// Likewise for [`constraints`](Self::constraints).
+    pub reported_constraints: usize,
+}
+
+/// What a [`BranchOracle`] is asked about at one fork, before the executor
+/// descends into the proposed child.
+pub struct BranchQuery<'a> {
+    /// Label of the forking statement ([`InlStmt::Branch`] or [`InlStmt::Unwrap`]).
+    pub label: Label,
+    /// Which child is being proposed.
+    pub decision: Decision,
+    /// Every step on this path so far, *including* `decision`.
+    pub steps: &'a [Step],
+    /// `declare-const`s introduced since the previous `enter`/`leave` scope, in
+    /// dependency order. (The executor advances the watermark only when a query
+    /// is answered [`Feasibility::Explore`].)
+    pub decls: &'a [SmtExpr],
+    /// `assert`s introduced since the previous scope, in order. The **last**
+    /// entry is this child's own path condition.
+    pub constraints: &'a [SmtExpr],
+    /// `0` for the first child offered at this fork, `1` for the second.
+    pub sibling: u8,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Feasibility {
+    Explore,
+    Prune,
+}
+
+/// Consulted at every fork by [`execute_streaming_with_oracle`]. The executor
+/// guarantees `leave` is called exactly once for every `enter` that returns
+/// `Ok` — including ones answered [`Feasibility::Prune`], and including when the
+/// walk unwinds early via [`ControlFlow::Break`] or an [`ExecError`] from the
+/// body. `enter`/`leave` scopes are properly nested (a stack), mirroring the
+/// executor's DFS, so a solver-backed implementation can `push` on `enter` and
+/// `pop` on `leave`.
+pub trait BranchOracle {
+    fn enter(&mut self, query: &BranchQuery<'_>) -> Result<Feasibility, ExecError>;
+    fn leave(&mut self);
 }
 
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
@@ -176,6 +240,12 @@ struct SymState {
     steps: Vec<Step>,
     decls: Vec<SmtExpr>,
     constraints: Vec<SmtExpr>,
+    /// Watermark: how many leading `decls` / `constraints` have already been
+    /// handed to a [`BranchOracle`] and (in the driver) asserted on the solver
+    /// stack. Advanced only when a fork query is answered [`Feasibility::Explore`].
+    /// Both stay `0` for the whole walk when no oracle is supplied.
+    reported_decls: usize,
+    reported_constraints: usize,
 }
 
 impl SymState {
@@ -533,8 +603,17 @@ impl<'a> Executor<'a> {
     /// Walk one continuation stack to a terminal, forking at every branch.
     /// `on_path` sees each completed [`TerminalPath`]; returning
     /// [`ControlFlow::Break`] stops the whole walk.
-    fn walk(
+    ///
+    /// Story 05 kept the *else*-child (and the *unwrap-some*-child) as an
+    /// in-place continuation of this loop, so a path with `n` forks used `O(n)`
+    /// stack via then-child recursion only. Story 08 makes **both** children
+    /// recurse through [`Self::descend`] so each has a matching
+    /// [`BranchOracle::leave`] scope; recursion depth is now the number of forks
+    /// on the path (≤ ~15 across the whole corpus). Do not "restore" the
+    /// iterative else-continuation — it would break the enter/leave nesting.
+    fn walk<'o>(
         &mut self,
+        oracle: &mut Option<&'o mut dyn BranchOracle>,
         mut frames: Vec<Cursor<'a>>,
         mut st: SymState,
         on_path: &mut dyn FnMut(&TerminalPath) -> ControlFlow<()>,
@@ -582,28 +661,51 @@ impl<'a> Executor<'a> {
                     }
                     .into();
 
+                    let label_v = *label;
+
                     // none-child: aborts at the unwrap's own label
                     let mut st_none = st.clone();
                     st_none.steps.push(Step {
-                        label: *label,
+                        label: label_v,
                         decision: Decision::UnwrapNone,
                     });
                     st_none.constraints.push(SmtAssert(is_none.clone()).into());
                     if self
-                        .emit_terminal(st_none, Terminal::Abort { label: *label }, on_path)?
+                        .descend(
+                            oracle,
+                            label_v,
+                            Decision::UnwrapNone,
+                            0,
+                            st_none,
+                            |exec, _oracle, st| {
+                                exec.emit_terminal(
+                                    st,
+                                    Terminal::Abort { label: label_v },
+                                    on_path,
+                                )
+                            },
+                        )?
                         .is_break()
                     {
                         return Ok(ControlFlow::Break(()));
                     }
 
-                    // some-child: continue in place
+                    // some-child: continue the current frame stack
                     st.steps.push(Step {
-                        label: *label,
+                        label: label_v,
                         decision: Decision::UnwrapSome,
                     });
                     st.constraints.push(SmtAssert(SmtNot(is_none)).into());
                     let getter = SmtExpr::List(vec!["maybe-get".into(), inner_smt]);
                     self.bind_fresh(&mut st, target, getter);
+                    return self.descend(
+                        oracle,
+                        label_v,
+                        Decision::UnwrapSome,
+                        1,
+                        st,
+                        |exec, oracle, st| exec.walk(oracle, frames, st, on_path),
+                    );
                 }
 
                 InlStmt::Branch {
@@ -619,12 +721,13 @@ impl<'a> Executor<'a> {
                     } else {
                         (Decision::Then, Decision::Else)
                     };
+                    let label_v = *label;
 
-                    // then-child: recurse to completion
+                    // then-child: clone and recurse to completion
                     let mut st_then = st.clone();
                     let mut frames_then = frames.clone();
                     st_then.steps.push(Step {
-                        label: *label,
+                        label: label_v,
                         decision: d_then,
                     });
                     st_then
@@ -635,13 +738,23 @@ impl<'a> Executor<'a> {
                         ip: 0,
                         kind: FrameKind::Sub,
                     });
-                    if self.walk(frames_then, st_then, on_path)?.is_break() {
+                    if self
+                        .descend(
+                            oracle,
+                            label_v,
+                            d_then,
+                            0,
+                            st_then,
+                            |exec, oracle, st| exec.walk(oracle, frames_then, st, on_path),
+                        )?
+                        .is_break()
+                    {
                         return Ok(ControlFlow::Break(()));
                     }
 
-                    // else-child: continue in place
+                    // else-child: consume the current frame stack, recurse, return
                     st.steps.push(Step {
-                        label: *label,
+                        label: label_v,
                         decision: d_else,
                     });
                     st.constraints.push(SmtAssert(SmtNot(cond_smt)).into());
@@ -650,6 +763,14 @@ impl<'a> Executor<'a> {
                         ip: 0,
                         kind: FrameKind::Sub,
                     });
+                    return self.descend(
+                        oracle,
+                        label_v,
+                        d_else,
+                        1,
+                        st,
+                        |exec, oracle, st| exec.walk(oracle, frames, st, on_path),
+                    );
                 }
 
                 InlStmt::Call {
@@ -705,6 +826,71 @@ impl<'a> Executor<'a> {
                 }
             }
         }
+    }
+
+    /// Run the [`BranchOracle`] enter/leave protocol around descending into one
+    /// child of a fork. `body` performs the actual walk of the child — either
+    /// [`Self::walk`] to continue, or [`Self::emit_terminal`] for the immediate
+    /// abort of an unwrap-none child.
+    ///
+    /// Guarantees, with an oracle present:
+    /// * `enter` is called exactly once, before `body`, with the delta since the
+    ///   enclosing scope;
+    /// * on [`Feasibility::Prune`], `leave` is called and `body` never runs
+    ///   ([`ControlFlow::Continue`] is returned so the sibling is still offered);
+    /// * on [`Feasibility::Explore`], `body` runs and `leave` is then called on
+    ///   **every** exit path — a `Break`, an `Err`, or a normal return — hence
+    ///   the explicit bind of `r` rather than `?`.
+    ///
+    /// With no oracle this is a plain call through to `body`.
+    fn descend<'o>(
+        &mut self,
+        oracle: &mut Option<&'o mut dyn BranchOracle>,
+        label: Label,
+        decision: Decision,
+        sibling: u8,
+        mut st: SymState,
+        body: impl FnOnce(
+            &mut Self,
+            &mut Option<&'o mut dyn BranchOracle>,
+            SymState,
+        ) -> Result<ControlFlow<()>, ExecError>,
+    ) -> Result<ControlFlow<()>, ExecError> {
+        let entered = if let Some(o) = oracle.as_deref_mut() {
+            let feasibility = {
+                let query = BranchQuery {
+                    label,
+                    decision,
+                    steps: &st.steps,
+                    decls: &st.decls[st.reported_decls..],
+                    constraints: &st.constraints[st.reported_constraints..],
+                    sibling,
+                };
+                o.enter(&query)?
+            };
+            match feasibility {
+                Feasibility::Prune => {
+                    o.leave();
+                    return Ok(ControlFlow::Continue(()));
+                }
+                Feasibility::Explore => {
+                    st.reported_decls = st.decls.len();
+                    st.reported_constraints = st.constraints.len();
+                    true
+                }
+            }
+        } else {
+            false
+        };
+
+        let r = body(self, oracle, st);
+
+        if entered {
+            if let Some(o) = oracle.as_deref_mut() {
+                o.leave();
+            }
+        }
+        r
     }
 
     /// Build the `return_constraint` for a terminal and hand the finished path to
@@ -810,6 +996,8 @@ impl<'a> Executor<'a> {
             constraints: st.constraints,
             return_constraint,
             terminal,
+            reported_decls: st.reported_decls,
+            reported_constraints: st.reported_constraints,
         };
         Ok(on_path(&path))
     }
@@ -945,6 +1133,30 @@ pub fn execute_streaming(
     max_paths: Option<usize>,
     on_path: &mut dyn FnMut(&TerminalPath) -> ControlFlow<()>,
 ) -> Result<(), ExecError> {
+    execute_streaming_with_oracle(
+        inlined,
+        game_inst,
+        sample_info,
+        side,
+        max_paths,
+        None,
+        on_path,
+    )
+}
+
+/// [`execute_streaming`] plus a [`BranchOracle`] consulted at every fork (story
+/// 08). With `oracle: None` the behaviour — paths, order, SSA numbering — is
+/// byte-identical to [`execute_streaming`]; the story-05 goldens are the guard.
+#[allow(clippy::too_many_arguments)]
+pub fn execute_streaming_with_oracle(
+    inlined: &InlinedOracle,
+    game_inst: &GameInstance,
+    sample_info: &SampleInfo,
+    side: Side,
+    max_paths: Option<usize>,
+    oracle: Option<&mut dyn BranchOracle>,
+    on_path: &mut dyn FnMut(&TerminalPath) -> ControlFlow<()>,
+) -> Result<(), ExecError> {
     let mut exec = Executor::new(inlined, game_inst, sample_info, side, max_paths)?;
     let st = exec.initial_state();
     let frames = vec![Cursor {
@@ -952,7 +1164,8 @@ pub fn execute_streaming(
         ip: 0,
         kind: FrameKind::Sub,
     }];
-    let _ = exec.walk(frames, st, on_path)?;
+    let mut oracle = oracle;
+    let _ = exec.walk(&mut oracle, frames, st, on_path)?;
     Ok(())
 }
 
@@ -1003,6 +1216,85 @@ mod tests {
             result = Some(execute(&inl, gi, si, Side::Left, None).unwrap());
         });
         result.unwrap()
+    }
+
+    /// A `BranchOracle` that records the exact `enter`/`leave` sequence and can
+    /// prune every child whose `decision` matches `prune`.
+    #[derive(Default)]
+    struct MockOracle {
+        /// `+1` on `enter`, `-1` on `leave`; must never go negative, ends at 0.
+        events: Vec<i32>,
+        enters: usize,
+        leaves: usize,
+        /// Prune any child offered with this decision.
+        prune: Option<Decision>,
+        /// Every decision `enter` was asked about (in order).
+        seen: Vec<Decision>,
+    }
+
+    impl MockOracle {
+        fn balanced_and_paired(&self) -> bool {
+            let mut depth = 0i32;
+            for &e in &self.events {
+                depth += e;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            depth == 0 && self.enters == self.leaves
+        }
+    }
+
+    impl BranchOracle for MockOracle {
+        fn enter(&mut self, query: &BranchQuery<'_>) -> Result<Feasibility, ExecError> {
+            self.enters += 1;
+            self.events.push(1);
+            self.seen.push(query.decision);
+            if self.prune == Some(query.decision) {
+                Ok(Feasibility::Prune)
+            } else {
+                Ok(Feasibility::Explore)
+            }
+        }
+        fn leave(&mut self) {
+            self.leaves += 1;
+            self.events.push(-1);
+        }
+    }
+
+    fn run_with_oracle(
+        dir: &str,
+        theorem: &str,
+        game_inst: &str,
+        oracle_name: &str,
+        max_paths: Option<usize>,
+        br: &mut MockOracle,
+        mut on_path: impl FnMut(&TerminalPath) -> ControlFlow<()>,
+    ) -> Result<Vec<TerminalPath>, ExecError> {
+        let mut out = Ok(Vec::new());
+        with_debug(dir, theorem, |th, auxs| {
+            let gi = th.find_game_instance(game_inst).unwrap();
+            let inl = crate::debug::ir::inline_oracle(gi, oracle_name).unwrap();
+            let si = sample_info_for(auxs, game_inst);
+            let mut paths = Vec::new();
+            let r = execute_streaming_with_oracle(
+                &inl,
+                gi,
+                si,
+                Side::Left,
+                max_paths,
+                Some(br),
+                &mut |p| {
+                    let cf = on_path(p);
+                    if cf.is_continue() {
+                        paths.push(p.clone());
+                    }
+                    cf
+                },
+            );
+            out = r.map(|()| paths);
+        });
+        out
     }
 
     /// No SSA constant name is reused within a path.
@@ -1244,5 +1536,89 @@ mod tests {
         }
         let expected = std::fs::read_to_string(golden_path).unwrap();
         assert_eq!(actual, expected, "golden mismatch for {golden_path:?}");
+    }
+
+    // ----- story 08: the BranchOracle protocol -----------------------------
+
+    const KEM: &str = "example-projects/simple-KEM-example";
+
+    #[test]
+    fn oracle_none_matches_no_oracle() {
+        // An oracle that explores everything must reproduce the terminal-only run
+        // exactly (path count and per-path steps).
+        let baseline = run(KEM, "KEM_Proof", "Prot", "TestSender");
+        let mut br = MockOracle::default();
+        let with = run_with_oracle(
+            KEM, "KEM_Proof", "Prot", "TestSender", None, &mut br,
+            |_| ControlFlow::Continue(()),
+        )
+        .unwrap();
+        assert_eq!(baseline.len(), with.len());
+        for (a, b) in baseline.iter().zip(&with) {
+            assert_eq!(a.steps, b.steps);
+        }
+        assert!(br.balanced_and_paired());
+        // every fork was offered two siblings.
+        assert!(br.enters > 0 && br.enters % 2 == 0);
+    }
+
+    #[test]
+    fn pruning_assert_fails_drops_exactly_those_paths() {
+        let baseline = run(KEM, "KEM_Proof", "Prot", "TestSender");
+        let expect: Vec<_> = baseline
+            .iter()
+            .filter(|p| p.steps.iter().all(|s| s.decision != Decision::AssertFails))
+            .cloned()
+            .collect();
+
+        let mut br = MockOracle {
+            prune: Some(Decision::AssertFails),
+            ..MockOracle::default()
+        };
+        let got = run_with_oracle(
+            KEM, "KEM_Proof", "Prot", "TestSender", None, &mut br,
+            |_| ControlFlow::Continue(()),
+        )
+        .unwrap();
+
+        assert!(!expect.is_empty() && expect.len() < baseline.len());
+        assert_eq!(got.len(), expect.len());
+        for p in &got {
+            assert!(p.steps.iter().all(|s| s.decision != Decision::AssertFails));
+        }
+        // `leave` is called exactly once per `enter`, including the pruned ones,
+        // and the sequence is a well-formed nesting.
+        assert!(br.balanced_and_paired());
+        assert_eq!(br.enters, br.leaves);
+        assert!(br.seen.contains(&Decision::AssertFails));
+    }
+
+    #[test]
+    fn leave_balances_enter_on_early_break() {
+        let mut br = MockOracle::default();
+        let mut seen = 0usize;
+        let got = run_with_oracle(
+            KEM, "KEM_Proof", "Prot", "TestSender", None, &mut br,
+            |_| {
+                seen += 1;
+                ControlFlow::Break(())
+            },
+        )
+        .unwrap();
+        assert_eq!(seen, 1);
+        assert!(got.is_empty());
+        assert!(br.balanced_and_paired(), "events: {:?}", br.events);
+    }
+
+    #[test]
+    fn leave_balances_enter_on_max_paths() {
+        let mut br = MockOracle::default();
+        let err = run_with_oracle(
+            KEM, "KEM_Proof", "Prot", "TestSender", Some(2), &mut br,
+            |_| ControlFlow::Continue(()),
+        )
+        .unwrap_err();
+        assert!(matches!(err, ExecError::MaxPathsExceeded { limit: 2, .. }));
+        assert!(br.balanced_and_paired(), "events: {:?}", br.events);
     }
 }

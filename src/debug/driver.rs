@@ -19,32 +19,47 @@
 //! `push` and assert its flat DSA encoding; per right path, `push` and assert
 //! that; check reachability (vacuity); `push` and assert the negated goal; check.
 //!
-//! ## Branch pruning vs. what story 05 exposes
+//! ## Branch-level pruning (story 08)
 //!
-//! Story 05's executor has no branch-point callback — it hands back completed
-//! [`TerminalPath`]s only. The finest pruning available on that API is therefore
-//! *per path*, which is exactly the vacuity check the overview already mandates at
-//! every terminal pair. So:
+//! Story 05's [`execute_streaming_with_oracle`] consults a [`BranchOracle`] at
+//! every fork. [`SolverPruner`] is that oracle: it mirrors the executor's DFS on
+//! the solver stack (one `push` per `enter`, one `pop` per `leave`) and answers
+//! [`Feasibility::Prune`] for a fork whose prefix is `unsat`.
 //!
-//! - **Vacuity always runs** and distinguishes [`Verdict::Unreachable`] from
-//!   [`Verdict::Verified`] — this is a first-class feature, not an optimisation.
-//! - `--check-left` adds a per-left-path reachability pre-check; an `unsat` left
-//!   path is pruned (recorded, not explored). Changes no verdict, since a pruned
-//!   left path's pairs would all have been `Unreachable`.
-//! - `--no-check-right` *skips* the vacuity check and runs the goal check on every
-//!   right path. It never changes the set of `GOAL FAILS` (an `unsat` context
-//!   cannot make `(not goal)` `sat`), only whether unreachable pairs are labelled
-//!   `Unreachable` or fall through to `Verified`. It is a diagnostic escape hatch.
+//! - **Verdicts are decoupled from pruning.** The terminal-pair vacuity check
+//!   ([`check_pair`]) is **unconditional** — it is what distinguishes
+//!   [`Verdict::Unreachable`] from [`Verdict::Verified`], and it is not tied to
+//!   the pruning flags.
+//! - `check_left` / `check_right` (both **on** by default, disabled with
+//!   `--no-check-left` / `--no-check-right`) only decide whether the
+//!   corresponding side's `SolverPruner` actually queries the solver and cuts
+//!   subtrees. `--no-check-left --no-check-right` reproduces the un-pruned
+//!   full-enumeration behaviour exactly.
+//! - **Soundness.** The per-path SMT encoding is a plain conjunction
+//!   (`decls ++ constraints ++ return_constraint`), so a branch only adds a
+//!   conjunct: `base ∧ prefix` `unsat` ⟹ `base ∧ prefix ∧ rest` `unsat` for
+//!   every `rest`. Cutting an `unsat` prefix therefore removes only pairs that
+//!   would have been `Unreachable`; it can never hide a [`Verdict::GoalFails`].
+//!   The converse fails, so the terminal-pair vacuity check stays. If the
+//!   per-path encoding ever stops being a plain conjunction, this breaks.
+//! - A per-left-path terminal `check_sat` (gated on `check_left`) additionally
+//!   prunes a whole left path whose *terminal* is `unsat` — needed because
+//!   `no-abort` and the other claim assumptions only bite once
+//!   `return_constraint` lands, which is not part of any branch prefix.
 //!
 //! Only `unsat` ever prunes. `unknown` and timeouts are always explored.
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 
 use serde_derive::Serialize;
 
-use crate::debug::exec::{execute_streaming, ExecError, Side, Step, Terminal, TerminalPath};
+use crate::debug::exec::{
+    execute_streaming_with_oracle, BranchOracle, BranchQuery, ExecError, Feasibility, Side, Step,
+    Terminal, TerminalPath,
+};
 use crate::debug::ir::{
     inline_oracle, InlineError, InlinedOracle, Label, Listing, SiteInfo, SiteKind,
 };
@@ -65,11 +80,13 @@ use crate::writers::smt::exprs::SmtExpr;
 /// Knobs from the CLI.
 #[derive(Debug, Clone, Copy)]
 pub struct DebugOptions {
-    /// Ask the solver which branches of the LEFT oracle are reachable and prune
-    /// the `unsat` ones. Default off (explore all).
+    /// Prune unreachable LEFT branches as they are reached (and whole left paths
+    /// whose terminal is `unsat`). Default **on**; `--no-check-left` disables it.
+    /// Does **not** affect which verdicts are distinguishable.
     pub check_left: bool,
-    /// Run the reachability/vacuity check on the RIGHT side (distinguishes
-    /// `Unreachable` from `Verified`). Default on.
+    /// Prune unreachable RIGHT branches as they are reached, under the current
+    /// left path. Default **on**; `--no-check-right` disables it. Does **not**
+    /// disable the terminal-pair vacuity check (that is now unconditional).
     pub check_right: bool,
     /// Per-query solver timeout in milliseconds (cvc5 `tlimit-per`). A timeout
     /// counts as `unknown` — explored, never pruned.
@@ -82,7 +99,7 @@ pub struct DebugOptions {
 impl Default for DebugOptions {
     fn default() -> Self {
         Self {
-            check_left: false,
+            check_left: true,
             check_right: true,
             timeout_ms: None,
             max_paths: 1000,
@@ -139,7 +156,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 1;
+pub const TRACE_SCHEMA: u32 = 2;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DebugRun {
@@ -172,10 +189,30 @@ pub struct DebugRun {
     /// Per-label metadata for the right listing.
     pub right_sites: BTreeMap<Label, SiteView>,
     pub left_paths: Vec<LeftPath>,
+    /// LEFT branches cut by `check_left` before any terminal below them was
+    /// reached. Rendered as top-level rows alongside `left_paths`.
+    pub left_pruned_branches: Vec<PrunedBranch>,
     pub summary: Summary,
     /// Exploration stopped early (`--max-paths` or an executor cap). Results are
     /// partial.
     pub partial: bool,
+}
+
+/// One fork the solver proved unreachable, so its subtree was never explored.
+#[derive(Debug, Clone, Serialize)]
+pub struct PrunedBranch {
+    /// Stable id in the same namespace as path ids: `"p2"` for a left prune,
+    /// `"4.p1"` for a right prune under left path `#4`.
+    pub id: String,
+    /// Steps to and *including* the cut decision.
+    pub steps: Vec<StepView>,
+    /// Label of the forking statement.
+    pub label: usize,
+    /// Its rendered source line.
+    pub line: String,
+    /// `then` / `else` / `assert-holds` / `assert-fails` / `unwrap-some` /
+    /// `unwrap-none` — the child that was cut.
+    pub decision: String,
 }
 
 /// The CLI knobs, in a shape that serialises cleanly into `trace.json`.
@@ -250,12 +287,16 @@ pub struct LeftPath {
     pub id: String,
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
-    /// `false` if `--check-left` proved this path unreachable and pruned it.
+    /// `false` if `check_left` proved this path's *terminal* unsat and pruned it
+    /// (its right side was not explored).
     pub reachable: bool,
     /// The exact SMT asserted for this path (`decls` ++ `constraints` ++
     /// `return_constraint`), rendered.
     pub smt: Vec<String>,
     pub right_paths: Vec<RightPath>,
+    /// RIGHT branches `check_right` cut under this left path (only meaningful
+    /// relative to this left path's context).
+    pub pruned_branches: Vec<PrunedBranch>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -306,8 +347,16 @@ pub enum Verdict {
 #[derive(Debug, Clone, Copy, Default, Serialize)]
 pub struct Summary {
     pub left_paths: usize,
+    /// Whole left paths cut at their terminal (`check_left`).
     pub left_pruned: usize,
+    /// LEFT forks cut at branch level (`check_left`).
+    pub left_pruned_branches: usize,
     pub right_paths: usize,
+    /// RIGHT forks cut at branch level (`check_right`), summed over left paths.
+    pub right_pruned_branches: usize,
+    /// Times the sibling shortcut (skip a `check_sat` when the other child was
+    /// pruned and the parent was a definite `Sat`) fired. Diagnostic only.
+    pub sibling_shortcuts: usize,
     pub verified: usize,
     pub unreachable: usize,
     pub goal_fails: usize,
@@ -467,6 +516,7 @@ where
         left_sites: sites_view(&left_inl.listing),
         right_sites: sites_view(&right_inl.listing),
         left_paths: Vec::new(),
+        left_pruned_branches: Vec::new(),
         summary: Summary::default(),
         partial: false,
     };
@@ -488,12 +538,16 @@ where
             solver.write_smt(entry.clone())?;
         }
 
+        // The left `BranchOracle` and the terminal handler both need the solver,
+        // at different (never overlapping) points of the executor's DFS — hence
+        // the `RefCell`. See `SolverPruner`.
+        let solver = RefCell::new(solver);
         explore_paths(
-            &eqctx, &mut solver, oracle, &claim, &left_inl, &right_inl, left_inst, right_inst,
+            &eqctx, &solver, oracle, &claim, &left_inl, &right_inl, left_inst, right_inst,
             left_si, right_si, opts, &out_dir, &mut run,
         )?;
 
-        solver.close();
+        solver.into_inner().close();
     }
 
     std::fs::write(
@@ -539,7 +593,7 @@ fn base_frame<'a>(
 #[allow(clippy::too_many_arguments)]
 fn explore_paths<S: SmtSolver>(
     eqctx: &EquivalenceContext<'_>,
-    solver: &mut S,
+    solver: &RefCell<S>,
     oracle: &str,
     claim: &Claim,
     left_inl: &InlinedOracle,
@@ -552,96 +606,259 @@ fn explore_paths<S: SmtSolver>(
     out_dir: &Path,
     run: &mut DebugRun,
 ) -> Result<(), DebugError> {
-    let (left_paths, left_capped) =
-        collect_paths(left_inl, left_inst, left_si, Side::Left, opts.max_paths)?;
-    if left_capped {
-        run.partial = true;
-    }
-
+    let mut left_pruner =
+        SolverPruner::new(solver, opts.check_left, &left_inl.listing, String::new());
     let mut explored = 0usize;
+    let mut left_counter = 0usize;
+    let mut right_shortcuts = 0usize;
+    let mut fatal: Option<DebugError> = None;
 
-    'left: for (i, lp) in left_paths.iter().enumerate() {
-        explored += 1;
-        if explored > opts.max_paths {
-            run.partial = true;
-            break;
-        }
-        let lid = format!("{}", i + 1);
+    {
+        let fatal = &mut fatal;
+        let explored = &mut explored;
+        let left_counter = &mut left_counter;
+        let right_shortcuts = &mut right_shortcuts;
+        let run = &mut *run;
 
-        solver.push()?;
-        write_path(solver, lp)?;
-
-        let reachable = if opts.check_left {
-            !matches!(solver.check_sat()?, SmtSolverResponse::Unsat)
-        } else {
-            true
-        };
-
-        let mut left_view = LeftPath {
-            id: lid.clone(),
-            steps: steps_view(&left_inl.listing, &lp.steps),
-            terminal: terminal_view(&left_inl.listing, &lp.terminal),
-            reachable,
-            smt: render_path_smt(lp),
-            right_paths: Vec::new(),
-        };
-
-        if reachable {
-            let (right_paths, right_capped) =
-                collect_paths(right_inl, right_inst, right_si, Side::Right, opts.max_paths)?;
-            if right_capped {
+        let mut on_left = |lp: &TerminalPath| -> ControlFlow<()> {
+            *explored += 1;
+            *left_counter += 1;
+            if *explored > opts.max_paths {
                 run.partial = true;
+                return ControlFlow::Break(());
             }
-
-            for (j, rp) in right_paths.iter().enumerate() {
-                explored += 1;
-                if explored > opts.max_paths {
-                    run.partial = true;
-                    solver.pop()?;
-                    run.left_paths.push(left_view);
-                    break 'left;
+            let lid = format!("{}", *left_counter);
+            match handle_left_path(
+                solver,
+                eqctx,
+                claim,
+                oracle,
+                opts,
+                out_dir,
+                right_inl,
+                right_inst,
+                right_si,
+                &left_inl.listing,
+                &lid,
+                lp,
+                explored,
+                run,
+            ) {
+                Ok((lv, shortcuts)) => {
+                    *right_shortcuts += shortcuts;
+                    run.left_paths.push(lv);
+                    ControlFlow::Continue(())
                 }
-                let rid = format!("{}.{}", lid, j + 1);
-
-                solver.push()?;
-                write_path(solver, rp)?;
-                let (verdict, model_smt) =
-                    check_pair(solver, eqctx, claim, oracle, &rid, opts, out_dir)?;
-                solver.pop()?;
-
-                left_view.right_paths.push(RightPath {
-                    id: rid,
-                    steps: steps_view(&right_inl.listing, &rp.steps),
-                    terminal: terminal_view(&right_inl.listing, &rp.terminal),
-                    verdict,
-                    model_smt,
-                    smt: render_path_smt(rp),
-                });
+                Err(e) => {
+                    *fatal = Some(e);
+                    ControlFlow::Break(())
+                }
             }
-        }
+        };
 
-        solver.pop()?;
-        run.left_paths.push(left_view);
+        execute_streaming_with_oracle(
+            left_inl,
+            left_inst,
+            left_si,
+            Side::Left,
+            None,
+            Some(&mut left_pruner),
+            &mut on_left,
+        )?;
     }
 
-    run.summary = summarize(&run.left_paths);
+    if let Some(e) = left_pruner.err.take() {
+        return Err(e.into());
+    }
+    if let Some(e) = fatal {
+        return Err(e);
+    }
+
+    // Push/pop discipline: every `enter` was balanced by a `leave`, so the
+    // solver stack is back at the level-0 baseline.
+    debug_assert_eq!(
+        left_pruner.depth(),
+        0,
+        "solver stack not balanced after left exploration"
+    );
+    run.left_pruned_branches = left_pruner.take_pruned();
+
+    run.summary = summarize(&run.left_paths, &run.left_pruned_branches);
+    run.summary.sibling_shortcuts = left_pruner.shortcut_fired + right_shortcuts;
     Ok(())
 }
 
-/// At a (left, right) terminal pair: vacuity, then the negated goal. Returns the
-/// verdict and, for `goal-fails` / `inconclusive`, the model text (also written
-/// to `models/<rid>.smt2`).
+/// One left terminal: assert its (delta) encoding on top of the branch prefix the
+/// left [`SolverPruner`] already put on the stack, optionally check the terminal
+/// is reachable, then explore the right oracle under it.
+///
+/// On entry the solver stack is at this left path's branch depth; on return it is
+/// back there (one extra `push`/`pop` wraps the whole terminal so sibling left
+/// paths do not inherit it).
+#[allow(clippy::too_many_arguments)]
+fn handle_left_path<S: SmtSolver>(
+    solver: &RefCell<S>,
+    eqctx: &EquivalenceContext<'_>,
+    claim: &Claim,
+    oracle: &str,
+    opts: &DebugOptions,
+    out_dir: &Path,
+    right_inl: &InlinedOracle,
+    right_inst: &GameInstance,
+    right_si: &SampleInfo,
+    left_listing: &Listing,
+    lid: &str,
+    lp: &TerminalPath,
+    explored: &mut usize,
+    run: &mut DebugRun,
+) -> Result<(LeftPath, usize), DebugError> {
+    {
+        let mut s = solver.borrow_mut();
+        s.push()?;
+        write_path_delta(&mut *s, lp)?;
+    }
+
+    // Per-left-path terminal check (gated on `check_left`). Not redundant with
+    // branch pruning: `no-abort` and the other claim assumptions constrain
+    // `<is-abort-Left>` / `<return-value-Left>`, which are tied to the path only
+    // by `return_constraint` — so a left abort path is `unsat` at its *terminal*,
+    // never at a *branch*.
+    let reachable = if opts.check_left {
+        !matches!(solver.borrow_mut().check_sat()?, SmtSolverResponse::Unsat)
+    } else {
+        true
+    };
+
+    let mut left_view = LeftPath {
+        id: lid.to_string(),
+        steps: steps_view(left_listing, &lp.steps),
+        terminal: terminal_view(left_listing, &lp.terminal),
+        reachable,
+        smt: render_path_smt(lp),
+        right_paths: Vec::new(),
+        pruned_branches: Vec::new(),
+    };
+    let mut right_shortcuts = 0usize;
+
+    if reachable {
+        let mut right_pruner = SolverPruner::new(
+            solver,
+            opts.check_right,
+            &right_inl.listing,
+            format!("{lid}."),
+        );
+        let mut right_counter = 0usize;
+        let mut fatal: Option<DebugError> = None;
+
+        {
+            let left_view = &mut left_view;
+            let fatal = &mut fatal;
+            let explored = &mut *explored;
+            let run = &mut *run;
+            let right_counter = &mut right_counter;
+
+            let mut on_right = |rp: &TerminalPath| -> ControlFlow<()> {
+                *explored += 1;
+                if *explored > opts.max_paths {
+                    run.partial = true;
+                    return ControlFlow::Break(());
+                }
+                *right_counter += 1;
+                let rid = format!("{lid}.{}", *right_counter);
+                match handle_right_path(
+                    solver,
+                    eqctx,
+                    claim,
+                    oracle,
+                    out_dir,
+                    &right_inl.listing,
+                    &rid,
+                    rp,
+                ) {
+                    Ok(rv) => {
+                        left_view.right_paths.push(rv);
+                        ControlFlow::Continue(())
+                    }
+                    Err(e) => {
+                        *fatal = Some(e);
+                        ControlFlow::Break(())
+                    }
+                }
+            };
+
+            execute_streaming_with_oracle(
+                right_inl,
+                right_inst,
+                right_si,
+                Side::Right,
+                None,
+                Some(&mut right_pruner),
+                &mut on_right,
+            )?;
+        }
+
+        if let Some(e) = right_pruner.err.take() {
+            return Err(e.into());
+        }
+        if let Some(e) = fatal {
+            return Err(e);
+        }
+        // Back at this left path's terminal level after the right exploration.
+        debug_assert_eq!(
+            right_pruner.depth(),
+            0,
+            "solver stack not balanced after right exploration"
+        );
+        right_shortcuts = right_pruner.shortcut_fired;
+        left_view.pruned_branches = right_pruner.take_pruned();
+    }
+
+    solver.borrow_mut().pop()?;
+    Ok((left_view, right_shortcuts))
+}
+
+/// One right terminal, under the current left path: assert its (delta) encoding
+/// and run the terminal-pair checks.
+#[allow(clippy::too_many_arguments)]
+fn handle_right_path<S: SmtSolver>(
+    solver: &RefCell<S>,
+    eqctx: &EquivalenceContext<'_>,
+    claim: &Claim,
+    oracle: &str,
+    out_dir: &Path,
+    right_listing: &Listing,
+    rid: &str,
+    rp: &TerminalPath,
+) -> Result<RightPath, DebugError> {
+    let mut s = solver.borrow_mut();
+    s.push()?;
+    write_path_delta(&mut *s, rp)?;
+    let (verdict, model_smt) = check_pair(&mut *s, eqctx, claim, oracle, rid, out_dir)?;
+    s.pop()?;
+    Ok(RightPath {
+        id: rid.to_string(),
+        steps: steps_view(right_listing, &rp.steps),
+        terminal: terminal_view(right_listing, &rp.terminal),
+        verdict,
+        model_smt,
+        smt: render_path_smt(rp),
+    })
+}
+
+/// At a (left, right) terminal pair: **unconditional** vacuity, then the negated
+/// goal. Returns the verdict and, for `goal-fails` / `inconclusive`, the model
+/// text (also written to `models/<rid>.smt2`).
 fn check_pair<S: SmtSolver>(
     solver: &mut S,
     eqctx: &EquivalenceContext<'_>,
     claim: &Claim,
     oracle: &str,
     rid: &str,
-    opts: &DebugOptions,
     out_dir: &Path,
 ) -> Result<(Verdict, Option<String>), DebugError> {
-    // Vacuity (overview §3). Skipped only with `--no-check-right`.
-    if opts.check_right && matches!(solver.check_sat()?, SmtSolverResponse::Unsat) {
+    // Vacuity (overview §3) — UNCONDITIONAL as of story 08. `unsat` here means
+    // the pair cannot happen; it is **not** the same as `Verified`.
+    if matches!(solver.check_sat()?, SmtSolverResponse::Unsat) {
         return Ok((Verdict::Unreachable, None));
     }
 
@@ -662,15 +879,184 @@ fn check_pair<S: SmtSolver>(
     Ok(outcome)
 }
 
-fn write_path<S: SmtSolver>(solver: &mut S, path: &TerminalPath) -> Result<(), DebugError> {
-    for entry in &path.decls {
+/// Assert only the part of `path` not already on the solver stack — the branch
+/// prefix a [`SolverPruner`] already asserted incrementally. `reported_*` are `0`
+/// when no pruner was active on that side, so this then asserts the whole path.
+fn write_path_delta<S: SmtSolver>(
+    solver: &mut S,
+    path: &TerminalPath,
+) -> Result<(), DebugError> {
+    for entry in &path.decls[path.reported_decls..] {
         solver.write_smt(entry.clone())?;
     }
-    for entry in &path.constraints {
+    for entry in &path.constraints[path.reported_constraints..] {
         solver.write_smt(entry.clone())?;
     }
     solver.write_smt(path.return_constraint.clone())?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// The solver-backed BranchOracle
+// ---------------------------------------------------------------------------
+
+/// A [`BranchOracle`] backed by the solver stack: `push` + write-delta on
+/// `enter`, `pop` on `leave`, and [`Feasibility::Prune`] for a fork whose prefix
+/// the solver reports `unsat`. It mirrors the executor's DFS exactly, so at any
+/// point the stack holds the base frame (plus, for a right pruner, the current
+/// left path) and one level per open `enter` scope.
+///
+/// **Only `unsat` prunes.** `Sat`, `Unknown`, timeouts and stashed solver errors
+/// are all `Explore`.
+struct SolverPruner<'s, S: SmtSolver> {
+    solver: &'s RefCell<S>,
+    /// `false` ⇒ never query, never prune. Still `push`es/`pop`s and writes the
+    /// per-branch delta, so the stack stays in lockstep and the terminal
+    /// `reported_*` offsets line up.
+    enabled: bool,
+    listing: &'s Listing,
+    /// `""` for the left pruner, `"<lid>."` for a per-left-path right pruner.
+    id_prefix: String,
+    /// Per open scope: was this context a definite `Sat`? (`false` for `Unknown`,
+    /// disabled, or a stashed error.)
+    known_sat: Vec<bool>,
+    /// Per open scope: was it entered as a prune (so `leave` is immediate and the
+    /// "previous sibling pruned" signal must survive to the next sibling)?
+    scope_pruned: Vec<bool>,
+    /// The fork sibling that just finished was a prune.
+    last_sibling_pruned: bool,
+    pruned: Vec<PrunedBranch>,
+    n_pruned: usize,
+    /// Times the §3.2-step-3 sibling shortcut fired (for the report).
+    shortcut_fired: usize,
+    /// Solver errors cannot cross `enter`'s `ExecError` return type — stashed
+    /// here and re-raised by the driver.
+    err: Option<crate::util::smtsolver::error::Error>,
+}
+
+impl<'s, S: SmtSolver> SolverPruner<'s, S> {
+    fn new(
+        solver: &'s RefCell<S>,
+        enabled: bool,
+        listing: &'s Listing,
+        id_prefix: String,
+    ) -> Self {
+        Self {
+            solver,
+            enabled,
+            listing,
+            id_prefix,
+            known_sat: Vec::new(),
+            scope_pruned: Vec::new(),
+            last_sibling_pruned: false,
+            pruned: Vec::new(),
+            n_pruned: 0,
+            shortcut_fired: 0,
+            err: None,
+        }
+    }
+
+    fn take_pruned(&mut self) -> Vec<PrunedBranch> {
+        std::mem::take(&mut self.pruned)
+    }
+
+    /// Open `enter` scopes — equivalently, the number of solver levels this
+    /// pruner has pushed and not yet popped. `0` means balanced.
+    fn depth(&self) -> usize {
+        self.known_sat.len()
+    }
+
+    fn push_and_write(&self, query: &BranchQuery<'_>) -> crate::util::smtsolver::Result<()> {
+        let mut s = self.solver.borrow_mut();
+        s.push()?;
+        for d in query.decls {
+            s.write_smt(d.clone())?;
+        }
+        for c in query.constraints {
+            s.write_smt(c.clone())?;
+        }
+        Ok(())
+    }
+
+    fn record_prune(&mut self, query: &BranchQuery<'_>) {
+        self.n_pruned += 1;
+        let line = self
+            .listing
+            .sites
+            .get(&query.label)
+            .map(|s| s.line.clone())
+            .unwrap_or_default();
+        self.pruned.push(PrunedBranch {
+            id: format!("{}p{}", self.id_prefix, self.n_pruned),
+            steps: steps_view(self.listing, query.steps),
+            label: query.label,
+            line,
+            decision: query.decision.as_str().to_string(),
+        });
+    }
+
+    fn open_scope(&mut self, known_sat: bool, pruned: bool) {
+        self.known_sat.push(known_sat);
+        self.scope_pruned.push(pruned);
+    }
+}
+
+impl<S: SmtSolver> BranchOracle for SolverPruner<'_, S> {
+    fn enter(&mut self, query: &BranchQuery<'_>) -> Result<Feasibility, ExecError> {
+        let parent_sat = self.known_sat.last().copied();
+        let prev_sibling_pruned = self.last_sibling_pruned;
+
+        if let Err(e) = self.push_and_write(query) {
+            self.err.get_or_insert(e);
+            self.open_scope(false, false);
+            return Ok(Feasibility::Explore);
+        }
+
+        if !self.enabled {
+            self.open_scope(false, false);
+            return Ok(Feasibility::Explore);
+        }
+
+        // Sibling shortcut (§3.2 step 3): if the previous sibling `c` was pruned
+        // (`base ∧ P ∧ c` unsat) and the parent context `base ∧ P` was a definite
+        // `Sat`, then `base ∧ P ∧ ¬c` must be `Sat` — skip the query. Not valid
+        // when the parent was only `Unknown`.
+        if query.sibling == 1 && prev_sibling_pruned && parent_sat == Some(true) {
+            self.shortcut_fired += 1;
+            self.open_scope(true, false);
+            return Ok(Feasibility::Explore);
+        }
+
+        let ans = self.solver.borrow_mut().check_sat();
+        match ans {
+            Ok(SmtSolverResponse::Unsat) => {
+                self.record_prune(query);
+                self.open_scope(false, true);
+                Ok(Feasibility::Prune)
+            }
+            Ok(SmtSolverResponse::Sat) => {
+                self.open_scope(true, false);
+                Ok(Feasibility::Explore)
+            }
+            Ok(SmtSolverResponse::Unknown) => {
+                self.open_scope(false, false);
+                Ok(Feasibility::Explore)
+            }
+            Err(e) => {
+                self.err.get_or_insert(e);
+                self.open_scope(false, false);
+                Ok(Feasibility::Explore)
+            }
+        }
+    }
+
+    fn leave(&mut self) {
+        self.known_sat.pop();
+        self.last_sibling_pruned = self.scope_pruned.pop().unwrap_or(false);
+        if let Err(e) = self.solver.borrow_mut().pop() {
+            self.err.get_or_insert(e);
+        }
+    }
 }
 
 /// Writes the current model to `models/<rid>.smt2` and returns
@@ -687,6 +1073,8 @@ fn write_model<S: SmtSolver>(
 }
 
 /// Collect up to `cap` terminal paths; the `bool` says the cap was hit.
+/// Un-pruned enumeration — used only by the per-path DSA consistency test.
+#[cfg(all(test, feature = "cvc5-lib"))]
 fn collect_paths(
     inl: &InlinedOracle,
     inst: &GameInstance,
@@ -696,7 +1084,7 @@ fn collect_paths(
 ) -> Result<(Vec<TerminalPath>, bool), ExecError> {
     let mut paths = Vec::new();
     let mut capped = false;
-    execute_streaming(inl, inst, sample_info, side, None, &mut |path| {
+    execute_streaming_with_oracle(inl, inst, sample_info, side, None, None, &mut |path| {
         if paths.len() >= cap {
             capped = true;
             ControlFlow::Break(())
@@ -745,15 +1133,17 @@ fn render_path_smt(path: &TerminalPath) -> Vec<String> {
         .collect()
 }
 
-fn summarize(left_paths: &[LeftPath]) -> Summary {
+fn summarize(left_paths: &[LeftPath], left_pruned_branches: &[PrunedBranch]) -> Summary {
     let mut summary = Summary {
         left_paths: left_paths.len(),
+        left_pruned_branches: left_pruned_branches.len(),
         ..Summary::default()
     };
     for lp in left_paths {
         if !lp.reachable {
             summary.left_pruned += 1;
         }
+        summary.right_pruned_branches += lp.pruned_branches.len();
         for rp in &lp.right_paths {
             summary.right_paths += 1;
             match rp.verdict {
@@ -830,12 +1220,34 @@ pub fn render_tree(run: &DebugRun) -> String {
                 render_verdict(&rp.verdict)
             );
         }
+        if !lp.pruned_branches.is_empty() {
+            let _ = writeln!(out, "\n    pruned under #{}:", lp.id);
+            for pb in &lp.pruned_branches {
+                let _ = writeln!(
+                    out,
+                    "    #{}  L{} {} -> {}   [unsat: branch pruned]",
+                    pb.id, pb.label, pb.line, pb.decision
+                );
+            }
+        }
+    }
+
+    if !run.left_pruned_branches.is_empty() {
+        let _ = writeln!(out, "\npruned left branches:");
+        for pb in &run.left_pruned_branches {
+            let _ = writeln!(
+                out,
+                "  #{}  L{} {} -> {}   [unsat: branch pruned]",
+                pb.id, pb.label, pb.line, pb.decision
+            );
+        }
     }
 
     let s = &run.summary;
+    let branches_pruned = s.left_pruned_branches + s.right_pruned_branches;
     let _ = writeln!(
         out,
-        "\nsummary: {} left paths{}, {} right paths; {} GOAL FAILS, {} verified, {} unreachable, {} inconclusive{}",
+        "\nsummary: {} left paths{}, {} right paths{}; {} GOAL FAILS, {} verified, {} unreachable, {} inconclusive{}",
         s.left_paths,
         if s.left_pruned > 0 {
             format!(" ({} pruned)", s.left_pruned)
@@ -843,6 +1255,11 @@ pub fn render_tree(run: &DebugRun) -> String {
             String::new()
         },
         s.right_paths,
+        if branches_pruned > 0 {
+            format!(" ({branches_pruned} branches pruned)")
+        } else {
+            String::new()
+        },
         s.goal_fails,
         s.verified,
         s.unreachable,
@@ -997,10 +1414,11 @@ mod tests {
         assert!(transcript.contains("(push 1)") && transcript.contains("(pop 1)"));
     }
 
-    /// The epic's primary target, happy path: every pair Verified or
-    /// Unreachable, exits ok, and the `Unreachable` verdict is actually
-    /// exercised (a run that is all-green only because every pair is vacuous is
-    /// the bug this distinction exists to catch).
+    /// The epic's primary target, happy path: exits ok, every surviving pair is
+    /// `Verified`, and branch pruning did cut the contradictory subtrees (with
+    /// pruning the `Unreachable` terminal pairs mostly disappear — they are
+    /// removed one level up; `vacuity_runs_with_all_pruning_off` covers the
+    /// `Unreachable` verdict itself).
     #[test]
     fn kem_dem_pkgen_same_output_all_green() {
         let run = run_in_tmp(
@@ -1012,19 +1430,30 @@ mod tests {
         );
         assert_eq!(run.summary.goal_fails, 0, "{}", render_tree(&run));
         assert!(run.is_ok(), "{}", render_tree(&run));
+        assert!(run.summary.verified > 0, "{}", render_tree(&run));
+        assert_eq!(
+            run.summary.verified + run.summary.unreachable,
+            run.summary.right_paths
+        );
         assert!(
-            run.summary.unreachable > 0,
-            "expected some pairs to be Unreachable, not just Verified"
+            run.summary.left_pruned_branches + run.summary.right_pruned_branches > 0,
+            "expected branch-level pruning to fire: {}",
+            render_tree(&run)
         );
     }
 
-    /// `--timeout 1` on a non-trivial claim: the goal checks that need real
-    /// solving time out to `Inconclusive` rather than being reported `Verified`,
-    /// and no pair regresses to a false `GOAL FAILS`.
+    /// `--timeout 1` on a non-trivial claim: a goal check that cannot be decided
+    /// in the budget times out to `Inconclusive`, never to `Verified` or a false
+    /// `GOAL FAILS`. Run with pruning **off** so the un-pruned shape holds — with
+    /// pruning on, the incremental branch context makes even PKENC's goal checks
+    /// resolve in well under a millisecond, so nothing stays inconclusive (a good
+    /// property, but not what this test is about).
     #[test]
     fn tiny_timeout_yields_inconclusive_never_a_false_pass() {
-        let mut opts = DebugOptions::default();
-        opts.timeout_ms = Some(1);
+        let opts = DebugOptions {
+            timeout_ms: Some(1),
+            ..both_off()
+        };
         let run = run_in_tmp(
             "example-projects/kem-dem/kem-dem-cca-ssp",
             "kem_dem_cca_ssp",
@@ -1039,40 +1468,95 @@ mod tests {
             render_tree(&run)
         );
         assert!(!run.is_ok());
+        // A timeout is `unknown`, so it is explored, never pruned.
+        assert_eq!(run.summary.left_pruned_branches, 0);
+        assert_eq!(run.summary.right_pruned_branches, 0);
+        assert_eq!(run.summary.left_paths, 6);
+        assert_eq!(run.summary.right_paths, 96);
     }
 
-    /// `--no-check-right` skips the vacuity check: it explores at least as many
-    /// pairs and never introduces a `GOAL FAILS` the default run did not have.
+    fn both_off() -> DebugOptions {
+        DebugOptions {
+            check_left: false,
+            check_right: false,
+            ..DebugOptions::default()
+        }
+    }
+
+    /// `--no-check-left --no-check-right` reproduces the un-pruned full
+    /// enumeration exactly, and the vacuity check still runs (it is unconditional
+    /// as of story 08) so the verdicts are still fully distinguished. Then the
+    /// default (both on) prunes the right tree — strictly fewer right paths —
+    /// without changing the verdict set: pruning only ever removes pairs that
+    /// would have been `Unreachable`.
     #[test]
-    fn no_check_right_keeps_the_same_goal_fails_set() {
+    fn pruning_shrinks_the_tree_without_changing_verdicts() {
         let base = run_in_tmp(
             "example-projects/kem-dem/kem-dem-cca-ssp",
             "kem_dem_cca_ssp",
-            "PKGEN",
+            "PKENC",
+            "same-output",
+            both_off(),
+        );
+        assert_eq!(base.summary.left_paths, 6, "{}", render_tree(&base));
+        assert_eq!(base.summary.right_paths, 96, "{}", render_tree(&base));
+        assert_eq!(base.summary.goal_fails, 0);
+        assert_eq!(base.summary.verified, 2, "{}", render_tree(&base));
+        assert_eq!(base.summary.unreachable, 94, "{}", render_tree(&base));
+        assert_eq!(base.summary.left_pruned_branches, 0);
+        assert_eq!(base.summary.right_pruned_branches, 0);
+
+        let def = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKENC",
             "same-output",
             DebugOptions::default(),
         );
-        let mut opts = DebugOptions::default();
-        opts.check_right = false;
-        let no_right = run_in_tmp(
+        assert_eq!(def.summary.goal_fails, 0, "{}", render_tree(&def));
+        assert!(
+            def.summary.right_paths < base.summary.right_paths,
+            "default pruning must yield strictly fewer right paths: {}",
+            render_tree(&def)
+        );
+        assert!(def.summary.right_pruned_branches > 0);
+        // every explored pair is still accounted for, and the goal-verified set
+        // is unchanged (only unreachable pairs are cut).
+        assert_eq!(
+            def.summary.verified + def.summary.unreachable,
+            def.summary.right_paths
+        );
+        assert_eq!(def.summary.verified, base.summary.verified);
+        assert!(def.summary.unreachable <= base.summary.unreachable);
+        assert!(def.is_ok());
+    }
+
+    /// The vacuity check is unconditional: even with all early pruning off, a
+    /// fixture with an unreachable pair still reports it.
+    #[test]
+    fn vacuity_runs_with_all_pruning_off() {
+        let run = run_in_tmp(
             "example-projects/kem-dem/kem-dem-cca-ssp",
             "kem_dem_cca_ssp",
             "PKGEN",
             "same-output",
-            opts,
+            both_off(),
         );
-        assert_eq!(base.summary.goal_fails, no_right.summary.goal_fails);
-        assert_eq!(no_right.summary.goal_fails, 0);
-        assert!(no_right.summary.right_paths >= base.summary.right_paths);
-        // vacuity is off, so pairs the default run called Unreachable now fall
-        // through to Verified.
-        assert!(no_right.summary.unreachable <= base.summary.unreachable);
+        assert_eq!(run.summary.goal_fails, 0, "{}", render_tree(&run));
+        assert!(
+            run.summary.unreachable > 0,
+            "vacuity must still label unreachable pairs: {}",
+            render_tree(&run)
+        );
+        assert!(run.is_ok());
     }
 
     #[test]
     fn max_paths_stops_early_and_flags_partial() {
-        let mut opts = DebugOptions::default();
-        opts.max_paths = 1;
+        let opts = DebugOptions {
+            max_paths: 1,
+            ..DebugOptions::default()
+        };
         let run = run_in_tmp(
             "example-projects/simple-KEM-example",
             "KEM_Proof",
@@ -1084,30 +1568,33 @@ mod tests {
         assert!(!run.is_ok());
     }
 
+    /// `check_left` (default on) prunes whole left abort paths at their terminal
+    /// under `no-abort`, and branch-level under contradictory asserts — without
+    /// changing any verdict versus the un-pruned run.
     #[test]
-    fn check_left_prunes_abort_paths_without_changing_verdicts() {
+    fn check_left_prunes_without_changing_verdicts() {
         let base = run_in_tmp(
+            "example-projects/simple-KEM-example",
+            "KEM_Proof",
+            "TestSender",
+            "same-output",
+            both_off(),
+        );
+        let pruned = run_in_tmp(
             "example-projects/simple-KEM-example",
             "KEM_Proof",
             "TestSender",
             "same-output",
             DebugOptions::default(),
         );
-        let mut opts = DebugOptions::default();
-        opts.check_left = true;
-        let pruned = run_in_tmp(
-            "example-projects/simple-KEM-example",
-            "KEM_Proof",
-            "TestSender",
-            "same-output",
-            opts,
-        );
         assert!(
-            pruned.summary.left_pruned > 0,
-            "expected some left abort paths to be pruned under `no-abort`"
+            pruned.summary.left_pruned > 0 || pruned.summary.left_pruned_branches > 0,
+            "expected some left pruning under `no-abort`: {}",
+            render_tree(&pruned)
         );
-        // no GOAL FAILS in either mode
         assert_eq!(base.summary.goal_fails, 0);
         assert_eq!(pruned.summary.goal_fails, 0);
+        assert_eq!(base.summary.verified, pruned.summary.verified);
     }
+
 }

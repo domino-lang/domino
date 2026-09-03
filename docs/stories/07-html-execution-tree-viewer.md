@@ -221,13 +221,17 @@ Smaller projects for iterating on the rendering: `example-projects/hello-world`,
 This is the last story of the epic. **Done** — full handover in
 `docs/stories/07-html-execution-tree-viewer-IMPLEMENTATION-REPORT.md`. Summary:
 
-- **`trace.json` schema `1`, flat** (1:1 with `DebugRun`), *not* the nested §3.1 draft. Keys:
+- **`trace.json` schema `2`, flat** (1:1 with `DebugRun`), *not* the nested §3.1 draft. Keys:
   `left_game`/`right_game` (not `*_game_inst`), top-level `left_listing`/`right_listing` +
   `left_sites`/`right_sites`, `options`, `base_frame_smt`, `left_paths[].{id,steps,terminal,
-  reachable,smt,right_paths}`, `right_paths[].{…,verdict,model_smt,smt}`, `summary`, `partial`.
+  reachable,smt,right_paths,pruned_branches}`, `right_paths[].{…,verdict,model_smt,smt}`,
+  top-level `left_pruned_branches`, `summary`, `partial`.
   `verdict` is internally tagged: `{"kind":"verified|unreachable|goal-fails|inconclusive", …}`.
   `out_dir` is deliberately not serialised. Bump `TRACE_SCHEMA` in `src/debug/driver.rs` on any
-  change. No `pruned_branches` — see below.
+  change.
+  - **Schema `1` → `2` (story 08):** added `left_pruned_branches` (top level) and
+    `left_paths[].pruned_branches`, each `[{id, steps, label, line, decision}]` — the solver-cut
+    forks; `summary` gained `left_pruned_branches`, `right_pruned_branches`, `sibling_shortcuts`.
 - **Viewer** = `src/debug/report.rs::{write_trace_json, write_html}`, called at the end of
   `run_debug_command`. `index.html` is one dependency-free file with the trace embedded as
   JSON; a TUI / CI gate / run-diff consumes `trace.json` directly.

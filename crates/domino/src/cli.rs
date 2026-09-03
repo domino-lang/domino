@@ -64,12 +64,13 @@ pub(crate) struct Debug {
     /// Claim to debug. Required — one claim per run.
     #[clap(long)]
     pub(crate) claim: String,
-    /// Ask the solver which branches of the LEFT oracle are reachable (default: explore all).
+    /// Do NOT prune unreachable LEFT branches early (default: it does). With this
+    /// set, every syntactic left path is explored.
     #[clap(long)]
-    pub(crate) check_left: bool,
-    /// Do NOT ask the solver about the RIGHT oracle's branches (default: it does ask).
-    /// Skips the vacuity check, so unreachable pairs fall through to "verified" — a
-    /// diagnostic escape hatch, not the recommended mode.
+    pub(crate) no_check_left: bool,
+    /// Do NOT prune unreachable RIGHT branches early (default: it does). This only
+    /// disables early branch pruning; the terminal-pair vacuity check that
+    /// distinguishes `unreachable` from `verified` still runs unconditionally.
     #[clap(long)]
     pub(crate) no_check_right: bool,
     /// Per-query solver timeout in milliseconds (cvc5 `tlimit-per`). A timeout counts
