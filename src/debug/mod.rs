@@ -12,3 +12,4 @@ pub mod ir;
 pub mod progress;
 pub mod render;
 pub mod report;
+pub mod smtout;

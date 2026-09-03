@@ -68,6 +68,7 @@ use crate::debug::ir::{
 use crate::debug::progress::{DebugEvent, DebugObserver, SharedObserver};
 use crate::debug::render;
 use crate::debug::report;
+use crate::debug::smtout::{SmtOut, SmtWriter};
 use crate::gamehops::GameHop;
 use crate::project::Project;
 use crate::theorem::{Claim, GameInstance};
@@ -98,6 +99,12 @@ pub struct DebugOptions {
     /// path). `None` (the default as of story 10) means unlimited — `Ctrl-C` is
     /// then the interactive stop.
     pub max_paths: Option<usize>,
+    /// Which per-path SMT files to write under `<out>/smt/` (story 11). Default
+    /// [`SmtOut::Failures`].
+    pub smt_out: SmtOut,
+    /// Also write the raw incremental solver transcript to `transcript.smt2`
+    /// (story 11). Off by default — for debugging `domino debug` itself.
+    pub transcript: bool,
 }
 
 impl Default for DebugOptions {
@@ -107,6 +114,8 @@ impl Default for DebugOptions {
             check_right: true,
             timeout_ms: None,
             max_paths: None,
+            smt_out: SmtOut::Failures,
+            transcript: false,
         }
     }
 }
@@ -160,7 +169,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 3;
+pub const TRACE_SCHEMA: u32 = 4;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DebugRun {
@@ -227,6 +236,11 @@ pub struct OptionsView {
     pub timeout_ms: Option<u64>,
     /// `null` in `trace.json` when unlimited (story 10).
     pub max_paths: Option<usize>,
+    /// Per-path SMT file coverage (story 11): `none` / `failures` / `all` /
+    /// `deltas`, kebab-case in `trace.json`.
+    pub smt: SmtOut,
+    /// Whether the monolithic `transcript.smt2` was written (story 11).
+    pub transcript: bool,
 }
 
 impl From<&DebugOptions> for OptionsView {
@@ -236,6 +250,8 @@ impl From<&DebugOptions> for OptionsView {
             check_right: o.check_right,
             timeout_ms: o.timeout_ms,
             max_paths: o.max_paths,
+            smt: o.smt_out,
+            transcript: o.transcript,
         }
     }
 }
@@ -504,10 +520,22 @@ where
     // shows as `k/N`. Skipped for an admitted claim (nothing between
     // `Started { admitted }` and `Finished`).
     if !claim.is_admitted() {
+        let left_total = count_terminals(&left_inl);
+        let right_total = count_terminals(&right_inl);
         observer.on_event(&DebugEvent::Totals {
-            left_total: count_terminals(&left_inl),
-            right_total: count_terminals(&right_inl),
+            left_total,
+            right_total,
         });
+        // Story 11 §6: `--smt all` writes one full base frame per pair. Warn
+        // once, up front, when that is likely to be large.
+        if opts.smt_out == SmtOut::All && left_total.saturating_mul(right_total) > 50 {
+            eprintln!(
+                "debug: --smt all writes a self-contained copy of the base frame for every \
+                 explored pair (up to {} × {} here) — this can be hundreds of MB; consider \
+                 --smt failures or --smt deltas",
+                left_total, right_total
+            );
+        }
     }
     let observer: SharedObserver = RefCell::new(observer);
 
@@ -553,8 +581,22 @@ where
             .collect::<Vec<_>>()
             .join("\n");
 
-        let transcript = std::fs::File::create(out_dir.join("transcript.smt2"))?;
-        let mut solver = backend.new_smtsolver_with_transcript(transcript)?;
+        // Story 11: the per-path `smt/` tree is the primary artifact. The
+        // monolithic `transcript.smt2` is opt-in (`--transcript`) — it doubles
+        // every byte the driver sends and is only useful for debugging the
+        // driver itself.
+        let smt_writer = SmtWriter::new(&out_dir, opts.smt_out, &run)?;
+        // Computed once here (story 11): the negated claim goal. `check_pair`
+        // used to re-derive it per pair; the `smt/` files embed its text.
+        let goal_negated = eqctx.emit_claim_goal_negated(&claim, oracle);
+        let goal_smt = goal_negated.to_string();
+
+        let mut solver = if opts.transcript {
+            let transcript = std::fs::File::create(out_dir.join("transcript.smt2"))?;
+            backend.new_smtsolver_with_transcript(transcript)?
+        } else {
+            backend.new_smtsolver()?
+        };
         if let Some(ms) = opts.timeout_ms {
             solver.set_option("tlimit-per", &ms.to_string())?;
         }
@@ -567,8 +609,8 @@ where
         // the `RefCell`. See `SolverPruner`.
         let solver = RefCell::new(solver);
         explore_paths(
-            &eqctx, &solver, oracle, &claim, &left_inl, &right_inl, left_inst, right_inst,
-            left_si, right_si, opts, &out_dir, &observer, stop, &mut run,
+            &solver, &left_inl, &right_inl, left_inst, right_inst, left_si, right_si, opts,
+            &out_dir, &observer, stop, &smt_writer, &goal_negated, &goal_smt, &mut run,
         )?;
 
         solver.into_inner().close();
@@ -620,10 +662,7 @@ fn base_frame<'a>(
 
 #[allow(clippy::too_many_arguments)]
 fn explore_paths<'o, S: SmtSolver>(
-    eqctx: &EquivalenceContext<'_>,
     solver: &RefCell<S>,
-    oracle: &str,
-    claim: &Claim,
     left_inl: &InlinedOracle,
     right_inl: &InlinedOracle,
     left_inst: &GameInstance,
@@ -634,6 +673,9 @@ fn explore_paths<'o, S: SmtSolver>(
     out_dir: &Path,
     observer: &SharedObserver<'o>,
     stop: Option<&AtomicBool>,
+    smt_writer: &SmtWriter,
+    goal_negated: &SmtExpr,
+    goal_smt: &str,
     run: &mut DebugRun,
 ) -> Result<(), DebugError> {
     let mut left_pruner = SolverPruner::new(
@@ -677,9 +719,8 @@ fn explore_paths<'o, S: SmtSolver>(
             });
             match handle_left_path(
                 solver,
-                eqctx,
-                claim,
-                oracle,
+                goal_negated,
+                goal_smt,
                 opts,
                 out_dir,
                 right_inl,
@@ -690,6 +731,7 @@ fn explore_paths<'o, S: SmtSolver>(
                 lp,
                 observer,
                 stop,
+                smt_writer,
                 explored,
                 run,
             ) {
@@ -771,9 +813,8 @@ fn explore_paths<'o, S: SmtSolver>(
 #[allow(clippy::too_many_arguments)]
 fn handle_left_path<'o, S: SmtSolver>(
     solver: &RefCell<S>,
-    eqctx: &EquivalenceContext<'_>,
-    claim: &Claim,
-    oracle: &str,
+    goal_negated: &SmtExpr,
+    goal_smt: &str,
     opts: &DebugOptions,
     out_dir: &Path,
     right_inl: &InlinedOracle,
@@ -784,6 +825,7 @@ fn handle_left_path<'o, S: SmtSolver>(
     lp: &TerminalPath,
     observer: &SharedObserver<'o>,
     stop: Option<&AtomicBool>,
+    smt_writer: &SmtWriter,
     explored: &mut usize,
     run: &mut DebugRun,
 ) -> Result<(LeftPath, usize), DebugError> {
@@ -814,6 +856,11 @@ fn handle_left_path<'o, S: SmtSolver>(
         pruned_branches: Vec::new(),
     };
     let mut right_shortcuts = 0usize;
+
+    // Story 11: `smt/<lid>/left.smt2` — this left path's own delta, written for
+    // every explored left path (independent of `reachable` and of the pair
+    // coverage mode), so it can be `cat`-reassembled with `base.smt2`.
+    smt_writer.write_left(lid, &left_view)?;
 
     if reachable {
         let mut right_pruner = SolverPruner::new(
@@ -850,9 +897,7 @@ fn handle_left_path<'o, S: SmtSolver>(
                 let rid = format!("{lid}.{}", *right_counter);
                 match handle_right_path(
                     solver,
-                    eqctx,
-                    claim,
-                    oracle,
+                    goal_negated,
                     out_dir,
                     &right_inl.listing,
                     &rid,
@@ -860,6 +905,12 @@ fn handle_left_path<'o, S: SmtSolver>(
                     observer,
                 ) {
                     Ok(rv) => {
+                        // Story 11: `smt/<lid>/<r>.smt2` for the pairs the
+                        // coverage mode wants (a no-op otherwise).
+                        if let Err(e) = smt_writer.write_pair(lid, left_view, &rv, goal_smt) {
+                            *fatal = Some(DebugError::Io(e));
+                            return ControlFlow::Break(());
+                        }
                         left_view.right_paths.push(rv);
                         ControlFlow::Continue(())
                     }
@@ -913,9 +964,7 @@ fn handle_left_path<'o, S: SmtSolver>(
 #[allow(clippy::too_many_arguments)]
 fn handle_right_path<'o, S: SmtSolver>(
     solver: &RefCell<S>,
-    eqctx: &EquivalenceContext<'_>,
-    claim: &Claim,
-    oracle: &str,
+    goal_negated: &SmtExpr,
     out_dir: &Path,
     right_listing: &Listing,
     rid: &str,
@@ -927,7 +976,7 @@ fn handle_right_path<'o, S: SmtSolver>(
         s.push()?;
         write_path_delta(&mut *s, rp)?;
         let t0 = Instant::now();
-        let (verdict, model_smt) = check_pair(&mut *s, eqctx, claim, oracle, rid, out_dir)?;
+        let (verdict, model_smt) = check_pair(&mut *s, goal_negated, rid, out_dir)?;
         s.pop()?;
         drop(s);
         observer.borrow_mut().on_event(&DebugEvent::PairChecked {
@@ -952,9 +1001,7 @@ fn handle_right_path<'o, S: SmtSolver>(
 /// text (also written to `models/<rid>.smt2`).
 fn check_pair<S: SmtSolver>(
     solver: &mut S,
-    eqctx: &EquivalenceContext<'_>,
-    claim: &Claim,
-    oracle: &str,
+    goal_negated: &SmtExpr,
     rid: &str,
     out_dir: &Path,
 ) -> Result<(Verdict, Option<String>), DebugError> {
@@ -965,7 +1012,9 @@ fn check_pair<S: SmtSolver>(
     }
 
     solver.push()?;
-    solver.write_smt(eqctx.emit_claim_goal_negated(claim, oracle))?;
+    // Story 11: `goal_negated` is `eqctx.emit_claim_goal_negated(claim, oracle)`,
+    // computed once in `run_debug_command` (its text also lands in `smt/`).
+    solver.write_smt(goal_negated.clone())?;
     let outcome = match solver.check_sat()? {
         SmtSolverResponse::Unsat => (Verdict::Verified, None),
         SmtSolverResponse::Sat => {
@@ -1419,6 +1468,7 @@ fn render_verdict(verdict: &Verdict) -> String {
 mod tests {
     use super::*;
     use crate::debug::progress::{DebugEvent, NopObserver};
+    use std::fmt::Write as _;
     use crate::project::{DirectoryFiles, DirectoryProject};
     use crate::util::smtsolver::cvc5lib::Cvc5LibBackend;
     use std::sync::atomic::AtomicBool;
@@ -1595,12 +1645,291 @@ mod tests {
         assert!(!run.admitted);
         assert!(run.summary.goal_fails == 0, "{}", render_tree(&run));
         assert!(run.is_ok(), "{}", render_tree(&run));
-        // transcript replays as a coherent incremental session.
+        // Story 11: `transcript.smt2` is opt-in and absent by default.
+        assert!(
+            !std::path::Path::new(&run.out_dir).join("transcript.smt2").exists(),
+            "transcript.smt2 must not be written without --transcript"
+        );
+        // The `smt/` tree is the default artifact: base frame + one delta per
+        // explored left path.
+        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        assert!(smt.join("base.smt2").exists());
+        for lp in &run.left_paths {
+            assert!(
+                smt.join(&lp.id).join("left.smt2").exists(),
+                "missing smt/{}/left.smt2",
+                lp.id
+            );
+        }
+    }
+
+    /// Story 11: `--transcript` re-enables `transcript.smt2`, and the story-06
+    /// assertions on it still hold (a coherent incremental session).
+    #[test]
+    fn transcript_flag_re_enables_the_monolithic_transcript() {
+        let run = run_in_tmp(
+            "example-projects/hello-world",
+            "Proof",
+            "UsefulOracle",
+            "same-output",
+            DebugOptions {
+                transcript: true,
+                ..DebugOptions::default()
+            },
+        );
         let transcript =
             std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("transcript.smt2"))
                 .unwrap();
         assert!(transcript.contains("(check-sat)"));
         assert!(transcript.contains("(push 1)") && transcript.contains("(pop 1)"));
+    }
+
+    /// Story 11: `--smt none` writes no `smt/` directory at all.
+    #[test]
+    fn smt_none_writes_no_smt_directory() {
+        let run = run_in_tmp(
+            "example-projects/hello-world",
+            "Proof",
+            "UsefulOracle",
+            "same-output",
+            DebugOptions {
+                smt_out: SmtOut::None,
+                ..DebugOptions::default()
+            },
+        );
+        assert!(!std::path::Path::new(&run.out_dir).join("smt").exists());
+    }
+
+    /// Story 11 — the self-containment property. An emitted pair file's body is
+    /// exactly `base ++ left.smt ++ right.smt ++ vacuity ++ negated goal`. We
+    /// re-feed `base.smt2 ++ lp.smt ++ rp.smt` to a fresh solver (this is what
+    /// the file contains, minus comments) and confirm the vacuity + goal answers
+    /// reproduce the verdict `domino debug` recorded — i.e. nothing else was on
+    /// the solver stack and the `reported_*` watermarks really are prefixes.
+    #[test]
+    fn emitted_pair_file_reproduces_the_recorded_verdict() {
+        use crate::util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse};
+
+        let run = run_in_tmp(
+            "example-projects/hello-world",
+            "Proof",
+            "UsefulOracle",
+            "same-output",
+            DebugOptions {
+                smt_out: SmtOut::All,
+                ..DebugOptions::default()
+            },
+        );
+        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let base = std::fs::read_to_string(smt.join("base.smt2")).unwrap();
+
+        let mut checked = 0usize;
+        for lp in &run.left_paths {
+            for rp in &lp.right_paths {
+                let rtail = rp.id.rsplit('.').next().unwrap();
+                let file = smt.join(&lp.id).join(format!("{rtail}.smt2"));
+                let text = std::fs::read_to_string(&file).unwrap();
+                assert!(text.contains("(get-model)") && text.contains("(pop 1)"));
+
+                // The goal text is what the file puts after `(push 1)`.
+                let goal = text
+                    .rsplit_once("(push 1)\n")
+                    .unwrap()
+                    .1
+                    .split_once("\n(check-sat)")
+                    .unwrap()
+                    .0;
+
+                let backend = Cvc5LibBackend::new(true, None);
+                let mut s = backend.new_smtsolver().unwrap();
+                s.write_str(&base).unwrap();
+                for line in lp.smt.iter().chain(rp.smt.iter()) {
+                    s.write_str(line).unwrap();
+                    s.write_str("\n").unwrap();
+                }
+                let vac = s.check_sat().unwrap();
+                s.push().unwrap();
+                s.write_str(goal).unwrap();
+                let goal_ans = s.check_sat().unwrap();
+                s.pop().unwrap();
+
+                match &rp.verdict {
+                    Verdict::Verified => {
+                        assert_ne!(vac, SmtSolverResponse::Unsat, "{}", file.display());
+                        assert_eq!(goal_ans, SmtSolverResponse::Unsat, "{}", file.display());
+                    }
+                    Verdict::Unreachable => {
+                        assert_eq!(vac, SmtSolverResponse::Unsat, "{}", file.display());
+                    }
+                    Verdict::GoalFails { .. } => {
+                        assert_ne!(vac, SmtSolverResponse::Unsat, "{}", file.display());
+                        assert_eq!(goal_ans, SmtSolverResponse::Sat, "{}", file.display());
+                    }
+                    Verdict::Inconclusive { .. } => {}
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 0, "no pairs to check");
+    }
+
+    /// Story 11 — ids in `smt/` match the ids `trace.json` / the HTML show:
+    /// `smt/<L>/<R>.smt2` exists for every pair the coverage mode covers, and
+    /// `smt/<L>/left.smt2` for every explored left path.
+    #[test]
+    fn smt_tree_ids_match_the_trace() {
+        let run = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKGEN",
+            "same-output",
+            DebugOptions {
+                smt_out: SmtOut::All,
+                ..DebugOptions::default()
+            },
+        );
+        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        assert!(smt.join("base.smt2").exists());
+        for lp in &run.left_paths {
+            assert!(smt.join(&lp.id).join("left.smt2").exists(), "left #{}", lp.id);
+            for rp in &lp.right_paths {
+                let rtail = rp.id.rsplit('.').next().unwrap();
+                assert!(
+                    smt.join(&lp.id).join(format!("{rtail}.smt2")).exists(),
+                    "pair #{}",
+                    rp.id
+                );
+            }
+        }
+    }
+
+    /// Story 11 — `--smt failures` (the default) writes pair files only for
+    /// goal-fails / inconclusive pairs; a fully-green run gets `base.smt2` +
+    /// `left.smt2`s and no pair files.
+    #[test]
+    fn smt_failures_covers_only_failing_pairs() {
+        let run = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKGEN",
+            "same-output",
+            DebugOptions::default(),
+        );
+        assert_eq!(run.summary.goal_fails + run.summary.inconclusive, 0);
+        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        for lp in &run.left_paths {
+            for rp in &lp.right_paths {
+                let rtail = rp.id.rsplit('.').next().unwrap();
+                assert!(
+                    !smt.join(&lp.id).join(format!("{rtail}.smt2")).exists(),
+                    "no pair file expected for the green pair #{}",
+                    rp.id
+                );
+            }
+        }
+    }
+
+    /// Story 11 — `--smt deltas`: the per-pair file carries neither the base
+    /// frame nor the left path, and `base.smt2 ++ left.smt2 ++ <r>.smt2`
+    /// reassembles to the recorded verdict.
+    #[test]
+    fn smt_deltas_files_are_headerless_and_reassemble() {
+        use crate::util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse};
+
+        let run = run_in_tmp(
+            "example-projects/hello-world",
+            "Proof",
+            "UsefulOracle",
+            "same-output",
+            DebugOptions {
+                smt_out: SmtOut::Deltas,
+                ..DebugOptions::default()
+            },
+        );
+        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let base = std::fs::read_to_string(smt.join("base.smt2")).unwrap();
+
+        let mut checked = 0usize;
+        for lp in &run.left_paths {
+            let left = std::fs::read_to_string(smt.join(&lp.id).join("left.smt2")).unwrap();
+            assert!(!left.contains("set-logic"), "left.smt2 is always a delta");
+            for rp in &lp.right_paths {
+                let rtail = rp.id.rsplit('.').next().unwrap();
+                let pair =
+                    std::fs::read_to_string(smt.join(&lp.id).join(format!("{rtail}.smt2"))).unwrap();
+                assert!(
+                    !pair.contains("set-logic"),
+                    "deltas pair file must not carry the base frame"
+                );
+                assert!(pair.contains("cat smt/base.smt2"));
+
+                // Reassemble base ++ left ++ pair-right and re-derive the
+                // vacuity answer (the `cat … | cvc5` recipe, in-process).
+                let backend = Cvc5LibBackend::new(true, None);
+                let mut s = backend.new_smtsolver().unwrap();
+                s.write_str(&base).unwrap();
+                for line in lp.smt.iter().chain(rp.smt.iter()) {
+                    s.write_str(line).unwrap();
+                    s.write_str("\n").unwrap();
+                }
+                let vac = s.check_sat().unwrap();
+                if let Verdict::Unreachable = rp.verdict {
+                    assert_eq!(vac, SmtSolverResponse::Unsat);
+                } else {
+                    assert_ne!(vac, SmtSolverResponse::Unsat);
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 0);
+    }
+
+    /// Story 11 — the killer test against the **real `cvc5` binary** (not the
+    /// lib backend): an emitted self-contained pair file runs to completion with
+    /// a bare `cvc5 <file>` and its second `(check-sat)` matches the recorded
+    /// verdict. Ignored by default — needs `cvc5` on `PATH`.
+    #[test]
+    #[ignore = "needs the cvc5 binary on PATH"]
+    fn emitted_pair_file_runs_under_the_cvc5_binary() {
+        let run = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKGEN",
+            "same-output",
+            DebugOptions {
+                smt_out: SmtOut::All,
+                ..DebugOptions::default()
+            },
+        );
+        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let mut checked = 0usize;
+        for lp in &run.left_paths {
+            for rp in &lp.right_paths {
+                let rtail = rp.id.rsplit('.').next().unwrap();
+                let file = smt.join(&lp.id).join(format!("{rtail}.smt2"));
+                let out = std::process::Command::new("cvc5")
+                    .arg("--lang")
+                    .arg("smt2")
+                    .arg(&file)
+                    .output()
+                    .expect("run cvc5");
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                // First line: vacuity; second: negated goal.
+                let answers: Vec<&str> = stdout.lines().take(2).collect();
+                assert_eq!(answers.first().copied(), Some("sat"), "vacuity: {stdout}");
+                match &rp.verdict {
+                    Verdict::Verified => {
+                        assert_eq!(answers.get(1).copied(), Some("unsat"), "{}", file.display())
+                    }
+                    Verdict::GoalFails { .. } => {
+                        assert_eq!(answers.get(1).copied(), Some("sat"), "{}", file.display())
+                    }
+                    _ => {}
+                }
+                checked += 1;
+            }
+        }
+        assert!(checked > 0);
     }
 
     /// The epic's primary target, happy path: exits ok, every surviving pair is
@@ -1934,6 +2263,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parsed["partial"], true);
-        assert_eq!(parsed["schema"], 3);
+        assert_eq!(parsed["schema"], 4);
     }
 }

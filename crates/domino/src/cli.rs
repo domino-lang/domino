@@ -16,6 +16,21 @@ pub(crate) enum ProgressMode {
     None,
 }
 
+/// Which per-path SMT files `domino debug` writes under `<out>/smt/` (story 11).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum SmtOutArg {
+    /// Write nothing — no `smt/` directory.
+    None,
+    /// Self-contained, directly runnable `.smt2` for each goal-fails /
+    /// inconclusive pair (the default).
+    Failures,
+    /// Self-contained files for every explored pair (large — one copy of the
+    /// base frame per pair).
+    All,
+    /// `base.smt2` plus the small per-path deltas only; reassemble with `cat`.
+    Deltas,
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
     /// Export to LaTeX
@@ -99,6 +114,17 @@ pub(crate) struct Debug {
     /// and `bar` force one; `none` is silent.
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
     pub(crate) progress: ProgressMode,
+    /// Which per-path SMT files to write under `<out>/smt/`. `failures` (the
+    /// default) writes a self-contained, directly runnable `.smt2` for each
+    /// goal-fails / inconclusive pair; `all` does it for every pair (large — one
+    /// copy of the base frame per pair); `deltas` writes only `base.smt2` plus
+    /// the small per-path deltas; `none` writes nothing.
+    #[clap(long, value_enum, default_value_t = SmtOutArg::Failures)]
+    pub(crate) smt: SmtOutArg,
+    /// Also write the raw incremental solver transcript to `transcript.smt2`
+    /// (large; for debugging `domino debug` itself).
+    #[clap(long)]
+    pub(crate) transcript: bool,
     /// Output directory. Defaults to
     /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`.
     #[clap(long)]

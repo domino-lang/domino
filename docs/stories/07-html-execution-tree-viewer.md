@@ -30,7 +30,9 @@ consumes the same `trace.json`.
 - `domino debug --proof --proofstep --oracle --claim [--check-left] [--no-check-right]
   [--timeout] [--max-paths] [--out]`.
 - Artifacts under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`:
-  `transcript.smt2`, `inlined.txt`, `models/<path-id>.smt2`.
+  `inlined.txt`, `models/<path-id>.smt2`, and — as of story 11 — a `smt/` tree of runnable
+  per-path queries (`smt/base.smt2`, `smt/<L>/left.smt2`, `smt/<L>/<R>.smt2`). The monolithic
+  `transcript.smt2` is now opt-in (`--transcript`).
 - A plain run structure in `src/debug/driver.rs` (see
   `06-…-IMPLEMENTATION-REPORT.md`): `DebugRun { theorem, proofstep, left_game, right_game,
   oracle, claim, admitted, out_dir, left_listing, right_listing, left_paths: Vec<LeftPath>,

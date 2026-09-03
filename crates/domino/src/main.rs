@@ -140,6 +140,7 @@ fn debug(d: &Debug) -> Result<(), Error> {
 
     use sspverif::debug::driver::{render_tree, run_debug_command, DebugOptions};
     use sspverif::debug::progress::{BarObserver, DebugObserver, NopObserver, PlainObserver};
+    use sspverif::debug::smtout::SmtOut;
 
     // NB: `unwrap_or` would evaluate `find_project_root()?` eagerly even when
     // `--path` is given (and propagate its error). Match instead.
@@ -155,6 +156,13 @@ fn debug(d: &Debug) -> Result<(), Error> {
         check_right: !d.no_check_right,
         timeout_ms: d.timeout,
         max_paths: d.max_paths,
+        smt_out: match d.smt {
+            SmtOutArg::None => SmtOut::None,
+            SmtOutArg::Failures => SmtOut::Failures,
+            SmtOutArg::All => SmtOut::All,
+            SmtOutArg::Deltas => SmtOut::Deltas,
+        },
+        transcript: d.transcript,
     };
 
     let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, d.timeout);
@@ -212,6 +220,12 @@ fn debug(d: &Debug) -> Result<(), Error> {
     print!("{}", render_tree(&run));
     if !run.admitted {
         println!("\nviewer: {}/index.html", run.out_dir);
+        if !matches!(opts.smt_out, SmtOut::None) {
+            println!("smt: {}/smt/", run.out_dir);
+        }
+        if opts.transcript {
+            println!("transcript: {}/transcript.smt2", run.out_dir);
+        }
     }
 
     if !run.is_ok() {

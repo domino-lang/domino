@@ -294,7 +294,9 @@ const optChips = document.getElementById("h-opts");
 const o = T.options;
 [["check-left", o.check_left], ["check-right (vacuity)", o.check_right],
  ["timeout", o.timeout_ms == null ? "off" : o.timeout_ms + "ms"],
- ["max-paths", o.max_paths == null ? "unlimited" : o.max_paths]].forEach(([k, val]) => {
+ ["max-paths", o.max_paths == null ? "unlimited" : o.max_paths],
+ ["smt", o.smt == null ? "failures" : o.smt],
+ ["transcript", o.transcript ? "on" : "off"]].forEach(([k, val]) => {
   optChips.appendChild(el("span", "chip", `${k}: ${val}`));
 });
 
@@ -622,6 +624,8 @@ mod tests {
                 check_right: true,
                 timeout_ms: None,
                 max_paths: Some(1000),
+                smt: crate::debug::smtout::SmtOut::Failures,
+                transcript: false,
             },
             base_frame_smt: "(declare-const x Int)".into(),
             left_listing: "OracleO {\n    if (k != bot) {\n    return k\n}".into(),
@@ -724,7 +728,7 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 3);
+        assert_eq!(parsed["schema"], 4);
         assert_eq!(parsed["options"]["max_paths"], 1000);
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
         assert_eq!(parsed["summary"]["goal_fails"], 1);
@@ -742,7 +746,7 @@ mod tests {
         let p = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(parsed["schema"], 3);
+        assert_eq!(parsed["schema"], 4);
         assert!(parsed["options"]["max_paths"].is_null());
     }
 
