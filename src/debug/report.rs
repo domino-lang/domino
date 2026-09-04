@@ -405,14 +405,70 @@ main { flex: 1; display: flex; min-height: 0; }
 #detail { flex: 1; overflow: auto; padding: 14px 18px 60px; min-width: 0; }
 #detail h2 { font-size: 14px; margin: 0 0 4px; }
 #detail .path-sub { color: var(--fg-muted); font-size: 12px; margin-bottom: 12px; }
-.sec { margin-bottom: 18px; }
-.sec > h3 {
-  font: 12px/1 var(--mono);
+/* Detail-pane toolbar + tree toolbar (story 13). */
+.sectoolbar { display: flex; gap: 8px; margin-bottom: 14px; }
+.sectoolbar button, .treetoolbar button {
+  font: 11px var(--mono);
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.sectoolbar button:hover, .treetoolbar button:hover { color: var(--fg); border-color: var(--accent); }
+.treetoolbar { display: flex; gap: 8px; margin-top: 8px; }
+
+/* Every detail section is a <details class="sec"> (story 13). */
+details.sec {
+  margin: 0 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt);
+}
+details.sec > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 12px;
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font: 12px/1.3 var(--mono);
   text-transform: uppercase;
   letter-spacing: .05em;
   color: var(--fg-muted);
-  margin: 0 0 6px;
 }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::before {
+  content: "\25B8";
+  color: var(--fg-muted);
+  font-size: 10px;
+  flex: none;
+}
+details.sec[open] > summary::before { content: "\25BE"; }
+details.sec .sec-title { color: var(--fg); font-weight: 600; }
+details.sec .sec-meta {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-align: right;
+}
+details.sec > .sec-body { padding: 0 12px 12px; }
+.copy-btn {
+  font: 11px var(--mono);
+  padding: 2px 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.copy-btn:hover { color: var(--fg); border-color: var(--accent); }
+.assertion-note { color: var(--fg-muted); font-size: 12px; margin-bottom: 8px; }
+.assertion-outcome { font-size: 12px; margin-top: 8px; }
 table.steps { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
 table.steps td { padding: 3px 8px 3px 0; vertical-align: top; }
 table.steps td.l { color: var(--fg-muted); white-space: nowrap; }
@@ -457,6 +513,10 @@ summary { cursor: pointer; color: var(--fg-muted); font: 12px var(--mono); }
     <div id="filter">
       <input type="text" id="q" placeholder="filter by path id or source text…" autocomplete="off">
       <div class="toggles" id="vtoggles"></div>
+      <div class="treetoolbar">
+        <button type="button" id="tree-collapse">Collapse all</button>
+        <button type="button" id="tree-expand">Expand all</button>
+      </div>
     </div>
     <div id="tree"></div>
   </div>
@@ -588,8 +648,12 @@ T.left_paths.forEach(lp => {
   const kids = lp.reachable ? lp.right_paths.concat(prunes) : [];
   const node = el("div", "node lp");
   node._lp = lp;
+  // Story 13: a left path with a wall of right paths opens collapsed, so a big
+  // run reads as an overview instead of a 100-row scroll. Re-toggling is cheap;
+  // nothing here is persisted.
+  if (kids.length > 25) node.classList.add("collapsed");
   const head = el("div", "lp-head");
-  const twist = el("span", "twist", kids.length ? "▾" : "");
+  const twist = el("span", "twist", kids.length ? (node.classList.contains("collapsed") ? "▸" : "▾") : "");
   head.appendChild(twist);
   head.appendChild(el("span", "pid", "#" + lp.id));
   head.appendChild(chainSpan(lp.steps, lp.terminal));
@@ -607,7 +671,11 @@ T.left_paths.forEach(lp => {
   }
 
   head.onclick = e => {
-    if (e.target === twist) { node.classList.toggle("collapsed"); return; }
+    if (e.target === twist) {
+      node.classList.toggle("collapsed");
+      if (kids.length) twist.textContent = node.classList.contains("collapsed") ? "▸" : "▾";
+      return;
+    }
     select(node, lp, null);
   };
   node.appendChild(head);
@@ -642,8 +710,26 @@ function select(domNode, lp, rp) {
   renderDetail(lp, rp);
 }
 
+// ---- tree collapse / expand all (story 13; not persisted — cheap to redo) ---
+function setAllNodes(collapsed) {
+  tree.querySelectorAll(".node.lp").forEach(node => {
+    const hasKids = !!node.querySelector(".rp-list");
+    const twist = node.querySelector(".lp-head > .twist");
+    node.classList.toggle("collapsed", collapsed);
+    if (twist && hasKids) twist.textContent = collapsed ? "▸" : "▾";
+  });
+}
+document.getElementById("tree-collapse").onclick = () => setAllNodes(true);
+document.getElementById("tree-expand").onclick = () => setAllNodes(false);
+
 // ---- detail -----------------------------------------------------------
 const detail = document.getElementById("detail");
+
+// `localStorage` can *throw* (not just return null) on a file:// page in a
+// browser with site data blocked — every access is guarded (story 13).
+function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+const secKey = title => "domino.debug.sec." + title;
 
 function listingBlock(text, steps, terminal) {
   const hi = new Set(steps.map(s => s.label));
@@ -651,24 +737,65 @@ function listingBlock(text, steps, terminal) {
   const pre = el("pre");
   pre.appendChild(wrap);
   const lines = text.split("\n");
-  let termRow = null;
   lines.forEach((line, i) => {
     const n = i + 1;
     const row = el("div", "row" + (hi.has(n) ? " hi" : "") + (terminal && n === terminal.label ? " term" : ""));
     row.appendChild(el("span", "n", String(n)));
     row.appendChild(el("span", "c", line));
-    if (terminal && n === terminal.label) termRow = row;
+    // Centring now happens when the section opens (see `sec`), not on a
+    // render-time setTimeout, so a collapsed listing never scrolls the pane.
+    if (terminal && n === terminal.label) pre._termRow = row;
     wrap.appendChild(row);
   });
-  if (termRow) setTimeout(() => termRow.scrollIntoView({ block: "center" }), 0);
   return pre;
 }
 
-function sec(title, body) {
-  const d = el("div", "sec");
-  d.appendChild(el("h3", null, title));
-  d.appendChild(body);
+// A collapsible detail section. `title` keys its open/closed state in
+// localStorage, so the choice persists across selections and reloads; `meta`
+// shows on the summary line so a closed section still says how big it is.
+function sec(title, body, defaultOpen, meta) {
+  const d = el("details", "sec");
+  const stored = lsGet(secKey(title));
+  d.open = stored === "1" ? true : stored === "0" ? false : !!defaultOpen;
+
+  const sum = el("summary");
+  sum.appendChild(el("span", "sec-title", title));
+  if (meta) sum.appendChild(el("span", "sec-meta", meta));
+  d.appendChild(sum);
+
+  const wrap = el("div", "sec-body");
+  wrap.appendChild(body);
+  d.appendChild(wrap);
+
+  d.addEventListener("toggle", () => lsSet(secKey(title), d.open ? "1" : "0"));
+
+  // If this section holds a listing, centre its terminal line when it opens.
+  const pre = body.tagName === "PRE" ? body
+    : (body.querySelector ? body.querySelector("pre") : null);
+  const centre = () => { if (d.open && pre && pre._termRow) pre._termRow.scrollIntoView({ block: "center" }); };
+  d.addEventListener("toggle", centre);
+  if (d.open && pre && pre._termRow) requestAnimationFrame(centre);
+
   return d;
+}
+
+// Expand all / Collapse all for the current detail pane (persists each choice).
+function addSecToolbar() {
+  const bar = el("div", "sectoolbar");
+  const setAll = open => detail.querySelectorAll("details.sec").forEach(d => {
+    d.open = open;
+    const t = d.querySelector(".sec-title");
+    if (t) lsSet(secKey(t.textContent), open ? "1" : "0");
+  });
+  const mk = (label, open) => {
+    const b = el("button", null, label);
+    b.type = "button";
+    b.onclick = () => setAll(open);
+    return b;
+  };
+  bar.appendChild(mk("Expand all", true));
+  bar.appendChild(mk("Collapse all", false));
+  detail.appendChild(bar);
 }
 
 function stepsTable(steps, sites) {
@@ -684,6 +811,134 @@ function stepsTable(steps, sites) {
   return tbl;
 }
 
+// ---- section metas + SMT / claim-assertion bodies (story 13) ---------------
+const termWord = t => (t.is_abort ? "abort" : "return");
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+
+const pathMeta = (steps, terminal) =>
+  `${plural(steps.length, "step")} → L${terminal.label} ${termWord(terminal)}`;
+const listingMeta = (text, steps) =>
+  `${text.split("\n").length} lines · ${steps.length} on this path`;
+const smtMeta = (lp, rp) =>
+  `${plural(lp.smt.length + (rp ? rp.smt.length : 0), "assertion")} + base frame`;
+
+// Does a self-contained `smt/<L>/<R>.smt2` exist for this pair?
+function smtOnDisk(rp) {
+  const mode = T.options && T.options.smt;
+  if (!mode || mode === "none" || !rp) return false;
+  if (mode === "all" || mode === "deltas") return true;
+  const k = verdictKind(rp.verdict);
+  return k === "goal-fails" || k === "inconclusive";
+}
+
+// The runnable query for a pair: base frame, both path deltas, the vacuity
+// check-sat, then the negated goal and its check-sat — the sequence `domino
+// debug` sent the solver, and what `smt/<L>/<R>.smt2` records.
+function pairQueryText(lp, rp) {
+  const parts = [];
+  if (T.base_frame_smt) parts.push(T.base_frame_smt);
+  lp.smt.forEach(l => parts.push(l));
+  if (rp) rp.smt.forEach(l => parts.push(l));
+  parts.push("(check-sat)");
+  if (T.goal_smt) parts.push("(push 1)", T.goal_smt, "(check-sat)", "(pop 1)");
+  return parts.join("\n") + "\n";
+}
+
+function execCopyFallback(text) {
+  try {
+    const ta = el("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch (e) { return false; }
+}
+
+function copyBtn(label, getText) {
+  const b = el("button", "copy-btn", label);
+  b.type = "button";
+  b.onclick = () => {
+    const flash = () => { b.textContent = "copied"; setTimeout(() => { b.textContent = label; }, 1200); };
+    let text = "";
+    try { text = getText(); } catch (e) { return; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(flash, () => { if (execCopyFallback(text)) flash(); });
+      } else if (execCopyFallback(text)) {
+        flash();
+      }
+    } catch (e) { /* silent — a copy failure must never break the pane */ }
+  };
+  return b;
+}
+
+function smtBlock(lp, rp) {
+  const wrap = el("div");
+  wrap.appendChild(copyBtn("Copy runnable query", () => pairQueryText(lp, rp)));
+  if (rp && smtOnDisk(rp)) {
+    wrap.appendChild(el("div", "assertion-note",
+      `also on disk: smt/${lp.id}/${rp.id.split(".").pop()}.smt2`));
+  }
+  const base = el("details");
+  base.appendChild(el("summary", null, "base frame (asserted once at level 0)"));
+  base.appendChild((() => { const p = el("pre"); p.textContent = T.base_frame_smt || "(none)"; return p; })());
+  wrap.appendChild(base);
+  wrap.appendChild(el("div", "path-sub", "left path #" + lp.id));
+  const lpre = el("pre");
+  lpre.textContent = lp.smt.join("\n");
+  wrap.appendChild(lpre);
+  if (rp) {
+    wrap.appendChild(el("div", "path-sub", "right path #" + rp.id));
+    const rpre = el("pre");
+    rpre.textContent = rp.smt.join("\n");
+    wrap.appendChild(rpre);
+  }
+  return wrap;
+}
+
+// The actual claim assertion the solver was asked about at this terminal pair.
+function claimAssertionSec(lp, rp) {
+  const k = verdictKind(rp.verdict);
+  const tw = termWord(rp.terminal);
+  const wrap = el("div");
+
+  wrap.appendChild(el("div", "assertion-note",
+    `checked after right path #${rp.id} terminates at L${rp.terminal.label} (${tw})`));
+  wrap.appendChild(copyBtn("Copy runnable query", () => pairQueryText(lp, rp)));
+
+  const pre = el("pre");
+  if (k === "unreachable") {
+    pre.textContent =
+      "; the vacuity (check-sat) was `unsat` — this (left, right) pair cannot\n" +
+      "; occur, so the negated goal below was never checked.\n\n" +
+      (T.goal_smt || "(goal not recorded)");
+  } else {
+    pre.textContent =
+      "(check-sat)          ; vacuity — is this (left, right) pair reachable?\n\n" +
+      (T.goal_smt || "(goal not recorded)") + "\n" +
+      "(check-sat)          ; the negated claim goal";
+  }
+  wrap.appendChild(pre);
+
+  const outcome = {
+    "verified": "vacuity `sat`, goal check `unsat` — the claim holds on this pair.",
+    "unreachable": "vacuity check `unsat` — the pair is unreachable; the goal was not checked.",
+    "goal-fails": "goal check `sat` — the claim FAILS; the Model section above has the witness.",
+    "inconclusive": "goal check `unknown` — timed out or undecided within the budget.",
+  }[k] || "";
+  const out = el("div", "assertion-outcome");
+  out.appendChild(el("span", "badge " + badgeClass(k), badgeText(k)));
+  out.appendChild(document.createTextNode(" " + outcome));
+  wrap.appendChild(out);
+
+  return sec("Claim assertion", wrap, true, `#${rp.id} → L${rp.terminal.label} ${tw}`);
+}
+
 function renderDetail(lp, rp) {
   detail.innerHTML = "";
 
@@ -692,9 +947,12 @@ function renderDetail(lp, rp) {
     detail.appendChild(el("h2", null, "Left branch prune #" + lp.id));
     detail.appendChild(el("div", "path-sub",
       `cut at L${lp.terminal.label} ${lp.decision} — prefix unsat, subtree not explored`));
-    detail.appendChild(sec("Path — left", stepsTable(lp.steps, T.left_sites)));
+    addSecToolbar();
+    detail.appendChild(sec("Path — left", stepsTable(lp.steps, T.left_sites), true,
+      pathMeta(lp.steps, lp.terminal)));
     detail.appendChild(sec("Listing — left (" + T.left_game + ")",
-      listingBlock(T.left_listing, lp.steps, lp.terminal)));
+      listingBlock(T.left_listing, lp.steps, lp.terminal), false,
+      listingMeta(T.left_listing, lp.steps)));
     return;
   }
 
@@ -716,43 +974,42 @@ function renderDetail(lp, rp) {
   }
   detail.appendChild(sub);
 
-  // Path
-  detail.appendChild(sec("Path — left", stepsTable(lp.steps, T.left_sites)));
-  if (isRight) detail.appendChild(sec("Path — right", stepsTable(rp.steps, T.right_sites)));
+  addSecToolbar();
 
-  // Listing
-  detail.appendChild(sec("Listing — left (" + T.left_game + ")",
-    listingBlock(T.left_listing, lp.steps, lp.terminal)));
-  if (isRight) {
+  // The question and the answer come before the bulk (story 13 reorder).
+  detail.appendChild(sec("Path — left", stepsTable(lp.steps, T.left_sites), true,
+    pathMeta(lp.steps, lp.terminal)));
+  if (isRight) detail.appendChild(sec("Path — right", stepsTable(rp.steps, T.right_sites), true,
+    pathMeta(rp.steps, rp.terminal)));
+
+  // A right-branch prune never reached a terminal: no claim assertion, no SMT.
+  if (rightPruned) {
+    detail.appendChild(sec("Listing — left (" + T.left_game + ")",
+      listingBlock(T.left_listing, lp.steps, lp.terminal), false,
+      listingMeta(T.left_listing, lp.steps)));
     detail.appendChild(sec("Listing — right (" + T.right_game + ")",
-      listingBlock(T.right_listing, rp.steps, rp.terminal)));
+      listingBlock(T.right_listing, rp.steps, rp.terminal), false,
+      listingMeta(T.right_listing, rp.steps)));
+    return;
   }
-  if (rightPruned) return;
 
-  // SMT
-  const smtWrap = el("div");
-  const base = el("details");
-  base.appendChild(el("summary", null, "base frame (asserted once at level 0)"));
-  base.appendChild((() => { const p = el("pre"); p.textContent = T.base_frame_smt || "(none)"; return p; })());
-  smtWrap.appendChild(base);
-  const lpre = el("pre");
-  lpre.textContent = lp.smt.join("\n");
-  smtWrap.appendChild(el("div", "path-sub", "left path #" + lp.id));
-  smtWrap.appendChild(lpre);
-  if (isRight) {
-    smtWrap.appendChild(el("div", "path-sub", "right path #" + rp.id));
-    const rpre = el("pre");
-    rpre.textContent = rp.smt.join("\n");
-    smtWrap.appendChild(rpre);
-  }
-  detail.appendChild(sec("SMT asserted", smtWrap));
+  if (isRight) detail.appendChild(claimAssertionSec(lp, rp));
 
-  // Model
   if (isRight && rp.model_smt) {
     const p = el("pre");
     p.textContent = rp.model_smt;
-    detail.appendChild(sec("Model", p));
+    detail.appendChild(sec("Model", p, true));
   }
+
+  detail.appendChild(sec("SMT asserted", smtBlock(lp, isRight ? rp : null), false,
+    smtMeta(lp, isRight ? rp : null)));
+
+  detail.appendChild(sec("Listing — left (" + T.left_game + ")",
+    listingBlock(T.left_listing, lp.steps, lp.terminal), false,
+    listingMeta(T.left_listing, lp.steps)));
+  if (isRight) detail.appendChild(sec("Listing — right (" + T.right_game + ")",
+    listingBlock(T.right_listing, rp.steps, rp.terminal), false,
+    listingMeta(T.right_listing, rp.steps)));
 }
 
 // ---- filter ---------------------------------------------------------
@@ -856,6 +1113,7 @@ mod tests {
                 transcript: false,
             },
             base_frame_smt: "(declare-const x Int)".into(),
+            goal_smt: "(assert (not (= x 0)))".into(),
             left_listing: "OracleO {\n    if (k != bot) {\n    return k\n}".into(),
             right_listing: "OracleO {\n    return k\n}".into(),
             left_sites,
@@ -957,8 +1215,9 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 5);
+        assert_eq!(parsed["schema"], 6);
         assert_eq!(parsed["options"]["max_paths"], 1000);
+        assert_eq!(parsed["goal_smt"], "(assert (not (= x 0)))");
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
         assert_eq!(parsed["summary"]["goal_fails"], 1);
         assert_eq!(parsed["left_sites"]["12"]["kind"], "branch");
@@ -975,7 +1234,7 @@ mod tests {
         let p = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(parsed["schema"], 5);
+        assert_eq!(parsed["schema"], 6);
         assert!(parsed["options"]["max_paths"].is_null());
     }
 

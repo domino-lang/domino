@@ -186,9 +186,11 @@ is a *reference* check against the encoding `prove` uses.
 ### 2.7 Options plumbing
 
 `DebugOptions` (`driver.rs:86`) → `OptionsView` (`:267`, serialised into `trace.json`) →
-`crates/domino/src/cli.rs::Debug` → `crates/domino/src/main.rs`. `TRACE_SCHEMA` is **5**
-(`driver.rs:172`); adding a field to `OptionsView` is a schema change, so bump by one from whatever
-you find and say the number in your report.
+`crates/domino/src/cli.rs::Debug` → `crates/domino/src/main.rs`. `TRACE_SCHEMA` is **6**
+(`driver.rs:172`, story 13); adding a field to `OptionsView` is a schema change, so bump by one
+from whatever you find and say the number in your report. Story 13 also added
+`DebugRun.goal_smt: String` (the negated claim goal) right after `base_frame_smt` — keep it in the
+serialised order when you touch the struct.
 
 ## 3. Work to do
 

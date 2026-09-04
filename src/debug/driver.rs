@@ -169,7 +169,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 5;
+pub const TRACE_SCHEMA: u32 = 6;
 
 /// Why exploration ended. Serialised into `trace.json` (replacing the old bare
 /// `partial: bool`); `summary.txt` prints the human-readable form.
@@ -222,6 +222,11 @@ pub struct DebugRun {
     /// also the head of `transcript.smt2` up to the first `(push 1)`; kept here
     /// so `index.html` is self-contained. Empty for an admitted claim.
     pub base_frame_smt: String,
+    /// The negated claim goal — `(assert (not …))` — checked at every (left,
+    /// right) terminal pair after the vacuity check. One per run: it depends on
+    /// the claim and the oracle, not on the path. Empty for an admitted claim.
+    /// The viewer's `Claim assertion` section renders it (story 13).
+    pub goal_smt: String,
     /// The left game instance's inlined listing (line `n` == `Label` `n`).
     pub left_listing: String,
     /// The right game instance's inlined listing (numbered independently).
@@ -612,6 +617,7 @@ where
         out_dir: out_dir.display().to_string(),
         options: OptionsView::from(opts),
         base_frame_smt: String::new(),
+        goal_smt: String::new(),
         left_listing: left_inl.listing.text.clone(),
         right_listing: right_inl.listing.text.clone(),
         left_sites: sites_view(&left_inl.listing),
@@ -640,6 +646,9 @@ where
         // used to re-derive it per pair; the `smt/` files embed its text.
         let goal_negated = eqctx.emit_claim_goal_negated(&claim, oracle);
         let goal_smt = goal_negated.to_string();
+        // Story 13: hoist the same text onto the run so `trace.json` /
+        // `index.html` show the exact assertion the solver was asked about.
+        run.goal_smt = goal_smt.clone();
 
         let mut solver = if opts.transcript {
             let transcript = std::fs::File::create(out_dir.join("transcript.smt2"))?;
@@ -1691,6 +1700,68 @@ mod tests {
         });
     }
 
+    /// Story 13: `DebugRun.goal_smt` is the exact text the driver asserts at
+    /// every terminal pair — `eqctx.emit_claim_goal_negated(&claim, oracle)`
+    /// rendered once. Non-empty for a non-admitted run.
+    #[test]
+    fn goal_smt_equals_the_negated_claim_goal() {
+        let run = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKGEN",
+            "same-output",
+            DebugOptions::default(),
+        );
+        assert!(!run.admitted);
+        assert!(!run.goal_smt.is_empty(), "goal_smt must be populated");
+
+        // Rebuild the exact `EquivalenceContext` `run_debug_command` used and
+        // re-derive the goal independently.
+        with_project("example-projects/kem-dem/kem-dem-cca-ssp", |proj| {
+            let theorem = proj.get_theorem("kem_dem_cca_ssp").unwrap();
+            let (theorem_eq, auxs_eq) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+            let eq = match &theorem_eq.game_hops[0] {
+                GameHop::Equivalence(eq) => eq,
+                _ => unreachable!(),
+            };
+            let mut eqctx = EquivalenceContext::new(eq, &theorem_eq, &auxs_eq);
+            eqctx.load_invariants(proj).unwrap();
+
+            let mut claims = eq.proof_tree_by_oracle_name("PKGEN");
+            claims.extend(eqctx.generate_game_or_package_invariant_claims());
+            let claim = claims
+                .iter()
+                .find(|c| c.name() == "same-output")
+                .cloned()
+                .unwrap();
+
+            let expected = eqctx.emit_claim_goal_negated(&claim, "PKGEN").to_string();
+            assert_eq!(run.goal_smt, expected);
+        });
+
+        // And it is in trace.json verbatim.
+        let parsed: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(parsed["schema"], 6);
+        assert_eq!(parsed["goal_smt"], run.goal_smt);
+    }
+
+    /// Story 13: an admitted claim checks nothing, so `goal_smt` stays empty.
+    #[test]
+    fn goal_smt_is_empty_for_an_admitted_claim() {
+        let run = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKDEC",
+            "lemma-kem-correctness",
+            DebugOptions::default(),
+        );
+        assert!(run.admitted);
+        assert!(run.goal_smt.is_empty());
+    }
+
     #[test]
     fn hello_world_same_output_is_all_green() {
         let run = run_in_tmp(
@@ -2326,7 +2397,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
-        assert_eq!(parsed["schema"], 5);
+        assert_eq!(parsed["schema"], 6);
 
         // story 12: the summary.txt written by the same (interrupted) flush
         // agrees with trace.json on the verdict + path counts.

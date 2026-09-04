@@ -100,6 +100,11 @@ single-threaded — no `Send` bound, no locks.
 - No `run.goal_smt`: call `emit_claim_goal_negated` **once** on the main thread before spawning
   and pass the `SmtExpr` down. Do not call it from a worker.
 
+> **Stories 11 and 13 have both landed.** `SmtWriter` exists (`src/debug/smtout.rs`, `Send + Sync`).
+> `DebugRun.goal_smt: String` exists and `run_debug_command` already computes the goal once as a
+> local `goal_negated: SmtExpr` / `goal_smt: String` before the explore loop — reuse those; do not
+> re-emit. `TRACE_SCHEMA` is **6** as of story 13 — bump to **7**.
+
 ## 3. Work to do
 
 ### 3.1 Options and CLI
