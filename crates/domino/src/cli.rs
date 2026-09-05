@@ -109,9 +109,9 @@ pub(crate) struct Debug {
     /// path). Unlimited by default; `Ctrl-C` is the interactive stop.
     #[clap(long)]
     pub(crate) max_paths: Option<usize>,
-    /// Live progress while exploring, on stderr (stdout stays the final tree):
-    /// `auto` shows a bar on a terminal and plain log lines when piped; `plain`
-    /// and `bar` force one; `none` is silent.
+    /// Live progress while exploring, on stderr (stdout carries only the final
+    /// concise report): `auto` shows a bar on a terminal and plain log lines when
+    /// piped; `plain` and `bar` force one; `none` is silent.
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
     pub(crate) progress: ProgressMode,
     /// Which per-path SMT files to write under `<out>/smt/`. `failures` (the

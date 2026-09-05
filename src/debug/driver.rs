@@ -54,7 +54,7 @@ use std::collections::BTreeMap;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde_derive::Serialize;
 
@@ -216,6 +216,14 @@ pub struct DebugRun {
     /// on the same project produce byte-identical output.
     #[serde(skip)]
     pub out_dir: String,
+    /// Wall-clock time of the run so far. Updated immediately before every
+    /// [`report::flush`] (once per left path) and once more at the end, so
+    /// `main.rs` can print the concise stdout report without threading its own
+    /// clock through the CLI. `#[serde(skip)]` — `trace.json` and `index.html`
+    /// stay byte-deterministic (story 07), exactly like `out_dir`. Only
+    /// `summary.txt`'s sibling on stdout (`render_summary`) reads it.
+    #[serde(skip)]
+    pub elapsed: Duration,
     /// The options this run was launched with.
     pub options: OptionsView,
     /// The base declarations asserted once at solver level 0, rendered. This is
@@ -474,8 +482,9 @@ where
     P: Project,
     B: SmtSolverBackend,
 {
-    // Wall-clock, for `summary.txt` only — never enters `DebugRun` /
-    // `trace.json` (story 07 determinism).
+    // Wall-clock for the concise stdout report only. Copied into
+    // `run.elapsed` before every flush; that field is `#[serde(skip)]`, so
+    // `trace.json` / `index.html` stay byte-deterministic (story 07).
     let started = Instant::now();
 
     let theorem = project
@@ -626,6 +635,7 @@ where
         claim: claim_name.to_string(),
         admitted: claim.is_admitted(),
         out_dir: out_dir.display().to_string(),
+        elapsed: Duration::ZERO,
         options: OptionsView::from(opts),
         base_frame_smt: String::new(),
         goal_smt: String::new(),
@@ -690,7 +700,8 @@ where
         out_dir.join("inlined.txt"),
         render::side_by_side(&run.left_listing, &run.right_listing),
     )?;
-    report::flush(&run, started.elapsed(), &out_dir)?;
+    run.elapsed = started.elapsed();
+    report::flush(&run, &out_dir)?;
 
     observer.borrow_mut().on_event(&DebugEvent::Finished {
         summary: run.summary,
@@ -821,7 +832,8 @@ fn explore_paths<'o, S: SmtSolver>(
                         index,
                         running: run.summary,
                     });
-                    if let Err(e) = report::flush(run, started.elapsed(), out_dir) {
+                    run.elapsed = started.elapsed();
+                    if let Err(e) = report::flush(run, out_dir) {
                         *fatal = Some(DebugError::Io(e));
                         return ControlFlow::Break(());
                     }
@@ -1426,7 +1438,10 @@ fn summarize(left_paths: &[LeftPath], left_pruned_branches: &[PrunedBranch]) -> 
 // stdout rendering
 // ---------------------------------------------------------------------------
 
-/// The text tree printed to stdout (the format agreed with the project owner).
+/// The full per-left-path execution tree (the format agreed with the project
+/// owner). Written to `summary.txt` as of story 17 — before that it went to
+/// stdout, where the concise `report::render_summary` now prints instead. Still
+/// used verbatim as the assertion message in several tests here.
 pub fn render_tree(run: &DebugRun) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
@@ -2369,7 +2384,9 @@ mod tests {
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
         assert!(parsed.get("partial").is_none());
         assert!(std::path::Path::new(&run.out_dir).join("index.html").exists());
-        assert!(std::path::Path::new(&run.out_dir).join("summary.txt").exists());
+        let summary_txt = std::path::Path::new(&run.out_dir).join("summary.txt");
+        assert!(summary_txt.exists());
+        assert!(!std::fs::read_to_string(&summary_txt).unwrap().is_empty());
     }
 
     /// Story 10: a `Ctrl-C` that lands *after* exploration has started (here the
@@ -2420,14 +2437,29 @@ mod tests {
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
         assert_eq!(parsed["schema"], 7);
 
-        // story 12: the summary.txt written by the same (interrupted) flush
-        // agrees with trace.json on the verdict + path counts.
+        // story 17: the summary.txt written by the same (interrupted) flush is
+        // the per-left-path tree, ending with the bracketed stop line.
         let summary =
             std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("summary.txt")).unwrap();
-        assert!(summary.contains("STOPPED EARLY (interrupted by Ctrl-C)"), "{summary}");
+        assert!(!summary.is_empty());
+        assert!(summary.starts_with(&render_tree(&run)), "{summary}");
+        assert!(summary.starts_with("theorem "), "{summary}");
+        assert!(
+            summary
+                .trim_end()
+                .ends_with(&format!(
+                    "[STOPPED EARLY (interrupted by Ctrl-C) — {} of {} left paths explored]",
+                    run.left_paths.len(),
+                    run.left_syntactic
+                )),
+            "{summary}"
+        );
+        // one tree block per explored left path; verdict counts from render_tree
         let sm = &run.summary;
-        assert!(summary.contains(&format!("  verified      {}\n", sm.verified)), "{summary}");
-        assert!(summary.contains(&format!("  GOAL FAILS    {}\n", sm.goal_fails)), "{summary}");
-        assert!(summary.contains(&format!("  {:<13}{} checked\n", "pairs", sm.right_paths)), "{summary}");
+        assert_eq!(summary.matches("left path #").count(), run.left_paths.len());
+        assert!(
+            summary.contains(&format!("{} verified, {} unreachable", sm.verified, sm.unreachable)),
+            "{summary}"
+        );
     }
 }

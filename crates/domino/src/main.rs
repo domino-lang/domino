@@ -138,7 +138,7 @@ fn debug(d: &Debug) -> Result<(), Error> {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use sspverif::debug::driver::{render_tree, run_debug_command, DebugOptions};
+    use sspverif::debug::driver::{run_debug_command, DebugOptions};
     use sspverif::debug::progress::{BarObserver, DebugObserver, NopObserver, PlainObserver};
     use sspverif::debug::smtout::SmtOut;
 
@@ -217,17 +217,11 @@ fn debug(d: &Debug) -> Result<(), Error> {
         Some(&stop),
     )?;
 
-    print!("{}", render_tree(&run));
-    println!("\nsummary: {}/summary.txt", run.out_dir);
-    if !run.admitted {
-        println!("viewer: {}/index.html", run.out_dir);
-        if !matches!(opts.smt_out, SmtOut::None) {
-            println!("smt: {}/smt/", run.out_dir);
-        }
-        if opts.transcript {
-            println!("transcript: {}/transcript.smt2", run.out_dir);
-        }
-    }
+    // Story 17: the concise report goes to stdout; the full per-left-path tree is
+    // in `summary.txt` (its `artifacts` block points at that and every other
+    // file). The `Finished` event already cleared the progress bar inside
+    // `run_debug_command`, so this never lands in a redrawn line.
+    print!("{}", sspverif::debug::report::render_summary(&run));
 
     if !run.is_ok() {
         return Err(DebugNotVerified.into());

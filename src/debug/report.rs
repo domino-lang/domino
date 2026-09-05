@@ -16,9 +16,8 @@
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
-use crate::debug::driver::{DebugRun, StepView, StopReason, TerminalView, Verdict};
+use crate::debug::driver::{self, DebugRun, StepView, StopReason, TerminalView, Verdict};
 
 /// Write `trace.json` into `out_dir`. Returns the path written.
 pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
@@ -37,14 +36,19 @@ pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathB
 /// All files truncate-write, so an intermediate flush is simply overwritten by
 /// the next one; the *final* `trace.json` / `index.html` bytes are byte-identical
 /// to a single end-of-run write (story 07's determinism guarantee — no
-/// timestamps enter `DebugRun`). `summary.txt` is **excluded** from that
-/// guarantee: it carries `elapsed` (story 12).
+/// timestamps enter `DebugRun`).
+///
+/// As of story 17 all three files are byte-deterministic across two runs of an
+/// unchanged project: `summary.txt` now holds the per-left-path execution tree
+/// (`driver::render_tree`), not the wall-clock-bearing concise report. That
+/// report moved to stdout ([`render_summary`], which reads `run.elapsed`).
+///
 /// Errors are surfaced: a failing flush is a real problem (out of disk, bad
 /// path).
-pub fn flush(run: &DebugRun, elapsed: Duration, out_dir: &Path) -> std::io::Result<()> {
+pub fn flush(run: &DebugRun, out_dir: &Path) -> std::io::Result<()> {
     write_trace_json(run, out_dir)?;
     write_html(run, out_dir)?;
-    write_summary(run, elapsed, out_dir)?;
+    write_summary(run, out_dir)?;
     Ok(())
 }
 
@@ -58,29 +62,59 @@ pub fn write_html(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
     Ok(path)
 }
 
-/// Write the concise run report to `<out_dir>/summary.txt` (story 12).
+/// Write the per-left-path execution tree to `<out_dir>/summary.txt`.
 ///
-/// This is the file that answers "did it finish, and what did it find?" without
-/// scrolling back through a thousand-line `render_tree` dump. It is rewritten on
-/// every [`flush`] (once per left path) so an interrupted run still has a current
-/// summary.
+/// As of story 17 this file holds the **full tree** — `driver::render_tree`,
+/// every step of every left path, its right paths and their verdicts, the pruned
+/// branches — plus, for a run that stopped early, one trailing bracketed line
+/// naming why. It is what stdout printed before story 17. The concise
+/// "did it finish, what did it find?" report now goes to stdout instead
+/// ([`render_summary`]).
 ///
-/// Unlike `trace.json` / `index.html` this file is **not** byte-deterministic:
-/// it carries the wall-clock `elapsed` line. Everything else on it is a function
-/// of `run` alone, so two identical runs produce a `summary.txt` that differs
-/// only in that one line.
-pub fn write_summary(
-    run: &DebugRun,
-    elapsed: Duration,
-    out_dir: &Path,
-) -> std::io::Result<PathBuf> {
+/// Rewritten in full on every [`flush`] (once per left path), truncate-write, so
+/// an interrupted run still has the tree of the left paths it finished. It is
+/// byte-deterministic across two runs of an unchanged project (no `elapsed`).
+pub fn write_summary(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
     let path = out_dir.join("summary.txt");
-    std::fs::write(&path, render_summary(run, elapsed))?;
+    std::fs::write(&path, render_paths_report(run))?;
     Ok(path)
 }
 
+/// `driver::render_tree(run)` plus, for a partial run, a trailing
+/// `[STOPPED EARLY (…) — N of M left paths explored]` line (nothing for a
+/// completed or admitted run). Same status wording as [`render_summary`].
+fn render_paths_report(run: &DebugRun) -> String {
+    let mut s = driver::render_tree(run);
+    if let Some(line) = stop_line(run) {
+        s.push('\n');
+        s.push_str(&line);
+        s.push('\n');
+    }
+    s
+}
+
+/// The trailing stop line for `summary.txt`, or `None` for a completed /
+/// admitted run.
+fn stop_line(run: &DebugRun) -> Option<String> {
+    if run.admitted || !run.partial() {
+        return None;
+    }
+    let what = match run.stop_reason {
+        StopReason::Interrupted => "STOPPED EARLY (interrupted by Ctrl-C)".to_string(),
+        StopReason::MaxPaths { limit } => {
+            format!("STOPPED EARLY (--max-paths {limit} reached)")
+        }
+        StopReason::Completed => return None,
+    };
+    Some(format!(
+        "[{what} — {} of {} left paths explored]",
+        run.left_paths.len(),
+        run.left_syntactic
+    ))
+}
+
 /// `1h 02m 03s` / `2m 04s` / `4.3s` / `0.2s`.
-fn format_elapsed(d: Duration) -> String {
+fn format_elapsed(d: std::time::Duration) -> String {
     let total = d.as_secs();
     if total >= 3600 {
         format!("{}h {:02}m {:02}s", total / 3600, (total % 3600) / 60, total % 60)
@@ -109,8 +143,17 @@ fn chain_str(steps: &[StepView], terminal: &TerminalView) -> String {
     parts.join(" → ")
 }
 
-fn render_summary(run: &DebugRun, elapsed: Duration) -> String {
+/// The concise run report printed to **stdout** by `domino debug` (story 17;
+/// this text lived in `summary.txt` from story 12 until then).
+///
+/// It answers "did it finish, and what did it find?": status, `elapsed`, path
+/// and verdict counts, the failing / inconclusive pairs with their model files,
+/// and an `artifacts` block pointing at everything on disk (the per-path tree
+/// itself is `summary.txt`). A pure function of `run` — the only
+/// non-deterministic part is the `elapsed` line, read from `run.elapsed`.
+pub fn render_summary(run: &DebugRun) -> String {
     let o = &run.options;
+    let elapsed = run.elapsed;
     let mut s = String::new();
 
     // ---- header block -----------------------------------------------------
@@ -219,15 +262,24 @@ fn render_summary(run: &DebugRun, elapsed: Duration) -> String {
     write_pair_block(&mut s, "inconclusive", &inconclusive);
 
     // ---- artifacts -------------------------------------------------
-    s.push_str("\nartifacts\n");
+    // The output directory once, on the heading line; then one row per file,
+    // `summary.txt` (the per-path tree) first (story 17).
+    let _ = writeln!(s, "\n{:<14}{}", "artifacts", run.out_dir);
     let mut artifact = |label: &str, target: &str| {
         let _ = writeln!(s, "  {label:<14}{target}");
     };
+    artifact(
+        "paths",
+        &format!(
+            "summary.txt        (per-path tree: {} left, {} right)",
+            sm.left_paths, sm.right_paths
+        ),
+    );
     artifact("tree", "index.html");
     artifact("trace", "trace.json");
     artifact("listing", "inlined.txt");
     if o.smt.as_str() != "none" {
-        artifact("smt", &format!("smt/            ({})", o.smt.as_str()));
+        artifact("smt", &format!("smt/               ({})", o.smt.as_str()));
     }
     if o.transcript {
         artifact("transcript", "transcript.smt2");
@@ -1136,9 +1188,18 @@ mod tests {
     use std::collections::BTreeMap;
     use std::time::Duration;
 
-    fn summary_of(run: &DebugRun, elapsed: Duration) -> String {
+    /// The stdout report for a fixture run at a given wall-clock time (story 17:
+    /// `render_summary` reads `run.elapsed`).
+    fn stdout_report_of(run: &DebugRun, elapsed: Duration) -> String {
+        let mut run = run.clone();
+        run.elapsed = elapsed;
+        render_summary(&run)
+    }
+
+    /// The `summary.txt` contents written for a run (story 17: the per-path tree).
+    fn summary_txt_of(run: &DebugRun) -> String {
         let dir = tempfile::tempdir().unwrap();
-        let p = write_summary(run, elapsed, dir.path()).unwrap();
+        let p = write_summary(run, dir.path()).unwrap();
         assert_eq!(p.file_name().unwrap(), "summary.txt");
         std::fs::read_to_string(&p).unwrap()
     }
@@ -1166,6 +1227,7 @@ mod tests {
             claim: "same-output".into(),
             admitted: false,
             out_dir: out_dir.into(),
+            elapsed: Duration::ZERO,
             options: OptionsView {
                 check_left: false,
                 check_right: true,
@@ -1335,11 +1397,13 @@ mod tests {
         assert_eq!(first, second);
     }
 
-    // ---- story 12: summary.txt -----------------------------------------
+    // ---- story 17: the concise report is stdout (`render_summary`) -------
+    // These were the story-12 `summary_txt_*` tests; that text now prints to
+    // stdout, so they target `render_summary` and are renamed `stdout_report_*`.
 
     #[test]
-    fn summary_txt_completed_run_shape() {
-        let txt = summary_of(&synthetic_run("/x"), Duration::from_secs(64));
+    fn stdout_report_completed_run_shape() {
+        let txt = stdout_report_of(&synthetic_run("/x"), Duration::from_secs(64));
         assert!(txt.starts_with("domino debug — summary\n======================\n"));
         assert!(txt.contains("\nstatus        COMPLETE — all paths explored\n"), "{txt}");
         assert!(txt.contains("\nelapsed       1m 04s\n"), "{txt}");
@@ -1360,35 +1424,42 @@ mod tests {
         assert!(txt.contains("explored of 3 syntactic"), "{txt}");
         // no empty inconclusive block
         assert!(!txt.contains("\ninconclusive\n"), "{txt}");
+        // story 17: artifacts block names the out dir and points `paths` at the tree
+        assert!(txt.contains("\nartifacts     /x\n"), "{txt}");
+        assert!(
+            txt.contains("  paths         summary.txt        (per-path tree: 1 left, 2 right)\n"),
+            "{txt}"
+        );
     }
 
     #[test]
-    fn summary_txt_stop_reason_status_lines() {
+    fn stdout_report_stop_reason_status_lines() {
         let mut run = synthetic_run("/x");
         run.stop_reason = StopReason::MaxPaths { limit: 20 };
-        assert!(summary_of(&run, Duration::from_secs(1))
+        assert!(stdout_report_of(&run, Duration::from_secs(1))
             .contains("status        STOPPED EARLY (--max-paths 20 reached)\n"));
 
         run.stop_reason = StopReason::Interrupted;
-        assert!(summary_of(&run, Duration::from_secs(1))
+        assert!(stdout_report_of(&run, Duration::from_secs(1))
             .contains("status        STOPPED EARLY (interrupted by Ctrl-C)\n"));
     }
 
     #[test]
-    fn summary_txt_admitted_is_header_plus_status() {
+    fn stdout_report_admitted_is_header_plus_status() {
         let mut run = synthetic_run("/x");
         run.admitted = true;
-        let txt = summary_of(&run, Duration::from_secs(1));
+        let txt = stdout_report_of(&run, Duration::from_secs(1));
         assert!(txt.contains("status        ADMITTED — nothing to check\n"), "{txt}");
         assert!(!txt.contains("\nverdicts\n"), "{txt}");
         assert!(!txt.contains("\npaths\n"), "{txt}");
+        assert!(!txt.contains("\nartifacts"), "{txt}");
     }
 
     #[test]
-    fn summary_txt_differs_only_in_the_elapsed_line() {
+    fn stdout_report_differs_only_in_the_elapsed_line() {
         let run = synthetic_run("/x");
-        let a = summary_of(&run, Duration::from_secs(3));
-        let b = summary_of(&run, Duration::from_secs(9999));
+        let a = stdout_report_of(&run, Duration::from_secs(3));
+        let b = stdout_report_of(&run, Duration::from_secs(9999));
         let diffs: Vec<_> = a
             .lines()
             .zip(b.lines())
@@ -1400,10 +1471,10 @@ mod tests {
     }
 
     #[test]
-    fn summary_txt_goal_fail_ids_match_the_trace() {
+    fn stdout_report_goal_fail_ids_match_the_trace() {
         let dir = tempfile::tempdir().unwrap();
         let run = synthetic_run("/x");
-        let txt = summary_of(&run, Duration::from_secs(1));
+        let txt = stdout_report_of(&run, Duration::from_secs(1));
         let tp = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&tp).unwrap()).unwrap();
@@ -1418,9 +1489,58 @@ mod tests {
         }
         assert_eq!(trace_ids, vec!["1.2".to_string()]);
         for id in &trace_ids {
-            assert!(txt.contains(&format!("#{id}")), "summary must list {id}:\n{txt}");
+            assert!(txt.contains(&format!("#{id}")), "report must list {id}:\n{txt}");
         }
         assert_eq!(parsed["stop_reason"]["kind"], "completed");
         assert!(parsed.get("partial").is_none(), "partial must be gone from trace.json");
+    }
+
+    // ---- story 17: summary.txt is the per-path tree ---------------------
+
+    #[test]
+    fn summary_txt_is_the_path_tree() {
+        let run = synthetic_run("/x");
+        let txt = summary_txt_of(&run);
+
+        // a completed run: exactly `render_tree`, nothing appended
+        assert_eq!(txt, driver::render_tree(&run));
+        // one block per left path, and the right-path sub-block
+        assert_eq!(txt.matches("left path #").count(), run.left_paths.len());
+        assert!(txt.contains("right paths under #1:"), "{txt}");
+        // it is not the concise report
+        assert!(!txt.contains("domino debug — summary"), "{txt}");
+
+        // a partial run gets the trailing bracketed stop line
+        let mut partial = synthetic_run("/x");
+        partial.stop_reason = StopReason::Interrupted;
+        let ptxt = summary_txt_of(&partial);
+        assert!(ptxt.starts_with(&driver::render_tree(&partial)), "{ptxt}");
+        assert!(
+            ptxt.trim_end()
+                .ends_with("[STOPPED EARLY (interrupted by Ctrl-C) — 1 of 3 left paths explored]"),
+            "{ptxt}"
+        );
+
+        let mut mp = synthetic_run("/x");
+        mp.stop_reason = StopReason::MaxPaths { limit: 7 };
+        assert!(summary_txt_of(&mp)
+            .trim_end()
+            .ends_with("[STOPPED EARLY (--max-paths 7 reached) — 1 of 3 left paths explored]"));
+
+        // admitted: the two-line tree, no stop line
+        let mut adm = synthetic_run("/x");
+        adm.admitted = true;
+        assert_eq!(summary_txt_of(&adm), driver::render_tree(&adm));
+    }
+
+    #[test]
+    fn summary_txt_is_byte_identical_across_runs() {
+        // no `elapsed` on it any more (story 17)
+        let dir = tempfile::tempdir().unwrap();
+        let a = write_summary(&synthetic_run("/one"), dir.path()).unwrap();
+        let first = std::fs::read_to_string(&a).unwrap();
+        write_summary(&synthetic_run("/one"), dir.path()).unwrap();
+        let second = std::fs::read_to_string(&a).unwrap();
+        assert_eq!(first, second);
     }
 }
