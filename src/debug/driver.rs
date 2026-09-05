@@ -169,7 +169,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 6;
+pub const TRACE_SCHEMA: u32 = 7;
 
 /// Why exploration ended. Serialised into `trace.json` (replacing the old bare
 /// `partial: bool`); `summary.txt` prints the human-readable form.
@@ -265,6 +265,10 @@ pub struct PrunedBranch {
     /// `then` / `else` / `assert-holds` / `assert-fails` / `unwrap-some` /
     /// `unwrap-none` — the child that was cut.
     pub decision: String,
+    /// Line ranges executed on the way to (and including) the cut fork, in the
+    /// same shape as [`LeftPath::lines`] / [`RightPath::lines`] (story 16).
+    /// Serialised as `[[3,9],[12,12]]`.
+    pub lines: Vec<[usize; 2]>,
 }
 
 /// The CLI knobs, in a shape that serialises cleanly into `trace.json`.
@@ -347,6 +351,10 @@ pub struct LeftPath {
     pub id: String,
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
+    /// Line ranges of the left listing this path executed (story 16),
+    /// serialised as `[[3,9],[12,12]]`. Sorted, non-overlapping, includes the
+    /// terminal line.
+    pub lines: Vec<[usize; 2]>,
     /// `false` if `check_left` proved this path's *terminal* unsat and pruned it
     /// (its right side was not explored).
     pub reachable: bool,
@@ -365,6 +373,9 @@ pub struct RightPath {
     pub id: String,
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
+    /// Line ranges of the right listing this path executed (story 16), same
+    /// shape as [`LeftPath::lines`].
+    pub lines: Vec<[usize; 2]>,
     pub verdict: Verdict,
     /// The solver model, inline, for `goal-fails` / `inconclusive` pairs — so
     /// `index.html` needs no sidecar files. `None` otherwise. The same text is
@@ -912,6 +923,7 @@ fn handle_left_path<'o, S: SmtSolver>(
         id: lid.to_string(),
         steps: steps_view(left_listing, &lp.steps),
         terminal: terminal_view(left_listing, &lp.terminal),
+        lines: lines_view(&lp.lines),
         reachable,
         smt: render_path_smt(lp),
         right_paths: Vec::new(),
@@ -1054,6 +1066,7 @@ fn handle_right_path<'o, S: SmtSolver>(
         id: rid.to_string(),
         steps: steps_view(right_listing, &rp.steps),
         terminal: terminal_view(right_listing, &rp.terminal),
+        lines: lines_view(&rp.lines),
         verdict,
         model_smt,
         smt: render_path_smt(rp),
@@ -1223,12 +1236,14 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
             id: &id,
             label: query.label,
         });
+        let mut visited = query.visited.to_vec();
         self.pruned.push(PrunedBranch {
             id,
             steps: steps_view(self.listing, query.steps),
             label: query.label,
             line,
             decision: query.decision.as_str().to_string(),
+            lines: lines_view(&crate::debug::exec::ranges(&mut visited)),
         });
     }
 
@@ -1366,6 +1381,12 @@ fn terminal_view(listing: &Listing, terminal: &Terminal) -> TerminalView {
             .unwrap_or_default(),
         is_abort: terminal.is_abort(),
     }
+}
+
+/// [`TerminalPath::lines`] / a pruned branch's prefix, into the array-of-arrays
+/// shape `trace.json` uses (story 16).
+fn lines_view(lines: &[(Label, Label)]) -> Vec<[usize; 2]> {
+    lines.iter().map(|&(a, b)| [a, b]).collect()
 }
 
 fn render_path_smt(path: &TerminalPath) -> Vec<String> {
@@ -1744,7 +1765,7 @@ mod tests {
             &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(parsed["schema"], 6);
+        assert_eq!(parsed["schema"], 7);
         assert_eq!(parsed["goal_smt"], run.goal_smt);
     }
 
@@ -2397,7 +2418,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
-        assert_eq!(parsed["schema"], 6);
+        assert_eq!(parsed["schema"], 7);
 
         // story 12: the summary.txt written by the same (interrupted) flush
         // agrees with trace.json on the verdict + path counts.

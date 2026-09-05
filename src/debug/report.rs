@@ -292,6 +292,7 @@ const TEMPLATE: &str = r##"<!doctype html>
   --unreach-fg: #55606e; --unreach-bg: #e7e9ec;
   --fail-fg: #a11d1d;    --fail-bg: #f7e0e0;
   --amber-fg: #8a5a00;   --amber-bg: #fbeecc;
+  --exec-bg: #eaf7ee;    --exec-edge: #bfe3ca;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -307,6 +308,7 @@ const TEMPLATE: &str = r##"<!doctype html>
     --unreach-fg: #aab2bf; --unreach-bg: #262a31;
     --fail-fg: #ff9b9b;    --fail-bg: #3a1d1d;
     --amber-fg: #f0c674;   --amber-bg: #38300f;
+    --exec-bg: #17251b;    --exec-edge: #2c4634;
   }
 }
 * { box-sizing: border-box; }
@@ -484,7 +486,10 @@ pre {
   white-space: pre;
 }
 .listing { counter-reset: ln; }
-.listing .row { display: flex; }
+.listing .row {
+  display: flex;
+  border-left: 3px solid transparent;
+}
 .listing .row .n {
   color: var(--fg-muted);
   text-align: right;
@@ -493,8 +498,31 @@ pre {
   flex: none;
   min-width: 3ch;
 }
-.listing .row.hi { background: var(--amber-bg); }
-.listing .row.term { background: var(--fail-bg); }
+.listing .row .dtag {
+  margin-left: auto;
+  padding-left: 12px;
+  color: var(--fg-muted);
+  font-size: 11px;
+  white-space: nowrap;
+  user-select: none;
+}
+.listing .row.exec { background: var(--exec-bg); border-left-color: var(--exec-edge); }
+.listing .row.ret { background: var(--ok-bg); border-left-color: var(--ok-fg); }
+.listing .row.abort { background: var(--fail-bg); border-left-color: var(--fail-fg); }
+.listing .row.cut { background: var(--amber-bg); border-left-color: var(--amber-fg); }
+.legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font: 11px var(--mono); color: var(--fg-muted); }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+}
+.legend-item.exec .legend-swatch { background: var(--exec-bg); border-color: var(--exec-edge); }
+.legend-item.ret .legend-swatch { background: var(--ok-bg); border-color: var(--ok-fg); }
+.legend-item.abort .legend-swatch { background: var(--fail-bg); border-color: var(--fail-fg); }
 details { margin-top: 6px; }
 summary { cursor: pointer; color: var(--fg-muted); font: 12px var(--mono); }
 .empty { color: var(--fg-muted); padding: 20px; }
@@ -547,6 +575,7 @@ const prunedRow = (pb, parentId) => ({
   id: pb.id,
   steps: pb.steps,
   terminal: { label: pb.label, line: pb.line, is_abort: false },
+  lines: pb.lines,
   verdict: PRUNED,
   pruned: true,
   decision: pb.decision,
@@ -731,23 +760,54 @@ function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return n
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 const secKey = title => "domino.debug.sec." + title;
 
-function listingBlock(text, steps, terminal) {
-  const hi = new Set(steps.map(s => s.label));
+// One shared legend, used above both listings (story 16). Colour is never the
+// only signal — the left rule on each row carries the same distinction.
+function legend() {
+  const wrap = el("div", "legend");
+  [["exec", "executed"], ["ret", "return"], ["abort", "abort"], ["", "not executed"]]
+    .forEach(([cls, label]) => {
+      const item = el("span", "legend-item" + (cls ? " " + cls : ""));
+      item.appendChild(el("span", "legend-swatch"));
+      item.appendChild(document.createTextNode(label));
+      wrap.appendChild(item);
+    });
+  return wrap;
+}
+
+// `path` is a LeftPath / RightPath / PrunedBranch (or the synthetic `prunedRow`
+// wrapper over one): `{ lines, steps, pruned? }`. `terminal` is its terminal
+// (or, for a `PrunedBranch`, the synthetic `{label, line, is_abort:false}` at
+// the cut). Story 16: every executed line is painted, not just the branching
+// decisions, and the terminal / cut row gets a stronger colour on top.
+function listingBlock(text, path, terminal) {
+  const execSet = new Set();
+  (path.lines || []).forEach(([a, b]) => { for (let n = a; n <= b; n++) execSet.add(n); });
+  const decisionByLabel = new Map((path.steps || []).map(s => [s.label, s.decision]));
+
   const wrap = el("div", "listing");
   const pre = el("pre");
   pre.appendChild(wrap);
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     const n = i + 1;
-    const row = el("div", "row" + (hi.has(n) ? " hi" : "") + (terminal && n === terminal.label ? " term" : ""));
+    let cls = execSet.has(n) ? " exec" : "";
+    if (terminal && n === terminal.label) {
+      cls = path.pruned ? " cut" : (terminal.is_abort ? " abort" : " ret");
+    }
+    const row = el("div", "row" + cls);
     row.appendChild(el("span", "n", String(n)));
     row.appendChild(el("span", "c", line));
+    const decision = decisionByLabel.get(n);
+    if (decision) row.appendChild(el("span", "dtag", decision));
     // Centring now happens when the section opens (see `sec`), not on a
     // render-time setTimeout, so a collapsed listing never scrolls the pane.
     if (terminal && n === terminal.label) pre._termRow = row;
     wrap.appendChild(row);
   });
-  return pre;
+  const container = el("div");
+  container.appendChild(legend());
+  container.appendChild(pre);
+  return container;
 }
 
 // A collapsible detail section. `title` keys its open/closed state in
@@ -817,8 +877,10 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
 const pathMeta = (steps, terminal) =>
   `${plural(steps.length, "step")} → L${terminal.label} ${termWord(terminal)}`;
-const listingMeta = (text, steps) =>
-  `${text.split("\n").length} lines · ${steps.length} on this path`;
+const listingMeta = (text, path) => {
+  const executed = (path.lines || []).reduce((n, [a, b]) => n + (b - a + 1), 0);
+  return `${text.split("\n").length} lines · ${executed} executed`;
+};
 const smtMeta = (lp, rp) =>
   `${plural(lp.smt.length + (rp ? rp.smt.length : 0), "assertion")} + base frame`;
 
@@ -951,8 +1013,8 @@ function renderDetail(lp, rp) {
     detail.appendChild(sec("Path — left", stepsTable(lp.steps, T.left_sites), true,
       pathMeta(lp.steps, lp.terminal)));
     detail.appendChild(sec("Listing — left (" + T.left_game + ")",
-      listingBlock(T.left_listing, lp.steps, lp.terminal), false,
-      listingMeta(T.left_listing, lp.steps)));
+      listingBlock(T.left_listing, lp, lp.terminal), false,
+      listingMeta(T.left_listing, lp)));
     return;
   }
 
@@ -985,11 +1047,11 @@ function renderDetail(lp, rp) {
   // A right-branch prune never reached a terminal: no claim assertion, no SMT.
   if (rightPruned) {
     detail.appendChild(sec("Listing — left (" + T.left_game + ")",
-      listingBlock(T.left_listing, lp.steps, lp.terminal), false,
-      listingMeta(T.left_listing, lp.steps)));
+      listingBlock(T.left_listing, lp, lp.terminal), false,
+      listingMeta(T.left_listing, lp)));
     detail.appendChild(sec("Listing — right (" + T.right_game + ")",
-      listingBlock(T.right_listing, rp.steps, rp.terminal), false,
-      listingMeta(T.right_listing, rp.steps)));
+      listingBlock(T.right_listing, rp, rp.terminal), false,
+      listingMeta(T.right_listing, rp)));
     return;
   }
 
@@ -1005,11 +1067,11 @@ function renderDetail(lp, rp) {
     smtMeta(lp, isRight ? rp : null)));
 
   detail.appendChild(sec("Listing — left (" + T.left_game + ")",
-    listingBlock(T.left_listing, lp.steps, lp.terminal), false,
-    listingMeta(T.left_listing, lp.steps)));
+    listingBlock(T.left_listing, lp, lp.terminal), false,
+    listingMeta(T.left_listing, lp)));
   if (isRight) detail.appendChild(sec("Listing — right (" + T.right_game + ")",
-    listingBlock(T.right_listing, rp.steps, rp.terminal), false,
-    listingMeta(T.right_listing, rp.steps)));
+    listingBlock(T.right_listing, rp, rp.terminal), false,
+    listingMeta(T.right_listing, rp)));
 }
 
 // ---- filter ---------------------------------------------------------
@@ -1130,6 +1192,7 @@ mod tests {
                     line: "return k".into(),
                     is_abort: false,
                 },
+                lines: vec![[2, 3]],
                 reachable: true,
                 smt: vec!["(assert true)".into()],
                 pruned_branches: vec![PrunedBranch {
@@ -1142,6 +1205,7 @@ mod tests {
                     label: 2,
                     line: "if (k != bot) {".into(),
                     decision: "else".into(),
+                    lines: vec![[2, 2]],
                 }],
                 right_paths: vec![
                     RightPath {
@@ -1152,6 +1216,7 @@ mod tests {
                             line: "return k".into(),
                             is_abort: false,
                         },
+                        lines: vec![[1, 2]],
                         verdict: Verdict::Verified,
                         model_smt: None,
                         smt: vec!["(assert true)".into()],
@@ -1164,6 +1229,7 @@ mod tests {
                             line: "return k".into(),
                             is_abort: false,
                         },
+                        lines: vec![[1, 2]],
                         verdict: Verdict::GoalFails {
                             model: "models/1.2.smt2".into(),
                         },
@@ -1182,6 +1248,7 @@ mod tests {
                 label: 2,
                 line: "if (k != bot) {".into(),
                 decision: "then".into(),
+                lines: vec![[2, 2]],
             }],
             summary: Summary {
                 left_paths: 1,
@@ -1215,7 +1282,7 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 6);
+        assert_eq!(parsed["schema"], 7);
         assert_eq!(parsed["options"]["max_paths"], 1000);
         assert_eq!(parsed["goal_smt"], "(assert (not (= x 0)))");
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
@@ -1224,6 +1291,8 @@ mod tests {
         assert_eq!(parsed["left_pruned_branches"][0]["id"], "p1");
         assert_eq!(parsed["left_paths"][0]["pruned_branches"][0]["id"], "1.p1");
         assert_eq!(parsed["summary"]["right_pruned_branches"], 1);
+        assert_eq!(parsed["left_paths"][0]["lines"][0], serde_json::json!([2, 3]));
+        assert_eq!(parsed["left_pruned_branches"][0]["lines"][0], serde_json::json!([2, 2]));
     }
 
     #[test]
@@ -1234,7 +1303,7 @@ mod tests {
         let p = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(parsed["schema"], 6);
+        assert_eq!(parsed["schema"], 7);
         assert!(parsed["options"]["max_paths"].is_null());
     }
 

@@ -157,6 +157,10 @@ pub struct TerminalPath {
     /// Assigned by the driver (story 06), e.g. `"L3"` or `"L3.R2"`. Empty here.
     pub id: String,
     pub steps: Vec<Step>,
+    /// Inclusive `(first, last)` line ranges of the listing this path executed,
+    /// sorted and non-overlapping (story 16). Includes the block delimiters of
+    /// entered blocks and the terminal line; excludes every untaken branch.
+    pub lines: Vec<(Label, Label)>,
     /// `declare-const` for every SSA variable introduced on this path, in order.
     pub decls: Vec<SmtExpr>,
     /// Definitional `(assert (= <ssa> <rhs>))` and path conditions, in order.
@@ -191,6 +195,10 @@ pub struct BranchQuery<'a> {
     pub constraints: &'a [SmtExpr],
     /// `0` for the first child offered at this fork, `1` for the second.
     pub sibling: u8,
+    /// Labels visited so far, *including* this fork's own label but *not* the
+    /// proposed child's block (story 16): the prefix a pruned branch is painted
+    /// up to. Not yet compressed into ranges — [`ranges`] does that.
+    pub visited: &'a [Label],
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -246,6 +254,10 @@ struct SymState {
     /// only increments; materialised into the game state at the terminal.
     rand_ctr: HashMap<usize, usize>,
     steps: Vec<Step>,
+    /// Labels of every listing line control has actually passed through so far
+    /// (story 16), in the order visited. Compressed into [`TerminalPath::lines`]
+    /// at the terminal via [`ranges`]. Cloned at every fork like `steps`.
+    visited: Vec<Label>,
     decls: Vec<SmtExpr>,
     constraints: Vec<SmtExpr>,
     /// Watermark: how many leading `decls` / `constraints` have already been
@@ -339,6 +351,22 @@ fn to_smt(st: &SymState, e: &Expression) -> SmtExpr {
 
 fn base_of_key(key: &str) -> &str {
     key.rsplit("::").next().unwrap_or(key)
+}
+
+/// Compress a set of line numbers into sorted, non-overlapping inclusive
+/// ranges, merging adjacent values (story 16). Used for [`TerminalPath::lines`]
+/// and, by the driver, for a pruned branch's painted prefix.
+pub(crate) fn ranges(labels: &mut Vec<Label>) -> Vec<(Label, Label)> {
+    labels.sort_unstable();
+    labels.dedup();
+    let mut out: Vec<(Label, Label)> = Vec::new();
+    for &l in labels.iter() {
+        match out.last_mut() {
+            Some(last) if l == last.1 + 1 => last.1 = l,
+            _ => out.push((l, l)),
+        }
+    }
+    out
 }
 
 fn place_basename(place: &Place) -> &str {
@@ -439,7 +467,13 @@ enum FrameKind {
     /// The entry body or an `if`/`else` sub-block — a `Return` propagates.
     Sub,
     /// An inlined `Call` body — a `Return` binds `bind` and resumes the caller.
-    Call { bind: Option<Place> },
+    Call {
+        bind: Option<Place>,
+        /// The frame's closing `}` label (story 16), pushed to `visited` only
+        /// when this frame is popped by a `Return` actually resuming the
+        /// caller — never on an `abort` inside it.
+        close_label: Label,
+    },
 }
 
 struct Executor<'a> {
@@ -644,14 +678,21 @@ impl<'a> Executor<'a> {
             };
 
             match &block.0[ip] {
-                InlStmt::Assign { target, rhs, .. } => self.do_assign(&mut st, target, rhs),
+                InlStmt::Assign { label, target, rhs } => {
+                    st.visited.push(*label);
+                    self.do_assign(&mut st, target, rhs)
+                }
 
                 InlStmt::Sample {
+                    label,
                     target,
                     sample_id,
                     ty,
                     ..
-                } => self.do_sample(&mut st, target, *sample_id, ty),
+                } => {
+                    st.visited.push(*label);
+                    self.do_sample(&mut st, target, *sample_id, ty)
+                }
 
                 InlStmt::Unwrap {
                     label,
@@ -670,6 +711,7 @@ impl<'a> Executor<'a> {
                     .into();
 
                     let label_v = *label;
+                    st.visited.push(label_v);
 
                     // none-child: aborts at the unwrap's own label
                     let mut st_none = st.clone();
@@ -722,6 +764,8 @@ impl<'a> Executor<'a> {
                     then,
                     els,
                     is_assert,
+                    then_lines,
+                    else_lines,
                 } => {
                     let cond_smt = to_smt(&st, cond);
                     let (d_then, d_else) = if *is_assert {
@@ -730,6 +774,9 @@ impl<'a> Executor<'a> {
                         (Decision::Then, Decision::Else)
                     };
                     let label_v = *label;
+                    // the fork itself always runs, whichever child is taken (and
+                    // whether or not it is later pruned)
+                    st.visited.push(label_v);
 
                     // then-child: clone and recurse to completion
                     let mut st_then = st.clone();
@@ -746,6 +793,7 @@ impl<'a> Executor<'a> {
                         ip: 0,
                         kind: FrameKind::Sub,
                     });
+                    let then_lines = *then_lines;
                     if self
                         .descend(
                             oracle,
@@ -753,7 +801,15 @@ impl<'a> Executor<'a> {
                             d_then,
                             0,
                             st_then,
-                            |exec, oracle, st| exec.walk(oracle, frames_then, st, on_path),
+                            |exec, oracle, mut st| {
+                                // eager: entering the block means its closing
+                                // delimiter runs, even if a `return` inside
+                                // leaves it early (story 16 §3.2).
+                                if let Some((_, close)) = then_lines {
+                                    st.visited.push(close);
+                                }
+                                exec.walk(oracle, frames_then, st, on_path)
+                            },
                         )?
                         .is_break()
                     {
@@ -771,19 +827,35 @@ impl<'a> Executor<'a> {
                         ip: 0,
                         kind: FrameKind::Sub,
                     });
+                    let else_lines = *else_lines;
                     return self.descend(
                         oracle,
                         label_v,
                         d_else,
                         1,
                         st,
-                        |exec, oracle, st| exec.walk(oracle, frames, st, on_path),
+                        |exec, oracle, mut st| {
+                            if let Some((_, close)) = else_lines {
+                                st.visited.push(close);
+                            }
+                            exec.walk(oracle, frames, st, on_path)
+                        },
                     );
                 }
 
                 InlStmt::Call {
-                    frame, bind, body, ..
+                    label,
+                    frame,
+                    bind,
+                    body,
+                    frame_lines,
+                    arg_lines,
                 } => {
+                    st.visited.push(*label);
+                    st.visited.push(frame_lines.0);
+                    if let Some((first, last)) = *arg_lines {
+                        st.visited.extend(first..=last);
+                    }
                     for (key, ty, expr) in &frame.arg_bindings {
                         let value = to_smt(&st, expr);
                         let id = self.fresh(&mut st, base_of_key(key), ty);
@@ -795,11 +867,13 @@ impl<'a> Executor<'a> {
                         ip: 0,
                         kind: FrameKind::Call {
                             bind: bind.clone(),
+                            close_label: frame_lines.1,
                         },
                     });
                 }
 
                 InlStmt::Return { label, value } => {
+                    st.visited.push(*label);
                     let in_call = frames
                         .iter()
                         .any(|f| matches!(f.kind, FrameKind::Call { .. }));
@@ -817,7 +891,11 @@ impl<'a> Executor<'a> {
                     let ret_val = value.as_ref().map(|e| to_smt(&st, e));
                     loop {
                         let popped = frames.pop().expect("a Call frame is on the stack");
-                        if let FrameKind::Call { bind } = popped.kind {
+                        if let FrameKind::Call { bind, close_label } = popped.kind {
+                            // lazy: the frame's closing `}` only runs when the
+                            // call actually completes (a `return` resuming the
+                            // caller) — not when it aborts inside.
+                            st.visited.push(close_label);
                             if let Some(place) = bind {
                                 let value = ret_val
                                     .clone()
@@ -830,6 +908,7 @@ impl<'a> Executor<'a> {
                 }
 
                 InlStmt::Abort { label } => {
+                    st.visited.push(*label);
                     return self.emit_terminal(st, Terminal::Abort { label: *label }, on_path);
                 }
             }
@@ -873,6 +952,7 @@ impl<'a> Executor<'a> {
                     decls: &st.decls[st.reported_decls..],
                     constraints: &st.constraints[st.reported_constraints..],
                     sibling,
+                    visited: &st.visited,
                 };
                 o.enter(&query)?
             };
@@ -997,9 +1077,14 @@ impl<'a> Executor<'a> {
         })
         .into();
 
+        let mut visited = std::mem::take(&mut st.visited);
+        visited.push(terminal.label());
+        let lines = ranges(&mut visited);
+
         let path = TerminalPath {
             id: String::new(),
             steps: st.steps,
+            lines,
             decls: st.decls,
             constraints: st.constraints,
             return_constraint,
@@ -1323,6 +1408,16 @@ mod tests {
     }
 
     #[test]
+    fn ranges_compresses_and_sorts() {
+        assert_eq!(ranges(&mut vec![]), Vec::<(Label, Label)>::new());
+        assert_eq!(ranges(&mut vec![5]), vec![(5, 5)]);
+        assert_eq!(ranges(&mut vec![3, 4, 5]), vec![(3, 5)]);
+        assert_eq!(ranges(&mut vec![1, 3, 4, 7, 8]), vec![(1, 1), (3, 4), (7, 8)]);
+        assert_eq!(ranges(&mut vec![5, 1, 3]), vec![(1, 1), (3, 3), (5, 5)]);
+        assert_eq!(ranges(&mut vec![3, 3, 3, 4]), vec![(3, 4)]);
+    }
+
+    #[test]
     fn hello_world_small_is_one_straightline_path() {
         let paths = run(
             "example-projects/hello-world",
@@ -1370,6 +1465,44 @@ mod tests {
         // then returns `y` — i.e. the continuation after the Call ran.
         let rc = p.return_constraint.to_string();
         assert!(rc.contains("mk-return"), "{rc}");
+    }
+
+    /// Story 16 acceptance criterion: the painted set of the single left path
+    /// through `medium_composition`'s `UsefulOracle` equals the whole inlined
+    /// call frame — the call line, its `{`, its (zero) argument rows, the
+    /// callee body and its `}` — up to the entry frame's own `return`. Line
+    /// numbers are pinned against the listing text so a rendering change that
+    /// silently shifts them fails loudly.
+    #[test]
+    fn visited_lines_cover_the_whole_inlined_call_frame() {
+        with_debug("example-projects/hello-world", "Proof", |th, auxs| {
+            let gi = th.find_game_instance("medium_composition").unwrap();
+            let inl = crate::debug::ir::inline_oracle(gi, "UsefulOracle").unwrap();
+            let expected_listing = "\
+// game instance: medium_composition   (package instance: fwd, package: Fwd)
+UsefulOracle() -> (Integer, Bits(n)) {
+    y <- invoke UsefulOracle()      // rand.UsefulOracle
+    {
+        rand.ctr <- (rand.ctr + 1);
+        rand <-$ Bits(n) sample-name samplepoint;
+        y <- (rand.ctr, rand);  // return from rand.UsefulOracle
+    }
+    return y;
+}
+";
+            assert_eq!(inl.listing.text, expected_listing);
+
+            let si = sample_info_for(auxs, "medium_composition");
+            let paths = execute(&inl, gi, si, Side::Left, None).unwrap();
+            assert_eq!(paths.len(), 1);
+            let p = &paths[0];
+            assert_eq!(p.terminal.label(), 9);
+            assert!(!p.terminal.is_abort());
+            // L3 call, L4 `{`, L5-7 callee body, L8 `}`, L9 the entry return.
+            // No argument rows (0-arg oracle) and the comment/signature/final
+            // `}` (L1, L2, L10) are structural, not part of the callee frame.
+            assert_eq!(p.lines, vec![(3, 9)]);
+        });
     }
 
     #[test]
@@ -1514,6 +1647,85 @@ mod tests {
         for p in &paths {
             assert_ssa_unique(p);
         }
+    }
+
+    /// Every `Branch` label (recursively, including inside `Call` bodies) that
+    /// has a block to paint, mapped to its `then_lines` / `else_lines`. Skips
+    /// `is_assert` branches — they have no lines (story 16 §3.1).
+    fn collect_branch_lines(
+        block: &InlBlock,
+        out: &mut HashMap<Label, (Option<(Label, Label)>, Option<(Label, Label)>)>,
+    ) {
+        for stmt in &block.0 {
+            match stmt {
+                InlStmt::Branch {
+                    label,
+                    then,
+                    els,
+                    is_assert,
+                    then_lines,
+                    else_lines,
+                    ..
+                } => {
+                    if !*is_assert {
+                        out.insert(*label, (*then_lines, *else_lines));
+                    }
+                    collect_branch_lines(then, out);
+                    collect_branch_lines(els, out);
+                }
+                InlStmt::Call { body, .. } => collect_branch_lines(body, out),
+                _ => {}
+            }
+        }
+    }
+
+    /// Story 16 acceptance criterion: for every path this run explores, no line
+    /// strictly inside a branch's *untaken* block is ever part of that path's
+    /// `lines`. This is the Rust-level equivalent of the story's "no line
+    /// inside the untaken block is painted" property test — checked directly
+    /// against the executor's output rather than reconstructing brace matching
+    /// in JS, which is exactly what the story forbids doing at render time.
+    #[test]
+    fn kem_dem_pkenc_never_paints_the_untaken_branch() {
+        with_debug(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            |th, auxs| {
+                let gi = th.find_game_instance("Game_MON_CCA_PKE").unwrap();
+                let inl = crate::debug::ir::inline_oracle(gi, "PKENC").unwrap();
+                let mut branch_lines = HashMap::new();
+                collect_branch_lines(&inl.body, &mut branch_lines);
+                assert!(!branch_lines.is_empty(), "PKENC has real `if`s to check");
+
+                let si = sample_info_for(auxs, "Game_MON_CCA_PKE");
+                let paths = execute(&inl, gi, si, Side::Left, None).unwrap();
+                assert!(!paths.is_empty());
+
+                for p in &paths {
+                    let covers = |l: Label| p.lines.iter().any(|&(a, b)| a <= l && l <= b);
+                    for step in &p.steps {
+                        let Some((then_lines, else_lines)) = branch_lines.get(&step.label) else {
+                            continue;
+                        };
+                        let untaken = match step.decision {
+                            Decision::Then => else_lines,
+                            Decision::Else => then_lines,
+                            _ => continue,
+                        };
+                        if let Some((a, b)) = untaken {
+                            for l in *a..=*b {
+                                assert!(
+                                    !covers(l),
+                                    "path {:?} painted untaken line {l} under branch L{}",
+                                    p.steps,
+                                    step.label
+                                );
+                            }
+                        }
+                    }
+                }
+            },
+        );
     }
 
     #[test]

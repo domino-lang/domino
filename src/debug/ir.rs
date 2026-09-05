@@ -116,6 +116,12 @@ pub enum InlStmt {
         then: InlBlock,
         els: InlBlock,
         is_assert: bool,
+        /// Lines the *then* block occupies, inclusive, excluding the `if` line
+        /// itself: `(first, last)` where `last` is the `}` or `} else {` row.
+        /// `None` for a synthetic `assert` (one line, no block).
+        then_lines: Option<(Label, Label)>,
+        /// Likewise for the *else* block, `None` when there is no `else`.
+        else_lines: Option<(Label, Label)>,
     },
     /// An inlined `invoke`. The callee body is NESTED, not flattened. A
     /// [`InlStmt::Return`] inside `body` binds its value into `bind` and
@@ -125,6 +131,12 @@ pub enum InlStmt {
         frame: FrameInfo,
         bind: Option<Place>,
         body: InlBlock,
+        /// `{`, the `param <- arg;` bindings and the closing `}` of the
+        /// inlined frame: `(first, last)` — `first` is the `{`, `last` the `}`.
+        frame_lines: (Label, Label),
+        /// The argument-binding rows, `(first, last)`; `None` for a 0-arg
+        /// oracle.
+        arg_lines: Option<(Label, Label)>,
     },
     /// Return from the current frame. At the entry frame this is a global
     /// terminal; inside a [`InlStmt::Call`] frame it resumes the caller.
@@ -573,6 +585,8 @@ impl<'c> Inliner<'c> {
                         then: InlBlock(vec![]),
                         els: InlBlock(vec![InlStmt::Abort { label }]),
                         is_assert: true,
+                        then_lines: None,
+                        else_lines: None,
                     })
                 } else {
                     let content = format!("if ({}) {{", render_expr(&ite.cond));
@@ -585,15 +599,17 @@ impl<'c> Inliner<'c> {
                         frame,
                         depth,
                     );
+                    let then_first = label + 1;
                     let then = self.render_block(&ite.then_block, frame, depth, indent + 1)?;
-                    let els = if ite.else_block.0.is_empty() {
-                        self.emit(indent, "}");
-                        InlBlock(vec![])
+                    let (then_close, els, else_lines) = if ite.else_block.0.is_empty() {
+                        let close = self.emit(indent, "}");
+                        (close, InlBlock(vec![]), None)
                     } else {
-                        self.emit(indent, "} else {");
+                        let close = self.emit(indent, "} else {");
+                        let els_first = close + 1;
                         let els = self.render_block(&ite.else_block, frame, depth, indent + 1)?;
-                        self.emit(indent, "}");
-                        els
+                        let els_close = self.emit(indent, "}");
+                        (close, els, Some((els_first, els_close)))
                     };
                     Ok(InlStmt::Branch {
                         label,
@@ -601,6 +617,8 @@ impl<'c> Inliner<'c> {
                         then,
                         els,
                         is_assert: false,
+                        then_lines: Some((then_first, then_close)),
+                        else_lines,
                     })
                 }
             }
@@ -673,7 +691,7 @@ impl<'c> Inliner<'c> {
         let label = self.emit(indent, &content);
         self.record_site(label, SiteKind::Call, &content, span, caller, depth);
 
-        self.emit(indent, "{");
+        let open_label = self.emit(indent, "{");
 
         let callee_frame = Frame {
             frame_id,
@@ -686,11 +704,16 @@ impl<'c> Inliner<'c> {
         };
 
         let mut arg_bindings = Vec::with_capacity(target_sig.args.len());
+        let mut arg_lines: Option<(Label, Label)> = None;
         for ((param_name, param_ty), arg_expr) in target_sig.args.iter().zip(args) {
-            self.emit(
+            let arg_label = self.emit(
                 indent + 1,
                 &format!("{param_name} <- {};", render_expr(arg_expr)),
             );
+            arg_lines = Some(match arg_lines {
+                None => (arg_label, arg_label),
+                Some((first, _)) => (first, arg_label),
+            });
             arg_bindings.push((
                 callee_frame.key(param_name),
                 param_ty.clone(),
@@ -700,7 +723,7 @@ impl<'c> Inliner<'c> {
         }
 
         let body = self.render_block(&target_odef.code, &callee_frame, depth + 1, indent + 1)?;
-        self.emit(indent, "}");
+        let close_label = self.emit(indent, "}");
 
         Ok(InlStmt::Call {
             label,
@@ -713,6 +736,8 @@ impl<'c> Inliner<'c> {
             },
             bind,
             body,
+            frame_lines: (open_label, close_label),
+            arg_lines,
         })
     }
 

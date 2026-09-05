@@ -51,7 +51,7 @@ breaks the claim. Debugging means reading SMT by hand.
 | **Claim scope** | `--claim` is **required**. One claim per run. |
 | **Assumptions** | The randomness-mapping condition, the invariants on the old game states (main + per-game + per-package) and **all of the claim's dependencies** are asserted up front, before the left oracle is executed. A dependency like `no-abort` will therefore make left abort paths `unsat` — that is intended and visible. |
 | **Per-path encoding** | The per-path DSA encoding **replaces** the monolithic `(assert (= <return-X> (oracle-X <old-state> <consts> <args>)))`. `<return-value-X>`, `<is-abort-X>` and `<new-state-X>` stay constrained off `<return-X>`, so `emit_oracle_claim_assert` and the invariant/relation machinery keep working unchanged. |
-| **Output** | `index.html` (self-contained, collapsible left→right tree) + labelled `inlined.txt` + `trace.json` + `summary.txt` + per-failure models + a `smt/` tree of runnable per-path queries, under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`. The monolithic `transcript.smt2` is opt-in (`--transcript`) as of story 11. |
+| **Output** | `index.html` (self-contained, collapsible left→right tree) + labelled `inlined.txt` + `trace.json` + `summary.txt` + per-failure models + a `smt/` tree of runnable per-path queries, under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`. The monolithic `transcript.smt2` is opt-in (`--transcript`) as of story 11. As of story 17 `summary.txt` holds the **per-path tree** and the concise run report goes to **stdout**. |
 | **Guardrails** | `--timeout <ms>` (mapped to cvc5's `tlimit-per`; a timeout counts as *unknown*, i.e. explored, never pruned) and `--max-paths <n>` — **unlimited by default** as of story 10, with `Ctrl-C` as the interactive stop. No depth limit and no first-failure flag. |
 | **Labels** | **Line numbers in the emitted inlined listing**: `L12:then`, `L19:assert-holds`, `L27:return`. The listing is the single source of truth for labels. |
 | **`domino inline`** | In scope, as its own story, built on the new IR. |
@@ -114,16 +114,19 @@ left path #3:
 | 13 | Collapsible HTML detail pane + the claim assertion | `13-html-collapsible-and-goal-assertion.md` | 06, 07 |
 | 14 | Parallel path exploration (`--jobs`) | `14-parallel-exploration.md` | 06, 08, 09, 10, 12 |
 | 15 | No oracle function definitions in the debugger's base frame | `15-no-oracle-functions-in-debug-frame.md` | 04, 05, 06, 11 |
+| 16 | Paint the executed lines in the viewer's listings | `16-executed-line-highlighting.md` | 02, 05, 06, 07, 13 |
+| 17 | Concise report on stdout, path tree in `summary.txt` | `17-stdout-summary-swap.md` | 06, 09, 12 |
+| 18 | Symbolic return value and new state of each returning path | `18-symbolic-effect-of-a-path.md` | 02, 05, 06, 07, 13 |
 
 Stories 01, 02 and 04 are independent and may be done in any order (or in parallel). Stories 08
 and 09 are independent of each other; whichever lands second wires a one-way hook (see `09` §3.6).
 
 Stories 01–09 are **done** (each has an `-IMPLEMENTATION-REPORT.md` next to it). Stories 10–15 are
-a second wave from the owner's follow-up review of `domino debug`. 10–13 and 15 are independent of
-each other and may land in any order; each bumps `TRACE_SCHEMA` by one, so whichever lands second
-bumps from whatever it finds and records the number in its report. **Story 14 goes last** — it
-reuses 10's events and cancellation, 12's `StopReason`, 11's `SmtWriter` and 13's `goal_smt`, and it
-benefits from 15 making the per-worker base frame ~4× smaller.
+a second wave from the owner's follow-up review of `domino debug`; 16–18 are a third.
+10–13, 15, 16 and 18 are independent of each other and may land in any order; each bumps
+`TRACE_SCHEMA` by one, so whichever lands second bumps from whatever it finds and records the
+number in its report. **Story 14 goes last** — it reuses 10's events and cancellation, 12's
+`StopReason`, 11's `SmtWriter` and 13's `goal_smt`, and it benefits from 15 making the per-worker base frame ~4× smaller.
 
 ## 6. Working agreement (important)
 
