@@ -55,6 +55,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::ops::ControlFlow;
 
+use crate::debug::effect::{self, EffectInput, PathEffect, PkgInput, RandEffect};
 use crate::debug::ir::{InlBlock, InlStmt, InlinedOracle, Label, Place, VarKey};
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::pkg_ident::PackageIdentifier;
@@ -168,6 +169,11 @@ pub struct TerminalPath {
     /// `(assert (= <return-{GI}-{O}> <constructed return/abort>))`.
     pub return_constraint: SmtExpr,
     pub terminal: Terminal,
+    /// What this path computed, for the viewer (story 18): the symbolic return
+    /// value and new game state expressed over the oracle arguments and old
+    /// state. `None` for an abort terminal. Pure display — never fed to the
+    /// solver.
+    pub effect: Option<PathEffect>,
     /// How many leading entries of [`decls`](Self::decls) were already handed to
     /// a [`BranchOracle`] (and so already asserted on the solver stack when this
     /// path is reached through [`execute_streaming_with_oracle`]). `0` when no
@@ -491,6 +497,14 @@ struct Executor<'a> {
     /// `(pkg_inst, const_name)` pairs actually referenced by an oracle-body
     /// expression — the only package consts seeded into the store.
     referenced_consts: BTreeSet<(String, String)>,
+    /// `(pkg_inst, field)` → the SSA constant `initial_state` seeded it to. A
+    /// field is *unchanged* on a path iff its final SSA constant is still this
+    /// one (story 18).
+    state_seeds: HashMap<(String, String), String>,
+    /// SSA constant → its rendered *root* form (`old.I.f`, a package const name,
+    /// or an oracle-argument name), for the story-18 effect renderer. Only the
+    /// seeds from `initial_state` are roots.
+    effect_roots: HashMap<String, String>,
     ssa: usize,
     path_count: usize,
     max_paths: Option<usize>,
@@ -544,6 +558,8 @@ impl<'a> Executor<'a> {
         Ok(Executor {
             inlined,
             referenced_consts,
+            state_seeds: HashMap::new(),
+            effect_roots: HashMap::new(),
             gctx,
             octx,
             sample_info,
@@ -999,6 +1015,11 @@ impl<'a> Executor<'a> {
             }
         }
 
+        // Story 18: the human-facing "what did this path compute" — derived from
+        // `st` *before* the `rebind_gs` bookkeeping below adds its own SSA chain
+        // (that chain carries nothing the effect needs). Aborts get no effect.
+        let effect = self.build_effect(&st, &terminal);
+
         // Reconstruct the game state, threading it through a fresh SSA constant
         // after every step so the term stays flat (`smt_increment_gamestate_rand`
         // / `smt_update_gamestate_pkgstate` each re-read the whole accumulator).
@@ -1089,10 +1110,95 @@ impl<'a> Executor<'a> {
             constraints: st.constraints,
             return_constraint,
             terminal,
+            effect,
             reported_decls: st.reported_decls,
             reported_constraints: st.reported_constraints,
         };
         Ok(on_path(&path))
+    }
+
+    /// Build the story-18 [`PathEffect`] for a terminal from the symbolic store,
+    /// unfolding the flat SSA definitions back to the roots
+    /// (`initial_state`'s seeds). `None` for an abort. Purely a display — it is
+    /// derived from the same terms the solver sees but never asserted.
+    fn build_effect(&self, st: &SymState, terminal: &Terminal) -> Option<PathEffect> {
+        let ret_value = match terminal {
+            Terminal::Abort { .. } => return None,
+            Terminal::Return { value, .. } => value.as_ref(),
+        };
+
+        // Definition map: `(assert (= <v!…> rhs))`, first occurrence wins (each
+        // SSA name is defined exactly once, before any path condition mentions
+        // it, so a `(= <v!…> …)` path condition never shadows a real definition).
+        let mut def_map: HashMap<String, SmtExpr> = HashMap::new();
+        for c in &st.constraints {
+            if let SmtExpr::List(items) = c {
+                if let [SmtExpr::Atom(kw), SmtExpr::List(eq)] = items.as_slice() {
+                    if kw == "assert" {
+                        if let [SmtExpr::Atom(op), SmtExpr::Atom(name), rhs] = eq.as_slice() {
+                            if op == "=" && name.starts_with("<v!") {
+                                def_map.entry(name.clone()).or_insert_with(|| rhs.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let returns = ret_value.map(|e| to_smt(st, e));
+
+        let pkgs: Vec<PkgInput> = self
+            .fold_pkgs
+            .iter()
+            .filter_map(|name| {
+                let pctx = self.gctx.pkg_inst_ctx_by_name(name)?;
+                let mut changed = Vec::new();
+                let mut unchanged = Vec::new();
+                for (field, _, _) in pctx.pkg().state.iter() {
+                    let key = (name.clone(), field.clone());
+                    let final_ssa = st.pkg_state.get(&key)?.smt_identifier_string();
+                    match self.state_seeds.get(&key) {
+                        Some(seed) if *seed == final_ssa => unchanged.push(field.clone()),
+                        _ => changed.push((field.clone(), final_ssa)),
+                    }
+                }
+                Some(PkgInput {
+                    pkg_inst: name.clone(),
+                    changed,
+                    unchanged,
+                })
+            })
+            .collect();
+
+        let mut ctrs: Vec<(usize, usize)> = st
+            .rand_ctr
+            .iter()
+            .filter(|&(_, &n)| n > 0)
+            .map(|(&k, &n)| (k, n))
+            .collect();
+        ctrs.sort_unstable();
+        let rand: Vec<RandEffect> = ctrs
+            .into_iter()
+            .map(|(sample_id, draws)| {
+                let pos = &self.sample_info.positions[sample_id];
+                RandEffect {
+                    point: format!(
+                        "{}.{}.{}",
+                        pos.inst_name, pos.oracle_name, pos.sample_name
+                    ),
+                    ty: pos.ty.to_string(),
+                    draws,
+                }
+            })
+            .collect();
+
+        Some(effect::build(EffectInput {
+            returns,
+            pkgs,
+            rand,
+            def_map: &def_map,
+            roots: &self.effect_roots,
+        }))
     }
 
     /// Seed argument constants and the package state of every folded instance.
@@ -1105,6 +1211,8 @@ impl<'a> Executor<'a> {
             let id = self.fresh(&mut st, name, ty);
             let arg_smt = self.octx.smt_arg_name(name);
             self.define(&mut st, &id, arg_smt);
+            self.effect_roots
+                .insert(id.smt_identifier_string(), name.clone());
             st.locals
                 .insert(format!("{}#0::{}", self.inlined.entry_pkg_inst, name), id);
         }
@@ -1140,6 +1248,11 @@ impl<'a> Executor<'a> {
                     .expect("field exists");
                 let id = self.fresh(&mut st, field, ty);
                 self.define(&mut st, &id, access);
+                let seed = id.smt_identifier_string();
+                self.state_seeds
+                    .insert((name.clone(), field.clone()), seed.clone());
+                self.effect_roots
+                    .insert(seed, format!("old.{name}.{field}"));
                 st.pkg_state.insert((name.clone(), field.clone()), id);
             }
 
@@ -1166,6 +1279,8 @@ impl<'a> Executor<'a> {
                 let access = consts_pattern.access_unchecked(&selector, mapped.clone());
                 let id = self.fresh(&mut st, cname, cty);
                 self.define(&mut st, &id, access);
+                self.effect_roots
+                    .insert(id.smt_identifier_string(), cname.clone());
                 st.pkg_consts.insert((name.clone(), cname.clone()), id);
             }
         }
@@ -1756,6 +1871,197 @@ UsefulOracle() -> (Integer, Bits(n)) {
         }
         let expected = std::fs::read_to_string(golden_path).unwrap();
         assert_eq!(actual, expected, "golden mismatch for {golden_path:?}");
+    }
+
+    // ----- story 18: the per-path symbolic effect -------------------------
+
+    /// Render a [`PathEffect`] to the plain-text shape the story-18 fixtures
+    /// use. A test helper, not a product surface — the product surface is
+    /// `PathEffect` + the viewer.
+    fn render_effect_fixture(eff: &PathEffect) -> String {
+        let mut out = String::new();
+        out.push_str(&format!(
+            "returns  {}\n",
+            eff.returns.as_deref().unwrap_or("()")
+        ));
+        for pkg in &eff.state {
+            out.push_str(&format!("state {}\n", pkg.pkg_inst));
+            for f in &pkg.changed {
+                out.push_str(&format!("  {} = {}\n", f.field, f.value));
+            }
+            if !pkg.unchanged.is_empty() {
+                out.push_str(&format!("  unchanged: {}\n", pkg.unchanged.join(", ")));
+            }
+        }
+        if !eff.rand.is_empty() {
+            out.push_str("randomness\n");
+            for r in &eff.rand {
+                out.push_str(&format!("  {} +{}\n", r.point, r.draws));
+            }
+        }
+        if !eff.wheres.is_empty() {
+            out.push_str("where\n");
+            for b in &eff.wheres {
+                out.push_str(&format!("  {} = {}\n", b.name, b.value));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn effect_is_none_for_abort_terminals() {
+        let paths = run(
+            "example-projects/simple-KEM-example",
+            "KEM_Proof",
+            "Prot",
+            "TestSender",
+        );
+        let mut aborts = 0;
+        for p in &paths {
+            match &p.terminal {
+                Terminal::Abort { .. } => {
+                    aborts += 1;
+                    assert!(p.effect.is_none(), "abort path carried an effect");
+                }
+                Terminal::Return { .. } => assert!(p.effect.is_some()),
+            }
+        }
+        assert!(aborts > 0);
+    }
+
+    #[test]
+    fn unchanged_fields_are_not_expanded() {
+        // hello-world `medium_composition_more_oracles` / `UselessOracle(x)`:
+        // `assert (x == 1); return 1;` — touches no package state at all, so
+        // every field of every folded instance stays on its seed.
+        let paths = run(
+            "example-projects/hello-world",
+            "Proof",
+            "medium_composition_more_oracles",
+            "UselessOracle",
+        );
+        let ret = paths
+            .iter()
+            .find(|p| !p.terminal.is_abort())
+            .expect("one returning path");
+        let eff = ret.effect.as_ref().unwrap();
+        for pkg in &eff.state {
+            assert!(
+                pkg.changed.is_empty(),
+                "{} reported changed fields: {:?}",
+                pkg.pkg_inst,
+                pkg.changed
+            );
+        }
+        // nothing in the render mentions an SSA constant or a raw accessor.
+        let txt = render_effect_fixture(eff);
+        assert!(!txt.contains("<v!"), "{txt}");
+        assert!(!txt.contains("pkg-state"), "{txt}");
+    }
+
+    #[test]
+    fn golden_simple_kem_run_left_2() {
+        let paths = run(
+            "example-projects/simple-KEM-example",
+            "KEM_Proof",
+            "Prot",
+            "Run",
+        );
+        // left #2 is the path that does NOT take the `Prot.sk == None` branch.
+        let p = paths
+            .iter()
+            .filter(|p| !p.terminal.is_abort())
+            .nth(1)
+            .expect("a second returning left path");
+        let actual = render_effect_fixture(p.effect.as_ref().unwrap());
+
+        let golden = std::path::Path::new("testdata/story18/simple_kem_run_left2.txt");
+        if !golden.exists() {
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            std::fs::write(golden, &actual).unwrap();
+            panic!("wrote missing golden {golden:?} — re-run the test");
+        }
+        assert_eq!(actual, std::fs::read_to_string(golden).unwrap());
+
+        // sanity: none of the forbidden raw forms leak.
+        for bad in ["<v!left!", "pkg-state", "store ", "mk-some", "<<func-"] {
+            assert!(!actual.contains(bad), "leaked {bad:?}:\n{actual}");
+        }
+    }
+
+    #[test]
+    fn golden_simple_kem_run_right_partner() {
+        // the right game instance's `Run` — the partner of left #2 (`#2.1`).
+        let mut result = None;
+        with_debug("example-projects/simple-KEM-example", "KEM_Proof", |th, auxs| {
+            let gi = th.find_game_instance("H1_kem_correctness_real").unwrap();
+            let inl = crate::debug::ir::inline_oracle(gi, "Run").unwrap();
+            let si = sample_info_for(auxs, "H1_kem_correctness_real");
+            result = Some(execute(&inl, gi, si, Side::Right, None).unwrap());
+        });
+        let paths = result.unwrap();
+        // the partner of left #2: the `Corr_KEM.sk == None` branch is *not*
+        // taken, so `Corr_KEM` is wholly unchanged.
+        let p = paths
+            .iter()
+            .filter(|p| !p.terminal.is_abort())
+            .find(|p| {
+                let eff = p.effect.as_ref().unwrap();
+                let kem_untouched = eff
+                    .state
+                    .iter()
+                    .find(|pk| pk.pkg_inst == "Corr_KEM")
+                    .is_some_and(|pk| pk.changed.is_empty());
+                // and the vacuous `if (false)` then-branch (`kreceived <- ksent`)
+                // was not taken — RECEIVEDKEY is a real `decaps`.
+                let real_decaps = eff
+                    .state
+                    .iter()
+                    .flat_map(|pk| &pk.changed)
+                    .any(|f| f.field == "RECEIVEDKEY" && f.value.contains("decaps"));
+                kem_untouched && real_decaps
+            })
+            .expect("a right path leaving Corr_KEM untouched");
+        let actual = render_effect_fixture(p.effect.as_ref().unwrap());
+
+        let golden = std::path::Path::new("testdata/story18/simple_kem_run_right21.txt");
+        if !golden.exists() {
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            std::fs::write(golden, &actual).unwrap();
+            panic!("wrote missing golden {golden:?} — re-run the test");
+        }
+        assert_eq!(actual, std::fs::read_to_string(golden).unwrap());
+        for bad in ["<v!right!", "pkg-state", "store ", "mk-some", "mk-tuple", "el3-"] {
+            assert!(!actual.contains(bad), "leaked {bad:?}:\n{actual}");
+        }
+    }
+
+    #[test]
+    fn golden_kem_dem_pkenc_left_1() {
+        // exercises oracle arguments (`m0` / `m1` appear as bare names) and a
+        // package instance with no state fields.
+        let paths = run(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "Game_MON_CCA_PKE",
+            "PKENC",
+        );
+        let p = paths
+            .iter()
+            .find(|p| !p.terminal.is_abort())
+            .expect("a returning PKENC path");
+        let actual = render_effect_fixture(p.effect.as_ref().unwrap());
+
+        let golden = std::path::Path::new("testdata/story18/kem_dem_pkenc_left1.txt");
+        if !golden.exists() {
+            std::fs::create_dir_all(golden.parent().unwrap()).unwrap();
+            std::fs::write(golden, &actual).unwrap();
+            panic!("wrote missing golden {golden:?} — re-run the test");
+        }
+        assert_eq!(actual, std::fs::read_to_string(golden).unwrap());
+        for bad in ["<v!left!", "pkg-state", "store ", "<<func-"] {
+            assert!(!actual.contains(bad), "leaked {bad:?}:\n{actual}");
+        }
     }
 
     // ----- story 08: the BranchOracle protocol -----------------------------

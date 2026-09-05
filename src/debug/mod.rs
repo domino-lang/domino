@@ -7,6 +7,7 @@
 //! together with the textual listing its line-number labels index into.
 
 pub mod driver;
+pub mod effect;
 pub mod exec;
 pub mod ir;
 pub mod progress;

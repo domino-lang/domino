@@ -1,0 +1,15 @@
+returns  ctxt
+state Corr_KEM
+  unchanged: sk, pk
+state Corr_reduction
+  SENTCTXT = old.Corr_reduction.SENTCTXT[old.Corr_reduction.ctr -> ctxt]
+  SENTKEY = old.Corr_reduction.SENTKEY[old.Corr_reduction.ctr -> encaps(old.Corr_KEM.pk, rand#0).2]
+  RECEIVEDCTXT = old.Corr_reduction.RECEIVEDCTXT[old.Corr_reduction.ctr -> ctxt]
+  RECEIVEDKEY = old.Corr_reduction.RECEIVEDKEY[old.Corr_reduction.ctr -> decaps(unwrap(old.Corr_KEM.sk), ctxt)]
+  ctr = old.Corr_reduction.ctr + 1
+  unchanged: TESTED
+randomness
+  Corr_KEM.ENC_and_DEC.encaps_rand +1
+where
+  rand#0 = sample Bits(256) @ Corr_KEM.ENC_and_DEC.encaps_rand #0
+  ctxt = encaps(old.Corr_KEM.pk, rand#0).1

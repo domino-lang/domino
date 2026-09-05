@@ -1,0 +1,14 @@
+returns  (c_kem, c_dem)
+state Scheme_KEM
+state Scheme_DEM
+state Scheme_PKE
+state MON_CCA_PKE
+  c = Some((c_kem, c_dem))
+  unchanged: pk, sk
+randomness
+  Scheme_KEM.KEM_ENCAPS.kem_encaps +1
+where
+  r#0 = sample Bits(kencr) @ Scheme_KEM.KEM_ENCAPS.kem_encaps #0
+  pk = unwrap(old.MON_CCA_PKE.pk)
+  c_kem = kem_encaps(r#0, pk).2
+  c_dem = dem_enc(kem_encaps(r#0, pk).1, m1)

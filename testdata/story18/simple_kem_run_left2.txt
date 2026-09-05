@@ -1,0 +1,13 @@
+returns  ctxt
+state Prot
+  SENTCTXT = old.Prot.SENTCTXT[old.Prot.ctr -> ctxt]
+  SENTKEY = old.Prot.SENTKEY[old.Prot.ctr -> encaps(old.Prot.pk, rand#0).2]
+  RECEIVEDCTXT = old.Prot.RECEIVEDCTXT[old.Prot.ctr -> ctxt]
+  RECEIVEDKEY = old.Prot.RECEIVEDKEY[old.Prot.ctr -> decaps(unwrap(old.Prot.sk), ctxt)]
+  ctr = old.Prot.ctr + 1
+  unchanged: TESTED, sk, pk
+randomness
+  Prot.Run.encaps_rand +1
+where
+  rand#0 = sample Bits(256) @ Prot.Run.encaps_rand #0
+  ctxt = encaps(old.Prot.pk, rand#0).1

@@ -523,6 +523,22 @@ details.sec > .sec-body { padding: 0 12px 12px; }
 .copy-btn:hover { color: var(--fg); border-color: var(--accent); }
 .assertion-note { color: var(--fg-muted); font-size: 12px; margin-bottom: 8px; }
 .assertion-outcome { font-size: 12px; margin-top: 8px; }
+
+/* Effect section (story 18). */
+.eff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .eff-grid { grid-template-columns: 1fr; } }
+.eff-col { min-width: 0; }
+.eff-colhead { font: 12px var(--mono); color: var(--fg-muted); margin-bottom: 6px; }
+.eff-row { margin: 2px 0; }
+.eff-k { color: var(--fg-muted); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .05em; margin: 10px 0 4px; }
+.eff-ret { font: 12px/1.5 var(--mono); background: var(--bg-inset); border: 1px solid var(--border); border-radius: 5px; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; }
+.eff-pkg { margin: 6px 0; }
+.eff-pkg-name { font: 12px var(--mono); color: var(--accent); }
+.eff-field { display: flex; gap: 8px; padding: 2px 0; align-items: baseline; }
+.eff-fname { color: var(--fg-muted); font: 12px var(--mono); flex: none; min-width: 8ch; }
+.eff-fval { font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word; min-width: 0; }
+.eff-dim { color: var(--fg-muted); font: 12px var(--mono); }
+.eff-note { color: var(--fg-muted); font-size: 11px; margin-top: 10px; }
 table.steps { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
 table.steps td { padding: 3px 8px 3px 0; vertical-align: top; }
 table.steps td.l { color: var(--fg-muted); white-space: nowrap; }
@@ -1053,6 +1069,102 @@ function claimAssertionSec(lp, rp) {
   return sec("Claim assertion", wrap, true, `#${rp.id} → L${rp.terminal.label} ${tw}`);
 }
 
+// ---- effect: symbolic return value & new state (story 18) ------------------
+
+function fieldCounts(eff) {
+  let changed = 0, total = 0;
+  (eff && eff.state || []).forEach(p => {
+    changed += p.changed.length;
+    total += p.changed.length + p.unchanged.length;
+  });
+  return { changed, total };
+}
+
+// One column: render a PathEffect, or an abort notice when `eff` is null.
+function effectColumn(gameName, eff, terminal) {
+  const col = el("div", "eff-col");
+  if (gameName) col.appendChild(el("div", "eff-colhead", gameName));
+
+  if (!eff) {
+    col.appendChild(el("div", "eff-dim",
+      `aborts at L${terminal.label} — no return value`));
+    return col;
+  }
+
+  col.appendChild(el("div", "eff-k", "returns"));
+  col.appendChild(el("div", "eff-ret", eff.returns == null ? "()" : eff.returns));
+
+  col.appendChild(el("div", "eff-k", "new state"));
+  if (!eff.state.length) col.appendChild(el("div", "eff-dim", "(no package state)"));
+  eff.state.forEach(p => {
+    const block = el("div", "eff-pkg");
+    block.appendChild(el("div", "eff-pkg-name", p.pkg_inst));
+    p.changed.forEach(f => {
+      const row = el("div", "eff-field");
+      row.appendChild(el("span", "eff-fname", f.field));
+      const v = el("span", "eff-fval");
+      if (f.table && f.table.entries.length >= 2) {
+        v.textContent = f.table.base + "[\n"
+          + f.table.entries.map(e => "  " + e.key + " -> " + e.value).join(",\n")
+          + " ]";
+      } else {
+        v.textContent = f.value;
+      }
+      row.appendChild(v);
+      block.appendChild(row);
+    });
+    if (p.unchanged.length) {
+      block.appendChild(el("div", "eff-dim", "unchanged: " + p.unchanged.join(", ")));
+    }
+    col.appendChild(block);
+  });
+
+  if (eff.rand && eff.rand.length) {
+    col.appendChild(el("div", "eff-k", "randomness"));
+    eff.rand.forEach(r => col.appendChild(
+      el("div", "eff-row eff-fval", `${r.point} +${r.draws}`)));
+  }
+
+  if (eff.wheres && eff.wheres.length) {
+    col.appendChild(el("div", "eff-k", "where"));
+    eff.wheres.forEach(b => col.appendChild(
+      el("div", "eff-dim", `${b.name} = ${b.value}`)));
+  }
+
+  if (eff.truncated) {
+    col.appendChild(el("div", "eff-note",
+      "term elided — see SMT asserted for the exact encoding"));
+  }
+  return col;
+}
+
+function effectSec(lp, rp) {
+  const wrap = el("div");
+  const leftEff = lp.effect || null;
+  const grid = el("div", "eff-grid");
+
+  if (rp) {
+    grid.appendChild(effectColumn(T.left_game, leftEff, lp.terminal));
+    grid.appendChild(effectColumn(T.right_game, rp.effect || null, rp.terminal));
+  } else {
+    grid.appendChild(effectColumn(null, leftEff, lp.terminal));
+  }
+  wrap.appendChild(grid);
+  wrap.appendChild(el("div", "eff-note",
+    "a display derived from the path SMT — when in doubt, SMT asserted is authoritative"));
+
+  let meta;
+  if (rp) {
+    const l = fieldCounts(leftEff), r = fieldCounts(rp.effect);
+    meta = `left: ${l.changed}/${l.total} · right: ${r.changed}/${r.total}`;
+  } else {
+    const c = fieldCounts(leftEff);
+    const rv = leftEff && leftEff.returns != null ? "returns 1 value" : "no return value";
+    meta = `${rv} · ${c.changed} of ${c.total} fields changed`;
+  }
+  return sec("Effect — return value & new state", wrap, true, meta);
+}
+
 function renderDetail(lp, rp) {
   detail.innerHTML = "";
 
@@ -1106,6 +1218,9 @@ function renderDetail(lp, rp) {
       listingMeta(T.right_listing, rp)));
     return;
   }
+
+  // What the path actually computed (story 18) — the first thing you read.
+  detail.appendChild(effectSec(lp, isRight ? rp : null));
 
   if (isRight) detail.appendChild(claimAssertionSec(lp, rp));
 
@@ -1185,6 +1300,7 @@ mod tests {
         DebugRun, LeftPath, OptionsView, PrunedBranch, RightPath, SiteView, StepView, StopReason,
         Summary, TerminalView, Verdict, TRACE_SCHEMA,
     };
+    use crate::debug::effect::{Binding, Entry, FieldEffect, PathEffect, PkgEffect, TableUpdate};
     use std::collections::BTreeMap;
     use std::time::Duration;
 
@@ -1202,6 +1318,39 @@ mod tests {
         let p = write_summary(run, dir.path()).unwrap();
         assert_eq!(p.file_name().unwrap(), "summary.txt");
         std::fs::read_to_string(&p).unwrap()
+    }
+
+    /// A small [`PathEffect`] with a table update and a `where` binding, for the
+    /// viewer test (story 18).
+    fn demo_effect() -> PathEffect {
+        PathEffect {
+            returns: Some("ctxt".into()),
+            state: vec![PkgEffect {
+                pkg_inst: "MON_CCA_PKE".into(),
+                changed: vec![FieldEffect {
+                    field: "SENTCTXT".into(),
+                    value: "old.MON_CCA_PKE.SENTCTXT[old.MON_CCA_PKE.ctr -> ctxt]".into(),
+                    table: Some(TableUpdate {
+                        base: "old.MON_CCA_PKE.SENTCTXT".into(),
+                        entries: vec![Entry {
+                            key: "old.MON_CCA_PKE.ctr".into(),
+                            value: "ctxt".into(),
+                        }],
+                    }),
+                }],
+                unchanged: vec!["TESTED".into(), "sk".into()],
+            }],
+            rand: vec![crate::debug::effect::RandEffect {
+                point: "MON_CCA_PKE.PKENC.enc_rand".into(),
+                ty: "Bits(256)".into(),
+                draws: 1,
+            }],
+            wheres: vec![Binding {
+                name: "ctxt".into(),
+                value: "encaps(old.MON_CCA_PKE.pk, rand#0).1".into(),
+            }],
+            truncated: false,
+        }
     }
 
     fn synthetic_run(out_dir: &str) -> DebugRun {
@@ -1254,6 +1403,7 @@ mod tests {
                     line: "return k".into(),
                     is_abort: false,
                 },
+                effect: Some(demo_effect()),
                 lines: vec![[2, 3]],
                 reachable: true,
                 smt: vec!["(assert true)".into()],
@@ -1278,6 +1428,7 @@ mod tests {
                             line: "return k".into(),
                             is_abort: false,
                         },
+                        effect: Some(demo_effect()),
                         lines: vec![[1, 2]],
                         verdict: Verdict::Verified,
                         model_smt: None,
@@ -1291,6 +1442,7 @@ mod tests {
                             line: "return k".into(),
                             is_abort: false,
                         },
+                        effect: None,
                         lines: vec![[1, 2]],
                         verdict: Verdict::GoalFails {
                             model: "models/1.2.smt2".into(),
@@ -1344,7 +1496,7 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 7);
+        assert_eq!(parsed["schema"], 8);
         assert_eq!(parsed["options"]["max_paths"], 1000);
         assert_eq!(parsed["goal_smt"], "(assert (not (= x 0)))");
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
@@ -1365,7 +1517,7 @@ mod tests {
         let p = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(parsed["schema"], 7);
+        assert_eq!(parsed["schema"], 8);
         assert!(parsed["options"]["max_paths"].is_null());
     }
 
@@ -1381,6 +1533,12 @@ mod tests {
             "no external references allowed");
         assert!(html.contains("application/json\" id=\"trace\""));
         assert!(html.contains("goal-fails"));
+        // story 18: the effect section + a rendered table update travel in the
+        // embedded trace JSON.
+        assert!(html.contains("Effect — return value &amp; new state")
+            || html.contains("Effect — return value & new state"));
+        assert!(html.contains("old.MON_CCA_PKE.ctr -&gt; ctxt")
+            || html.contains("old.MON_CCA_PKE.ctr -> ctxt"));
         // the embedded JSON must still parse after `<` escaping
         let start = html.find("id=\"trace\">").unwrap() + "id=\"trace\">".len();
         let end = html[start..].find("</script>").unwrap() + start;

@@ -58,6 +58,7 @@ use std::time::{Duration, Instant};
 
 use serde_derive::Serialize;
 
+use crate::debug::effect::PathEffect;
 use crate::debug::exec::{
     execute_streaming_with_oracle, BranchOracle, BranchQuery, ExecError, Feasibility, Side, Step,
     Terminal, TerminalPath,
@@ -169,7 +170,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 7;
+pub const TRACE_SCHEMA: u32 = 8;
 
 /// Why exploration ended. Serialised into `trace.json` (replacing the old bare
 /// `partial: bool`); `summary.txt` prints the human-readable form.
@@ -359,6 +360,10 @@ pub struct LeftPath {
     pub id: String,
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
+    /// What this path computed — symbolic return value + new state, over the
+    /// oracle arguments and old state (story 18). `None` for an abort terminal.
+    /// Pure display; the `smt` field stays authoritative.
+    pub effect: Option<PathEffect>,
     /// Line ranges of the left listing this path executed (story 16),
     /// serialised as `[[3,9],[12,12]]`. Sorted, non-overlapping, includes the
     /// terminal line.
@@ -381,6 +386,9 @@ pub struct RightPath {
     pub id: String,
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
+    /// What this path computed — symbolic return value + new state (story 18).
+    /// `None` for an abort terminal. Pure display.
+    pub effect: Option<PathEffect>,
     /// Line ranges of the right listing this path executed (story 16), same
     /// shape as [`LeftPath::lines`].
     pub lines: Vec<[usize; 2]>,
@@ -935,6 +943,7 @@ fn handle_left_path<'o, S: SmtSolver>(
         id: lid.to_string(),
         steps: steps_view(left_listing, &lp.steps),
         terminal: terminal_view(left_listing, &lp.terminal),
+        effect: lp.effect.clone(),
         lines: lines_view(&lp.lines),
         reachable,
         smt: render_path_smt(lp),
@@ -1078,6 +1087,7 @@ fn handle_right_path<'o, S: SmtSolver>(
         id: rid.to_string(),
         steps: steps_view(right_listing, &rp.steps),
         terminal: terminal_view(right_listing, &rp.terminal),
+        effect: rp.effect.clone(),
         lines: lines_view(&rp.lines),
         verdict,
         model_smt,
@@ -1780,7 +1790,7 @@ mod tests {
             &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(parsed["schema"], 7);
+        assert_eq!(parsed["schema"], 8);
         assert_eq!(parsed["goal_smt"], run.goal_smt);
     }
 
@@ -1796,6 +1806,55 @@ mod tests {
         );
         assert!(run.admitted);
         assert!(run.goal_smt.is_empty());
+    }
+
+    /// Story 18: every returning left/right path carries an `effect`; aborts
+    /// carry `null`; and adding the effect keeps `trace.json` byte-identical
+    /// across two runs of the same project (nothing iterates a `HashMap`).
+    #[test]
+    fn trace_carries_an_effect_for_every_returning_path() {
+        let run = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKENC",
+            "same-output",
+            DebugOptions::default(),
+        );
+        let mut returning = 0;
+        for lp in &run.left_paths {
+            if lp.terminal.is_abort {
+                assert!(lp.effect.is_none(), "left #{} abort has an effect", lp.id);
+            } else {
+                assert!(lp.effect.is_some(), "left #{} return has no effect", lp.id);
+                returning += 1;
+            }
+            for rp in &lp.right_paths {
+                if rp.terminal.is_abort {
+                    assert!(rp.effect.is_none(), "right #{} abort has an effect", rp.id);
+                } else {
+                    assert!(rp.effect.is_some(), "right #{} return has no effect", rp.id);
+                }
+            }
+        }
+        assert!(returning > 0);
+
+        let trace = std::path::Path::new(&run.out_dir).join("trace.json");
+        let a = std::fs::read_to_string(&trace).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&a).unwrap();
+        assert_eq!(parsed["schema"], 8);
+        // effect is present in the serialised shape.
+        assert!(a.contains("\"effect\""));
+
+        let run2 = run_in_tmp(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            "PKENC",
+            "same-output",
+            DebugOptions::default(),
+        );
+        let b = std::fs::read_to_string(std::path::Path::new(&run2.out_dir).join("trace.json"))
+            .unwrap();
+        assert_eq!(a, b, "trace.json not byte-identical across runs");
     }
 
     #[test]
@@ -2435,7 +2494,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
-        assert_eq!(parsed["schema"], 7);
+        assert_eq!(parsed["schema"], 8);
 
         // story 17: the summary.txt written by the same (interrupted) flush is
         // the per-left-path tree, ending with the bracketed stop line.

@@ -103,7 +103,12 @@ single-threaded — no `Send` bound, no locks.
 > **Stories 11 and 13 have both landed.** `SmtWriter` exists (`src/debug/smtout.rs`, `Send + Sync`).
 > `DebugRun.goal_smt: String` exists and `run_debug_command` already computes the goal once as a
 > local `goal_negated: SmtExpr` / `goal_smt: String` before the explore loop — reuse those; do not
-> re-emit. `TRACE_SCHEMA` is **6** as of story 13 — bump to **7**.
+> re-emit. `TRACE_SCHEMA` is **8** as of story 18 — bump to **9** from whatever you find.
+>
+> **Story 18** added `TerminalPath.effect: Option<PathEffect>` (and `LeftPath`/`RightPath.effect`).
+> `PathEffect` construction (`src/debug/effect.rs`, `Executor::build_effect`) is **pure and
+> side-effect free** — it reads only the terminal's own `SymState` and holds no solver handle —
+> so a worker builds it inline exactly like the SMT rendering; nothing to coordinate.
 
 ## 3. Work to do
 
