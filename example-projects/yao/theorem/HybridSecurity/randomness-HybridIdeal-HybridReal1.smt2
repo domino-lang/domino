@@ -79,6 +79,21 @@
             (= sample-offset-right 0)
         )
         (and 
+            (= <arg-HybridIdeal-GBLG-i> (- h 1))
+            (or
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_0"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_1"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_2"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_3"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_0"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_1"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_2"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_3"))
+            )
+            (= sample-offset-left 0)
+            (= sample-offset-right 0)
+        )
+        (and 
             (= <arg-HybridIdeal-GBLG-i> h)
             (= sample-offset-left 0)
             (= sample-offset-right 0)
