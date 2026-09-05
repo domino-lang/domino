@@ -48,7 +48,7 @@
     Bool
     (or
         (and 
-            (< <arg-HybridIdeal-GBLG-i> h)
+            (< <arg-HybridIdeal-GBLG-i> (- h 1))
             (or 
                 (= sample-id-left sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
                 (= sample-id-left sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
@@ -75,6 +75,21 @@
             (= <arg-HybridIdeal-GBLG-i> (- h 1))
             (= sample-id-left (sample-id "KeysTop" "GETAOUT" "rr"))
             (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
+            (= sample-offset-left 0)
+            (= sample-offset-right 0)
+        )
+        (and 
+            (= <arg-HybridIdeal-GBLG-i> (- h 1))
+            (or
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_0"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_1"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_2"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rin_round_3"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_0"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_1"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_2"))
+                (= sample-id-left sample-id-right (sample-id "LayeredSim" "LSIMGBLG" "rout_round_3"))
+            )
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
