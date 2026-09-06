@@ -1,0 +1,38 @@
+package Ctr {
+    invariant: [ ./packages/Ctr.smt2 ]
+
+    params {
+        n: Integer,
+    }
+
+    state {
+        ctr: Integer,
+        seen: Table(Integer, Bits(n)),
+        differed: Bool,
+    }
+
+    import oracles {
+        Get(x: Integer) -> Bits(n),
+    }
+
+    oracle Step(x: Integer) -> Bits(n) {
+        assert (x >= 0);
+        y <- invoke Get(x);
+        seen[ctr] <- Some(y);
+        ctr <- (ctr + 1);
+        return y;
+    }
+
+    oracle Peek() -> Integer {
+        return ctr;
+    }
+
+    oracle Twice(x: Integer) -> Bool {
+        a <- invoke Get(x);
+        b <- invoke Get(x);
+        if (a != b) {
+            differed <- true;
+        }
+        return differed;
+    }
+}

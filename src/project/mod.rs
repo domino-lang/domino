@@ -15,6 +15,9 @@ use crate::parser::ast::Identifier;
 use crate::{
     gamehops::{equivalence::EquivalenceSmtDriver, GameHop},
     package::{Composition, Package},
+    package_invariant::{
+        self, PackageInvariantContext, PackageInvariantSmtDriver, UI_SECTION_NAME,
+    },
     theorem::Theorem,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform, Transformation},
     util::smtsolver::SmtSolverBackend,
@@ -97,6 +100,153 @@ pub trait Project {
         Ok(())
     }
 
+    /// The names of the packages that declare an invariant, sorted.
+    fn packages_with_invariants(&self) -> Vec<&str> {
+        let mut names: Vec<&str> = self
+            .packages()
+            .filter(|name| {
+                self.get_package(name)
+                    .is_some_and(|pkg| !pkg.invariants.is_empty())
+            })
+            .collect();
+        names.sort();
+        names
+    }
+
+    /// The packages whose invariant needs to be proved for the requested part of the project.
+    ///
+    /// Package invariants are used as assumptions in equivalence proofs, so we only need those of
+    /// the packages that are instantiated in a game of an equivalence (or hybrid) game hop that we
+    /// are actually going to verify. When the whole project is proved, all package invariants are
+    /// checked.
+    fn required_package_invariants(
+        &self,
+        req_theorem: &Option<String>,
+        req_proofstep: Option<usize>,
+    ) -> Vec<&str> {
+        let all = self.packages_with_invariants();
+
+        let Some(req_theorem) = req_theorem else {
+            return all;
+        };
+
+        let Some(theorem) = self.get_theorem(req_theorem) else {
+            return vec![];
+        };
+
+        let mut needed: Vec<&str> = all
+            .into_iter()
+            .filter(|pkg_name| {
+                theorem
+                    .game_hops
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| req_proofstep.is_none_or(|req| *i == req))
+                    .filter_map(|(_, game_hop)| match game_hop {
+                        GameHop::Equivalence(eq) => Some(eq),
+                        GameHop::Hybrid(hybrid) => Some(hybrid.equivalence()),
+                        GameHop::Reduction(_) | GameHop::Conjecture(_) => None,
+                    })
+                    .flat_map(|eq| [eq.left_name(), eq.right_name()])
+                    .filter_map(|game_inst_name| theorem.find_game_instance(game_inst_name))
+                    .any(|game_inst| {
+                        game_inst
+                            .game()
+                            .pkgs
+                            .iter()
+                            .any(|pkg_inst| pkg_inst.pkg.name == *pkg_name)
+                    })
+            })
+            .collect();
+
+        needed.sort();
+        needed
+    }
+
+    /// Proves the invariants of the given packages, as one section of the UI.
+    fn prove_package_invariants<UI: TheoremUI + Send>(
+        &self,
+        ui: &mut UI,
+        backend: &(impl SmtSolverBackend + Sync),
+        transcript: bool,
+        parallel: usize,
+        pkg_names: &[&str],
+        req_oracle: &Option<String>,
+        invariant_start: bool,
+    ) -> Result<()>
+    where
+        Self: Sized + Sync,
+    {
+        if pkg_names.is_empty() {
+            return Ok(());
+        }
+
+        ui.start_theorem(UI_SECTION_NAME, pkg_names.len().try_into().unwrap());
+
+        for pkg_name in pkg_names {
+            let pkg = self.get_package(pkg_name).unwrap();
+
+            ui.start_proofstep(UI_SECTION_NAME, pkg_name);
+
+            let ctx = PackageInvariantContext::new(pkg, self)?;
+            let driver = PackageInvariantSmtDriver::new(
+                &ctx,
+                self,
+                backend,
+                transcript,
+                req_oracle.as_deref(),
+                parallel,
+                invariant_start,
+            );
+            driver.verify(ui)?;
+
+            ui.finish_proofstep(UI_SECTION_NAME, pkg_name);
+        }
+
+        ui.finish_theorem(UI_SECTION_NAME);
+
+        Ok(())
+    }
+
+    /// Proves the invariant of a single package, without proving anything else.
+    ///
+    /// This is what `domino prove --package <name>` does.
+    fn prove_package(
+        &self,
+        backend: &(impl SmtSolverBackend + Sync),
+        transcript: bool,
+        parallel: usize,
+        pkg_name: &str,
+        req_oracle: &Option<String>,
+        invariant_start: bool,
+    ) -> Result<()>
+    where
+        Self: Sized + Sync,
+    {
+        if self.get_package(pkg_name).is_none() {
+            let mut known_pkg_names: Vec<String> = self.packages().map(str::to_string).collect();
+            known_pkg_names.sort();
+
+            return Err(package_invariant::error::Error::UnknownPackage {
+                pkg_name: pkg_name.to_string(),
+                known_pkg_names,
+            }
+            .into());
+        }
+
+        let mut ui = IndicatifTheoremUI::new(1);
+
+        self.prove_package_invariants(
+            &mut ui,
+            backend,
+            transcript,
+            parallel,
+            &[pkg_name],
+            req_oracle,
+            invariant_start,
+        )
+    }
+
     // we might want to return a theorem trace here instead
     // we could then extract the theorem viewer output and other useful info trom the trace
     fn prove(
@@ -116,7 +266,35 @@ pub trait Project {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
-        let mut ui = IndicatifTheoremUI::new(theorem_keys.len().try_into().unwrap());
+        // Package invariants are theorem-independent, so we prove them once, up front, for the
+        // packages the requested part of the project actually relies on. When the user asks for a
+        // specific oracle, we only look at the packages that have an oracle of that name.
+        let package_invariants: Vec<&str> = self
+            .required_package_invariants(req_theorem, req_proofstep)
+            .into_iter()
+            .filter(|pkg_name| match req_oracle {
+                Some(req_oracle) if !invariant_start => self
+                    .get_package(pkg_name)
+                    .unwrap()
+                    .oracles
+                    .iter()
+                    .any(|odef| &odef.sig.name == req_oracle),
+                _ => true,
+            })
+            .collect();
+
+        let num_sections = theorem_keys.len() + usize::from(!package_invariants.is_empty());
+        let mut ui = IndicatifTheoremUI::new(num_sections.try_into().unwrap());
+
+        self.prove_package_invariants(
+            &mut ui,
+            backend,
+            transcript,
+            parallel,
+            &package_invariants,
+            req_oracle,
+            invariant_start,
+        )?;
 
         for theorem_key in theorem_keys.into_iter() {
             let theorem = self.get_theorem(theorem_key).unwrap();
@@ -232,6 +410,28 @@ pub trait Project {
         }
 
         Ok(())
+    }
+
+    /// The transcript file for one claim group of a package invariant proof.
+    fn get_package_invariant_smt_file(
+        &self,
+        pkg_name: &str,
+        claim_group_name: &str,
+    ) -> Result<std::fs::File> {
+        let mut path = self.get_root_dir();
+
+        path.push("_build/code_pkg/");
+        path.push(pkg_name);
+        std::fs::create_dir_all(&path)?;
+
+        path.push(format!("{claim_group_name}.smt2"));
+        let f = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
+
+        Ok(f)
     }
 
     fn get_smt_file(

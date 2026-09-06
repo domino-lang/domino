@@ -1,0 +1,34 @@
+package Ctr {
+    invariant: [ ./packages/Ctr.smt2 ]
+
+    params {
+        n: Integer,
+    }
+
+    state {
+        ctr: Integer,
+        seen: Table(Integer, Bits(n)),
+    }
+
+    import oracles {
+        Get(x: Integer) -> Bits(n),
+    }
+
+    oracle Step(x: Integer) -> Bits(n) {
+        assert (x >= 0);
+        y <- invoke Get(x);
+        seen[ctr] <- Some(y);
+        ctr <- (ctr + 1);
+        return y;
+    }
+
+    oracle Peek() -> Integer {
+        return ctr;
+    }
+
+    /* an oracle that shares its name with the one it forwards to */
+    oracle Get(x: Integer) -> Bits(n) {
+        y <- invoke Get(x);
+        return y;
+    }
+}

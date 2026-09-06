@@ -1,0 +1,42 @@
+theorem Proof {
+    const n: Integer;
+
+    instance left = G {
+        params {
+            n: n,
+        }
+    }
+
+    instance right = G {
+        params {
+            n: n,
+        }
+    }
+
+    gamehops {
+        equivalence left right {
+            invariant: [
+                ./theorem/invariant.smt2
+            ]
+
+            Step: {
+                randomness: simple
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+            Peek: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    same-output:  [no-abort]
+                    invariant:    [no-abort]
+                }
+            }
+        }
+    }
+}

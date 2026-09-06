@@ -49,6 +49,9 @@ pub enum Error {
     EquivalenceError(#[from] crate::gamehops::equivalence::error::Error),
     #[diagnostic(transparent)]
     #[error(transparent)]
+    PackageInvariantError(#[from] crate::package_invariant::error::Error),
+    #[diagnostic(transparent)]
+    #[error(transparent)]
     ParsePackage(#[from] parser::package::ParsePackageError),
     #[diagnostic(transparent)]
     #[error(transparent)]

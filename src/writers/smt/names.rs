@@ -17,6 +17,16 @@ pub(crate) fn fn_sample_rand_name<S: Into<SmtExpr>>(game_name: &str, rand_sort: 
     format!("__sample-rand-{}-{}", game_name, rand_sort.into())
 }
 
+/// The name of the function a `(define-package-invariant ...)` is rewritten into.
+pub(crate) fn package_invariant_fn_name(game_inst_name: &str, pkg_inst_name: &str) -> String {
+    format!("package-invariant!{game_inst_name}-{pkg_inst_name}!")
+}
+
+/// The name of the function a `(define-game-invariant ...)` is rewritten into.
+pub(crate) fn game_invariant_fn_name(game_inst_name: &str) -> String {
+    format!("game-invariant!{game_inst_name}!")
+}
+
 /// The kinds of delimiters we use when generating smtlib names
 pub(crate) trait Delimiter {
     const DELIMITER: &'static str;
