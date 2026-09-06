@@ -573,10 +573,7 @@ impl<'a> EquivalenceContext<'a> {
             })
     }
 
-    pub(crate) fn emit_return_value_helpers(
-        &'a self,
-        oracle_name: &str,
-    ) -> impl Iterator<Item = SmtExpr> + 'a {
+    pub(crate) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {
         let left_gctx = self.left_game_inst_ctx();
         let left_octx = left_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
         let left_pctx = left_octx.pkg_inst_ctx();
@@ -655,6 +652,7 @@ impl<'a> EquivalenceContext<'a> {
             .chain(std::iter::once(
                 self.relation_definition_same_output(oracle_name).into(),
             ))
+            .collect()
 
         // out
     }
