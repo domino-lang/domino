@@ -30,7 +30,8 @@ impl super::TheoremTransform for EquivalenceTransform {
     }
 }
 
-fn transform_game_inst(
+/// Runs a single game instance through the transformation pipeline that the SMT writers expect.
+pub(crate) fn transform_game_inst(
     game_inst: &GameInstance,
 ) -> Result<
     (

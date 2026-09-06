@@ -7,6 +7,7 @@ use crate::util::smtparser::SmtParser;
 use crate::writers::smt::contexts::GameInstanceContext;
 use crate::writers::smt::exprs::SmtExpr;
 use crate::writers::smt::exprs::SmtLet;
+use crate::writers::smt::names;
 use crate::writers::smt::patterns;
 use crate::writers::smt::patterns::datastructures::DatastructurePattern;
 
@@ -14,7 +15,9 @@ use crate::gamehops::equivalence::error::{Error, Result};
 use itertools::Itertools;
 
 struct SmtRewrite<'a> {
-    context: &'a EquivalenceContext<'a>,
+    /// Absent when rewriting the invariant of a package on its own, i.e. outside of an
+    /// equivalence. Definitions that talk about two games are then rejected.
+    context: Option<&'a EquivalenceContext<'a>>,
     package: Option<&'a PackageInstance>,
     game: Option<&'a GameInstance>,
     content: Vec<SmtExpr>,
@@ -23,7 +26,7 @@ struct SmtRewrite<'a> {
 impl<'a> SmtRewrite<'a> {
     fn new(context: &'a EquivalenceContext) -> Self {
         Self {
-            context,
+            context: Some(context),
             package: None,
             game: None,
             content: Vec::new(),
@@ -32,7 +35,7 @@ impl<'a> SmtRewrite<'a> {
 
     fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance) -> Self {
         Self {
-            context,
+            context: Some(context),
             package: None,
             game: Some(game),
             content: Vec::new(),
@@ -45,11 +48,29 @@ impl<'a> SmtRewrite<'a> {
         package: &'a PackageInstance,
     ) -> Self {
         Self {
-            context,
+            context: Some(context),
             package: Some(package),
             game: Some(game),
             content: Vec::new(),
         }
+    }
+
+    fn new_standalone_package(game: &'a GameInstance, package: &'a PackageInstance) -> Self {
+        Self {
+            context: None,
+            package: Some(package),
+            game: Some(game),
+            content: Vec::new(),
+        }
+    }
+
+    /// The equivalence we are rewriting for, or an error if we are rewriting a package invariant
+    /// on its own.
+    fn context(&self, defn: &str) -> Result<&'a EquivalenceContext<'a>> {
+        self.context
+            .ok_or_else(|| Error::RewriteNeedsEquivalenceContext {
+                defn: defn.to_string(),
+            })
     }
 }
 
@@ -132,11 +153,14 @@ fn gen_varbinding(package: &PackageInstance, package_state: &str) -> Vec<(String
 
 impl SmtRewrite<'_> {
     fn equivalence_name(&self) -> String {
-        format!(
-            "{} = {}",
-            self.context.equivalence().left_name,
-            self.context.equivalence().right_name
-        )
+        match self.context {
+            Some(context) => format!(
+                "{} = {}",
+                context.equivalence().left_name,
+                context.equivalence().right_name
+            ),
+            None => "package invariant".to_string(),
+        }
     }
 }
 
@@ -186,7 +210,7 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         };
 
         self.handle_definefun(
-            &format!("game-invariant!{}!", self.game.unwrap().name()),
+            &names::game_invariant_fn_name(self.game.unwrap().name()),
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -224,10 +248,9 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         };
 
         self.handle_definefun(
-            &format!(
-                "package-invariant!{}-{}!",
+            &names::package_invariant_fn_name(
                 self.game.unwrap().name(),
-                self.package.unwrap().name()
+                self.package.unwrap().name(),
             ),
             vec![(
                 SmtExpr::Atom("game".to_string()),
@@ -245,15 +268,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         args: Vec<SmtExpr>,
         body: SmtExpr,
     ) -> Result<SmtExpr> {
-        let left_game_inst = self
-            .context
+        let context = self.context("define-state-relation")?;
+        let left_game_inst = context
             .theorem()
-            .find_game_instance(&self.context.equivalence().left_name)
+            .find_game_instance(&context.equivalence().left_name)
             .unwrap();
-        let right_game_inst = self
-            .context
+        let right_game_inst = context
             .theorem()
-            .find_game_instance(&self.context.equivalence().right_name)
+            .find_game_instance(&context.equivalence().right_name)
             .unwrap();
         let left_game_state_pattern = patterns::GameStatePattern {
             game_name: left_game_inst.game_name(),
@@ -333,15 +355,14 @@ impl SmtParser<SmtExpr, Error> for SmtRewrite<'_> {
         args: Vec<SmtExpr>,
         body: SmtExpr,
     ) -> Result<SmtExpr> {
-        let left_game_inst = self
-            .context
+        let context = self.context("define-lemma")?;
+        let left_game_inst = context
             .theorem()
-            .find_game_instance(&self.context.equivalence().left_name)
+            .find_game_instance(&context.equivalence().left_name)
             .unwrap();
-        let right_game_inst = self
-            .context
+        let right_game_inst = context
             .theorem()
-            .find_game_instance(&self.context.equivalence().right_name)
+            .find_game_instance(&context.equivalence().right_name)
             .unwrap();
         let left_game_state_pattern = patterns::GameStatePattern {
             game_name: left_game_inst.game_name(),
@@ -533,6 +554,18 @@ pub fn rewrite_package(
     content: &str,
 ) -> Result<Vec<SmtExpr>> {
     let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package);
+    rewriter.parse_sexps(content)?;
+    Ok(rewriter.content)
+}
+
+/// Rewrites a package invariant file outside of an equivalence, i.e. for the synthetic game the
+/// package invariant is proved against.
+pub fn rewrite_standalone_package(
+    game: &GameInstance,
+    package: &PackageInstance,
+    content: &str,
+) -> Result<Vec<SmtExpr>> {
+    let mut rewriter: SmtRewrite = SmtRewrite::new_standalone_package(game, package);
     rewriter.parse_sexps(content)?;
     Ok(rewriter.content)
 }

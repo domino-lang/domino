@@ -1,0 +1,15 @@
+package Src {
+    params {
+        n: Integer,
+    }
+
+    state {
+        calls: Integer,
+    }
+
+    oracle Get(x: Integer) -> Bits(n) {
+        calls <- (calls + 1);
+        y <-$ Bits(n);
+        return y;
+    }
+}

@@ -48,14 +48,24 @@ pub(crate) struct Prove {
     pub(crate) smtsolver: SolverVariant,
     #[clap(short, long)]
     pub(crate) transcript: bool,
+    /// Only prove that the invariants hold in the initial state.
+    /// Also restricts package invariants to their induction start.
     #[clap(long)]
     pub(crate) invariant_start: bool,
     #[clap(long)]
     pub(crate) proofstep: Option<usize>,
     #[clap(long)]
     pub(crate) proof: Option<String>,
+    /// Only prove the invariant of this package, and nothing else.
+    /// Cannot be combined with --proof or --proofstep.
+    #[clap(long)]
+    pub(crate) package: Option<String>,
+    /// Only prove the claims of this oracle. Package invariants are then only checked for
+    /// packages that have an oracle of this name, and only for that oracle.
     #[clap(long)]
     pub(crate) oracle: Option<String>,
+    /// Only prove the equivalence claims whose name matches this pattern.
+    /// Does not apply to package invariants.
     #[clap(long)]
     pub(crate) claim: Option<String>,
     #[clap(long, default_value_t = 1)]

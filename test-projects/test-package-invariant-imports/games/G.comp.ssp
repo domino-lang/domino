@@ -1,0 +1,26 @@
+composition G {
+    const n: Integer;
+
+    instance ctr = Ctr {
+        params {
+            n: n,
+        }
+    }
+
+    instance src = Src {
+        params {
+            n: n,
+        }
+    }
+
+    compose {
+        adversary: {
+            Step: ctr,
+            Peek: ctr,
+            Get: ctr,
+        },
+        ctr: {
+            Get: src,
+        },
+    }
+}

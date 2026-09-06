@@ -108,7 +108,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.push(SmtExpr::Comment("\n".to_string()));
         smt.push(SmtExpr::Comment("theorem param funcs:\n".to_string()));
-        smt.extend(&mut self.eqctx.emit_theorem_paramfuncs());
+        smt.extend(self.eqctx.emit_theorem_paramfuncs());
         log::debug!(
             "emitting game definitions for {}-{}",
             eq.left_name,
@@ -116,7 +116,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.push(SmtExpr::Comment("\n".to_string()));
         smt.push(SmtExpr::Comment("game definitions:\n".to_string()));
-        smt.extend(&mut self.eqctx.emit_game_definitions());
+        smt.extend(self.eqctx.emit_game_definitions());
 
         log::debug!(
             "emitting const declarations for {}-{}",
@@ -172,13 +172,11 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         Ok(())
     }
 
-    fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
-        self.generate_game_or_package_invariant_claims()
+    fn generate_game_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
+        self.generate_game_invariant_claims()
             .iter()
             .map(|claim| {
-                let smt = self
-                    .eqctx
-                    .emit_game_or_package_invariant_start_assert(claim);
+                let smt = self.eqctx.emit_game_invariant_start_assert(claim);
                 (claim.name().to_string(), smt)
             })
             .collect()
@@ -204,7 +202,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             "invariant".to_string(),
             self.eqctx.emit_invariant_start_assert(),
         )];
-        checks.append(&mut self.generate_game_or_package_invariant_start_asserts());
+        checks.append(&mut self.generate_game_invariant_start_asserts());
 
         ui.lock().unwrap().start_claim_group(
             &self.eqctx.theorem().name,
@@ -238,33 +236,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         result
     }
 
-    fn generate_package_invariant_claims(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Vec<Claim> {
-        gctx.game()
-            .pkgs
-            .iter()
-            .filter_map(|pkg| {
-                if pkg.pkg.invariants.is_empty() {
-                    None
-                } else {
-                    Some(Claim {
-                        admitted: false,
-                        dependencies: vec!["no-abort".to_string()],
-                        ty: claim_type,
-                        name: format!(
-                            "package-invariant!{}-{}!",
-                            gctx.game_inst_name(),
-                            pkg.name()
-                        ),
-                    })
-                }
-            })
-            .collect()
-    }
-
     fn generate_game_invariant_claim_if_exists(
         &self,
         gctx: GameInstanceContext<'a>,
@@ -275,23 +246,15 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 admitted: false,
                 dependencies: vec!["no-abort".to_string()],
                 ty: claim_type,
-                name: format!("game-invariant!{}!", gctx.game_inst_name(),),
+                name: crate::writers::smt::names::game_invariant_fn_name(gctx.game_inst_name()),
             })
         } else {
             None
         }
     }
 
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
+    fn generate_game_invariant_claims(&self) -> Vec<Claim> {
         let mut claims = vec![];
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftPackageInvariant,
-        ));
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightPackageInvariant,
-        ));
 
         if let Some(claim) = self.generate_game_invariant_claim_if_exists(
             self.eqctx.left_game_inst_ctx(),
@@ -323,7 +286,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .equivalence()
             .proof_tree_by_oracle_name(oracle.name());
 
-        claims.append(&mut self.generate_game_or_package_invariant_claims());
+        claims.append(&mut self.generate_game_invariant_claims());
 
         let claim_group = ClaimGroup::Oracle {
             oracle_name: oracle.name().to_string(),

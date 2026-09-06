@@ -103,6 +103,13 @@ pub enum Error {
     RewriteNeedsGameContext { defn: String },
     #[error("define-package-invariant only valid in package contexts: {defn}")]
     RewriteNeedsPackageContext { defn: String },
+    #[error("{defn} is only valid in the invariant file of an equivalence")]
+    #[diagnostic(help(
+        "package invariant files are also used when proving the package invariant on its own, \
+         where there is no second game to relate to. Move this definition into the invariant \
+         file of the equivalence that needs it."
+    ))]
+    RewriteNeedsEquivalenceContext { defn: String },
     #[error(transparent)]
     ParserError(#[from] crate::util::smtparser::Error),
     #[error("SMT Solver failed in claim {claim_name} when verifying {claim_group_name}")]

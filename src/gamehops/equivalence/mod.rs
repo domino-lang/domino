@@ -12,7 +12,7 @@ use crate::{
 use error::{Error, ExportSignatureMismatch, Result};
 
 pub mod error;
-mod smtrewrite;
+pub(crate) mod smtrewrite;
 mod verify_fn;
 
 pub(crate) use verify_fn::EquivalenceSmtDriver;

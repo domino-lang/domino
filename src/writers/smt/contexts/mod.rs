@@ -16,6 +16,7 @@ impl GlobalContext {
 
 //mod game;
 mod equivalence;
+pub(crate) mod game_defs;
 mod game_inst;
 mod oracle;
 mod pkg_inst;

@@ -211,8 +211,6 @@ pub enum ClaimType {
     Lemma,
     Relation,
     Invariant,
-    LeftPackageInvariant,
-    RightPackageInvariant,
     LeftGameInvariant,
     RightGameInvariant,
 }
