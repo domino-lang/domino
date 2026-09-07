@@ -1,0 +1,11 @@
+package A {
+    params {
+        foo: fn Integer -> Integer
+    }
+
+    invariant: [
+        ./packages/A.pkg.smt2
+    ]
+
+    oracle Test () {}
+}

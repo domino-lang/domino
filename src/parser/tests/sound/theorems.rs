@@ -303,11 +303,11 @@ fn fail_reduction_inconsistent_wiring_less() {
     let assumption_game_inst_name = slice_source_span(source_code, assumption_at);
     let construction_game_inst_name = slice_source_span(source_code, construction_at);
 
-    assert_eq!(assumption_pkg_inst_name, "prf");
-    assert_eq!(construction_pkg_inst_name, "prf");
+    assert_eq!(assumption_pkg_inst_name, "Prf");
+    assert_eq!(construction_pkg_inst_name, "Prf");
     assert_eq!(oracle_name, "Get");
-    assert_eq!(assumption_game_inst_name, "prf");
-    assert_eq!(construction_game_inst_name, "prf");
+    assert_eq!(assumption_game_inst_name, "Prf");
+    assert_eq!(construction_game_inst_name, "Prf");
 
     let report = miette::Report::new(err);
     println!("the error prints like this:\n{report:?}")
@@ -449,8 +449,8 @@ fn fail_wrong_params_in_reduction_should_fail() {
         panic!("expected a different error. got {err_str}:\n{report:?}")
     };
 
-    assert_eq!(left_pkg_inst_name, "enc");
-    assert_eq!(right_pkg_inst_name, "enc");
+    assert_eq!(left_pkg_inst_name, "Enc");
+    assert_eq!(right_pkg_inst_name, "Enc");
     assert_eq!(param_names, "enc, m");
 
     let report = miette::Report::new(err);

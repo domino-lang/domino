@@ -233,7 +233,7 @@ fn game_instantiating_with_literal_works() {
     let prf = game
         .pkgs
         .iter()
-        .find(|pkg_inst| pkg_inst.name == "prf")
+        .find(|pkg_inst| pkg_inst.name == "Prf")
         .unwrap();
 
     assert_eq!(

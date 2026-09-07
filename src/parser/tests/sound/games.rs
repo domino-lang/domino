@@ -126,7 +126,7 @@ fn oracle_missing_edge_for_imported_oracle() {
                 pkg_name,
                 oracle_name,
                 ..
-            }) if pkg_inst_name == "enc" && pkg_name == "Enc" && oracle_name == "Get"
+            }) if pkg_inst_name == "Enc" && pkg_name == "Enc" && oracle_name == "Get"
         ),
         "got instead:\n{err:?}",
         //err = err,
@@ -149,7 +149,7 @@ fn oracle_imported_twice() {
                 pkg_inst_name,
                 oracle_name,
                 ..
-            }) if pkg_inst_name == "enc" && oracle_name == "Get"
+            }) if pkg_inst_name == "Enc" && oracle_name == "Get"
         ),
         "got instead:\n{err:?}",
         //err = err,
@@ -173,7 +173,7 @@ fn edge_connected_but_not_imported() {
                 pkg_name,
                 oracle_name,
                 ..
-            }) if pkg_inst_name == "enc" && pkg_name == "Enc" && oracle_name == "Eval"
+            }) if pkg_inst_name == "Enc" && pkg_name == "Enc" && oracle_name == "Eval"
         ),
         "got instead:\n{err:?}",
         //err = err,

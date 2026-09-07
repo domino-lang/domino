@@ -139,6 +139,8 @@ impl<'a> ParseTheoremContext<'a> {
             .into());
         }
         let offset = self.instances.len();
+        self.declare(game_inst.name(), Declaration::GameInstance)
+            .unwrap();
         self.instances.push(game_inst.clone());
         self.instances_table
             .insert(game_inst.name().to_string(), (offset, game_inst, span));
