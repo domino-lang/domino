@@ -7,7 +7,7 @@ use domino_ast::{
     ast_nodes::{
         game,
         identifier::{self, Identifier as AstIdentifier, *},
-        InArena, NodeType,
+        InArena, NodeType, NodeTypeRef as _,
     },
     GlobalRefId,
 };

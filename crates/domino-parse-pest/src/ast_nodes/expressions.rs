@@ -4,7 +4,7 @@ use domino_ast::{
         expressions::{self, *},
         identifier::{Identifier, OracleImportIdentifier},
         list::{Comma, List},
-        types, InArena, NodeType, Trivia,
+        types, InArena, NodeType, NodeTypeRef as _, Trivia,
     },
     source::{FileId, SourceLocation},
     State,

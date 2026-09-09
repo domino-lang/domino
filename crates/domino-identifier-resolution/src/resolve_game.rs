@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{game, identifier},
+    ast_nodes::{game, identifier, NodeTypeRef as _},
     Arenas, GlobalRefId, LocationTable, PartialDenseTable,
 };
 

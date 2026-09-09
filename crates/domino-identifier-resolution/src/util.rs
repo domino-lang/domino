@@ -17,5 +17,5 @@ where
     Identifier<IK>: InArena,
 {
     let loc = locations.get(node);
-    source_arena.text(loc)
+    loc.text(source_arena)
 }

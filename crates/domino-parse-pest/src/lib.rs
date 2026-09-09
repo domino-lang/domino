@@ -1,6 +1,6 @@
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{game, package, theorem, InArena, NodeType, Trivia},
+    ast_nodes::{game, package, theorem, InArena, NodeType, NodeTypeRef as _, Trivia},
     source::FileId,
     State,
 };

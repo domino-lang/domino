@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{identifier, oracles, package, statements, types, Visitor},
+    ast_nodes::{identifier, oracles, package, statements, types, NodeTypeRef as _, Visitor},
     walk::Walk,
     Arenas, LocationTable, PartialDenseTable,
 };

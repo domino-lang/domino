@@ -3,7 +3,7 @@ use domino_ast::{
     arena::Ref,
     ast_nodes::{
         list::{Colon, Comma, List, ListNoDelim, Semicolon},
-        InArena, NodeType, Trivia,
+        InArena, NodeType, NodeTypeRef as _, Trivia,
     },
     source::SourceLocation,
 };

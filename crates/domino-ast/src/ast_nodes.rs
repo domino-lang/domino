@@ -25,6 +25,28 @@ pub trait NodeType: Sized {
     fn global_ref_id(r: Ref<Self>) -> GlobalRefId;
 }
 
+pub trait NodeTypeRef {
+    type Type: NodeType + InArena;
+    fn from_parsed(state: &mut State, loc: SourceLocation, node: Self::Type) -> Self;
+    fn global_ref_id(self) -> GlobalRefId;
+}
+
+impl<T: NodeType + InArena> NodeTypeRef for Ref<T> {
+    type Type = T;
+    fn from_parsed(state: &mut State, loc: SourceLocation, node: T) -> Self {
+        let arena = T::arena_mut(&mut state.arenas);
+        let id = arena.alloc(node);
+
+        state.tables.locations.insert(id, loc);
+
+        id
+    }
+
+    fn global_ref_id(self) -> GlobalRefId {
+        Self::Type::global_ref_id(self)
+    }
+}
+
 pub trait InArena: Sized {
     fn arena(arenas: &Arenas) -> &crate::arena::Arena<Self>;
     fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
@@ -33,23 +55,6 @@ pub trait InArena: Sized {
     fn growing_table_mut<T>(
         growing_tables: &mut GrowingTables<T>,
     ) -> &mut crate::state::GrowingTable<Self, T>;
-}
-
-impl<T: NodeType> Ref<T> {
-    pub fn global_ref_id(self) -> GlobalRefId {
-        NodeType::global_ref_id(self)
-    }
-}
-
-impl<T: NodeType + InArena> Ref<T> {
-    pub fn from_parsed(state: &mut State, loc: SourceLocation, node: T) -> Self {
-        let arena = T::arena_mut(&mut state.arenas);
-        let id = arena.alloc(node);
-
-        state.tables.locations.insert(id, loc);
-
-        id
-    }
 }
 
 impl Arenas {

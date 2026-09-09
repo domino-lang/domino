@@ -367,8 +367,13 @@ dependencies = [
 name = "domino-ast"
 version = "0.1.0"
 dependencies = [
+ "domino-collections",
  "miette",
 ]
+
+[[package]]
+name = "domino-collections"
+version = "0.1.0"
 
 [[package]]
 name = "domino-diagnostic"
