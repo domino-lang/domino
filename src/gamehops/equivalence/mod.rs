@@ -36,14 +36,10 @@ impl Equivalence {
         theorem_name: String,
         left_name: String,
         right_name: String,
-        mut invariants: Vec<String>,
-        mut trees: Vec<(String, Vec<Claim>)>,
-        mut randomness: Vec<(String, RandomnessType)>,
+        invariants: Vec<String>,
+        trees: Vec<(String, Vec<Claim>)>,
+        randomness: Vec<(String, RandomnessType)>,
     ) -> Self {
-        trees.sort();
-        invariants.sort();
-        randomness.sort();
-
         Equivalence {
             theorem_name,
             left_name,
