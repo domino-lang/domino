@@ -388,6 +388,7 @@ name = "domino-identifier-resolution"
 version = "0.1.0"
 dependencies = [
  "domino-ast",
+ "domino-collections",
  "domino-diagnostic",
  "domino-parse-pest",
  "miette",

@@ -11,6 +11,7 @@ thiserror.workspace = true
 
 domino-ast.workspace = true
 domino-diagnostic.workspace = true
+domino-collections.workspace = true
 
 [dev-dependencies]
 pest.workspace = true

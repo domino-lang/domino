@@ -6,15 +6,17 @@ mod resolve_game;
 mod resolve_package;
 mod resolve_theorem;
 
-mod resolutions;
+pub mod resolutions;
 
 use std::collections::HashMap;
 
 use domino_ast::{
     arena::{Arena, Ref},
     ast_nodes::{game, identifier, package, theorem},
-    Arenas, DenseTable, LocationTable, PartialDenseTable, Visitor as _,
+    Arenas, LocationTable, Visitor as _,
 };
+use domino_collections::dense_table::*;
+
 use scope::{Declaration, DeclarationType};
 
 pub use resolve_package::{PackageInfo, PackageVisitor};
@@ -177,30 +179,30 @@ impl<'arena> Resolver<'arena> {
             locations,
             arenas,
 
-            oracle_def_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            oracle_import_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            oracle_composition_def_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            oracle_composition_import_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            pkg_const_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            oracle_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            pkg_type_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            pkg_type_arg_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            is_state: PartialDenseTable::with_sizes_from_arena(arenas),
+            oracle_def_names: arenas.new_partial_dense_table(),
+            oracle_import_names: arenas.new_partial_dense_table(),
+            oracle_composition_def_names: arenas.new_partial_dense_table(),
+            oracle_composition_import_names: arenas.new_partial_dense_table(),
+            pkg_const_value_names: arenas.new_partial_dense_table(),
+            oracle_value_names: arenas.new_partial_dense_table(),
+            pkg_type_names: arenas.new_partial_dense_table(),
+            pkg_type_arg_names: arenas.new_partial_dense_table(),
+            is_state: arenas.new_partial_dense_table(),
 
-            pkg_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            game_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            game_type_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            game_type_arg_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            game_const_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            pkg_inst_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            pkg_names: arenas.new_partial_dense_table(),
+            game_names: arenas.new_partial_dense_table(),
+            game_type_names: arenas.new_partial_dense_table(),
+            game_type_arg_names: arenas.new_partial_dense_table(),
+            game_const_value_names: arenas.new_partial_dense_table(),
+            pkg_inst_names: arenas.new_partial_dense_table(),
 
-            theorem_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            theorem_type_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            theorem_type_arg_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            theorem_const_value_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            game_inst_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            assumption_names: PartialDenseTable::with_sizes_from_arena(arenas),
-            lemma_names: PartialDenseTable::with_sizes_from_arena(arenas),
+            theorem_names: arenas.new_partial_dense_table(),
+            theorem_type_names: arenas.new_partial_dense_table(),
+            theorem_type_arg_names: arenas.new_partial_dense_table(),
+            theorem_const_value_names: arenas.new_partial_dense_table(),
+            game_inst_names: arenas.new_partial_dense_table(),
+            assumption_names: arenas.new_partial_dense_table(),
+            lemma_names: arenas.new_partial_dense_table(),
 
             diagnostics: Default::default(),
             pkg_infos: Default::default(),
@@ -453,6 +455,17 @@ pub enum BuiltinValue {
     Some,
     None,
     EmptyTable,
+}
+
+impl BuiltinValue {
+    pub fn ty(self) -> Option<BuiltinType> {
+        match self {
+            BuiltinValue::True | BuiltinValue::False => Some(BuiltinType::Bool),
+
+            // TODO: these are tricky because we need to figure out what concrete type they have
+            BuiltinValue::Some | BuiltinValue::None | BuiltinValue::EmptyTable => todo!(),
+        }
+    }
 }
 
 /// If resolution fails, we emit a diagnostic and set an error resolution with a reference to the

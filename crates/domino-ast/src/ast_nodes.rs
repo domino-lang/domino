@@ -72,6 +72,10 @@ impl Arenas {
 
         item_arena.get_slice(list.items)
     }
+
+    pub fn new_partial_dense_table<K: InArena, V>(&self) -> PartialDenseTable<K, V> {
+        PartialDenseTable::with_entries(K::arena(self).len())
+    }
 }
 
 pub trait RefHandler<O> {
@@ -176,7 +180,7 @@ macro_rules! define_dense_tables {
     ($($field_name:ident : $node_type:ty),* $(,)?) => {
         #[derive(Debug, Clone)]
         pub struct DenseTables<T> {
-            $(pub $field_name: $crate::state::DenseTable<$node_type, T>),*
+            $(pub $field_name: ::domino_collections::dense_table::DenseTable<$node_type, T>),*
         }
 
         #[derive( Debug, Clone)]
@@ -186,16 +190,16 @@ macro_rules! define_dense_tables {
 
         #[derive(Debug, Clone)]
         pub struct PartialDenseTables<T> {
-            $(pub $field_name: $crate::state::PartialDenseTable<$node_type, T>),*
+            $(pub $field_name: ::domino_collections::dense_table::PartialDenseTable<$node_type, T>),*
         }
 
         impl<T> PartialDenseTables<T> {
             pub fn new(arenas:&Arenas) -> Self {
                 Self {
-                    $($field_name: $crate::state::PartialDenseTable::with_entries(arenas.$field_name.len())),*
+                    $($field_name: ::domino_collections::dense_table::PartialDenseTable::with_entries(arenas.$field_name.len())),*
                 }
             }
-}
+        }
 
         impl<T> Default for GrowingTables<T> {
             fn default() -> Self {
@@ -541,4 +545,5 @@ define_node_types! {
     Theorem { thm: theorem::Theorem }
 }
 
+use domino_collections::dense_table::PartialDenseTable;
 use with_global_ref_id;

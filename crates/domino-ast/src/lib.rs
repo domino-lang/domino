@@ -23,4 +23,4 @@ mod state;
 pub mod walk;
 
 pub use ast_nodes::{Arenas, GlobalRefId, Visitor};
-pub use state::{DenseTable, GlobalTable, LocationTable, PartialDenseTable, State, Tables};
+pub use state::{LocationTable, State, Tables};

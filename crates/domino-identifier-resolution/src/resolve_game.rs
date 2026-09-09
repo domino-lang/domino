@@ -3,8 +3,9 @@ use std::collections::HashMap;
 use domino_ast::{
     arena::Ref,
     ast_nodes::{game, identifier, NodeTypeRef as _},
-    Arenas, GlobalRefId, LocationTable, PartialDenseTable,
+    Arenas, GlobalRefId, LocationTable,
 };
+use domino_collections::dense_table::PartialDenseTable;
 
 use crate::{
     diag::{self, UndefinedIdentifier},
