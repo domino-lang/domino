@@ -1,0 +1,17 @@
+theorem A {
+  instance a = A {}
+  instance b = A {}
+
+  gamehops {
+    equivalence a b {
+      invariant: [
+        ./theorem/a.smt2
+        ./theorem/z.smt2
+        ./theorem/g.smt2
+      ]
+      O: {
+        randomness: none
+      }
+    }
+  }
+}
