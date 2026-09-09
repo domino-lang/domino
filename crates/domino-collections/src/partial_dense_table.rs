@@ -1,3 +1,16 @@
+//! In this module we define [`PartialDenseTable`], a partially populated dense side table type.
+//! It is initialized to its full size, but with optional entries that each are initialized to [`None`].
+//!
+//! Once the table is fully populated, it can be finished using [`PartialDenseTable::finish`]. Note
+//! that this likely requires a memory copy (though it might be possible to avoid that using niche types).
+//!
+//! The structure of a [`PartialDenseTable`] is a simple [`Vec`], where the offset stored in a
+//! [`Ref`] (i.e. the offset in the [`Arena`]) is the same as the offset in the [`Vec`]. The values
+//! are [`Option`], to allow a partially set populated table.
+//!
+//! Use this for resolution, where the order in which the entries are populated is random (in the
+//! memory sense, not in the cryptographic sense).
+
 use std::marker::PhantomData;
 
 use crate::arena::Ref;

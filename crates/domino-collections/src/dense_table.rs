@@ -1,5 +1,10 @@
-//! In this crate we define side table types that work best when the items in the arenas are already
-//! all allocated.
+//! In this module we define [`DenseTable`], a fully populated dense side table type.
+//!
+//! To create such a type, look to [`PartialDenseTable`].
+//!
+//! The structure of a [`DenseTable`] is a simple [`Vec`], where the offset stored in a [`Ref`]
+//! (i.e. the offset in the [`Arena`]) is the same as the offset in the [`Vec`]. This allows O(1)
+//! access, dense packing and therefore strong locality.
 //!
 //! The general idea here is to have a dense table that is a vec, indexed by the offset in the arena.
 //! In order to build such a side table, we also provide a type that can have holes. We do that
