@@ -1,4 +1,4 @@
-(define-lemma <generalrelation-case-i-lt-dminusone-GBLG>
+(define-lemma case-i-lt-dminusone GBLG
     (
         old-state-left
         old-state-right
@@ -16,7 +16,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-dminusone-GBLG>
+(define-lemma case-i-is-dminusone GBLG
     (
         old-state-left
         old-state-right
@@ -34,7 +34,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-d-GBLG>
+(define-lemma case-i-is-d GBLG
     (
         old-state-left
         old-state-right

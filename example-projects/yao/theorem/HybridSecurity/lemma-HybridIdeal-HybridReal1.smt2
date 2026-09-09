@@ -1,4 +1,4 @@
-(define-lemma <generalrelation-value-of-h-SETBIT>
+(define-lemma value-of-h SETBIT
     (
         old-state-left
         old-state-right
@@ -11,7 +11,7 @@
 )
 
 
-(define-lemma <generalrelation-value-of-h-GETKEYSIN>
+(define-lemma value-of-h GETKEYSIN
     (
         old-state-left
         old-state-right
@@ -22,7 +22,7 @@
     (= h 1)
 )
 
-(define-lemma <generalrelation-value-of-h-GETAOUT>
+(define-lemma value-of-h GETAOUT
     (
         old-state-left
         old-state-right
@@ -33,7 +33,7 @@
     (= h 1)
 )
 
-(define-lemma <generalrelation-value-of-i-GBLG>
+(define-lemma value-of-i GBLG
     (
         old-state-left
         old-state-right
@@ -48,7 +48,7 @@
     (= i (+ h 1))
 )
 
-(define-lemma <generalrelation-inv-case-i-lt-hminusone-assumptions-GBLG>
+(define-lemma inv-case-i-lt-hminusone-assumptions GBLG
     (
         old-state-left
         old-state-right
@@ -85,7 +85,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-lt-hminusone-GBLG>
+(define-lemma inv-case-i-lt-hminusone GBLG
     (
         old-state-left
         old-state-right
@@ -103,7 +103,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-is-hminusone-GBLG>
+(define-lemma inv-case-i-is-hminusone GBLG
     (
         old-state-left
         old-state-right
@@ -121,7 +121,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-is-h-GBLG>
+(define-lemma inv-case-i-is-h GBLG
     (
         old-state-left
         old-state-right
@@ -139,7 +139,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-is-hplusone-GBLG>
+(define-lemma inv-case-i-is-hplusone GBLG
     (
         old-state-left
         old-state-right
@@ -157,7 +157,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-is-hplustwo-GBLG>
+(define-lemma inv-case-i-is-hplustwo GBLG
     (
         old-state-left
         old-state-right
@@ -175,7 +175,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-gt-hplustwo-assumptions-GBLG>
+(define-lemma inv-case-i-gt-hplustwo-assumptions GBLG
     (
         old-state-left
         old-state-right
@@ -265,7 +265,7 @@
     )
 )
 
-(define-lemma <generalrelation-inv-case-i-gt-hplustwo-GBLG>
+(define-lemma inv-case-i-gt-hplustwo GBLG
     (
         old-state-left
         old-state-right
@@ -284,7 +284,7 @@
 )
 
 ; i < h - 1
-(define-lemma <generalrelation-case-i-lt-hminusone-assumptions-GBLG>
+(define-lemma case-i-lt-hminusone-assumptions GBLG
     (
         state-left
         state-right
@@ -311,7 +311,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-lt-hminusone-GBLG>
+(define-lemma case-i-lt-hminusone GBLG
     (
         old-state-left
         old-state-right
@@ -330,7 +330,7 @@
 )
 
 ; i = h - 1
-(define-lemma <generalrelation-case-i-is-hminusone-assumptions-GBLG>
+(define-lemma case-i-is-hminusone-assumptions GBLG
     (
         state-left
         state-right
@@ -357,7 +357,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-hminusone-GBLG>
+(define-lemma case-i-is-hminusone GBLG
     (
         old-state-left
         old-state-right
@@ -376,7 +376,7 @@
 )
 
 ; i = h
-(define-lemma <generalrelation-case-i-is-h-assumptions-GBLG>
+(define-lemma case-i-is-h-assumptions GBLG
     (
         state-left
         state-right
@@ -404,7 +404,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-h-GBLG>
+(define-lemma case-i-is-h GBLG
     (
         old-state-left
         old-state-right
@@ -423,7 +423,7 @@
 )
 
 ; i = h + 1
-(define-lemma <generalrelation-case-i-is-hplusone-assumptions-GBLG>
+(define-lemma case-i-is-hplusone-assumptions GBLG
     (
         state-left
         state-right
@@ -448,7 +448,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-hplusone-GBLG>
+(define-lemma case-i-is-hplusone GBLG
     (
         old-state-left
         old-state-right
@@ -466,7 +466,7 @@
     )
 )
 ; i = h + 2
-(define-lemma <generalrelation-case-i-is-hplustwo-assumptions-GBLG>
+(define-lemma case-i-is-hplustwo-assumptions GBLG
     (
         state-left
         state-right
@@ -491,7 +491,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-hplustwo-GBLG>
+(define-lemma case-i-is-hplustwo GBLG
     (
         old-state-left
         old-state-right
@@ -509,7 +509,7 @@
     )
 )
 ; i > h + 2
-(define-lemma <generalrelation-case-i-gt-hplustwo-assumptions-GBLG>
+(define-lemma case-i-gt-hplustwo-assumptions GBLG
     (
         state-left
         state-right
@@ -534,7 +534,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-gt-hplustwo-GBLG>
+(define-lemma case-i-gt-hplustwo GBLG
     (
         old-state-left
         old-state-right
@@ -553,7 +553,7 @@
 
 )
 
-(define-lemma <generalrelation-assume-all-invariants-GBLG>
+(define-lemma assume-all-invariants GBLG
     (
         old-state-left
         old-state-right
@@ -568,7 +568,7 @@
     (invariants old-state-left old-state-right)
 )
 
-(define-lemma <generalrelation-assert-all-invariants-GBLG>
+(define-lemma assert-all-invariants GBLG
     (
         old-state-left
         old-state-right

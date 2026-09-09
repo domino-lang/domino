@@ -1,4 +1,4 @@
-(define-lemma <generalrelation-case-i-is-one-GBLG>
+(define-lemma case-i-is-one GBLG
     (
         old-state-left
         old-state-right
@@ -16,7 +16,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-is-two-GBLG>
+(define-lemma case-i-is-two GBLG
     (
         old-state-left
         old-state-right
@@ -34,7 +34,7 @@
     )
 )
 
-(define-lemma <generalrelation-case-i-gt-two-GBLG>
+(define-lemma case-i-gt-two GBLG
     (
         old-state-left
         old-state-right
@@ -52,7 +52,7 @@
     )
 )
 
-(define-lemma <generalrelation-abort-case-i-is-one-GBLG>
+(define-lemma abort-case-i-is-one GBLG
     (
         old-state-left
         old-state-right
@@ -71,7 +71,7 @@
     )
 )
 
-(define-lemma <generalrelation-abort-case-i-is-two-GBLG>
+(define-lemma abort-case-i-is-two GBLG
     (
         old-state-left
         old-state-right
@@ -90,7 +90,7 @@
     )
 )
 
-(define-lemma <generalrelation-abort-case-i-is-two-assumptions-GBLG>
+(define-lemma abort-case-i-is-two-assumptions GBLG
     (
         old-state-left
         old-state-right
@@ -120,7 +120,7 @@
     )
 )
 
-(define-lemma <generalrelation-abort-case-i-gt-two-GBLG>
+(define-lemma abort-case-i-gt-two GBLG
     (
         old-state-left
         old-state-right
