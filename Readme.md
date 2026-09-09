@@ -34,19 +34,11 @@ To generate LaTeX for a project, use `domino latex`. The output will be in `_bui
 
 At the lowest level, there are _packages_, which can expose oracles (exports) and call oracles on other packages (imports). A package has both _state_ and _constant parameters_. One layer higher there are _games_, which instantiate packages into package instance and assign which oracle is called for every import. A game also has constant parameters that can be assigned to package constant parameters during instantiation. At the highest layer there are proofs, which instantiate games and describe hops between these. There are reduction game hops, which are graph-based arguments based on an assumption, and equivalence game hops, where we use an SMT solver to show that two games behave identically.
 
-## Soundness Gaps
-
-Right now, the tool does the hard parts of equivalence proofs, but so far one property has to be checked manually:
-
-- **Injectivity of Randomness Mapping**: The randomness mapping describes which random values in the left and right game should be equivalent. In order to ensure that the random values are not e.g. all constrained to be the same value, this check needs to be done.
-
 ## Roadmap
 
-- [ ] Fix Remaining Soundness Gaps
 - [ ] Improve Documentation
 - [ ] Improve Error Reporting
 - [ ] Editor/LSP support
-- [ ] Close Soundness Gaps
 - [ ] Automatically Determine Advantage Terms
 - [ ] Type parameters - in instantiations, allow not just assigning constants, but also types.
 - [ ] Automatically find invariants for equivalence proofs.
