@@ -50,7 +50,10 @@ impl SampleIdExtractor {
     }
 }
 
-impl SmtParser<Vec<ExtractedSampleId>> for SampleIdExtractor {
+impl SmtParser for SampleIdExtractor {
+    type Expr = Vec<ExtractedSampleId>;
+    type Stmt = Vec<ExtractedSampleId>;
+
     fn handle_atom(&mut self, _content: &str) -> Result<Vec<ExtractedSampleId>> {
         Ok(Vec::new())
     }

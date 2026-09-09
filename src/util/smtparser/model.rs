@@ -3,15 +3,17 @@ use crate::util::smtmodel::{SmtModel, SmtModelEntry};
 use crate::writers::smt::exprs::SmtExpr;
 
 #[derive(Debug)]
-enum ModelExtractorState {
+pub(crate) enum ModelExtractorState {
     SmtExpr(SmtExpr),
     Integer(i32),
     Boolean(bool),
-    // SmtModelEntry(SmtModelEntry),
     Empty,
 }
 
-impl SmtParser<ModelExtractorState> for SmtModel {
+impl SmtParser for SmtModel {
+    type Expr = ModelExtractorState;
+    type Stmt = ModelExtractorState;
+
     fn handle_sexp(&mut self, _parsed: ModelExtractorState) -> Result<()> {
         Ok(())
     }
