@@ -39,26 +39,29 @@ pub struct SmtStmt {
     pub expr: SmtExpr,
 }
 
-#[derive(Clone, Debug)]
-enum SmtObject {
-    Statement(SmtStmt),
-    Expression(SmtExpr),
-}
+/* The generic SMT Parser expects to be able to convert Expr:s into
+ * Stmt:s. This happens when a top-level smt expression is not one of
+ * the statement types (i.e. a macro or a define-fun) -- because the
+ * smt parser deals with Stmt:s on its toplevel.
+ *
+ * At the same time, this is exactly when we want to loudly warn about
+ * custom smt code within the user provided smt files.
+ *
+ * This error message inside the conversion function achieves exactly
+ * what we want -- but clearly a cleaner solution would be welcome
+ */
+impl From<SmtExpr> for SmtStmt {
+    fn from(value: SmtExpr) -> Self {
+        eprintln!(
+            "{:?}",
+            miette::Report::new(CustomSmtWarning {
+                expr: value.clone()
+            })
+        );
 
-impl std::fmt::Display for SmtObject {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SmtObject::Expression(e) => write!(f, "{e}"),
-            _ => todo!(),
-        }
-    }
-}
-
-impl SmtObject {
-    fn as_expression(&self) -> Option<&SmtExpr> {
-        match self {
-            SmtObject::Expression(e) => Some(e),
-            _ => None,
+        SmtStmt {
+            sort: SmtStatementKind::Other,
+            expr: value,
         }
     }
 }
@@ -190,36 +193,19 @@ impl SmtRewrite<'_> {
     }
 }
 
-impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
-    fn handle_atom(&mut self, content: &str) -> Result<SmtObject> {
-        Ok(SmtObject::Expression(SmtExpr::Atom(content.to_string())))
+impl SmtParser<Error> for SmtRewrite<'_> {
+    type Expr = SmtExpr;
+    type Stmt = SmtStmt;
+
+    fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
+        Ok(SmtExpr::Atom(content.to_string()))
     }
 
-    fn handle_list(&mut self, content: Vec<SmtObject>) -> Result<SmtObject> {
-        Ok(SmtObject::Expression(SmtExpr::List(
-            content
-                .iter()
-                .map(|smt| smt.as_expression().unwrap())
-                .cloned()
-                .collect(),
-        )))
+    fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
+        Ok(SmtExpr::List(content))
     }
 
-    fn handle_sexp(&mut self, parsed: SmtObject) -> Result<()> {
-        let parsed = match parsed {
-            SmtObject::Statement(s) => s,
-            SmtObject::Expression(expr) => {
-                eprintln!(
-                    "{:?}",
-                    miette::Report::new(CustomSmtWarning { expr: expr.clone() })
-                );
-                SmtStmt {
-                    expr,
-                    sort: SmtStatementKind::Other,
-                }
-            }
-        };
-
+    fn handle_sexp(&mut self, parsed: SmtStmt) -> Result<()> {
         self.content.push(parsed);
         Ok(())
     }
@@ -227,32 +213,19 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
     fn handle_definefun(
         &mut self,
         funname: &str,
-        args: Vec<SmtObject>,
+        args: Vec<SmtExpr>,
         ty: &str,
-        body: SmtObject,
-    ) -> Result<SmtObject> {
-        let SmtObject::Expression(body) = body else {
-            unreachable!()
-        };
-        let args: Vec<_> = args
-            .iter()
-            .map(|smt| smt.as_expression().unwrap())
-            .cloned()
-            .collect();
-
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
         let expr = ("define-fun", funname, args, ty, body).into();
 
-        Ok(SmtObject::Statement(SmtStmt {
+        Ok(SmtStmt {
             sort: SmtStatementKind::Function,
             expr,
-        }))
+        })
     }
 
-    fn handle_define_game_invariant(&mut self, body: SmtObject) -> Result<SmtObject> {
-        let SmtObject::Expression(body) = body else {
-            unreachable!()
-        };
-
+    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtStmt> {
         if self.game.is_none() {
             return Err(Error::RewriteNeedsGameContext {
                 defn: format!("(define-game-invariant {body})"),
@@ -297,17 +270,13 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
         )
             .into();
 
-        Ok(SmtObject::Statement(SmtStmt {
+        Ok(SmtStmt {
             sort: SmtStatementKind::GameInvariant,
             expr,
-        }))
+        })
     }
 
-    fn handle_define_package_invariant(&mut self, body: SmtObject) -> Result<SmtObject> {
-        let SmtObject::Expression(body) = body else {
-            unreachable!()
-        };
-
+    fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtStmt> {
         if self.game.is_none() || self.package.is_none() {
             return Err(Error::RewriteNeedsPackageContext {
                 defn: format!("(define-package-invariant {body})"),
@@ -351,22 +320,18 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
         )
             .into();
 
-        Ok(SmtObject::Statement(SmtStmt {
+        Ok(SmtStmt {
             sort: SmtStatementKind::PackageInvariant,
             expr,
-        }))
+        })
     }
 
     fn handle_define_state_relation(
         &mut self,
         funname: &str,
-        args: Vec<SmtObject>,
-        body: SmtObject,
-    ) -> Result<SmtObject> {
-        let SmtObject::Expression(body) = body else {
-            unreachable!()
-        };
-
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
         let left_game_inst = self
             .context
             .theorem()
@@ -390,21 +355,19 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
             return Err(Error::IncorrectNumberOfArguments {
                 argument: format!(
                     "({})",
-                    args.iter()
-                        .map(|sexpr| format!("{}", sexpr.as_expression().unwrap()))
-                        .join(" ")
+                    args.iter().map(|sexpr| format!("{sexpr}")).join(" ")
                 ),
                 expected: "2".to_string(),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(left_arg_name) = left_arg.as_expression().unwrap() else {
+        let SmtExpr::Atom(left_arg_name) = left_arg else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{left_arg}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(right_arg_name) = right_arg.as_expression().unwrap() else {
+        let SmtExpr::Atom(right_arg_name) = right_arg else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{right_arg}",),
                 equivalence: self.equivalence_name(),
@@ -453,22 +416,18 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
         )
             .into();
 
-        Ok(SmtObject::Statement(SmtStmt {
+        Ok(SmtStmt {
             sort: SmtStatementKind::StateRelation,
             expr,
-        }))
+        })
     }
 
     fn handle_define_lemma(
         &mut self,
         funname: &str,
-        args: Vec<SmtObject>,
-        body: SmtObject,
-    ) -> Result<SmtObject> {
-        let SmtObject::Expression(body) = body else {
-            unreachable!()
-        };
-
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
         let left_game_inst = self
             .context
             .theorem()
@@ -545,25 +504,25 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(left_old_name) = left_old.as_expression().unwrap() else {
+        let SmtExpr::Atom(left_old_name) = left_old else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{left_old}"),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(right_old_name) = right_old.as_expression().unwrap() else {
+        let SmtExpr::Atom(right_old_name) = right_old else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{right_old}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(left_return_name) = left_return.as_expression().unwrap() else {
+        let SmtExpr::Atom(left_return_name) = left_return else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{left_return}",),
                 equivalence: self.equivalence_name(),
             });
         };
-        let SmtExpr::Atom(right_return_name) = right_return.as_expression().unwrap() else {
+        let SmtExpr::Atom(right_return_name) = right_return else {
             return Err(Error::IncorrectArgument {
                 argument: format!("{right_return}",),
                 equivalence: self.equivalence_name(),
@@ -644,17 +603,13 @@ impl SmtParser<SmtObject, Error> for SmtRewrite<'_> {
             )
                 .into(),
         ];
-        newargs.extend(
-            args.into_iter()
-                .skip(4)
-                .map(|smt| smt.as_expression().unwrap().clone()),
-        );
+        newargs.extend(args.into_iter().skip(4));
         let expr = ("define-fun", funname, newargs, "Bool", bindreturn).into();
 
-        Ok(SmtObject::Statement(SmtStmt {
+        Ok(SmtStmt {
             sort: SmtStatementKind::GeneralRelation,
             expr,
-        }))
+        })
     }
 }
 

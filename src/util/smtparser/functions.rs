@@ -41,7 +41,10 @@ impl FunctionExtractor {
     }
 }
 
-impl SmtParser<Option<SmtExpr>> for FunctionExtractor {
+impl SmtParser for FunctionExtractor {
+    type Expr = Option<SmtExpr>;
+    type Stmt = Option<SmtExpr>;
+
     fn handle_atom(&mut self, content: &str) -> Result<Option<SmtExpr>> {
         Ok(Some(SmtExpr::Atom(content.to_string())))
     }
