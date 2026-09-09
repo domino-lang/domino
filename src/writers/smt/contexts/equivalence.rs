@@ -111,8 +111,6 @@ impl<'a> EquivalenceContext<'a> {
         let return_type = left_octx.oracle_return_type();
 
         Relation {
-            game_inst_name_left: left_gctx.game_inst_name(),
-            game_inst_name_right: right_gctx.game_inst_name(),
             relation_name,
             oracle_name,
             state_datatype_left,
