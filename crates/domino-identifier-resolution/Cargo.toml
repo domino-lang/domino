@@ -6,12 +6,14 @@ readme.workspace = true
 license.workspace = true
 
 [dependencies]
-domino-ast.workspace = true
 miette.workspace = true
 thiserror.workspace = true
+
+domino-ast.workspace = true
 domino-diagnostic.workspace = true
 
 [dev-dependencies]
 pest.workspace = true
-domino-parse-pest.workspace = true
 miette = { workspace = true, features = ["fancy"] }
+
+domino-parse-pest.workspace = true

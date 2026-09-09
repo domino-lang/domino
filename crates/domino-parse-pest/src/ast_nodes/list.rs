@@ -81,7 +81,7 @@ where
                 let mut allocator = <$node>::arena_mut(&mut state.arenas).slice_allocator();
                 for (node, loc) in $nodes {
                     let node_ref = allocator.push(node);
-                    state.tables.locations.insert(node_ref.global_ref_id(), loc);
+                    state.tables.locations.insert(node_ref, loc);
                 }
                 allocator.finish()
             }};
@@ -196,10 +196,7 @@ where
 
                 for (item, item_loc) in items {
                     let item_ref = items_allocator.push(item);
-                    state
-                        .tables
-                        .locations
-                        .insert(item_ref.global_ref_id(), item_loc);
+                    state.tables.locations.insert(item_ref, item_loc);
                 }
                 let items = items_allocator.finish();
 
@@ -207,10 +204,7 @@ where
 
                 for (trivia, trivia_loc) in trivias {
                     let trivia_ref = trivia_allocator.push(trivia);
-                    state
-                        .tables
-                        .locations
-                        .insert(trivia_ref.global_ref_id(), trivia_loc);
+                    state.tables.locations.insert(trivia_ref, trivia_loc);
                 }
 
                 return Self {

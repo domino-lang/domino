@@ -1,16 +1,21 @@
 use domino_ast::{
     arena::{Arena, Ref},
-    ast_nodes::NodeType,
-    source::{SourceFile, SourceLocation},
-    GlobalTable,
+    ast_nodes::{
+        identifier::{Identifier, IdentifierKind},
+        InArena,
+    },
+    source::SourceFile,
+    LocationTable,
 };
 
-pub(crate) fn get_text<'a, T: NodeType>(
-    node: Ref<T>,
-    locations: &GlobalTable<SourceLocation>,
+pub(crate) fn get_text<'a, IK: IdentifierKind>(
+    node: Ref<domino_ast::ast_nodes::identifier::Identifier<IK>>,
+    locations: &LocationTable,
     source_arena: &'a Arena<SourceFile>,
-) -> &'a str {
-    let id = node.global_ref_id();
-    let loc = *locations.get(&id).unwrap();
+) -> &'a str
+where
+    Identifier<IK>: InArena,
+{
+    let loc = locations.get(node);
     source_arena.text(loc)
 }

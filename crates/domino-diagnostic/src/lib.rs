@@ -14,11 +14,7 @@ pub struct Resolver<'a> {
 
 impl<'a> Resolver<'a> {
     pub fn named_source<T: InArena + NodeType>(&self, reference: Ref<T>) -> NamedSource {
-        let loc = self
-            .locations
-            .get(&reference.global_ref_id())
-            .expect("found ast node without source location info");
-
+        let loc = self.locations.get(reference);
         let source_file = self.arenas.source.get(loc.file_id);
 
         NamedSource::new(
@@ -28,11 +24,7 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn span<T: InArena + NodeType>(&self, reference: Ref<T>) -> miette::SourceSpan {
-        let loc = self
-            .locations
-            .get(&reference.global_ref_id())
-            .expect("found ast node without source location info");
-
+        let loc = self.locations.get(reference);
         let start = loc.start as usize;
         let end = loc.end as usize;
 

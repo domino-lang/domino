@@ -80,8 +80,7 @@ pub struct Resolver<'arena> {
     game_infos: HashMap<&'arena str, resolve_game::GameInfo>,
 
     // side tables for theorems
-    theorem_names:
-        PartialDenseTable<identifier::TheoremIdentifier, resolutions::TheoremResolution>,
+    theorem_names: PartialDenseTable<identifier::TheoremIdentifier, resolutions::TheoremResolution>,
     theorem_type_names:
         PartialDenseTable<identifier::TheoremTypeIdentifier, resolutions::TheoremTypeResolution>,
     theorem_type_arg_names: PartialDenseTable<
@@ -154,8 +153,7 @@ pub struct IdentifierResolution<'arena> {
         DenseTable<identifier::PackageInstanceIdentifier, resolutions::PackageInstanceResolution>,
 
     // side tables for theorems
-    pub theorem_names:
-        DenseTable<identifier::TheoremIdentifier, resolutions::TheoremResolution>,
+    pub theorem_names: DenseTable<identifier::TheoremIdentifier, resolutions::TheoremResolution>,
     pub theorem_type_names:
         DenseTable<identifier::TheoremTypeIdentifier, resolutions::TheoremTypeResolution>,
     pub theorem_type_arg_names: DenseTable<

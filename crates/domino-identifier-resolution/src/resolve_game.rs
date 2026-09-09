@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{game, identifier, NodeType},
-    source::SourceLocation,
-    Arenas, GlobalRefId, GlobalTable, LocationTable, PartialDenseTable,
+    ast_nodes::{game, identifier},
+    Arenas, GlobalRefId, LocationTable, PartialDenseTable,
 };
 
 use crate::{
@@ -106,7 +105,7 @@ pub struct GameVisitor<'arena, 'res> {
 
 impl<'arena, 'res> GameVisitor<'arena, 'res> {
     pub fn new(
-        locations: &'arena GlobalTable<SourceLocation>,
+        locations: &'arena LocationTable,
         diagnostics: &'arena mut diag::Diagnostics,
         tables: GameVisitorPartialTables<'arena>,
         info: &'arena mut Option<GameInfo>,
@@ -120,7 +119,9 @@ impl<'arena, 'res> GameVisitor<'arena, 'res> {
             // Safe to assert: declare_package in resolve_package.rs already rejects
             // package names that collide with builtins, so no collision can occur here.
             assert!(
-                scope.declare(name, GameDeclaration::Package(pkg_info)).is_none(),
+                scope
+                    .declare(name, GameDeclaration::Package(pkg_info))
+                    .is_none(),
                 "package `{name}` collides with an existing declaration"
             );
         }
@@ -810,11 +811,11 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             arenas,
             locations: self.locations,
         };
-        let oracle_name = self.get_text(arenas, node);
+        let oracle_name = get_text(node, &self.locations, &arenas.source);
 
         let pkg_inst = arenas.game_inst_block.get(pkg_inst_ref);
-
         let pkg_name = get_text(pkg_inst.instantiated_name, self.locations, &arenas.source);
+
         // SAFETY: The indexing is fine, because we only put a package name into a
         //         PackageInstanceInfo if it exists, so we can assume it is set.
         let pkg = self
@@ -849,7 +850,7 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
             arenas,
             locations: self.locations,
         };
-        let oracle_name = self.get_text(arenas, node);
+        let oracle_name = get_text(node, &self.locations, &arenas.source);
 
         let pkg_inst = arenas.game_inst_block.get(pkg_inst_ref);
 
@@ -918,12 +919,6 @@ impl<'a: 'res, 'res> GameVisitor<'a, 'res> {
         };
 
         self.tables.game_const_value_names.set(ident, resolution);
-    }
-
-    fn get_text<'b, T: NodeType>(&self, arenas: &'b Arenas, node: Ref<T>) -> &'b str {
-        let id = node.global_ref_id();
-        let loc = *self.locations.get(&id).unwrap();
-        arenas.source.text(loc)
     }
 }
 

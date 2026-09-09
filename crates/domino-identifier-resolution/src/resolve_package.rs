@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use domino_ast::{
     arena::Ref,
     ast_nodes::{identifier, oracles, package, statements, types, Visitor},
-    source::SourceLocation,
     walk::Walk,
-    Arenas, GlobalTable, PartialDenseTable,
+    Arenas, LocationTable, PartialDenseTable,
 };
 use domino_diagnostic::Resolver;
 
@@ -93,7 +92,9 @@ impl crate::Declaration for PackageDeclaration {
             PackageDeclaration::BuiltinValue(BuiltinValue::True) => DeclarationType::PureValue,
             PackageDeclaration::BuiltinValue(BuiltinValue::False) => DeclarationType::PureValue,
             PackageDeclaration::BuiltinValue(BuiltinValue::None) => DeclarationType::PureValue,
-            PackageDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => DeclarationType::PureValue,
+            PackageDeclaration::BuiltinValue(BuiltinValue::EmptyTable) => {
+                DeclarationType::PureValue
+            }
             PackageDeclaration::Const(_) => DeclarationType::PureValue,
             PackageDeclaration::State(_) => DeclarationType::Value,
 
@@ -228,7 +229,7 @@ impl PackageInfo {
 
 #[derive(Debug)]
 pub struct PackageVisitor<'a> {
-    locations: &'a GlobalTable<SourceLocation>,
+    locations: &'a LocationTable,
 
     diagnostics: &'a mut diag::Diagnostics,
     info: &'a mut Option<PackageInfo>,
@@ -246,7 +247,7 @@ pub struct PackageVisitor<'a> {
 
 impl<'a> PackageVisitor<'a> {
     pub fn new(
-        locations: &'a GlobalTable<SourceLocation>,
+        locations: &'a LocationTable,
         diagnostics: &'a mut diag::Diagnostics,
         tables: PartialPackagedIdentifierResolution<'a>,
         info: &'a mut Option<PackageInfo>,
@@ -484,7 +485,12 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 }
 
 impl<'a> PackageVisitor<'a> {
-    fn declare_package(&mut self, arenas: &Arenas, node: Ref<package::Package>, package: package::Package) {
+    fn declare_package(
+        &mut self,
+        arenas: &Arenas,
+        node: Ref<package::Package>,
+        package: package::Package,
+    ) {
         let name = get_text(package.name, self.locations, &arenas.source);
 
         *self.info = Some(PackageInfo::new(node, package.name));

@@ -11,8 +11,11 @@ pub mod statements;
 pub mod theorem;
 pub mod types;
 
+use std::borrow::Borrow;
+
 use crate::{
     arena::{Ref, Slice},
+    ast_nodes::list::List,
     source::SourceLocation,
     State,
 };
@@ -25,6 +28,11 @@ pub trait NodeType: Sized {
 pub trait InArena: Sized {
     fn arena(arenas: &Arenas) -> &crate::arena::Arena<Self>;
     fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
+
+    fn growing_table<T>(growing_tables: &GrowingTables<T>) -> &crate::state::GrowingTable<Self, T>;
+    fn growing_table_mut<T>(
+        growing_tables: &mut GrowingTables<T>,
+    ) -> &mut crate::state::GrowingTable<Self, T>;
 }
 
 impl<T: NodeType> Ref<T> {
@@ -38,9 +46,26 @@ impl<T: NodeType + InArena> Ref<T> {
         let arena = T::arena_mut(&mut state.arenas);
         let id = arena.alloc(node);
 
-        state.tables.locations.insert(id.global_ref_id(), loc);
+        state.tables.locations.insert(id, loc);
 
         id
+    }
+}
+
+impl Arenas {
+    pub fn get<T: InArena, R: Borrow<Ref<T>>>(&self, r: R) -> &T {
+        T::arena(self).get(*r.borrow())
+    }
+
+    pub fn get_list_items<T: InArena, Delim>(&self, r: Ref<List<T, Delim>>) -> &[T]
+    where
+        List<T, Delim>: InArena,
+    {
+        let list_arena = <List<T, Delim>>::arena(self);
+        let item_arena = T::arena(self);
+        let list = list_arena.get(*r.borrow());
+
+        item_arena.get_slice(list.items)
     }
 }
 
@@ -54,21 +79,21 @@ impl GlobalRefId {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct File<T> {
     pub leading_trivia: Ref<Trivia>,
     pub main: Ref<T>,
     pub trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Trivium {
     BlockComment,
     LineComment,
     NewLine,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Trivia {
     pub trivia: Slice<Trivium>,
 }
@@ -88,6 +113,14 @@ macro_rules! define_arenas {
 
                 fn arena_mut(arenas: &mut $crate::Arenas) -> &mut $crate::arena::Arena<Self> {
                     &mut arenas.$name
+                }
+
+                fn growing_table<T>(growing_tables: &$crate::ast_nodes::GrowingTables<T>) -> &$crate::state::GrowingTable<$ty, T> {
+                    &growing_tables.$name
+                }
+
+                fn growing_table_mut<T>(growing_tables: &mut $crate::ast_nodes::GrowingTables<T>) -> &mut $crate::state::GrowingTable<$ty, T> {
+                    &mut growing_tables.$name
                 }
             }
         )*
@@ -132,6 +165,51 @@ macro_rules! define_visitor_trait {
       }
     )*
   }
+}
+
+macro_rules! define_dense_tables {
+    ($($field_name:ident : $node_type:ty),* $(,)?) => {
+        #[derive(Debug, Clone)]
+        pub struct DenseTables<T> {
+            $(pub $field_name: $crate::state::DenseTable<$node_type, T>),*
+        }
+
+        #[derive( Debug, Clone)]
+        pub struct GrowingTables<T> {
+            $(pub $field_name: $crate::state::GrowingTable<$node_type, T>),*
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct PartialDenseTables<T> {
+            $(pub $field_name: $crate::state::PartialDenseTable<$node_type, T>),*
+        }
+
+        impl<T> PartialDenseTables<T> {
+            pub fn new(arenas:&Arenas) -> Self {
+                Self {
+                    $($field_name: $crate::state::PartialDenseTable::with_entries(arenas.$field_name.len())),*
+                }
+            }
+}
+
+        impl<T> Default for GrowingTables<T> {
+            fn default() -> Self {
+                Self {
+                    $($field_name: Default::default()),*
+                }
+            }
+        }
+    }
+}
+
+impl<T> GrowingTables<T> {
+    pub fn insert<K: InArena>(&mut self, r: Ref<K>, v: T) {
+        K::growing_table_mut(self).push_next(r, v);
+    }
+
+    pub fn get<'a, K: InArena + 'a>(&'a self, r: Ref<K>) -> &'a T {
+        K::growing_table(self).get(r)
+    }
 }
 
 macro_rules! define_node_type_enum {
@@ -197,6 +275,12 @@ macro_rules! define_node_types {
 
         define_visitor_trait! {
           $( fn $field_name( ... , node: $node_type) );*
+        }
+
+        define_dense_tables! {
+            source: crate::source::SourceFile,
+
+            $($field_name: $node_type),*
         }
 
         impl_copy_for_node! {

@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use domino_ast::{
     arena::Ref,
-    ast_nodes::{identifier, theorem, NodeType},
-    source::SourceLocation,
-    Arenas, GlobalRefId, GlobalTable, LocationTable, PartialDenseTable,
+    ast_nodes::{identifier, theorem},
+    Arenas, GlobalRefId, LocationTable, PartialDenseTable,
 };
 
 use crate::{
@@ -119,7 +118,7 @@ pub struct TheoremVisitor<'arena, 'res> {
 
 impl<'arena, 'res> TheoremVisitor<'arena, 'res> {
     pub fn new(
-        locations: &'arena GlobalTable<SourceLocation>,
+        locations: &'arena LocationTable,
         diagnostics: &'arena mut diag::Diagnostics,
         tables: TheoremVisitorPartialTables<'arena>,
         info: &'arena mut Option<TheoremInfo>,
@@ -134,7 +133,9 @@ impl<'arena, 'res> TheoremVisitor<'arena, 'res> {
             // Safe to assert: declare_game in resolve_game.rs already rejects
             // game names that collide with builtins, so no collision can occur here.
             assert!(
-                scope.declare(name, TheoremDeclaration::Game(game_info)).is_none(),
+                scope
+                    .declare(name, TheoremDeclaration::Game(game_info))
+                    .is_none(),
                 "game `{name}` collides with an existing declaration"
             );
         }
@@ -1117,7 +1118,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
 
         let inst = arenas.thm_inst_block.get(game_inst_ref);
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
-        let oracle_name = self.get_text(arenas, node);
+        let oracle_name = get_text(node, self.locations, &arenas.source);
 
         let Some(game_info) = self.lookup_game_info(game_name) else {
             crate::fail_resolution!(
@@ -1169,7 +1170,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
 
         let inst = arenas.thm_inst_block.get(game_inst_ref);
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
-        let oracle_name = self.get_text(arenas, node);
+        let oracle_name = get_text(node, self.locations, &arenas.source);
 
         let Some(game_info) = self.lookup_game_info(game_name) else {
             crate::fail_resolution!(
@@ -1204,12 +1205,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             UndefinedIdentifier::new(dx, node),
             oracle_composition_def_names
         );
-    }
-
-    fn get_text<'b, T: NodeType>(&self, arenas: &'b Arenas, node: Ref<T>) -> &'b str {
-        let id = node.global_ref_id();
-        let loc = *self.locations.get(&id).unwrap();
-        arenas.source.text(loc)
     }
 }
 
