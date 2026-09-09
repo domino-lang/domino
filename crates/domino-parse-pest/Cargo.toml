@@ -7,5 +7,7 @@ license.workspace = true
 
 [dependencies]
 domino-ast.workspace = true
+domino-collections.workspace = true
+
 pest.workspace = true
 pest_derive.workspace = true

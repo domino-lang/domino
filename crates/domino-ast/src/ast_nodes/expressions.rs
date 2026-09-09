@@ -16,14 +16,13 @@
 //!  -  We define resolution types for pure expressios, which then only have the variants legal in
 //!     pure contexts, and have the regular expression subtype as data.
 
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        identifier::{Identifier, OracleImportIdentifier, ValueIdentifierKind},
-        list::{Comma, List},
-        types::{Type, TypeKind},
-        Trivia,
-    },
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    identifier::{Identifier, OracleImportIdentifier, ValueIdentifierKind},
+    list::{Comma, List},
+    types::{Type, TypeKind},
+    Trivia,
 };
 
 #[derive(Debug, PartialEq, Clone, Copy)]

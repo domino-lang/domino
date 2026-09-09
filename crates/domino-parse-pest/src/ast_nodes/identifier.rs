@@ -1,5 +1,5 @@
-use domino_ast::ast_nodes::{
-    identifier::{Identifier, IdentifierKind},
+use domino_ast::{
+    ast_nodes::identifier::{Identifier, IdentifierKind},
     InArena, NodeType,
 };
 

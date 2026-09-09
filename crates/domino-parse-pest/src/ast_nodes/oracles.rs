@@ -1,9 +1,12 @@
-use domino_ast::ast_nodes::{
-    identifier::{Identifier, OracleIdentifierKind},
-    oracles::*,
-    statements::StatementList,
-    types::Type,
-    InArena, NodeType, Trivia,
+use domino_ast::{
+    ast_nodes::{
+        identifier::{Identifier, OracleIdentifierKind},
+        oracles::*,
+        statements::StatementList,
+        types::Type,
+        Trivia,
+    },
+    InArena, NodeType,
 };
 
 use crate::{ast_nodes::expressions::impl_expr, ListItem, Parsable, Rule};

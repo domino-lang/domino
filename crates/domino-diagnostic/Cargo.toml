@@ -8,3 +8,4 @@ license.workspace = true
 [dependencies]
 miette.workspace = true
 domino-ast.workspace = true
+domino-collections.workspace = true

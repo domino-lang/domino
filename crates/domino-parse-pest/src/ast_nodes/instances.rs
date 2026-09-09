@@ -5,10 +5,10 @@ use domino_ast::{
         instances::*,
         list::Colon,
         types::{Type, TypeKind},
-        InArena, NodeType, Trivia,
+        Trivia,
     },
     source::FileId,
-    State,
+    InArena, NodeType, State,
 };
 
 use crate::{Pair, Parsable};

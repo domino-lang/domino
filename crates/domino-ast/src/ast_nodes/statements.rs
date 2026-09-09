@@ -1,11 +1,10 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        identifier::OracleValueIdentifier,
-        list::{Comma, List, ListNoDelim},
-        oracles::OracleExpression,
-        Trivia,
-    },
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    identifier::OracleValueIdentifier,
+    list::{Comma, List, ListNoDelim},
+    oracles::OracleExpression,
+    Trivia,
 };
 
 #[derive(Debug)]

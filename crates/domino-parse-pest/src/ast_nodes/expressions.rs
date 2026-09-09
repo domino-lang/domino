@@ -1,14 +1,14 @@
 use domino_ast::{
-    arena::Ref,
     ast_nodes::{
         expressions::{self, *},
         identifier::{Identifier, OracleImportIdentifier},
         list::{Comma, List},
-        types, InArena, NodeType, NodeTypeRef as _, Trivia,
+        types, Trivia,
     },
     source::{FileId, SourceLocation},
-    State,
+    InArena, NodeType, NodeTypeRef as _, State,
 };
+use domino_collections::arena::Ref;
 
 use crate::{parse_ref, Parsable, Rule};
 

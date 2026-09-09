@@ -380,6 +380,7 @@ name = "domino-diagnostic"
 version = "0.1.0"
 dependencies = [
  "domino-ast",
+ "domino-collections",
  "miette",
 ]
 
@@ -401,6 +402,7 @@ name = "domino-parse-pest"
 version = "0.1.0"
 dependencies = [
  "domino-ast",
+ "domino-collections",
  "pest",
  "pest_derive",
 ]

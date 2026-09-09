@@ -3,14 +3,13 @@
 use miette::SourceSpan;
 
 use domino_ast::{
-    arena::{Arena, Ref},
     ast_nodes::{
         game,
         identifier::{self, Identifier as AstIdentifier, *},
-        InArena, NodeType, NodeTypeRef as _,
     },
-    GlobalRefId,
+    GlobalRefId, InArena, NodeType, NodeTypeRef as _,
 };
+use domino_collections::arena::{Arena, Ref};
 use domino_diagnostic::{NamedSource, Resolver};
 
 use crate::DeclarationType;

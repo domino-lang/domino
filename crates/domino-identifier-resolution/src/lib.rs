@@ -11,11 +11,14 @@ pub mod resolutions;
 use std::collections::HashMap;
 
 use domino_ast::{
-    arena::{Arena, Ref},
     ast_nodes::{game, identifier, package, theorem},
     Arenas, LocationTable, Visitor as _,
 };
-use domino_collections::{dense_table::DenseTable, partial_dense_table::PartialDenseTable};
+use domino_collections::{
+    arena::{Arena, Ref},
+    dense_table::DenseTable,
+    partial_dense_table::PartialDenseTable,
+};
 
 use scope::{Declaration, DeclarationType};
 
@@ -521,7 +524,7 @@ macro_rules! print_missing {
             locations: $self.locations,
         };
 
-        fn print_missing<T: domino_ast::ast_nodes::InArena + domino_ast::ast_nodes::NodeType>(dx: domino_diagnostic::Resolver,  name: &'static str, mut missing: impl Iterator<Item = Ref<T>>) {
+        fn print_missing<T: domino_ast::InArena + domino_ast::NodeType>(dx: domino_diagnostic::Resolver,  name: &'static str, mut missing: impl Iterator<Item = Ref<T>>) {
 
             if let Some(first) = missing.next() {
                 let mut errs = vec![diag::MissingResolution::new(dx, name, first)];

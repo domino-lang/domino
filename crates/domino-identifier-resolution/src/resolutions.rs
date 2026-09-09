@@ -1,7 +1,5 @@
-use domino_ast::{
-    arena::Ref,
-    ast_nodes::{game, identifier, oracles, package, statements, theorem},
-};
+use domino_ast::ast_nodes::{game, identifier, oracles, package, statements, theorem};
+use domino_collections::arena::Ref;
 
 use crate::{diag, BuiltinType, BuiltinValue};
 

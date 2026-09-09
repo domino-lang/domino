@@ -1,14 +1,13 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        expressions::{self, ExpressionKind},
-        game,
-        identifier::{self, Identifier, IdentifierKind, TypeIdentifierKind, ValueIdentifierKind},
-        list::{Comma, List, ListNoDelim},
-        theorem,
-        types::{self, Type},
-        Trivia,
-    },
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    expressions::{self, ExpressionKind},
+    game,
+    identifier::{self, Identifier, IdentifierKind, TypeIdentifierKind, ValueIdentifierKind},
+    list::{Comma, List, ListNoDelim},
+    theorem,
+    types::{self, Type},
+    Trivia,
 };
 
 /// This is implemented on the Kind that contains the assignments.

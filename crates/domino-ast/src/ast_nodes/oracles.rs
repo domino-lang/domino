@@ -1,16 +1,15 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        expressions,
-        identifier::{
-            Identifier, OracleDefinitionIdentifierKind, OracleIdentifierKind,
-            OracleValueIdentifierKind, ValueIdentifierKind,
-        },
-        list::{Comma, List},
-        statements::StatementList,
-        types::{self, Type},
-        Trivia,
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    expressions,
+    identifier::{
+        Identifier, OracleDefinitionIdentifierKind, OracleIdentifierKind,
+        OracleValueIdentifierKind, ValueIdentifierKind,
     },
+    list::{Comma, List},
+    statements::StatementList,
+    types::{self, Type},
+    Trivia,
 };
 
 #[derive(Debug, Clone, Copy)]

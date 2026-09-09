@@ -1,7 +1,6 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{Slice, Trivia},
-};
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{Slice, Trivia};
 
 /// Denotes that the list is delimited with a comma
 #[derive(Debug, Default)]

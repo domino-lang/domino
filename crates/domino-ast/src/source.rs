@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::arena::Arena;
+use domino_collections::arena::{Arena, Ref};
 
 /// Holds a source file contents and file path.
 ///
@@ -12,7 +12,7 @@ pub struct SourceFile {
 }
 
 /// We use the arena handle of a source file as the file identifier.
-pub type FileId = super::arena::Ref<SourceFile>;
+pub type FileId = Ref<SourceFile>;
 
 /// A pointer to a specific section of the source file.
 ///

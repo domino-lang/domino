@@ -11,84 +11,9 @@ pub mod statements;
 pub mod theorem;
 pub mod types;
 
-use std::borrow::Borrow;
+use domino_collections::arena::{Ref, Slice};
 
-use domino_collections::partial_dense_table::PartialDenseTable;
-
-use crate::{
-    arena::{Ref, Slice},
-    ast_nodes::list::List,
-    source::SourceLocation,
-    State,
-};
-
-pub trait NodeType: Sized {
-    const NODE_TYPE: NodeTypeEnum;
-    fn global_ref_id(r: Ref<Self>) -> GlobalRefId;
-}
-
-pub trait NodeTypeRef {
-    type Type: NodeType + InArena;
-    fn from_parsed(state: &mut State, loc: SourceLocation, node: Self::Type) -> Self;
-    fn global_ref_id(self) -> GlobalRefId;
-}
-
-impl<T: NodeType + InArena> NodeTypeRef for Ref<T> {
-    type Type = T;
-    fn from_parsed(state: &mut State, loc: SourceLocation, node: T) -> Self {
-        let arena = T::arena_mut(&mut state.arenas);
-        let id = arena.alloc(node);
-
-        state.tables.locations.insert(id, loc);
-
-        id
-    }
-
-    fn global_ref_id(self) -> GlobalRefId {
-        Self::Type::global_ref_id(self)
-    }
-}
-
-pub trait InArena: Sized {
-    fn arena(arenas: &Arenas) -> &crate::arena::Arena<Self>;
-    fn arena_mut(arenas: &mut Arenas) -> &mut crate::arena::Arena<Self>;
-
-    fn growing_table<T>(growing_tables: &GrowingTables<T>) -> &crate::state::GrowingTable<Self, T>;
-    fn growing_table_mut<T>(
-        growing_tables: &mut GrowingTables<T>,
-    ) -> &mut crate::state::GrowingTable<Self, T>;
-}
-
-impl Arenas {
-    pub fn get<T: InArena, R: Borrow<Ref<T>>>(&self, r: R) -> &T {
-        T::arena(self).get(*r.borrow())
-    }
-
-    pub fn get_list_items<T: InArena, Delim>(&self, r: Ref<List<T, Delim>>) -> &[T]
-    where
-        List<T, Delim>: InArena,
-    {
-        let list_arena = <List<T, Delim>>::arena(self);
-        let item_arena = T::arena(self);
-        let list = list_arena.get(*r.borrow());
-
-        item_arena.get_slice(list.items)
-    }
-
-    pub fn new_partial_dense_table<K: InArena, V>(&self) -> PartialDenseTable<K, V> {
-        PartialDenseTable::with_entries(K::arena(self).len())
-    }
-}
-
-pub trait RefHandler<O> {
-    fn handle<T: NodeType>(self, r: Ref<T>) -> O;
-}
-
-impl GlobalRefId {
-    pub fn with<O, H: RefHandler<O>>(self, h: H) -> O {
-        with_global_ref_id!(self, |r| { h.handle(r) })
-    }
-}
+use crate::{InArena, NodeType, Visit};
 
 #[derive(Debug)]
 pub struct File<T> {
@@ -113,25 +38,33 @@ macro_rules! define_arenas {
     ($($name:ident: $ty:path),* $(,)?) => {
         #[derive(Default, Debug)]
         pub struct Arenas {
-            $(pub $name : crate::arena::Arena<$ty>),*
+            $(pub $name : ::domino_collections::arena::Arena<$ty>),*
         }
 
         $(
             impl crate::ast_nodes::InArena for $ty {
-                fn arena(arenas: &$crate::Arenas) -> &$crate::arena::Arena<Self> {
+                fn arena(arenas: &$crate::Arenas) -> &::domino_collections::arena::Arena<Self> {
                     &arenas.$name
                 }
 
-                fn arena_mut(arenas: &mut $crate::Arenas) -> &mut $crate::arena::Arena<Self> {
+                fn arena_mut(arenas: &mut $crate::Arenas) -> &mut ::domino_collections::arena::Arena<Self> {
                     &mut arenas.$name
                 }
 
-                fn growing_table<T>(growing_tables: &$crate::ast_nodes::GrowingTables<T>) -> &$crate::state::GrowingTable<$ty, T> {
+                fn growing_table<T>(growing_tables: &$crate::ast_nodes::GrowingTables<T>) -> &::domino_collections::growing_table::GrowingTable<$ty, T> {
                     &growing_tables.$name
                 }
 
-                fn growing_table_mut<T>(growing_tables: &mut $crate::ast_nodes::GrowingTables<T>) -> &mut $crate::state::GrowingTable<$ty, T> {
+                fn growing_table_mut<T>(growing_tables: &mut $crate::ast_nodes::GrowingTables<T>) -> &mut ::domino_collections::growing_table::GrowingTable<$ty, T> {
                     &mut growing_tables.$name
+                }
+
+                fn dense_table<T>(dense_tables: &$crate::ast_nodes::DenseTables<T>) -> &::domino_collections::dense_table::DenseTable<$ty, T> {
+                    &dense_tables.$name
+                }
+
+                fn dense_table_mut<T>(dense_tables: &mut $crate::ast_nodes::DenseTables<T>) -> &mut ::domino_collections::dense_table::DenseTable<$ty, T> {
+                    &mut dense_tables.$name
                 }
             }
         )*
@@ -149,19 +82,11 @@ macro_rules! define_visitor_trait {
         fn $fn_name(
             &mut self,
             arenas: &$crate::Arenas,
-            node: $crate::arena::Ref<$node_type>
+            node: ::domino_collections::arena::Ref<$node_type>
         ) {
             $crate::walk::walk(self, arenas, node)
         }
       )*
-    }
-
-    pub trait Visit: Sized {
-      fn visit<V: Visitor + ?Sized>(
-        visitor: &mut V,
-        arenas: &$crate::Arenas,
-        node: $crate::arena::Ref<Self>
-      );
     }
 
     $(
@@ -169,7 +94,7 @@ macro_rules! define_visitor_trait {
         fn visit<V: Visitor + ?Sized>(
             visitor: &mut V,
             arenas: &$crate::Arenas,
-            node: $crate::arena::Ref<Self>
+            node: ::domino_collections::arena::Ref<Self>
         ){
             visitor.$fn_name(arenas, node)
         }
@@ -187,7 +112,7 @@ macro_rules! define_dense_tables {
 
         #[derive( Debug, Clone)]
         pub struct GrowingTables<T> {
-            $(pub $field_name: $crate::state::GrowingTable<$node_type, T>),*
+            $(pub $field_name: ::domino_collections::growing_table::GrowingTable<$node_type, T>),*
         }
 
         #[derive(Debug, Clone)]
@@ -210,16 +135,6 @@ macro_rules! define_dense_tables {
                 }
             }
         }
-    }
-}
-
-impl<T> GrowingTables<T> {
-    pub fn insert<K: InArena>(&mut self, r: Ref<K>, v: T) {
-        K::growing_table_mut(self).push_next(r, v);
-    }
-
-    pub fn get<'a, K: InArena + 'a>(&'a self, r: Ref<K>) -> &'a T {
-        K::growing_table(self).get(r)
     }
 }
 
@@ -546,5 +461,3 @@ define_node_types! {
     TheoremItemList { thm_item_list: theorem::TheoremItemList }
     Theorem { thm: theorem::Theorem }
 }
-
-use with_global_ref_id;

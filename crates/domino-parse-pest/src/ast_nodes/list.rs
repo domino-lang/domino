@@ -1,12 +1,13 @@
 use crate::{ListItem, Parsable, Rule};
 use domino_ast::{
-    arena::Ref,
     ast_nodes::{
         list::{Colon, Comma, List, ListNoDelim, Semicolon},
-        InArena, NodeType, NodeTypeRef as _, Trivia,
+        Trivia,
     },
     source::SourceLocation,
+    InArena, NodeType, NodeTypeRef as _,
 };
+use domino_collections::arena::Ref;
 
 trait Delimiter: Parsable {}
 
@@ -81,7 +82,7 @@ where
                 let mut allocator = <$node>::arena_mut(&mut state.arenas).slice_allocator();
                 for (node, loc) in $nodes {
                     let node_ref = allocator.push(node);
-                    state.tables.locations.insert(node_ref, loc);
+                    state.tables.locations.push_next(node_ref, loc);
                 }
                 allocator.finish()
             }};
@@ -196,7 +197,7 @@ where
 
                 for (item, item_loc) in items {
                     let item_ref = items_allocator.push(item);
-                    state.tables.locations.insert(item_ref, item_loc);
+                    state.tables.locations.push_next(item_ref, item_loc);
                 }
                 let items = items_allocator.finish();
 
@@ -204,7 +205,7 @@ where
 
                 for (trivia, trivia_loc) in trivias {
                     let trivia_ref = trivia_allocator.push(trivia);
-                    state.tables.locations.insert(trivia_ref, trivia_loc);
+                    state.tables.locations.push_next(trivia_ref, trivia_loc);
                 }
 
                 return Self {

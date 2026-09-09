@@ -1,8 +1,6 @@
-use crate::{
-    arena::{Ref, Slice},
-    ast_nodes::{InArena, Visit},
-    Arenas, Visitor,
-};
+use domino_collections::arena::{Ref, Slice};
+
+use crate::{Arenas, InArena, Visit, Visitor};
 
 pub trait Walk: Sized {
     fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas);

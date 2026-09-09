@@ -1,12 +1,9 @@
 use domino_ast::{
-    arena::{Arena, Ref},
-    ast_nodes::{
-        identifier::{Identifier, IdentifierKind},
-        InArena,
-    },
+    ast_nodes::identifier::{Identifier, IdentifierKind},
     source::SourceFile,
-    LocationTable,
+    InArena, LocationTable,
 };
+use domino_collections::arena::{Arena, Ref};
 
 pub(crate) fn get_text<'a, IK: IdentifierKind>(
     node: Ref<domino_ast::ast_nodes::identifier::Identifier<IK>>,

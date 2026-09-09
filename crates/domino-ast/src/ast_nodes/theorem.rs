@@ -1,17 +1,16 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        common, expressions,
-        identifier::{
-            AssumptionIdentifier, GameConstValueIdentifierKind, GameInstanceIdentifier,
-            GameInstanceIdentifierKind, GameTypeIdentifierKind, LemmaIdentifier,
-            OracleCompositionIdentifier, PackageInstanceIdentifier,
-            TheoremConstValueIdentifierKind, TheoremIdentifier,
-        },
-        instances,
-        list::{Comma, List, ListNoDelim},
-        params, types, Trivia,
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    common, expressions,
+    identifier::{
+        AssumptionIdentifier, GameConstValueIdentifierKind, GameInstanceIdentifier,
+        GameInstanceIdentifierKind, GameTypeIdentifierKind, LemmaIdentifier,
+        OracleCompositionIdentifier, PackageInstanceIdentifier, TheoremConstValueIdentifierKind,
+        TheoremIdentifier,
     },
+    instances,
+    list::{Comma, List, ListNoDelim},
+    params, types, Trivia,
 };
 
 #[derive(Debug, Clone, Copy)]

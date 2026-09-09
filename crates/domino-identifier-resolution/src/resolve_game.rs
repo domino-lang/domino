@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use domino_ast::{
-    arena::Ref,
-    ast_nodes::{game, identifier, NodeTypeRef as _},
-    Arenas, GlobalRefId, LocationTable,
+    ast_nodes::{game, identifier},
+    Arenas, GlobalRefId, LocationTable, NodeTypeRef as _,
 };
-use domino_collections::partial_dense_table::PartialDenseTable;
+use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
 
 use crate::{
     diag::{self, UndefinedIdentifier},
@@ -144,7 +143,7 @@ impl<'arena, 'res> GameVisitor<'arena, 'res> {
 }
 
 impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
-    fn game(&mut self, arenas: &domino_ast::Arenas, node: domino_ast::arena::Ref<game::Game>) {
+    fn game(&mut self, arenas: &domino_ast::Arenas, node: Ref<game::Game>) {
         let game = arenas.game.get(node);
 
         self.declare_game(arenas, node);
@@ -171,7 +170,7 @@ impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game_type_decl_list(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<game::GameTypeDeclList>,
+        node: Ref<game::GameTypeDeclList>,
     ) {
         arenas
             .game_type_decl_list
@@ -194,7 +193,7 @@ impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game_type_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::GameTypeIdentifier>,
+        node: Ref<identifier::GameTypeIdentifier>,
     ) {
         self.resolve_type(arenas, node);
     }
@@ -202,7 +201,7 @@ impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game_type_arg_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::GameTypeArgumentIdentifier>,
+        node: Ref<identifier::GameTypeArgumentIdentifier>,
     ) {
         self.resolve_type_arg(arenas, node);
     }
@@ -250,7 +249,7 @@ impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game_inst_type_item(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<game::InstanceTypeAssignmentItem>,
+        node: Ref<game::InstanceTypeAssignmentItem>,
     ) {
         let item = arenas.game_inst_type_item.get(node);
         self.resolve_pkg_type_param(arenas, item.ident);
@@ -260,7 +259,7 @@ impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
     fn game_const_value_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::GameConstValueIdentifier>,
+        node: Ref<identifier::GameConstValueIdentifier>,
     ) {
         self.resolve_value_ident(arenas, node);
     }
@@ -351,12 +350,7 @@ impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
 
     // ignore trivia
     #[inline]
-    fn trivia(
-        &mut self,
-        _arenas: &domino_ast::Arenas,
-        _node: domino_ast::arena::Ref<domino_ast::ast_nodes::Trivia>,
-    ) {
-    }
+    fn trivia(&mut self, _arenas: &domino_ast::Arenas, _node: Ref<domino_ast::ast_nodes::Trivia>) {}
 }
 
 impl<'a: 'res, 'res> GameVisitor<'a, 'res> {

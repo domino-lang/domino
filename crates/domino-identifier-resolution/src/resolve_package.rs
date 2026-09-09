@@ -1,12 +1,11 @@
 use std::collections::HashMap;
 
 use domino_ast::{
-    arena::Ref,
-    ast_nodes::{identifier, oracles, package, statements, types, NodeTypeRef as _, Visitor},
+    ast_nodes::{identifier, oracles, package, statements, types, Visitor},
     walk::Walk,
-    Arenas, LocationTable,
+    Arenas, LocationTable, NodeTypeRef as _,
 };
-use domino_collections::partial_dense_table::PartialDenseTable;
+use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
 use domino_diagnostic::Resolver;
 
 use crate::{
@@ -343,7 +342,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn pkg_type_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::PackageTypeIdentifier>,
+        node: Ref<identifier::PackageTypeIdentifier>,
     ) {
         self.resolve_type_ident(arenas, node)
     }
@@ -351,7 +350,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn pkg_type_arg_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::PackageTypeArgumentIdentifier>,
+        node: Ref<identifier::PackageTypeArgumentIdentifier>,
     ) {
         self.resolve_type_arg_ident(arenas, node);
     }
@@ -385,7 +384,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn pkg_const_value_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::PackageConstValueIdentifier>,
+        node: Ref<identifier::PackageConstValueIdentifier>,
     ) {
         self.resolve_pkg_const_value_ident(arenas, node);
     }
@@ -393,9 +392,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn oracle_import_sig(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<
-            oracles::OracleSignature<identifier::OracleImportIdentifierKind>,
-        >,
+        node: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
     ) {
         self.scope.enter();
         let sig = *arenas.oracle_import_sig.get(node);
@@ -418,7 +415,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn oracle_value_arg_decl(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<oracles::OracleValueArgDecl>,
+        node: Ref<oracles::OracleValueArgDecl>,
     ) {
         let arg = arenas.oracle_value_arg_decl.get(node);
 
@@ -456,7 +453,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
     fn oracle_value_ident(
         &mut self,
         arenas: &domino_ast::Arenas,
-        node: domino_ast::arena::Ref<identifier::OracleValueIdentifier>,
+        node: Ref<identifier::OracleValueIdentifier>,
     ) {
         self.resolve_oracle_value_ident(arenas, node);
     }
@@ -477,12 +474,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     // ignore trivia
     #[inline]
-    fn trivia(
-        &mut self,
-        _arenas: &domino_ast::Arenas,
-        _node: domino_ast::arena::Ref<domino_ast::ast_nodes::Trivia>,
-    ) {
-    }
+    fn trivia(&mut self, _arenas: &domino_ast::Arenas, _node: Ref<domino_ast::ast_nodes::Trivia>) {}
 }
 
 impl<'a> PackageVisitor<'a> {

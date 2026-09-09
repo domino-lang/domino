@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 
 use domino_ast::{
-    arena::Ref,
-    ast_nodes::{identifier, theorem, NodeTypeRef as _},
-    Arenas, GlobalRefId, LocationTable,
+    ast_nodes::{identifier, theorem},
+    Arenas, GlobalRefId, LocationTable, NodeTypeRef as _,
 };
-use domino_collections::partial_dense_table::PartialDenseTable;
+use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
 
 use crate::{
     diag::{self, UndefinedIdentifier},

@@ -1,8 +1,5 @@
-use domino_ast::{
-    arena::Ref,
-    ast_nodes::{InArena, NodeType},
-    Arenas, LocationTable,
-};
+use domino_ast::{Arenas, InArena, LocationTable, NodeType};
+use domino_collections::arena::Ref;
 
 pub type NamedSource = miette::NamedSource<String>;
 

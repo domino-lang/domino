@@ -1,11 +1,10 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        expressions, game,
-        identifier::{self, Identifier},
-        list::{Comma, List},
-        package, theorem, Trivia,
-    },
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    expressions, game,
+    identifier::{self, Identifier},
+    list::{Comma, List},
+    package, theorem, Trivia,
 };
 
 pub trait TypeKind {

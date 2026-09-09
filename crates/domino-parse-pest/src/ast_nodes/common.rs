@@ -1,7 +1,10 @@
-use domino_ast::ast_nodes::{
-    common::{self, ValueDecl},
-    expressions::{self, ExpressionKind},
-    identifier, types, InArena, NodeType, Trivia,
+use domino_ast::{
+    ast_nodes::{
+        common::{self, ValueDecl},
+        expressions::{self, ExpressionKind},
+        identifier, types, Trivia,
+    },
+    InArena, NodeType,
 };
 
 use crate::{ListItem, Parsable, Rule};

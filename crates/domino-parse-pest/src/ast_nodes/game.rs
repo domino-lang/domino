@@ -316,7 +316,7 @@ impl Parsable for Game {
 #[allow(dead_code)]
 mod static_checks {
     use super::*;
-    use domino_ast::ast_nodes::{InArena, NodeType};
+    use domino_ast::{InArena, NodeType};
 
     fn impls_parsable<Node: Parsable>() {}
     fn impls_nodetype<Node: NodeType>() {}

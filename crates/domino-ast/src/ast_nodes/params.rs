@@ -1,11 +1,10 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        common::{ConstDeclList, TypeDeclList},
-        expressions,
-        identifier::IdentifierKind,
-        Trivia,
-    },
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    common::{ConstDeclList, TypeDeclList},
+    expressions,
+    identifier::IdentifierKind,
+    Trivia,
 };
 
 #[derive(Debug)]

@@ -4,10 +4,10 @@ use domino_ast::{
         identifier::{self, Identifier},
         list::{Comma, List},
         types::*,
-        InArena, NodeType, Trivia,
+        Trivia,
     },
     source::FileId,
-    State,
+    InArena, NodeType, State,
 };
 
 use crate::{ListItem, Parsable, Rule};

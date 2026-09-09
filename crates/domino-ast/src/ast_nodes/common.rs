@@ -1,12 +1,11 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        expressions::ExpressionKind,
-        identifier::{Identifier, TypeIdentifierKind},
-        list::{Comma, List},
-        types::Type,
-        Trivia,
-    },
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    expressions::ExpressionKind,
+    identifier::{Identifier, TypeIdentifierKind},
+    list::{Comma, List},
+    types::Type,
+    Trivia,
 };
 
 #[derive(Debug)]

@@ -1,15 +1,14 @@
-use crate::{
-    arena::Ref,
-    ast_nodes::{
-        common, expressions,
-        identifier::{
-            OracleImportIdentifierKind, PackageConstValueIdentifierKind, PackageIdentifier,
-            PackageTypeArgumentIdentifierKind, PackageTypeIdentifierKind,
-        },
-        list::{List, ListNoDelim, Semicolon},
-        oracles::{OracleDefinition, OracleSignature},
-        package, params, types, Trivia,
+use domino_collections::arena::Ref;
+
+use crate::ast_nodes::{
+    common, expressions,
+    identifier::{
+        OracleImportIdentifierKind, PackageConstValueIdentifierKind, PackageIdentifier,
+        PackageTypeArgumentIdentifierKind, PackageTypeIdentifierKind,
     },
+    list::{List, ListNoDelim, Semicolon},
+    oracles::{OracleDefinition, OracleSignature},
+    package, params, types, Trivia,
 };
 
 #[derive(Debug, Clone, Copy)]

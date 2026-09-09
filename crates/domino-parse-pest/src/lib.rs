@@ -1,9 +1,9 @@
 use domino_ast::{
-    arena::Ref,
-    ast_nodes::{game, package, theorem, InArena, NodeType, NodeTypeRef as _, Trivia},
+    ast_nodes::{game, package, theorem, Trivia},
     source::FileId,
-    State,
+    InArena, NodeType, NodeTypeRef as _, State,
 };
+use domino_collections::arena::Ref;
 
 mod util;
 pub mod ast_nodes {
