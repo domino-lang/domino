@@ -372,13 +372,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             claims.len() + RandomnessMappingInjectivityCheck::ALL.len()
         };
 
-        log::info!("verify: oracle:{oracle:?}");
-        let auto_randomness = self.eqctx.emit_auto_randomness(oracle.name());
-        let mut smt = equivalence_smt.to_owned();
-        smt.push(auto_randomness.as_slice());
-
         self.verify_as_ui_claim_group(ui.clone(), &claim_group, num_claims, || {
-            self.do_verify_oracle(ui.clone(), &smt, oracle, &claims, &claim_group)
+            self.do_verify_oracle(ui.clone(), equivalence_smt, oracle, &claims, &claim_group)
         })
     }
 
@@ -413,16 +408,21 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     fn do_verify_oracle<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
-        oracle_smt: &SmtBuf,
+        equivalence_smt: &SmtBuf,
         oracle: &Export,
         claims: &Vec<Claim>,
         claim_group: &ClaimGroup,
     ) -> Vec<Result<()>> {
+        log::info!("verify: oracle:{oracle:?}");
+        let auto_randomness = self.eqctx.emit_auto_randomness(oracle.name());
+        let mut oracle_smt = equivalence_smt.to_owned();
+        oracle_smt.push(auto_randomness.as_slice());
+
         let verify_randomness_mapping_injectivity = rayon::iter::once(())
             .map(|_| {
                 self.verify_randomness_mapping_injectivity(
                     ui.clone(),
-                    oracle_smt,
+                    &oracle_smt,
                     oracle.name(),
                     claim_group,
                 )
