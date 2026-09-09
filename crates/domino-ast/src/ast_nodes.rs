@@ -13,6 +13,8 @@ pub mod types;
 
 use std::borrow::Borrow;
 
+use domino_collections::partial_dense_table::PartialDenseTable;
+
 use crate::{
     arena::{Ref, Slice},
     ast_nodes::list::List,
@@ -190,13 +192,13 @@ macro_rules! define_dense_tables {
 
         #[derive(Debug, Clone)]
         pub struct PartialDenseTables<T> {
-            $(pub $field_name: ::domino_collections::dense_table::PartialDenseTable<$node_type, T>),*
+            $(pub $field_name: ::domino_collections::partial_dense_table::PartialDenseTable<$node_type, T>),*
         }
 
         impl<T> PartialDenseTables<T> {
             pub fn new(arenas:&Arenas) -> Self {
                 Self {
-                    $($field_name: ::domino_collections::dense_table::PartialDenseTable::with_entries(arenas.$field_name.len())),*
+                    $($field_name: ::domino_collections::partial_dense_table::PartialDenseTable::with_entries(arenas.$field_name.len())),*
                 }
             }
         }
@@ -545,5 +547,4 @@ define_node_types! {
     Theorem { thm: theorem::Theorem }
 }
 
-use domino_collections::dense_table::PartialDenseTable;
 use with_global_ref_id;

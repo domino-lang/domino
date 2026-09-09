@@ -15,7 +15,7 @@ use domino_ast::{
     ast_nodes::{game, identifier, package, theorem},
     Arenas, LocationTable, Visitor as _,
 };
-use domino_collections::dense_table::*;
+use domino_collections::{dense_table::DenseTable, partial_dense_table::PartialDenseTable};
 
 use scope::{Declaration, DeclarationType};
 

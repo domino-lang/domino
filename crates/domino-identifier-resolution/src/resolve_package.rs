@@ -6,7 +6,7 @@ use domino_ast::{
     walk::Walk,
     Arenas, LocationTable,
 };
-use domino_collections::dense_table::PartialDenseTable;
+use domino_collections::partial_dense_table::PartialDenseTable;
 use domino_diagnostic::Resolver;
 
 use crate::{

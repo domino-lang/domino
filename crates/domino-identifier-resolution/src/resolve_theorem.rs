@@ -5,7 +5,7 @@ use domino_ast::{
     ast_nodes::{identifier, theorem, NodeTypeRef as _},
     Arenas, GlobalRefId, LocationTable,
 };
-use domino_collections::dense_table::PartialDenseTable;
+use domino_collections::partial_dense_table::PartialDenseTable;
 
 use crate::{
     diag::{self, UndefinedIdentifier},
