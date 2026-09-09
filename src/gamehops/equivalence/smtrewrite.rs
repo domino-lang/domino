@@ -30,6 +30,7 @@ pub enum SmtStatementKind {
     },
     GeneralRelation {
         name: String,
+        oracle: String,
     },
     PackageInvariant {
         name: String,
@@ -49,9 +50,12 @@ pub enum SmtStatementKind {
 impl SmtStatementKind {
     pub fn name(&self) -> String {
         match self {
-            SmtStatementKind::StateRelation { name }
-            | SmtStatementKind::Function { name }
-            | SmtStatementKind::GeneralRelation { name } => name.to_string(),
+            SmtStatementKind::StateRelation { name } | SmtStatementKind::Function { name } => {
+                name.to_string()
+            }
+            SmtStatementKind::GeneralRelation { name, oracle } => {
+                format!("general-relation!{name}!{oracle}!")
+            }
             SmtStatementKind::GameInvariant { name, game } => {
                 format!("game-invariant!{name}!{game}!")
             }
@@ -461,7 +465,8 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
     fn handle_define_lemma(
         &mut self,
-        funname: &str,
+        lemma_name: &str,
+        oracle_name: &str,
         args: Vec<SmtExpr>,
         body: SmtExpr,
     ) -> Result<SmtStmt> {
@@ -484,15 +489,6 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             params: &right_game_inst.consts,
         };
 
-        let Some(oracle_name) = funname
-            .rfind("-")
-            .map(|i| &funname[i + 1..funname.len() - 1])
-        else {
-            return Err(Error::IllegalLemmaName {
-                lemma_name: funname.to_string(),
-            });
-        };
-
         let Some(left_oracle_export) = left_game_inst
             .game()
             .exports
@@ -500,7 +496,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             .find(|export| export.name() == oracle_name)
         else {
             return Err(Error::UnknownLemmaName {
-                lemma_name: funname.to_string(),
+                lemma_name: lemma_name.to_string(),
                 oracle_name: oracle_name.to_string(),
             });
         };
@@ -519,7 +515,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             .find(|export| export.name() == oracle_name)
         else {
             return Err(Error::UnknownLemmaName {
-                lemma_name: funname.to_string(),
+                lemma_name: lemma_name.to_string(),
                 oracle_name: oracle_name.to_string(),
             });
         };
@@ -641,14 +637,15 @@ impl SmtParser<Error> for SmtRewrite<'_> {
                 .into(),
         ];
         newargs.extend(args.into_iter().skip(4));
-        let expr = ("define-fun", funname, newargs, "Bool", bindreturn).into();
 
-        Ok(SmtStmt {
-            kind: SmtStatementKind::GeneralRelation {
-                name: funname.to_string(),
-            },
-            expr,
-        })
+        let kind = SmtStatementKind::GeneralRelation {
+            name: lemma_name.to_string(),
+            oracle: oracle_name.to_string(),
+        };
+
+        let expr = ("define-fun", kind.name(), newargs, "Bool", bindreturn).into();
+
+        Ok(SmtStmt { kind, expr })
     }
 }
 
