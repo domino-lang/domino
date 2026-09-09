@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 // identifier ~ gap ~ ":" ~ gap ~ ty
 pub struct ValueDecl<EK: ExpressionKind> {
     pub name: Ref<Identifier<EK::ValueIdentifierKind>>,

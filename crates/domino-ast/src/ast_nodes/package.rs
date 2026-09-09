@@ -40,13 +40,13 @@ pub type PackageConstDecl = common::ValueDecl<package::PurePackageExpressionKind
 pub type PackageConstDeclList = common::ConstDeclList<package::PurePackageExpressionKind>;
 pub type PackageConstParamBlock = params::ConstParamBlock<package::PurePackageExpressionKind>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct StateBlock {
     pub trivia: Ref<Trivia>,
     pub decls: Ref<PackageConstDeclList>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ImportOraclesBlock {
     pub trivia: Ref<Trivia>,
     pub decls: Ref<OracleDeclList>,
@@ -59,7 +59,7 @@ pub type PackageType = types::Type<PackageTypeIdentifierKind>;
 pub type PackageArgumentedType = types::ArgumentedType<PackageTypeArgumentIdentifierKind>;
 pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifierKind>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Package {
     pub name_trivia: Ref<Trivia>,
     pub name: Ref<PackageIdentifier>,
@@ -67,7 +67,7 @@ pub struct Package {
     pub items: Ref<PackageItemList>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum PackageItem {
     TypeParams(Ref<PackageTypeParamBlock>),
     ConstParams(Ref<PackageConstParamBlock>),

@@ -42,7 +42,7 @@ pub type CallExpression = expressions::CallExpression<OracleExpressionKind>;
 pub type TupleExpression = expressions::TupleExpression<OracleExpressionKind>;
 
 /// oracle <gap> <name> <gap> ( <decl_list> )
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct OracleSignature<OI: OracleIdentifierKind> {
     pub name: Ref<Identifier<OI>>,
     pub trivia: Ref<Trivia>,
@@ -57,7 +57,7 @@ pub struct OracleReturnType {
     pub ty: Ref<Type<types::PackageTypeKind>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ArgDecl<IK: ValueIdentifierKind> {
     pub name: Ref<Identifier<IK>>,
     pub pre_colon_trivia: Ref<Trivia>,
@@ -70,7 +70,7 @@ pub type OracleValueArgDecl = ArgDecl<OracleValueIdentifierKind>;
 /// A list of declarations, usually comma separated. Usually surrounded by parenthises
 pub type OracleValueDeclList = List<ArgDecl<OracleValueIdentifierKind>, Comma>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct OracleDefinition {
     pub sig_trivia: Ref<Trivia>,
     pub oracle_sig: Ref<OracleSignature<OracleDefinitionIdentifierKind>>,

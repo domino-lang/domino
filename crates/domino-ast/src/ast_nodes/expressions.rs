@@ -26,13 +26,13 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum UnOp {
     Not,
     Neg,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum BinOp {
     Eq,
     Neq,
@@ -56,7 +56,7 @@ pub trait ExpressionKind {
     type ValueIdentifierKind: ValueIdentifierKind;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Expression<EK: ExpressionKind> {
     TableIndex(Ref<TableIndexExpression<EK>>),
     Paren(Ref<ParenExpression<EK>>),
@@ -77,7 +77,7 @@ pub enum Expression<EK: ExpressionKind> {
 /// Usually comma separated and surrounded by parentheses
 pub type ExprList<EK: ExpressionKind> = List<Expression<EK>, Comma>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct BinOpExpression<EK: ExpressionKind> {
     pub lhs: Ref<Expression<EK>>,
     pub pre_op_trivia: Ref<Trivia>,
@@ -86,14 +86,14 @@ pub struct BinOpExpression<EK: ExpressionKind> {
     pub rhs: Ref<Expression<EK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct UnOpExpression<EK: ExpressionKind> {
     pub op: UnOp,
     pub trivia: Ref<Trivia>,
     pub expr: Ref<Expression<EK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct OracleInvocationExpression<EK: ExpressionKind> {
     /// The name of the invoked oracle.
     pub oracle_name: Ref<OracleImportIdentifier>,
@@ -104,7 +104,7 @@ pub struct OracleInvocationExpression<EK: ExpressionKind> {
     pub args: Ref<ExprList<EK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TableIndexExpression<EK: ExpressionKind> {
     pub table_name: Ref<Identifier<EK::ValueIdentifierKind>>,
     pub table_name_trivia: Ref<Trivia>,
@@ -113,27 +113,27 @@ pub struct TableIndexExpression<EK: ExpressionKind> {
     pub index_trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct SampleExpression<EK: ExpressionKind> {
     pub ty: Ref<Type<EK::TypeKind>>,
     // TODO: sample names
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ParenExpression<EK: ExpressionKind> {
     pub expr_trivia: Ref<Trivia>,
     pub expr: Ref<Expression<EK>>,
     pub trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct CallExpression<EK: ExpressionKind> {
     pub name: Ref<Expression<EK>>,
     pub trivia: Ref<Trivia>,
     pub args: Ref<ExprList<EK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TupleExpression<EK: ExpressionKind>(pub Ref<ExprList<EK>>);
 
 #[derive(Clone, Debug)]

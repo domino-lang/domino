@@ -48,7 +48,7 @@ impl TypeKind for TheoremTypeKind {
     type TypeIdentifierKind = identifier::TheoremTypeIdentifierKind;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Type<TK: TypeKind> {
     Identifier(Ref<Identifier<TK::TypeIdentifierKind>>),
     Tuple(Ref<TupleType<TK>>),
@@ -56,17 +56,17 @@ pub enum Type<TK: TypeKind> {
     Fn(Ref<FnType<TK>>),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TupleType<TK: TypeKind>(pub Ref<TypeList<TK>>);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ArgumentedType<TK: TypeKind> {
     pub name: Ref<identifier::Identifier<TK::TypeIdentifierKind>>,
     pub post_name: Ref<Trivia>,
     pub args: Ref<TypeArgList<TK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum TypeArgument<TK: TypeKind> {
     Identifier(Ref<Identifier<TK::TypeArgIdentifierKind>>),
     Tuple(Ref<TypeArgList<TK>>),
@@ -75,7 +75,7 @@ pub enum TypeArgument<TK: TypeKind> {
     Expr(Ref<expressions::Expression<TK::ExpressionKind>>),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct FnType<TK: TypeKind> {
     pub args_trivia: Ref<Trivia>,
     pub args: Ref<TypeList<TK>>,

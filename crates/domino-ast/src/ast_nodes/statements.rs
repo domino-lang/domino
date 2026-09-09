@@ -8,7 +8,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Statement {
     Abort,
     Assert(Ref<AssertStatement>),
@@ -20,14 +20,14 @@ pub enum Statement {
 
 pub type StatementList = ListNoDelim<Statement>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct AssertStatement {
     pub expr_trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
     pub semicolon_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct AssignStatement {
     pub pat: Ref<Pattern>,
     pub pre_arrow_trivia: Ref<Trivia>,
@@ -36,7 +36,7 @@ pub struct AssignStatement {
     pub semicolon_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct IfThenElseStatement {
     pub cond_trivia: Ref<Trivia>,
     pub cond: Ref<OracleExpression>,
@@ -52,20 +52,20 @@ pub struct ElseBlock {
     pub block: Ref<StatementList>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ReturnStatement {
     pub trivia: Ref<Trivia>,
     pub expr: Ref<OracleExpression>,
     pub semicolon_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ExpressionStatement {
     pub expr: Ref<OracleExpression>,
     pub semicolon_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum Pattern {
     Identifier(Ref<OracleValueIdentifier>),
     Table(Ref<TablePattern>),
@@ -74,7 +74,7 @@ pub enum Pattern {
 
 /// Assignment to a table. The table must already be in scope. Since we require the identifier to
 /// be bound, we can use Identifier<OracleExpression> instead of Identifier<AssignedIdentifier>.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TablePattern {
     pub table_name: Ref<OracleValueIdentifier>,
     pub table_name_trivia: Ref<Trivia>,
@@ -83,7 +83,7 @@ pub struct TablePattern {
     pub index_trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TuplePattern {
     pub items: Ref<PatternList>,
 }

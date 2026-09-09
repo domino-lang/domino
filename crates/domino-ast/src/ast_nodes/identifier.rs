@@ -20,19 +20,11 @@ pub trait OracleIdentifierKind: IdentifierKind {}
 /// Once we intern we might hve that in here (or in another side table).
 pub struct Identifier<IK: IdentifierKind>(PhantomData<IK>);
 
-impl<T: IdentifierKind> Clone for Identifier<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
 impl<T: IdentifierKind> core::fmt::Debug for Identifier<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Identifier").field(&self.0).finish()
     }
 }
-
-impl<T: IdentifierKind> Copy for Identifier<T> {}
 
 impl<T: IdentifierKind> Default for Identifier<T> {
     fn default() -> Self {

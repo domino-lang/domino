@@ -8,13 +8,13 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct TypeParamBlock<IK: IdentifierKind> {
     pub trivia: Ref<Trivia>,
     pub decls: Ref<TypeDeclList<IK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ConstParamBlock<EK: expressions::ExpressionKind> {
     pub trivia: Ref<Trivia>,
     pub decls: Ref<ConstDeclList<EK>>,

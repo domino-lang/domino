@@ -83,7 +83,7 @@ impl InstanceAssignmentLhsKind for identifier::GameTypeIdentifierKind {
     type RhsKind = types::TheoremTypeKind;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct InstanceConstAssignmentItem<LhsIK, RhsEK>
 where
     LhsIK: ValueIdentifierKind + InstanceAssignmentLhsKind,
@@ -101,7 +101,7 @@ where
     RhsIK: ValueIdentifierKind,
 = List<InstanceConstAssignmentItem<LhsIK, RhsIK>, Comma>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct InstanceConstBlock<LhsIK, RhsEK>
 where
     LhsIK: ValueIdentifierKind + InstanceAssignmentLhsKind<RhsKind = RhsEK>,
@@ -111,7 +111,7 @@ where
     pub list: Ref<InstanceConstAssignmentList<LhsIK, RhsEK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct InstanceTypeAssignmentItem<LhsIK, RhsTK>
 where
     LhsIK: TypeIdentifierKind + InstanceAssignmentLhsKind<RhsKind = RhsTK>,
@@ -129,7 +129,7 @@ where
     RhsTK: types::TypeKind,
 = List<InstanceTypeAssignmentItem<LhsIK, RhsTK>, Comma>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct InstanceTypeBlock<LhsIK, RhsTK>
 where
     LhsIK: TypeIdentifierKind + InstanceAssignmentLhsKind<RhsKind = RhsTK>,
@@ -139,7 +139,7 @@ where
     pub list: Ref<InstanceTypeAssignmentList<LhsIK, RhsTK>>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum InstanceItem<IK: InstanceIdentifierKind> {
     InstanceConst(Ref<InstanceConstBlock<IK::LhsValueIdentifierKind, IK::RhsExpressionKind>>),
     InstanceType(Ref<InstanceTypeBlock<IK::LhsTypeIdentifierKind, IK::RhsTypeKind>>),
@@ -147,7 +147,7 @@ pub enum InstanceItem<IK: InstanceIdentifierKind> {
 
 pub type InstanceItemList<IK: ValueIdentifierKind> = ListNoDelim<InstanceItem<IK>>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct InstanceBlock<IK: InstanceIdentifierKind> {
     pub instance_name_trivia: Ref<Trivia>,
     pub instance_name: Ref<Identifier<IK::InstanceIdentifierKind>>,

@@ -170,6 +170,14 @@ macro_rules! define_node_type_enum {
     }
 }
 
+macro_rules! impl_copy_for_node {
+    ($($node_type:ty),*) => {
+        $( impl Copy for $node_type {}
+           impl Clone for $node_type { fn clone(&self) -> Self { *self } } )*
+
+    };
+}
+
 macro_rules! define_node_types {
     (  $( $variant_name:ident { $field_name:ident : $node_type:ty } )* ) => {
         define_node_type_enum! {
@@ -189,6 +197,10 @@ macro_rules! define_node_types {
 
         define_visitor_trait! {
           $( fn $field_name( ... , node: $node_type) );*
+        }
+
+        impl_copy_for_node! {
+            $($node_type),*
         }
     };
 }

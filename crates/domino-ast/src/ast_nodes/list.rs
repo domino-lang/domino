@@ -4,29 +4,29 @@ use crate::{
 };
 
 /// Denotes that the list is delimited with a comma
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default)]
 pub struct Comma;
 
 /// Denotes that the list is delimited with a Semicolon
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default)]
 pub struct Semicolon;
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default)]
 pub struct Colon;
 
 /// Denotes that the list is delimited with newlines
 // NOTE: observe whether the interplay with the trivia makes sense here
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default)]
 pub struct Newlines;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ListNoDelim<Node> {
     pub item_leading_trivia: Slice<Trivia>,
     pub items: Slice<Node>,
     pub trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct List<Node, Delim> {
     // Length: n
     pub item_leading_trivia: Slice<Trivia>,

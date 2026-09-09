@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct PureGameExpressionKind;
 
 impl expressions::ExpressionKind for PureGameExpressionKind {
@@ -60,7 +60,7 @@ pub type InstanceItem = instances::InstanceItem<PackageInstanceIdentifierKind>;
 pub type InstanceItemList = instances::InstanceItemList<PackageInstanceIdentifierKind>;
 pub type InstanceBlock = instances::InstanceBlock<PackageInstanceIdentifierKind>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ComposeOracleAssignmentItem {
     pub oracle_name: Ref<OracleCompositionIdentifier>,
     pub colon_trivia: Ref<Trivia>,
@@ -70,7 +70,7 @@ pub struct ComposeOracleAssignmentItem {
 
 pub type ComposeOracleAssignmentList = List<ComposeOracleAssignmentItem, Comma>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ComposePackageInstanceItem {
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
     pub colon_trivia: Ref<Trivia>,
@@ -80,13 +80,13 @@ pub struct ComposePackageInstanceItem {
 
 pub type ComposePackageInstanceList = List<ComposePackageInstanceItem, Comma>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct ComposeBlock {
     pub trivia: Ref<Trivia>,
     pub items: Ref<ComposePackageInstanceList>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub enum GameItem {
     TypeParams(Ref<GameTypeParamBlock>),
     ConstParams(Ref<GameConstParamBlock>),
@@ -96,7 +96,7 @@ pub enum GameItem {
 
 pub type GameItemList = ListNoDelim<GameItem>;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Game {
     pub name_trivia: Ref<Trivia>,
     pub name: Ref<GameIdentifier>,
