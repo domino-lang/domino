@@ -1,0 +1,9 @@
+composition Left {
+    instance inst = Sampler {}
+
+    compose {
+        adversary: {
+            Loopy: inst,
+        }
+    }
+}

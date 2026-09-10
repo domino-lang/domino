@@ -9,6 +9,7 @@ pub mod deconstructinvoke;
 pub mod loopunroll;
 pub mod resolveoracles;
 pub mod returnify;
+pub mod sample_max_counter_extractor;
 pub mod samplify;
 pub mod tableinitialize;
 pub mod treeify;
