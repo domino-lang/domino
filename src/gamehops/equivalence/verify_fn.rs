@@ -12,10 +12,10 @@ use crate::{
     gamehops::equivalence::{
         error::{ClaimTheoremFailedError, Error, Result},
         smtrewrite::SmtStatementKind,
+        ClaimType, ResolvedClaim,
     },
     package::Export,
     project::Project,
-    theorem::{Claim, ClaimType},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
@@ -257,9 +257,9 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         })
     }
 
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
-        fn new_claim(ty: ClaimType, name: &str) -> Option<Claim> {
-            Some(Claim {
+    fn generate_game_or_package_invariant_claims(&self) -> Vec<ResolvedClaim> {
+        fn new_claim(ty: ClaimType, name: &str) -> Option<ResolvedClaim> {
+            Some(ResolvedClaim {
                 admitted: false,
                 dependencies: vec!["no-abort".to_string()],
                 ty,
@@ -327,10 +327,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         equivalence_smt: &SmtBuf,
         oracle: &Export,
     ) -> Vec<Result<()>> {
-        let mut claims = self
-            .eqctx
-            .equivalence()
-            .proof_tree_by_oracle_name(oracle.name());
+        let mut claims = self.eqctx.claims_by_oracle_name(oracle.name());
 
         claims.append(&mut self.generate_game_or_package_invariant_claims());
 
@@ -382,7 +379,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
-        claims: &Vec<Claim>,
+        claims: &Vec<ResolvedClaim>,
         claim_group: &ClaimGroup,
     ) -> Vec<Result<()>> {
         log::info!("verify: oracle:{oracle:?}");
@@ -432,7 +429,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui: Arc<Mutex<&mut UI>>,
         oracle_smt: &SmtBuf,
         oracle_name: &str,
-        claim: &Claim,
+        claim: &ResolvedClaim,
         claim_group: &ClaimGroup,
     ) -> Result<()> {
         if claim.is_admitted() {

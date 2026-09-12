@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
+    gamehops::equivalence::{ClaimType, ResolvedClaim},
     hacks,
     identifier::Identifier,
-    theorem::{Claim, ClaimType, GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
+    theorem::{GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
     writers::smt::{
@@ -172,7 +173,10 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    pub(crate) fn emit_game_or_package_invariant_start_assert(&self, claim: &Claim) -> SmtExpr {
+    pub(crate) fn emit_game_or_package_invariant_start_assert(
+        &self,
+        claim: &ResolvedClaim,
+    ) -> SmtExpr {
         let gctx = match claim.ty {
             ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
                 self.left_game_inst_ctx()
@@ -191,7 +195,11 @@ impl<'a> EquivalenceContext<'a> {
         SmtAssert(SmtNot((claim.name(), initial_state.clone()))).into()
     }
 
-    pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
+    pub(crate) fn emit_oracle_claim_assert(
+        &self,
+        claim: &ResolvedClaim,
+        oracle_name: &str,
+    ) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
