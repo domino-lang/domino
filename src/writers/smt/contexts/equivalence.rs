@@ -5,7 +5,7 @@ use std::collections::HashSet;
 mod emit;
 
 use crate::{
-    gamehops::equivalence::{smtrewrite::SmtStmt, Equivalence},
+    gamehops::equivalence::{smtrewrite::SmtStmt, Equivalence, ResolvedClaim},
     identifier::{
         theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
         Identifier,
@@ -34,6 +34,7 @@ pub struct EquivalenceContext<'a> {
     theorem: &'a Theorem<'a>,
     auxs: &'a <EquivalenceTransform as TheoremTransform>::Aux,
     invariants: Vec<SmtStmt>,
+    claims: Vec<(String, Vec<ResolvedClaim>)>,
     left_invariants: Vec<SmtStmt>,
     right_invariants: Vec<SmtStmt>,
 }
@@ -50,6 +51,7 @@ impl<'a> EquivalenceContext<'a> {
             theorem,
             auxs,
             invariants: Vec::new(),
+            claims: Vec::new(),
             left_invariants: Vec::new(),
             right_invariants: Vec::new(),
         }
@@ -67,6 +69,10 @@ impl<'a> EquivalenceContext<'a> {
         self.invariants.append(&mut new_invariants);
     }
 
+    pub(crate) fn invariants(&self) -> &[SmtStmt] {
+        &self.invariants
+    }
+
     pub(crate) fn append_left_invariants(&mut self, mut new_invariants: Vec<SmtStmt>) {
         self.left_invariants.append(&mut new_invariants);
     }
@@ -81,6 +87,18 @@ impl<'a> EquivalenceContext<'a> {
 
     pub(crate) fn right_invariants(&self) -> &[SmtStmt] {
         &self.right_invariants
+    }
+
+    pub(crate) fn append_claims(&mut self, mut new_claims: Vec<(String, Vec<ResolvedClaim>)>) {
+        self.claims.append(&mut new_claims)
+    }
+
+    pub(crate) fn claims_by_oracle_name(&self, oracle_name: &str) -> Vec<ResolvedClaim> {
+        self.claims
+            .iter()
+            .find(|(name, _tree)| name == oracle_name)
+            .map(|(_oname, tree)| tree.clone())
+            .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
     }
 }
 

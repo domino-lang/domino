@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
+    gamehops::equivalence::smtrewrite::SmtStatementKind,
     package::{Export, OracleSig},
     project::Project,
     theorem::{Claim, RandomnessType},
@@ -16,6 +17,51 @@ pub mod smtrewrite;
 mod verify_fn;
 
 pub(crate) use verify_fn::EquivalenceSmtDriver;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ClaimType {
+    Lemma,
+    Relation,
+    Invariant,
+    LeftPackageInvariant,
+    RightPackageInvariant,
+    LeftGameInvariant,
+    RightGameInvariant,
+}
+
+impl ClaimType {
+    pub fn guess_from_name(name: &str) -> ClaimType {
+        if name.starts_with("relation") {
+            ClaimType::Relation
+        } else if name.starts_with("invariant") {
+            ClaimType::Invariant
+        } else {
+            ClaimType::Lemma
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, PartialOrd, Ord, Eq)]
+pub struct ResolvedClaim {
+    pub(crate) name: String,
+    pub(crate) ty: ClaimType,
+    pub(crate) dependencies: Vec<String>,
+    pub(crate) admitted: bool,
+}
+
+impl ResolvedClaim {
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn dependencies(&self) -> &[String] {
+        &self.dependencies
+    }
+
+    pub(crate) fn is_admitted(&self) -> bool {
+        self.admitted
+    }
+}
 
 // Equivalence contains the composisitions/games and the invariant data,
 // whereas the pure Equivalence just contains the names and file paths.
@@ -286,6 +332,57 @@ impl<'a> EquivalenceContext<'a> {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn resolve_claims(&mut self) {
+        let claims = &self.equivalence().trees;
+        let claims = claims
+            .iter()
+            .map(|(oracle, claims)| {
+                let claims = claims
+                    .iter()
+                    .map(|claim| {
+                        let Claim {
+                            name,
+                            dependencies,
+                            admitted,
+                        } = claim.clone();
+
+                        let ty = self
+                            .invariants()
+                            .iter()
+                            .find_map(|stmt| {
+                                if stmt.name == name {
+                                    match stmt.sort {
+                                        SmtStatementKind::StateRelation => {
+                                            if name == "invariant" {
+                                                Some(ClaimType::Invariant)
+                                            } else {
+                                                Some(ClaimType::Relation)
+                                            }
+                                        }
+                                        SmtStatementKind::GeneralRelation => Some(ClaimType::Lemma),
+                                        _ => None,
+                                    }
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(ClaimType::guess_from_name(&name));
+
+                        ResolvedClaim {
+                            name,
+                            ty,
+                            dependencies,
+                            admitted,
+                        }
+                    })
+                    .collect();
+
+                (oracle.clone(), claims)
+            })
+            .collect();
+        self.append_claims(claims);
     }
 }
 
