@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
+    gamehops::equivalence::smtrewrite::{SmtStatementKind, SmtStmt},
     package::{Export, OracleSig},
     project::Project,
     theorem::{Claim, RandomnessType},
@@ -16,6 +17,76 @@ pub mod smtrewrite;
 mod verify_fn;
 
 pub(crate) use verify_fn::EquivalenceSmtDriver;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ClaimType {
+    Lemma,
+    Relation,
+    Invariant,
+    LeftPackageInvariant,
+    RightPackageInvariant,
+    LeftGameInvariant,
+    RightGameInvariant,
+}
+
+impl ClaimType {
+    pub fn guess_from_name(name: &str) -> ClaimType {
+        if name.starts_with("relation") {
+            ClaimType::Relation
+        } else if name.starts_with("invariant") {
+            ClaimType::Invariant
+        } else {
+            ClaimType::Lemma
+        }
+    }
+
+    pub fn read_from_smt<'a>(
+        req_name: &str,
+        mut seq: impl Iterator<Item = &'a SmtStmt>,
+    ) -> Option<ClaimType> {
+        seq.find_map(|stmt| match &stmt.kind {
+            SmtStatementKind::StateRelation { name } if req_name == name => {
+                if name == "invariant" {
+                    Some(ClaimType::Invariant)
+                } else {
+                    Some(ClaimType::Relation)
+                }
+            }
+            SmtStatementKind::GeneralRelation { name, .. } if req_name == name => {
+                Some(ClaimType::Lemma)
+            }
+            _ => None,
+        })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ResolvedDependency {
+    pub(crate) name: String,
+    pub(crate) ty: ClaimType,
+}
+
+#[derive(Clone, Debug)]
+pub struct ResolvedClaim {
+    pub(crate) name: String,
+    pub(crate) ty: ClaimType,
+    pub(crate) dependencies: Vec<ResolvedDependency>,
+    pub(crate) admitted: bool,
+}
+
+impl ResolvedClaim {
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub(crate) fn dependencies(&self) -> &[ResolvedDependency] {
+        &self.dependencies
+    }
+
+    pub(crate) fn is_admitted(&self) -> bool {
+        self.admitted
+    }
+}
 
 // Equivalence contains the composisitions/games and the invariant data,
 // whereas the pure Equivalence just contains the names and file paths.
@@ -68,14 +139,6 @@ impl Equivalence {
 
     pub fn invariants(&self) -> &[String] {
         &self.invariants
-    }
-
-    pub(crate) fn proof_tree_by_oracle_name(&self, oracle_name: &str) -> Vec<Claim> {
-        self.trees
-            .iter()
-            .find(|(name, _tree)| name == oracle_name)
-            .map(|(_oname, tree)| tree.clone())
-            .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
     }
 
     pub(crate) fn randomness_by_oracle_name(&self, oracle_name: &str) -> RandomnessType {
@@ -286,6 +349,47 @@ impl<'a> EquivalenceContext<'a> {
         }
 
         Ok(())
+    }
+
+    pub(crate) fn resolve_claims(&mut self) {
+        let claims = &self.equivalence().trees;
+        let claims = claims
+            .iter()
+            .map(|(oracle, claims)| {
+                let claims = claims
+                    .iter()
+                    .map(|claim| {
+                        let Claim {
+                            name,
+                            dependencies,
+                            admitted,
+                        } = claim.clone();
+
+                        let ty = ClaimType::read_from_smt(&name, self.invariants().iter())
+                            .unwrap_or_else(|| ClaimType::guess_from_name(&name));
+
+                        let dependencies = dependencies
+                            .into_iter()
+                            .map(|name| {
+                                let ty = ClaimType::read_from_smt(&name, self.invariants().iter())
+                                    .unwrap_or_else(|| ClaimType::guess_from_name(&name));
+                                ResolvedDependency { name, ty }
+                            })
+                            .collect();
+
+                        ResolvedClaim {
+                            name,
+                            ty,
+                            dependencies,
+                            admitted,
+                        }
+                    })
+                    .collect();
+
+                (oracle.clone(), claims)
+            })
+            .collect();
+        self.append_claims(claims);
     }
 }
 
