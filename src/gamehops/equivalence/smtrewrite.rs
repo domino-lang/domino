@@ -36,6 +36,7 @@ pub enum SmtStatementKind {
 #[derive(Clone, Debug)]
 pub struct SmtStmt {
     pub sort: SmtStatementKind,
+    pub name: String,
     pub expr: SmtExpr,
 }
 
@@ -61,6 +62,7 @@ impl From<SmtExpr> for SmtStmt {
 
         SmtStmt {
             sort: SmtStatementKind::Other,
+            name: String::new(),
             expr: value,
         }
     }
@@ -221,11 +223,12 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt {
             sort: SmtStatementKind::Function,
+            name: funname.to_string(),
             expr,
         })
     }
 
-    fn handle_define_game_invariant(&mut self, body: SmtExpr) -> Result<SmtStmt> {
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
         if self.game.is_none() {
             return Err(Error::RewriteNeedsGameContext {
                 defn: format!("(define-game-invariant {body})"),
@@ -257,9 +260,11 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         }
         .into();
 
+        let name = format!("game-invariant!{invname}!{}!", self.game.unwrap().name());
+
         let expr = (
             "define-fun",
-            &format!("game-invariant!{}!", self.game.unwrap().name()),
+            &name,
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -272,11 +277,12 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt {
             sort: SmtStatementKind::GameInvariant,
+            name,
             expr,
         })
     }
 
-    fn handle_define_package_invariant(&mut self, body: SmtExpr) -> Result<SmtStmt> {
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
         if self.game.is_none() || self.package.is_none() {
             return Err(Error::RewriteNeedsPackageContext {
                 defn: format!("(define-package-invariant {body})"),
@@ -303,13 +309,15 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         }
         .into();
 
+        let name = format!(
+            "package-invariant!{invname}!{}-{}!",
+            self.game.unwrap().name(),
+            self.package.unwrap().name()
+        );
+
         let expr = (
             "define-fun",
-            &format!(
-                "package-invariant!{}-{}!",
-                self.game.unwrap().name(),
-                self.package.unwrap().name()
-            ),
+            &name,
             vec![(
                 SmtExpr::Atom("game".to_string()),
                 SmtExpr::Atom(gamestate_sort),
@@ -322,6 +330,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt {
             sort: SmtStatementKind::PackageInvariant,
+            name,
             expr,
         })
     }
@@ -418,6 +427,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt {
             sort: SmtStatementKind::StateRelation,
+            name: funname.to_string(),
             expr,
         })
     }
@@ -608,6 +618,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt {
             sort: SmtStatementKind::GeneralRelation,
+            name: funname.to_string(),
             expr,
         })
     }
