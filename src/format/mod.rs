@@ -597,6 +597,11 @@ fn format_game_spec(
     ctx: &mut FormatContext,
     specs: &Vec<Pair<Rule>>,
 ) -> Result<(), project::error::Error> {
+    let types_rules: Vec<_> = specs
+        .iter()
+        .filter(|x| matches!(x.as_rule(), Rule::types))
+        .collect();
+
     let const_rules: Vec<_> = specs
         .iter()
         .filter(|x| matches!(x.as_rule(), Rule::const_decl))
@@ -607,6 +612,20 @@ fn format_game_spec(
         .filter(|x| matches!(x.as_rule(), Rule::compose_decl))
         .collect();
 
+    if !types_rules.is_empty() {
+        ctx.push_line("types {");
+        ctx.add_indent();
+        for type_block in types_rules {
+            let inner = type_block.clone().into_inner().next();
+            if let Some(inner) = inner {
+                format_types_block(ctx, inner)?;
+            }
+        }
+        ctx.remove_indent();
+        ctx.push_line("}");
+        ctx.push_line("");
+    }
+
     for const_rule in const_rules {
         let mut inner = const_rule.clone().into_inner();
         let varname = inner.next().unwrap().as_str();
@@ -616,6 +635,7 @@ fn format_game_spec(
 
     for spec in specs {
         match spec.as_rule() {
+            Rule::types => { /* handled separately */ }
             Rule::const_decl => { /* handled separately */ }
             Rule::instance_decl => {
                 ctx.push_line("");

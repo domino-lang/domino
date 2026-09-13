@@ -4,15 +4,19 @@ use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use wildcard::Wildcard;
 
 use std::io::Write as _;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::theorem::RandomnessMappingInjectivityCheck;
-use crate::writers::smt::contexts::GameInstanceContext;
+
 use crate::{
-    gamehops::equivalence::error::{ClaimTheoremFailedError, Error, Result},
+    gamehops::equivalence::{
+        error::{ClaimTheoremFailedError, Error, Result},
+        smtrewrite::SmtStatementKind,
+        ClaimType, ResolvedClaim, ResolvedDependency,
+    },
     package::Export,
     project::Project,
-    theorem::{Claim, ClaimType},
     ui::TheoremUI,
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
@@ -254,74 +258,46 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         })
     }
 
-    fn generate_package_invariant_claims(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Vec<Claim> {
-        gctx.game()
-            .pkgs
-            .iter()
-            .filter_map(|pkg| {
-                if pkg.pkg.invariants.is_empty() {
-                    None
-                } else {
-                    Some(Claim {
-                        admitted: false,
-                        dependencies: vec!["no-abort".to_string()],
-                        ty: claim_type,
-                        name: format!(
-                            "package-invariant!{}-{}!",
-                            gctx.game_inst_name(),
-                            pkg.name()
-                        ),
-                    })
-                }
-            })
-            .collect()
-    }
-
-    fn generate_game_invariant_claim_if_exists(
-        &self,
-        gctx: GameInstanceContext<'a>,
-        claim_type: ClaimType,
-    ) -> Option<Claim> {
-        if !gctx.game().invariants.is_empty() {
-            Some(Claim {
+    fn generate_game_or_package_invariant_claims(&self) -> Vec<ResolvedClaim> {
+        fn new_claim(ty: ClaimType, name: &str) -> Option<ResolvedClaim> {
+            Some(ResolvedClaim {
                 admitted: false,
-                dependencies: vec!["no-abort".to_string()],
-                ty: claim_type,
-                name: format!("game-invariant!{}!", gctx.game_inst_name(),),
+                dependencies: vec![ResolvedDependency {
+                    name: "no-abort".to_string(),
+                    ty: ClaimType::Lemma,
+                }],
+                ty,
+                name: name.to_string(),
             })
-        } else {
-            None
         }
-    }
 
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<Claim> {
-        let mut claims = vec![];
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftPackageInvariant,
-        ));
-        claims.extend(self.generate_package_invariant_claims(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightPackageInvariant,
-        ));
-
-        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
-            self.eqctx.left_game_inst_ctx(),
-            ClaimType::LeftGameInvariant,
-        ) {
-            claims.push(claim);
-        }
-        if let Some(claim) = self.generate_game_invariant_claim_if_exists(
-            self.eqctx.right_game_inst_ctx(),
-            ClaimType::RightGameInvariant,
-        ) {
-            claims.push(claim);
-        }
-        claims
+        self.eqctx
+            .left_invariants()
+            .iter()
+            .filter_map(|stmt| match stmt.sort {
+                SmtStatementKind::PackageInvariant => {
+                    new_claim(ClaimType::LeftPackageInvariant, &stmt.name)
+                }
+                SmtStatementKind::GameInvariant => {
+                    new_claim(ClaimType::LeftGameInvariant, &stmt.name)
+                }
+                _ => None,
+            })
+            .chain(
+                self.eqctx
+                    .right_invariants()
+                    .iter()
+                    .filter_map(|stmt| match stmt.sort {
+                        SmtStatementKind::PackageInvariant => {
+                            new_claim(ClaimType::RightPackageInvariant, &stmt.name)
+                        }
+                        SmtStatementKind::GameInvariant => {
+                            new_claim(ClaimType::RightGameInvariant, &stmt.name)
+                        }
+                        _ => None,
+                    }),
+            )
+            .collect()
     }
 
     fn verify_randomness_mapping_injectivity<UI: TheoremUI + Send>(
@@ -355,10 +331,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         equivalence_smt: &SmtBuf,
         oracle: &Export,
     ) -> Vec<Result<()>> {
-        let mut claims = self
-            .eqctx
-            .equivalence()
-            .proof_tree_by_oracle_name(oracle.name());
+        let mut claims = self.eqctx.claims_by_oracle_name(oracle.name());
 
         claims.append(&mut self.generate_game_or_package_invariant_claims());
 
@@ -410,7 +383,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui: Arc<Mutex<&mut UI>>,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
-        claims: &Vec<Claim>,
+        claims: &Vec<ResolvedClaim>,
         claim_group: &ClaimGroup,
     ) -> Vec<Result<()>> {
         log::info!("verify: oracle:{oracle:?}");
@@ -460,7 +433,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui: Arc<Mutex<&mut UI>>,
         oracle_smt: &SmtBuf,
         oracle_name: &str,
-        claim: &Claim,
+        claim: &ResolvedClaim,
         claim_group: &ClaimGroup,
     ) -> Result<()> {
         if claim.is_admitted() {
@@ -491,7 +464,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             claim_name,
         );
 
-        let result = self.verify_with_solver(smt, claim_group, claim_name);
+        let result = self.verify_with_solver(ui.clone(), smt, claim_group, claim_name);
 
         ui.lock().unwrap().finish_claim(
             &self.eqctx.theorem().name,
@@ -510,8 +483,9 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         }
     }
 
-    fn verify_with_solver(
+    fn verify_with_solver<UI: TheoremUI>(
         &self,
+        ui: Arc<Mutex<&mut UI>>,
         smt: SmtBuf,
         claim_group: &ClaimGroup,
         claim_name: &str,
@@ -557,9 +531,18 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     fname
                 });
                 solver.close();
+                ui.lock().unwrap().println(&format!(
+                    "{:?}",
+                    miette::Report::new(ClaimTheoremFailedError {
+                        claim_name: claim_name.to_string(),
+                        claim_group_name: claim_group.error_name(),
+                        response,
+                        modelfile: Ok(PathBuf::new()),
+                    })
+                )).unwrap();
                 Err(ClaimTheoremFailedError {
                     claim_name: claim_name.to_string(),
-                    claim_group_name: claim_group.error_name(),
+                    claim_group_name: claim_group.error_name().to_string(),
                     response,
                     modelfile,
                 }

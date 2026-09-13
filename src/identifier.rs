@@ -156,7 +156,30 @@ impl Identifier {
                 }
             }
 
-            other => todo!("{other:?}"),
+            (
+                Identifier::GameIdentifier(GameIdentifier::Const(GameConstIdentifier {
+                    assigned_value,
+                    ..
+                })),
+                theorem_ident @ Identifier::TheoremIdentifier(_),
+            )
+            | (
+                theorem_ident @ Identifier::TheoremIdentifier(_),
+                Identifier::GameIdentifier(GameIdentifier::Const(GameConstIdentifier {
+                    assigned_value,
+                    ..
+                })),
+            ) => {
+                let assignment = &**assigned_value.as_ref().unwrap();
+                match assignment.kind() {
+                    ExpressionKind::Identifier(inner_ident) => {
+                        theorem_ident.identifiers_match(inner_ident)
+                    }
+                    _ => false,
+                }
+            }
+
+            _ => todo!("\nself: {self:?}, \nother: {other:?}"),
         }
         // 1. find common root context
         // 2. compare value at shared context

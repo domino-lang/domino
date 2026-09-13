@@ -1,9 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::{
+    gamehops::equivalence::{
+        smtrewrite::SmtStatementKind,
+        {ClaimType, ResolvedClaim},
+    },
     hacks,
     identifier::Identifier,
-    theorem::{Claim, ClaimType, GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
+    theorem::{GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
     transforms::samplify::SampleInfo,
     types::{CountSpec, Type, TypeKind},
     writers::smt::{
@@ -105,6 +109,8 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_invariant(&self) -> Vec<SmtExpr> {
         self.invariants
             .iter()
+            .chain(self.left_invariants.iter())
+            .chain(self.right_invariants.iter())
             .map(|stmt| stmt.expr.clone())
             .collect()
     }
@@ -172,7 +178,10 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    pub(crate) fn emit_game_or_package_invariant_start_assert(&self, claim: &Claim) -> SmtExpr {
+    pub(crate) fn emit_game_or_package_invariant_start_assert(
+        &self,
+        claim: &ResolvedClaim,
+    ) -> SmtExpr {
         let gctx = match claim.ty {
             ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
                 self.left_game_inst_ctx()
@@ -191,7 +200,11 @@ impl<'a> EquivalenceContext<'a> {
         SmtAssert(SmtNot((claim.name(), initial_state.clone()))).into()
     }
 
-    pub(crate) fn emit_oracle_claim_assert(&self, claim: &Claim, oracle_name: &str) -> SmtExpr {
+    pub(crate) fn emit_oracle_claim_assert(
+        &self,
+        claim: &ResolvedClaim,
+        oracle_name: &str,
+    ) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -216,6 +229,9 @@ impl<'a> EquivalenceContext<'a> {
         let pkg_params_left = &octx_left.pkg_inst_ctx().pkg_inst().params;
         let pkg_params_right = &octx_right.pkg_inst_ctx().pkg_inst().params;
 
+        let pkg_types_left = &octx_left.pkg_inst_ctx().pkg_inst().types;
+        let pkg_types_right = &octx_right.pkg_inst_ctx().pkg_inst().types;
+
         let args: Vec<_> = self
             .oracle_sig_by_exported_name(oracle_name)
             .unwrap()
@@ -237,6 +253,7 @@ impl<'a> EquivalenceContext<'a> {
             game_params: game_params_left,
             pkg_name: pkg_name_left,
             pkg_params: pkg_params_left,
+            pkg_types: pkg_types_left,
             oracle_name,
             oracle_import_name: oracle_name,
         };
@@ -247,6 +264,7 @@ impl<'a> EquivalenceContext<'a> {
             game_params: game_params_right,
             pkg_name: pkg_name_right,
             pkg_params: pkg_params_right,
+            pkg_types: pkg_types_right,
             oracle_name,
             oracle_import_name: oracle_name,
         };
@@ -327,16 +345,15 @@ impl<'a> EquivalenceContext<'a> {
         let dep_calls: Vec<_> = claim
             .dependencies()
             .iter()
-            .map(|dep_name| {
-                let claim_type = ClaimType::guess_from_name(dep_name);
-                match claim_type {
-                    ClaimType::Lemma => build_lemma_call.clone()(dep_name),
-                    ClaimType::Relation => build_relation_call(dep_name),
-                    ClaimType::Invariant
-                    | ClaimType::LeftPackageInvariant
-                    | ClaimType::RightPackageInvariant
-                    | ClaimType::LeftGameInvariant
-                    | ClaimType::RightGameInvariant => unreachable!(),
+            .map(|dep| match dep.ty {
+                ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
+                ClaimType::Relation => build_relation_call(&dep.name),
+                ClaimType::Invariant
+                | ClaimType::LeftPackageInvariant
+                | ClaimType::RightPackageInvariant
+                | ClaimType::LeftGameInvariant
+                | ClaimType::RightGameInvariant => {
+                    unreachable!("Not a valid dependency: {} - {:?}", dep.name, dep.ty)
                 }
             })
             .collect();
@@ -382,37 +399,26 @@ impl<'a> EquivalenceContext<'a> {
             build_invariant_old_call("invariant"),
         ];
 
-        for pkg in &gctx_left.game().pkgs {
-            if !pkg.pkg.invariants.is_empty() {
-                dependencies_code.push(build_left_invariant_old_call(&format!(
-                    "package-invariant!{}-{}!",
-                    game_inst_name_left,
-                    pkg.name()
-                )));
-            }
-        }
-        for pkg in &gctx_right.game().pkgs {
-            if !pkg.pkg.invariants.is_empty() {
-                dependencies_code.push(build_right_invariant_old_call(&format!(
-                    "package-invariant!{}-{}!",
-                    game_inst_name_right,
-                    pkg.name()
-                )));
-            }
-        }
-
-        if !gctx_left.game().invariants.is_empty() {
-            dependencies_code.push(build_left_invariant_old_call(&format!(
-                "game-invariant!{}!",
-                game_inst_name_left,
-            )));
-        }
-        if !gctx_right.game().invariants.is_empty() {
-            dependencies_code.push(build_right_invariant_old_call(&format!(
-                "game-invariant!{}!",
-                game_inst_name_right,
-            )));
-        }
+        dependencies_code.extend(
+            self.left_invariants
+                .iter()
+                .filter_map(|stmt| match stmt.sort {
+                    SmtStatementKind::GameInvariant | SmtStatementKind::PackageInvariant => {
+                        Some(build_left_invariant_old_call(&stmt.name))
+                    }
+                    _ => None,
+                }),
+        );
+        dependencies_code.extend(
+            self.right_invariants
+                .iter()
+                .filter_map(|stmt| match stmt.sort {
+                    SmtStatementKind::GameInvariant | SmtStatementKind::PackageInvariant => {
+                        Some(build_right_invariant_old_call(&stmt.name))
+                    }
+                    _ => None,
+                }),
+        );
 
         for dep in dep_calls {
             dependencies_code.push(dep)
@@ -1405,6 +1411,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
 
         let pkg_inst_name = &pkg_inst.name;
         let pkg_params = &pkg_inst.params;
+        let pkg_types = &pkg_inst.types;
         let pkg_name = &pkg_inst.pkg.name;
         let oracle_name = &sig.name;
         let oracle_import_name = export.name();
@@ -1425,6 +1432,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
             game_params,
             pkg_name,
             pkg_params,
+            pkg_types,
             oracle_name,
             oracle_import_name,
         };

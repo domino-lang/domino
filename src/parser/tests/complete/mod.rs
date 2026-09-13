@@ -13,7 +13,7 @@ use crate::{
         Identifier,
     },
     statement::Statement,
-    theorem::{Claim, ClaimType},
+    theorem::Claim,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     types::{CountSpec, Type, TypeKind},
     util::smtsolver::process::{ProcessSmtSolverBackend, SolverVariant},
@@ -156,25 +156,21 @@ fn equivalence_parses() {
             vec![
                 Claim {
                     name: "invariant".into(),
-                    ty: ClaimType::Invariant,
                     dependencies: vec![],
                     admitted: false
                 },
                 Claim {
                     name: "equal-aborts".into(),
-                    ty: ClaimType::Lemma,
                     dependencies: vec![],
                     admitted: false
                 },
                 Claim {
                     name: "same-output".into(),
-                    ty: ClaimType::Lemma,
                     dependencies: vec![],
                     admitted: false
                 },
                 Claim {
                     name: "smt_ident".into(),
-                    ty: ClaimType::Lemma,
                     dependencies: vec![],
                     admitted: false
                 },
@@ -233,7 +229,7 @@ fn game_instantiating_with_literal_works() {
     let prf = game
         .pkgs
         .iter()
-        .find(|pkg_inst| pkg_inst.name == "prf")
+        .find(|pkg_inst| pkg_inst.name == "Prf")
         .unwrap();
 
     assert_eq!(
