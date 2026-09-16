@@ -84,8 +84,9 @@ fn render_item(item: &EcItem) -> String {
         EcItem::ModuleType {
             name,
             params,
+            includes,
             procs,
-        } => render_module_type(name, params, procs),
+        } => render_module_type(name, params, includes, procs),
         EcItem::Clone {
             base,
             as_name,
@@ -124,14 +125,32 @@ fn render_op_def(name: &str, args: &[(String, EcType)], ret: Option<&EcType>, bo
     out
 }
 
-fn render_module_type(name: &str, params: &[(String, String)], procs: &[ProcSig]) -> String {
-    let mut out = format!("module type {name}{}", render_params(params));
-    out.push_str(" = {\n");
-    let rendered: Vec<String> = procs
+/// A pure alias (`includes` has exactly one entry, `procs` is empty) renders
+/// on one line — `module type X = { include Y }.` — matching the shape
+/// story 11 specifies; anything else falls back to one line per member,
+/// like a plain module type always has.
+fn render_module_type(
+    name: &str,
+    params: &[(String, String)],
+    includes: &[String],
+    procs: &[ProcSig],
+) -> String {
+    let header = format!("module type {name}{}", render_params(params));
+    if procs.is_empty() && includes.len() == 1 {
+        return format!("{header} = {{ include {} }}.", includes[0]);
+    }
+    let mut lines: Vec<String> = includes
         .iter()
-        .map(|sig| format!("{}{}", indent(1), render_proc_sig(sig)))
+        .map(|inc| format!("{}include {inc}", indent(1)))
         .collect();
-    out.push_str(&rendered.join("\n"));
+    lines.extend(
+        procs
+            .iter()
+            .map(|sig| format!("{}{}", indent(1), render_proc_sig(sig))),
+    );
+    let mut out = header;
+    out.push_str(" = {\n");
+    out.push_str(&lines.join("\n"));
     out.push_str("\n}.");
     out
 }

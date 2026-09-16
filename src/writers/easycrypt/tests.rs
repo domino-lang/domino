@@ -518,6 +518,7 @@ fn kitchen_sink() -> EcFile {
             EcItem::ModuleType {
                 name: "Proto".to_string(),
                 params: vec![],
+                includes: vec![],
                 procs: vec![ProcSig {
                     name: "init".to_string(),
                     args: vec![("seed".to_string(), EcType::Int)],
@@ -527,6 +528,7 @@ fn kitchen_sink() -> EcFile {
             EcItem::ModuleType {
                 name: "Adv".to_string(),
                 params: vec![("O".to_string(), "Proto".to_string())],
+                includes: vec![],
                 procs: vec![ProcSig {
                     name: "run".to_string(),
                     args: vec![],

@@ -43,9 +43,16 @@ pub enum EcItem {
         body: EcExpr,
     },
     Axiom { name: String, formula: EcExpr },
+    /// A plain module type has `includes` empty and lists its own `procs`.
+    /// `module type X = { include Y }.` (story 11) is `includes: vec![Y]`
+    /// with `procs` empty — `module type X = Y.` is a parse error in
+    /// EasyCrypt, so this is the only alias form available. A module type
+    /// that both includes another and declares its own procs is not
+    /// produced by anything in this epic yet.
     ModuleType {
         name: String,
         params: Vec<(String, String)>,
+        includes: Vec<String>,
         procs: Vec<ProcSig>,
     },
     Clone {
