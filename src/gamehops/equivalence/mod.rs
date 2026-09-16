@@ -78,6 +78,16 @@ impl Equivalence {
             .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
     }
 
+    /// Every oracle's declared randomness-mapping kind, `theorem.ssp`
+    /// declaration order. Defaults to [`RandomnessType::Custom`] for an
+    /// oracle with no `randomness:` annotation (`src/parser/theorem.rs`) —
+    /// `Simple`/`None` are the two kinds that ask for an auto-derived
+    /// randomness-mapping condition, which this epic does not translate
+    /// (`docs/stories/easycrypt/00-overview.md` §2).
+    pub(crate) fn randomness(&self) -> &[(String, RandomnessType)] {
+        &self.randomness
+    }
+
     pub(crate) fn randomness_by_oracle_name(&self, oracle_name: &str) -> RandomnessType {
         self.randomness
             .iter()

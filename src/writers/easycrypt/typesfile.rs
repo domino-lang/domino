@@ -84,7 +84,7 @@ pub fn build_types_file(
 /// one entry here — correctly, since the name is derived from the
 /// underlying theorem const's identifier, so two `CountSpec`s naming the
 /// same EasyCrypt type always denote the same width.
-fn collect_bits_types(types: &HashSet<Type>) -> BTreeMap<String, CountSpec> {
+pub(crate) fn collect_bits_types(types: &HashSet<Type>) -> BTreeMap<String, CountSpec> {
     let mut out = BTreeMap::new();
     for ty in types {
         if let TypeKind::Bits(count) = ty.kind() {
@@ -95,7 +95,7 @@ fn collect_bits_types(types: &HashSet<Type>) -> BTreeMap<String, CountSpec> {
 }
 
 /// Theorem constants of `Fn` type, keyed by their raw (pre-mangling) name.
-fn collect_fn_consts(consts: &[(String, Type)]) -> BTreeMap<String, Type> {
+pub(crate) fn collect_fn_consts(consts: &[(String, Type)]) -> BTreeMap<String, Type> {
     consts
         .iter()
         .filter_map(|(name, ty)| match ty.kind() {

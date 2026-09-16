@@ -8,6 +8,7 @@
 //! `easycrypt` export epic translate Domino into this AST.
 
 pub mod ast;
+pub mod export;
 pub mod game;
 pub mod interfaces;
 pub mod names;
@@ -71,6 +72,7 @@ pub(crate) mod test_support {
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
 
+use crate::transforms::theorem_transforms::EquivalenceTransformError;
 use names::NameError;
 
 /// A Domino construct that has no EasyCrypt translation, encountered while
@@ -110,4 +112,13 @@ pub enum EcExportError {
 
     #[error(transparent)]
     Name(#[from] NameError),
+
+    /// The equivalence transform pipeline (`EquivalenceTransform`, run once
+    /// per exported theorem before any translation) failed. The only way a
+    /// parser-accepted project can hit this is a sample reachable through a
+    /// loop `loopunroll` could not unroll — see
+    /// [`EquivalenceTransformError`].
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Transform(#[from] EquivalenceTransformError),
 }

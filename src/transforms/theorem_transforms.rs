@@ -18,7 +18,7 @@ pub struct EquivalenceTransform;
 
 /// A failure raised while running the equivalence transform pipeline over a
 /// game instance.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Clone, PartialEq, Eq, Error, Diagnostic)]
 pub enum EquivalenceTransformError {
     /// A sampling position is reachable through a loop `loopunroll` could not
     /// unroll. This is the only pipeline failure a parser-accepted project can

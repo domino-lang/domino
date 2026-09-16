@@ -49,7 +49,7 @@ pub type MaxOffsets = HashMap<Export, HashMap<Position, usize>>;
 /// A sampling position is reachable through a loop whose bounds are not
 /// literal integers, so `loopunroll` could not unroll it and we cannot bound
 /// how many times the position is sampled.
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Clone, PartialEq, Eq, Error, Diagnostic)]
 #[error(
     "cannot bound the sample counter: oracle `{oracle_name}` samples inside a \
      loop that `loopunroll` could not unroll"

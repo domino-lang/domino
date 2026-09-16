@@ -12,6 +12,7 @@ shadow!(build);
 
 use sspverif::project;
 use sspverif::project::Project;
+use sspverif::writers::easycrypt::export::{ExportedTheorem, SkipNote};
 
 mod cli;
 use crate::cli::*;
@@ -83,6 +84,15 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     InlineRender(#[from] sspverif::debug::render::RenderError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    EcExport(#[from] sspverif::writers::easycrypt::EcExportError),
+    // Same shape as `project::error::Error::IOError` (no diagnostic span —
+    // there is none to give a bare I/O failure). The only `std::io::Error`
+    // site in this binary is `write_files` in `easycrypt()` below, so the
+    // blanket `#[from]` can't yet mislabel an unrelated failure.
+    #[error("io error writing the EasyCrypt export")]
+    EcExportIo(#[from] std::io::Error),
     #[cfg(feature = "cvc5-lib")]
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -258,6 +268,165 @@ fn inline(i: &Inline) -> Result<(), Error> {
     Ok(())
 }
 
+/// `domino easycrypt`'s stdout report (§3.3 of the story): one block per
+/// exported theorem, fixed-width labels so the fields line up.
+fn print_easycrypt_report(theorem_name: &str, exported: &ExportedTheorem, wrote_path: &str) {
+    fn types_line(exported: &ExportedTheorem) -> String {
+        let bits = exported.bits_type_names.join(", ");
+        let funcs = exported.fn_const_names.join(", ");
+        match (bits.is_empty(), funcs.is_empty()) {
+            (true, true) => "(none)".to_string(),
+            (false, true) => bits,
+            (true, false) => funcs,
+            (false, false) => format!("{bits}; {funcs}"),
+        }
+    }
+
+    fn packages_line(exported: &ExportedTheorem) -> String {
+        if exported.package_variant_names.is_empty() {
+            return "(none)".to_string();
+        }
+        let noun = if exported.package_variant_names.len() == 1 {
+            "variant"
+        } else {
+            "variants"
+        };
+        format!(
+            "{} {noun} ({})",
+            exported.package_variant_names.len(),
+            exported.package_variant_names.join(", ")
+        )
+    }
+
+    fn games_line(exported: &ExportedTheorem) -> String {
+        if exported.game_names.is_empty() {
+            "(none)".to_string()
+        } else {
+            exported.game_names.join(", ")
+        }
+    }
+
+    // One line per skipped-hop kind (reduction/hybrid/conjecture), grouped
+    // in first-seen order, naming every pair that kind covers — "every
+    // skipped hop is named with its kind and the reason" (§3.3). At most
+    // three kinds ever exist, so a linear scan beats standing up a map just
+    // to fake insertion order.
+    fn skipped_lines(skipped: &[SkipNote]) -> Vec<String> {
+        let mut groups: Vec<(&str, &str, Vec<String>)> = Vec::new();
+        for note in skipped {
+            let pair = format!("{} ~ {}", note.left, note.right);
+            match groups.iter_mut().find(|(kind, ..)| *kind == note.kind) {
+                Some((_, _, pairs)) => pairs.push(pair),
+                None => groups.push((note.kind, note.reason, vec![pair])),
+            }
+        }
+        groups
+            .into_iter()
+            .map(|(kind, reason, pairs)| {
+                let noun = if pairs.len() == 1 { "hop" } else { "hops" };
+                format!(
+                    "{} {kind} {noun} ({}): {reason}",
+                    pairs.len(),
+                    pairs.join(", ")
+                )
+            })
+            .collect()
+    }
+
+    fn randomness_line(exported: &ExportedTheorem) -> Option<String> {
+        if exported.randomness_mapping_oracles == 0 {
+            return None;
+        }
+        let (noun, verb) = if exported.randomness_mapping_oracles == 1 {
+            ("oracle", "declares")
+        } else {
+            ("oracles", "declare")
+        };
+        Some(format!(
+            "{} {noun} {verb} an explicit randomness mapping (not translated by this exporter)",
+            exported.randomness_mapping_oracles
+        ))
+    }
+
+    println!("theorem {theorem_name}");
+    println!("  {:<12}{}", "types", types_line(exported));
+    println!("  {:<12}{}", "packages", packages_line(exported));
+    println!("  {:<12}{}", "games", games_line(exported));
+    for line in skipped_lines(&exported.skipped) {
+        println!("  {:<12}{}", "skipped", line);
+    }
+    if let Some(line) = randomness_line(exported) {
+        println!("  {:<12}{}", "randomness", line);
+    }
+    println!(
+        "  {:<12}{} ({} files)",
+        "wrote",
+        wrote_path,
+        exported.files.len()
+    );
+}
+
+fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
+    let project_root = match &e.project {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(project_root.clone(), &files)?;
+
+    let theorem_names: Vec<String> = match &e.theorem {
+        Some(name) => {
+            if project.get_theorem(name).is_none() {
+                return Err(TheoremNotFound(name.clone()).into());
+            }
+            vec![name.clone()]
+        }
+        None => {
+            let mut names: Vec<String> = project.theorems().map(String::from).collect();
+            names.sort();
+            names
+        }
+    };
+
+    let out_base = e
+        .out
+        .clone()
+        .unwrap_or_else(|| project_root.join("_build/easycrypt"));
+
+    // Build every requested theorem fully in memory first, and only start
+    // writing once *all* of them succeeded. §3.2 states this per theorem
+    // ("a failed export must not leave a half-written tree"); extending it
+    // across the whole invocation is a deliberate choice, not an accident —
+    // without it, plain `domino easycrypt` (no `--theorem`) on a project
+    // where only *some* theorems fail (e.g. `example-projects/yao`, where
+    // `HybridSecurity`/`LayerSecurity` export cleanly but `Yao`/`Yao3Layer`
+    // don't) would leave the successful theorems' directories on disk next
+    // to a top-level error, contradicting §4's "writes no files" bullet for
+    // that exact project.
+    let mut exports = Vec::with_capacity(theorem_names.len());
+    for name in &theorem_names {
+        let theorem = project.get_theorem(name).unwrap();
+        let exported = sspverif::writers::easycrypt::export::export_theorem(theorem)?;
+        exports.push((name.clone(), exported));
+    }
+
+    for (i, (name, exported)) in exports.iter().enumerate() {
+        if i > 0 {
+            println!();
+        }
+        let theorem_out = out_base.join(name);
+        sspverif::writers::easycrypt::export::write_files(&theorem_out, &exported.files)?;
+
+        let display_path = theorem_out
+            .strip_prefix(&project_root)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| theorem_out.display().to_string());
+        print_easycrypt_report(name, exported, &display_path);
+    }
+
+    Ok(())
+}
+
 fn latex(l: &Latex) -> Result<(), Error> {
     let project_root = l
         .path
@@ -302,6 +471,7 @@ fn main() -> miette::Result<()> {
         Commands::Format(f) => format(f),
         Commands::Debug(d) => debug(d),
         Commands::Inline(i) => inline(i),
+        Commands::Easycrypt(e) => easycrypt(e),
     };
 
     result.map_err(miette::Report::new)

@@ -49,6 +49,26 @@ pub(crate) enum Commands {
 
     /// Inline the code of an oracle for both sides of an equivalence proofstep, side by side.
     Inline(Inline),
+
+    /// Export a Domino theorem to an EasyCrypt project.
+    Easycrypt(Easycrypt),
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Easycrypt {
+    /// Path to the Domino project. Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long)]
+    pub(crate) project: Option<std::path::PathBuf>,
+    /// Name of the theorem to export. Without it, every theorem in the
+    /// project is exported.
+    #[clap(long)]
+    pub(crate) theorem: Option<String>,
+    /// Output directory holding one subdirectory per exported theorem.
+    /// Defaults to `<project>/_build/easycrypt`.
+    #[clap(long)]
+    pub(crate) out: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]
