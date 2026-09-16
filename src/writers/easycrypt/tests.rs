@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::process::Command;
-
 use super::ast::*;
 use super::render::{render_expr, render_file, render_type};
 
@@ -799,26 +797,5 @@ fn kitchen_sink_matches_golden_file() {
 fn kitchen_sink_compiles_under_easycrypt() {
     let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/easycrypt/story01");
     let file = format!("{dir}/kitchen-sink.ec");
-
-    let found = Command::new("easycrypt").arg("config").output();
-    let Ok(found) = found else {
-        eprintln!("`easycrypt` not on PATH, skipping compile check");
-        return;
-    };
-    if !found.status.success() {
-        eprintln!("`easycrypt` not runnable, skipping compile check");
-        return;
-    }
-
-    let output = Command::new("easycrypt")
-        .args(["compile", "-I", dir, &file])
-        .output()
-        .expect("failed to run easycrypt compile");
-
-    assert!(
-        output.status.success(),
-        "easycrypt compile failed:\nstdout:\n{}\nstderr:\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+    super::test_support::assert_compiles(dir, &file);
 }
