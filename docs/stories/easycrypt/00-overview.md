@@ -30,8 +30,9 @@ and its experiment is parameterized by the game. Where it differs from this epic
 ## 2. What we are building
 
 1. `domino easycrypt` — writes a compilable EasyCrypt project under `_build/easycrypt/<theorem>/`:
-   `Types.ec`, `Interfaces.ec`, `packages/*.ec`, `games/*.ec`, and per equivalence
-   `Eq_<Left>_<Right>.ec` + `Eq_<Left>_<Right>_Invariants.ec`.
+   `Types.ec`, `Interfaces.ec`, `Variant_*.ec`, `Comp_*.ec`, and per equivalence
+   `Eq_<Left>_<Right>.ec` + `Eq_<Left>_<Right>_Invariants.ec` — all in one flat directory
+   (story 10; before it, package and game files sat in `packages/` and `games/`).
 2. An **EasyCrypt AST** (`src/writers/easycrypt/ast.rs`) as the real artifact — text is only its
    rendering — so the symbolic-execution debugger can later run on the generated code.
 3. `domino inline --easycrypt` and `domino debug --easycrypt` — the existing debugger machinery
@@ -56,13 +57,14 @@ files, or read out of this repository's source. §8 lists the evidence.
 | **Abort** | An oracle returning `T` in Domino returns `T option` in EasyCrypt; `None` is abort. An oracle with no return value returns `unit option` and returns `Some tt`. The abort **flag lives only in the router**, never in a package. |
 | **Early return / abort mid-body** | The export pipeline runs `treeify`, which already pushes the continuation of an `if` (and therefore of an `assert`) into both branches. `treeify` does **not** cover `Unwrap` and `InvokeOracle`, so the translator nests the rest of the block into the `else` of those two itself. |
 | **Pipeline** | `EquivalenceTransform` — the existing `prove` pipeline, `run_treeify = true` (`src/transforms/theorem_transforms.rs:99`). No new pipeline. |
-| **Naming** | Deterministic mangling: lowercase-first names survive unchanged; uppercase-first names and EasyCrypt keywords get a `d_` prefix (`NewKey` → `d_NewKey`, `LTK` → `d_LTK`, `return` → `d_return`); `-` → `_` in SMT-derived names; modules are `Pkg_<inst>`, `Game_<comp>`, `Exp_<comp>`. A residual collision is a hard error. |
+| **Naming** | Deterministic mangling: lowercase-first names survive unchanged; uppercase-first names and EasyCrypt keywords get a `d_` prefix (`NewKey` → `d_NewKey`, `LTK` → `d_LTK`, `return` → `d_return`) — EasyCrypt requires `proc`/`var` names to start lowercase, which is the whole reason the prefix exists; `-` → `_` in SMT-derived names; modules are `Pkg_<inst>`, `Game_<comp>`, `Exp_<comp>`. A residual collision is a hard error. **Amended by story 10:** generated *theories* are `Variant_<X>` / `Comp_<X>`, which retires both stdlib-collision hacks. |
+| **Output layout** | **Amended by story 10: flat.** One directory per theorem, no `packages/`/`games/` subdirectories, so `easycrypt compile -I <dir>` needs a single `-I`. |
 | **Games** | One game file per **composition** (not per game instance). Game instances appear only as the arguments of an `Eq_*` lemma. |
 | **Experiment** | `Exp_<Comp>` per composition, in the game file. Its `run` takes the composition's boolean and value-integer constants in declaration order. Width integers become types; function constants become global operators. |
 | **Invariants** | One invariant file per equivalence (this branch's grammar, `src/parser/ssp.pest:295`). Every `define-state-relation` becomes an operator `Domino_<name> (l, r)`; helper `define-fun`s become `Domino_<name>`. The assembled invariant is `params_inv l r /\ l.abort_flag = r.abort_flag /\ (!l.abort_flag => Domino_… )`. |
 | **Game-state record** | Flat, one per game *instance*, declared in `Eq_*_Invariants.ec`, built inline at the `call` site from module variables. Fields are `pkg_<inst>_<field>` plus `abort_flag`. Never used by a router or package. |
 | **Unsupported constructs** | Hard error with a source span: `Set`, `List`, `String`, group types, `while`, any loop `loopunroll` could not unroll, package type parameters, sampling anything but `Bits`. |
-| **Proof skeleton** | v1 emits `byequiv => //. proc; inline. call (: inv …); last first. auto => />. smt(emptyE map_empty).` then `+ proc; inline. admit.` per oracle, in game-interface order. No path-derived tactics. The base case is a real `smt` call, not an `admit`, so a broken base case is visible. |
+| **Proof skeleton** | v1 emits `byequiv => //. proc; inline. call (: inv …); last first. auto => />. smt(emptyE map_empty).` then `+ proc; inline. admit.` per oracle, in game-interface order. No path-derived tactics. The base case is a real `smt` call, not an `admit`, so a broken base case is visible. **Amended by story 13:** `byequiv` takes an explicit relational precondition `(: ={glob A} /\ <every run arg of both sides> ==> _) => //.`, which is what makes the same-composition base case actually discharge. |
 | **Debugger** | The EasyCrypt AST is the artifact; a **lowering** turns inlined EasyCrypt code into the debugger's existing IR (`src/debug/ir.rs`), so executor, solver, claims, HTML and `trace.json` are untouched. Labels are line numbers in the **EasyCrypt** listing. |
 | **Reductions / hybrids / randomness mappings** | Skipped, with a note in the output. |
 | **`flake.nix`** | **Not** modified. EasyCrypt comes from the developer's opam switch; tests that shell out to it skip when it is absent. |
@@ -104,9 +106,17 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 07 | Equivalence proof skeleton | `07-proof-skeleton.md` | 05, 06 |
 | 08 | Lowering to the debugger IR + `inline --easycrypt` | `08-ec-ir-lowering.md` | 03, 04 |
 | 09 | `domino debug --easycrypt` | `09-debug-on-easycrypt.md` | 08 |
+| 10 | Flat layout and collision-free theory names | `10-flat-layout-and-theory-names.md` | 05, 07 |
+| 11 | Shared package module types in `Interfaces.ec` | `11-shared-package-module-types.md` | 04, 10 |
+| 12 | Render `None` without a type annotation | `12-unannotated-none.md` | 01, 10 |
+| 13 | `byequiv` relational precondition | `13-byequiv-precondition.md` | 07, 10 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
+
+Stories 10–13 are follow-ups on the implemented export (owner review after story 07); they are
+independent of 08/09 and **should be done first**, because 10 relocates and renames every golden
+file that 08 would otherwise inherit. Within 10–13: do 10 first, then 11/12/13 in any order.
 
 ## 6. Working agreement (important)
 
@@ -198,6 +208,23 @@ verified in the design session, either by compiling a test file or by reading th
   projection across theories (`` l.`GS1.pkg_KX ``); functor application of a cloned module
   (`module KX_inst = Pkg_KX.KX(Pkg_Prot.Prot)`); `declare module A <: Adv { -GameH.Pkg_KX.KX, … }`
   with qualified clone names; `byequiv`/`call`/`admit` over such modules.
+- **Module-type matching is structural and width-subtyping.** Two *independently declared*,
+  structurally identical `module type`s are interchangeable: `module M (P : Fwd_v1_i)` applied to
+  `R : Rand_i` compiles. A module with *more* procedures than the type demands also matches. So a
+  duplicated module type never forces a second version of an importing package — deduplicating
+  `Interfaces.ec` (story 11) is a readability change, not a correctness one.
+- **`module type X = Y.` is a parse error.** The aliasing form that works is
+  `module type X = { include Y }.`, and a module matching `Y` still matches `X` through it.
+- **A clone alias cannot share a name with the theory it clones**: `clone Pkg_KX as Pkg_KX.` fails
+  with `the symbol Pkg_KX already exists`. This is why story 10 prefixes theories `Variant_`/`Comp_`
+  and leaves `Pkg_<inst>` to the clone aliases.
+- **Bare `None` is inferred everywhere the exporter emits it** — assignment to a typed local or
+  state variable, comparison against an `fmap` get, inside a typed tuple, in an `op` body with a
+  declared result type. It fails *only* with nothing to constrain it (`op bad = None.` →
+  `this operator type contains free type variables`), which export never produces. Hence story 12.
+- **`theories/crypto/PRF.eca` shadows a local `PRF.ec`** even when only the local directory is on
+  `-I`, and even though `easycrypt config` does not report that directory in its load path. A
+  *module* named `PRF` inside a theory is unaffected — only top-level theory names collide.
 - **Working layout** (compiled end to end): `Types.ec` (concrete types and operators) →
   package theories that `require import Types` and contain only their module →
   a game file that clones each package per instance and defines the router →
