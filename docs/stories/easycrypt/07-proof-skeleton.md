@@ -23,8 +23,33 @@ v1 stops at `admit`. Stories 08/09 give the human the path information to fill t
 - Story 04: `Game_<Comp>`, `Exp_<Comp>`, `Iface_<X>`, `Adv_<X>`, the `init` parameter order per
   composition, **the exact restriction strings** (`-<Game>.Pkg_<inst>.<Variant>`, `-<Game>.Game_<Comp>`)
   and the **export order** per game interface — the proof bullets follow that order.
-- Story 06: `Eq_<L>_<R>_Invariants.ec` with `<L>_state`, `<R>_state`, `params_inv` and `inv`, plus
-  how the record fields map to module variables.
+- Story 06: `Eq_<L>_<R>_Invariants.ec` with `<L>_state`, `<R>_state`, `params_inv` and `inv`. Entry
+  point: `invariant::build_invariant_file(theorem, equivalence, project) ->
+  Result<InvariantFile, EcExportError>` (`src/writers/easycrypt/invariant.rs`); not wired into
+  `export::export_theorem`/the CLI yet — this story's own job. **The field-naming rule in §3.1's
+  worked example below (bare `pkg_KX_d_LTK`) is wrong — do not copy it.** Every field on the left
+  record is `l_pkg_<instance>_<mangled field>` and every field on the right is
+  `r_pkg_<instance>_<mangled field>` (and `l_abort_flag`/`r_abort_flag`), **unconditionally**, not
+  only "when both sides share a composition": `abort_flag` alone collides between any two records in
+  one file regardless (verified against real `easycrypt` — two record types can never share a field
+  name, full stop), and `Hybrid0`/`Hybrid1` additionally collide on several real `KX`-instance state
+  field names despite being different compositions. `<mangled field>` is
+  `Names::mangle(NameKind::Var, raw_name)` — the same mangling `package.rs`'s own module-`var`
+  rendering already gave that field/param, so this story's inline record literal
+  (`{| l_pkg_KX_d_LTK = Hybrid0.Pkg_KX.KX.d_LTK{1}; …; l_abort_flag = Hybrid0.Game_Hybrid0.abort_flag{1} |}`)
+  can re-derive each field's name by re-running the same mangling, without needing story 06's own
+  internal lookup map. Record fields cover `Package::state` **and** every qualifying
+  `Package::params` entry (`package::param_needs_var` — a package's own `Boolean`/non-width-`Integer`
+  param, stored as a persistent module `var` by story 03), in that order, then `abort_flag` — not
+  just `Package::state` alone. `params_inv`/`inv` are fixed, unmangled op names (`op params_inv (l :
+  <L>_state) (r : <R>_state) : bool` / `op inv (l : <L>_state) (r : <R>_state) : bool`). Two
+  shared-infrastructure facts this story discovered while getting its own output to compile, that
+  apply here too: (1) `render.rs`'s `Eq`/`Ne` are non-associative in EasyCrypt's own grammar (`a = b
+  = c` is a parse error) and `render.rs` now parenthesizes both sides of a nested `Eq`/`Ne` — already
+  fixed in shared code, nothing to redo; (2) `EcBinop::Gt`/`Ge` are not usable for `int`/`Bits`
+  comparisons (`>`/`>=` resolve only via `Real` in EasyCrypt's base theories) — if this story ever
+  needs to render a numeric `>`/`>=` itself, flip it to `<`/`<=` with swapped operands, the same way
+  `types.rs` and `invariant.rs` both already do.
 - Story 05: `export_theorem` and where files land.
 - Story 01 §3.1 permits this story to add `EcExpr::Pr { module, proc, args, memory, event }` to
   `ast.rs`; do that rather than emitting `Pr[…]` as raw text.

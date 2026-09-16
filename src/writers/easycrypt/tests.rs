@@ -65,6 +65,20 @@ fn precedence_eq_binds_tighter_than_and() {
 }
 
 #[test]
+fn precedence_eq_is_not_associative_needs_parens_on_both_sides() {
+    // Unlike `<`/`<=`/`>`/`>=` (which chain fine syntactically and only
+    // fail to typecheck), EasyCrypt's grammar makes `=`/`<>` genuinely
+    // non-associative: `a = b = c` is a parse error, so an `Eq`/`Ne`
+    // operand nested under another `Eq`/`Ne` always needs parentheses.
+    let e = binop(
+        EcBinop::Eq,
+        binop(EcBinop::Eq, var("a"), var("b")),
+        binop(EcBinop::Eq, var("c"), var("d")),
+    );
+    assert_eq!(render_expr(&e), "(a = b) = (c = d)");
+}
+
+#[test]
 fn precedence_add_forced_into_mul_needs_parens() {
     let e = binop(
         EcBinop::Mul,

@@ -549,10 +549,20 @@ fn render_expr_inner(e: &EcExpr) -> String {
         }
         EcExpr::Binop { op, lhs, rhs } => {
             let (sym, level, right_assoc) = binop_info(*op);
-            let (lhs_min, rhs_min) = if right_assoc {
-                (level + 1, level)
-            } else {
-                (level, level + 1)
+            // `=`/`<>` are the one row in this table that EasyCrypt's own
+            // grammar declares non-associative outright: `a = b = c` is a
+            // parse error (`ecParser.mly`), not merely a type error, unlike
+            // same-precedence `<`/`<=`/`>`/`>=` chains (those parse, and
+            // only fail to typecheck). An `Eq`/`Ne` operand at the same
+            // precedence therefore always needs parentheses, on either
+            // side — verified by compiling `a = b = c` against
+            // `r2026.06-12-g7e192dd` and getting a parse error, surfaced by
+            // story 06's `Domino_state_eq` (`(is-mk-none L) = (is-mk-none
+            // R)`, where both operands are themselves `=`).
+            let (lhs_min, rhs_min) = match op {
+                EcBinop::Eq | EcBinop::Ne => (level + 1, level + 1),
+                _ if right_assoc => (level + 1, level),
+                _ => (level, level + 1),
             };
             format!(
                 "{} {sym} {}",

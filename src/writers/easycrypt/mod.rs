@@ -11,6 +11,7 @@ pub mod ast;
 pub mod export;
 pub mod game;
 pub mod interfaces;
+pub mod invariant;
 pub mod names;
 pub mod package;
 pub mod render;
@@ -112,6 +113,9 @@ pub enum EcExportError {
 
     #[error(transparent)]
     Name(#[from] NameError),
+
+    #[error(transparent)]
+    Invariant(#[from] invariant::InvariantError),
 
     /// The equivalence transform pipeline (`EquivalenceTransform`, run once
     /// per exported theorem before any translation) failed. The only way a
