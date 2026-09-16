@@ -335,30 +335,33 @@ mod tests {
         );
     }
 
-    // `Full4WHS`'s `theorem/full/*.smt2` invariants spell their
-    // `define-state-relation` binders `state-left`/`state-right` instead of
-    // `Simple4WHS`'s `left`/`right` — `invariant.rs` no longer requires a
-    // fixed spelling (binder names are purely positional, like an ordinary
-    // `define-fun`'s own argument names), so that part works. At least two
-    // of its 16 invariant files also compare a *whole package instance's*
-    // state in one equality (`(= state-left.KX state-right.KX)`,
-    // `invariant-KX-H1_0.smt2` and `invariant-H1_1-H2_0.smt2`) —
-    // `translate_eq_n`'s `resolve_instance_atom`/`translate_instance_equality`
-    // now expand that into a conjunction over every field both sides share
-    // for that instance, so this works too. What's left is a third,
-    // unrelated gap: `invariant-H7_1_1_0-H7_1_1_1.smt2` uses an
-    // unsubstituted `<0_n>` placeholder atom (a bit-width template token,
-    // not one of §3.2's fixed forms), which this translator has never
-    // supported — out of scope here, same as story 07's own acceptance
-    // criteria (§4), which name only `Simple4WHS`, not `Full4WHS`.
+    // `Full4WHS`'s `theorem/full/*.smt2` invariants hit three distinct
+    // gaps, all now fixed in `invariant.rs`: their `define-state-relation`
+    // binders are spelled `state-left`/`state-right` instead of
+    // `Simple4WHS`'s `left`/`right` (binder names are purely positional,
+    // like an ordinary `define-fun`'s own argument names); at least two
+    // files compare a *whole package instance's* state in one equality
+    // (`(= state-left.KX state-right.KX)`, `invariant-KX-H1_0.smt2` and
+    // `invariant-H1_1-H2_0.smt2` — `translate_eq_n`'s
+    // `resolve_instance_atom`/`translate_instance_equality` expand that
+    // into a conjunction over every field both sides share for that
+    // instance); and `invariant-H7_1_1_0-H7_1_1_1.smt2` uses `<0_n>`, the
+    // SMT-text form of a fixed-width `BitsLiteral` zero/one value
+    // (`src/writers/smt/expr_expr.rs`'s own `<{0|1}_{suffix}>` encoding,
+    // not a placeholder — `translate_bits_literal_atom` now maps it onto
+    // the same `zero_<suffix>`/`one_<suffix>` ops `Types.ec` already
+    // declares for every bits type in scope). `Full4WHS` now exports with
+    // no error at all.
     #[test]
-    fn full_4whs_fails_on_an_unsubstituted_bitwidth_placeholder() {
-        let err = export("example-projects/4WHS", "Full4WHS").unwrap_err();
-        let report = format!("{:?}", miette::Report::new(err));
-        assert!(
-            report.contains("unrecognised s-expression") && report.contains("<0_n>"),
-            "expected the known bitwidth-placeholder gap, got: {report}"
-        );
+    fn full_4whs_exports_without_error() {
+        let exported = export("example-projects/4WHS", "Full4WHS").unwrap();
+        assert!(exported.files.contains_key(Path::new("Types.ec")));
+        assert!(!exported.package_variant_names.is_empty());
+        assert!(!exported.game_names.is_empty());
+        assert_eq!(exported.equivalences.len(), 9);
+        for eq in &exported.equivalences {
+            assert_eq!(eq.oracle_set_mismatch, None);
+        }
     }
 
     // Acceptance §4's other target project beyond hello-world/4WHS above,
@@ -517,6 +520,48 @@ mod tests {
         .unwrap();
         let tmp = std::env::temp_dir().join(format!(
             "domino-easycrypt-export-compile-test-kemdem-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        write_files(&tmp, &exported.files).unwrap();
+
+        let base = tmp.to_str().unwrap().to_string();
+        let packages = tmp.join("packages").to_str().unwrap().to_string();
+        let games = tmp.join("games").to_str().unwrap().to_string();
+
+        super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
+        super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
+        for name in &exported.package_variant_names {
+            super::super::test_support::assert_compiles(&base, &format!("{packages}/{name}.ec"));
+        }
+        for name in &exported.game_names {
+            super::super::test_support::assert_compiles_with_paths(
+                &[&base, &packages, &games],
+                &format!("{games}/{name}.ec"),
+            );
+        }
+        for eq in &exported.equivalences {
+            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
+            super::super::test_support::assert_compiles_or_known_base_case_gap(
+                &[&base, &packages, &games],
+                &format!("{base}/{}", eq.proof_file),
+            );
+        }
+
+        std::fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    // `Full4WHS` is a much larger project than `Simple4WHS`/`kem-dem-cca-ssp`
+    // (18 package variants, 12 games, 9 equivalence hops) — exercising it
+    // here, on top of the smaller acceptance targets above, is what actually
+    // found (and, once fixed, now confirms the fix for) the three real
+    // `invariant.rs` gaps documented in `full_4whs_exports_without_error`'s
+    // own comment.
+    #[test]
+    fn full_4whs_full_tree_compiles_in_dependency_order() {
+        let exported = export("example-projects/4WHS", "Full4WHS").unwrap();
+        let tmp = std::env::temp_dir().join(format!(
+            "domino-easycrypt-export-compile-test-full4whs-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&tmp);

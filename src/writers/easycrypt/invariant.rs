@@ -421,6 +421,37 @@ fn field_expr(op_param: &str, field: &str) -> EcExpr {
     }
 }
 
+/// Recognises a `.smt2` bits-literal atom emitted by
+/// `src/writers/smt/expr_expr.rs`/`expr_term.rs`'s own `From<&Expression>
+/// for SmtExpr` (`ExpressionKind::BitsLiteral`'s SMT-text form, used
+/// verbatim in Domino's own solver-facing output and, as `Full4WHS` shows,
+/// also written by hand into invariant files): `<empty-bitstring>` for
+/// `Bits(*)`'s zero value, or `<{"0"|"1"}_{suffix}>` for a fixed-width
+/// `Bits(n)`'s zero/one value (`<0_n>`, `<1_256>`, …) — `{suffix}` is the
+/// width's raw identifier text, exactly as `CountSpec::resolved_suffix`
+/// produces it (no `-` -> `_` mangling at that layer). Maps onto the same
+/// `zero`/`one`/`zero_<suffix>`/`one_<suffix>` ops `Types.ec` always
+/// declares for every bits type in scope (`typesfile.rs::bits_type_items`)
+/// and that `types.rs::translate_bits_literal` already produces for
+/// Domino-source `BitsLiteral` expressions — this is the same mapping,
+/// just reached from parsed SMT text instead of a `Type`/`Expression`, so
+/// the suffix is mangled the same way (`bits_suffix`'s own `-` -> `_`) to
+/// land on the identical op/type names.
+fn translate_bits_literal_atom(a: &str) -> Option<(EcExpr, EcType)> {
+    let inner = a.strip_prefix('<')?.strip_suffix('>')?;
+    if inner == "empty-bitstring" {
+        return Some((EcExpr::Var("zero".to_string()), EcType::Named("bits".to_string())));
+    }
+    let (content, raw_suffix) = inner.split_once('_')?;
+    let suffix = raw_suffix.replace('-', "_");
+    let op = match content {
+        "0" => format!("zero_{suffix}"),
+        "1" => format!("one_{suffix}"),
+        _ => return None,
+    };
+    Some((EcExpr::Var(op), EcType::Named(format!("bits_{suffix}"))))
+}
+
 fn eq_expr(lhs: EcExpr, rhs: EcExpr) -> EcExpr {
     EcExpr::Binop {
         op: EcBinop::Eq,
@@ -867,6 +898,9 @@ impl<'a> TCtx<'a> {
         }
         if let Ok(n) = a.parse::<i64>() {
             return Ok((EcExpr::Int(n), EcType::Int));
+        }
+        if let Some(result) = translate_bits_literal_atom(a) {
+            return Ok(result);
         }
         Err(self.unrecognised(whole))
     }
@@ -2066,6 +2100,29 @@ mod tests {
         assert_eq!(
             translate_sort(&parse_sort_text("(Tuple2 Int Bool)"), "f").unwrap(),
             EcType::Tuple(vec![EcType::Int, EcType::Bool])
+        );
+    }
+
+    #[test]
+    fn bits_literal_atoms_translate_to_the_types_ec_zero_one_ops() {
+        // `Full4WHS`'s own `invariant-H7_1_1_0-H7_1_1_1.smt2` hits this for
+        // real: `(let ((zeron <0_n>)) ...)` — `<0_n>` is
+        // `src/writers/smt/expr_expr.rs`'s own SMT-text encoding of
+        // `BitsLiteral("0", Bits_n)`, not a placeholder.
+        assert_eq!(translate_body("<0_n>"), "zero_n");
+        assert_eq!(translate_body("<1_n>"), "one_n");
+        assert_eq!(translate_body("<1_256>"), "one_256");
+        assert_eq!(translate_body("<empty-bitstring>"), "zero");
+    }
+
+    #[test]
+    fn bits_literal_atom_suffix_is_mangled_dash_to_underscore() {
+        assert_eq!(
+            translate_bits_literal_atom("<0_key-width>"),
+            Some((
+                EcExpr::Var("zero_key_width".to_string()),
+                EcType::Named("bits_key_width".to_string())
+            ))
         );
     }
 

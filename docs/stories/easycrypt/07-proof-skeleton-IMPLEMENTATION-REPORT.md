@@ -1,19 +1,32 @@
 # Story 07 — Implementation report
 
-**Status:** done, with two known, documented gaps (§6). `cargo build --workspace`,
-`cargo test --workspace` (338 passed, 4 pre-existing `#[ignore]`d, none new failing) and
-`cargo clippy --workspace --all-targets` are all clean. `easycrypt` (`r2026.06-12-g7e192dd`) was on
-`PATH`, so every compile-shaped test ran for real, plus the exact §5 recipe was run by hand end to
-end for `Simple4WHS` and `kem-dem-cca-ssp`.
+**Status:** done, with one known, documented gap (§6.1 — the base-case `smt` gap). `cargo build
+--workspace`, `cargo test --workspace` (341 passed, 4 pre-existing `#[ignore]`d, none new failing)
+and `cargo clippy --workspace --all-targets` are all clean. `easycrypt` (`r2026.06-12-g7e192dd`) was
+on `PATH`, so every compile-shaped test ran for real, plus the exact §5 recipe was run by hand end to
+end for `Simple4WHS`, `kem-dem-cca-ssp`, and (as of the third post-review round) `Full4WHS`.
 
-**Post-review update**: the project owner flagged, while reviewing this story, that
-`invariant.rs`'s `define-state-relation` handling hard-required its two binders to be spelled
-literally `left`/`right` and asked why — correctly identifying this as an unnecessary rigidity
-rather than a real SMT-LIB constraint. Fixed (§4.1 below): binder names are now purely positional,
-like an ordinary `define-fun`'s own argument names. Verifying that fix surfaced a second, separate
-`Full4WHS` gap (whole-package-state equality, not a naming issue); the project owner asked for that
-to be implemented too, and it now is (§4.2 below). Both are genuine, shared-infrastructure
-corrections/additions to story 06's own translator, found and fixed in this same session.
+**Post-review updates** (three rounds, same session, all from the project owner reviewing this
+story against `Full4WHS`):
+
+1. `invariant.rs`'s `define-state-relation` handling hard-required its two binders to be spelled
+   literally `left`/`right` — flagged as an unnecessary rigidity, not a real SMT-LIB constraint.
+   Fixed (§4.1): binder names are now purely positional, like an ordinary `define-fun`'s own
+   argument names.
+2. Verifying that fix surfaced a second, separate `Full4WHS` gap: whole-package-state equality
+   (`(= state-left.KX state-right.KX)`), not a naming issue. Fixed on request (§4.2): expands into a
+   field-by-field conjunction.
+3. Verifying *that* fix surfaced a third gap: `<0_n>`, an SMT-text bits-literal atom
+   (`src/writers/smt/expr_expr.rs`'s own encoding of `BitsLiteral("0", Bits_n)`) that `invariant.rs`
+   had never learned to parse. Investigated and fixed (§4.3): **`Full4WHS` now exports and compiles
+   completely, with no remaining gap of its own** — the only failure left anywhere in this epic's
+   target projects is the pre-existing, documented §6.1 base-case `smt` gap (present for every
+   project) and the unrelated, genuinely-out-of-scope §6.2 `GameState_`-dialect gap
+   (`hello-world`/`simple-KEM-example`).
+
+All three are genuine, shared-infrastructure corrections/additions to story 06's own translator,
+found and fixed in this same session by actually running `domino easycrypt` against the real
+`Full4WHS` project after each fix, not by inspection alone.
 
 ## 1. What exists
 
@@ -243,16 +256,51 @@ the implementation sketched at the end of this report's own §9 in the prior dra
 
 Verified against the real `Full4WHS` project: `domino easycrypt --project example-projects/4WHS
 --theorem Full4WHS` now advances **past both** `invariant-KX-H1_0.smt2` and
-`invariant-H1_1-H2_0.smt2` entirely, landing on a third, unrelated, unattempted gap in a later file
-(`invariant-H7_1_1_0-H7_1_1_1.smt2`: an unsubstituted `<0_n>` template placeholder atom — not one of
-§3.2's fixed forms, looks like a bit-width instantiation token this translator has never supported;
-out of scope, not investigated further here). `Simple4WHS` re-verified unaffected. Three new unit
-tests: `whole_package_state_equality_expands_to_a_field_by_field_conjunction`,
+`invariant-H1_1-H2_0.smt2` entirely, landing on a third, unrelated gap in a later file
+(`invariant-H7_1_1_0-H7_1_1_1.smt2`: `<0_n>`, since investigated and fixed — see §4.3). `Simple4WHS`
+re-verified unaffected. Three new unit tests:
+`whole_package_state_equality_expands_to_a_field_by_field_conjunction`,
 `whole_package_state_equality_skips_fields_present_on_only_one_side`,
 `instance_level_equality_with_no_shared_fields_is_a_hard_error`.
-`full_4whs_fails_on_whole_package_state_equality_not_binder_naming` (§6.2's regression pin) is
-retired in favor of `full_4whs_fails_on_an_unsubstituted_bitwidth_placeholder`, pinning the new,
-correct failure point.
+
+## 4.3 `<0_n>` is a real `BitsLiteral`, not a placeholder — investigated and fixed (second follow-up)
+
+Asked directly to investigate the `<0_n>` gap next, rather than assuming it was some kind of
+unsubstituted template token. It is not: `grep`ping the codebase for where an atom shaped like
+`<...>` gets written into `.smt2` text found `src/writers/smt/expr_expr.rs:51` (mirrored in
+`expr_term.rs`) — `ExpressionKind::BitsLiteral`'s own `From<&Expression> for SmtExpr` arm emits
+`SmtExpr::Atom(format!("<{cont}_{}>", cspec.resolved_suffix()))` for every fixed-width bits literal,
+where `cont` is `"0"` or `"1"` (`src/parser/package.rs`'s `literal_bits_zero`/`literal_bits_one`
+never produce anything else) and the suffix is the width's raw identifier text. `<empty-bitstring>`
+(`src/hacks.rs:173`) is the sibling form for `Bits(*)`'s own zero value. This is Domino's own
+solver-facing SMT encoding for a bits literal, used both in generated `.smt2` and, as `Full4WHS`
+shows, in hand-written invariant files that reference a package's zero/one constant directly — not a
+gap in the invariant file, a gap in what `invariant.rs`'s atom translator knew how to read.
+
+The EasyCrypt side already has a home for this value: `typesfile.rs::bits_type_items` declares
+`zero`/`one` (bare, for `Bits(*)`) or `zero_<suffix>`/`one_<suffix>` (per fixed width) ops in
+`Types.ec` for every bits type in scope, and `types.rs::translate_bits_literal` already does this
+exact `BitsLiteral -> zero_<suffix>/one_<suffix>` mapping for Domino-source expressions reaching
+story 02's own translator. **Fix, in `invariant.rs`**: a new `translate_bits_literal_atom` helper,
+called from `translate_atom`'s existing fallback chain (after the integer-literal check, before the
+final `unrecognised` error) — it strips the atom's `<...>` wrapper, matches `empty-bitstring`
+directly to `zero`/`bits`, or splits the inner text on its first `_` into `content`/`suffix`, mapping
+`content` `"0"`/`"1"` to `zero_<suffix>`/`one_<suffix>` with type `bits_<suffix>`. The suffix is
+mangled `-` -> `_` exactly like `bits_suffix` already does for the identical Domino-source path, so a
+theorem width whose raw identifier contains a dash still lands on the same op/type name either way.
+
+Verified against the real `Full4WHS` project: `domino easycrypt --project example-projects/4WHS`
+(bare, no `--theorem` — the exact invocation the project owner originally reported as broken) now
+exports **both** `Full4WHS` and `Simple4WHS` with **no errors at all** (50 + 19 files). Went further
+than a CLI check: `full_4whs_full_tree_compiles_in_dependency_order` (new, mirroring the existing
+`simple_4whs_*`/`kem_dem_cca_ssp_*` tests) runs real `easycrypt compile` over all 18 package variants,
+12 games, and all 9 equivalence hops' `Eq_*_Invariants.ec`/`Eq_*.ec` files — every one compiles,
+modulo the same pre-existing §6.1 base-case `smt` gap every other target project also hits. Two new
+unit tests: `bits_literal_atoms_translate_to_the_types_ec_zero_one_ops`,
+`bits_literal_atom_suffix_is_mangled_dash_to_underscore`.
+`full_4whs_fails_on_an_unsubstituted_bitwidth_placeholder` (the prior draft's regression pin) is
+retired — replaced by `full_4whs_exports_without_error`, since there is no longer a `Full4WHS`-
+specific failure left to pin.
 
 ## 5. A second real, verified EasyCrypt fact — a `names.rs` fix, also shared
 
@@ -291,8 +339,8 @@ exact, narrow failure mode in the test suite: it tolerates *only* a `cannot prov
 failure at this one call, so any *other* compile failure (a real regression) still fails
 `cargo test`.
 
-### 6.2 `hello-world`'s and `simple-KEM-example`'s hand-written invariants predate story 06's grammar
-    entirely — genuinely out of this story's scope
+### 6.2 `Full4WHS` is now fully clean; `hello-world`'s and `simple-KEM-example`'s hand-written
+    invariants predate story 06's grammar entirely — genuinely out of this story's scope
 
 Story 06 was only ever tested against `Simple4WHS`'s own `theorem/simple/*.smt2` files (its own
 report says so explicitly). Wiring `build_invariant_file` into every equivalence hop of every
@@ -308,23 +356,23 @@ real, active machinery in `src/writers/smt/patterns/datastructures/{game_state,p
 (`define-state-relation NAME (left right) …`). `4WHS`'s own `Full4WHS` theorem's own
 `theorem/full/*.smt2` invariants are *not* this same `GameState_`-sort dialect — they use story 06's
 flat per-field model correctly, just with a different binder spelling (`state-left`/`state-right`,
-§4.1) and, in two files, a whole-package-state equality (§4.2) — both now fixed. What still blocks
-`Full4WHS` is a third, unrelated, unattempted gap: `invariant-H7_1_1_0-H7_1_1_1.smt2` uses an
-unsubstituted `<0_n>` template placeholder atom, not one of §3.2's fixed forms — see §4.2's own
-closing paragraph.
+§4.1), in two files a whole-package-state equality (§4.2), and in one file a `BitsLiteral` atom
+(§4.3) — all three now fixed. `Full4WHS` exports and compiles completely; it has no gap of its own
+left in this epic.
 
-**Consequence for this story's own acceptance criteria (§4)**: `kem-dem` now genuinely produces
-compiling `Eq_*.ec`/`Eq_*_Invariants.ec` files (confirmed, §3/§6.1); `hello-world` does **not** — its
-`Proof` theorem's export now fails outright (`export_theorem` is correctly all-or-nothing per
-theorem, matching the pre-existing `yao`/`Yao` precedent for an unsupported construct — nothing
+**Consequence for this story's own acceptance criteria (§4)**: `kem-dem` and `Full4WHS` (beyond the
+story's own named targets) now genuinely produce compiling `Eq_*.ec`/`Eq_*_Invariants.ec` files
+(confirmed, §3/§4.3/§6.1); `hello-world` does **not** — its `Proof` theorem's export still fails
+outright on the unrelated `GameState_`-dialect gap above (`export_theorem` is correctly all-or-nothing
+per theorem, matching the pre-existing `yao`/`Yao` precedent for an unsupported construct — nothing
 about that design changed here). The regressed tests (`hello_world_exports_expected_files`,
 `simple_kem_example_exports_without_error`, `full_4whs_exports_only_that_theorem`,
-`write_files_round_trips_and_rewriting_is_byte_identical`) are updated: the first three now pin the
+`write_files_round_trips_and_rewriting_is_byte_identical`) are updated: the first two now pin the
 *specific*, verified failure (`hello_world_fails_on_its_pre_easycrypt_invariant_format`,
-`simple_kem_example_fails_on_its_pre_easycrypt_invariant_format`,
-`full_4whs_fails_on_an_unsubstituted_bitwidth_placeholder` — renamed twice across this report's
-drafts, once for each fix that changed *which* error `Full4WHS` actually hits first), and the fourth
-now targets `kem-dem-cca-ssp` instead of `hello-world`. **Not attempted**: teaching `invariant.rs` a second SMT
+`simple_kem_example_fails_on_its_pre_easycrypt_invariant_format`); `full_4whs_exports_only_that_theorem`
+went through several renames across this report's drafts as each successive fix changed *which* error
+`Full4WHS` hit, and is now `full_4whs_exports_without_error` (no failure left to pin); the fourth
+targets `kem-dem-cca-ssp` instead of `hello-world`. **Not attempted**: teaching `invariant.rs` a second SMT
 dialect (whole-game-state sorts + selector-function accessors) is a substantial, story-06-shaped
 undertaking — a new resolution pass reverse-engineering `src/writers/smt`'s own naming scheme — well
 beyond this story's own scope (equivalence *proof skeletons*, not invariant-format coverage).
@@ -354,9 +402,11 @@ on."
 - [x] Bullet order matches the game interface export order exactly
   (`proof::tests::hybrid0_hybrid1_bullet_order_matches_export_order`).
 - [~] `kem-dem` and `hello-world` also produce compiling `Eq_*.ec` files — true for `kem-dem-cca-ssp`
-  (confirmed end to end, modulo the same §6.1 base-case gap); **not** true for `hello-world`, which
-  cannot export *at all* today due to a pre-existing, out-of-scope invariant-format incompatibility
-  discovered by this story (§6.2) — not a defect in this story's own code.
+  (confirmed end to end, modulo the same §6.1 base-case gap) **and, beyond the story's own named
+  targets, for `Full4WHS`** (§4.3, `full_4whs_full_tree_compiles_in_dependency_order`); **not** true
+  for `hello-world`, which cannot export *at all* today due to a pre-existing, out-of-scope
+  invariant-format incompatibility discovered by this story (§6.2) — not a defect in this story's own
+  code.
 - [x] Deterministic (`proof::tests::rendering_is_deterministic`); `cargo build/test/clippy
   --workspace` clean.
 
@@ -373,13 +423,15 @@ on."
   name (the `(* d_NewKey *)` comment) is reproducible independently via a fresh `Names(Proc)` over
   `export.name()`, same as the router's own naming — a future story needing to correlate a bullet
   with its router proc doesn't need new plumbing for that.
-- **Four shared-infrastructure fixes, not story-07-local** (§4, §4.1, §4.2, §5): `invariant.rs`'s
+- **Five shared-infrastructure fixes, not story-07-local** (§4, §4.1, §4.2, §4.3, §5): `invariant.rs`'s
   `mangle_local_binder` (any local SMT-source binder that would mangle to exactly `l`/`r` is now
   escaped), `invariant.rs`'s binder-name-agnostic `define-state-relation` handling (§4.1 — binder
   spelling is positional, not a fixed `left`/`right` vocabulary), `invariant.rs`'s whole-package-
   state-equality expansion (§4.2 — `(= <side>.<inst> <side>.<inst>)` now expands to a field-by-field
-  conjunction), and `names.rs`'s bare-`_` escaping (`d__`) are all now the established, correct
-  behavior crate-wide — a future translator in this epic should not need to rediscover any of them.
+  conjunction), `invariant.rs`'s `BitsLiteral` atom translation (§4.3 — `<0_n>`/`<1_256>`/
+  `<empty-bitstring>` now map onto `Types.ec`'s own `zero`/`one`/`zero_<suffix>`/`one_<suffix>` ops),
+  and `names.rs`'s bare-`_` escaping (`d__`) are all now the established, correct behavior crate-wide
+  — a future translator in this epic should not need to rediscover any of them.
 - **`easycrypt llm -lastgoals`** (§6.1) is a genuinely useful, previously-undocumented tool for this
   epic: `easycrypt llm -lastgoals -I <dirs…> <file>.ec` prints the exact remaining goal(s) on a batch
   compile failure, `-upto LINE[:COL]` compiles only up to a point — both are worth reaching for
@@ -388,22 +440,18 @@ on."
   slice of it is now fully closed**: `hello-world`/`simple-KEM-example`'s hand-written invariants use
   `src/writers/smt`'s own solver-facing whole-game-state encoding (a second SMT dialect entirely,
   still unaddressed — genuinely this epic's biggest remaining invariant-format gap); `Full4WHS`'s do
-  **not** — after §4.1's binder-naming fix and §4.2's whole-package-equality expansion, `Full4WHS`'s
-  export advances past every file that uses story 06's flat per-field grammar and only stops at a
-  third, unrelated, unattempted gap (an unsubstituted `<0_n>` bit-width placeholder atom in
-  `invariant-H7_1_1_0-H7_1_1_1.smt2`, §4.2's closing paragraph) whose extent beyond that one file is
-  unknown (export stops at the first failure). A future story wanting full `hello-world`/
-  `simple-KEM-example` coverage needs a second invariant-translation path (or those fixtures
-  re-authored in the new grammar); a future story wanting full `Full4WHS` coverage needs to
-  investigate the `<0_n>`-style placeholder gap next — recorded here so it isn't rediscovered from
-  scratch.
+  **not** — after §4.1's binder-naming fix, §4.2's whole-package-equality expansion, and §4.3's
+  `BitsLiteral` atom translation, `Full4WHS` exports and compiles completely, with no gap of its own
+  left. A future story wanting full `hello-world`/`simple-KEM-example` coverage needs a second
+  invariant-translation path (or those fixtures re-authored in the new grammar) — recorded here so it
+  isn't rediscovered from scratch.
 - **Golden/behavioral tests**: `proof.rs`'s own inline tests (no separate `testdata/easycrypt/
   story07/` golden directory — this story's acceptance criteria are compile-shaped and
   structural/behavioral assertions, not exact-text golden matches, since the proof skeleton's own
   text (record literals, restrictions) is project-specific and already covered by real
   `easycrypt compile` checks); `export.rs`'s
-  `simple_4whs_full_tree_compiles_in_dependency_order` and new
-  `kem_dem_cca_ssp_full_tree_compiles_in_dependency_order` run the full `Types → Interfaces →
+  `simple_4whs_full_tree_compiles_in_dependency_order`, `kem_dem_cca_ssp_full_tree_compiles_in_dependency_order`,
+  and new `full_4whs_full_tree_compiles_in_dependency_order` each run the full `Types → Interfaces →
   packages → games → Eq_*_Invariants → Eq_*` chain for real.
 
 ## 9. Notes for follow-up (not this story's scope)
@@ -413,12 +461,8 @@ on."
   producing a full `domino easycrypt` export until addressed, independent of anything in stories
   07/08/09.
 - §4.2's whole-package-state-equality gap is fixed (was previously flagged here as a follow-up).
-- The new `<0_n>`-style bit-width placeholder gap (§4.2's closing paragraph,
-  `invariant-H7_1_1_0-H7_1_1_1.smt2`) is `Full4WHS`'s next blocker: an unsubstituted template atom
-  that isn't one of §3.2's fixed forms. Not investigated — its shape (how many distinct placeholder
-  forms exist, whether it's one token or a family) and how many of `Full4WHS`'s remaining ~13
-  unexamined invariant files hit it or something else entirely are both unknown, since export stops
-  at the first failure. Flagged rather than guessed at.
+- §4.3's `<0_n>` gap is fixed too — it was never a placeholder, just a `BitsLiteral` SMT-text form
+  `invariant.rs` hadn't learned to parse yet. `Full4WHS` has no known gap of its own left.
 - §6.1's base-case gap might be closeable with more targeted `smt` hints or a `have`/`rewrite`
   detour establishing `b{!1} = b{!2}` before the final `smt` call — but per the story's own explicit
   instruction, this was recorded rather than chased; a future session with more budget could
