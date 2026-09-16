@@ -347,6 +347,22 @@ pub struct NoSuchTypeError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("cannot sample a value of type '{type_name}'")]
+#[diagnostic(
+    code(domino::code::illegal_sample_type),
+    help("only Bool, Integer, and Bits(..) can be sampled")
+)]
+pub struct IllegalSampleTypeError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this type cannot be sampled")]
+    pub at: SourceSpan,
+
+    pub type_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("oracle '{oracle_name}' does not exist ")]
 #[diagnostic(code(domino::code::no_such_oracle))]
 pub struct NoSuchOracleError {
