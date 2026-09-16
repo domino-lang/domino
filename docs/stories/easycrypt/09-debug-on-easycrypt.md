@@ -1,0 +1,130 @@
+# Story 09 — `domino debug --easycrypt`
+
+**Epic:** EasyCrypt Export — see `docs/stories/easycrypt/00-overview.md`.
+**Branch:** `amir/easycrypt-export`
+**Depends on:** story 08 (lowering + EasyCrypt listings).
+**Blocks:** nothing. Last story of the epic.
+
+---
+
+## 1. Why this story exists
+
+The owner's first version of the debugger-on-EasyCrypt is deliberately modest:
+
+> In this first version, let's just run the debugger on the EasyCrypt code we have in our data
+> structures and display the user the verified and pruned paths as we do now but just on inlined
+> easycrypt code we generate instead of inlined Domino code.
+
+So: no new analysis, no tactic generation. The existing exploration, verdicts, pruning, summary and
+HTML viewer, driven by the EasyCrypt listing from story 08.
+
+## 2. Inherited from earlier stories
+
+### 2.1 The debugger driver (`src/debug/driver.rs`, epic `docs/stories/00-overview.md`)
+
+```rust
+pub const TRACE_SCHEMA: u32 = 8;
+pub struct DebugOptions { … }
+pub enum DebugError { … }
+pub struct DebugRun { schema, … }
+pub struct LeftPath { … }  pub struct RightPath { … }  pub struct PrunedBranch { … }
+pub struct SiteView { … }  pub struct StepView { … }   pub struct TerminalView { … }
+pub enum Verdict { … }     pub struct Summary { … }    pub enum StopReason { … }
+pub fn run_debug_command<P, B>(…) -> Result<…, DebugError>;
+pub fn render_tree(run: &DebugRun) -> String;
+```
+
+Outputs live under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`: `index.html`,
+`inlined.txt`, `trace.json`, `summary.txt`, per-failure models and an `smt/` tree. Story 17 put the
+concise report on stdout and the per-path tree in `summary.txt`; story 16 paints executed lines.
+
+### 2.2 From story 08
+
+`inline_oracle_ec`, the provenance rule (state places and expressions are the **Domino** ones; the
+listing text is EasyCrypt), the elimination of `abort_flag`/`ec_result`, and the fact that
+`treeify` makes the EasyCrypt listing have more syntactic paths than the Domino one.
+
+## 3. Work to do
+
+### 3.1 The flag
+
+Add `--easycrypt` to `Commands::Debug` (`crates/domino/src/cli.rs`). With it:
+
+- the left and right `InlinedOracle`s come from `inline_oracle_ec` instead of `inline_oracle`;
+- **everything else is unchanged** — the base frame, assumptions, claim goal, vacuity check,
+  pruning, timeouts, `--max-paths`, `Ctrl-C`, progress, SMT file output, `trace.json`, HTML.
+
+Because the IR denotes the same places and expressions (story 08 §3.2), the existing
+`EquivalenceContext` frame and claim machinery apply without modification. If that turns out to be
+false for some construct, **stop and report it** rather than special-casing the encoder.
+
+### 3.2 Output changes
+
+- `inlined.txt` and the HTML listings show EasyCrypt code; the header of each says so
+  (`listing: EasyCrypt` vs `listing: Domino`), as does `summary.txt` and the stdout report.
+- `trace.json` gains one field recording which listing was used, e.g.
+  `"listing": "easycrypt" | "domino"`. Bump `TRACE_SCHEMA` to **9** and record it.
+- The output directory gains a suffix so the two runs don't overwrite each other:
+  `…/<claim>/` for Domino and `…/<claim>-ec/` for EasyCrypt. Record the exact choice.
+
+### 3.3 The correctness signal
+
+The two listings describe the same game, so for a given proofstep/oracle/claim the **verdict
+summary must agree**: same set of `goal fails` / `verified` / `unreachable` / `inconclusive`
+outcomes, modulo the path multiplicity `treeify` introduces. Add an integration test on
+`kem-dem` `PKENC` `same-output` that runs both and asserts the aggregate verdict matches (e.g. both
+find zero failures, or both find failures). A mismatch is a bug in the lowering, not something to
+paper over in the report.
+
+## 4. Acceptance criteria
+
+- [ ] `domino debug --easycrypt --proof kem_dem_cca_ssp --proofstep 0 --oracle PKENC --claim
+      same-output` completes on `example-projects/kem-dem/kem-dem-cca-ssp` and writes the full
+      artifact set, with EasyCrypt code in `inlined.txt` and in both HTML listings.
+- [ ] The same command on `example-projects/hello-world` (`UsefulOracle`) works end to end.
+- [ ] Verdict aggregate matches the Domino-listing run for `kem-dem` `PKENC` `same-output` and for
+      `PKDEC` (which has abort paths); the path counts may differ and the report says by how much.
+- [ ] Executed-line painting, pruned-branch cut lines, the collapsible panes and the path tree all
+      work against the EasyCrypt listing (story 16's rules are listing-agnostic — verify, don't
+      assume).
+- [ ] `trace.json` carries the listing field; `TRACE_SCHEMA` is 9; an unchanged project produces
+      byte-identical `trace.json` and `index.html` across two runs.
+- [ ] Without `--easycrypt`, every output is byte-identical to today.
+- [ ] `cargo build/test/clippy --workspace` clean, including `--features cvc5-lib`.
+
+## 5. How to verify
+
+```bash
+source ~/.cache/domino/cvc5-lib-env.sh
+cargo build --workspace --features cvc5-lib
+D=$PWD/target/debug/domino
+
+cd example-projects/kem-dem/kem-dem-cca-ssp
+$D debug --easycrypt --proof kem_dem_cca_ssp --proofstep 0 --oracle PKENC --claim same-output
+$D debug             --proof kem_dem_cca_ssp --proofstep 0 --oracle PKENC --claim same-output
+# compare the two concise stdout reports: verdict aggregates must agree
+
+open _build/debug/*/*/PKENC/same-output-ec/index.html
+```
+
+> **Never** run `debug` against `example-projects/4WHS` or `example-projects/yao`. For 4WHS, use
+> `domino easycrypt` (allowed — no solver) and read the generated files.
+
+## 6. Notes / risks
+
+- **Path explosion.** `treeify` duplication multiplies EasyCrypt paths. `--max-paths` and `Ctrl-C`
+  already exist; if `PKENC` becomes unpleasantly slow, say so in the report with numbers rather
+  than adding a new limiter.
+- **Don't rewrite the encoder.** If a lowered construct does not encode, that is story 08's
+  provenance rule leaking — fix it there.
+- **No tactic generation.** Turning paths into `sp`/`rcondt`/`match` scripts is the obvious next
+  epic; it is explicitly not this story. Note ideas under "Notes for follow-up".
+- **The HTML is a Rust raw string literal** (`const TEMPLATE: &str = r##"…"##`) — keep the `r##`
+  delimiters.
+
+## 7. State handed to the next story
+
+Record in `09-…-IMPLEMENTATION-REPORT.md`: the flag, the output directory convention, `TRACE_SCHEMA`
+9 and the new trace field, the verdict-agreement results and path-count comparison for `kem-dem`
+`PKENC`/`PKDEC`, run times, and a list of what a future tactic-generation epic would need from the
+trace.

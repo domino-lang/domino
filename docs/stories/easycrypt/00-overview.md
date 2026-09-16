@@ -1,0 +1,238 @@
+# Epic: EasyCrypt Export (`domino easycrypt`)
+
+> This is the epic overview. Every story under `docs/stories/easycrypt/` is self-contained, but
+> read this file first in each new session — it carries the shared context, the settled design
+> decisions, the testing strategy and the working agreement.
+>
+> Source of the requirement: `docs/easycrypt-export.md` (written by the project owner), as
+> amended by the design session recorded in §3. **Where this file and `docs/easycrypt-export.md`
+> disagree, this file wins** — several points in the plan turned out to be impossible in
+> EasyCrypt, and §3 records what replaced them and why.
+
+---
+
+## 1. The problem
+
+Domino proves equivalences by discharging SMT obligations with cvc5. EasyCrypt proves them with a
+relational program logic and a human-written tactic script. The two describe the *same* games, so
+the translation is mechanical — but doing it by hand is slow and error-prone. There is a manual
+translation of the 4WHS project (`~/Research/ec4whs/simple` and `~/Research/ec4whs/full`,
+about 9k lines) that took considerable effort and is already drifting from the Domino sources.
+
+We want `domino easycrypt` to generate the boilerplate: types, packages, games, experiments,
+invariants and the skeleton of each equivalence proof, leaving `admit` exactly where a human has
+to think.
+
+**The manual translation is inspiration, not a target.** Do not copy project-specific code out of
+it. It uses records with named fields where Domino has anonymous tuples, it has no router module,
+and its experiment is parameterized by the game. Where it differs from this epic, this epic wins.
+
+## 2. What we are building
+
+1. `domino easycrypt` — writes a compilable EasyCrypt project under `_build/easycrypt/<theorem>/`:
+   `Types.ec`, `Interfaces.ec`, `packages/*.ec`, `games/*.ec`, and per equivalence
+   `Eq_<Left>_<Right>.ec` + `Eq_<Left>_<Right>_Invariants.ec`.
+2. An **EasyCrypt AST** (`src/writers/easycrypt/ast.rs`) as the real artifact — text is only its
+   rendering — so the symbolic-execution debugger can later run on the generated code.
+3. `domino inline --easycrypt` and `domino debug --easycrypt` — the existing debugger machinery
+   (`src/debug/`), driven by the generated EasyCrypt code instead of inlined Domino code.
+
+Out of scope for this epic: randomness mappings, reductions, hybrid game hops, and deriving proof
+tactics from execution paths. The generated proofs `admit` every oracle.
+
+## 3. Design decisions (settled with the project owner — do not relitigate)
+
+Everything in this table was verified against EasyCrypt `r2026.06-12-g7e192dd` by compiling test
+files, or read out of this repository's source. §8 lists the evidence.
+
+| Topic | Decision |
+|---|---|
+| **Instantiation** | **No abstract types and no abstract operators in generated packages.** A package instance is already monomorphic by export time (`src/packageinstance.rs:31`), so each package is emitted **specialised**. A **package variant** is one module per distinct assignment of a package's *integer and function* parameters; boolean parameters are not part of the key. This mirrors Domino's own SMT specialisation (`only_ints_and_funs`, `src/writers/smt/patterns/instance_names.rs:17`). |
+| **Multiple instances** | Each package **instance** gets `clone <Variant> as Pkg_<inst>.` in its game file — no overrides. EasyCrypt clones theories, not modules, so a package theory contains just its module. Cloning gives each instance its own memory. |
+| **`local` clones** | **Impossible.** A non-local module cannot depend on a local one (`module M cannot depend on local module Pkg_L.P`). Not needed either: a file is already a namespace. |
+| **Type parameters** | **Unsupported.** A package instance with a non-empty `types { … }` block is a hard error. (`nprf` is the only project that uses them and it is not a target.) |
+| **Package state** | **Module variables**, not one record per package. Records would force a copy-and-`{\| … with … \|}` dance at every table write, and EasyCrypt forbids two record types sharing a field name. |
+| **Tables** | `fmap`. `T[k] <- Some e` → `T.[k] <- e`; `T[k] <- None` → `T <- rem T k`; an arbitrary `Maybe` right-hand side → `T <- if e = None then rem T k else T.[k <- oget e]`. |
+| **Abort** | An oracle returning `T` in Domino returns `T option` in EasyCrypt; `None` is abort. An oracle with no return value returns `unit option` and returns `Some tt`. The abort **flag lives only in the router**, never in a package. |
+| **Early return / abort mid-body** | The export pipeline runs `treeify`, which already pushes the continuation of an `if` (and therefore of an `assert`) into both branches. `treeify` does **not** cover `Unwrap` and `InvokeOracle`, so the translator nests the rest of the block into the `else` of those two itself. |
+| **Pipeline** | `EquivalenceTransform` — the existing `prove` pipeline, `run_treeify = true` (`src/transforms/theorem_transforms.rs:99`). No new pipeline. |
+| **Naming** | Deterministic mangling: lowercase-first names survive unchanged; uppercase-first names and EasyCrypt keywords get a `d_` prefix (`NewKey` → `d_NewKey`, `LTK` → `d_LTK`, `return` → `d_return`); `-` → `_` in SMT-derived names; modules are `Pkg_<inst>`, `Game_<comp>`, `Exp_<comp>`. A residual collision is a hard error. |
+| **Games** | One game file per **composition** (not per game instance). Game instances appear only as the arguments of an `Eq_*` lemma. |
+| **Experiment** | `Exp_<Comp>` per composition, in the game file. Its `run` takes the composition's boolean and value-integer constants in declaration order. Width integers become types; function constants become global operators. |
+| **Invariants** | One invariant file per equivalence (this branch's grammar, `src/parser/ssp.pest:295`). Every `define-state-relation` becomes an operator `Domino_<name> (l, r)`; helper `define-fun`s become `Domino_<name>`. The assembled invariant is `params_inv l r /\ l.abort_flag = r.abort_flag /\ (!l.abort_flag => Domino_… )`. |
+| **Game-state record** | Flat, one per game *instance*, declared in `Eq_*_Invariants.ec`, built inline at the `call` site from module variables. Fields are `pkg_<inst>_<field>` plus `abort_flag`. Never used by a router or package. |
+| **Unsupported constructs** | Hard error with a source span: `Set`, `List`, `String`, group types, `while`, any loop `loopunroll` could not unroll, package type parameters, sampling anything but `Bits`. |
+| **Proof skeleton** | v1 emits `byequiv => //. proc; inline. call (: inv …); last first. auto => />. smt(emptyE map_empty).` then `+ proc; inline. admit.` per oracle, in game-interface order. No path-derived tactics. The base case is a real `smt` call, not an `admit`, so a broken base case is visible. |
+| **Debugger** | The EasyCrypt AST is the artifact; a **lowering** turns inlined EasyCrypt code into the debugger's existing IR (`src/debug/ir.rs`), so executor, solver, claims, HTML and `trace.json` are untouched. Labels are line numbers in the **EasyCrypt** listing. |
+| **Reductions / hybrids / randomness mappings** | Skipped, with a note in the output. |
+| **`flake.nix`** | **Not** modified. EasyCrypt comes from the developer's opam switch; tests that shell out to it skip when it is absent. |
+
+## 4. Architecture at a glance
+
+```
+      domino easycrypt --theorem T
+                 |
+        EquivalenceTransform (treeify = true)     <- existing, unchanged
+                 |
+        +--------+-----------------------------------------+
+        |                       |                          |
+   types + exprs           packages + games           invariants (.smt2)
+   (story 02)              (stories 03, 04)           (story 06)
+        |                       |                          |
+        +--------+--------------+--------------------------+
+                 |
+              EcAst  (story 01)  --render-->  *.ec  (story 05)
+                 |                                     |
+                 |                              Eq_*.ec skeleton (story 07)
+                 v
+        lowering to src/debug/ir.rs (story 08)
+                 |
+        domino inline --easycrypt (story 08)
+        domino debug  --easycrypt (story 09)  -> existing executor + viewer
+```
+
+## 5. Stories and dependency order
+
+| # | Story | File | Depends on |
+|---|---|---|---|
+| 01 | EasyCrypt AST, renderer and identifier mangling | `01-ec-ast-and-renderer.md` | — |
+| 02 | Types, expressions and `Types.ec` | `02-types-and-expressions.md` | 01 |
+| 03 | Package variants: modules, state, oracles, abort | `03-package-variants.md` | 02 |
+| 04 | Games: clones, router, interfaces, experiment | `04-games-and-router.md` | 03 |
+| 05 | `domino easycrypt` command and project layout | `05-easycrypt-command.md` | 04 |
+| 06 | Invariant translation | `06-invariant-translation.md` | 02, 04 |
+| 07 | Equivalence proof skeleton | `07-proof-skeleton.md` | 05, 06 |
+| 08 | Lowering to the debugger IR + `inline --easycrypt` | `08-ec-ir-lowering.md` | 03, 04 |
+| 09 | `domino debug --easycrypt` | `09-debug-on-easycrypt.md` | 08 |
+
+Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
+`easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
+
+## 6. Working agreement (important)
+
+- Implementation is done by **Sonnet in extra-high thinking mode**, **one story per session**,
+  with the **context reset after each story**.
+- Because of the context reset, **every story file is self-contained**. It restates the context it
+  needs, names concrete files and signatures, and lists what earlier stories left behind. If while
+  implementing you discover a fact a later story will need, add it to that story's "Inherited from
+  earlier stories" section before you finish.
+- Every story ends with **"State handed to the next story"**, recorded in
+  `docs/stories/easycrypt/<NN>-…-IMPLEMENTATION-REPORT.md`. Keep it accurate — it is the only
+  thing the next (cold) session knows about your work besides the code itself.
+- Each story is one reviewable commit on branch `amir/easycrypt-export`.
+- Do not expand scope. If something outside the story is broken, note it under "Notes for
+  follow-up" and move on.
+
+## 7. Testing strategy (applies to every story)
+
+### Hard rules
+
+> **Never run `domino prove` or `domino debug` against `example-projects/4WHS` or
+> `example-projects/yao`.** Proving them takes hours.
+>
+> **`domino easycrypt` against 4WHS is fine and is the acceptance target** — export runs no
+> solver. This is the one command exempt from the rule above.
+
+### Ladder, fastest first
+
+1. `cargo test --workspace` — golden-file tests over rendered `.ec` text under
+   `testdata/easycrypt/story<NN>/`. The primary safety net for stories 01–04, 06, 08.
+2. `example-projects/hello-world` — two packages, one composition with **two instances of the same
+   package** (`fwd`, `fwd2`), so it exercises instance clones. Smallest end-to-end export.
+3. `example-projects/simple-KEM-example` — the only project using a `Bits` **literal**
+   (`Bits(256)`), so it exercises literal-width bits types.
+4. `example-projects/kem-dem/kem-dem-cca-ssp` — real branching, sampling, cross-package invokes and
+   a hand-written invariant; the target for stories 08 and 09.
+5. `example-projects/4WHS` — the acceptance target for export (both theorems), and the project the
+   manual translation exists for.
+
+### Compiling the output
+
+```bash
+easycrypt compile -I <outdir> <file>.ec     # ~/.opam/easycrypt/bin/easycrypt, r2026.06-12-g7e192dd
+```
+
+Tests that shell out to `easycrypt` must **skip** (not fail) when it is not on `PATH`. Progress
+output goes to stderr and is noisy; filter with `tr '\r' '\n' | grep -v '^\[.\] \['`.
+
+### Build gotcha
+
+```bash
+cargo build --workspace          # correct
+cargo build --release            # WRONG: does not relink the `domino` binary in crates/domino
+```
+
+## 8. Reference: facts about EasyCrypt and this codebase
+
+Load-bearing for several stories; each story restates the ones it needs. Everything below was
+verified in the design session, either by compiling a test file or by reading the source.
+
+### 8.1 EasyCrypt facts (compiled against r2026.06-12-g7e192dd)
+
+- **`clone` applies to theories, not modules.** `clone PkgP as Pkg_A with type … <- …, op … <- …`
+  works; cloning the same theory twice gives two modules with separate memory. Grammar:
+  `ecParser.mly:3465`.
+- **There is no `theory X <- Y` clone override.** Only `type`, `op`, `pred`, `module`,
+  `module type` (`ecParser.mly:3569-3607`). Abstract types therefore cannot be threaded through a
+  chain of package theories — which is why packages are emitted specialised.
+- **A public module cannot depend on a `local` one**: `module M cannot depend on local module
+  Pkg_L.P`.
+- **Record field names are globally unique per namespace**: a second record reusing a field name
+  fails with `the symbol ltk_map already exists`. (Clones are separate namespaces, so per-instance
+  clones are fine.)
+- **Procedure and program-variable names must start lowercase.** `proc NewKey`, `var LTK` are parse
+  errors; `var _U` is fine. `res` is a keyword.
+- **Keywords** (from `ecLexer.mll`): `admit admitted forall exists fun glob let in for var proc if
+  is match then else elif while assert return res equiv hoare ehoare phoare islossless async try
+  first last do expect beta iota zeta eta logic delta simplify cbv congr change split left right
+  case pose gen have suff elim exlim ecall clear wlog apply rewrite rwnormal subst progress trivial
+  auto idtac move modpath algebra exact assumption smt coq check edit fix by reflexivity done solve
+  replace transitivity symmetry seq wp sp sim skip call rcondt rcondf swap cfold rnd rndsem
+  pr_bounded bypr byphoare byehoare byequiv byupto fel conseq exfalso inline outline interleave
+  alias weakmem fission fusion unroll splitwhile kill eager axiom axiomatized lemma realize proof
+  qed abort goal end from import export include local declare hint module of const op pred inductive
+  notation abbrev require theory abstract section type class instance print search locate as clone
+  with rename prover timeout dump remove exit fail time undo debug pragma`
+- **Verified to compile**: tuple projections `` s.`1 ``…`` s.`10 ``; `None<:bits_n>`; `oget`;
+  `m.[k <- v]` and `rem m k`; record literals inside a relational formula; qualified record
+  projection across theories (`` l.`GS1.pkg_KX ``); functor application of a cloned module
+  (`module KX_inst = Pkg_KX.KX(Pkg_Prot.Prot)`); `declare module A <: Adv { -GameH.Pkg_KX.KX, … }`
+  with qualified clone names; `byequiv`/`call`/`admit` over such modules.
+- **Working layout** (compiled end to end): `Types.ec` (concrete types and operators) →
+  package theories that `require import Types` and contain only their module →
+  a game file that clones each package per instance and defines the router →
+  a theorem file with the section, the adversary declaration and the lemma.
+
+### 8.2 Domino facts
+
+- `PackageInstance` (`src/packageinstance.rs:18`) has `params: Vec<(PackageConstIdentifier,
+  Expression)>` and `types: Vec<(String, Type)>`, and its `pkg` field is **already rewritten** —
+  types substituted through oracles, state, params and imports (`rewrite_pkg_inst`,
+  `src/theorem.rs:41`). Export therefore never has to substitute anything.
+- `Theorem` (`src/theorem.rs:295`): `name`, `consts: Vec<(String, Type)>`, `instances:
+  Vec<GameInstance>`, `assumptions`, `proofs`, `game_hops`, `pkgs`.
+- `GameInstance` (`src/theorem.rs:19`): `name`, `game: Composition`, `types`, `consts:
+  Vec<(GameConstIdentifier, Expression)>`.
+- Pipeline (`src/transforms/theorem_transforms.rs:99`): `type_extract → deconstructinvoke →
+  unwrapify → resolveoracles → samplify → loopunroll → sample_max_counter_extractor → returnify →
+  [treeify] → tableinitialize`. `EquivalenceTransform` sets `run_treeify = true`;
+  `DebugTransform` sets it to `false`.
+- `tableinitialize` only touches `Identifier::Generated` locals — it inserts `<gen> <- empty`
+  before the first write to a generated *local* table. It never touches package state.
+- `Type::default_expression` (`src/types.rs:210`) gives Domino's state defaults: `0`, `false`,
+  `None`, empty table, tuple-of-defaults, and the bits literal `0`. It **panics** for `Fn`, `Set`,
+  `List`, `String`, group and user-defined types.
+- Statements (`src/statement.rs:67`): `Abort`, `Return`, `Assignment`, `InvokeOracle`,
+  `IfThenElse`, `For`. There is no `Assert` statement — an `assert` is parsed into an
+  `IfThenElse` whose else-branch aborts, which is why `treeify` covers it.
+- Types (`src/types.rs:103`) and expressions (`src/expressions.rs:436`) are listed in story 02.
+- Writers live in `src/writers/{pseudocode,smt,tex}`; this epic adds `src/writers/easycrypt/`.
+- The CLI is `crates/domino/src/cli.rs`, `enum Commands` (`:35`): `Latex`, `Prove`, `Format`,
+  `Proofsteps`, `Debug`, `Inline`. Projects load via `DirectoryProject::load` /
+  `find_project_root` (`src/project/directory.rs:70`, `:119`).
+- Invariant files are hand-written SMT-LIB parsed by `src/util/smtparser` (grammar
+  `smt.pest`), which already knows `define-fun`, `define-state-relation`, `define-lemma`,
+  `define-game-invariant`, `define-package-invariant` and `sample-id`.
+- On this branch an equivalence has **one** invariant spec (`src/parser/ssp.pest:295`:
+  `equivalence = { … identifier ~ identifier ~ "{" ~ invariant_spec ~ equivalence_oracle+ … }`),
+  so there is exactly one invariant file list per equivalence.
