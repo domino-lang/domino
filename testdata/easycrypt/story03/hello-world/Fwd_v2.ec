@@ -1,0 +1,36 @@
+(* Fwd_v2: n = n *)
+
+require import AllCore Distr FMap Int IntDiv Types.
+require Interfaces.
+
+module Fwd_v2 (P_Fwd : Interfaces.Fwd_v1_i) = {
+  var ctr : int
+
+  proc init() : unit = {
+    ctr <- 0;
+  }
+
+  proc d_UsefulOracle() : (int * bits_n) option = {
+    var ec_result : (int * bits_n) option <- None<:(int * bits_n)>;
+    var y : (int * bits_n);
+    var ec_r1 : (int * bits_n) option;
+    ec_r1 <@ P_Fwd.d_UsefulOracle();
+    if (ec_r1 = None<:(int * bits_n)>) {
+
+    } else {
+      y <- oget ec_r1;
+      ec_result <- Some y;
+    }
+    return ec_result;
+  }
+
+  proc d_UselessOracle(x : int) : int option = {
+    var ec_result : int option <- None<:int>;
+    if (x = 1) {
+      ec_result <- Some 1;
+    } else {
+
+    }
+    return ec_result;
+  }
+}.

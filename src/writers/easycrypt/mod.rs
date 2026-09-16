@@ -9,6 +9,7 @@
 
 pub mod ast;
 pub mod names;
+pub mod package;
 pub mod render;
 pub mod types;
 pub mod typesfile;

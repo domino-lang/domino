@@ -32,11 +32,15 @@ pub type IdentifierResolver<'a> =
 
 /// Translate a Domino type into its EasyCrypt equivalent (§3.1).
 ///
-/// A `Tuple` of exactly one element cannot occur — EasyCrypt has no
-/// 1-tuples, and Domino's own parser never produces one — but rather than
-/// panic on a would-be compiler bug, it comes back as a hard
-/// [`EcExportError::UnsupportedType`] like every other unsupported
-/// construct.
+/// A `Tuple` of exactly one element **does** occur: `type_tuple = { "(" ~
+/// tipe ~ ( "," ~ tipe )* ~ ")" }` (`src/parser/ssp.pest:133`) makes the
+/// trailing repetition optional, so a single parenthesised type such as
+/// `(Bits(n))` — used throughout `example-projects/4WHS/packages/Prot.pkg.ssp`
+/// as a return-type grouping — parses as `Tuple([Bits(n)])`, not as `Bits(n)`
+/// directly. Contrary to this function's original assumption (recorded in
+/// story 02, corrected here in story 03 once exporting 4WHS surfaced it),
+/// EasyCrypt has no 1-tuples but Domino's parser *does* produce this shape,
+/// so it is elided to its single element rather than treated as an error.
 pub fn translate_type(ty: &Type, span: SourceSpan) -> Result<EcType, EcExportError> {
     match ty.kind() {
         TypeKind::Integer => Ok(EcType::Int),
@@ -48,13 +52,8 @@ pub fn translate_type(ty: &Type, span: SourceSpan) -> Result<EcType, EcExportErr
             Box::new(translate_type(key, span)?),
             Box::new(translate_type(value, span)?),
         )),
+        TypeKind::Tuple(items) if items.len() == 1 => translate_type(&items[0], span),
         TypeKind::Tuple(items) => {
-            if items.len() == 1 {
-                return Err(EcExportError::UnsupportedType {
-                    construct: "1-element Tuple (EasyCrypt has no 1-tuples)",
-                    span,
-                });
-            }
             let items = items
                 .iter()
                 .map(|item| translate_type(item, span))
@@ -171,6 +170,13 @@ pub fn translate_expr(
                 map: Box::new(map),
                 key: Box::new(key),
             })
+        }
+        // Mirrors `translate_type`'s `Tuple` handling: `expr_tuple = { "(" ~
+        // expression ~ ("," ~ expression)* ~ ")" }` (`src/parser/ssp.pest:234`)
+        // likewise makes a single parenthesised expression like `(ni)` parse
+        // as `Tuple([ni])`, so a 1-element tuple is elided to its element.
+        ExpressionKind::Tuple(items) if items.len() == 1 => {
+            translate_expr(&items[0], span, resolve_identifier)
         }
         ExpressionKind::Tuple(items) => {
             Ok(EcExpr::Tuple(translate_all(items, span, resolve_identifier)?))
@@ -446,16 +452,12 @@ mod tests {
     }
 
     #[test]
-    fn type_tuple_of_one_is_a_hard_error() {
+    fn type_tuple_of_one_is_elided_to_its_element() {
+        // `(Bits(n))`-style parenthesisation parses as a 1-element Domino
+        // Tuple (`src/parser/ssp.pest:133`); EasyCrypt has no 1-tuples, so
+        // this elides to the inner type instead of erroring.
         let ty = Type::tuple(vec![Type::integer()]);
-        let err = translate_type(&ty, span()).unwrap_err();
-        assert_eq!(
-            err,
-            EcExportError::UnsupportedType {
-                construct: "1-element Tuple (EasyCrypt has no 1-tuples)",
-                span: span(),
-            }
-        );
+        assert_eq!(translate_type(&ty, span()).unwrap(), EcType::Int);
     }
 
     #[test]
@@ -693,6 +695,12 @@ mod tests {
             translate_expr(&e, span(), &mut no_resolver).unwrap(),
             EcExpr::Tuple(vec![EcExpr::Int(1), EcExpr::Int(2)])
         );
+    }
+
+    #[test]
+    fn expr_tuple_of_one_is_elided_to_its_element() {
+        let e = Expression::from_kind(ExpressionKind::Tuple(vec![int_lit(1)]));
+        assert_eq!(translate_expr(&e, span(), &mut no_resolver).unwrap(), EcExpr::Int(1));
     }
 
     #[test]
