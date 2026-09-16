@@ -31,7 +31,7 @@ op kitchen_option (x : int option) : int = oget x.
 
 op kitchen_some : int option = Some 3.
 
-op kitchen_none : int option = None<:int>.
+op kitchen_none : int option = None.
 
 op kitchen_map_get (m : (int, bool) fmap) (k : int) : bool option = m.[k].
 
@@ -115,7 +115,7 @@ module Stateful = {
     var cur : bool option;
     var result : bool;
     cur <- tbl.[k];
-    if (cur = None<:bool>) {
+    if (cur = None) {
       result <- true;
     } else {
       result <- !oget cur;

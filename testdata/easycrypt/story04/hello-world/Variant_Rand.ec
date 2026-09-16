@@ -10,7 +10,7 @@ module Rand = {
   }
 
   proc d_UsefulOracle() : (int * bits_n) option = {
-    var ec_result : (int * bits_n) option <- None<:(int * bits_n)>;
+    var ec_result : (int * bits_n) option <- None;
     var rand : bits_n;
     ctr <- ctr + 1;
     rand <$ dbits_n;
@@ -19,7 +19,7 @@ module Rand = {
   }
 
   proc d_UselessOracle(x : int) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     var rand : bits_n;
     if (x = 1) {
       rand <$ dbits_n;

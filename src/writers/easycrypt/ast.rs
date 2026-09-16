@@ -158,8 +158,14 @@ pub enum EcExpr {
     Field { expr: Box<EcExpr>, field: String },
     RecordLit { fields: Vec<(String, EcExpr)> },
     Some_(Box<EcExpr>),
-    /// `None<:t>` — always annotated; bare `None` is ambiguous in most
-    /// positions.
+    /// Renders as bare `None`, never `None<:t>` — every position the
+    /// exporter emits `None` in is already constrained (a typed local or
+    /// state variable, an `fmap` get comparison, inside a typed tuple, an
+    /// `op` body with a declared result type), so EasyCrypt infers the type
+    /// on its own; the annotation was pure noise (story 12). The `EcType` is
+    /// kept on this node anyway — unused by the renderer — because story
+    /// 08's lowering to the debugger IR (`src/debug/ir.rs`) needs to know
+    /// the type of an abort value.
     None_(EcType),
     Oget(Box<EcExpr>),
     /// `m.[k]`

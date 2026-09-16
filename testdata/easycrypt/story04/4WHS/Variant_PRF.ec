@@ -18,16 +18,16 @@ module PRF = {
   }
 
   proc d_NewKey(ltk : bits_n option) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     var ltk_ : bits_n;
     kid_ <- kid_ + 1;
-    if (ltk = None<:bits_n>) {
+    if (ltk = None) {
       ltk_ <$ dbits_n;
       d_LTK.[kid_] <- ltk_;
       d_H.[kid_] <- true;
       ec_result <- Some kid_;
     } else {
-      d_LTK <- if ltk = None<:bits_n> then rem d_LTK kid_ else d_LTK.[kid_ <- oget ltk];
+      d_LTK <- if ltk = None then rem d_LTK kid_ else d_LTK.[kid_ <- oget ltk];
       d_H.[kid_] <- false;
       ec_result <- Some kid_;
     }
@@ -35,15 +35,15 @@ module PRF = {
   }
 
   proc d_Eval(kid : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     var unwrap_1 : bits_n;
     var k : bits_n;
     var temp : bits_n;
     var y : bits_n option;
     var unwrap_2 : bits_n;
-    if (!(d_LTK.[kid] = None<:bits_n>)) {
+    if (!(d_LTK.[kid] = None)) {
       if (d_H.[kid] = Some false \/ !b) {
-        if (d_LTK.[kid] = None<:bits_n>) {
+        if (d_LTK.[kid] = None) {
 
         } else {
           unwrap_1 <- oget d_LTK.[kid];
@@ -51,11 +51,11 @@ module PRF = {
           ec_result <- Some (func_prf k x);
         }
       } else {
-        if (d_PRF.[(kid, x)] = None<:bits_n>) {
+        if (d_PRF.[(kid, x)] = None) {
           temp <$ dbits_n;
           d_PRF.[(kid, x)] <- temp;
           y <- d_PRF.[(kid, x)];
-          if (y = None<:bits_n>) {
+          if (y = None) {
 
           } else {
             unwrap_2 <- oget y;
@@ -63,7 +63,7 @@ module PRF = {
           }
         } else {
           y <- d_PRF.[(kid, x)];
-          if (y = None<:bits_n>) {
+          if (y = None) {
 
           } else {
             unwrap_2 <- oget y;
@@ -78,10 +78,10 @@ module PRF = {
   }
 
   proc d_Hon(kid : int) : bool option = {
-    var ec_result : bool option <- None<:bool>;
+    var ec_result : bool option <- None;
     var unwrap_1 : bool;
-    if (!(d_H.[kid] = None<:bool>)) {
-      if (d_H.[kid] = None<:bool>) {
+    if (!(d_H.[kid] = None)) {
+      if (d_H.[kid] = None) {
 
       } else {
         unwrap_1 <- oget d_H.[kid];

@@ -19,10 +19,10 @@ module Game_MediumCompositionMoreOracles : Interfaces.Iface_MediumCompositionMor
   }
 
   proc d_UsefulOracle() : (int * bits_n) option = {
-    var ec_result : (int * bits_n) option <- None<:(int * bits_n)>;
+    var ec_result : (int * bits_n) option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_Fwd.d_UsefulOracle();
-      if (ec_result = None<:(int * bits_n)>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -30,10 +30,10 @@ module Game_MediumCompositionMoreOracles : Interfaces.Iface_MediumCompositionMor
   }
 
   proc d_UselessOracle(x : int) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_Fwd.d_UselessOracle(x);
-      if (ec_result = None<:int>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }

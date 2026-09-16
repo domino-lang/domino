@@ -18,10 +18,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_NewKey(ltk : bits_n option) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_NewKey(ltk);
-      if (ec_result = None<:int>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -29,10 +29,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_NewSession(d_U : int, u : bool, d_V : int, kid : int) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_NewSession(d_U, u, d_V, kid);
-      if (ec_result = None<:int>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -40,10 +40,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Send1(ctr : int) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Send1(ctr);
-      if (ec_result = None<:bits_n>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -51,10 +51,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Send2(ctr : int, msg : bits_n) : (bits_n * bits_n) option = {
-    var ec_result : (bits_n * bits_n) option <- None<:(bits_n * bits_n)>;
+    var ec_result : (bits_n * bits_n) option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Send2(ctr, msg);
-      if (ec_result = None<:(bits_n * bits_n)>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -62,10 +62,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Send3(ctr : int, msg : (bits_n * bits_n)) : (bits_n * bits_n) option = {
-    var ec_result : (bits_n * bits_n) option <- None<:(bits_n * bits_n)>;
+    var ec_result : (bits_n * bits_n) option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Send3(ctr, msg);
-      if (ec_result = None<:(bits_n * bits_n)>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -73,10 +73,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Send4(ctr : int, msg : (bits_n * bits_n)) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Send4(ctr, msg);
-      if (ec_result = None<:bits_n>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -84,10 +84,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Send5(ctr : int, msg : bits_n) : bool option = {
-    var ec_result : bool option <- None<:bool>;
+    var ec_result : bool option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Send5(ctr, msg);
-      if (ec_result = None<:bool>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -95,10 +95,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Reveal(ctr : int) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Reveal(ctr);
-      if (ec_result = None<:bits_n>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -106,10 +106,10 @@ module Game_Hybrid0 : Interfaces.Iface_Hybrid0 = {
   }
 
   proc d_Test(ctr : int) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     if (!abort_flag) {
       ec_result <@ Inst_KX.d_Test(ctr);
-      if (ec_result = None<:bits_n>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }

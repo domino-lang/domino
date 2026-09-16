@@ -19,15 +19,15 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_NewSession(d_U : int, u : bool, d_V : int, kid : int) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     var hon : bool;
     var ec_r1 : bool option;
     ec_r1 <@ P_Prf.d_Hon(kid);
-    if (ec_r1 = None<:bool>) {
+    if (ec_r1 = None) {
 
     } else {
       hon <- oget ec_r1;
-      d_State.[ctr_] <- (d_U, u, d_V, kid, None<:bool>, None<:bits_n>, None<:bits_n>, None<:bits_n>, None<:(int * int * bits_n * bits_n * bits_n)>, 0);
+      d_State.[ctr_] <- (d_U, u, d_V, kid, None, None, None, None, None, 0);
       d_Fresh.[ctr_] <- hon;
       ec_result <- Some ctr_;
     }
@@ -35,19 +35,19 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Send1(ctr : int) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_return : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n);
     var msg : bits_n;
     var ec_r1 : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option;
-    if (!(d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>)) {
-      if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (!(d_State.[ctr] = None)) {
+      if (d_State.[ctr] = None) {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
         ec_r1 <@ P_Prot.d_Run1(state);
-        if (ec_r1 = None<:((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n)>) {
+        if (ec_r1 = None) {
 
         } else {
           d_return <- oget ec_r1;
@@ -63,19 +63,19 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Send2(ctr : int, msg : bits_n) : (bits_n * bits_n) option = {
-    var ec_result : (bits_n * bits_n) option <- None<:(bits_n * bits_n)>;
+    var ec_result : (bits_n * bits_n) option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_return : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n));
     var msg_ : (bits_n * bits_n);
     var ec_r1 : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option;
-    if (!(d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>)) {
-      if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (!(d_State.[ctr] = None)) {
+      if (d_State.[ctr] = None) {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
         ec_r1 <@ P_Prot.d_Run2(state, msg);
-        if (ec_r1 = None<:((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n))>) {
+        if (ec_r1 = None) {
 
         } else {
           d_return <- oget ec_r1;
@@ -91,19 +91,19 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Send3(ctr : int, msg : (bits_n * bits_n)) : (bits_n * bits_n) option = {
-    var ec_result : (bits_n * bits_n) option <- None<:(bits_n * bits_n)>;
+    var ec_result : (bits_n * bits_n) option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_return : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n));
     var msg_ : (bits_n * bits_n);
     var ec_r1 : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option;
-    if (!(d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>)) {
-      if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (!(d_State.[ctr] = None)) {
+      if (d_State.[ctr] = None) {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
         ec_r1 <@ P_Prot.d_Run3(state, msg);
-        if (ec_r1 = None<:((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n))>) {
+        if (ec_r1 = None) {
 
         } else {
           d_return <- oget ec_r1;
@@ -119,19 +119,19 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Send4(ctr : int, msg : (bits_n * bits_n)) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_return : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n);
     var msg_ : bits_n;
     var ec_r1 : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option;
-    if (!(d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>)) {
-      if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (!(d_State.[ctr] = None)) {
+      if (d_State.[ctr] = None) {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
         ec_r1 <@ P_Prot.d_Run4(state, msg);
-        if (ec_r1 = None<:((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n)>) {
+        if (ec_r1 = None) {
 
         } else {
           d_return <- oget ec_r1;
@@ -147,19 +147,19 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Send5(ctr : int, msg : bits_n) : bool option = {
-    var ec_result : bool option <- None<:bool>;
+    var ec_result : bool option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_return : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool);
     var stop : bool;
     var ec_r1 : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool) option;
-    if (!(d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>)) {
-      if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (!(d_State.[ctr] = None)) {
+      if (d_State.[ctr] = None) {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
         ec_r1 <@ P_Prot.d_Run5(state, msg);
-        if (ec_r1 = None<:((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool)>) {
+        if (ec_r1 = None) {
 
         } else {
           d_return <- oget ec_r1;
@@ -175,7 +175,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Reveal(ctr : int) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_U : int;
     var u : bool;
@@ -193,32 +193,32 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
     var unwrap_5 : bits_n;
     var k : bits_n;
     var ec_r1 : bits_n option;
-    if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (d_State.[ctr] = None) {
 
     } else {
       unwrap_1 <- oget d_State.[ctr];
       (d_U, u, d_V, ltk, acc, ni, nr, kmac, sid, mess) <- unwrap_1;
       if (acc = Some true) {
-        if (sid = None<:(int * int * bits_n * bits_n * bits_n)>) {
+        if (sid = None) {
 
         } else {
           unwrap_2 <- oget sid;
-          if (d_RevTested.[unwrap_2] = None<:bool>) {
-            if (sid = None<:(int * int * bits_n * bits_n * bits_n)>) {
+          if (d_RevTested.[unwrap_2] = None) {
+            if (sid = None) {
 
             } else {
               unwrap_3 <- oget sid;
               d_RevTested.[unwrap_3] <- false;
-              if (ni = None<:bits_n>) {
+              if (ni = None) {
 
               } else {
                 unwrap_4 <- oget ni;
-                if (nr = None<:bits_n>) {
+                if (nr = None) {
 
                 } else {
                   unwrap_5 <- oget nr;
                   ec_r1 <@ P_Prf.d_Eval(ltk, (d_U, d_V, unwrap_4, unwrap_5, true));
-                  if (ec_r1 = None<:bits_n>) {
+                  if (ec_r1 = None) {
 
                   } else {
                     k <- oget ec_r1;
@@ -239,7 +239,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
   }
 
   proc d_Test(ctr : int) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     var unwrap_1 : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int);
     var d_U : int;
     var u : bool;
@@ -258,23 +258,23 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
     var unwrap_5 : bits_n;
     var unwrap_6 : bits_n;
     var ec_r1 : bits_n option;
-    if (d_State.[ctr] = None<:(int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)>) {
+    if (d_State.[ctr] = None) {
 
     } else {
       unwrap_1 <- oget d_State.[ctr];
       (d_U, u, d_V, ltk, acc, ni, nr, kmac, sid, mess) <- unwrap_1;
       if (acc = Some true) {
-        if (d_Fresh.[ctr] = None<:bool>) {
+        if (d_Fresh.[ctr] = None) {
 
         } else {
           unwrap_2 <- oget d_Fresh.[ctr];
           if (unwrap_2) {
-            if (sid = None<:(int * int * bits_n * bits_n * bits_n)>) {
+            if (sid = None) {
 
             } else {
               unwrap_3 <- oget sid;
-              if (d_RevTested.[unwrap_3] = None<:bool>) {
-                if (sid = None<:(int * int * bits_n * bits_n * bits_n)>) {
+              if (d_RevTested.[unwrap_3] = None) {
+                if (sid = None) {
 
                 } else {
                   unwrap_4 <- oget sid;
@@ -283,16 +283,16 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
                     k <$ dbits_n;
                     ec_result <- Some k;
                   } else {
-                    if (ni = None<:bits_n>) {
+                    if (ni = None) {
 
                     } else {
                       unwrap_5 <- oget ni;
-                      if (nr = None<:bits_n>) {
+                      if (nr = None) {
 
                       } else {
                         unwrap_6 <- oget nr;
                         ec_r1 <@ P_Prf.d_Eval(ltk, (d_U, d_V, unwrap_5, unwrap_6, true));
-                        if (ec_r1 = None<:bits_n>) {
+                        if (ec_r1 = None) {
 
                         } else {
                           k <- oget ec_r1;

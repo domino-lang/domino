@@ -14,10 +14,10 @@ module Game_PRF : Interfaces.Iface_PRF = {
   }
 
   proc d_NewKey(ltk : bits_n option) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     if (!abort_flag) {
       ec_result <@ Pkg_PRF.PRF.d_NewKey(ltk);
-      if (ec_result = None<:int>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -25,10 +25,10 @@ module Game_PRF : Interfaces.Iface_PRF = {
   }
 
   proc d_Eval(kid : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option = {
-    var ec_result : bits_n option <- None<:bits_n>;
+    var ec_result : bits_n option <- None;
     if (!abort_flag) {
       ec_result <@ Pkg_PRF.PRF.d_Eval(kid, x);
-      if (ec_result = None<:bits_n>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }
@@ -36,10 +36,10 @@ module Game_PRF : Interfaces.Iface_PRF = {
   }
 
   proc d_Hon(kid : int) : bool option = {
-    var ec_result : bool option <- None<:bool>;
+    var ec_result : bool option <- None;
     if (!abort_flag) {
       ec_result <@ Pkg_PRF.PRF.d_Hon(kid);
-      if (ec_result = None<:bool>) {
+      if (ec_result = None) {
         abort_flag <- true;
       }
     }

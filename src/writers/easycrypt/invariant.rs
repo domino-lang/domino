@@ -414,6 +414,57 @@ fn mangle_local_binder(names: &mut Names, raw: &str) -> Result<String, NameError
     Ok(mangled)
 }
 
+/// Whether `e` contains a reference to the (already-mangled) variable
+/// `name` anywhere in its tree. Used by `translate_let` to drop a `let`
+/// binding the body never uses. Conservative around shadowing: a nested
+/// `Let`/`Quant` that rebinds `name` still counts as a "use" here, since
+/// this translator's `Names` mangling never reuses a mangled name within
+/// one file, so no such shadowing is ever actually produced — treating it
+/// as a use anyway is simply the safe default if that ever changed.
+fn expr_references_var(e: &EcExpr, name: &str) -> bool {
+    match e {
+        EcExpr::Var(v) => v == name,
+        EcExpr::Qualified { .. } | EcExpr::Int(_) | EcExpr::Bool(_) | EcExpr::Unit => false,
+        EcExpr::None_(_) | EcExpr::MapEmpty => false,
+        EcExpr::Tuple(items) => items.iter().any(|it| expr_references_var(it, name)),
+        EcExpr::Proj { expr, .. } | EcExpr::Field { expr, .. } => expr_references_var(expr, name),
+        EcExpr::RecordLit { fields } => fields.iter().any(|(_, v)| expr_references_var(v, name)),
+        EcExpr::Some_(inner) | EcExpr::Oget(inner) => expr_references_var(inner, name),
+        EcExpr::MapGet { map, key } => {
+            expr_references_var(map, name) || expr_references_var(key, name)
+        }
+        EcExpr::MapSet { map, key, value } => {
+            expr_references_var(map, name)
+                || expr_references_var(key, name)
+                || expr_references_var(value, name)
+        }
+        EcExpr::MapRem { map, key } => {
+            expr_references_var(map, name) || expr_references_var(key, name)
+        }
+        EcExpr::App { args, .. } => args.iter().any(|a| expr_references_var(a, name)),
+        EcExpr::Unop { arg, .. } => expr_references_var(arg, name),
+        EcExpr::Binop { lhs, rhs, .. } => {
+            expr_references_var(lhs, name) || expr_references_var(rhs, name)
+        }
+        EcExpr::If {
+            cond,
+            then_expr,
+            else_expr,
+        } => {
+            expr_references_var(cond, name)
+                || expr_references_var(then_expr, name)
+                || expr_references_var(else_expr, name)
+        }
+        EcExpr::Let { value, body, .. } => {
+            expr_references_var(value, name) || expr_references_var(body, name)
+        }
+        EcExpr::Quant { body, .. } => expr_references_var(body, name),
+        EcExpr::Pr { args, event, .. } => {
+            args.iter().any(|a| expr_references_var(a, name)) || expr_references_var(event, name)
+        }
+    }
+}
+
 fn field_expr(op_param: &str, field: &str) -> EcExpr {
     EcExpr::Field {
         expr: Box::new(EcExpr::Var(op_param.to_string())),
@@ -1023,11 +1074,38 @@ impl<'a> TCtx<'a> {
         }
         let (mut result, ty) = self.translate(body, &new_locals)?;
         for (_, mangled, value_expr, _) in bindings.into_iter().rev() {
-            result = EcExpr::Let {
-                name: mangled,
-                value: Box::new(value_expr),
-                body: Box::new(result),
-            };
+            // Drop a binding of `None` (only) when the body never
+            // references it, rather than emitting a dead `let`. Story 12
+            // stopped annotating `None` with its type, and an SMT source
+            // can bind a name to `(as mk-none ...)` and then never use it
+            // (`invariant-H6_1-H7_0.smt2`'s `freshness-and-honesty-matches`
+            // does exactly this — it calls `is-mk-none` directly instead of
+            // comparing against the bound name). An unused `let none =
+            // None in <body not mentioning none>` leaves `none`'s type as a
+            // free type variable and `easycrypt compile` rejects the
+            // top-level `op` outright (`this operator type contains free
+            // type variables`) — the exact failure mode the story's own
+            // `op bad = None.` example predicts. Eliding the binding is
+            // sound (SMT-LIB `let` has no side effects to preserve) and is
+            // the "fix targeted at that construct" the story asks for,
+            // rather than a fallback in `None_`'s rendering.
+            //
+            // Scoped to `None_` specifically (not general dead-`let`
+            // elimination): other unused bindings the translator already
+            // emits (e.g. an unused `k = (oget state).\`6` alongside a
+            // used `acc`/`ni`/...) bind a concretely-typed value, so
+            // leaving them in place is both harmless to `easycrypt compile`
+            // and preserves every existing golden byte-for-byte outside
+            // this story's `None<:...>` -> `None` change.
+            let is_dead_none =
+                matches!(value_expr, EcExpr::None_(_)) && !expr_references_var(&result, &mangled);
+            if !is_dead_none {
+                result = EcExpr::Let {
+                    name: mangled,
+                    value: Box::new(value_expr),
+                    body: Box::new(result),
+                };
+            }
         }
         Ok((result, ty))
     }
@@ -1889,7 +1967,7 @@ mod tests {
         );
         assert_eq!(
             translate_body_with("(is-mk-none left.KX.State)", &lookup, &[]),
-            "l.`l_pkg_KX_State = None<:int>"
+            "l.`l_pkg_KX_State = None"
         );
         assert_eq!(
             translate_body_with("(maybe-get left.KX.State)", &lookup, &[]),
@@ -1902,7 +1980,7 @@ mod tests {
         assert_eq!(translate_body("(mk-some 1)"), "Some 1");
         assert_eq!(
             translate_body("(as mk-none (Maybe Bits_n))"),
-            "None<:bits_n>"
+            "None"
         );
     }
 

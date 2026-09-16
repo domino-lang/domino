@@ -525,7 +525,7 @@ fn render_expr_inner(e: &EcExpr) -> String {
             format!("{{| {} |}}", rendered.join("; "))
         }
         EcExpr::Some_(inner) => format!("Some {}", render_operand(inner, ATOM_PREC)),
-        EcExpr::None_(ty) => format!("None<:{}>", render_type(ty)),
+        EcExpr::None_(_) => "None".to_string(),
         EcExpr::Oget(inner) => format!("oget {}", render_operand(inner, ATOM_PREC)),
         EcExpr::MapGet { map, key } => {
             format!(

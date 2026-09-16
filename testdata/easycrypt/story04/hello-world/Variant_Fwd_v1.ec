@@ -11,11 +11,11 @@ module Fwd_v1 (P_Rand : Interfaces.Rand_i) = {
   }
 
   proc d_UsefulOracle() : (int * bits_n) option = {
-    var ec_result : (int * bits_n) option <- None<:(int * bits_n)>;
+    var ec_result : (int * bits_n) option <- None;
     var y : (int * bits_n);
     var ec_r1 : (int * bits_n) option;
     ec_r1 <@ P_Rand.d_UsefulOracle();
-    if (ec_r1 = None<:(int * bits_n)>) {
+    if (ec_r1 = None) {
 
     } else {
       y <- oget ec_r1;
@@ -25,7 +25,7 @@ module Fwd_v1 (P_Rand : Interfaces.Rand_i) = {
   }
 
   proc d_UselessOracle(x : int) : int option = {
-    var ec_result : int option <- None<:int>;
+    var ec_result : int option <- None;
     if (x = 1) {
       ec_result <- Some 1;
     } else {
