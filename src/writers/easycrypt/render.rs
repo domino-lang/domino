@@ -426,7 +426,8 @@ fn prec(e: &EcExpr) -> i8 {
         | EcExpr::None_(_)
         | EcExpr::MapGet { .. }
         | EcExpr::MapSet { .. }
-        | EcExpr::MapEmpty => ATOM_PREC,
+        | EcExpr::MapEmpty
+        | EcExpr::Pr { .. } => ATOM_PREC,
         EcExpr::App { args, .. } if args.is_empty() => ATOM_PREC,
         EcExpr::App { .. } | EcExpr::Some_(_) | EcExpr::Oget(_) | EcExpr::MapRem { .. } => {
             APP_PREC
@@ -601,6 +602,19 @@ fn render_expr_inner(e: &EcExpr) -> String {
             format!(
                 "{keyword}{rendered_binders}, {}",
                 render_expr(body)
+            )
+        }
+        EcExpr::Pr {
+            module,
+            proc,
+            args,
+            memory,
+            event,
+        } => {
+            let rendered_args = args.iter().map(render_expr).collect::<Vec<_>>().join(", ");
+            format!(
+                "Pr[{module}.{proc}({rendered_args}) @ &{memory} : {}]",
+                render_expr(event)
             )
         }
     }

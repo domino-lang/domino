@@ -117,8 +117,10 @@ fn composition_int_const_is_width_only(comp: &Composition, const_name: &str) -> 
 /// Whether a composition-level const becomes a router `init` argument
 /// (§3.2): every `Boolean` const does; an `Integer` const does unless it is
 /// purely a `Bits` width; a `Fn` const never does (function constants become
-/// global operators, not runtime arguments).
-fn composition_const_needs_arg(comp: &Composition, name: &str, ty: &Type) -> bool {
+/// global operators, not runtime arguments). Shared with story 07
+/// (`proof.rs`), which needs the exact same filter — applied to each side's
+/// own composition — to know a `Pr[...]`'s `run(...)` argument list.
+pub(super) fn composition_const_needs_arg(comp: &Composition, name: &str, ty: &Type) -> bool {
     match ty.kind() {
         TypeKind::Boolean => true,
         TypeKind::Integer => !composition_int_const_is_width_only(comp, name),

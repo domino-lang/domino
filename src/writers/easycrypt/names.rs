@@ -199,6 +199,13 @@ pub enum NameKind {
     Proc,
     Var,
     Field,
+    /// Top-level `lemma` names (story 07). Unlike [`NameKind::Proc`]/`Var`,
+    /// an EasyCrypt lemma name has no lowercase-start requirement (verified
+    /// against `r2026.06-12-g7e192dd`: `Hybrid0_Hybrid1_equiv` compiles as
+    /// spelled) — mangling still escapes a keyword collision or a
+    /// digit-leading name, but never force-prefixes on uppercase start the
+    /// way `Var`/`Op`/etc. do.
+    Lemma,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -235,8 +242,11 @@ impl Names {
     /// 2. For [`NameKind::Module`] / [`NameKind::ModuleType`]: uppercase the
     ///    first letter; prefix `M_` if it starts with a digit or `_`.
     /// 3. For every other kind: if the name starts with an uppercase letter,
-    ///    or is an EasyCrypt keyword, prefix `d_`. Leading `_` is legal in
-    ///    EasyCrypt and is left alone.
+    ///    or is an EasyCrypt keyword, prefix `d_`. A multi-character name
+    ///    that merely *starts* with `_` (`_U`) is legal in EasyCrypt and is
+    ///    left alone; a *bare* `_` (Domino's own discarded-binding
+    ///    identifier) is EasyCrypt's wildcard pattern, not a legal bound
+    ///    name, and gets the same `d_` prefix.
     /// 4. The `ec_` prefix is reserved for the exporter's own generated
     ///    names; a Domino identifier that already starts with `ec_` gets a
     ///    `d_` prefix too.
@@ -284,10 +294,35 @@ fn mangle_name(kind: NameKind, raw: &str) -> String {
                 uppercased
             }
         }
+        NameKind::Lemma => {
+            let starts_with_digit = replaced.chars().next().is_some_and(|c| c.is_ascii_digit());
+            let needs_prefix = starts_with_digit
+                || is_keyword(&replaced)
+                || replaced.starts_with("ec_")
+                || replaced == "_";
+            if needs_prefix {
+                format!("d_{replaced}")
+            } else {
+                replaced
+            }
+        }
         _ => {
             let starts_uppercase = replaced.chars().next().is_some_and(|c| c.is_uppercase());
-            let needs_prefix =
-                starts_uppercase || is_keyword(&replaced) || replaced.starts_with("ec_");
+            // A *bare* `_` is EasyCrypt's wildcard/discard pattern, not a
+            // legal bound identifier (`var _ : int;` is a parse error,
+            // verified against `r2026.06-12-g7e192dd`) — unlike a
+            // multi-character name that merely *starts* with `_`
+            // (`_U`, left alone below), which is fine. Domino itself uses a
+            // bare `_` as a genuine identifier for a discarded
+            // tuple-pattern binding (`kem-dem-cca-ssp`'s own `Scheme_PKE`
+            // package hits this for real, not just hypothetically), so
+            // export must escape it rather than assume every leading-`_`
+            // name is already legal.
+            let is_bare_underscore = replaced == "_";
+            let needs_prefix = starts_uppercase
+                || is_keyword(&replaced)
+                || replaced.starts_with("ec_")
+                || is_bare_underscore;
             if needs_prefix {
                 format!("d_{replaced}")
             } else {
@@ -329,6 +364,16 @@ mod tests {
     fn mangle_leading_underscore_is_left_alone() {
         let mut names = Names::new();
         assert_eq!(names.mangle(NameKind::Var, "_U").unwrap(), "_U");
+    }
+
+    #[test]
+    fn mangle_bare_underscore_is_escaped() {
+        // `var _ : int;` is a parse error in EasyCrypt (`_` is the
+        // wildcard/discard pattern, not a legal bound name) — verified
+        // against `r2026.06-12-g7e192dd`, and hit for real by
+        // `kem-dem-cca-ssp`'s `Scheme_PKE` package.
+        let mut names = Names::new();
+        assert_eq!(names.mangle(NameKind::Var, "_").unwrap(), "d__");
     }
 
     #[test]
@@ -395,6 +440,22 @@ mod tests {
                 mangled: "d_H".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn mangle_lemma_does_not_prefix_uppercase_start() {
+        let mut names = Names::new();
+        assert_eq!(
+            names.mangle(NameKind::Lemma, "Hybrid0_Hybrid1_equiv").unwrap(),
+            "Hybrid0_Hybrid1_equiv"
+        );
+    }
+
+    #[test]
+    fn mangle_lemma_still_escapes_keywords_and_digit_start() {
+        let mut names = Names::new();
+        assert_eq!(names.mangle(NameKind::Lemma, "for").unwrap(), "d_for");
+        assert_eq!(names.mangle(NameKind::Lemma, "1equiv").unwrap(), "d_1equiv");
     }
 
     #[test]

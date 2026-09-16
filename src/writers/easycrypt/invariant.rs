@@ -51,8 +51,10 @@ pub enum InvariantError {
 
     /// A construct this translator doesn't support: an unknown SMT sort, a
     /// malformed `define-fun`/`define-state-relation` shape (wrong arity,
-    /// non-atom argument name, …), or a `define-state-relation` whose
-    /// binder names aren't literally `(left right)`.
+    /// non-atom argument name, …), or a `define-state-relation` whose two
+    /// binders are the same name twice. Binder *spelling* is otherwise
+    /// unconstrained — `left`/`right`, `state-left`/`state-right`, or
+    /// anything else all work, purely positionally.
     #[error("unsupported construct in invariant file `{file}`: {detail}")]
     Unsupported { file: String, detail: String },
 
@@ -384,6 +386,32 @@ fn build_side_record(
         fields,
         abort_field,
     })
+}
+
+/// Mangles a newly-introduced local binder (a quantifier binder, a `let`
+/// binding, or a `define-fun` argument), escaping it further if it would
+/// otherwise land on `l`/`r` — the fixed, unmangled names every translated
+/// body already uses (unconditionally, outside `locals`/`local_names`
+/// entirely) for the equivalence's own left/right record parameters
+/// (`translate_atom`'s `"left"`/`"right"` cases). Without this, a `.smt2`
+/// source binder that happens to be literally named `r` (or `l`) would
+/// silently *shadow* the record parameter in the rendered EasyCrypt text —
+/// real, not hypothetical: `kem-dem-cca-ssp`'s own invariant has `(exists
+/// ((r Bits_kgenr)) (... (maybe-get right.KEM.pk) ...))`, where the
+/// existential `r` collided with `right`'s own record parameter and broke
+/// every dotted-field projection inside its body (`unknown record
+/// projection`, caught only by actually compiling the output — nothing
+/// here would have caught it structurally). Escaping through the same
+/// [`Names`] registry (not a bespoke rename) keeps a *second* genuine
+/// occurrence of the same raw name idempotent and a different raw name
+/// that also collides a hard [`NameError`], exactly like every other
+/// mangling in this crate.
+fn mangle_local_binder(names: &mut Names, raw: &str) -> Result<String, NameError> {
+    let mangled = names.mangle(NameKind::Var, raw)?;
+    if mangled == "l" || mangled == "r" {
+        return names.mangle(NameKind::Var, &format!("q_{raw}"));
+    }
+    Ok(mangled)
 }
 
 fn field_expr(op_param: &str, field: &str) -> EcExpr {
@@ -797,6 +825,31 @@ impl<'a> TCtx<'a> {
         if let Some((mangled, ty)) = locals.get(a) {
             return Ok((EcExpr::Var(mangled.clone()), ty.clone()));
         }
+        // A dotted accessor (`left.KX.State`, or `state-left.KX.State` in a
+        // file that spells its own `define-state-relation` binders
+        // differently) whose *head* — the segment before the first `.` —
+        // resolves through `locals` to this definition's own left/right
+        // binder (`handle_define_state_relation`'s `side_locals`, canonical
+        // mangled name `l`/`r`). `self.lookup`'s own keys are always
+        // `left.<rest>`/`right.<rest>` regardless of what the source file
+        // calls its binders (`build_invariant_file` populates it with those
+        // fixed prefixes unconditionally), so resolving here only needs to
+        // translate the *canonical* `l`/`r` name back to that fixed prefix,
+        // never the source's own spelling.
+        if let Some((head, rest)) = a.split_once('.') {
+            if let Some((canonical, _ty)) = locals.get(head) {
+                let prefix = match canonical.as_str() {
+                    "l" => Some("left"),
+                    "r" => Some("right"),
+                    _ => None,
+                };
+                if let Some(prefix) = prefix {
+                    if let Some((expr, ty)) = self.lookup.get(&format!("{prefix}.{rest}")) {
+                        return Ok((expr.clone(), ty.clone()));
+                    }
+                }
+            }
+        }
         if a == "left" {
             return Ok((EcExpr::Var("l".to_string()), self.left_record_ty.clone()));
         }
@@ -886,7 +939,7 @@ impl<'a> TCtx<'a> {
                 return Err(self.unsupported(format!("malformed `{head}` binder in `{whole}`")));
             };
             let ty = translate_sort(sort_sexp, &self.file)?;
-            let mangled = self.local_names.mangle(NameKind::Var, name)?;
+            let mangled = mangle_local_binder(&mut self.local_names, name)?;
             binders.push((mangled.clone(), ty.clone()));
             new_locals.insert(name.clone(), (mangled, ty));
         }
@@ -927,7 +980,7 @@ impl<'a> TCtx<'a> {
             // *outer* scope — translate every value before any of this
             // `let`'s own names are added to `locals`.
             let (value_expr, value_ty) = self.translate(value_sexp, locals)?;
-            let mangled = self.local_names.mangle(NameKind::Var, name)?;
+            let mangled = mangle_local_binder(&mut self.local_names, name)?;
             bindings.push((name.clone(), mangled, value_expr, value_ty));
         }
         let mut new_locals = locals.clone();
@@ -1010,6 +1063,98 @@ impl<'a> TCtx<'a> {
         ))
     }
 
+    /// Recognises an atom of the form `<binder>.<instance>` — exactly one
+    /// `.`, no field segment — whose binder resolves through `locals` to
+    /// this definition's own left/right record parameter: an SMT atom
+    /// naming an entire package instance's state, not one field of it.
+    /// `Full4WHS`'s invariants do this for real (`(= state-left.KX
+    /// state-right.KX)`), comparing a whole package instance's state in
+    /// one `=` rather than field-by-field — `self.lookup` only ever holds
+    /// per-`(instance, field)` entries (`build_side_record`/
+    /// `add_side_field`), so there is no single value this atom could
+    /// resolve to on its own; [`Self::translate_eq_n`] special-cases the
+    /// two-argument `=` form instead, expanding it into a conjunction over
+    /// every field both sides share (see
+    /// [`Self::translate_instance_equality`]).
+    ///
+    /// Returns `("left"|"right", instance_name)`. Never confused with a
+    /// genuine field access (`left.KX.State`, three segments): `instance`
+    /// containing a further `.` short-circuits this to `None` immediately.
+    fn resolve_instance_atom<'b>(&self, a: &'b str, locals: &Locals) -> Option<(&'static str, &'b str)> {
+        let (head, instance) = a.split_once('.')?;
+        if instance.contains('.') {
+            return None;
+        }
+        let (canonical, _ty) = locals.get(head)?;
+        let prefix = match canonical.as_str() {
+            "l" => "left",
+            "r" => "right",
+            _ => return None,
+        };
+        // Not a whole-instance reference if `a` itself is already a known
+        // field (shouldn't happen — field keys always have a third
+        // segment — but guards against a pathological instance name
+        // containing no further structure) or if this instance has no
+        // known fields at all (an unrelated/unknown atom, left to the
+        // normal `unrecognised` error path).
+        if self.lookup.contains_key(&format!("{prefix}.{instance}")) {
+            return None;
+        }
+        let field_prefix = format!("{prefix}.{instance}.");
+        if !self.lookup.keys().any(|k| k.starts_with(&field_prefix)) {
+            return None;
+        }
+        Some((prefix, instance))
+    }
+
+    /// Expands a whole-package-state equality (`(= state-left.KX
+    /// state-right.KX)`) into a conjunction of per-field equalities, one
+    /// per raw field/param name present in `self.lookup` under *both*
+    /// `{left_prefix}.{left_instance}.` and `{right_prefix}.{right_instance}.`
+    /// (sorted for determinism — matches this story's implementation
+    /// report §9 sketch). A field present on only one side is silently
+    /// skipped, mirroring [`build_params_inv`]'s own asymmetric-field
+    /// tolerance rather than erroring.
+    fn translate_instance_equality(
+        &self,
+        left_prefix: &str,
+        left_instance: &str,
+        right_prefix: &str,
+        right_instance: &str,
+        whole: &Sexp,
+    ) -> Result<(EcExpr, EcType), InvariantError> {
+        let left_field_prefix = format!("{left_prefix}.{left_instance}.");
+        let right_field_prefix = format!("{right_prefix}.{right_instance}.");
+
+        let mut left_fields: Vec<&str> = self
+            .lookup
+            .keys()
+            .filter_map(|k| k.strip_prefix(left_field_prefix.as_str()))
+            .collect();
+        left_fields.sort_unstable();
+
+        let mut conjuncts = Vec::new();
+        for field in left_fields {
+            let right_key = format!("{right_field_prefix}{field}");
+            let Some((right_expr, _)) = self.lookup.get(&right_key) else {
+                continue;
+            };
+            let (left_expr, _) = self
+                .lookup
+                .get(&format!("{left_field_prefix}{field}"))
+                .expect("just collected this key from self.lookup itself");
+            conjuncts.push(eq_expr(left_expr.clone(), right_expr.clone()));
+        }
+
+        if conjuncts.is_empty() {
+            return Err(self.unsupported(format!(
+                "whole-package-state equality `{whole}` between `{left_instance}` and `{right_instance}` has no fields in common"
+            )));
+        }
+
+        Ok((fold_and(conjuncts), EcType::Bool))
+    }
+
     fn translate_eq_n(
         &mut self,
         rest: &[Sexp],
@@ -1018,6 +1163,14 @@ impl<'a> TCtx<'a> {
     ) -> Result<(EcExpr, EcType), InvariantError> {
         if rest.len() < 2 {
             return Err(self.unsupported(format!("`=` needs at least 2 arguments in `{whole}`")));
+        }
+        if let [Sexp::Atom(a), Sexp::Atom(b)] = rest {
+            if let (Some((lp, linst)), Some((rp, rinst))) = (
+                self.resolve_instance_atom(a, locals),
+                self.resolve_instance_atom(b, locals),
+            ) {
+                return self.translate_instance_equality(lp, linst, rp, rinst, whole);
+            }
         }
         let mut exprs = Vec::with_capacity(rest.len());
         for item in rest {
@@ -1409,7 +1562,7 @@ impl SmtParser<InvariantError> for InvariantParserState<'_> {
                 });
             };
             let ec_ty = translate_sort(sort_sexp, &self.file)?;
-            let mangled = local_names.mangle(NameKind::Var, name)?;
+            let mangled = mangle_local_binder(&mut local_names, name)?;
             arg_list.push((mangled.clone(), ec_ty.clone()));
             locals.insert(name.clone(), (mangled, ec_ty));
         }
@@ -1450,14 +1603,32 @@ impl SmtParser<InvariantError> for InvariantParserState<'_> {
                 detail: format!("malformed `define-state-relation {funname}` binders"),
             });
         };
-        if l != "left" || r != "right" {
+        // Binder *names* are this definition's own local parameter names —
+        // purely positional (first = left side, second = right side),
+        // exactly like an ordinary `define-fun` argument list, not a fixed
+        // vocabulary. `Simple4WHS`'s own invariants spell them `left`/
+        // `right` throughout, but nothing in the SMT-LIB grammar requires
+        // that, and `Full4WHS`'s own invariants spell them `state-left`/
+        // `state-right` instead — both are just this form's own two bound
+        // names. Bound into `locals` exactly as `handle_definefun`'s own
+        // arguments are (`translate_atom`'s existing `locals.get(a)` check
+        // handles the bare-atom case for free); a dotted atom whose head
+        // resolves through `locals` to one of these two canonical `l`/`r`
+        // targets is resolved by `translate_atom`'s own dotted-access case
+        // below, so `left.KX.State`/`state-left.KX.State` both work
+        // uniformly without `self.lookup` ever needing to know which
+        // spelling a given file chose.
+        if l == r {
             return Err(InvariantError::Unsupported {
                 file: self.file.clone(),
                 detail: format!(
-                    "`define-state-relation {funname}` binders must be `(left right)`, got `({l} {r})`"
+                    "`define-state-relation {funname}` binders must be two distinct names, got `({l} {r})` twice"
                 ),
             });
         }
+        let mut side_locals = Locals::new();
+        side_locals.insert(l.clone(), ("l".to_string(), self.left_record_ty.clone()));
+        side_locals.insert(r.clone(), ("r".to_string(), self.right_record_ty.clone()));
 
         let (body_expr, _) = {
             let mut tctx = TCtx {
@@ -1469,7 +1640,7 @@ impl SmtParser<InvariantError> for InvariantParserState<'_> {
                 ops: &self.ops,
                 local_names: Names::new(),
             };
-            tctx.translate(&body, &Locals::new())?
+            tctx.translate(&body, &side_locals)?
         };
 
         let mangled_name = self.ops.define(&self.file, funname, EcType::Bool)?;
@@ -1560,6 +1731,28 @@ mod tests {
         assert_eq!(
             translate_body("(exists ((x Int)) (= x 0))"),
             "exists (x : int), x = 0"
+        );
+    }
+
+    #[test]
+    fn exists_binder_named_r_does_not_shadow_the_right_record_param() {
+        // `kem-dem-cca-ssp`'s own invariant hits this for real:
+        // `(exists ((r Bits_kgenr)) (= (maybe-get right.KEM.pk) (el2-1
+        // (<<func-kem_gen>> r))))` — the existential `r` must not collide
+        // with the fixed `r` record parameter every `right.*` dotted
+        // accessor already resolves to.
+        let mut lookup = HashMap::new();
+        lookup.insert(
+            "right.KEM.pk".to_string(),
+            (field_expr("r", "r_pkg_KEM_pk"), EcType::Option(Box::new(EcType::Int))),
+        );
+        assert_eq!(
+            translate_body_with(
+                "(exists ((r Int)) (= right.KEM.pk (mk-some r)))",
+                &lookup,
+                &[],
+            ),
+            "exists (q_r : int), r.`r_pkg_KEM_pk = Some q_r"
         );
     }
 
@@ -1934,10 +2127,150 @@ mod tests {
     }
 
     #[test]
-    fn define_state_relation_binders_must_be_left_right() {
+    fn define_state_relation_binders_must_be_distinct() {
         let mut state = fresh_state();
         let err = state
+            .parse_stmts("(define-state-relation foo (a a) true)")
+            .unwrap_err();
+        assert!(matches!(err, InvariantError::Unsupported { .. }));
+    }
+
+    #[test]
+    fn define_state_relation_binder_names_are_positional_not_a_fixed_vocabulary() {
+        // `Full4WHS`'s own invariants spell these `state-left`/`state-right`
+        // instead of `Simple4WHS`'s `left`/`right` — a `define-state-
+        // relation`'s two binders are its own local parameter names
+        // (positional: first = left side, second = right side), not a
+        // fixed required spelling.
+        let mut state = fresh_state();
+        state
             .parse_stmts("(define-state-relation foo (a b) true)")
+            .unwrap();
+        assert_eq!(state.state_relations, vec!["Domino_foo".to_string()]);
+    }
+
+    #[test]
+    fn define_state_relation_dotted_access_works_with_any_binder_spelling() {
+        let mut lookup = HashMap::new();
+        lookup.insert(
+            "left.KX.State".to_string(),
+            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
+        );
+        lookup.insert(
+            "right.KX.State".to_string(),
+            (field_expr("r", "r_pkg_KX_State"), EcType::Int),
+        );
+        let mut state = InvariantParserState {
+            lookup: Box::leak(Box::new(lookup)),
+            ..fresh_state()
+        };
+        state
+            .parse_stmts(
+                "(define-state-relation foo (state-left state-right) \
+                 (= state-left.KX.State state-right.KX.State))",
+            )
+            .unwrap();
+        let EcItem::OpDef { body, .. } = &state.items[0] else {
+            panic!("expected an op def");
+        };
+        assert_eq!(
+            render_expr(body),
+            "l.`l_pkg_KX_State = r.`r_pkg_KX_State"
+        );
+    }
+
+    #[test]
+    fn whole_package_state_equality_expands_to_a_field_by_field_conjunction() {
+        // `Full4WHS`'s own `invariant-KX-H1_0.smt2` does exactly this:
+        // `(= state-left.KX state-right.KX)`, comparing a whole package
+        // instance's state in one `=` rather than field-by-field.
+        let mut lookup = HashMap::new();
+        lookup.insert(
+            "left.KX.State".to_string(),
+            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
+        );
+        lookup.insert(
+            "right.KX.State".to_string(),
+            (field_expr("r", "r_pkg_KX_State"), EcType::Int),
+        );
+        lookup.insert(
+            "left.KX.LTK".to_string(),
+            (field_expr("l", "l_pkg_KX_LTK"), EcType::Int),
+        );
+        lookup.insert(
+            "right.KX.LTK".to_string(),
+            (field_expr("r", "r_pkg_KX_LTK"), EcType::Int),
+        );
+        let mut state = InvariantParserState {
+            lookup: Box::leak(Box::new(lookup)),
+            ..fresh_state()
+        };
+        state
+            .parse_stmts(
+                "(define-state-relation foo (state-left state-right) \
+                 (= state-left.KX state-right.KX))",
+            )
+            .unwrap();
+        let EcItem::OpDef { body, .. } = &state.items[0] else {
+            panic!("expected an op def");
+        };
+        assert_eq!(
+            render_expr(body),
+            "l.`l_pkg_KX_LTK = r.`r_pkg_KX_LTK /\\ l.`l_pkg_KX_State = r.`r_pkg_KX_State"
+        );
+    }
+
+    #[test]
+    fn whole_package_state_equality_skips_fields_present_on_only_one_side() {
+        let mut lookup = HashMap::new();
+        lookup.insert(
+            "left.KX.State".to_string(),
+            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
+        );
+        lookup.insert(
+            "right.KX.State".to_string(),
+            (field_expr("r", "r_pkg_KX_State"), EcType::Int),
+        );
+        lookup.insert(
+            "left.KX.Extra".to_string(),
+            (field_expr("l", "l_pkg_KX_Extra"), EcType::Int),
+        );
+        let mut state = InvariantParserState {
+            lookup: Box::leak(Box::new(lookup)),
+            ..fresh_state()
+        };
+        state
+            .parse_stmts(
+                "(define-state-relation foo (state-left state-right) \
+                 (= state-left.KX state-right.KX))",
+            )
+            .unwrap();
+        let EcItem::OpDef { body, .. } = &state.items[0] else {
+            panic!("expected an op def");
+        };
+        assert_eq!(render_expr(body), "l.`l_pkg_KX_State = r.`r_pkg_KX_State");
+    }
+
+    #[test]
+    fn instance_level_equality_with_no_shared_fields_is_a_hard_error() {
+        let mut lookup = HashMap::new();
+        lookup.insert(
+            "left.KX.State".to_string(),
+            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
+        );
+        lookup.insert(
+            "right.KX.Other".to_string(),
+            (field_expr("r", "r_pkg_KX_Other"), EcType::Int),
+        );
+        let mut state = InvariantParserState {
+            lookup: Box::leak(Box::new(lookup)),
+            ..fresh_state()
+        };
+        let err = state
+            .parse_stmts(
+                "(define-state-relation foo (state-left state-right) \
+                 (= state-left.KX state-right.KX))",
+            )
             .unwrap_err();
         assert!(matches!(err, InvariantError::Unsupported { .. }));
     }

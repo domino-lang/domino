@@ -348,6 +348,29 @@ fn print_easycrypt_report(theorem_name: &str, exported: &ExportedTheorem, wrote_
         ))
     }
 
+    // One line per translated equivalence hop (story 07 §3.2): the proof
+    // file written, the oracle count, and the admit count (= oracle count
+    // in v1) — plus a warning line when the proof trees name a different
+    // oracle set than the game interface actually exports (§3: "warn if
+    // that set differs ... do not silently drop an oracle").
+    fn equivalence_lines(exported: &ExportedTheorem) -> Vec<String> {
+        exported
+            .equivalences
+            .iter()
+            .map(|eq| {
+                let noun = if eq.oracle_count == 1 {
+                    "oracle"
+                } else {
+                    "oracles"
+                };
+                format!(
+                    "{} ({} {noun}, {} admits)",
+                    eq.proof_file, eq.oracle_count, eq.admit_count
+                )
+            })
+            .collect()
+    }
+
     println!("theorem {theorem_name}");
     println!("  {:<12}{}", "types", types_line(exported));
     println!("  {:<12}{}", "packages", packages_line(exported));
@@ -357,6 +380,14 @@ fn print_easycrypt_report(theorem_name: &str, exported: &ExportedTheorem, wrote_
     }
     if let Some(line) = randomness_line(exported) {
         println!("  {:<12}{}", "randomness", line);
+    }
+    for line in equivalence_lines(exported) {
+        println!("  {:<12}{}", "equivalence", line);
+    }
+    for eq in &exported.equivalences {
+        if let Some(warning) = &eq.oracle_set_mismatch {
+            println!("  {:<12}{}", "warning", warning);
+        }
     }
     println!(
         "  {:<12}{} ({} files)",
@@ -406,7 +437,7 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
     let mut exports = Vec::with_capacity(theorem_names.len());
     for name in &theorem_names {
         let theorem = project.get_theorem(name).unwrap();
-        let exported = sspverif::writers::easycrypt::export::export_theorem(theorem)?;
+        let exported = sspverif::writers::easycrypt::export::export_theorem(theorem, &project)?;
         exports.push((name.clone(), exported));
     }
 

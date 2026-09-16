@@ -189,6 +189,18 @@ pub enum EcExpr {
         binders: Vec<(String, EcType)>,
         body: Box<EcExpr>,
     },
+    /// `Pr[M.p(args) @ &mem : event]`. `module` is the (possibly
+    /// functor-applied) qualified module path, spelled exactly as
+    /// [`EcStmt::Call`]'s own `module` field already allows
+    /// (`"Hybrid0.Exp_Hybrid0(A)"`) — not a separate applied-module AST, to
+    /// match that established convention.
+    Pr {
+        module: String,
+        proc: String,
+        args: Vec<EcExpr>,
+        memory: String,
+        event: Box<EcExpr>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
