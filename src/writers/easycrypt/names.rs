@@ -174,6 +174,20 @@ fn is_keyword(name: &str) -> bool {
     KEYWORDS.binary_search(&name).is_ok()
 }
 
+/// EasyCrypt standard-library theory names verified to collide with a
+/// generated `Module`/`ModuleType` name if left unescaped. Found exporting
+/// `4WHS`'s `Simple4WHS`, whose `PRF` package *and* `PRF` composition both
+/// mangle to `PRF`: `require PRF.` then fails with `cannot locate theory
+/// 'PRF'` even though a local `PRF.ec` is on the `-I` search path — because
+/// `<easycrypt-install>/theories/crypto/PRF.eca` exists, despite that
+/// directory not appearing in `easycrypt config`'s reported default load
+/// path. Reproduced in total isolation (a single `-I .` directory holding
+/// nothing but the local theory) against `r2026.06-12-g7e192dd`. This list
+/// is deliberately small and non-exhaustive — enumerating the whole stdlib
+/// is impractical and version-fragile — and grows only as export hits
+/// another verified collision.
+const RESERVED_STDLIB_THEORY_NAMES: &[&str] = &["PRF"];
+
 /// The namespace a name is mangled into. Two names only collide if they are
 /// mangled within the same [`NameKind`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -263,7 +277,8 @@ fn mangle_name(kind: NameKind, raw: &str) -> String {
                 .chars()
                 .next()
                 .is_some_and(|c| c.is_ascii_digit() || c == '_');
-            if starts_with_digit_or_underscore {
+            let is_reserved_stdlib_theory = RESERVED_STDLIB_THEORY_NAMES.contains(&uppercased.as_str());
+            if starts_with_digit_or_underscore || is_reserved_stdlib_theory {
                 format!("M_{uppercased}")
             } else {
                 uppercased
@@ -347,6 +362,16 @@ mod tests {
     fn mangle_module_digit_start_gets_prefix() {
         let mut names = Names::new();
         assert_eq!(names.mangle(NameKind::Module, "1inst").unwrap(), "M_1inst");
+    }
+
+    #[test]
+    fn mangle_module_reserved_stdlib_theory_name_gets_prefix() {
+        // `4WHS`'s `PRF` package/composition collides with EasyCrypt's own
+        // `theories/crypto/PRF.eca` — see `RESERVED_STDLIB_THEORY_NAMES`.
+        // `mangle_name` only uppercases the *first* letter, so this only
+        // fires for a raw name already spelled `PRF` (as `4WHS` has it).
+        let mut names = Names::new();
+        assert_eq!(names.mangle(NameKind::Module, "PRF").unwrap(), "M_PRF");
     }
 
     #[test]

@@ -46,7 +46,7 @@ use super::EcExportError;
 /// exactly "these two package instances would render to the same module",
 /// with no need to resolve names before comparing.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct VariantKey {
+pub(super) struct VariantKey {
     pkg_name: String,
     int_params: Vec<(String, ParamValue)>,
     fn_params: Vec<(String, ParamValue)>,
@@ -85,7 +85,7 @@ fn canonical_param_value(expr: &Expression) -> ParamValue {
 /// by `comp.pkgs`'s position — `comp.ordered_pkgs_idx()` guarantees a
 /// callee's key is already computed by the time its caller needs to embed it
 /// (§3.1: "rightmost games ... come first").
-fn compute_all_keys(comp: &Composition) -> Vec<VariantKey> {
+pub(super) fn compute_all_keys(comp: &Composition) -> Vec<VariantKey> {
     let mut computed: Vec<Option<VariantKey>> = vec![None; comp.pkgs.len()];
     for idx in comp.ordered_pkgs_idx() {
         let key = compute_key(comp, idx, &computed);
@@ -146,7 +146,7 @@ fn compute_key(comp: &Composition, pkg_idx: usize, computed: &[Option<VariantKey
 /// One package instance per (key, representative composition, index within
 /// it), in first-discovery order across the whole theorem: game instances in
 /// `theorem.instances` order, then `ordered_pkgs_idx()` within each (§3.1).
-fn discover_variants(theorem: &Theorem<'_>) -> Vec<(VariantKey, Composition, usize)> {
+pub(super) fn discover_variants(theorem: &Theorem<'_>) -> Vec<(VariantKey, Composition, usize)> {
     let mut discovered: Vec<(VariantKey, Composition, usize)> = Vec::new();
     for game_inst in &theorem.instances {
         let comp = game_inst.game();
@@ -164,7 +164,7 @@ fn discover_variants(theorem: &Theorem<'_>) -> Vec<(VariantKey, Composition, usi
 /// Assigns each distinct key its final EasyCrypt module name (§3.1): the
 /// package's own (mangled) name if it has exactly one variant in the
 /// theorem, else `<Pkg>_v1`, `<Pkg>_v2`, ... in discovery order.
-fn assign_names(
+pub(super) fn assign_names(
     discovered: &[(VariantKey, Composition, usize)],
     names: &mut Names,
 ) -> Result<HashMap<VariantKey, String>, EcExportError> {
@@ -256,7 +256,7 @@ fn is_state_field(id: &Identifier) -> bool {
 /// into a type name (`bits_n`) and needs no module variable; otherwise it is
 /// a genuine runtime value and needs one (§3.2: "Non-Bits-width integer
 /// parameters ... become module variables too").
-fn integer_param_used_as_width(pkg: &Package, param_name: &str) -> bool {
+pub(super) fn integer_param_used_as_width(pkg: &Package, param_name: &str) -> bool {
     fn type_uses(ty: &Type, name: &str) -> bool {
         match ty.kind() {
             TypeKind::Bits(CountSpec::Identifier(id)) => matches!(
@@ -362,6 +362,33 @@ fn integer_param_used_as_width(pkg: &Package, param_name: &str) -> bool {
     false
 }
 
+/// Whether a package parameter becomes a module `var` (§3.2): every
+/// `Boolean` param does; an `Integer` param does unless it is used purely as
+/// a `Bits` width ([`integer_param_used_as_width`]); every other type
+/// (`Fn`, …) never does. Shared with story 04 (`game.rs`), which needs the
+/// exact same decision both to know a package variant's `init` argument list
+/// (so it can pass matching bindings from the router) and, applied to a
+/// composition's own `consts`, to decide the router's own `init` signature.
+pub(super) fn param_needs_var(pkg: &Package, name: &str, ty: &Type) -> bool {
+    match ty.kind() {
+        TypeKind::Boolean => true,
+        TypeKind::Integer => !integer_param_used_as_width(pkg, name),
+        _ => false,
+    }
+}
+
+/// Whether `pkg` gets an `init` proc at all (§3.2): it does unless it has
+/// neither state nor a var-needing param. Story 04 needs this to know
+/// whether to skip a package instance's `init` call when assembling the
+/// router's own `init` body.
+pub(super) fn pkg_needs_init(pkg: &Package) -> bool {
+    !pkg.state.is_empty()
+        || pkg
+            .params
+            .iter()
+            .any(|(name, ty, _)| param_needs_var(pkg, name, ty))
+}
+
 fn build_functor_params(
     comp: &Composition,
     pkg_idx: usize,
@@ -464,12 +491,7 @@ fn render_variant(
 
     let mut param_vars: Vec<(String, EcType)> = Vec::new();
     for (name, ty, span) in &pkg.params {
-        let needs_var = match ty.kind() {
-            TypeKind::Boolean => true,
-            TypeKind::Integer => !integer_param_used_as_width(pkg, name),
-            _ => false,
-        };
-        if needs_var {
+        if param_needs_var(pkg, name, ty) {
             let mangled = scope.names.mangle(NameKind::Var, name)?;
             param_vars.push((mangled, translate_type(ty, *span)?));
         }
@@ -1332,7 +1354,10 @@ mod tests {
         let names: Vec<&str> = variants.iter().map(|v| v.name.as_str()).collect();
         assert_eq!(
             names,
-            vec!["Prot", "KX", "Prot_NoKey", "KX_NoKeys", "PRF", "Prot_NoPrf", "KX_NoPrf"],
+            // `PRF` mangles to `M_PRF`: it collides with EasyCrypt's own
+            // `theories/crypto/PRF.eca` (`names.rs`'s
+            // `RESERVED_STDLIB_THEORY_NAMES`, found in story 04).
+            vec!["Prot", "KX", "Prot_NoKey", "KX_NoKeys", "M_PRF", "Prot_NoPrf", "KX_NoPrf"],
             "each of these packages must dedup to exactly one variant across the whole theorem \
              (Real/Ideal/Hybrid0 share one boolean-parametrised KX, etc.)"
         );
@@ -1352,9 +1377,10 @@ mod tests {
         // Interfaces.ec to typecheck. Every other 4WHS variant here
         // (KX/KX_NoKeys/Prot_NoPrf/KX_NoPrf) imports at least one oracle and
         // so references `Interfaces.*_i`; they are golden-file-only checked
-        // until story 04 provides Interfaces.ec.
+        // until story 04 provides Interfaces.ec. `PRF` mangles to `M_PRF`
+        // (`names.rs`'s `RESERVED_STDLIB_THEORY_NAMES`, found in story 04).
         assert_compiles("testdata/easycrypt/story03/4WHS", "Prot.ec");
-        assert_compiles("testdata/easycrypt/story03/4WHS", "PRF.ec");
+        assert_compiles("testdata/easycrypt/story03/4WHS", "M_PRF.ec");
     }
 
     // --- naming / dedup on hand-built fixtures ------------------------------

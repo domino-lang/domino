@@ -8,6 +8,8 @@
 //! `easycrypt` export epic translate Domino into this AST.
 
 pub mod ast;
+pub mod game;
+pub mod interfaces;
 pub mod names;
 pub mod package;
 pub mod render;
@@ -35,12 +37,26 @@ pub(crate) mod test_support {
     /// fully-resolved paths. Skips (prints to stderr, doesn't fail) when
     /// `easycrypt` isn't on `PATH`.
     pub(crate) fn assert_compiles(dir: &str, file: &str) {
+        assert_compiles_with_paths(&[dir], file);
+    }
+
+    /// Like [`assert_compiles`], but with one `-I <dir>` per entry in
+    /// `dirs` — story 04's `games/*.ec` need `Interfaces.ec` (base dir),
+    /// the package-variant theories (`packages/`) and each other
+    /// (`games/`) all on the search path at once.
+    pub(crate) fn assert_compiles_with_paths(dirs: &[&str], file: &str) {
         if !easycrypt_available() {
             eprintln!("`easycrypt` not on PATH, skipping compile check");
             return;
         }
+        let mut args = vec!["compile".to_string()];
+        for dir in dirs {
+            args.push("-I".to_string());
+            args.push(dir.to_string());
+        }
+        args.push(file.to_string());
         let output = Command::new("easycrypt")
-            .args(["compile", "-I", dir, file])
+            .args(&args)
             .output()
             .expect("failed to run easycrypt compile");
         assert!(
