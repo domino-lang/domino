@@ -44,9 +44,13 @@ pub(crate) mod test_support {
     }
 
     /// Like [`assert_compiles`], but with one `-I <dir>` per entry in
-    /// `dirs` — story 04's `games/*.ec` need `Interfaces.ec` (base dir),
-    /// the package-variant theories (`packages/`) and each other
-    /// (`games/`) all on the search path at once.
+    /// `dirs`. Since story 10 flattened `domino easycrypt`'s own output (no
+    /// `packages/`/`games/` subdirectories any more — every real export
+    /// compiles with a single `-I .`), this is only needed by a test that
+    /// deliberately spreads its fixture across two *unrelated* directories
+    /// (e.g. `invariant.rs`'s own `hybrid0_hybrid1_invariants_file_compiles`,
+    /// which writes its rendered file to a scratch dir but reads `Types.ec`
+    /// from a separate `testdata/` fixture dir).
     pub(crate) fn assert_compiles_with_paths(dirs: &[&str], file: &str) {
         if !easycrypt_available() {
             eprintln!("`easycrypt` not on PATH, skipping compile check");

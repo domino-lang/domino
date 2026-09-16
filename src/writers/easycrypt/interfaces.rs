@@ -12,7 +12,7 @@
 //!
 //! `game.rs` depends on this module for the `Iface_<X>`/`Adv_<X>` name a
 //! composition's router/experiment reference, and for the per-composition
-//! mangled base name (`Game_<X>`/`Exp_<X>`/`games/<X>.ec` all derive from the
+//! mangled base name (`Game_<X>`/`Exp_<X>`/`Comp_<X>.ec` all derive from the
 //! same [`InterfacesOutput::comp_mangled`] entry, so a composition's naming
 //! is computed once and agrees everywhere).
 
@@ -34,7 +34,7 @@ pub struct InterfacesOutput {
     /// `comp.name` -> mangled EasyCrypt base name (e.g. `"Hybrid0"` ->
     /// `"Hybrid0"`, but not the identity in general — mangling can uppercase
     /// or prefix). `game.rs`'s `Game_<X>`/`Exp_<X>` module names and
-    /// `games/<X>.ec` file name all derive from this same entry.
+    /// `Comp_<X>.ec` file name (story 10) all derive from this same entry.
     pub comp_mangled: HashMap<String, String>,
     /// `comp.name` -> the `Iface_<X>` module type this composition's router
     /// implements (its own, or a reused one from an earlier composition with
@@ -50,7 +50,7 @@ pub struct InterfacesOutput {
 /// "several game instances share one composition — emit per composition, not
 /// per instance" (`docs/stories/easycrypt/04-games-and-router.md` §2.2).
 /// Shared with `game.rs`, which iterates the exact same list to emit
-/// `games/<X>.ec`.
+/// `Comp_<X>.ec` (story 10).
 pub(super) fn discover_compositions(theorem: &Theorem<'_>) -> Vec<Composition> {
     let mut out: Vec<Composition> = Vec::new();
     for inst in &theorem.instances {
@@ -155,29 +155,18 @@ pub fn build_interfaces_file(theorem: &Theorem<'_>) -> Result<InterfacesOutput, 
     // --- one game interface per distinct export signature list -------------
     let comps = discover_compositions(theorem);
 
-    // A composition's mangled base name must never coincide with a package
-    // variant's (`packages/<Variant>.ec` vs `games/<Comp>.ec` are two
-    // independent `Names` registries, story 03's and this one's own, with
-    // no shared namespace) — verified against `4WHS`, whose `PRF` package
-    // *and* `PRF` composition mangle to the same base: `easycrypt compile`
-    // then fails with "circular requires involving `M_PRF`" on
-    // `games/Hybrid2.ec`, because compiling a file under `games/` always
-    // implicitly searches that same directory too, so `games/M_PRF.ec`
-    // (the *composition*'s own file) shadows `packages/M_PRF.ec` (the
-    // *package*'s) even without `-I games` on the command line. Escape with
-    // a `_Game` suffix on the rare collision rather than renaming the
-    // package-variant side, which story 03 already committed and tested.
-    let variant_names_taken: std::collections::HashSet<&str> =
-        variant_name_map.values().map(String::as_str).collect();
+    // A composition's mangled base name and a package variant's live in two
+    // independent `Names` registries (story 03's and this one's own) and
+    // never share a namespace: a package variant renders into
+    // `Variant_<Variant>.ec` and a composition into `Comp_<Comp>.ec` (story
+    // 10), so a composition and a package variant that both mangle to
+    // `PRF` (as `4WHS` has it) produce `Variant_PRF.ec`/`module PRF` and
+    // `Comp_PRF.ec`/`module Game_PRF`/`module Exp_PRF` — no collision, and
+    // no escape hatch needed.
     let mut comp_names = Names::new();
     let mut comp_mangled = HashMap::new();
     for comp in &comps {
         let mangled = comp_names.mangle(NameKind::Module, &comp.name)?;
-        let mangled = if variant_names_taken.contains(mangled.as_str()) {
-            comp_names.mangle(NameKind::Module, &format!("{}_Game", comp.name))?
-        } else {
-            mangled
-        };
         comp_mangled.insert(comp.name.clone(), mangled);
     }
 

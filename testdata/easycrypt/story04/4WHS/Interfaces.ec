@@ -45,7 +45,7 @@ module type KX_NoKeys_i = {
   proc d_Test(ctr : int) : bits_n option
 }.
 
-module type M_PRF_i = {
+module type PRF_i = {
   proc d_NewKey(ltk : bits_n option) : int option
   proc d_Eval(kid : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option
   proc d_Hon(kid : int) : bool option
@@ -88,12 +88,12 @@ module type Adv_Hybrid0 (O : Iface_Hybrid0) = {
   proc run() : bool
 }.
 
-module type Iface_PRF_Game = {
+module type Iface_PRF = {
   proc d_NewKey(ltk : bits_n option) : int option
   proc d_Eval(kid : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option
   proc d_Hon(kid : int) : bool option
 }.
 
-module type Adv_PRF_Game (O : Iface_PRF_Game) = {
+module type Adv_PRF (O : Iface_PRF) = {
   proc run() : bool
 }.

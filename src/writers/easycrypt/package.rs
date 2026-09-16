@@ -190,7 +190,10 @@ pub(super) fn assign_names(
     Ok(result)
 }
 
-/// One deduplicated package variant, ready to render as `packages/<name>.ec`.
+/// One deduplicated package variant, ready to render as `Variant_<name>.ec`
+/// (story 10) — `name` itself is unprefixed (it is also the module's own
+/// name), the `Variant_` prefix is added only where the file is written
+/// (`export.rs`).
 #[derive(Debug, Clone)]
 pub struct PackageVariant {
     pub name: String,
@@ -1338,14 +1341,14 @@ mod tests {
         for v in &variants {
             assert_golden(
                 v,
-                &format!("testdata/easycrypt/story03/hello-world/{}.ec", v.name),
+                &format!("testdata/easycrypt/story03/hello-world/Variant_{}.ec", v.name),
             );
         }
     }
 
     #[test]
     fn hello_world_rand_compiles_standalone() {
-        assert_compiles("testdata/easycrypt/story03/hello-world", "Rand.ec");
+        assert_compiles("testdata/easycrypt/story03/hello-world", "Variant_Rand.ec");
     }
 
     #[test]
@@ -1354,10 +1357,12 @@ mod tests {
         let names: Vec<&str> = variants.iter().map(|v| v.name.as_str()).collect();
         assert_eq!(
             names,
-            // `PRF` mangles to `M_PRF`: it collides with EasyCrypt's own
-            // `theories/crypto/PRF.eca` (`names.rs`'s
-            // `RESERVED_STDLIB_THEORY_NAMES`, found in story 04).
-            vec!["Prot", "KX", "Prot_NoKey", "KX_NoKeys", "M_PRF", "Prot_NoPrf", "KX_NoPrf"],
+            // `PRF` no longer needs an escape hatch (story 10 retired the
+            // stdlib-collision name list): the module is named plain
+            // `PRF`, and its file is `Variant_PRF.ec`, which cannot collide
+            // with EasyCrypt's own `theories/crypto/PRF.eca` or with the
+            // `PRF` composition's own `Comp_PRF.ec`.
+            vec!["Prot", "KX", "Prot_NoKey", "KX_NoKeys", "PRF", "Prot_NoPrf", "KX_NoPrf"],
             "each of these packages must dedup to exactly one variant across the whole theorem \
              (Real/Ideal/Hybrid0 share one boolean-parametrised KX, etc.)"
         );
@@ -1367,7 +1372,7 @@ mod tests {
     fn simple_4whs_variants_match_golden() {
         let variants = load_variants("example-projects/4WHS", "Simple4WHS");
         for v in &variants {
-            assert_golden(v, &format!("testdata/easycrypt/story03/4WHS/{}.ec", v.name));
+            assert_golden(v, &format!("testdata/easycrypt/story03/4WHS/Variant_{}.ec", v.name));
         }
     }
 
@@ -1377,10 +1382,9 @@ mod tests {
         // Interfaces.ec to typecheck. Every other 4WHS variant here
         // (KX/KX_NoKeys/Prot_NoPrf/KX_NoPrf) imports at least one oracle and
         // so references `Interfaces.*_i`; they are golden-file-only checked
-        // until story 04 provides Interfaces.ec. `PRF` mangles to `M_PRF`
-        // (`names.rs`'s `RESERVED_STDLIB_THEORY_NAMES`, found in story 04).
-        assert_compiles("testdata/easycrypt/story03/4WHS", "Prot.ec");
-        assert_compiles("testdata/easycrypt/story03/4WHS", "M_PRF.ec");
+        // until story 04 provides Interfaces.ec.
+        assert_compiles("testdata/easycrypt/story03/4WHS", "Variant_Prot.ec");
+        assert_compiles("testdata/easycrypt/story03/4WHS", "Variant_PRF.ec");
     }
 
     // --- naming / dedup on hand-built fixtures ------------------------------

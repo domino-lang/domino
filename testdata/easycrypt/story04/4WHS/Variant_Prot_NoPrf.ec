@@ -3,7 +3,7 @@
 require import AllCore Distr FMap Int IntDiv Types.
 require Interfaces.
 
-module Prot_NoPrf (P_Prf : Interfaces.M_PRF_i) = {
+module Prot_NoPrf (P_Prf : Interfaces.PRF_i) = {
   proc d_Run1(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option = {
     var ec_result : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option <- None<:((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n)>;
     var d_U : int;

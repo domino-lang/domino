@@ -1,8 +1,8 @@
-(* M_PRF: n = n, prf = func_prf *)
+(* PRF: n = n, prf = func_prf *)
 
 require import AllCore Distr FMap Int IntDiv Types.
 
-module M_PRF = {
+module PRF = {
   var d_LTK : (int, bits_n) fmap
   var d_H : (int, bool) fmap
   var d_PRF : ((int * (int * int * bits_n * bits_n * bool)), bits_n) fmap

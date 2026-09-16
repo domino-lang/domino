@@ -101,16 +101,21 @@ pub fn compute_equivalence_files(
     Ok(out)
 }
 
-/// One side's naming layout inside its own `games/<mangled>.ec` file: the
-/// composition's own mangled base, and — in `comp.pkgs` declaration order —
-/// each instance's `Pkg_<InstMangled>` clone-alias base and the package
-/// variant name it clones. Recomputed independently per side from
-/// `interfaces`/`variant_name_map` rather than threaded out of `game.rs`
-/// (which never exposes these internals) — both are pure functions of
-/// `comp`, matching story 04's own "recomputed, not threaded through"
-/// precedent (its report §3).
+/// One side's naming layout inside its own `Comp_<mangled>.ec` file (story
+/// 10): the composition's own mangled base (`Game_<mangled>`/`Exp_<mangled>`
+/// module names derive from this, unprefixed), the *theory* qualifier a
+/// `require`r must use to reach into that file (`comp_theory`, `Comp_
+/// <mangled>` — story 10 §3.1: only the file/theory name gets the `Comp_`
+/// prefix, every module name keeps its old spelling), and — in `comp.pkgs`
+/// declaration order — each instance's `Pkg_<InstMangled>` clone-alias base
+/// and the package variant name it clones. Recomputed independently per
+/// side from `interfaces`/`variant_name_map` rather than threaded out of
+/// `game.rs` (which never exposes these internals) — both are pure
+/// functions of `comp`, matching story 04's own "recomputed, not threaded
+/// through" precedent (its report §3).
 struct CompLayout {
     comp_mangled: String,
+    comp_theory: String,
     inst_mangled: Vec<String>,
     variant_names: Vec<String>,
 }
@@ -121,6 +126,7 @@ fn compute_layout(
     variant_name_map: &HashMap<VariantKey, String>,
 ) -> Result<CompLayout, EcExportError> {
     let comp_mangled = interfaces.comp_mangled[&comp.name].clone();
+    let comp_theory = format!("Comp_{comp_mangled}");
 
     let keys = package::compute_all_keys(comp);
     let variant_names: Vec<String> = keys
@@ -145,22 +151,26 @@ fn compute_layout(
 
     Ok(CompLayout {
         comp_mangled,
+        comp_theory,
         inst_mangled,
         variant_names,
     })
 }
 
-/// `<mangled>.Game_<mangled>` then `<mangled>.Pkg_<InstMangled>.<Variant>`
-/// per instance, `comp.pkgs` order — every router and every instance clone
-/// story 04 gave this composition's own game file (§3: "restrictions must
-/// name `Pkg_<InstMangled>` (the clone), never `Inst_<InstMangled>` (the
-/// alias)").
+/// `Comp_<mangled>.Game_<mangled>` then
+/// `Comp_<mangled>.Pkg_<InstMangled>.<Variant>` per instance, `comp.pkgs`
+/// order — every router and every instance clone story 04 gave this
+/// composition's own game file (§3: "restrictions must name
+/// `Pkg_<InstMangled>` (the clone), never `Inst_<InstMangled>` (the
+/// alias)"). The qualifier is `comp_theory` (story 10's `Comp_` prefix,
+/// since that's the theory a `require` brings into scope); the module
+/// names after it keep their pre-story-10, unprefixed spelling.
 fn restrictions_for(layout: &CompLayout) -> Vec<String> {
-    let mut out = vec![format!("{0}.Game_{0}", layout.comp_mangled)];
+    let mut out = vec![format!("{}.Game_{}", layout.comp_theory, layout.comp_mangled)];
     for idx in 0..layout.inst_mangled.len() {
         out.push(format!(
             "{}.Pkg_{}.{}",
-            layout.comp_mangled, layout.inst_mangled[idx], layout.variant_names[idx]
+            layout.comp_theory, layout.inst_mangled[idx], layout.variant_names[idx]
         ));
     }
     out
@@ -191,7 +201,7 @@ fn build_side_record_lit(
         let inst = &comp.pkgs[idx];
         let mut names = Names::new();
         let base_path = vec![
-            layout.comp_mangled.clone(),
+            layout.comp_theory.clone(),
             format!("Pkg_{}", layout.inst_mangled[idx]),
             layout.variant_names[idx].clone(),
         ];
@@ -220,7 +230,7 @@ fn build_side_record_lit(
         format!("{field_ns_prefix}abort_flag"),
         EcExpr::Qualified {
             path: vec![
-                layout.comp_mangled.clone(),
+                layout.comp_theory.clone(),
                 format!("Game_{}", layout.comp_mangled),
                 "abort_flag".to_string(),
             ],
@@ -387,14 +397,14 @@ fn build_equivalence_file(
 
     // --- the lemma statement: Pr[...] = Pr[...] -----------------------
     let left_pr = EcExpr::Pr {
-        module: format!("{0}.Exp_{0}(A)", left_layout.comp_mangled),
+        module: format!("{}.Exp_{}(A)", left_layout.comp_theory, left_layout.comp_mangled),
         proc: "run".to_string(),
         args: left_run_args,
         memory: "m".to_string(),
         event: Box::new(EcExpr::Var("res".to_string())),
     };
     let right_pr = EcExpr::Pr {
-        module: format!("{0}.Exp_{0}(A)", right_layout.comp_mangled),
+        module: format!("{}.Exp_{}(A)", right_layout.comp_theory, right_layout.comp_mangled),
         proc: "run".to_string(),
         args: right_run_args,
         memory: "m".to_string(),
@@ -516,9 +526,9 @@ fn build_equivalence_file(
         }],
     }));
 
-    let mut comp_requires = vec![left_layout.comp_mangled.clone()];
+    let mut comp_requires = vec![left_layout.comp_theory.clone()];
     if !same_composition {
-        comp_requires.push(right_layout.comp_mangled.clone());
+        comp_requires.push(right_layout.comp_theory.clone());
     }
     let invariants_theory = format!(
         "Eq_{}_{}_Invariants",
@@ -666,7 +676,7 @@ mod tests {
                 _ => None,
             })
             .unwrap();
-        // Only one `-Hybrid2.Game_Hybrid2` restriction, not two.
+        // Only one `-Comp_Hybrid2.Game_Hybrid2` restriction, not two.
         let router_restrictions = section.declares[0]
             .restrictions
             .iter()
@@ -674,15 +684,15 @@ mod tests {
             .count();
         assert_eq!(router_restrictions, 1);
 
-        // `require Hybrid2.` once, not `require Hybrid2 Hybrid2.`.
+        // `require Comp_Hybrid2.` once, not `require Comp_Hybrid2 Comp_Hybrid2.`.
         let comp_require = f
             .proof
             .file
             .requires
             .iter()
-            .find(|r| !r.import && r.names.contains(&"Hybrid2".to_string()))
+            .find(|r| !r.import && r.names.contains(&"Comp_Hybrid2".to_string()))
             .unwrap();
-        assert_eq!(comp_require.names, vec!["Hybrid2".to_string()]);
+        assert_eq!(comp_require.names, vec!["Comp_Hybrid2".to_string()]);
     }
 
     #[test]

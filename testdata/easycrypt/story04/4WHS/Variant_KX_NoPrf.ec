@@ -3,7 +3,7 @@
 require import AllCore Distr FMap Int IntDiv Types.
 require Interfaces.
 
-module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.M_PRF_i) = {
+module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = {
   var ctr_ : int
   var d_RevTested : ((int * int * bits_n * bits_n * bits_n), bool) fmap
   var d_Fresh : (int, bool) fmap

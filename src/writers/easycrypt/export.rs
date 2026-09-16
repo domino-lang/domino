@@ -3,8 +3,10 @@
 //! `export_theorem` (`docs/stories/easycrypt/05-easycrypt-command.md` §3.4):
 //! the one function that turns a Domino [`Theorem`] into the in-memory
 //! contents of an EasyCrypt project — `Types.ec`, `Interfaces.ec`,
-//! `packages/*.ec`, `games/*.ec` — plus the data `domino easycrypt`'s stdout
-//! report is built from. It runs [`EquivalenceTransform`] itself (§2 of the
+//! `Variant_*.ec`, `Comp_*.ec` — plus the data `domino easycrypt`'s stdout
+//! report is built from. All files land directly in the theorem's own
+//! output directory, flat (story 10 §3.2: no `packages/`/`games/`
+//! subdirectories). It runs [`EquivalenceTransform`] itself (§2 of the
 //! story: "the export pipeline is the existing `EquivalenceTransform`"), so
 //! callers pass the *untransformed* theorem exactly as `Project::get_theorem`
 //! returns it.
@@ -64,11 +66,12 @@ pub struct SkipNote {
 }
 
 /// The in-memory result of exporting one theorem (§3.4). `files` keys are
-/// paths relative to the theorem's own output directory (`Types.ec`,
-/// `packages/KX.ec`, ...); [`write_files`] joins them onto an `out` root.
-/// The remaining fields are exactly the data `domino easycrypt`'s stdout
-/// report (§3.3) needs, computed once here so the report never re-derives it
-/// (and can never disagree with what was actually written).
+/// bare file names, flat in the theorem's own output directory (`Types.ec`,
+/// `Variant_KX.ec`, ... — story 10 §3.2: no `packages/`/`games/`
+/// subdirectories); [`write_files`] joins them onto an `out` root. The
+/// remaining fields are exactly the data `domino easycrypt`'s stdout report
+/// (§3.3) needs, computed once here so the report never re-derives it (and
+/// can never disagree with what was actually written).
 #[derive(Debug)]
 pub struct ExportedTheorem {
     pub files: BTreeMap<PathBuf, String>,
@@ -79,9 +82,11 @@ pub struct ExportedTheorem {
     /// `Types.ec`'s function constants, already-mangled EasyCrypt op names
     /// (`func_prf`, ...), in emission order.
     pub fn_const_names: Vec<String>,
-    /// `packages/*.ec` variant names, discovery order.
+    /// `Variant_*.ec` variant names (unprefixed, e.g. `"KX"`), discovery
+    /// order.
     pub package_variant_names: Vec<String>,
-    /// `games/*.ec` composition names, discovery order.
+    /// `Comp_*.ec` composition names (unprefixed, e.g. `"Hybrid0"`),
+    /// discovery order.
     pub game_names: Vec<String>,
     /// How many oracles, across this theorem's equivalence hops (direct or
     /// nested in a hybrid), declare an explicit `randomness: simple`/`none`
@@ -95,7 +100,7 @@ pub struct ExportedTheorem {
 
 /// The kind + reason for a hop this exporter skips, or `None` for
 /// [`GameHop::Equivalence`], which is exactly what §3.2 translates into
-/// `packages/*.ec`/`games/*.ec`.
+/// `Variant_*.ec`/`Comp_*.ec`.
 fn skip_kind_and_reason(hop: &GameHop<'_>) -> Option<(&'static str, &'static str)> {
     match hop {
         GameHop::Equivalence(_) => None,
@@ -185,13 +190,13 @@ pub fn export_theorem(
     );
     for variant in &package_variants {
         files.insert(
-            PathBuf::from(format!("packages/{}.ec", variant.name)),
+            PathBuf::from(format!("Variant_{}.ec", variant.name)),
             render_file(&variant.file),
         );
     }
     for game in &game_files {
         files.insert(
-            PathBuf::from(format!("games/{}.ec", game.name)),
+            PathBuf::from(format!("Comp_{}.ec", game.name)),
             render_file(&game.file),
         );
     }
@@ -230,8 +235,9 @@ pub fn export_theorem(
     })
 }
 
-/// Writes every entry of `exported.files` under `out_dir`, creating
-/// `packages/`/`games/` as needed. The caller (`domino easycrypt`) only
+/// Writes every entry of `exported.files` under `out_dir`, flat (story 10
+/// §3.2 — no `packages/`/`games/` subdirectories; `create_dir_all` here only
+/// ever creates `out_dir` itself). The caller (`domino easycrypt`) only
 /// calls this after [`export_theorem`] has returned `Ok` for *every*
 /// requested theorem (§3.2: "a failed export must not leave a half-written
 /// tree").
@@ -305,7 +311,7 @@ mod tests {
 
         assert_eq!(
             exported.game_names,
-            vec!["Hybrid0", "Hybrid1", "Hybrid2", "PRF_Game"]
+            vec!["Hybrid0", "Hybrid1", "Hybrid2", "PRF"]
         );
         assert_eq!(exported.bits_type_names, vec!["bits_n"]);
         assert_eq!(exported.fn_const_names, vec!["func_mac", "func_prf"]);
@@ -327,7 +333,7 @@ mod tests {
                 "KX",
                 "KX_NoKeys",
                 "KX_NoPrf",
-                "M_PRF",
+                "PRF",
                 "Prot",
                 "Prot_NoKey",
                 "Prot_NoPrf"
@@ -480,19 +486,17 @@ mod tests {
         write_files(&tmp, &exported.files).unwrap();
 
         let base = tmp.to_str().unwrap().to_string();
-        let packages = tmp.join("packages").to_str().unwrap().to_string();
-        let games = tmp.join("games").to_str().unwrap().to_string();
 
+        // Story 10: a single `-I .` compiles the whole flat theorem
+        // directory — no `packages/`/`games/` subdirectories, so no
+        // `assert_compiles_with_paths`.
         super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
         super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
         for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{packages}/{name}.ec"));
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Variant_{name}.ec"));
         }
         for name in &exported.game_names {
-            super::super::test_support::assert_compiles_with_paths(
-                &[&base, &packages, &games],
-                &format!("{games}/{name}.ec"),
-            );
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
         // Story 07: every equivalence's invariants file compiles for real
         // (no known gap there); the proof skeleton itself compiles up to
@@ -503,7 +507,7 @@ mod tests {
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
             super::super::test_support::assert_compiles_or_known_base_case_gap(
-                &[&base, &packages, &games],
+                &[&base],
                 &format!("{base}/{}", eq.proof_file),
             );
         }
@@ -526,24 +530,19 @@ mod tests {
         write_files(&tmp, &exported.files).unwrap();
 
         let base = tmp.to_str().unwrap().to_string();
-        let packages = tmp.join("packages").to_str().unwrap().to_string();
-        let games = tmp.join("games").to_str().unwrap().to_string();
 
         super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
         super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
         for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{packages}/{name}.ec"));
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Variant_{name}.ec"));
         }
         for name in &exported.game_names {
-            super::super::test_support::assert_compiles_with_paths(
-                &[&base, &packages, &games],
-                &format!("{games}/{name}.ec"),
-            );
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
             super::super::test_support::assert_compiles_or_known_base_case_gap(
-                &[&base, &packages, &games],
+                &[&base],
                 &format!("{base}/{}", eq.proof_file),
             );
         }
@@ -568,24 +567,19 @@ mod tests {
         write_files(&tmp, &exported.files).unwrap();
 
         let base = tmp.to_str().unwrap().to_string();
-        let packages = tmp.join("packages").to_str().unwrap().to_string();
-        let games = tmp.join("games").to_str().unwrap().to_string();
 
         super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
         super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
         for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{packages}/{name}.ec"));
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Variant_{name}.ec"));
         }
         for name in &exported.game_names {
-            super::super::test_support::assert_compiles_with_paths(
-                &[&base, &packages, &games],
-                &format!("{games}/{name}.ec"),
-            );
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
             super::super::test_support::assert_compiles_or_known_base_case_gap(
-                &[&base, &packages, &games],
+                &[&base],
                 &format!("{base}/{}", eq.proof_file),
             );
         }
