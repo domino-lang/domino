@@ -21,6 +21,18 @@ theorem's function constants.
 `EcType`, `EcExpr`, `EcItem`, `EcFile`, the renderer, and `Names::mangle`. Read its implementation
 report first — if a variant you need is missing, add it to `ast.rs` and say so in your report.
 
+**EasyCrypt fact found while implementing story 01, load-bearing for §3.2's `GreaterThen`/
+`GreaterThenEq` row below**: the standard library only defines `>`/`>=` for `real`
+(`theories/datatypes/Real.ec`, as `abbrev`s over `<`/`<=` with flipped operands) — `int` has
+*no* `>`/`>=` at all. A bare `a > b` on Domino `int`s (or `Bits`, which also lowers to something
+non-`real`) emits `EcBinop::Gt`/`Ge`, renders as `>`/`>=`, and then **fails to typecheck** under
+`easycrypt compile` (`Top.Real.>` applied to an `int`). Either translate `GreaterThen(a, b)` /
+`GreaterThenEq(a, b)` directly to `LessThen(b, a)` / `LessThenEq(b, a)` (i.e. never emit
+`EcBinop::Gt`/`Ge` for non-`real` operands), or emit a local `op (>) (x y : int) : bool = y < x.`
+override per numeric type used (`src/writers/easycrypt/tests.rs`'s kitchen sink does the latter,
+just to exercise the AST variant). Verified by compiling
+`op t (a b : int) : bool = a > b.` — fails; `op t (a b : int) : bool = b < a.` — compiles.
+
 ### 2.2 Domino types (`src/types.rs:103`)
 
 ```rust

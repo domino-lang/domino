@@ -5,5 +5,6 @@
 settings.json
 test*.smt
 test*.z3out
+*.eco
 .DS_Store
 .vscode
