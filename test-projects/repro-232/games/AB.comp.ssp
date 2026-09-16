@@ -2,17 +2,17 @@ composition AB {
   const i: Integer;
   const b: Bool;
   
-  instance a = A {
+  instance A = A {
     params {i:i}
   }
-  instance b = B {
+  instance B = B {
     params {b:b}
   }
 
   compose {
     adversary: {
-      Run: a,
-      Eval: b,
+      Run: A,
+      Eval: B,
     }
   }
 }
