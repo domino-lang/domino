@@ -383,11 +383,34 @@ fn render_lemma_binder(b: &LemmaBinder) -> String {
 }
 
 fn render_proof_line(line: &ProofLine) -> String {
-    let pad = indent(line.indent);
-    match line.bullet {
-        Some(b) => format!("{pad}{b} {}", line.text),
-        None => format!("{pad}{}", line.text),
+    match line {
+        ProofLine::Tactic { indent: i, bullet, text } => {
+            let pad = indent(*i);
+            match bullet {
+                Some(b) => format!("{pad}{b} {text}"),
+                None => format!("{pad}{text}"),
+            }
+        }
+        ProofLine::ByequivPrecondition { conjuncts } => render_byequiv_precondition(conjuncts),
     }
+}
+
+/// Renders the `byequiv` induction-start precondition (story 13 §3.2): one
+/// conjunct per line, `={glob A}` first, ending in the literal `_`
+/// postcondition and `=> //.` — never `admit`, and never dropped, per the
+/// owner's own worked example.
+fn render_byequiv_precondition(conjuncts: &[EcExpr]) -> String {
+    let mut lines = vec!["byequiv".to_string()];
+    for (i, c) in conjuncts.iter().enumerate() {
+        let rendered = render_expr(c);
+        if i == 0 {
+            lines.push(format!("  (: {rendered}"));
+        } else {
+            lines.push(format!("     /\\ {rendered}"));
+        }
+    }
+    lines.push("     ==> _) => //.".to_string());
+    lines.join("\n")
 }
 
 /// Render a type. Tuple and function types parenthesise themselves whenever
@@ -446,7 +469,8 @@ fn prec(e: &EcExpr) -> i8 {
         | EcExpr::MapGet { .. }
         | EcExpr::MapSet { .. }
         | EcExpr::MapEmpty
-        | EcExpr::Pr { .. } => ATOM_PREC,
+        | EcExpr::Pr { .. }
+        | EcExpr::GlobEq(_) => ATOM_PREC,
         EcExpr::App { args, .. } if args.is_empty() => ATOM_PREC,
         EcExpr::App { .. } | EcExpr::Some_(_) | EcExpr::Oget(_) | EcExpr::MapRem { .. } => {
             APP_PREC
@@ -636,5 +660,6 @@ fn render_expr_inner(e: &EcExpr) -> String {
                 render_expr(event)
             )
         }
+        EcExpr::GlobEq(module) => format!("={{glob {module}}}"),
     }
 }

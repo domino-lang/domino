@@ -499,17 +499,25 @@ mod tests {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
         // Story 07: every equivalence's invariants file compiles for real
-        // (no known gap there); the proof skeleton itself compiles up to
-        // and including the base case's `smt(emptyE map_empty)` call,
-        // which is a genuine, documented gap for `Simple4WHS` — see
-        // `test_support::assert_compiles_or_known_base_case_gap`'s own doc
-        // and this story's implementation report for the exact goal.
+        // (no known gap there). Story 13: the `byequiv` precondition now
+        // makes the *same-composition* hop's base case genuinely
+        // discharge (`Eq_Real_Hybrid3_Ideal_Hybrid3.ec` — plain
+        // `assert_compiles`, no tolerance). The two *cross-composition*
+        // hops (`Eq_Hybrid0_Hybrid1.ec`, `Eq_Hybrid1_Hybrid2.ec`) still hit
+        // the known base-case gap — see `test_support::
+        // assert_compiles_or_known_base_case_gap`'s own doc and this
+        // story's implementation report for the exact residual goal.
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            super::super::test_support::assert_compiles_or_known_base_case_gap(
-                &[&base],
-                &format!("{base}/{}", eq.proof_file),
-            );
+            let proof_path = format!("{base}/{}", eq.proof_file);
+            if eq.proof_file == "Eq_Real_Hybrid3_Ideal_Hybrid3.ec" {
+                super::super::test_support::assert_compiles(&base, &proof_path);
+            } else {
+                super::super::test_support::assert_compiles_or_known_base_case_gap(
+                    &[&base],
+                    &proof_path,
+                );
+            }
         }
 
         std::fs::remove_dir_all(&tmp).unwrap();

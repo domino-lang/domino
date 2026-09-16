@@ -758,17 +758,17 @@ fn kitchen_sink() -> EcFile {
                             },
                         ),
                         proof: vec![
-                            ProofLine {
+                            ProofLine::Tactic {
                                 indent: 0,
                                 bullet: None,
                                 text: "case: b.".to_string(),
                             },
-                            ProofLine {
+                            ProofLine::Tactic {
                                 indent: 0,
                                 bullet: Some('+'),
                                 text: "trivial.".to_string(),
                             },
-                            ProofLine {
+                            ProofLine::Tactic {
                                 indent: 0,
                                 bullet: Some('+'),
                                 text: "trivial.".to_string(),
@@ -789,7 +789,7 @@ fn kitchen_sink() -> EcFile {
                                 mem: Some(1),
                             },
                         ),
-                        proof: vec![ProofLine {
+                        proof: vec![ProofLine::Tactic {
                             indent: 0,
                             bullet: None,
                             text: "trivial.".to_string(),

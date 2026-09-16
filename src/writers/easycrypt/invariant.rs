@@ -462,6 +462,9 @@ fn expr_references_var(e: &EcExpr, name: &str) -> bool {
         EcExpr::Pr { args, event, .. } => {
             args.iter().any(|a| expr_references_var(a, name)) || expr_references_var(event, name)
         }
+        // `={glob M}` names a module, never one of this translator's own
+        // local variables.
+        EcExpr::GlobEq(_) => false,
     }
 }
 

@@ -80,12 +80,35 @@ pub(crate) mod test_support {
     /// 07-proof-skeleton.md` §6/§4 — "the base case may genuinely fail...
     /// report the goal rather than widening the `smt` call blindly", and a
     /// real `smt(…)` call, not `admit`, is itself the acceptance bar, not
-    /// the base case actually discharging). Confirmed live for both
-    /// `Simple4WHS` and `kem-dem-cca-ssp` (this story's implementation
-    /// report has the exact goals) — everything else in the file, up to
-    /// and including that one tactic, must still succeed, so any *other*
-    /// failure (a real bug: wrong syntax, a bad restriction, a bullet
-    /// mismatch, …) still fails this assertion.
+    /// the base case actually discharging).
+    ///
+    /// **Narrowed by story 13**: adding the `byequiv` induction start's own
+    /// explicit relational precondition (`={glob A} /\ <every run arg of
+    /// both sides>`) made the base case genuinely discharge for the
+    /// equivalence hop named in the story's own worked example
+    /// (`Eq_Real_Hybrid3_Ideal_Hybrid3.ec`, `Simple4WHS`) and for most —
+    /// but, empirically, not all — of the *cross-composition* hops it was
+    /// tried against: `Eq_H5_H6_0.ec`, `Eq_H6_1_0_H6_1_1.ec`,
+    /// `Eq_H6_1_1_H7_0.ec` and `Eq_H7_1_1_0_H7_1_1_1.ec` (`Full4WHS`) also
+    /// now compile with plain [`assert_compiles`], no tolerance. This
+    /// helper is still needed — confirmed still failing, with the exact
+    /// same failure mode, only at this exact tactic — for
+    /// `Eq_Hybrid0_Hybrid1.ec` and `Eq_Hybrid1_Hybrid2.ec` (`Simple4WHS`),
+    /// five of `Full4WHS`'s remaining nine hops (`Eq_H0_H1_0.ec`,
+    /// `Eq_H1_1_H2_0.ec`, `Eq_H2_1_H3_0.ec`, `Eq_H3_1_H4.ec`,
+    /// `Eq_H4_H5.ec`), and `kem-dem-cca-ssp`'s one hop — story 13's
+    /// implementation report has the exact residual goal for each. The gap
+    /// is in `params_inv`/the state relation (a `forall &1 &2` induction
+    /// step loses the tie between the two sides' `run` arguments that the
+    /// top-level precondition established at the fixed memory `&m`, printed
+    /// by EasyCrypt as an unresolved `b{!1}`/`b{!2}`), not in the
+    /// precondition itself, and it is **not** simply "same composition
+    /// passes, cross composition fails" — `Eq_H5_H6_0.ec` is a
+    /// cross-composition hop that already discharges cleanly. Do not widen
+    /// the `smt` call to chase the remaining ones. Everything else in the
+    /// file, up to and including that one tactic, must still succeed, so
+    /// any *other* failure (a real bug: wrong syntax, a bad restriction, a
+    /// bullet mismatch, …) still fails this assertion.
     pub(crate) fn assert_compiles_or_known_base_case_gap(dirs: &[&str], file: &str) {
         if !easycrypt_available() {
             eprintln!("`easycrypt` not on PATH, skipping compile check");

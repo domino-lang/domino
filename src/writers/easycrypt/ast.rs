@@ -214,6 +214,11 @@ pub enum EcExpr {
         memory: String,
         event: Box<EcExpr>,
     },
+    /// `={glob M}` — the two runs' own copies of `M`'s glob state are equal.
+    /// Only produced inside this epic's own `byequiv` induction-start
+    /// precondition (story 13, [`ProofLine::ByequivPrecondition`]); a
+    /// self-delimited primitive, atom precedence like every other one here.
+    GlobEq(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -294,10 +299,25 @@ pub enum LemmaBinder {
     Typed { name: String, ty: EcType },
 }
 
-/// `bullet` is `+`/`-`/`*` nesting depth handling; `text` is one tactic line.
+/// One line (or, for [`ProofLine::ByequivPrecondition`], one structured
+/// multi-line tactic) of a lemma's proof script.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ProofLine {
-    pub indent: usize,
-    pub bullet: Option<char>,
-    pub text: String,
+pub enum ProofLine {
+    /// `bullet` is `+`/`-`/`*` nesting depth handling; `text` is one raw
+    /// tactic line — the one place raw text is allowed
+    /// ([`EcLemma::proof`]'s own doc comment), since tactic scripts are not
+    /// modelled in general.
+    Tactic {
+        indent: usize,
+        bullet: Option<char>,
+        text: String,
+    },
+    /// The `byequiv` induction start's own relational precondition (story
+    /// 13): `conjuncts` in the order they render, `={glob A}` first. Kept
+    /// structured (a real `Vec<EcExpr>`, not pre-joined text with embedded
+    /// newlines) so a later lowering (story 08) has the actual relational
+    /// formula to read, not tactic text to re-parse. Renders as
+    /// `byequiv\n  (: <c0>\n     /\ <c1>\n     ...\n     ==> _) => //.`
+    /// ([`super::render::render_proof_line`]).
+    ByequivPrecondition { conjuncts: Vec<EcExpr> },
 }
