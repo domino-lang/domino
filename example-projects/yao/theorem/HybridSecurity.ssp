@@ -74,41 +74,31 @@ theorem HybridSecurity {
         }
     }
 
-    instance HybridReal = HybridReal {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            d: d,
-            h: h,
-            encm: encm,
-            encn: encn,
-        }
+  hybrid instance Hybrid hy = {
+    HybridReal {
+      params{
+        n: n,
+        m: m,
+        p: p,
+        d: d,
+        h: hy,
+        encm: encm,
+        encn: encn,
+      }
     }
+    HybridIdeal {
+      params{
+        n: n,
+        m: m,
+        p: p,
+        d: d,
+        h: hy,
+        encm: encm,
+        encn: encn,
+      }
+    }
+  }
 
-    instance HybridIdeal = HybridIdeal {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            d: d,
-            h: h,
-            encm: encm,
-            encn: encn,
-        }
-    }
-
-    instance HybridReal1 = HybridReal {
-        params {
-            n: n,
-            m: m,
-            p: p,
-            d: d,
-            h: hplusone,
-            encm: encm,
-            encn: encn,
-        }
-    }
 
     assumptions {
         Layer: LayerReal ~ LayerIdeal
@@ -162,88 +152,6 @@ theorem HybridSecurity {
                 }
             }
         }
-
-        equivalence HybridIdeal HybridReal1 {
-                invariant: [
-                    /* the following order matters during concatenation */
-                    ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
-                ]
-            SETBIT: {
-                randomness: none
-                lemmas {
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                }
-            }
-            GETAOUT: {
-                lemmas {
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                }
-            }
-
-            GBLG: {
-                lemmas {
-                    inv-case-i-gt-hplustwo: [no-abort, inv-case-i-gt-hplustwo-assumptions]
-                    inv-case-i-gt-hplustwo-assumptions: [no-abort]
-                    invariant: [no-abort, 
-                        inv-case-i-lt-hminusone, 
-                        inv-case-i-is-hminusone, 
-                        inv-case-i-is-h, 
-                        inv-case-i-is-hplusone, 
-                        inv-case-i-is-hplustwo, 
-                        inv-case-i-gt-hplustwo]
-                    inv-case-i-lt-hminusone-assumptions: [no-abort]
-                    inv-case-i-lt-hminusone: [no-abort, inv-case-i-lt-hminusone-assumptions]
-                    inv-case-i-is-hminusone: [no-abort]
-                    inv-case-i-is-h: [no-abort]
-                    inv-case-i-is-hplusone: [no-abort]
-                    inv-case-i-is-hplustwo: [no-abort]
-                    case-i-is-hminusone-assumptions: []
-                    case-i-lt-hminusone-assumptions: []
-                    case-i-is-h-assumptions: []
-                    case-i-is-hplusone-assumptions: []
-                    case-i-is-hplustwo-assumptions: []
-                    case-i-gt-hplustwo-assumptions: []
-                    same-output:  [no-abort, 
-                        case-i-is-h, 
-                        case-i-is-hplusone, 
-                        case-i-is-hplustwo, 
-                        case-i-gt-hplustwo, 
-                        case-i-lt-hminusone, 
-                        case-i-is-hminusone]
-                    equal-aborts: [
-                        case-i-is-h, 
-                        case-i-is-hplusone, 
-                        case-i-is-hplustwo, 
-                        case-i-gt-hplustwo, 
-                        case-i-lt-hminusone, 
-                        case-i-is-hminusone]
-                    case-i-gt-hplustwo: [case-i-gt-hplustwo-assumptions]
-                    case-i-is-hplustwo: [case-i-is-hplustwo-assumptions]
-                    case-i-is-h: [case-i-is-h-assumptions]
-                    case-i-is-hplusone: [case-i-is-hplusone-assumptions]
-                    case-i-is-hminusone: [case-i-is-hminusone-assumptions]
-                    case-i-lt-hminusone: [case-i-lt-hminusone-assumptions]
-                    
-                }
-            }
-
-            GETKEYSIN: {
-                randomness: none
-                lemmas {
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                }
-            }
-        }
-
         equivalence CoreIdeal LastHybrid {
                 invariant: [
                     ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
@@ -287,23 +195,107 @@ theorem HybridSecurity {
                 }
             }
         }
-
-        reduction HybridReal HybridIdeal {
-            assumption Layer
-
-            map LayerReal HybridReal {
-                keys_top: KeysTop
-                keys_bottom: KeysBot
-                enc: Enc
-                gate: Gate
-            }
-
-            map LayerIdeal HybridIdeal {
-                keys_top: KeysTop
-                keys_bottom: KeysBot
-                ev: Lev
-                simgate: Sim
-            }
+        hybrid Hybrid {
+          reduction {
+              assumption Layer
+          
+              map LayerReal Hybrid[false] {
+                  keys_top: KeysTop
+                  keys_bottom: KeysBot
+                  enc: Enc
+                  gate: Gate
+              }
+          
+              map LayerIdeal Hybrid[true] {
+                  keys_top: KeysTop
+                  keys_bottom: KeysBot
+                  ev: Lev
+                  simgate: Sim
+              }
+          }
+          equivalence {
+                  invariant: [
+                      /* the following order matters during concatenation */
+                      ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
+                      ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
+                      ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
+                      ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
+                  ]
+              SETBIT: {
+                  randomness: none
+                  lemmas {
+                      same-output:  [no-abort]
+                      equal-aborts: []
+                      invariant:    [no-abort]
+                  }
+              }
+              GETAOUT: {
+                  lemmas {
+                      same-output:  [no-abort]
+                      equal-aborts: []
+                      invariant:    [no-abort]
+                  }
+              }
+          
+              GBLG: {
+                  lemmas {
+                      inv-case-i-gt-hplustwo: [no-abort, inv-case-i-gt-hplustwo-assumptions]
+                      inv-case-i-gt-hplustwo-assumptions: [no-abort]
+                      invariant: [no-abort, 
+                          inv-case-i-lt-hminusone, 
+                          inv-case-i-is-hminusone, 
+                          inv-case-i-is-h, 
+                          inv-case-i-is-hplusone, 
+                          inv-case-i-is-hplustwo, 
+                          inv-case-i-gt-hplustwo]
+                      inv-case-i-lt-hminusone-assumptions: [no-abort]
+                      inv-case-i-lt-hminusone: [no-abort, inv-case-i-lt-hminusone-assumptions]
+                      inv-case-i-is-hminusone: [no-abort]
+                      inv-case-i-is-h: [no-abort]
+                      inv-case-i-is-hplusone: [no-abort]
+                      inv-case-i-is-hplustwo: [no-abort]
+                      case-i-is-hminusone-assumptions: []
+                      case-i-lt-hminusone-assumptions: []
+                      case-i-is-h-assumptions: []
+                      case-i-is-hplusone-assumptions: []
+                      case-i-is-hplustwo-assumptions: []
+                      case-i-gt-hplustwo-assumptions: []
+                      same-output:  [no-abort, 
+                          case-i-is-h, 
+                          case-i-is-hplusone, 
+                          case-i-is-hplustwo, 
+                          case-i-gt-hplustwo, 
+                          case-i-lt-hminusone, 
+                          case-i-is-hminusone]
+                      equal-aborts: [
+                          case-i-is-h, 
+                          case-i-is-hplusone, 
+                          case-i-is-hplustwo, 
+                          case-i-gt-hplustwo, 
+                          case-i-lt-hminusone, 
+                          case-i-is-hminusone]
+                      case-i-gt-hplustwo: [case-i-gt-hplustwo-assumptions]
+                      case-i-is-hplustwo: [case-i-is-hplustwo-assumptions]
+                      case-i-is-h: [case-i-is-h-assumptions]
+                      case-i-is-hplusone: [case-i-is-hplusone-assumptions]
+                      case-i-is-hminusone: [case-i-is-hminusone-assumptions]
+                      case-i-lt-hminusone: [case-i-lt-hminusone-assumptions]
+                      
+                  }
+              }
+          
+              GETKEYSIN: {
+                  randomness: none
+                  lemmas {
+                      same-output:  [no-abort]
+                      equal-aborts: []
+                      invariant:    [no-abort]
+                  }
+              }
+          }
         }
-    } 
+    }
+    propositions {
+      main: CoreReal ~ CoreIdeal
+    }
 }
