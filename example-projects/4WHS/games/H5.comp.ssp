@@ -22,7 +22,6 @@ composition H5 {
         b: b,
         n: n,
         prf: prf,
-        mac: mac,
         }
     }
 
