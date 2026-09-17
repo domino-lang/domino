@@ -66,7 +66,7 @@ files, or read out of this repository's source. §8 lists the evidence.
 | **Invariants** | One invariant file per equivalence (this branch's grammar, `src/parser/ssp.pest:295`). Every `define-state-relation` becomes an operator `Domino_<name> (l, r)`; helper `define-fun`s become `Domino_<name>`. The assembled invariant is `params_inv l r /\ l.abort_flag = r.abort_flag /\ (!l.abort_flag => Domino_… )`. |
 | **Game-state record** | Flat, one per game *instance*, declared in `Eq_*_Invariants.ec`, built inline at the `call` site from module variables. Fields are `pkg_<inst>_<field>` plus `abort_flag`. Never used by a router or package. |
 | **Unsupported constructs** | Hard error with a source span: `Set`, `List`, `String`, group types, `while`, any loop `loopunroll` could not unroll, package type parameters, sampling anything but `Bits`. |
-| **Proof skeleton** | v1 emits `byequiv => //. proc; inline. call (: inv …); last first. auto => />. smt(emptyE map_empty).` then `+ proc; inline. admit.` per oracle, in game-interface order. No path-derived tactics. The base case is a real `smt` call, not an `admit`, so a broken base case is visible. **Amended by story 13:** `byequiv` takes an explicit relational precondition `(: ={glob A} /\ <every run arg of both sides> ==> _) => //.`, which is what makes the same-composition base case actually discharge. |
+| **Proof skeleton** | v1 emits `byequiv => //. proc; inline. call (: inv …); last first. auto => />. smt(emptyE map_empty).` then `+ proc; inline. admit.` per oracle, in game-interface order. No path-derived tactics. The base case is a real `smt` call, not an `admit`, so a broken base case is visible. **Amended by story 13:** `byequiv` takes an explicit relational precondition `(: ={glob A} /\ <every run arg of both sides> ==> _) => //.`, which is what makes the same-composition base case actually discharge. **Amended by story 15:** that precondition names `arg`, not the individual parameters — one conjunct per side, `arg{1} = (v1, v2)` — because a lemma binder spelled like a `run` parameter silently shadows it and voids the conjunct. |
 | **Debugger** | The EasyCrypt AST is the artifact; a **lowering** turns inlined EasyCrypt code into the debugger's existing IR (`src/debug/ir.rs`), so executor, solver, claims, HTML and `trace.json` are untouched. Labels are line numbers in the **EasyCrypt** listing. |
 | **Reductions / hybrids / randomness mappings** | Skipped, with a note in the output. |
 | **`flake.nix`** | **Not** modified. EasyCrypt comes from the developer's opam switch; tests that shell out to it skip when it is absent. |
@@ -113,13 +113,15 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 12 | Render `None` without a type annotation | `12-unannotated-none.md` | 01, 10 |
 | 13 | `byequiv` relational precondition | `13-byequiv-precondition.md` | 07, 10 |
 | 14 | Package import interfaces, adapters and the `Pkg_` prefixes | `14-package-import-interfaces-and-prefixes.md` | 03, 04, 10, 11 |
+| 15 | `byequiv` precondition via `arg`, not per-parameter conjuncts | `15-byequiv-arg-tuple-precondition.md` | 13, 14 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
 
-Stories 10–13 are follow-ups on the implemented export (owner review after story 07); they are
+Stories 10–15 are follow-ups on the implemented export (owner review after story 07); they are
 independent of 08/09 and **should be done first**, because 10 relocates and renames every golden
-file that 08 would otherwise inherit. Within 10–13: do 10 first, then 11/12/13 in any order.
+file that 08 would otherwise inherit. Within 10–13: do 10 first, then 11/12/13 in any order. 15
+supersedes story 13's rendering of the precondition and should be done after 13 and 14.
 
 ## 6. Working agreement (important)
 
@@ -211,6 +213,13 @@ verified in the design session, either by compiling a test file or by reading th
   projection across theories (`` l.`GS1.pkg_KX ``); functor application of a cloned module
   (`module KX_inst = Pkg_KX.KX(Pkg_Prot.Prot)`); `declare module A <: Adv { -GameH.Pkg_KX.KX, … }`
   with qualified clone names; `byequiv`/`call`/`admit` over such modules.
+- **A logical binder silently shadows a program variable of the same name in a relational formula.**
+  In `byequiv (: … /\ b{1} = b …)`, where `b` is both a lemma binder and the procedure's own
+  parameter, EasyCrypt types `b{1}` as the *logical* `b`, discards the `{1}` tag and reduces the
+  conjunct to `b = b`. The only signal is a warning, `unused memory '&1', while typing b`; the file
+  still compiles. **`arg` is immune** — it is a program identifier a binder cannot shadow — which is
+  why story 15 writes `arg{1} = (v1, v2)` instead. For a one-argument procedure `arg` is the value
+  itself, not a one-tuple; for a zero-argument one it is `()`.
 - **Module-type matching is structural and width-subtyping.** Two *independently declared*,
   structurally identical `module type`s are interchangeable: `module M (P : Fwd_v1_i)` applied to
   `R : Rand_i` compiles. A module with *more* procedures than the type demands also matches. So a
