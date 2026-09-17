@@ -1,10 +1,9 @@
 (declare-const h Int)
 (declare-const d Int)
-(declare-const hplusone Int)
 
 (assert 
     (=
-        (<theorem-consts-HybridSecurity-h> <<theorem-consts>>)
+        (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>)
         h
     )
 )
@@ -13,21 +12,6 @@
     (=
         (<theorem-consts-HybridSecurity-d> <<theorem-consts>>)
         d
-    )
-)
-
-(assert 
-    (=
-        (<theorem-consts-HybridSecurity-hplusone> <<theorem-consts>>)
-        hplusone
-    )
-)
-
-; hplusone = h + 1
-(assert 
-    (= 
-        hplusone
-        (+ 1 h)
     )
 )
 
