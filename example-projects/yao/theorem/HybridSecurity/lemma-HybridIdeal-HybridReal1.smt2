@@ -7,7 +7,7 @@
         (j Int)
         (b Bool)
     )
-    (= h -2)
+    (= old-state-left.h -2)
 )
 
 
@@ -19,7 +19,7 @@
         return-right
         (j Int)
     )
-    (= h 1)
+    (= old-state-left.h 1)
 )
 
 (define-lemma <relation-value-of-h-Hybrid$true$-Hybrid$false$+-GETAOUT>
@@ -30,7 +30,7 @@
         return-right
         (j Int)
     )
-    (= h 1)
+    (= old-state-left.h 1)
 )
 
 (define-lemma <relation-value-of-i-Hybrid$true$-Hybrid$false$+-GBLG>
@@ -45,7 +45,7 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    (= i (+ h 1))
+    (= i (+ old-state-left.h 1))
 )
 
 (define-lemma <relation-inv-case-i-lt-hminusone-assumptions-Hybrid$true$-Hybrid$false$+-GBLG>
@@ -61,7 +61,7 @@
         (j Int)
     )
     (=>
-        (< i (- h 1))
+        (< i (- old-state-left.h 1))
         (and
             (= return-left.state.RealLayersKeys.flag old-state-left.RealLayersKeys.flag)
             (= return-left.state.KeysTop.flag old-state-left.KeysTop.flag)
@@ -98,7 +98,7 @@
         (j Int)
     )
     (=>
-        (< i (- h 1))
+        (< i (- old-state-left.h 1))
         (invariants return-left.state return-right.state)
     )
 )
@@ -116,7 +116,7 @@
         (j Int)
     )
     (=>
-        (= i (- h 1))
+        (= i (- old-state-left.h 1))
         (invariants return-left.state return-right.state)
     )
 )
@@ -134,7 +134,7 @@
         (j Int)
     )
     (=>
-        (= i h)
+        (= i old-state-left.h)
         (invariants return-left.state return-right.state)
     )
 )
@@ -152,7 +152,7 @@
         (j Int)
     )
     (=>
-        (= i (+ h 1))
+        (= i (+ old-state-left.h 1))
         (invariants return-left.state return-right.state)
     )
 )
@@ -170,7 +170,7 @@
         (j Int)
     )
     (=>
-        (= i (+ h 2))
+        (= i (+ old-state-left.h 2))
         (invariants return-left.state return-right.state)
     )
 )
@@ -188,7 +188,7 @@
         (j Int)
     )
     (=>
-        (> i (+ h 2))
+        (> i (+ old-state-left.h 2))
         (let
             (
                 (r return-right.state.RealLayersKeys.r)
@@ -278,7 +278,7 @@
         (j Int)
     )
     (=>
-        (> i (+ h 2))
+        (> i (+ old-state-left.h 2))
         (invariants return-left.state return-right.state)
     )
 )
@@ -297,7 +297,7 @@
         (j Int)
     )
     (=>
-        (< i (- h 1))
+        (< i (- state-left.h 1))
         (and
             (= (select state-left.SimulatedLayersKeys.z (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.z (mk-tuple2 i l)))
             (= (select state-left.SimulatedLayersKeys.z (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.z (mk-tuple2 i r)))
@@ -324,7 +324,7 @@
         (j Int)
     )
     (=>
-        (< i (- h 1))
+        (< i (- old-state-left.h 1))
         (= return-left.value return-right.value)
     )
 )
@@ -343,7 +343,7 @@
         (j Int)
     )
     (=>
-        (= i (- h 1))
+        (= i (- state-left.h 1))
         (and
             (= (select state-left.SimulatedLayersKeys.z (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.z (mk-tuple2 i l)))
             (= (select state-left.SimulatedLayersKeys.z (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.z (mk-tuple2 i r)))
@@ -351,8 +351,8 @@
             (= (select state-left.SimulatedLayersKeys.flag (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i r)))
             (= (select state-left.SimulatedLayersKeys.T (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.T (mk-tuple2 i l)))
             (= (select state-left.SimulatedLayersKeys.T (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.T (mk-tuple2 i r)))
-            (= (select state-left.KeysTop.z j) (select state-right.SimulatedLayersKeys.z (mk-tuple2 h j)))
-            (= (select state-left.KeysTop.T j) (select state-right.SimulatedLayersKeys.T (mk-tuple2 h j)))
+            (= (select state-left.KeysTop.z j) (select state-right.SimulatedLayersKeys.z (mk-tuple2 state-left.h j)))
+            (= (select state-left.KeysTop.T j) (select state-right.SimulatedLayersKeys.T (mk-tuple2 state-left.h j)))
         )
     )
 )
@@ -370,7 +370,7 @@
         (j Int)
     )
     (=>
-        (= i (- h 1))
+        (= i (- old-state-left.h 1))
         (= return-left.value return-right.value)
     )
 )
@@ -389,14 +389,14 @@
         (j Int)
     )
     (=>
-        (= i h)
+        (= i state-left.h)
         (and
-            (= (select state-left.KeysTop.z l) (select state-right.SimulatedLayersKeys.z (mk-tuple2 h l)))
-            (= (select state-left.KeysTop.z r) (select state-right.SimulatedLayersKeys.z (mk-tuple2 h r)))
-            (= (select state-left.KeysTop.flag l) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 h l)))
-            (= (select state-left.KeysTop.flag r) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 h r)))
-            (= (select state-left.KeysTop.T l) (select state-right.SimulatedLayersKeys.T (mk-tuple2 h l)))
-            (= (select state-left.KeysTop.T r) (select state-right.SimulatedLayersKeys.T (mk-tuple2 h r)))
+            (= (select state-left.KeysTop.z l) (select state-right.SimulatedLayersKeys.z (mk-tuple2 state-left.h l)))
+            (= (select state-left.KeysTop.z r) (select state-right.SimulatedLayersKeys.z (mk-tuple2 state-left.h r)))
+            (= (select state-left.KeysTop.flag l) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 state-left.h l)))
+            (= (select state-left.KeysTop.flag r) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 state-left.h r)))
+            (= (select state-left.KeysTop.T l) (select state-right.SimulatedLayersKeys.T (mk-tuple2 state-left.h l)))
+            (= (select state-left.KeysTop.T r) (select state-right.SimulatedLayersKeys.T (mk-tuple2 state-left.h r)))
             (= (select state-left.KeysBot.z j) (select state-right.KeysTop.z j))
             (= (select state-left.KeysBot.T j) (select state-right.KeysTop.T j))
             (= (select state-left.KeysBot.flag j) (select state-right.KeysTop.flag j))
@@ -417,7 +417,7 @@
         (j Int)
     )
     (=>
-        (= i h)
+        (= i old-state-left.h)
         (= return-left.value return-right.value)
     )
 )
@@ -436,12 +436,12 @@
         (j Int)
     )
     (=>
-        (= i (+ 1 h))
+        (= i (+ 1 state-left.h))
         (and
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 2 h) j)) (select state-right.KeysBot.flag j))
+            (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 2 state-left.h) j)) (select state-right.KeysBot.flag j))
             (= (select state-left.KeysBot.flag l) (select state-right.KeysTop.flag l))
             (= (select state-left.KeysBot.flag r) (select state-right.KeysTop.flag r))
-            (= (select state-left.RealLayersKeys.T (mk-tuple2 (+ 2 h) j)) (select state-right.KeysBot.T j))
+            (= (select state-left.RealLayersKeys.T (mk-tuple2 (+ 2 state-left.h) j)) (select state-right.KeysBot.T j))
             (= (select state-left.KeysBot.T l) (select state-right.KeysTop.T l))
             (= (select state-left.KeysBot.T r) (select state-right.KeysTop.T r))
         )
@@ -461,7 +461,7 @@
         (j Int)
     )
     (=>
-        (= i (+ h 1))
+        (= i (+ old-state-left.h 1))
         (= return-left.value return-right.value)
     )
 )
@@ -479,7 +479,7 @@
         (j Int)
     )
     (=>
-        (= i (+ 2 h))
+        (= i (+ 2 state-left.h))
         (and
             (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)) (select state-right.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)))
             (= (select state-left.RealLayersKeys.flag (mk-tuple2 i l)) (select state-right.KeysBot.flag l))
@@ -504,7 +504,7 @@
         (j Int)
     )
     (=>
-        (= i (+ h 2))
+        (= i (+ old-state-left.h 2))
         (= return-left.value return-right.value)
     )
 )
@@ -522,7 +522,7 @@
         (j Int)
     )
     (=>
-        (> i (+ 2 h))
+        (> i (+ 2 state-left.h))
         (and
             (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)) (select state-right.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)))
             (= (select state-left.RealLayersKeys.flag (mk-tuple2 i l)) (select state-right.RealLayersKeys.flag (mk-tuple2 i l)))
@@ -547,7 +547,7 @@
         (j Int)
     )
     (=>
-        (> i (+ 2 h))
+        (> i (+ 2 old-state-left.h))
         (= return-left.value return-right.value)
     )
 

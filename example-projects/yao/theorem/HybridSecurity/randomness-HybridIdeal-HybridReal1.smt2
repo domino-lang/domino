@@ -8,28 +8,28 @@
     Bool
     (or
         (and
-            (= h 1)
+            (= (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>) 1)
             (= sample-id-left (sample-id "KeysTop" "GETAOUT" "r"))
             (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (= h 1)
+            (= (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>) 1)
             (= sample-id-left (sample-id "KeysTop" "GETAOUT" "rr"))
             (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (> h 1)
+            (> (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>) 1)
             (= sample-id-left (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
             (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "r"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (> h 1)
+            (> (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>) 1)
             (= sample-id-left (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
             (= sample-id-right (sample-id "SimulatedLayersKeys" "LGETAOUT" "rr"))
             (= sample-offset-left 0)
@@ -45,7 +45,8 @@
         (sample-offset-left Int)
         (sample-offset-right Int)
     )
-    Bool
+  Bool
+  (let ((h (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>)))
     (or
         (and 
             (< <arg-HybridIdeal-GBLG-i> (- h 1))
@@ -214,6 +215,7 @@
             (= sample-offset-left sample-offset-right)
             (= sample-id-left (sample-id "LayeredEnc0" "LENCM" "r"))
             (= sample-id-right (sample-id "LayeredEnc0" "LENCM" "r"))
+        )
         )
     )
 )

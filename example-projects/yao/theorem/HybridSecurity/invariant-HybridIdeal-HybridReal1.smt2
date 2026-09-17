@@ -7,7 +7,7 @@
         )
         (and
             (=>
-                (< i h)
+                (< i state-left.h)
                 (and 
                     (= (select state-left.SimulatedLayersKeys.flag (mk-tuple2 i j)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i j)))
                     (= (select state-left.SimulatedLayersKeys.T (mk-tuple2 i j)) (select state-right.SimulatedLayersKeys.T (mk-tuple2 i j)))
@@ -16,20 +16,20 @@
             )
             (and
                 ; flag
-                (= (select state-left.KeysTop.flag j) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 h j)))
+                (= (select state-left.KeysTop.flag j) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 state-left.h j)))
                 (= (select state-left.KeysBot.flag j) (select state-right.KeysTop.flag j))
-                (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ h 2) j)) (select state-right.KeysBot.flag j))
+                (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ state-left.h 2) j)) (select state-right.KeysBot.flag j))
                 ; T
-                (= (select state-left.KeysTop.T j) (select state-right.SimulatedLayersKeys.T (mk-tuple2 h j)))
+                (= (select state-left.KeysTop.T j) (select state-right.SimulatedLayersKeys.T (mk-tuple2 state-left.h j)))
                 (= (select state-left.KeysBot.T j) (select state-right.KeysTop.T j))
-                (= (select state-left.RealLayersKeys.T (mk-tuple2 (+ h 2) j)) (select state-right.KeysBot.T j))
+                (= (select state-left.RealLayersKeys.T (mk-tuple2 (+ state-left.h 2) j)) (select state-right.KeysBot.T j))
                 ; z
-                (= (select state-left.KeysTop.z j) (select state-right.SimulatedLayersKeys.z (mk-tuple2 h j)))
+                (= (select state-left.KeysTop.z j) (select state-right.SimulatedLayersKeys.z (mk-tuple2 state-left.h j)))
                 (= (select state-left.KeysBot.z j) (select state-right.KeysTop.z j))
-                (= (select state-left.RealLayersKeys.z (mk-tuple2 (+ h 2) j)) (select state-right.KeysBot.z j))
+                (= (select state-left.RealLayersKeys.z (mk-tuple2 (+ state-left.h 2) j)) (select state-right.KeysBot.z j))
             )
             (=>
-                (> i (+ h 2))
+                (> i (+ state-left.h 2))
                 (and
                     (= (select state-left.RealLayersKeys.flag (mk-tuple2 i j)) (select state-right.RealLayersKeys.flag (mk-tuple2 i j)))
                     (= (select state-left.RealLayersKeys.T (mk-tuple2 i j)) (select state-right.RealLayersKeys.T (mk-tuple2 i j)))
