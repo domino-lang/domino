@@ -1,4 +1,4 @@
-(define-state-relation invariants
+(define-state-relation invariant
     (state-left state-right)
     (forall 
         (
@@ -38,9 +38,4 @@
             )
         )
     )
-)
-
-(define-state-relation invariant
-    (state-left state-right)
-    (invariants state-left state-right)
 )

@@ -99,7 +99,7 @@
     )
     (=>
         (< i (- old-state-left.h 1))
-        (invariants return-left.state return-right.state)
+        (invariant return-left.state return-right.state)
     )
 )
 
@@ -117,7 +117,7 @@
     )
     (=>
         (= i (- old-state-left.h 1))
-        (invariants return-left.state return-right.state)
+        (invariant return-left.state return-right.state)
     )
 )
 
@@ -135,7 +135,7 @@
     )
     (=>
         (= i old-state-left.h)
-        (invariants return-left.state return-right.state)
+        (invariant return-left.state return-right.state)
     )
 )
 
@@ -153,7 +153,7 @@
     )
     (=>
         (= i (+ old-state-left.h 1))
-        (invariants return-left.state return-right.state)
+        (invariant return-left.state return-right.state)
     )
 )
 
@@ -171,7 +171,7 @@
     )
     (=>
         (= i (+ old-state-left.h 2))
-        (invariants return-left.state return-right.state)
+        (invariant return-left.state return-right.state)
     )
 )
 
@@ -279,7 +279,7 @@
     )
     (=>
         (> i (+ old-state-left.h 2))
-        (invariants return-left.state return-right.state)
+        (invariant return-left.state return-right.state)
     )
 )
 
@@ -553,7 +553,7 @@
 
 )
 
-(define-lemma <relation-assume-all-invariants-Hybrid$true$-Hybrid$false$+-GBLG>
+(define-lemma <relation-assume-all-invariant-Hybrid$true$-Hybrid$false$+-GBLG>
     (
         old-state-left
         old-state-right
@@ -565,10 +565,10 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    (invariants old-state-left old-state-right)
+    (invariant old-state-left old-state-right)
 )
 
-(define-lemma <relation-assert-all-invariants-Hybrid$true$-Hybrid$false$+-GBLG>
+(define-lemma <relation-assert-all-invariant-Hybrid$true$-Hybrid$false$+-GBLG>
     (
         old-state-left
         old-state-right
@@ -580,5 +580,5 @@
         (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
         (j Int)
     )
-    (invariants return-left.state return-right.state)
+    (invariant return-left.state return-right.state)
 )
