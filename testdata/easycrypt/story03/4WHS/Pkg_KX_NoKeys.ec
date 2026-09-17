@@ -1,9 +1,16 @@
 (* KX_NoKeys: n = n, prf = func_prf *)
 
 require import AllCore Distr FMap Int IntDiv Types.
-require Interfaces.
 
-module KX_NoKeys (P_Prot : Interfaces.Prot_NoKey_i) = {
+module type KX_NoKeys_Imports = {
+  proc d_Run1(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option
+  proc d_Run2(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), ni : bits_n) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option
+  proc d_Run3(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), msg : (bits_n * bits_n)) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option
+  proc d_Run4(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), msg : (bits_n * bits_n)) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option
+  proc d_Run5(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), tau : bits_n) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool) option
+}.
+
+module KX_NoKeys (O : KX_NoKeys_Imports) = {
   var d_LTK : (int, bits_n) fmap
   var d_H : (int, bool) fmap
   var ctr_ : int
@@ -74,7 +81,7 @@ module KX_NoKeys (P_Prot : Interfaces.Prot_NoKey_i) = {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run1(state);
+        ec_r1 <@ O.d_Run1(state);
         if (ec_r1 = None) {
 
         } else {
@@ -102,7 +109,7 @@ module KX_NoKeys (P_Prot : Interfaces.Prot_NoKey_i) = {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run2(state, msg);
+        ec_r1 <@ O.d_Run2(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -130,7 +137,7 @@ module KX_NoKeys (P_Prot : Interfaces.Prot_NoKey_i) = {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run3(state, msg);
+        ec_r1 <@ O.d_Run3(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -158,7 +165,7 @@ module KX_NoKeys (P_Prot : Interfaces.Prot_NoKey_i) = {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run4(state, msg);
+        ec_r1 <@ O.d_Run4(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -186,7 +193,7 @@ module KX_NoKeys (P_Prot : Interfaces.Prot_NoKey_i) = {
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run5(state, msg);
+        ec_r1 <@ O.d_Run5(state, msg);
         if (ec_r1 = None) {
 
         } else {

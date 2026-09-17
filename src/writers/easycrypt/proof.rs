@@ -33,7 +33,7 @@ use super::game::composition_const_needs_arg;
 use super::interfaces::{self, InterfacesOutput};
 use super::invariant::{self, InvariantError, InvariantFile};
 use super::names::{NameKind, Names};
-use super::package::{self, VariantKey};
+use super::package;
 use super::render::render_expr;
 use super::types::translate_type;
 use super::EcExportError;
@@ -70,17 +70,12 @@ pub struct EquivalenceFiles {
 /// descend into a `GameHop::Hybrid`'s own nested equivalence, matching
 /// `export::compute_skipped`'s existing "hybrid game hops are not
 /// translated" note). `interfaces` is story 04's already-built
-/// `Interfaces.ec` data. The package-variant name map is recomputed once
-/// here rather than threaded through, mirroring `game::compute_game_files`'s
-/// own established precedent (a cheap, pure function of `theorem`).
+/// `Interfaces.ec` data.
 pub fn compute_equivalence_files(
     theorem: &Theorem<'_>,
     project: &impl Project,
     interfaces: &InterfacesOutput,
 ) -> Result<Vec<EquivalenceFiles>, EcExportError> {
-    let discovered = package::discover_variants(theorem);
-    let mut variant_names = Names::new();
-    let variant_name_map = package::assign_names(&discovered, &mut variant_names)?;
     let mut lemma_names = Names::new();
 
     let mut out = Vec::new();
@@ -89,13 +84,7 @@ pub fn compute_equivalence_files(
             continue;
         };
         let invariants = invariant::build_invariant_file(theorem, equivalence, project)?;
-        let proof = build_equivalence_file(
-            theorem,
-            equivalence,
-            interfaces,
-            &variant_name_map,
-            &mut lemma_names,
-        )?;
+        let proof = build_equivalence_file(theorem, equivalence, interfaces, &mut lemma_names)?;
         out.push(EquivalenceFiles { invariants, proof });
     }
     Ok(out)
@@ -107,40 +96,26 @@ pub fn compute_equivalence_files(
 /// `require`r must use to reach into that file (`comp_theory`, `Comp_
 /// <mangled>` — story 10 §3.1: only the file/theory name gets the `Comp_`
 /// prefix, every module name keeps its old spelling), and — in `comp.pkgs`
-/// declaration order — each instance's `Pkg_<InstMangled>` clone-alias base
-/// and the package variant name it clones. Recomputed independently per
-/// side from `interfaces`/`variant_name_map` rather than threaded out of
-/// `game.rs` (which never exposes these internals) — both are pure
-/// functions of `comp`, matching story 04's own "recomputed, not threaded
-/// through" precedent (its report §3).
+/// declaration order — each instance's mangled name. Story 14 §3.4 dropped
+/// the variant-name component from every instance path (every instance is
+/// addressable as `Pkg_Inst_<InstMangled>`, no matter which variant it
+/// clones), so this no longer needs a `variant_name_map` at all. Recomputed
+/// independently per side from `interfaces` rather than threaded out of
+/// `game.rs` (which never exposes these internals) — a pure function of
+/// `comp`, matching story 04's own "recomputed, not threaded through"
+/// precedent (its report §3).
 struct CompLayout {
     comp_mangled: String,
     comp_theory: String,
     inst_mangled: Vec<String>,
-    variant_names: Vec<String>,
 }
 
-fn compute_layout(
-    comp: &Composition,
-    interfaces: &InterfacesOutput,
-    variant_name_map: &HashMap<VariantKey, String>,
-) -> Result<CompLayout, EcExportError> {
+fn compute_layout(comp: &Composition, interfaces: &InterfacesOutput) -> Result<CompLayout, EcExportError> {
     let comp_mangled = interfaces.comp_mangled[&comp.name].clone();
     let comp_theory = format!("Comp_{comp_mangled}");
 
-    let keys = package::compute_all_keys(comp);
-    let variant_names: Vec<String> = keys
-        .iter()
-        .map(|k| {
-            variant_name_map
-                .get(k)
-                .expect("every key computed here was named by the same discovery compute_package_variants uses")
-                .clone()
-        })
-        .collect();
-
     // Same registry/order `game.rs::render_game_file` uses for its own
-    // `Pkg_<InstMangled>` clone aliases — `comp.pkgs` declaration order, not
+    // `Pkg_Inst_<InstMangled>` aliases — `comp.pkgs` declaration order, not
     // `ordered_pkgs_idx()` — so restriction/record-literal paths agree with
     // what the actual game file names.
     let mut inst_names = Names::new();
@@ -153,25 +128,22 @@ fn compute_layout(
         comp_mangled,
         comp_theory,
         inst_mangled,
-        variant_names,
     })
 }
 
-/// `Comp_<mangled>.Game_<mangled>` then
-/// `Comp_<mangled>.Pkg_<InstMangled>.<Variant>` per instance, `comp.pkgs`
-/// order — every router and every instance clone story 04 gave this
-/// composition's own game file (§3: "restrictions must name
-/// `Pkg_<InstMangled>` (the clone), never `Inst_<InstMangled>` (the
-/// alias)"). The qualifier is `comp_theory` (story 10's `Comp_` prefix,
-/// since that's the theory a `require` brings into scope); the module
-/// names after it keep their pre-story-10, unprefixed spelling.
+/// `Comp_<mangled>.Game_<mangled>` then `Comp_<mangled>.Pkg_Inst_<InstMangled>`
+/// per instance, `comp.pkgs` order — every router and every instance name
+/// story 04/14 gave this composition's own game file (§3, amended by story
+/// 14 §3.6: restrictions must name `Pkg_Inst_<InstMangled>`, with no variant
+/// component — an alias and a functor application both denote the same
+/// memory cells as the clone they come from, §2.1). The qualifier is
+/// `comp_theory` (story 10's `Comp_` prefix, since that's the theory a
+/// `require`r must use to reach into that file); the module name after it
+/// keeps its own, unprefixed spelling.
 fn restrictions_for(layout: &CompLayout) -> Vec<String> {
     let mut out = vec![format!("{}.Game_{}", layout.comp_theory, layout.comp_mangled)];
-    for idx in 0..layout.inst_mangled.len() {
-        out.push(format!(
-            "{}.Pkg_{}.{}",
-            layout.comp_theory, layout.inst_mangled[idx], layout.variant_names[idx]
-        ));
+    for inst_mangled in &layout.inst_mangled {
+        out.push(format!("{}.Pkg_Inst_{inst_mangled}", layout.comp_theory));
     }
     out
 }
@@ -187,7 +159,7 @@ fn restrictions_for(layout: &CompLayout) -> Vec<String> {
 /// IMPLEMENTATION-REPORT.md` §10: "story 07 builds it inline at the call
 /// site ... without needing story 06's own internal lookup map"). Each
 /// field's *value* is a memory-tagged module-state read
-/// (`Hybrid0.Pkg_KX.KX.d_LTK{1}`), not a record projection — the two
+/// (`Comp_Hybrid0.Pkg_Inst_KX.d_LTK{1}`), not a record projection — the two
 /// translators only share the naming rule, not the expression shape.
 fn build_side_record_lit(
     comp: &Composition,
@@ -202,8 +174,7 @@ fn build_side_record_lit(
         let mut names = Names::new();
         let base_path = vec![
             layout.comp_theory.clone(),
-            format!("Pkg_{}", layout.inst_mangled[idx]),
-            layout.variant_names[idx].clone(),
+            format!("Pkg_Inst_{}", layout.inst_mangled[idx]),
         ];
 
         for (name, _ty, _span) in &inst.pkg.state {
@@ -428,7 +399,6 @@ fn build_equivalence_file(
     theorem: &Theorem<'_>,
     equivalence: &Equivalence,
     interfaces: &InterfacesOutput,
-    variant_name_map: &HashMap<VariantKey, String>,
     lemma_names: &mut Names,
 ) -> Result<EquivalenceProofFile, EcExportError> {
     let left_game_inst = theorem
@@ -447,8 +417,8 @@ fn build_equivalence_file(
     let span = interfaces::composition_span(left_comp);
     let same_composition = left_comp.name == right_comp.name;
 
-    let left_layout = compute_layout(left_comp, interfaces, variant_name_map)?;
-    let right_layout = compute_layout(right_comp, interfaces, variant_name_map)?;
+    let left_layout = compute_layout(left_comp, interfaces)?;
+    let right_layout = compute_layout(right_comp, interfaces)?;
 
     // --- binders: `&m` then one typed binder per theorem constant either
     // side's run() binds to a constant rather than a literal, in theorem

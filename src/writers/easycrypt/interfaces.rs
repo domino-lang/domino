@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Building `Interfaces.ec` (`docs/stories/easycrypt/04-games-and-router.md`
-//! §3.1): one `module type <Variant>_i` per package variant (story 03),
-//! listing *all* of that variant's own oracles (not just the imported ones),
-//! and one `module type Iface_<X>` / `Adv_<X> (O : Iface_<X>)` pair per
-//! distinct **export signature list** across the theorem's compositions —
-//! two compositions whose `exports` translate to the same [`ProcSig`] list
-//! share one game interface (so both sides of an equivalence can take the
-//! same adversary), named after the first composition (in `theorem.instances`
-//! order) that has it.
+//! §3.1, amended by story 14 §3.5): one `module type Iface_<X>` /
+//! `Adv_<X> (O : Iface_<X>)` pair per distinct **export signature list**
+//! across the theorem's compositions — two compositions whose `exports`
+//! translate to the same [`ProcSig`] list share one game interface (so both
+//! sides of an equivalence can take the same adversary), named after the
+//! first composition (in `theorem.instances` order) that has it.
+//!
+//! `Interfaces.ec` holds game interfaces only — the per-package-variant
+//! module types it used to carry (`<Variant>_i`, story 03/04) are gone: each
+//! package now declares its own import interface, in its own file
+//! (`package.rs`'s `build_import_interface`, story 14 §3.2), so nothing in a
+//! package's functor parameter references this file any more. This
+//! supersedes story 11, which deduplicated a section that no longer exists —
+//! story 11 was not wrong, the section it improved was simply deleted here.
 //!
 //! `game.rs` depends on this module for the `Iface_<X>`/`Adv_<X>` name a
 //! composition's router/experiment reference, and for the per-composition
@@ -20,12 +26,11 @@ use std::collections::HashMap;
 
 use miette::SourceSpan;
 
-use crate::package::{Composition, Package};
+use crate::package::Composition;
 use crate::theorem::Theorem;
 
 use super::ast::{EcFile, EcItem, EcType, ProcSig, Require};
 use super::names::{NameKind, Names};
-use super::package;
 use super::types::translate_type;
 use super::EcExportError;
 
@@ -74,31 +79,6 @@ pub(super) fn composition_span(comp: &Composition) -> SourceSpan {
         .unwrap_or_else(|| (0, 0).into())
 }
 
-/// `module type <Variant>_i` (§3.1): every oracle the variant's own package
-/// *defines*, not just the ones some caller happens to import — this keeps
-/// the type independent of who calls it. `init` is deliberately absent:
-/// routers call `init` on the concrete clone, never through this interface.
-fn build_variant_procs(pkg: &Package) -> Result<Vec<ProcSig>, EcExportError> {
-    let mut names = Names::new();
-    let mut procs = Vec::new();
-    for oracle in &pkg.oracles {
-        let span = oracle.file_pos;
-        let proc_name = names.mangle(NameKind::Proc, &oracle.sig.name)?;
-        let mut args = Vec::new();
-        for (name, ty) in &oracle.sig.args {
-            let mangled = names.mangle(NameKind::Var, name)?;
-            args.push((mangled, translate_type(ty, span)?));
-        }
-        let ret = EcType::Option(Box::new(translate_type(&oracle.sig.ty, span)?));
-        procs.push(ProcSig {
-            name: proc_name,
-            args,
-            ret,
-        });
-    }
-    Ok(procs)
-}
-
 /// A composition's own canonical export signature list, in `comp.exports`
 /// order — "oracle order inside a game interface is the composition's
 /// `exports` order" (§3.1), load-bearing for story 07's per-oracle proof
@@ -131,85 +111,11 @@ fn build_export_procs(comp: &Composition) -> Result<Vec<ProcSig>, EcExportError>
     Ok(procs)
 }
 
-/// Builds `Interfaces.ec` for `theorem` (§3.1).
+/// Builds `Interfaces.ec` for `theorem` (§3.1, amended by story 14 §3.5:
+/// package-variant module types are gone — this file holds game interfaces
+/// only).
 pub fn build_interfaces_file(theorem: &Theorem<'_>) -> Result<InterfacesOutput, EcExportError> {
     let mut items = Vec::new();
-
-    // --- one module type per package variant, grouped by signature --------
-    // (story 11, §3.1-3.2): every variant still gets its own `<Variant>_i`
-    // name (no call site's `Interfaces.<callee_variant>_i` reference
-    // changes, `package.rs:419`), but variants whose oracle signature list
-    // is structurally identical share one real declaration — the first
-    // discovered in the group — and every other member becomes
-    // `{ include <Canonical>_i }.`. This is a readability/file-size change
-    // only: EasyCrypt module-type matching is structural and
-    // width-subtyping, so the duplicated declarations were never a
-    // correctness issue (`docs/stories/easycrypt/11-shared-package-module-types.md`
-    // §1.1).
-    let discovered = package::discover_variants(theorem);
-    let mut variant_names = Names::new();
-    let variant_name_map = package::assign_names(&discovered, &mut variant_names)?;
-
-    // `(variant_name, oracle signature list)` per discovered variant, in
-    // discovery order.
-    let mut variant_infos: Vec<(String, Vec<ProcSig>)> = Vec::with_capacity(discovered.len());
-    for (key, comp, idx) in &discovered {
-        let variant_name = variant_name_map
-            .get(key)
-            .expect("every discovered key was named in assign_names")
-            .clone();
-        let pkg = &comp.pkgs[*idx].pkg;
-        variant_infos.push((variant_name, build_variant_procs(pkg)?));
-    }
-
-    // Group variant indices by structurally-equal signature lists,
-    // preserving first-discovery order both across groups and within one —
-    // the exact same grouping shape as the game-interface grouping below,
-    // reused here one level down.
-    let mut variant_groups: Vec<Vec<usize>> = Vec::new();
-    for i in 0..variant_infos.len() {
-        match variant_groups
-            .iter_mut()
-            .find(|g| variant_infos[g[0]].1 == variant_infos[i].1)
-        {
-            Some(g) => g.push(i),
-            None => variant_groups.push(vec![i]),
-        }
-    }
-
-    for group in &variant_groups {
-        let primary = group[0];
-        let canonical_name = format!("{}_i", variant_infos[primary].0);
-
-        // The canonical declaration always comes first in the file (§6:
-        // "alias direction is load-bearing") — discovery order gives that
-        // for free since `primary` is the group's first-discovered member.
-        items.push(EcItem::ModuleType {
-            name: canonical_name.clone(),
-            params: vec![],
-            includes: vec![],
-            procs: variant_infos[primary].1.clone(),
-        });
-
-        if group.len() > 1 {
-            let others: Vec<String> = group[1..]
-                .iter()
-                .map(|&i| format!("{}_i", variant_infos[i].0))
-                .collect();
-            items.push(EcItem::Comment(format!(
-                "{} share {canonical_name}'s signature",
-                others.join(", ")
-            )));
-            for &i in &group[1..] {
-                items.push(EcItem::ModuleType {
-                    name: format!("{}_i", variant_infos[i].0),
-                    params: vec![],
-                    includes: vec![canonical_name.clone()],
-                    procs: vec![],
-                });
-            }
-        }
-    }
 
     // --- one game interface per distinct export signature list -------------
     let comps = discover_compositions(theorem);
@@ -217,11 +123,11 @@ pub fn build_interfaces_file(theorem: &Theorem<'_>) -> Result<InterfacesOutput, 
     // A composition's mangled base name and a package variant's live in two
     // independent `Names` registries (story 03's and this one's own) and
     // never share a namespace: a package variant renders into
-    // `Variant_<Variant>.ec` and a composition into `Comp_<Comp>.ec` (story
-    // 10), so a composition and a package variant that both mangle to
-    // `PRF` (as `4WHS` has it) produce `Variant_PRF.ec`/`module PRF` and
-    // `Comp_PRF.ec`/`module Game_PRF`/`module Exp_PRF` — no collision, and
-    // no escape hatch needed.
+    // `Pkg_<Variant>.ec` (story 14 §3.6) and a composition into
+    // `Comp_<Comp>.ec` (story 10), so a composition and a package variant
+    // that both mangle to `PRF` (as `4WHS` has it) produce
+    // `Pkg_PRF.ec`/`module PRF` and `Comp_PRF.ec`/`module
+    // Game_PRF`/`module Exp_PRF` — no collision, and no escape hatch needed.
     let mut comp_names = Names::new();
     let mut comp_mangled = HashMap::new();
     for comp in &comps {
@@ -398,51 +304,22 @@ mod tests {
     }
 
     #[test]
-    fn hello_world_fwd_v1_and_fwd_v2_alias_rand() {
-        // Story 11 acceptance criterion: hello-world's two-oracle signature
-        // is declared once (`Rand_i`) and `Fwd_v1_i`/`Fwd_v2_i` become
-        // `{ include Rand_i }.` aliases — not three verbatim copies.
+    fn no_module_type_in_interfaces_is_a_package_variant() {
+        // Story 14 §3.5 / acceptance criterion: `Interfaces.ec` holds game
+        // interfaces only — no `<Variant>_i` module type (and so no
+        // `{ include ... }` alias between two of them, story 11's own
+        // section here) survives. Every `module type` left is `Iface_*` or
+        // `Adv_*`.
         let out = load("example-projects/hello-world", "Proof");
         let rendered = render_file(&out.file);
-        // Restrict the "spelled out once" check to the package-variant
-        // section (before the game-interface section starts): a game
-        // interface coincidentally sharing an oracle name with a package
-        // variant is expected and not deduplicated across that boundary
-        // (§6), so counting across the whole file would conflate the two.
-        let variant_section = rendered
-            .split_once("module type Iface_")
-            .map(|(before, _)| before)
-            .unwrap_or(&rendered);
-        assert_eq!(
-            variant_section.matches("proc d_UsefulOracle").count(),
-            1,
-            "the shared oracle signature must be spelled out exactly once in the \
-             package-variant section:\n{variant_section}"
-        );
-        assert!(
-            rendered.contains("module type Fwd_v1_i = { include Rand_i }."),
-            "Fwd_v1_i must alias Rand_i:\n{rendered}"
-        );
-        assert!(
-            rendered.contains("module type Fwd_v2_i = { include Rand_i }."),
-            "Fwd_v2_i must alias Rand_i:\n{rendered}"
-        );
-    }
-
-    #[test]
-    fn simple_4whs_no_variant_module_type_is_an_alias() {
-        // Story 11 §4 acceptance criterion: 4WHS's Interfaces.ec is a
-        // deliberate no-op — none of its seven package variants
-        // (Prot/Prot_NoKey/Prot_NoPrf differ in state-tuple shape,
-        // KX/KX_NoKeys/KX_NoPrf in oracle count, PRF is unique) share a
-        // signature, so no `{ include ... }` alias should be emitted for
-        // any of them.
-        let out = load("example-projects/4WHS", "Simple4WHS");
-        let rendered = render_file(&out.file);
-        assert!(
-            !rendered.contains("{ include"),
-            "4WHS has no two variants sharing a signature, so no alias should be emitted:\n{rendered}"
-        );
+        for line in rendered.lines() {
+            if let Some(name) = line.strip_prefix("module type ") {
+                assert!(
+                    name.starts_with("Iface_") || name.starts_with("Adv_"),
+                    "unexpected module type in Interfaces.ec: {line}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -19,7 +19,8 @@ composition MediumComposition {
             AnotherUsefulOracle:    UsefulOracle of rand,
         },
         fwd: {
-            O: UsefulOracle of rand,
+            ChangeNameUsefulOracle: UsefulOracle of rand,
+            AnotherUsefulOracle:    UsefulOracle of rand,
         },
     }
 }

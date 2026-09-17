@@ -2,17 +2,6 @@
 
 require import AllCore FMap Distr Int Types.
 
-module type Rand_i = {
-  proc d_UsefulOracle() : (int * bits_n) option
-  proc d_UselessOracle(x : int) : int option
-}.
-
-(* Fwd_v1_i, Fwd_v2_i share Rand_i's signature *)
-
-module type Fwd_v1_i = { include Rand_i }.
-
-module type Fwd_v2_i = { include Rand_i }.
-
 (* Iface_SmallComposition/Adv_SmallComposition also cover: MediumComposition *)
 
 module type Iface_SmallComposition = {

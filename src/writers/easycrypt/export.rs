@@ -3,7 +3,8 @@
 //! `export_theorem` (`docs/stories/easycrypt/05-easycrypt-command.md` §3.4):
 //! the one function that turns a Domino [`Theorem`] into the in-memory
 //! contents of an EasyCrypt project — `Types.ec`, `Interfaces.ec`,
-//! `Variant_*.ec`, `Comp_*.ec` — plus the data `domino easycrypt`'s stdout
+//! `Pkg_*.ec` (story 14 §3.6 renamed this from `Variant_*.ec`), `Comp_*.ec`
+//! — plus the data `domino easycrypt`'s stdout
 //! report is built from. All files land directly in the theorem's own
 //! output directory, flat (story 10 §3.2: no `packages/`/`games/`
 //! subdirectories). It runs [`EquivalenceTransform`] itself (§2 of the
@@ -67,7 +68,7 @@ pub struct SkipNote {
 
 /// The in-memory result of exporting one theorem (§3.4). `files` keys are
 /// bare file names, flat in the theorem's own output directory (`Types.ec`,
-/// `Variant_KX.ec`, ... — story 10 §3.2: no `packages/`/`games/`
+/// `Pkg_KX.ec`, ... — story 10 §3.2: no `packages/`/`games/`
 /// subdirectories); [`write_files`] joins them onto an `out` root. The
 /// remaining fields are exactly the data `domino easycrypt`'s stdout report
 /// (§3.3) needs, computed once here so the report never re-derives it (and
@@ -82,7 +83,7 @@ pub struct ExportedTheorem {
     /// `Types.ec`'s function constants, already-mangled EasyCrypt op names
     /// (`func_prf`, ...), in emission order.
     pub fn_const_names: Vec<String>,
-    /// `Variant_*.ec` variant names (unprefixed, e.g. `"KX"`), discovery
+    /// `Pkg_*.ec` variant names (unprefixed, e.g. `"KX"`), discovery
     /// order.
     pub package_variant_names: Vec<String>,
     /// `Comp_*.ec` composition names (unprefixed, e.g. `"Hybrid0"`),
@@ -100,7 +101,7 @@ pub struct ExportedTheorem {
 
 /// The kind + reason for a hop this exporter skips, or `None` for
 /// [`GameHop::Equivalence`], which is exactly what §3.2 translates into
-/// `Variant_*.ec`/`Comp_*.ec`.
+/// `Pkg_*.ec`/`Comp_*.ec`.
 fn skip_kind_and_reason(hop: &GameHop<'_>) -> Option<(&'static str, &'static str)> {
     match hop {
         GameHop::Equivalence(_) => None,
@@ -190,7 +191,7 @@ pub fn export_theorem(
     );
     for variant in &package_variants {
         files.insert(
-            PathBuf::from(format!("Variant_{}.ec", variant.name)),
+            PathBuf::from(format!("Pkg_{}.ec", variant.name)),
             render_file(&variant.file),
         );
     }
@@ -493,7 +494,7 @@ mod tests {
         super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
         super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
         for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Variant_{name}.ec"));
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Pkg_{name}.ec"));
         }
         for name in &exported.game_names {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
@@ -542,7 +543,7 @@ mod tests {
         super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
         super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
         for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Variant_{name}.ec"));
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Pkg_{name}.ec"));
         }
         for name in &exported.game_names {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
@@ -579,7 +580,7 @@ mod tests {
         super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
         super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
         for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Variant_{name}.ec"));
+            super::super::test_support::assert_compiles(&base, &format!("{base}/Pkg_{name}.ec"));
         }
         for name in &exported.game_names {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));

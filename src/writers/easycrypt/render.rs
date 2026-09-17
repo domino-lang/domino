@@ -96,7 +96,16 @@ fn render_item(item: &EcItem) -> String {
             name,
             functor,
             args,
-        } => format!("module {name} = {functor}({}).", args.join(", ")),
+        } => {
+            if args.is_empty() {
+                // A non-functor alias (story 14 §3.4: every instance gets a
+                // `Pkg_Inst_<inst>` name, even one with no imports) — no
+                // parens, matching `module M = F.`, not `module M = F().`.
+                format!("module {name} = {functor}.")
+            } else {
+                format!("module {name} = {functor}({}).", args.join(", "))
+            }
+        }
         EcItem::Module(m) => render_module(m),
         EcItem::Section(s) => render_section(s),
     }

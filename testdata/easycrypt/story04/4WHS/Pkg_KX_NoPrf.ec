@@ -1,9 +1,18 @@
 (* KX_NoPrf: n = n *)
 
 require import AllCore Distr FMap Int IntDiv Types.
-require Interfaces.
 
-module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = {
+module type KX_NoPrf_Imports = {
+  proc d_Eval(h : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option
+  proc d_Hon(h : int) : bool option
+  proc d_Run1(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option
+  proc d_Run2(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), ni : bits_n) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option
+  proc d_Run3(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), msg : (bits_n * bits_n)) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option
+  proc d_Run4(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), msg : (bits_n * bits_n)) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option
+  proc d_Run5(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), tau : bits_n) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool) option
+}.
+
+module KX_NoPrf (O : KX_NoPrf_Imports) = {
   var ctr_ : int
   var d_RevTested : ((int * int * bits_n * bits_n * bits_n), bool) fmap
   var d_Fresh : (int, bool) fmap
@@ -22,7 +31,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
     var ec_result : int option <- None;
     var hon : bool;
     var ec_r1 : bool option;
-    ec_r1 <@ P_Prf.d_Hon(kid);
+    ec_r1 <@ O.d_Hon(kid);
     if (ec_r1 = None) {
 
     } else {
@@ -46,7 +55,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run1(state);
+        ec_r1 <@ O.d_Run1(state);
         if (ec_r1 = None) {
 
         } else {
@@ -74,7 +83,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run2(state, msg);
+        ec_r1 <@ O.d_Run2(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -102,7 +111,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run3(state, msg);
+        ec_r1 <@ O.d_Run3(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -130,7 +139,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run4(state, msg);
+        ec_r1 <@ O.d_Run4(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -158,7 +167,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
       } else {
         unwrap_1 <- oget d_State.[ctr];
-        ec_r1 <@ P_Prot.d_Run5(state, msg);
+        ec_r1 <@ O.d_Run5(state, msg);
         if (ec_r1 = None) {
 
         } else {
@@ -217,7 +226,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
                 } else {
                   unwrap_5 <- oget nr;
-                  ec_r1 <@ P_Prf.d_Eval(ltk, (d_U, d_V, unwrap_4, unwrap_5, true));
+                  ec_r1 <@ O.d_Eval(ltk, (d_U, d_V, unwrap_4, unwrap_5, true));
                   if (ec_r1 = None) {
 
                   } else {
@@ -291,7 +300,7 @@ module KX_NoPrf (P_Prot : Interfaces.Prot_NoPrf_i) (P_Prf : Interfaces.PRF_i) = 
 
                       } else {
                         unwrap_6 <- oget nr;
-                        ec_r1 <@ P_Prf.d_Eval(ltk, (d_U, d_V, unwrap_5, unwrap_6, true));
+                        ec_r1 <@ O.d_Eval(ltk, (d_U, d_V, unwrap_5, unwrap_6, true));
                         if (ec_r1 = None) {
 
                         } else {

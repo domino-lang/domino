@@ -1,9 +1,12 @@
 (* Prot_NoPrf: n = n, prf = func_prf, mac = func_mac *)
 
 require import AllCore Distr FMap Int IntDiv Types.
-require Interfaces.
 
-module Prot_NoPrf (P_Prf : Interfaces.PRF_i) = {
+module type Prot_NoPrf_Imports = {
+  proc d_Eval(h : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option
+}.
+
+module Prot_NoPrf (O : Prot_NoPrf_Imports) = {
   proc d_Run1(state : (int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option = {
     var ec_result : ((int * bool * int * int * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option <- None;
     var d_U : int;
@@ -56,7 +59,7 @@ module Prot_NoPrf (P_Prf : Interfaces.PRF_i) = {
     if (v = true) {
       if (acc = None) {
         if (mess = 0) {
-          ec_r1 <@ P_Prf.d_Eval(ltk, (d_U, d_V, ni, nr, false));
+          ec_r1 <@ O.d_Eval(ltk, (d_U, d_V, ni, nr, false));
           if (ec_r1 = None) {
 
           } else {
@@ -108,7 +111,7 @@ module Prot_NoPrf (P_Prf : Interfaces.PRF_i) = {
 
           } else {
             unwrap_1 <- oget ni;
-            ec_r1 <@ P_Prf.d_Eval(ltk, (d_U, d_V, unwrap_1, nr, false));
+            ec_r1 <@ O.d_Eval(ltk, (d_U, d_V, unwrap_1, nr, false));
             if (ec_r1 = None) {
 
             } else {

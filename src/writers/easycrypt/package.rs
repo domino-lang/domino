@@ -23,14 +23,16 @@ use miette::SourceSpan;
 
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
-use crate::package::{Composition, Edge, OracleDef, Package};
+use crate::package::{Composition, Edge, OracleDef, OracleSig, Package};
 use crate::statement::{
     Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
 };
 use crate::theorem::Theorem;
 use crate::types::{CountSpec, Type, TypeKind};
 
-use super::ast::{EcBlock, EcExpr, EcFile, EcItem, EcLvalue, EcModule, EcProc, EcStmt, EcType, Require};
+use super::ast::{
+    EcBlock, EcExpr, EcFile, EcItem, EcLvalue, EcModule, EcProc, EcStmt, EcType, ProcSig, Require,
+};
 use super::names::{NameKind, Names};
 use super::types::{bits_suffix, translate_expr, translate_type};
 use super::EcExportError;
@@ -40,19 +42,20 @@ use super::EcExportError;
 // ---------------------------------------------------------------------------
 
 /// The key that determines whether two package instances share one EasyCrypt
-/// module (§3.1). Boolean parameters are deliberately absent — they become
-/// `init` arguments instead. `imports` embeds the *callee's own key*
-/// recursively (not a name), so structural equality of two [`VariantKey`]s is
-/// exactly "these two package instances would render to the same module",
-/// with no need to resolve names before comparing.
+/// module (§3.1, amended by story 14 §3.1). A package's module is a function
+/// of the package and its `Bits(...)` instantiation *only* — the wiring
+/// (which instances it imports from, any renaming) is a fact about the
+/// composition, resolved by a composition-local adapter instead (`game.rs`
+/// §3.4), never embedded here. `int_params` keeps only the integer params
+/// that are actually baked into a type (a `Bits` width,
+/// [`integer_param_used_as_width`]); a non-width integer param becomes a
+/// module variable ([`param_needs_var`]) and so two instances differing only
+/// there render identically and must share one module.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(super) struct VariantKey {
     pkg_name: String,
     int_params: Vec<(String, ParamValue)>,
     fn_params: Vec<(String, ParamValue)>,
-    /// One entry per distinct callee (in first-edge order), each with the
-    /// ordered list of oracle names imported from it.
-    imports: Vec<(Vec<String>, Box<VariantKey>)>,
 }
 
 /// A package parameter's assigned value, canonicalised so that the *same*
@@ -82,27 +85,20 @@ fn canonical_param_value(expr: &Expression) -> ParamValue {
 }
 
 /// Computes every package instance's [`VariantKey`] within `comp`, indexed
-/// by `comp.pkgs`'s position — `comp.ordered_pkgs_idx()` guarantees a
-/// callee's key is already computed by the time its caller needs to embed it
-/// (§3.1: "rightmost games ... come first").
+/// by `comp.pkgs`'s position. Story 14 §3.1 dropped `imports` from the key,
+/// so a key no longer depends on any other package instance's key — each
+/// instance is computed independently, in any order.
 pub(super) fn compute_all_keys(comp: &Composition) -> Vec<VariantKey> {
-    let mut computed: Vec<Option<VariantKey>> = vec![None; comp.pkgs.len()];
-    for idx in comp.ordered_pkgs_idx() {
-        let key = compute_key(comp, idx, &computed);
-        computed[idx] = Some(key);
-    }
-    computed
-        .into_iter()
-        .map(|k| k.expect("ordered_pkgs_idx visits every package instance exactly once"))
-        .collect()
+    (0..comp.pkgs.len()).map(|idx| compute_key(comp, idx)).collect()
 }
 
-fn compute_key(comp: &Composition, pkg_idx: usize, computed: &[Option<VariantKey>]) -> VariantKey {
+fn compute_key(comp: &Composition, pkg_idx: usize) -> VariantKey {
     let inst = &comp.pkgs[pkg_idx];
+    let pkg = &inst.pkg;
 
     let mut int_params = Vec::new();
     let mut fn_params = Vec::new();
-    for (name, ty, _span) in &inst.pkg.params {
+    for (name, ty, _span) in &pkg.params {
         let assigned = inst
             .params
             .iter()
@@ -110,36 +106,19 @@ fn compute_key(comp: &Composition, pkg_idx: usize, computed: &[Option<VariantKey
             .map(|(_, expr)| expr)
             .expect("a package instance must assign every one of its package's declared params");
         match ty.kind() {
-            TypeKind::Integer => int_params.push((name.clone(), canonical_param_value(assigned))),
+            TypeKind::Integer if integer_param_used_as_width(pkg, name) => {
+                int_params.push((name.clone(), canonical_param_value(assigned)));
+            }
+            TypeKind::Integer => {}
             TypeKind::Fn(..) => fn_params.push((name.clone(), canonical_param_value(assigned))),
             _ => {}
         }
     }
 
-    // Group edges from this instance by callee, preserving first-occurrence order.
-    let mut imports: Vec<(usize, Vec<String>)> = Vec::new();
-    for edge in comp.edges.iter().filter(|e| e.from() == pkg_idx) {
-        let name = edge.name().to_string();
-        match imports.iter_mut().find(|(to, _)| *to == edge.to()) {
-            Some((_, names)) => names.push(name),
-            None => imports.push((edge.to(), vec![name])),
-        }
-    }
-    let imports = imports
-        .into_iter()
-        .map(|(to, names)| {
-            let callee_key = computed[to]
-                .clone()
-                .expect("callees are computed before their callers by ordered_pkgs_idx");
-            (names, Box::new(callee_key))
-        })
-        .collect();
-
     VariantKey {
-        pkg_name: inst.pkg.name.clone(),
+        pkg_name: pkg.name.clone(),
         int_params,
         fn_params,
-        imports,
     }
 }
 
@@ -190,10 +169,10 @@ pub(super) fn assign_names(
     Ok(result)
 }
 
-/// One deduplicated package variant, ready to render as `Variant_<name>.ec`
-/// (story 10) — `name` itself is unprefixed (it is also the module's own
-/// name), the `Variant_` prefix is added only where the file is written
-/// (`export.rs`).
+/// One deduplicated package variant, ready to render as `Pkg_<name>.ec`
+/// (story 10, prefix renamed by story 14 §3.6) — `name` itself is unprefixed
+/// (it is also the module's own name), the `Pkg_` prefix is added only where
+/// the file is written (`export.rs`).
 #[derive(Debug, Clone)]
 pub struct PackageVariant {
     pub name: String,
@@ -214,8 +193,7 @@ pub fn compute_package_variants(theorem: &Theorem<'_>) -> Result<Vec<PackageVari
             .get(key)
             .expect("every discovered key was named in assign_names")
             .clone();
-        let keys = compute_all_keys(comp);
-        let file = render_variant(comp, *idx, &name, &keys, &name_map)?;
+        let file = render_variant(comp, *idx, &name, key)?;
         out.push(PackageVariant { name, file });
     }
     Ok(out)
@@ -233,9 +211,6 @@ pub fn compute_package_variants(theorem: &Theorem<'_>) -> Result<Vec<PackageVari
 struct PackageScope {
     /// The `Var` namespace: state fields, param-vars, oracle args, locals.
     names: Names,
-    /// Callee package index (within the composition) -> this module's
-    /// functor parameter name for it (e.g. `P_Prot`).
-    functor_params: HashMap<usize, String>,
 }
 
 fn ident_raw_name_and_type(id: &Identifier) -> (String, Type) {
@@ -392,37 +367,69 @@ pub(super) fn pkg_needs_init(pkg: &Package) -> bool {
             .any(|(name, ty, _)| param_needs_var(pkg, name, ty))
 }
 
-fn build_functor_params(
-    comp: &Composition,
-    pkg_idx: usize,
-    keys: &[VariantKey],
-    name_map: &HashMap<VariantKey, String>,
-) -> Result<(Vec<(String, String)>, HashMap<usize, String>), EcExportError> {
-    let mut params = Vec::new();
-    let mut lookup = HashMap::new();
-    // One registry shared across every functor parameter of this module: two
-    // callee instances whose names mangle to the same `P_<...>` would
-    // otherwise silently produce two identically-named functor parameters
-    // (illegal EasyCrypt) instead of the hard collision error the naming
-    // convention promises (`docs/stories/easycrypt/00-overview.md` §3:
-    // "A residual collision is a hard error").
-    let mut functor_names = Names::new();
-    for edge in comp.edges.iter().filter(|e| e.from() == pkg_idx) {
-        let to = edge.to();
-        if lookup.contains_key(&to) {
-            continue;
+/// `pkg.imports`, in a stable order — **not** `pkg.imports`'s own Vec order,
+/// which is not guaranteed deterministic across independent parses (a
+/// parser-internal characteristic, unrelated to this epic — pre-story-14
+/// code never iterated `pkg.imports` directly for rendering, only
+/// `comp.edges`, which *is* a stably-ordered `Vec`). Import names are unique
+/// per package (§2.2's "Import names are unique per instance" — enforced per
+/// caller instance, and a package's own declared list can't repeat a name
+/// either), so sorting by name is an unambiguous, deterministic
+/// canonicalisation. `game.rs`'s `build_import_adapter` sorts the same way,
+/// so an adapter's proc order always matches the interface it satisfies.
+pub(super) fn ordered_imports(pkg: &Package) -> Vec<&(OracleSig, SourceSpan)> {
+    let mut imports: Vec<&(OracleSig, SourceSpan)> = pkg.imports.iter().collect();
+    imports.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+    imports
+}
+
+/// One `ProcSig` per import, in [`ordered_imports`] order, mangled exactly
+/// the way `interfaces.rs`'s old (now-deleted) `build_variant_procs`
+/// mangled an oracle: `NameKind::Proc` for the name, `NameKind::Var` for
+/// each argument, return type `T option` (story 14 §3.2 — the shared shape
+/// moved here since this is now its only caller).
+fn build_import_procs(pkg: &Package) -> Result<Vec<ProcSig>, EcExportError> {
+    let mut names = Names::new();
+    let mut procs = Vec::new();
+    for (sig, span) in ordered_imports(pkg) {
+        let proc_name = names.mangle(NameKind::Proc, &sig.name)?;
+        let mut args = Vec::new();
+        for (name, ty) in &sig.args {
+            let mangled = names.mangle(NameKind::Var, name)?;
+            args.push((mangled, translate_type(ty, *span)?));
         }
-        let inst_name = &comp.pkgs[to].name;
-        let mangled_inst = functor_names.mangle(NameKind::Module, inst_name)?;
-        let param_name = format!("P_{mangled_inst}");
-        let callee_variant = name_map
-            .get(&keys[to])
-            .expect("every callee's variant name was computed before its caller is rendered")
-            .clone();
-        params.push((param_name.clone(), format!("Interfaces.{callee_variant}_i")));
-        lookup.insert(to, param_name);
+        let ret = EcType::Option(Box::new(translate_type(&sig.ty, *span)?));
+        procs.push(ProcSig {
+            name: proc_name,
+            args,
+            ret,
+        });
     }
-    Ok((params, lookup))
+    Ok(procs)
+}
+
+/// A package's own import interface (story 14 §3.2): one module type built
+/// from `pkg.imports` alone, in declaration order — composition-independent,
+/// unlike the pre-story-14 shape this replaces. Named `<Variant>_Imports`,
+/// strictly longer than the module's own name so it can never collide with
+/// it. Returns `None` for a package with no imports, which gets neither a
+/// module type nor a functor parameter, exactly as before.
+fn build_import_interface(
+    pkg: &Package,
+    variant_name: &str,
+) -> Result<Option<(EcItem, String)>, EcExportError> {
+    if pkg.imports.is_empty() {
+        return Ok(None);
+    }
+    let iface_name = format!("{variant_name}_Imports");
+    let procs = build_import_procs(pkg)?;
+    let item = EcItem::ModuleType {
+        name: iface_name.clone(),
+        params: vec![],
+        includes: vec![],
+        procs,
+    };
+    Ok(Some((item, iface_name)))
 }
 
 fn describe_param(v: &ParamValue) -> String {
@@ -455,12 +462,10 @@ fn render_variant(
     comp: &Composition,
     pkg_idx: usize,
     variant_name: &str,
-    keys: &[VariantKey],
-    name_map: &HashMap<VariantKey, String>,
+    key: &VariantKey,
 ) -> Result<EcFile, EcExportError> {
     let inst = &comp.pkgs[pkg_idx];
     let pkg = &inst.pkg;
-    let key = &keys[pkg_idx];
 
     if !inst.types.is_empty() {
         // `PackageInstance::types` (unlike `state`/`params`/`OracleDef`)
@@ -480,11 +485,12 @@ fn render_variant(
         return Err(EcExportError::PackageTypeParameters { span });
     }
 
-    let (functor_param_decls, functor_lookup) = build_functor_params(comp, pkg_idx, keys, name_map)?;
-    let mut scope = PackageScope {
-        names: Names::new(),
-        functor_params: functor_lookup,
+    let import_iface = build_import_interface(pkg, variant_name)?;
+    let functor_param_decls: Vec<(String, String)> = match &import_iface {
+        Some((_, iface_name)) => vec![("O".to_string(), iface_name.clone())],
+        None => vec![],
     };
+    let mut scope = PackageScope { names: Names::new() };
 
     let mut module_vars = Vec::new();
     for (name, ty, span) in &pkg.state {
@@ -547,7 +553,7 @@ fn render_variant(
         procs,
     };
 
-    let mut requires = vec![Require {
+    let requires = vec![Require {
         import: true,
         names: vec![
             "AllCore".to_string(),
@@ -558,17 +564,17 @@ fn render_variant(
             "Types".to_string(),
         ],
     }];
-    if !module.params.is_empty() {
-        requires.push(Require {
-            import: false,
-            names: vec!["Interfaces".to_string()],
-        });
+
+    let mut items = Vec::new();
+    if let Some((iface_item, _)) = import_iface {
+        items.push(iface_item);
     }
+    items.push(EcItem::Module(module));
 
     Ok(EcFile {
         header: vec![variant_comment(key, variant_name)],
         requires,
-        items: vec![EcItem::Module(module)],
+        items,
     })
 }
 
@@ -964,21 +970,18 @@ impl OracleTranslator<'_> {
             .as_ref()
             .expect("resolveoracles attaches a resolved Edge to every invoke reaching export");
 
-        let module = self
-            .scope
-            .functor_params
-            .get(&edge.to())
-            .expect("every edge's callee has a precomputed functor parameter")
-            .clone();
-        // A fresh registry is correct (not a collision-detection gap) here:
-        // this reproduces the callee's own `Proc`-namespace mangling of one
-        // name, and that namespace's actual collision-freedom was already
-        // validated when the callee itself was rendered — `compute_key`
-        // always discovers a callee before its caller (`ordered_pkgs_idx`),
-        // so `compute_package_variants` would already have propagated a
-        // `NameError::Collision` from the callee's own `build_proc` before
-        // this call site is ever reached.
-        let proc = Names::new().mangle(NameKind::Proc, &edge.sig().name)?;
+        // Story 14 §3.3: a package's module is independent of its
+        // composition, so the functor parameter is always `O` and the body
+        // calls the *import* name (`edge.name()`, the caller's own name —
+        // §2.2 of the story) rather than the callee's oracle name
+        // (`edge.sig().name`). A composition resolves any renaming in its
+        // own adapter (`game.rs` §3.4), not here. A fresh registry is
+        // correct (not a collision-detection gap): this reproduces this
+        // package's own already-validated `Fwd_Imports`-namespace mangling
+        // of one name (`build_import_procs`, run over the same `pkg.imports`
+        // list when this variant's import interface was built).
+        let module = "O".to_string();
+        let proc = Names::new().mangle(NameKind::Proc, edge.name())?;
 
         let translated_args = args
             .iter()
@@ -1109,9 +1112,7 @@ mod tests {
             invariants: vec![],
         };
         let keys = compute_all_keys(&comp);
-        let name_map: HashMap<VariantKey, String> =
-            HashMap::from([(keys[0].clone(), "Test".to_string())]);
-        render_variant(&comp, 0, "Test", &keys, &name_map)
+        render_variant(&comp, 0, "Test", &keys[0])
     }
 
     // --- §3.4: table write with an explicit `None` -------------------------
@@ -1285,26 +1286,22 @@ mod tests {
     }
 
     #[test]
-    fn hello_world_variant_names_show_fwd_fwd2_split() {
-        // Acceptance criteria says "fwd and fwd2 produce one variant
-        // (identical parameters)". Empirically they do not: in
-        // `BigComposition`, `fwd` imports its `UsefulOracle` from a
-        // Rand-shaped callee (`rand`) while `fwd2` imports it from a
-        // Fwd-shaped callee (`fwd`), so by §3.1's own rule ("two instances
-        // of one package wired to differently-shaped callees are different
-        // variants") they get different functor signatures and cannot share
-        // a module. `fwd` *does* dedup across `medium_composition`,
-        // `medium_composition_more_oracles` and `big_composition` (all wired
-        // to Rand) into one shared key -- see
-        // `hello_world_fwd_shares_a_key_across_compositions_but_not_with_fwd2`
-        // below for the proof, and the implementation report.
+    fn hello_world_variant_names_collapse_fwd_and_fwd2() {
+        // Story 14 §3.1 acceptance criterion: a package's `VariantKey` no
+        // longer embeds its callees' keys, so `fwd` (wired to `rand`) and
+        // `fwd2` (wired to `fwd`) — two instances of the same `Fwd` package
+        // with identical `Bits(...)` params — now share one variant, despite
+        // being wired to differently-shaped callees. Pre-story-14 this test
+        // asserted the opposite (`vec!["Rand", "Fwd_v1", "Fwd_v2"]`) — see
+        // `hello_world_fwd_and_fwd2_share_one_key_regardless_of_wiring`
+        // below for the direct proof, and the implementation report.
         let variants = load_variants("example-projects/hello-world", "Proof");
         let names: Vec<&str> = variants.iter().map(|v| v.name.as_str()).collect();
-        assert_eq!(names, vec!["Rand", "Fwd_v1", "Fwd_v2"]);
+        assert_eq!(names, vec!["Rand", "Fwd"]);
     }
 
     #[test]
-    fn hello_world_fwd_shares_a_key_across_compositions_but_not_with_fwd2() {
+    fn hello_world_fwd_and_fwd2_share_one_key_regardless_of_wiring() {
         let dir = "example-projects/hello-world";
         let files: &'static DirectoryFiles =
             Box::leak(Box::new(DirectoryFiles::load(Path::new(dir)).unwrap()));
@@ -1325,13 +1322,14 @@ mod tests {
 
         assert_eq!(
             medium_keys[medium_fwd_idx], big_keys[big_fwd_idx],
-            "medium_composition's `fwd` and big_composition's `fwd` are both wired to a \
-             Rand-shaped callee and must dedup to one key"
+            "medium_composition's `fwd` and big_composition's `fwd` share a key regardless of \
+             their callee's shape"
         );
-        assert_ne!(
+        assert_eq!(
             big_keys[big_fwd_idx], big_keys[big_fwd2_idx],
-            "big_composition's `fwd` (wired to rand) and `fwd2` (wired to fwd) are wired to \
-             differently-shaped callees and must NOT share a key"
+            "big_composition's `fwd` (wired to rand) and `fwd2` (wired to fwd) are the same \
+             package with the same params, so they must share a key too — story 14 §3.1 dropped \
+             `imports` from the key entirely"
         );
     }
 
@@ -1341,14 +1339,14 @@ mod tests {
         for v in &variants {
             assert_golden(
                 v,
-                &format!("testdata/easycrypt/story03/hello-world/Variant_{}.ec", v.name),
+                &format!("testdata/easycrypt/story03/hello-world/Pkg_{}.ec", v.name),
             );
         }
     }
 
     #[test]
     fn hello_world_rand_compiles_standalone() {
-        assert_compiles("testdata/easycrypt/story03/hello-world", "Variant_Rand.ec");
+        assert_compiles("testdata/easycrypt/story03/hello-world", "Pkg_Rand.ec");
     }
 
     #[test]
@@ -1359,9 +1357,9 @@ mod tests {
             names,
             // `PRF` no longer needs an escape hatch (story 10 retired the
             // stdlib-collision name list): the module is named plain
-            // `PRF`, and its file is `Variant_PRF.ec`, which cannot collide
-            // with EasyCrypt's own `theories/crypto/PRF.eca` or with the
-            // `PRF` composition's own `Comp_PRF.ec`.
+            // `PRF`, and its file is `Pkg_PRF.ec` (story 14 §3.6), which
+            // cannot collide with EasyCrypt's own `theories/crypto/PRF.eca`
+            // or with the `PRF` composition's own `Comp_PRF.ec`.
             vec!["Prot", "KX", "Prot_NoKey", "KX_NoKeys", "PRF", "Prot_NoPrf", "KX_NoPrf"],
             "each of these packages must dedup to exactly one variant across the whole theorem \
              (Real/Ideal/Hybrid0 share one boolean-parametrised KX, etc.)"
@@ -1372,19 +1370,21 @@ mod tests {
     fn simple_4whs_variants_match_golden() {
         let variants = load_variants("example-projects/4WHS", "Simple4WHS");
         for v in &variants {
-            assert_golden(v, &format!("testdata/easycrypt/story03/4WHS/Variant_{}.ec", v.name));
+            assert_golden(v, &format!("testdata/easycrypt/story03/4WHS/Pkg_{}.ec", v.name));
         }
     }
 
     #[test]
     fn simple_4whs_prot_and_prf_compile_standalone() {
-        // Prot and PRF import no oracles, so they don't need story 04's
-        // Interfaces.ec to typecheck. Every other 4WHS variant here
+        // Prot and PRF import no oracles, so they don't need their own
+        // import interface to typecheck. Every other 4WHS variant here
         // (KX/KX_NoKeys/Prot_NoPrf/KX_NoPrf) imports at least one oracle and
-        // so references `Interfaces.*_i`; they are golden-file-only checked
-        // until story 04 provides Interfaces.ec.
-        assert_compiles("testdata/easycrypt/story03/4WHS", "Variant_Prot.ec");
-        assert_compiles("testdata/easycrypt/story03/4WHS", "Variant_PRF.ec");
+        // so references its own `<Variant>_Imports`; they are golden-file-only
+        // checked (no separate `Interfaces.ec` dependency any more — story
+        // 14 §3.2/§3.5 — but standalone compilation still needs nothing
+        // beyond `Types.ec`).
+        assert_compiles("testdata/easycrypt/story03/4WHS", "Pkg_Prot.ec");
+        assert_compiles("testdata/easycrypt/story03/4WHS", "Pkg_PRF.ec");
     }
 
     // --- naming / dedup on hand-built fixtures ------------------------------
@@ -1398,7 +1398,9 @@ mod tests {
 
     /// A package with one `Integer` param `n` and no oracles, used to build
     /// tiny compositions for variant-key tests without pulling in a whole
-    /// project.
+    /// project. `n` is never referenced by a `Bits` width here, so story
+    /// 14 §3.1 drops it from the key entirely (it becomes a module `var`
+    /// instead) — see [`width_pkg`] for a package where `n` *is* a width.
     fn param_pkg(pkg_name: &str) -> Package {
         Package {
             name: pkg_name.to_string(),
@@ -1413,19 +1415,46 @@ mod tests {
         }
     }
 
-    fn instance_with_n(pkg_name: &str, inst_name: &str, n_value: i64) -> PackageInstance {
+    /// Like [`param_pkg`], but `n` is used as a `Bits` width in a state
+    /// field, so [`integer_param_used_as_width`] keeps it in the
+    /// [`VariantKey`] (story 14 §3.1).
+    fn width_pkg(pkg_name: &str) -> Package {
+        let n_id = Identifier::PackageIdentifier(PackageIdentifier::Const(
+            PackageConstIdentifier::new("n".to_string(), pkg_name.to_string(), Type::integer()),
+        ));
+        Package {
+            name: pkg_name.to_string(),
+            types: vec![],
+            params: vec![("n".to_string(), Type::integer(), span())],
+            state: vec![(
+                "x".to_string(),
+                Type::bits(CountSpec::Identifier(Box::new(n_id))),
+                span(),
+            )],
+            oracles: vec![],
+            imports: vec![],
+            invariants: vec![],
+            file_name: "p.pkg.ssp".to_string(),
+            file_contents: String::new(),
+        }
+    }
+
+    fn instance_with_n(pkg: Package, pkg_name: &str, inst_name: &str, n_value: i64) -> PackageInstance {
         PackageInstance {
             name: inst_name.to_string(),
             params: vec![param_ident(pkg_name, "n", Type::integer(), Expression::integer(n_value))],
             types: vec![],
-            pkg: param_pkg(pkg_name),
+            pkg,
         }
     }
 
     #[test]
-    fn distinct_int_param_literals_produce_distinct_variants() {
+    fn distinct_int_param_literals_used_as_a_width_produce_distinct_variants() {
         let comp = Composition {
-            pkgs: vec![instance_with_n("P", "a", 1), instance_with_n("P", "b", 2)],
+            pkgs: vec![
+                instance_with_n(width_pkg("P"), "P", "a", 1),
+                instance_with_n(width_pkg("P"), "P", "b", 2),
+            ],
             edges: vec![],
             exports: vec![],
             name: "C".to_string(),
@@ -1445,7 +1474,10 @@ mod tests {
     #[test]
     fn identical_int_param_literals_produce_one_variant() {
         let comp = Composition {
-            pkgs: vec![instance_with_n("P", "a", 7), instance_with_n("P", "b", 7)],
+            pkgs: vec![
+                instance_with_n(width_pkg("P"), "P", "a", 7),
+                instance_with_n(width_pkg("P"), "P", "b", 7),
+            ],
             edges: vec![],
             exports: vec![],
             name: "C".to_string(),
@@ -1456,4 +1488,25 @@ mod tests {
         assert_eq!(keys[0], keys[1]);
     }
 
+    #[test]
+    fn distinct_int_param_literals_not_used_as_a_width_still_produce_one_variant() {
+        // Story 14 §3.1 acceptance criterion: a non-width `Integer` param
+        // becomes a module `var` (`param_needs_var`), not a key component,
+        // so two instances differing only there must share one module —
+        // unlike a width param ([`distinct_int_param_literals_used_as_a_width_produce_distinct_variants`]
+        // above), which still splits them.
+        let comp = Composition {
+            pkgs: vec![
+                instance_with_n(param_pkg("P"), "P", "a", 1),
+                instance_with_n(param_pkg("P"), "P", "b", 2),
+            ],
+            edges: vec![],
+            exports: vec![],
+            name: "C".to_string(),
+            consts: vec![],
+            invariants: vec![],
+        };
+        let keys = compute_all_keys(&comp);
+        assert_eq!(keys[0], keys[1]);
+    }
 }

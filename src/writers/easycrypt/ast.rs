@@ -145,7 +145,7 @@ pub enum EcLvalue {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EcExpr {
     Var(String),
-    /// Qualified: `Pkg_KX.KX.ltk_map`, or a memory-tagged one in a formula,
+    /// Qualified: `Pkg_Inst_KX.ltk_map`, or a memory-tagged one in a formula,
     /// `M.x{1}`.
     Qualified { path: Vec<String>, mem: Option<u8> },
     Int(i64),
@@ -274,7 +274,7 @@ pub struct EcSection {
     pub lemmas: Vec<EcLemma>,
 }
 
-/// `declare module A <: Adv { -Game_H.G, -Game_H.Pkg_KX.KX }.`
+/// `declare module A <: Adv { -Game_H.G, -Game_H.Pkg_Inst_KX }.`
 #[derive(Debug, Clone, PartialEq)]
 pub struct DeclareModule {
     pub name: String,

@@ -7,16 +7,22 @@
 //! all onto the `Hybrid0` composition), so this emits per composition, not
 //! per instance, deduplicated by [`interfaces::discover_compositions`].
 //!
-//! Each file gets: one `clone Variant_<Variant> as Pkg_<inst>.` per package
-//! instance (story 03's variants, resolved here via the same
-//! [`package::VariantKey`] machinery story 03 uses internally); a `module
-//! Inst_<inst> = ...` functor-application alias for every instance that
-//! imports oracles; a router module (`Game_<Comp>`) carrying the single
-//! `abort_flag : bool` and one export proc per `comp.exports` entry; and an
-//! experiment module (`Exp_<Comp>`) that initialises the router and runs the
-//! adversary. Only the *theory* (file) names carry the `Variant_`/`Comp_`
-//! prefix (story 10) — every module name, clone alias and functor
-//! application keeps its pre-story-10 spelling.
+//! Each file gets (story 14 §3.4 renamed and reshaped all of this): one
+//! `clone Pkg_<Variant> as Cloned_Pkg_<inst>.` per package instance (story
+//! 03's variants, resolved here via the same [`package::VariantKey`]
+//! machinery story 03 uses internally); for an instance with imports, either
+//! a direct functor application (when one callee instance already serves
+//! the whole import interface unrenamed) or a composition-local
+//! `Pkg_Imports_<inst>` adapter that fans the expected oracles out to the
+//! instances providing them, followed either way by a `module
+//! Pkg_Inst_<inst> = ...` alias — *every* instance gets this name,
+//! unconditionally, whether or not it has imports; a router module
+//! (`Game_<Comp>`) carrying the single `abort_flag : bool` and one export
+//! proc per `comp.exports` entry; and an experiment module (`Exp_<Comp>`)
+//! that initialises the router and runs the adversary. Only the *theory*
+//! (file) names carry the `Pkg_`/`Comp_` prefix (story 10/14) — every module
+//! name, clone alias and functor application keeps its own, unprefixed
+//! spelling.
 
 use std::collections::HashMap;
 
@@ -154,6 +160,96 @@ fn resolve_composition_const(
     }
 }
 
+/// Whether instance `idx`'s imports can be satisfied by passing a single
+/// callee module directly, and which one (story 14 §3.4): `Some(callee)`
+/// iff every edge out of `idx` goes to the same `callee` *and* none of them
+/// is aliased (`edge.alias().is_none()`, i.e. every import name is already
+/// the callee's own oracle name — width subtyping covers a callee with
+/// extra procs). `None` otherwise, including when `idx` has no imports at
+/// all (that case is handled separately, with no functor argument at all).
+fn direct_pass_callee(comp: &Composition, idx: usize) -> Option<usize> {
+    let mut callee: Option<usize> = None;
+    for edge in comp.edges.iter().filter(|e| e.from() == idx) {
+        if edge.alias().is_some() {
+            return None;
+        }
+        match callee {
+            None => callee = Some(edge.to()),
+            Some(c) if c == edge.to() => {}
+            Some(_) => return None,
+        }
+    }
+    callee
+}
+
+/// A composition-local import adapter (story 14 §3.4): one stateless proc
+/// per `pkg.imports` entry, in declaration order, each forwarding to the
+/// instance the matching edge points at under the *callee's* oracle name.
+/// Ascribed to the uncloned `Pkg_<Variant>.<Variant>_Imports` (§2.1's second
+/// row: matching is structural across the clone boundary), which is what
+/// catches a mismatch at `easycrypt compile` time rather than at the
+/// application site.
+fn build_import_adapter(
+    comp: &Composition,
+    idx: usize,
+    adapter_name: &str,
+    variant_name: &str,
+    inst_module_name: &[String],
+) -> Result<EcItem, EcExportError> {
+    let pkg = &comp.pkgs[idx].pkg;
+
+    let mut names = Names::new();
+    let mut procs = Vec::new();
+    for (sig, ispan) in package::ordered_imports(pkg) {
+        let edge = comp
+            .edges
+            .iter()
+            .find(|e| e.from() == idx && e.name() == sig.name)
+            .expect(
+                "every declared import is wired to exactly one edge \
+                 (MissingEdgeForImportedOracleError, composition.rs)",
+            );
+
+        let proc_name = names.mangle(NameKind::Proc, &sig.name)?;
+        let mut args = Vec::new();
+        let mut arg_exprs = Vec::new();
+        for (name, ty) in &sig.args {
+            let mangled = names.mangle(NameKind::Var, name)?;
+            args.push((mangled.clone(), translate_type(ty, *ispan)?));
+            arg_exprs.push(EcExpr::Var(mangled));
+        }
+        let ret_option_ty = EcType::Option(Box::new(translate_type(&sig.ty, *ispan)?));
+
+        // A fresh registry is correct here (not a collision-detection gap):
+        // it reproduces the callee's own already-validated `Proc`-namespace
+        // mangling of one name, mirroring `package.rs`'s `translate_invoke`
+        // and this file's own export-proc call site.
+        let callee_proc = Names::new().mangle(NameKind::Proc, &edge.sig().name)?;
+
+        procs.push(EcProc {
+            name: proc_name,
+            args,
+            ret: ret_option_ty.clone(),
+            locals: vec![("r".to_string(), ret_option_ty, None)],
+            body: EcBlock(vec![EcStmt::Call {
+                lhs: Some(EcLvalue::Var("r".to_string())),
+                module: inst_module_name[edge.to()].clone(),
+                proc: callee_proc,
+                args: arg_exprs,
+            }]),
+            ret_expr: Some(EcExpr::Var("r".to_string())),
+        });
+    }
+
+    Ok(EcItem::Module(EcModule {
+        name: adapter_name.to_string(),
+        params: vec![],
+        implements: Some(format!("Pkg_{variant_name}.{variant_name}_Imports")),
+        vars: vec![],
+        procs,
+    }))
+}
+
 fn render_game_file(
     theorem_name: &str,
     comp: &Composition,
@@ -164,6 +260,7 @@ fn render_game_file(
     let mangled = &interfaces.comp_mangled[&comp.name];
     let iface = &interfaces.iface_name[&comp.name];
     let adv = &interfaces.adv_name[&comp.name];
+
 
     let keys = package::compute_all_keys(comp);
     let variant_names: Vec<String> = keys
@@ -178,71 +275,34 @@ fn render_game_file(
 
     let order = comp.ordered_pkgs_idx();
 
-    // One dedicated registry for instance-name mangling (`Pkg_<inst>` /
-    // `Inst_<inst>` both derive from it) — a fresh, call-scoped `Names`
-    // shared across the whole composition, mirroring `package.rs`'s
-    // `functor_names` precedent, so two differently-named instances that
-    // happened to mangle to the same name are caught as a hard collision
-    // instead of silently colliding.
+    // One dedicated registry for instance-name mangling (`Cloned_Pkg_<inst>`
+    // / `Pkg_Inst_<inst>` / `Pkg_Imports_<inst>` all derive from it) — a
+    // fresh, call-scoped `Names` shared across the whole composition,
+    // mirroring `package.rs`'s naming precedent, so two differently-named
+    // instances that happened to mangle to the same name are caught as a
+    // hard collision instead of silently colliding.
     let mut inst_names = Names::new();
     let mut inst_mangled: Vec<String> = Vec::with_capacity(comp.pkgs.len());
     for inst in &comp.pkgs {
         inst_mangled.push(inst_names.mangle(NameKind::Module, &inst.name)?);
     }
-    let clone_name: Vec<String> = inst_mangled.iter().map(|m| format!("Pkg_{m}")).collect();
+    let clone_name: Vec<String> = inst_mangled.iter().map(|m| format!("Cloned_Pkg_{m}")).collect();
+    // Every instance gets this name, unconditionally (story 14 §3.4) — the
+    // decision that lets every call site, restriction and state path name an
+    // instance with no variant-name component.
+    let inst_module_name: Vec<String> = inst_mangled.iter().map(|m| format!("Pkg_Inst_{m}")).collect();
 
-    // Functor arguments per instance, in edge order grouped by first
-    // occurrence of the callee (§3.2) — mirrors `package.rs`'s
-    // `build_functor_params` grouping exactly, over the same `comp.edges`,
-    // so the argument order here always lines up with that variant's own
-    // already-rendered functor parameter order.
-    let mut functor_callees: Vec<Vec<usize>> = vec![Vec::new(); comp.pkgs.len()];
-    for (idx, callees) in functor_callees.iter_mut().enumerate() {
-        for edge in comp.edges.iter().filter(|e| e.from() == idx) {
-            if !callees.contains(&edge.to()) {
-                callees.push(edge.to());
-            }
-        }
-    }
-
-    // What to call this instance's procs on: starts as the dotted clone
-    // path, upgraded to `Inst_<inst>` below for instances with functor
-    // params. Processing in `order` (callees before callers) guarantees a
-    // callee's final `module_ref` entry is already settled before a caller
-    // reads it to build its own alias's argument list.
-    let mut module_ref: Vec<String> = (0..comp.pkgs.len())
-        .map(|idx| format!("{}.{}", clone_name[idx], variant_names[idx]))
-        .collect();
-
-    let mut alias_items = Vec::new();
-    for &idx in &order {
-        if functor_callees[idx].is_empty() {
-            continue;
-        }
-        let alias_name = format!("Inst_{}", inst_mangled[idx]);
-        let args: Vec<String> = functor_callees[idx]
-            .iter()
-            .map(|&callee| module_ref[callee].clone())
-            .collect();
-        alias_items.push(EcItem::ModuleAlias {
-            name: alias_name.clone(),
-            functor: format!("{}.{}", clone_name[idx], variant_names[idx]),
-            args,
-        });
-        module_ref[idx] = alias_name;
-    }
-
-    // The theory a package variant renders into is `Variant_<Variant>.ec`
-    // (story 10) — the module inside it keeps its own unprefixed name
+    // The theory a package variant renders into is `Pkg_<Variant>.ec` (story
+    // 14 §3.6) — the module inside it keeps its own unprefixed name
     // (`variant_names[idx]`), so `clone`'s `base` (the theory being cloned)
-    // and the `require` list need the `Variant_` prefix, but every
-    // qualified reference to the resulting module (`Pkg_<inst>.<Variant>`)
-    // does not, since that resolves through the *local* clone alias, not
-    // the theory name.
+    // and the `require` list need the `Pkg_` prefix, but every qualified
+    // reference to the resulting module (`Cloned_Pkg_<inst>.<Variant>`) does
+    // not, since that resolves through the *local* clone alias, not the
+    // theory name.
     let clone_items: Vec<EcItem> = order
         .iter()
         .map(|&idx| EcItem::Clone {
-            base: format!("Variant_{}", variant_names[idx]),
+            base: format!("Pkg_{}", variant_names[idx]),
             as_name: clone_name[idx].clone(),
             overrides: vec![],
         })
@@ -255,7 +315,47 @@ fn render_game_file(
         }
     }
     let mut plain_requires = vec!["Interfaces".to_string()];
-    plain_requires.extend(variant_requires.iter().map(|v| format!("Variant_{v}")));
+    plain_requires.extend(variant_requires.iter().map(|v| format!("Pkg_{v}")));
+
+    // Adapters (if any) and the unconditional `Pkg_Inst_<inst>` alias for
+    // every instance, `order` (callees-before-callers) so a callee's own
+    // `Pkg_Inst_<callee>` is always already emitted before an adapter or
+    // application that names it (§3.4).
+    let mut alias_items = Vec::new();
+    for &idx in &order {
+        let pkg = &comp.pkgs[idx].pkg;
+        let clone_module = format!("{}.{}", clone_name[idx], variant_names[idx]);
+
+        if pkg.imports.is_empty() {
+            alias_items.push(EcItem::ModuleAlias {
+                name: inst_module_name[idx].clone(),
+                functor: clone_module,
+                args: vec![],
+            });
+            continue;
+        }
+
+        let arg = match direct_pass_callee(comp, idx) {
+            Some(callee) => inst_module_name[callee].clone(),
+            None => {
+                let adapter_name = format!("Pkg_Imports_{}", inst_mangled[idx]);
+                let adapter = build_import_adapter(
+                    comp,
+                    idx,
+                    &adapter_name,
+                    &variant_names[idx],
+                    &inst_module_name,
+                )?;
+                alias_items.push(adapter);
+                adapter_name
+            }
+        };
+        alias_items.push(EcItem::ModuleAlias {
+            name: inst_module_name[idx].clone(),
+            functor: clone_module,
+            args: vec![arg],
+        });
+    }
 
     // --- router -------------------------------------------------------
     let mut router_names = Names::new();
@@ -291,7 +391,7 @@ fn render_game_file(
         }
         init_body.push(EcStmt::Call {
             lhs: None,
-            module: module_ref[idx].clone(),
+            module: inst_module_name[idx].clone(),
             proc: "init".to_string(),
             args: call_args,
         });
@@ -330,7 +430,7 @@ fn render_game_file(
             then_block: EcBlock(vec![
                 EcStmt::Call {
                     lhs: Some(EcLvalue::Var("ec_result".to_string())),
-                    module: module_ref[export.to()].clone(),
+                    module: inst_module_name[export.to()].clone(),
                     proc: callee_proc,
                     args: call_args,
                 },
@@ -517,14 +617,11 @@ mod tests {
     #[test]
     fn big_composition_has_two_instance_clones_of_the_fwd_package() {
         // Acceptance criterion: "hello-world exports a composition with two
-        // clones of one variant (fwd, fwd2)". `fwd` and `fwd2` are wired to
-        // differently-shaped callees in `BigComposition` (`fwd` -> `rand`,
-        // `fwd2` -> `fwd`), so per story 03's own findings they render as
-        // two *different* variants (`Fwd_v1`/`Fwd_v2`), not one variant
-        // cloned twice — see story 03's implementation report §2 for the
-        // same discrepancy against that story's acceptance text. What does
-        // hold, and is what this test checks: two package instances of the
-        // `Fwd` package, each getting its own `clone ... as Pkg_<inst>.`.
+        // clones of one variant (fwd, fwd2)" — now literally true (story 14
+        // §3.1 dropped `imports` from `VariantKey`, so `fwd` and `fwd2` share
+        // one `Fwd` variant despite being wired to differently-shaped
+        // callees, `fwd` -> `rand`, `fwd2` -> `fwd`): both get their own
+        // `clone Pkg_Fwd as Cloned_Pkg_<inst>.` of that single variant.
         let files = load("example-projects/hello-world", "Proof");
         let big = files.iter().find(|f| f.name == "BigComposition").unwrap();
         let clones: Vec<&EcItem> = big
@@ -534,6 +631,18 @@ mod tests {
             .filter(|item| matches!(item, EcItem::Clone { .. }))
             .collect();
         assert_eq!(clones.len(), 3, "rand, fwd and fwd2 each get one clone");
+        let bases: Vec<&str> = clones
+            .iter()
+            .map(|c| match c {
+                EcItem::Clone { base, .. } => base.as_str(),
+                _ => unreachable!(),
+            })
+            .collect();
+        assert_eq!(
+            bases,
+            vec!["Pkg_Rand", "Pkg_Fwd", "Pkg_Fwd"],
+            "fwd and fwd2 both clone the same Pkg_Fwd theory"
+        );
         let as_names: Vec<&str> = clones
             .iter()
             .map(|c| match c {
@@ -541,7 +650,7 @@ mod tests {
                 _ => unreachable!(),
             })
             .collect();
-        assert_eq!(as_names, vec!["Pkg_Rand", "Pkg_Fwd", "Pkg_Fwd2"]);
+        assert_eq!(as_names, vec!["Cloned_Pkg_Rand", "Cloned_Pkg_Fwd", "Cloned_Pkg_Fwd2"]);
     }
 
     #[test]
@@ -596,6 +705,84 @@ mod tests {
         let b = load("example-projects/4WHS", "Simple4WHS");
         for (fa, fb) in a.iter().zip(b.iter()) {
             assert_eq!(render_file(&fa.file), render_file(&fb.file));
+        }
+    }
+
+    // --- story 14: import interfaces, adapters, the Pkg_ prefixes ----------
+
+    fn count_pkg_imports_modules(file: &GameFile) -> usize {
+        file.file
+            .items
+            .iter()
+            .filter(|item| matches!(item, EcItem::Module(m) if m.name.starts_with("Pkg_Imports_")))
+            .count()
+    }
+
+    #[test]
+    fn hello_world_no_composition_needs_an_adapter() {
+        // Every edge in every hello-world composition is unaliased and
+        // single-callee (§3.4's direct-pass rule), so no `Pkg_Imports_*`
+        // module is ever emitted.
+        let files = load("example-projects/hello-world", "Proof");
+        for f in &files {
+            assert_eq!(
+                count_pkg_imports_modules(f),
+                0,
+                "{} unexpectedly has an import adapter",
+                f.name
+            );
+        }
+    }
+
+    #[test]
+    fn kem_dem_game_cca_dem_gets_exactly_one_adapter_for_dem() {
+        // Acceptance criterion: kem-dem's `Game_CCA_DEM` gets one adapter
+        // for `DEM` (`DEM: { DEM_ENC: Scheme_DEM, DEM_DEC: Scheme_DEM, GET:
+        // Key }` spans two callees — the story's own motivating multi-callee
+        // case, §3.7).
+        let files = load("example-projects/kem-dem/kem-dem-cca-ssp", "kem_dem_cca_ssp");
+        let f = files.iter().find(|f| f.name == "Game_CCA_DEM").unwrap();
+        assert_eq!(count_pkg_imports_modules(f), 1);
+        let adapter = f
+            .file
+            .items
+            .iter()
+            .find(|item| matches!(item, EcItem::Module(m) if m.name == "Pkg_Imports_DEM"))
+            .unwrap();
+        let EcItem::Module(m) = adapter else { unreachable!() };
+        assert_eq!(m.implements.as_deref(), Some("Pkg_DEM.DEM_Imports"));
+    }
+
+    #[test]
+    fn hello_world_oracle_rename_new_medium_composition_gets_one_adapter_using_import_names() {
+        // §3.3's own worked example: `fwd`'s import names
+        // (`ChangeNameUsefulOracle`/`AnotherUsefulOracle`) differ from the
+        // callee's oracle name (`UsefulOracle`) it's aliased to, so a direct
+        // pass is impossible even though both imports come from the same
+        // instance (`rand`) — an adapter is required, and its procs forward
+        // to `Pkg_Inst_Rand.d_UsefulOracle`.
+        let files = load(
+            "example-projects/hello-world-oracle-rename-new",
+            "Proof",
+        );
+        let f = files.iter().find(|f| f.name == "MediumComposition").unwrap();
+        assert_eq!(count_pkg_imports_modules(f), 1);
+        let adapter = f
+            .file
+            .items
+            .iter()
+            .find(|item| matches!(item, EcItem::Module(m) if m.name == "Pkg_Imports_Fwd"))
+            .unwrap();
+        let EcItem::Module(m) = adapter else { unreachable!() };
+        assert_eq!(m.implements.as_deref(), Some("Pkg_Fwd.Fwd_Imports"));
+        let proc_names: Vec<&str> = m.procs.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(proc_names, vec!["d_AnotherUsefulOracle", "d_ChangeNameUsefulOracle"]);
+        for p in &m.procs {
+            let EcStmt::Call { module, proc, .. } = &p.body.0[0] else {
+                panic!("expected the adapter proc's first statement to be a call");
+            };
+            assert_eq!(module, "Pkg_Inst_Rand");
+            assert_eq!(proc, "d_UsefulOracle");
         }
     }
 }
