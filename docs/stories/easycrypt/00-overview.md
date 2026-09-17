@@ -30,9 +30,10 @@ and its experiment is parameterized by the game. Where it differs from this epic
 ## 2. What we are building
 
 1. `domino easycrypt` — writes a compilable EasyCrypt project under `_build/easycrypt/<theorem>/`:
-   `Types.ec`, `Interfaces.ec`, `Variant_*.ec`, `Comp_*.ec`, and per equivalence
+   `Types.ec`, `Interfaces.ec`, `Pkg_*.ec`, `Comp_*.ec`, and per equivalence
    `Eq_<Left>_<Right>.ec` + `Eq_<Left>_<Right>_Invariants.ec` — all in one flat directory
-   (story 10; before it, package and game files sat in `packages/` and `games/`).
+   (story 10; before it, package and game files sat in `packages/` and `games/`; story 14 renamed
+   `Variant_*.ec` to `Pkg_*.ec`).
 2. An **EasyCrypt AST** (`src/writers/easycrypt/ast.rs`) as the real artifact — text is only its
    rendering — so the symbolic-execution debugger can later run on the generated code.
 3. `domino inline --easycrypt` and `domino debug --easycrypt` — the existing debugger machinery
@@ -48,8 +49,9 @@ files, or read out of this repository's source. §8 lists the evidence.
 
 | Topic | Decision |
 |---|---|
-| **Instantiation** | **No abstract types and no abstract operators in generated packages.** A package instance is already monomorphic by export time (`src/packageinstance.rs:31`), so each package is emitted **specialised**. A **package variant** is one module per distinct assignment of a package's *integer and function* parameters; boolean parameters are not part of the key. This mirrors Domino's own SMT specialisation (`only_ints_and_funs`, `src/writers/smt/patterns/instance_names.rs:17`). |
-| **Multiple instances** | Each package **instance** gets `clone <Variant> as Pkg_<inst>.` in its game file — no overrides. EasyCrypt clones theories, not modules, so a package theory contains just its module. Cloning gives each instance its own memory. |
+| **Instantiation** | **No abstract types and no abstract operators in generated packages.** A package instance is already monomorphic by export time (`src/packageinstance.rs:31`), so each package is emitted **specialised**. A **package variant** is one module per distinct assignment of a package's *integer and function* parameters; boolean parameters are not part of the key. This mirrors Domino's own SMT specialisation (`only_ints_and_funs`, `src/writers/smt/patterns/instance_names.rs:17`). **Amended by story 14:** the key is a package's *`Bits`-width integer* and *function* parameters only. A non-width integer parameter is already a module variable set by `init`, and how a package is *wired* no longer splits it into variants at all. |
+| **Multiple instances** | Each package **instance** gets its own theory clone in its game file — no overrides. EasyCrypt clones theories, not modules, so a package theory contains just its module (plus, after story 14, its import interface). Cloning gives each instance its own memory. **Amended by story 14:** the clone is `clone Pkg_<Variant> as Cloned_Pkg_<inst>.` and *every* instance additionally gets a module `Pkg_Inst_<inst>` — a functor application when it imports oracles, a plain alias when it does not — so calls, state paths and adversary restrictions all name `Pkg_Inst_<inst>` with no variant component. |
+| **Package imports** (story 14) | A package declares, **in its own file**, one `module type <Variant>_Imports` listing the oracles it expects, named by its *own* import names, and takes a single functor parameter `O`. A composition satisfies it by passing the callee's `Pkg_Inst_<callee>` directly (only when all of the caller's edges go to that one callee and none is aliased), otherwise by a composition-local adapter `Pkg_Imports_<inst>` that fans out to several instances. Packages therefore never depend on their callees' interfaces, and `Interfaces.ec` holds game interfaces only. |
 | **`local` clones** | **Impossible.** A non-local module cannot depend on a local one (`module M cannot depend on local module Pkg_L.P`). Not needed either: a file is already a namespace. |
 | **Type parameters** | **Unsupported.** A package instance with a non-empty `types { … }` block is a hard error. (`nprf` is the only project that uses them and it is not a target.) |
 | **Package state** | **Module variables**, not one record per package. Records would force a copy-and-`{\| … with … \|}` dance at every table write, and EasyCrypt forbids two record types sharing a field name. |
@@ -57,7 +59,7 @@ files, or read out of this repository's source. §8 lists the evidence.
 | **Abort** | An oracle returning `T` in Domino returns `T option` in EasyCrypt; `None` is abort. An oracle with no return value returns `unit option` and returns `Some tt`. The abort **flag lives only in the router**, never in a package. |
 | **Early return / abort mid-body** | The export pipeline runs `treeify`, which already pushes the continuation of an `if` (and therefore of an `assert`) into both branches. `treeify` does **not** cover `Unwrap` and `InvokeOracle`, so the translator nests the rest of the block into the `else` of those two itself. |
 | **Pipeline** | `EquivalenceTransform` — the existing `prove` pipeline, `run_treeify = true` (`src/transforms/theorem_transforms.rs:99`). No new pipeline. |
-| **Naming** | Deterministic mangling: lowercase-first names survive unchanged; uppercase-first names and EasyCrypt keywords get a `d_` prefix (`NewKey` → `d_NewKey`, `LTK` → `d_LTK`, `return` → `d_return`) — EasyCrypt requires `proc`/`var` names to start lowercase, which is the whole reason the prefix exists; `-` → `_` in SMT-derived names; modules are `Pkg_<inst>`, `Game_<comp>`, `Exp_<comp>`. A residual collision is a hard error. **Amended by story 10:** generated *theories* are `Variant_<X>` / `Comp_<X>`, which retires both stdlib-collision hacks. |
+| **Naming** | Deterministic mangling: lowercase-first names survive unchanged; uppercase-first names and EasyCrypt keywords get a `d_` prefix (`NewKey` → `d_NewKey`, `LTK` → `d_LTK`, `return` → `d_return`) — EasyCrypt requires `proc`/`var` names to start lowercase, which is the whole reason the prefix exists; `-` → `_` in SMT-derived names; modules are `Pkg_<inst>`, `Game_<comp>`, `Exp_<comp>`. A residual collision is a hard error. **Amended by story 10:** generated *theories* are `Variant_<X>` / `Comp_<X>`, which retires both stdlib-collision hacks. **Amended by story 14:** theories are `Pkg_<X>` / `Comp_<X>`; inside a game file, the clone is `Cloned_Pkg_<inst>`, the instance module `Pkg_Inst_<inst>` and the import adapter `Pkg_Imports_<inst>`; a package's import interface is `<Variant>_Imports` in the package's own file. |
 | **Output layout** | **Amended by story 10: flat.** One directory per theorem, no `packages/`/`games/` subdirectories, so `easycrypt compile -I <dir>` needs a single `-I`. |
 | **Games** | One game file per **composition** (not per game instance). Game instances appear only as the arguments of an `Eq_*` lemma. |
 | **Experiment** | `Exp_<Comp>` per composition, in the game file. Its `run` takes the composition's boolean and value-integer constants in declaration order. Width integers become types; function constants become global operators. |
@@ -110,6 +112,7 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 11 | Shared package module types in `Interfaces.ec` | `11-shared-package-module-types.md` | 04, 10 |
 | 12 | Render `None` without a type annotation | `12-unannotated-none.md` | 01, 10 |
 | 13 | `byequiv` relational precondition | `13-byequiv-precondition.md` | 07, 10 |
+| 14 | Package import interfaces, adapters and the `Pkg_` prefixes | `14-package-import-interfaces-and-prefixes.md` | 03, 04, 10, 11 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
@@ -212,12 +215,26 @@ verified in the design session, either by compiling a test file or by reading th
   structurally identical `module type`s are interchangeable: `module M (P : Fwd_v1_i)` applied to
   `R : Rand_i` compiles. A module with *more* procedures than the type demands also matches. So a
   duplicated module type never forces a second version of an importing package — deduplicating
-  `Interfaces.ec` (story 11) is a readability change, not a correctness one.
+  `Interfaces.ec` (story 11) is a readability change, not a correctness one. Story 14 deletes that
+  section of `Interfaces.ec` outright; the same structural matching is what lets an adapter ascribed
+  to an *uncloned* `Pkg_<V>.<V>_Imports` be passed to a functor expecting `Cloned_Pkg_<inst>.<V>_Imports`.
 - **`module type X = Y.` is a parse error.** The aliasing form that works is
   `module type X = { include Y }.`, and a module matching `Y` still matches `X` through it.
 - **A clone alias cannot share a name with the theory it clones**: `clone Pkg_KX as Pkg_KX.` fails
   with `the symbol Pkg_KX already exists`. This is why story 10 prefixes theories `Variant_`/`Comp_`
   and leaves `Pkg_<inst>` to the clone aliases.
+- **A module alias denotes the same memory cells as its target, and so does a functor
+  application.** `module Pkg_Inst_n = Cloned_Pkg_n.N.` gives `Pkg_Inst_n.s{m} = Cloned_Pkg_n.N.s{m}`
+  by `done`, and `module Pkg_Inst_m = Cloned_Pkg_m.M(Arg).` gives
+  `Pkg_Inst_m.ctr{m} = Cloned_Pkg_m.M.ctr{m}` by `done`. Adversary restrictions accept those short
+  paths too (`declare module A <: Adv { -Pkg_Inst_m, -Pkg_Inst_n }.`). This is what lets story 14
+  address every instance as `Pkg_Inst_<inst>` in the router, the invariants and the proofs.
+- **A functor application can be passed as another functor's argument**, and a plain module can call
+  into one (`r <@ Pkg_Inst_fwd.f();`) — both verified two levels deep (story 14 §2.1).
+- **Module names and module-type names live in disjoint namespaces**: `module type Imports` beside
+  `module Imports (O : Imports)` compiles. (Story 14 still avoids the shape, for the reader's sake.)
+- **A theory clone may be named after anything but the theory it clones**, including
+  `clone B as Pkg_Inst_n.` — the constraint below is only alias-vs-source.
 - **Bare `None` is inferred everywhere the exporter emits it** — assignment to a typed local or
   state variable, comparison against an `fmap` get, inside a typed tuple, in an `op` body with a
   declared result type. It fails *only* with nothing to constrain it (`op bad = None.` →

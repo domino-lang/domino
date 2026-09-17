@@ -47,9 +47,21 @@ an equivalence maintains. One set of state relations per equivalence.
 ## EasyCrypt export
 
 **Package variant** — one EasyCrypt module generated for a package, specialised to a distinct
-assignment of its integer and function parameters. Two package instances that agree on those
-parameters share one variant; boolean parameters do not distinguish variants, since they are
-initialization arguments.
+assignment of the parameters that are baked into its code: the integers used as *Bits* widths and
+the function parameters. Two package instances that agree on those share one variant. Boolean and
+value-integer parameters do not distinguish variants (they are initialization arguments), and
+neither does *how an instance is wired* — a package's variant is a fact about the package, never
+about the composition it appears in.
+
+**Import interface** — the module type a package declares for the oracles it expects, named by the
+package's *own* import names. It lives with the package, so a package never refers to the interface
+of whatever happens to serve it.
+
+**Import adapter** — a module belonging to one composition that satisfies one package instance's
+import interface by forwarding each expected oracle to the instance that provides it. It exists
+because a package may import from several instances at once, and because a composition may rename
+an oracle on the way in. It holds no state and is generated only when a single instance cannot
+serve the interface as it stands.
 
 **Instance clone** — an EasyCrypt theory clone of a package variant, one per package instance, so
 that each instance has its own memory. Instances of the same variant differ only by their clone.
