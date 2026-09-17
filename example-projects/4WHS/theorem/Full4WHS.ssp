@@ -273,108 +273,38 @@ theorem Full4WHS {
                 ./theorem/full/randomness-KX-H1_0.smt2
             ]
             Send1: {
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
              Send2: {
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
              Send3: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Send4: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Send5: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             NewSession: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Reveal: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             SameKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             AtLeast: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             AtMost: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
         }
         reduction H1_0 H1_1
@@ -394,111 +324,39 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
              Send3: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Send4: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Send5: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             NewSession: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             Reveal: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             SameKey: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             AtLeast: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
             AtMost: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [equal-aborts]
-                    same-output:  [equal-aborts]
-                }
             }
         }
         reduction H2_0 H2_1
@@ -518,21 +376,9 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send3: {
                 randomness: none
@@ -586,75 +432,27 @@ theorem Full4WHS {
             }
             Send5: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewSession: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Reveal: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SameKey: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtLeast: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtMost: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:           []
-                    invariant:              [no-abort]
-                    same-output:            [no-abort]
-                }
             }
         }
 
@@ -676,111 +474,39 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send3: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send4: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send5: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewSession: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Reveal: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SameKey: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtLeast: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtMost: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
         }
 
@@ -789,111 +515,39 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send3: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send4: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send5: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewSession: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Reveal: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SameKey: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtLeast: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtMost: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
         }
 
@@ -905,109 +559,38 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
              Send3: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send4: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send5: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewKey: {
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewSession: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Reveal: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SameKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtLeast: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtMost: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
         }
 
@@ -1032,110 +615,38 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                }
             }
              Send3: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send4: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send5: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewSession: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Test: {
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Reveal: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SameKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtLeast: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    aux:          [no-abort]
-                    invariant:    [no-abort,aux]
-                    same-output:  [no-abort]
-                }
             }
             AtMost: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
         }
 
@@ -1147,44 +658,16 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                }
             }
              Send2: {
-                lemmas {
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                    equal-aborts: []
-                }
             }
              Send3: {
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send4: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Send5: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             NewKey: {
                 randomness: simple
@@ -1198,60 +681,23 @@ theorem Full4WHS {
             }
             NewSession: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             Reveal: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SameKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtLeast: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             AtMost: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
         }
-
         reduction H7_1 H7_0
         {
             assumption mac
