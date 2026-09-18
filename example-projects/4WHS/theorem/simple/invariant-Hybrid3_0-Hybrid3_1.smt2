@@ -1,3 +1,26 @@
+(define-state-relation prf
+    (left right)
+   (and 
+      (forall ((kid Int))
+            (and
+             (= (or (> kid right.Prf.kid_) (<= kid 0))
+                (is-mk-none (select right.Prf.H kid))
+                (is-mk-none (select right.Prf.LTK kid)))
+             ))
+      (>= right.Prf.kid_ 0)))
+
+(define-state-relation ctr
+    (left right)
+   (forall ((ctr Int))
+          (let ((state (select right.KX.State ctr)))
+            (=> (not (is-mk-none state))
+                (let  ((kid  (el10-4  (maybe-get state))))
+                  (and (not (is-mk-none (select right.KX.Fresh ctr)))
+                       (not (is-mk-none (select right.Prf.H kid)))
+                       (= (select right.KX.Fresh ctr) (select right.Prf.H kid))))))))
+
+
+
 (define-fun =prf
     ((left-prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (right-prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
@@ -241,6 +264,9 @@
    (= left.KX.Fresh right.KX.Fresh)
    (= left.KX.RevTested right.KX.RevTested)
    (= left.KX.State right.KX.State)
+
+   (prf left right)
+   (ctr left right)
 
    (no-overwriting-state left.KX.ctr_ left.KX.State)
 

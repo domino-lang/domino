@@ -1,3 +1,14 @@
+(define-state-relation prf
+    (left right)
+   (and 
+      (forall ((kid Int))
+            (and
+             (= (or (> kid right.PRF.kid_) (<= kid 0))
+                (is-mk-none (select right.PRF.H kid))
+                (is-mk-none (select right.PRF.LTK kid)))
+             ))
+      (>= right.PRF.kid_ 0)))
+
 (define-fun =prf
     ((left-prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
      (right-prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
@@ -289,6 +300,8 @@
   (and (relation-trivial-equalities left right)
        (=prf left.PRF.PRF right.PRF.PRF left.PRF.H)
 
+       (prf left right)
+       
        (no-overwriting-state left.KX.ctr_ left.KX.State)
 
        (kmac-requires-nonces left.KX.State)

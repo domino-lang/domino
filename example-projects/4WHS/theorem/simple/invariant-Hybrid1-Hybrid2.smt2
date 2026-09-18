@@ -1,3 +1,14 @@
+(define-state-relation prf
+    (left right)
+   (and 
+      (forall ((kid Int))
+            (and
+             (= (or (> kid right.Prf.kid_) (<= kid 0))
+                (is-mk-none (select right.Prf.H kid))
+                (is-mk-none (select right.Prf.LTK kid)))
+             ))
+      (>= right.Prf.kid_ 0)))
+
 (define-state-relation state=
     (left right)
   (and
@@ -31,4 +42,5 @@
    (= left.KX.H right.Prf.H)
    (= left.KX.Fresh right.KX.Fresh)
    (= left.KX.RevTested right.KX.RevTested)
+   (prf left right)
    (state= left right)))

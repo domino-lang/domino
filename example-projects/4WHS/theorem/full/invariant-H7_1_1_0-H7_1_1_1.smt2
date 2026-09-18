@@ -1,3 +1,14 @@
+(define-state-relation prf
+    (left right)
+   (and 
+      (forall ((kid Int))
+            (and
+             (= (or (> kid right.PRF.kid_) (<= kid 0))
+                (is-mk-none (select right.PRF.H kid))
+                (is-mk-none (select right.PRF.LTK kid)))
+             ))
+      (>= right.PRF.kid_ 0)))
+
 (define-fun no-ideal-values-for-dishonest-keys
     ((H (Array Int (Maybe Bool)))
      (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
@@ -852,6 +863,7 @@
     (state-H710 state-H711)
   (and
    (>= state-H710.KX.ctr_ 0)
+   (prf state-H710 state-H711)
    (relation-trivial-equalities  state-H710 state-H711) ;own lemma
    (relation-mac-implies-message state-H710 state-H711) ;own lemma
    (relation-no-overwriting      state-H710 state-H711) ;own lemma
