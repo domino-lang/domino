@@ -1,4 +1,3 @@
-prover debug verbose selected  ["Z3@4.13.4"].
 require import AllCore Distr.
 
 (** A more mature proof would rely on libraries of definitions-generic
@@ -15,6 +14,15 @@ type pkey, skey, pt, key, kct, dct.
 (* ... and the uniform distribution over the DEM key space *)
 op [lossless full uniform] dkey : key distr.
 
+(* We also want to make the proof extremely general, so we add a
+   generic "interfere" algorithm, that lets the adversary poke at some
+   non-descript part of the KEM's internals. This can be used to model
+   a random oracle or a CRS, for example.
+
+   We will have i_in_t and i_out_t as types for that interfere
+   algorithm and oracle. *)
+type i_in_t, i_out_t.
+
 (** A KEM is a triple of (potentially probabilistic and stateful)
     algorithms:
 **)
@@ -22,10 +30,14 @@ module type KEM = {
   proc keygen(): pkey * skey
   proc enc(pk : pkey): key * kct
   proc dec(sk : skey, k : kct): key option
+
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 module type KEM_CCA_Oracles = {
   proc dec(k : kct): key option
+
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 (** A CCA adversary against the KEM is an algorithm: **)
@@ -52,6 +64,8 @@ module KEM_CCA_Exp (E : KEM) (A : KEM_CCA_Adv) = {
       }
       return r;
     }
+
+    proc interfere = E.interfere
   }
         
   proc run(b : bool) = {
@@ -100,6 +114,8 @@ module KEM_Correctness_b (E : KEM) (A : KEM_CCA_Adv) = {
       }
       return r;
     }
+
+    proc interfere = E.interfere
   }
 
   proc run(b) = {
@@ -176,10 +192,14 @@ module type PKE = {
   proc keygen(): pkey * skey
   proc enc(pk : pkey, m : pt): kct * dct
   proc dec(sk : skey, c : kct * dct): pt option
+
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 module type PKE_CCA_Oracles = {
   proc dec(c : kct * dct): pt option
+
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 (** A CCA adversary against a PKE is a pair of algorithms: **)
@@ -206,6 +226,13 @@ module PKE_CCA_Exp (E : PKE) (A : PKE_CCA_Adv) = {
       }
       return r;
     }
+
+    proc interfere(x) = {
+      var y;
+
+      y <@ E.interfere(x);
+      return y;
+    }
   }
 
   proc run(b : bool) = {
@@ -225,9 +252,10 @@ module PKE_CCA_Exp (E : PKE) (A : PKE_CCA_Adv) = {
       structured ciphertexts, we could have obtained very similar
       definitions by _instantiating_ a library definition.
 
-      However, note that the humongous variety of ways in which CCA
+      However, note that the humongous variety of ways in which CPA
       security for PKEs can be expressed makes developing such a
-      library a tricky proposition.
+      library a tricky proposition. For example, that wouldn't give us
+      the interfere oracle.
    *)
 require PKE.
 clone PKE as KEM_Based_PKE with
@@ -263,6 +291,13 @@ module KEMDEM (E_kem : KEM) (E_s : DEM): PKE = {
     }
     return r;
   }
+
+  proc interfere(x) = {
+    var y;
+
+    y <@ E_kem.interfere(x);
+    return y;
+  }
 }.
 
 module B_cor_b (E_s : DEM) (A : PKE_CCA_Adv) (O : KEM_CCA_Oracles) = {
@@ -283,6 +318,8 @@ module B_cor_b (E_s : DEM) (A : PKE_CCA_Adv) (O : KEM_CCA_Oracles) = {
       }
       return r;
     }
+
+    proc interfere = O.interfere
   }
 
   proc distinguish(pk, k, c) = {
@@ -340,6 +377,13 @@ module B_kem_b (E_s : DEM) (A : PKE_CCA_Adv) (O : KEM_CCA_Oracles) = {
         }
       }
       return r;
+    }
+
+    proc interfere(x) = {
+      var y;
+
+      y <@ O.interfere(x);
+      return y;
     }
   }
 
@@ -401,6 +445,8 @@ module (B_s (E_kem : KEM) (E_s : DEM) (A : PKE_CCA_Adv) : DEM_CCA_Adv) (O : DEM_
       }
       return r;
     }
+
+    proc interfere = E_kem.interfere
   }
 
   proc choose() = {
@@ -427,7 +473,7 @@ section.
 declare module E_kem <: KEM { -KEM_Correctness_b, -KEM_CCA_Exp, -DEM_CCA_Exp, -PKE_CCA_Exp, -B_cor_b, -B_kem_b, -B_s }.
 (* For every DEM E_s *)
 declare module E_s   <: DEM { -KEM_Correctness_b, -KEM_CCA_Exp, -DEM_CCA_Exp, -PKE_CCA_Exp, -B_cor_b, -B_kem_b, -B_s, -E_kem }.
-(* and for every CCA adversary against the PKE KEMDEM(E_kem, E_s) *)
+(* and for every CPA adversary against the PKE KEMDEM(E_kem, E_s) *)
 declare module A     <: PKE_CCA_Adv { -KEM_Correctness_b, -KEM_CCA_Exp, -DEM_CCA_Exp, -PKE_CCA_Exp, -B_cor_b, -B_kem_b, -B_s, -E_kem, -E_s }.
 (* we have
         Adv^{CCA}_{KEMDEM(E_kem, E_s)}(A)
@@ -457,10 +503,46 @@ module KEMC (E : KEM) = {
     kc' <@ E.enc(pk);
     return (k', kc');
   }
+
+  proc interfere_12(x1, x2) = {
+    var y1, y2;
+
+    y1 <@ E.interfere(x1);
+    y2 <@ E.interfere(x2);
+    return (y1, y2);
+  }
+
+  proc interfere_21(x1, x2) = {
+    var y1, y2;
+
+    y2 <@ E.interfere(x2);
+    y1 <@ E.interfere(x1);
+    return (y1, y2);
+  }
+
+  proc interfere_enc(x, pk) = {
+    var y, kc;
+
+    y <@ E.interfere(x);
+    kc <@ E.enc(pk);
+    return (y, kc);
+  }
+
+  proc enc_interfere(x, pk) = {
+    var y, kc;
+
+    kc <@ E.enc(pk);
+    y <@ E.interfere(x);
+    return (y, kc);
+  }
 }.
 
 declare axiom kemC:
   equiv [KEMC(E_kem).enc_dec ~ KEMC(E_kem).dec_enc: ={glob E_kem, arg} ==> ={glob E_kem, res}].
+declare axiom interfereC:
+  equiv [KEMC(E_kem).interfere_12 ~ KEMC(E_kem).interfere_21: ={glob E_kem, arg} ==> ={glob E_kem, res}].
+declare axiom interfere_encC:
+  equiv [KEMC(E_kem).interfere_enc ~ KEMC(E_kem).enc_interfere: ={glob E_kem, arg} ==> ={glob E_kem, res}].
 
 (** First, we start by doing the challenge encapsulation, before
     letting the adversary run. For this exercise, we want to stay as
@@ -482,6 +564,13 @@ local module Game0 = {
         r <@ KEMDEM(E_kem, E_s).dec(sk, c);
       }
       return r;
+    }
+
+    proc interfere(x) = {
+      var y;
+      
+      y <@ E_kem.interfere(x);
+      return y;
     }
   }
 
@@ -535,6 +624,14 @@ eager proc (={glob PKE_CCA_Exp, glob E_kem, glob E_s, WAT.pk, WAT.kc})=> |>.
   by sim.
 + by sim.
 + by sim.
++ eager proc; inline WAT.challenge KEMDEM(E_kem, E_s).interfere.
+  cfold {2} 1; cfold {2} 2; cfold {2} 2.
+  cfold {1} 2; cfold {2} 3; wp.
+  outline {1} [1..2] by { (y0, WAT.kc) <@ KEMC(E_kem).enc_interfere(x, WAT.pk); }.
+  rewrite equiv [{1} 1 - interfere_encC].
+  by inline *; cfold {1} 1; cfold {1} 1; wp; sim.
++ by sim.
++ by sim.
 qed.
 
 (* And now in context *)
@@ -547,6 +644,7 @@ proc; inline {1} ^c<@.
 wp; call (: ={glob E_s, glob E_kem}
          /\ ={c0, sk}(PKE_CCA_Exp, Game0)).
 + by sim.
++ by proc; inline {1} 1; sim.
 wp; call (: true).
 swap {1} ^m<- 1. swap {1} ^pk0<- -1.
 seq 3 2: (#pre
@@ -569,7 +667,11 @@ transitivity {1} {
   (   ={glob A, glob E_kem, glob E_s, glob PKE_CCA_Exp, pk}
    /\ pk{2} = pk0{2}
    ==> ={glob A, glob E_kem, glob E_s, k, kc, m0, m1})=> [/#|//||].
-+ by inline *; swap {2} -1 -1; sim; wp; call (: true); auto.
++ inline *. swap {2} -1 -1.
+  call (: ={glob E_kem, glob E_s} /\ ={c0, sk}(Game0, PKE_CCA_Exp)).
+  + by sim.
+  + by proc; inline {2} 1; sim.
+  by wp; call (: true); auto=> |>.
 transitivity {1} {
   WAT.pk <- pk;
   WAT.kc <- witness;
@@ -623,6 +725,8 @@ local module Game1 = {
       }
       return r;
     }
+
+    proc interfere = E_kem.interfere
   }
 
   proc run(b : bool) = {
@@ -670,12 +774,14 @@ wp; call (: ={glob E_s, glob E_kem}
          /\ ={c0}(Game0, B_cor_b)
          /\ !KEM_Correctness_b.b0{2}).
 + by conseq game0_cor0_dec=> />.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 wp; call (: true).
 call (: ={glob E_s, glob E_kem}
      /\ ={sk}(Game0, KEM_Correctness_b)
      /\ ={c0}(Game0, B_cor_b)
      /\ !KEM_Correctness_b.b0{2}).
-+ conseq game0_cor0_dec=> />.
++ by conseq game0_cor0_dec=> />.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 by wp; call (: true); call (: true); auto=> />.
 qed.
 
@@ -711,12 +817,14 @@ wp; call (: ={glob E_s, glob E_kem}
          /\ ={c0}(Game1, B_cor_b)
          /\ KEM_Correctness_b.b0{2})=> //.
 + by conseq game1_cor1_dec.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 wp; call (: true).
 call (: ={glob E_s, glob E_kem}
      /\ ={sk, k0}(Game1, KEM_Correctness_b) /\ Game1.kc0{1} = KEM_Correctness_b.c0{2}
      /\ ={c0}(Game1, B_cor_b)
      /\ KEM_Correctness_b.b0{2})=> //.
 + by conseq game1_cor1_dec.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 by auto; call (: true); call (: true); auto=> />.
 qed.
 
@@ -734,8 +842,8 @@ do !congr.
     (={glob E_kem, glob E_s, glob A} /\ !b{1} /\ !b{2} /\ !B_cor_b.b_lor{1} ==> ={res})=> [/#|//||].
   + by conseq game0_cor0=> />.
   proc; inline {2} ^r<@.
-  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 2.
-  by sim />=> /#.
+  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 1.
+  by sim />; auto=> /#.
 + byequiv (: ={glob E_kem, glob E_s, glob A} /\ !b{1} /\ b{2} ==> ={res})=> //.
   transitivity
     KEM_Correctness_b(E_kem, B_cor_b(E_s, A)).run
@@ -743,8 +851,8 @@ do !congr.
     (={glob E_kem, glob E_s, glob A} /\ b{1} /\ b{2} /\ !B_cor_b.b_lor{1} ==> ={res})=> [/#|//||].
   + by conseq game1_cor1=> />.
   proc; inline {2} ^r<@.
-  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 2.
-  by sim />=> /#.
+  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 1.
+  by sim />; auto=> /#.
 qed.
 
 local lemma game0_game1_cor1 &m:
@@ -761,8 +869,8 @@ do !congr.
     (={glob E_kem, glob E_s, glob A} /\ !b{1} /\ !b{2} /\ B_cor_b.b_lor{1} ==> ={res})=> [/#|//||].
   + by conseq game0_cor0=> />.
   proc; inline {2} ^r<@.
-  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 2.
-  by sim />=> /#.
+  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 1.
+  by sim />; auto=> /#.
 + byequiv (: ={glob E_kem, glob E_s, glob A} /\ b{1} /\ b{2} ==> ={res})=> //.
   transitivity
     KEM_Correctness_b(E_kem, B_cor_b(E_s, A)).run
@@ -770,8 +878,8 @@ do !congr.
     (={glob E_kem, glob E_s, glob A} /\ b{1} /\ b{2} /\ B_cor_b.b_lor{1} ==> ={res})=> [/#|//||].
   + by conseq game1_cor1=> />.
   proc; inline {2} ^r<@.
-  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 2.
-  by sim />=> /#.
+  swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 1.
+  by sim />; auto=> /#.
 qed.
 
 (** In Game 2, we use a random key in the challenge DEM encryption.
@@ -801,6 +909,8 @@ local module Game2 = {
       }
       return r;
     }
+
+    proc interfere = E_kem.interfere
   }
 
   proc run(b : bool) = {
@@ -847,12 +957,14 @@ proc; inline {2} ^r<@.
 wp; call (: ={glob E_s, glob E_kem}
          /\ ={sk}(Game1, KEM_CCA_Exp) /\ Game1.kc0{1} = KEM_CCA_Exp.c{2}
          /\ ={c0, k0, kc0}(Game1, B_kem_b)).
-+ by conseq game1_kem0_dec.    
++ by conseq game1_kem0_dec.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 auto; call (: true).
 wp; call (: ={glob E_s, glob E_kem}
          /\ ={sk}(Game1, KEM_CCA_Exp) /\ Game1.kc0{1} = KEM_CCA_Exp.c{2}
          /\ ={c0, k0, kc0}(Game1, B_kem_b)).
 + by conseq game1_kem0_dec.    
++ by proc *; inline *; wp; call (: true); auto=> |>.
 by auto; call (: true); call (: true); auto=> />.
 qed.
 
@@ -886,11 +998,13 @@ wp; call (: ={glob E_s, glob E_kem}
          /\ ={sk}(Game2, KEM_CCA_Exp) /\ Game2.kc0{1} = KEM_CCA_Exp.c{2}
          /\ ={c0, k0, kc0}(Game2, B_kem_b)).
 + by conseq game2_kem1_dec.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 auto; call (: true).
 wp; call (: ={glob E_s, glob E_kem}
          /\ ={sk}(Game2, KEM_CCA_Exp) /\ Game2.kc0{1} = KEM_CCA_Exp.c{2}
          /\ ={c0, k0, kc0}(Game2, B_kem_b)).
 + by conseq game2_kem1_dec.
++ by proc *; inline *; wp; call (: true); auto=> |>.
 by auto; call (: true); call (: true); auto=> />.
 qed.
 
@@ -970,6 +1084,7 @@ wp; call (: ={glob E_s, glob E_kem}
     by wp; call (: true); auto.
   + seq 1 1: (#pre /\ ={k}); 1:by call (: true).
     by conseq />; sim.
++ by sim />.
 wp; call (: true); wp.
 wp; call (: ={glob E_s, glob E_kem}
          /\ ={sk, c0, kc0}(Game2, B_s)
@@ -986,6 +1101,7 @@ wp; call (: ={glob E_s, glob E_kem}
     by wp; call (: true); auto.
   seq 1 1: (#pre /\ ={k}); 1:by call (: true).
   by if; auto; call (: true).
++ by sim />.
 by swap {2} 2 3; auto; call (: true); call (: true); auto.
 qed.
 

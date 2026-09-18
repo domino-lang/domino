@@ -17,6 +17,7 @@ package CCA_KEM {
         KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
         KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
         KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        KEM_Interfere(x: Bits(*)) -> Bits(*),
     }
 
     oracle KEMGEN() -> Bits(pkeyl) {
@@ -43,5 +44,11 @@ package CCA_KEM {
         assert (c_ != Unwrap(c));
         k <- parse invoke KEM_DECAPS(Unwrap(sk), c_);
         return k;
+    }
+
+
+    oracle Interfere(x: Bits(*)) -> Bits(*) {
+        y <- invoke KEM_Interfere(x);
+        return y;
     }
 }

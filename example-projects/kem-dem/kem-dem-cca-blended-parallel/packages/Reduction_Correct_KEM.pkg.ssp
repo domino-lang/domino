@@ -12,6 +12,7 @@ package Reduction_Correct_KEM {
         CORR_GEN() -> Bits(pkeyl),
         CORR_ENCAPS() -> (Bits(kctl), Bits(dkeyl)),
         CORR_DECAPS(c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        CORR_Interfere(x: Bits(*)) -> Bits(*),
         DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
         DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
     }
@@ -51,6 +52,12 @@ package Reduction_Correct_KEM {
         }
         m <- invoke DEM_DEC(Unwrap(k), c_dem);
         return Some(m);
+    }
+
+
+    oracle Interfere(x: Bits(*)) -> Bits(*) {
+        y <- invoke CORR_Interfere(x);
+        return y;
     }
 
 }

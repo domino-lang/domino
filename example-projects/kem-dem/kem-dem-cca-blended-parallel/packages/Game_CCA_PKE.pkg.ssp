@@ -13,6 +13,7 @@ package CCA_PKE {
         GEN() -> (Bits(pkeyl), Bits(skeyl)),
         ENC(pk: Bits(pkeyl), m: Bits(ptl)) -> (Bits(kctl),Bits(dctl)),
         DEC(sk: Bits(skeyl), c: (Bits(kctl), Bits(dctl))) -> Maybe(Bits(ptl)),
+        Interfere(x: Bits(*)) -> Bits(*),
     }
 
     state {
@@ -46,5 +47,11 @@ package CCA_PKE {
         assert (c_ != Unwrap(c));
         m <- invoke DEC(Unwrap(sk), c_);
         return m;
+    }
+
+
+    oracle Interfere(x: Bits(*)) -> Bits(*) {
+        y <- invoke Interfere(x);
+        return y;
     }
 }

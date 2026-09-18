@@ -12,6 +12,7 @@ composition Composition_Perfect_KEM {
     const kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl));
     const kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl));
     const kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl)));
+    const kem_interfere: fn Bits(*), Bits(*) -> (Bits(*), Bits(*));
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
@@ -20,6 +21,7 @@ composition Composition_Perfect_KEM {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
+            kem_interfere: kem_interfere,
             pkeyl: pkeyl,
             skeyl: skeyl,
             dkeyl: dkeyl,
@@ -56,6 +58,7 @@ composition Composition_Perfect_KEM {
             KEM_GEN: Scheme_KEM,
             KEM_ENCAPS: Scheme_KEM,
             KEM_DECAPS: Scheme_KEM,
+            KEM_Interfere: Scheme_KEM,
             DEM_ENC: Scheme_DEM,
             DEM_DEC: Scheme_DEM,
         }
@@ -63,6 +66,7 @@ composition Composition_Perfect_KEM {
             PKGEN: Perfect_KEM,
             PKENC: Perfect_KEM,
             PKDEC: Perfect_KEM,
+            Interfere: Perfect_KEM,
         }
     }
 }

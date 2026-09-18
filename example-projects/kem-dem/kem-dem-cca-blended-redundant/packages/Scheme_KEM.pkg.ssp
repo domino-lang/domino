@@ -12,6 +12,7 @@ package Scheme_KEM {
         kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl)),
         kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl)),
         kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl))),
+        kem_interfere: fn Bits(*), Bits(*) -> (Bits(*), Bits(*)),
     }
 
     state {
@@ -33,5 +34,10 @@ package Scheme_KEM {
     oracle KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)) {
         (st, k) <- parse kem_decaps(st, sk, c);
         return k;
+    }
+
+    oracle KEM_Interfere(x: Bits(*)) -> Bits(*) {
+        (st, y) <- kem_interfere(st, x);
+        return y;
     }
 }

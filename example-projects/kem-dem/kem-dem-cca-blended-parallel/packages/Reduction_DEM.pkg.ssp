@@ -12,6 +12,7 @@ package Reduction_DEM {
         KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
         KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
         KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        KEM_Interfere(x: Bits(*)) -> Bits(*),
         DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
         ENC(m0: Bits(ptl), m1: Bits(ptl)) -> Bits(dctl),
         DEC(c_: Bits(dctl)) -> Bits(ptl),
@@ -56,5 +57,11 @@ package Reduction_DEM {
             m <- invoke DEC(c_dem);
             return Some(m);
         }
+    }
+
+
+    oracle Interfere(x: Bits(*)) -> Bits(*) {
+        y <- invoke KEM_Interfere(x);
+        return y;
     }
 }

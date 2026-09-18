@@ -12,6 +12,7 @@ composition Hybrid2 {
     const kem_gen: fn Bits(*), Bits(kgenr) -> (Bits(*), Bits(pkeyl), Bits(skeyl));
     const kem_encaps: fn Bits(*), Bits(kencr), Bits(pkeyl) -> (Bits(*), Bits(dkeyl), Bits(kctl));
     const kem_decaps: fn Bits(*), Bits(skeyl), Bits(kctl) -> (Bits(*), Maybe(Bits(dkeyl)));
+    const kem_interfere: fn Bits(*), Bits(*) -> (Bits(*), Bits(*));
     const dem_enc: fn Bits(dkeyl), Bits(ptl) -> Bits(dctl);
     const dem_dec: fn Bits(dkeyl), Bits(dctl) -> Bits(ptl);
 
@@ -20,6 +21,7 @@ composition Hybrid2 {
             kem_gen: kem_gen,
             kem_encaps: kem_encaps,
             kem_decaps: kem_decaps,
+            kem_interfere: kem_interfere,
             pkeyl: pkeyl,
             skeyl: skeyl,
             dkeyl: dkeyl,
@@ -68,6 +70,7 @@ composition Hybrid2 {
             KEM_GEN: Scheme_KEM,
             KEM_ENCAPS: Scheme_KEM,
             KEM_DECAPS: Scheme_KEM,
+            KEM_Interfere: Scheme_KEM,
             DEM_DEC: Scheme_DEM,
             ENC: CCA_DEM,
             DEC: CCA_DEM,
@@ -76,6 +79,7 @@ composition Hybrid2 {
             PKGEN: Reduction_DEM,
             PKENC: Reduction_DEM,
             PKDEC: Reduction_DEM,
+            Interfere: Reduction_DEM,
         }
     }
 }

@@ -11,6 +11,7 @@ package Correct_KEM {
         KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
         KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
         KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        KEM_Interfere(x: Bits(*)) -> Bits(*),
     }
 
     state {
@@ -45,5 +46,11 @@ package Correct_KEM {
             k_ <- invoke KEM_DECAPS(Unwrap(sk), c_);
             return k_;
         }
+    }
+
+
+    oracle CORR_Interfere(x: Bits(*)) -> Bits(*) {
+        y <- invoke KEM_Interfere(x);
+        return y;
     }
 }

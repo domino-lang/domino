@@ -13,6 +13,7 @@ package Perfect_KEM {
         KEM_GEN() -> (Bits(pkeyl), Bits(skeyl)),
         KEM_ENCAPS(pk: Bits(pkeyl)) -> (Bits(dkeyl), Bits(kctl)),
         KEM_DECAPS(sk: Bits(skeyl), c: Bits(kctl)) -> Maybe(Bits(dkeyl)),
+        KEM_Interfere(x: Bits(*)) -> Bits(*),
         DEM_ENC(k: Bits(dkeyl), m: Bits(ptl)) -> Bits(dctl),
         DEM_DEC(k: Bits(dkeyl), c: Bits(dctl)) -> Bits(ptl),
     }
@@ -61,6 +62,12 @@ package Perfect_KEM {
         }
         m <- invoke DEM_DEC(Unwrap(k_), c_dem);
         return Some(m);
+    }
+
+
+    oracle Interfere(x: Bits(*)) -> Bits(*) {
+        y <- invoke KEM_Interfere(x);
+        return y;
     }
 
 }
