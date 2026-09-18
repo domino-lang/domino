@@ -56,12 +56,12 @@ theorem LayerSecurity {
     }
 
     assumptions {
-        Indcpa: Twocpa0 ~ Twocpa1
+        Twocpa: Twocpa0 ~ Twocpa1
     }
 
     gamehops {
         reduction LayerReal LayerHybrid {
-            assumption Indcpa
+            assumption Twocpa
 
             map Twocpa0 LayerReal {
                 keys_top: keys_top

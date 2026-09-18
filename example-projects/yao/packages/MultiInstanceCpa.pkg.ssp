@@ -1,0 +1,45 @@
+package MultiInstanceCpa {
+    params {
+        b: Bool,
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+    }
+
+    state {
+        Key: Table(Integer, Bits(n)),
+    }
+
+    oracle SAMPLEKEY(h: Integer) {
+        assert (Key[h] == None as Bits(n));
+        key <-$ Bits(n) sample-name key;
+        Key[h] <- Some(key);
+        return;
+    }
+
+    oracle ENCN(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m) {
+        assert (Key[h] != None as Bits(n));
+        key <- Unwrap(Key[h]);
+        r <-$ Bits(n) sample-name r;
+        if b {
+            c <- encn(key, right, r);
+        } else {
+            c <- encn(key, left, r);
+        }
+        return c;
+    }
+
+    oracle ENCM(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p) {
+        assert (Key[h] != None as Bits(n));
+        key <- Unwrap(Key[h]);
+        r <-$ Bits(n) sample-name r;
+        if b {
+            c <- encm(key, right, r);
+        } else {
+            c <- encm(key, left, r);
+        }
+        return c;
+    }
+}

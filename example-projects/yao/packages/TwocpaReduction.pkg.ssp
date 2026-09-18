@@ -1,0 +1,65 @@
+package TwocpaReduction {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+    }
+
+    import oracles {
+        SAMPLEKEY(h: Integer),
+        LR_ENCN(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m),
+        LR_ENCM(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p),
+    }
+
+    state {
+        ActiveBit: Table(Integer, Bool),
+        ActiveKey: Table(Integer, Bits(n)),
+        Generated: Table(Integer, Bool),
+    }
+
+    oracle SETBIT(h: Integer, active: Bool) {
+        assert (ActiveBit[h] == None as Bool);
+        ActiveBit[h] <- Some(active);
+        return;
+    }
+
+    oracle GETAOUT(h: Integer) -> Bits(n) {
+        assert (ActiveBit[h] != None as Bool);
+        if (Generated[h] != Some(true)) {
+            invoke SAMPLEKEY(h);
+            active_key <-$ Bits(n) sample-name active_key;
+            ActiveKey[h] <- Some(active_key);
+            Generated[h] <- Some(true);
+        }
+        key <- Unwrap(ActiveKey[h]);
+        return key;
+    }
+
+    oracle ENCN(h: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+        assert (Generated[h] == Some(true));
+        active <- Unwrap(ActiveBit[h]);
+        if (d == active) {
+            key <- Unwrap(ActiveKey[h]);
+            r <-$ Bits(n) sample-name r;
+            c <- encn(key, nzero, r);
+        } else {
+            c <- invoke LR_ENCN(h, nzero, none);
+        }
+        return c;
+    }
+
+    oracle ENCM(h: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+        assert (Generated[h] == Some(true));
+        active <- Unwrap(ActiveBit[h]);
+        if (d == active) {
+            key <- Unwrap(ActiveKey[h]);
+            r <-$ Bits(n) sample-name r;
+            c <- encm(key, mzero, r);
+        } else {
+            c <- invoke LR_ENCM(h, mzero, mone);
+        }
+        return c;
+    }
+}

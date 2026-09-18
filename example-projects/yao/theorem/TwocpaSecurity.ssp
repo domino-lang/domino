@@ -1,0 +1,167 @@
+theorem TwocpaSecurity {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Twocpa0 = Twocpa0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance TwocpaViaCpa0 = TwocpaViaCpa0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance TwocpaViaCpa1 = TwocpaViaCpa1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance Twocpa1 = Twocpa1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance MultiInstanceCpa0 = MultiInstanceCpa0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance MultiInstanceCpa1 = MultiInstanceCpa1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    assumptions {
+        MultiInstanceCpa: MultiInstanceCpa0 ~ MultiInstanceCpa1
+    }
+
+    gamehops {
+        equivalence Twocpa0 TwocpaViaCpa0 {
+            invariant: [
+                ./theorem/TwocpaSecurity/invariant-left.smt2,
+                ./theorem/TwocpaSecurity/randomness-left.smt2
+            ]
+            GETAOUT: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            SETBIT: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCN: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCM: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+
+        reduction TwocpaViaCpa0 TwocpaViaCpa1 {
+            assumption MultiInstanceCpa
+
+            map MultiInstanceCpa0 TwocpaViaCpa0 {
+                cpa: cpa
+            }
+
+            map MultiInstanceCpa1 TwocpaViaCpa1 {
+                cpa: cpa
+            }
+        }
+
+        equivalence TwocpaViaCpa1 Twocpa1 {
+            invariant: [
+                ./theorem/TwocpaSecurity/invariant-right.smt2,
+                ./theorem/TwocpaSecurity/randomness-right.smt2
+            ]
+            GETAOUT: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            SETBIT: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCN: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCM: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+    }
+
+    propositions {
+        Twocpa: Twocpa0 ~ Twocpa1
+    }
+}
