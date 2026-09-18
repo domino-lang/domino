@@ -37,7 +37,7 @@ composition YaoIdeal {
         }
     }
 
-    instance MODGB = LayeredMODGB {
+    instance ModGb = LayeredModGb {
         params {
             p: p,
             w: w,
@@ -60,10 +60,10 @@ composition YaoIdeal {
         Mod: {
             GETAOUT: LayerMap,
             SETBIT: LayerMap,
-            GBL: MODGB,
+            GBL: ModGb,
             GETKEYSIN: LayerMap,
         }
-        MODGB: {
+        ModGb: {
             GBLG: LayerMap,
         }
         LayerMap: {

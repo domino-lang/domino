@@ -1,4 +1,4 @@
-package LayeredMODGB {
+package LayeredModGb {
     params {
         w: Integer,
         p: Integer,
