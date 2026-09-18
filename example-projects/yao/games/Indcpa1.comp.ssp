@@ -1,4 +1,4 @@
-composition Indcpa1 {
+composition Twocpa1 {
     const n: Integer;
     const m: Integer;
     const p: Integer;

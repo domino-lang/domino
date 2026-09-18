@@ -105,13 +105,13 @@
     (=>
         (= i 2)
         (and
-            (= (select old-state-left.Keys.flag (mk-tuple2 2 l)) (select old-state-right.KeysBot.flag l))
-            (= (select old-state-left.Keys.z (mk-tuple2 2 l)) (select old-state-right.KeysBot.z l))
-            (= (select old-state-left.Keys.T (mk-tuple2 2 l)) (select old-state-right.KeysBot.T l))
+            (= (select old-state-left.Keys.flag (mk-tuple2 2 l)) (select old-state-right.KeysBot.ActiveBitSetAndGenerated l))
+            (= (select old-state-left.Keys.z (mk-tuple2 2 l)) (select old-state-right.KeysBot.ActiveBit l))
+            (= (select old-state-left.Keys.T (mk-tuple2 2 l)) (select old-state-right.KeysBot.WireKey l))
 
-            (= (select old-state-left.Keys.flag (mk-tuple2 2 r)) (select old-state-right.KeysBot.flag r))
-            (= (select old-state-left.Keys.z (mk-tuple2 2 r)) (select old-state-right.KeysBot.z r))
-            (= (select old-state-left.Keys.T (mk-tuple2 2 r)) (select old-state-right.KeysBot.T r))
+            (= (select old-state-left.Keys.flag (mk-tuple2 2 r)) (select old-state-right.KeysBot.ActiveBitSetAndGenerated r))
+            (= (select old-state-left.Keys.z (mk-tuple2 2 r)) (select old-state-right.KeysBot.ActiveBit r))
+            (= (select old-state-left.Keys.T (mk-tuple2 2 r)) (select old-state-right.KeysBot.WireKey r))
 
             (= (select old-state-left.Keys.flag (mk-tuple2 3 j)) (select old-state-right.RealLayersKeys.flag (mk-tuple2 3 j)))
             (= (select old-state-left.Keys.z (mk-tuple2 3 j)) (select old-state-right.RealLayersKeys.z (mk-tuple2 3 j)))

@@ -4,75 +4,74 @@ package Keys {
     }
 
     state {
-        T: Table(Integer, Table(Bool, Bits(n))),
-        z: Table(Integer, Bool),
-        flag: Table(Integer, Bool),
+        WireKey: Table(Integer, Table(Bool, Bits(n))),
+        ActiveBit: Table(Integer, Bool),
+        ActiveBitSetAndGenerated: Table(Integer, Bool),
     }
 
 
     oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
-        assert (flag[h] == Some(true));
-        Z <- Unwrap(T[h]);
-        return Z;
+        assert (ActiveBitSetAndGenerated[h] == Some(true));
+        W <- Unwrap(WireKey[h]);
+        return W;
     }
 
     oracle GETAIN(h: Integer) -> Bits(n) {
-        assert (flag[h] == Some(true));
-        Z <- Unwrap(T[h]);
-        zz <- Unwrap(z[h]);
-        k <- Unwrap(Z[zz]);
+        assert (ActiveBitSetAndGenerated[h] == Some(true));
+        W <- Unwrap(WireKey[h]);
+        a <- Unwrap(ActiveBit[h]);
+        k <- Unwrap(W[a]);
         return k;
     }
 
     oracle GETINAIN(h: Integer) -> Bits(n) {
-        assert (flag[h] == Some(true));
-        Z <- Unwrap(T[h]);
-        zz <- Unwrap(z[h]);
-        k <- Unwrap(Z[not zz]);
+        assert (ActiveBitSetAndGenerated[h] == Some(true));
+        W <- Unwrap(WireKey[h]);
+        a <- Unwrap(ActiveBit[h]);
+        k <- Unwrap(W[not a]);
         return k;
     }
 
     oracle GETAOUT(h: Integer) -> Bits(n) {
-        assert (z[h] != None as Bool);
-        flag[h] <- Some(true);
-        Z <- new Table(Bool, Bits(n));
-        if (T[h] == None) {
+        ActiveBitSetAndGenerated[h] <- Some(true);
+        W <- new Table(Bool, Bits(n));
+        if (WireKey[h] == None) {
             r <-$ Bits(n) sample-name r;
-            Z[true] <- Some(r);
+            W[true] <- Some(r);
             rr <-$ Bits(n) sample-name rr;
-            Z[false] <- Some(rr);
-            T[h] <- Some(Z);
+            W[false] <- Some(rr);
+            WireKey[h] <- Some(W);
         }
-        Z <- Unwrap(T[h]);
-        zz <- Unwrap(z[h]);
-        k <- Unwrap(Z[zz]);
+        W <- Unwrap(WireKey[h]);
+        a <- Unwrap(ActiveBit[h]);
+        k <- Unwrap(W[a]);
         return k;
     }
 
     oracle GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)) {
-        assert (flag[h] != Some(true));
-        flag[h] <- Some(true);
-        Z <- new Table(Bool, Bits(n));
-        if (T[h] == None) {
+        assert (ActiveBitSetAndGenerated[h] != Some(true));
+        ActiveBitSetAndGenerated[h] <- Some(true);
+        W <- new Table(Bool, Bits(n));
+        if (WireKey[h] == None) {
             r <-$ Bits(n) sample-name r;
-            Z[true] <- Some(r);
+            W[true] <- Some(r);
             rr <-$ Bits(n) sample-name rr;
-            Z[false] <- Some(rr);
-            T[h] <- Some(Z);
+            W[false] <- Some(rr);
+            WireKey[h] <- Some(W);
         }
-        Z1 <- Unwrap(T[h]);
-        return Z1;
+        W <- Unwrap(WireKey[h]);
+        return W;
     }
 
     oracle GETBIT(h: Integer) -> Bool {
-        assert (z[h] != None as Bool);
-        zz <- Unwrap(z[h]);
-        return zz;
+        assert (ActiveBit[h] != None as Bool);
+        a <- Unwrap(ActiveBit[h]);
+        return a;
     }
 
-    oracle SETBIT(h: Integer, zz: Bool) {
-        assert (z[h] == None as Bool);
-        z[h] <- Some(zz);
+    oracle SETBIT(h: Integer, a: Bool) {
+        assert (ActiveBit[h] == None as Bool);
+        ActiveBit[h] <- Some(a);
         return;
     }
 }

@@ -5,7 +5,7 @@ theorem LayerSecurity {
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-    instance Indcpa0 = Indcpa0 {
+    instance Twocpa0 = Twocpa0 {
         params {
             n: n,
             m: m,
@@ -15,7 +15,7 @@ theorem LayerSecurity {
         }
     }
 
-    instance Indcpa1 = Indcpa1 {
+    instance Twocpa1 = Twocpa1 {
         params {
             n: n,
             m: m,
@@ -56,19 +56,19 @@ theorem LayerSecurity {
     }
 
     assumptions {
-        Indcpa: Indcpa0 ~ Indcpa1
+        Indcpa: Twocpa0 ~ Twocpa1
     }
 
     gamehops {
         reduction LayerReal LayerHybrid {
             assumption Indcpa
 
-            map Indcpa0 LayerReal {
+            map Twocpa0 LayerReal {
                 keys_top: keys_top
                 enc: enc
             }
 
-            map Indcpa1 LayerHybrid {
+            map Twocpa1 LayerHybrid {
                 keys_top: keys_top
                 enc: enc
             }
