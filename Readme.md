@@ -48,11 +48,11 @@ cargo run -p domino prove --proof Simple4WHS --parallel 12
 ### Yao's Garbling Scheme
 
 There are three main theorem files:
-1. HybridCircuitSecurity is the generalized hybrid argument with the three main hybrid proof steps. It proves $CoreReal$ ~ $CoreIdeal$ where $CoreReal = SEC^0_d$ and $CoreIdeal = SEC^1_d$. (`invariant-CoreReal-HybridReal.smt2` for the hybrid start, `invariant-HybridIdeal-HybridReal1.smt2` for hybrid step, and `invariant-CoreIdeal-HybridIdeal.smt2` for hybrid end)
+1. HybridSecurity is the generalized hybrid argument with the three main hybrid proof steps. It proves $CoreReal$ ~ $CoreIdeal$ where $CoreReal = SEC^0_d$ and $CoreIdeal = SEC^1_d$. (`invariant-CoreReal-HybridReal.smt2` for the hybrid start, `invariant-HybridIdeal-HybridReal1.smt2` for hybrid step, and `invariant-CoreIdeal-HybridIdeal.smt2` for hybrid end)
 2. Yao3Layer reduces the security of 3-layer circuit security to layer assumptions by three reduction game hops outlined in section 5.
 3. LayerSecurity is the layer assumption (invariants: invariant-Layer.smt2)
 4. Yao reduces Yao's circuit security to hybrid circuit security with straight line reduction. Yao circuit security games expose a single oracle GARBLE for garbling the entire circuit.
     
 Estimated proof times: 
-1. HybridCircuitSecuirty = 10 (start) + 30 (step) + 5 (end) minutes
+1. HybridSecuirty = 12 minutes when run with `--parallel 12` on a machine with enough cores
 2. LayerSecurity = 30 seconds
