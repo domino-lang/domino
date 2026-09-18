@@ -5,6 +5,9 @@ require import AllCore Distr.
    ciphertexts and DEM ciphertexts ... *)
 type pkey, skey, pt, key, kct, dct.
 
+(* Input and output types for the KEM's auxiliary interference oracle. *)
+type i_in_t, i_out_t.
+
 (* ... and the uniform distribution over the DEM key space *)
 op [lossless full uniform] dkey : key distr.
 
@@ -15,12 +18,14 @@ module type KEM = {
   proc keygen(): pkey * skey
   proc enc(pk : pkey): key * kct
   proc dec(sk : skey, k : kct): key option
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 module type KEM_CCA_Oracles = {
   proc kemgen(): pkey
   proc encaps(): (kct * key) option
-  proc decaps(c : kct): key option 
+  proc decaps(c : kct): key option
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 (** A CCA adversary against the KEM is an algorithm: **)
@@ -65,6 +70,12 @@ module KEM_CCA_Game (E: KEM) : KEM_CCA_Oracles = {
     }
     return r;
   }
+
+  proc interfere(x : i_in_t) = {
+    var y;
+    y <@ E.interfere(x);
+    return y;
+  }
 }.
 
 (** And we define the advantage of a CCA adversary A against a KEM E
@@ -89,6 +100,7 @@ module type KEM_Correctness_Oracles = {
   proc corr_gen(): pkey
   proc corr_encaps(): (kct * key) option
   proc corr_decaps(c : kct): key option
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 module type KEM_Correctness_Adv (O : KEM_Correctness_Oracles) = {
@@ -134,6 +146,12 @@ module KEM_Correctness_Game (E : KEM) : KEM_Correctness_Oracles = {
       }
     }
     return r;
+  }
+
+  proc interfere(x : i_in_t) = {
+    var y;
+    y <@ E.interfere(x);
+    return y;
   }
 }.
 
@@ -225,12 +243,14 @@ module type PKE = {
   proc keygen(): pkey * skey
   proc enc(pk : pkey, m : pt): kct * dct
   proc dec(sk : skey, c : kct * dct): pt option
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 module type PKE_CCA_Oracles = {
   proc pkgen(): pkey
   proc pkenc(m0 : pt, m1 : pt): (kct * dct) option
   proc pkdec(c : kct * dct): pt option
+  proc interfere(x : i_in_t): i_out_t
 }.
 
 (** A CCA adversary against a PKE is a pair of algorithms: **)
@@ -278,6 +298,12 @@ module PKE_CCA_Game (E : PKE) : PKE_CCA_Oracles = {
     }
     return r;
   }
+
+  proc interfere(x : i_in_t) = {
+    var y;
+    y <@ E.interfere(x);
+    return y;
+  }
 }.
 
 module PKE_CCA_Exp (E : PKE) (A : PKE_CCA_Adv) = {
@@ -315,6 +341,12 @@ print KEM_Based_PKE.Scheme.
 module KEMDEM (E_kem : KEM) (E_s : DEM): PKE = {
   proc keygen = E_kem.keygen
 
+  proc interfere(x : i_in_t) = {
+    var y;
+    y <@ E_kem.interfere(x);
+    return y;
+  }
+
   proc enc(pk : pkey, m : pt): kct * dct = {
     var k, kc, c;
 
@@ -343,6 +375,12 @@ module B_cor_b (E_s : DEM) (A : PKE_CCA_Adv) (O : KEM_Correctness_Oracles) = {
   var c : (kct * dct) option
 
   module O_PKE = {
+    proc interfere(x : i_in_t) = {
+      var y;
+      y <@ O.interfere(x);
+      return y;
+    }
+
     proc pkgen() = {
       var pk_;
 
@@ -421,6 +459,12 @@ module B_kem_b (E_s : DEM) (A : PKE_CCA_Adv) (O : KEM_CCA_Oracles) = {
   var k : key option
 
   module O_PKE = {
+    proc interfere(x : i_in_t) = {
+      var y;
+      y <@ O.interfere(x);
+      return y;
+    }
+
     proc pkgen() = {
       var pk_;
 
@@ -504,6 +548,12 @@ module (B_s (E_kem : KEM) (E_s : DEM) (A : PKE_CCA_Adv) : DEM_CCA_Adv) (O : DEM_
   var pk : pkey option
 
   module O_PKE = {
+    proc interfere(x : i_in_t) = {
+      var y;
+      y <@ E_kem.interfere(x);
+      return y;
+    }
+
     proc pkgen() = {
       var pk_, sk_;
 
@@ -579,6 +629,10 @@ declare module A <: PKE_CCA_Adv {
   -B_cor_b, -B_kem_b, -B_s, -E_kem, -E_s
 }.
 
+(* Domino proofstep 0, `equivalence CCA_PKE H0`.  The EasyCrypt
+   correctness game with b = false is H0; its b_lor flag is Domino's bDem.
+   The fourth oracle case in the relational call is Domino's `Interfere`
+   obligation for this hop. *)
 local equiv pke_cor0:
   PKE_CCA_Exp(KEMDEM(E_kem, E_s), A).run ~
   KEM_Correctness_b(E_kem, B_cor_b(E_s, A)).run:
@@ -638,9 +692,18 @@ wp; call (:   ={glob E_kem, glob E_s}
       rcondf {2} 4; 1: by auto=> />.
       by auto=> />.
     + by auto=> />.
+(* Domino proofstep 0, oracle `Interfere`: both sides forward to the same
+   stateful KEM call, so the game invariant is preserved. *)
++ proc; inline *; sp.
+  wp; conseq (: ={glob E_kem, x0} ==> ={glob E_kem, y0})=> />.
+  by sim.
 by auto=> />.
 qed.
 
+(* Domino proofsteps 2 and 3, `equivalence H1 Perfect_KEM` followed by
+   `equivalence Perfect_KEM H2`.  EasyCrypt inlines Perfect_KEM and proves
+   the composite H1 ~ H2 hop directly.  The fourth oracle case is the two
+   Domino `Interfere` obligations composed together. *)
 local equiv cor1_kem0:
   KEM_Correctness_b(E_kem, B_cor_b(E_s, A)).run ~
   KEM_CCA_Exp(E_kem, B_kem_b(E_s, A)).run:
@@ -726,9 +789,18 @@ wp; call (:   ={glob E_kem, glob E_s}
       + by wp; call (: true); auto=> /> /#.
       + by auto=> /> /#.
     + by auto=> /> /#.
-  + by auto=> />.
+(* Domino proofsteps 2--3, oracle `Interfere`: the inlined Perfect_KEM
+   bridge forwards the same KEM call on both sides. *)
++ proc; inline *; sp.
+  wp; conseq (: ={glob E_kem, x0} ==> ={glob E_kem, y0})=> />.
+  by sim.
+by auto=> />.
 qed.
 
+(* Domino proofsteps 5 and 6, `equivalence H3 Ideal_KEM` followed by
+   `equivalence Ideal_KEM H4`.  EasyCrypt inlines Ideal_KEM and proves the
+   composite H3 ~ H4 hop directly.  The fourth oracle case is the composed
+   `Interfere` obligation. *)
 local equiv kem1_dem:
   KEM_CCA_Exp(E_kem, B_kem_b(E_s, A)).run ~
   DEM_CCA_Exp(E_s, B_s(E_kem, E_s, A)).run:
@@ -820,9 +892,19 @@ wp; call (:   ={glob E_kem, glob E_s}
       by sim />.
   + rcondf {2} 1; 1: by auto=> /> /#.
     by auto=> /> /#.
+(* Domino proofsteps 5--6, oracle `Interfere`: the inlined Ideal_KEM bridge
+   forwards the same KEM call; the asymmetric formula reflects one fewer
+   EasyCrypt forwarding wrapper on the DEM-reduction side. *)
++ proc; inline *; sp.
+  wp; conseq (:   ={glob E_kem} /\ x0{1} = x{2}
+                ==> ={glob E_kem} /\ y0{1} = y{2})=> />.
+  by sim.
 by auto=> />.
 qed.
 
+(* EasyCrypt-only adapter: fixes bDem = false in the correctness reduction.
+   It introduces no Domino gamehop; it selects the false instance around
+   Domino proofstep 1, `reduction H0 H1 using Correct_KEM`. *)
 local equiv B_cor_0_wrap:
   KEM_Correctness_b(E_kem, B_cor_b(E_s, A)).run ~
   KEM_Correctness_b(E_kem, B_cor_0(E_s, A)).run:
@@ -833,6 +915,8 @@ swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 2; sp 1 0.
 by sim />=> /#.
 qed.
 
+(* The bDem = false instance of Domino proofstep 0 (`CCA_PKE == H0`),
+   followed only by the EasyCrypt adapter above. *)
 local lemma pke_cor0_0 &m:
     Pr[PKE_CCA_Exp(KEMDEM(E_kem, E_s), A).run(false) @ &m: res]
   = Pr[KEM_Correctness_b(E_kem, B_cor_0(E_s, A)).run(false) @ &m: res].
@@ -848,6 +932,9 @@ transitivity
 + by conseq B_cor_0_wrap=> />.
 qed.
 
+(* EasyCrypt-only adapter: fixes bDem = true in the correctness reduction.
+   It introduces no Domino gamehop; it selects the true instance around
+   Domino proofstep 1, `reduction H0 H1 using Correct_KEM`. *)
 local equiv B_cor_1_wrap:
   KEM_Correctness_b(E_kem, B_cor_b(E_s, A)).run ~
   KEM_Correctness_b(E_kem, B_cor_1(E_s, A)).run:
@@ -858,6 +945,9 @@ swap {2} ^B_cor_b.b_lor<- @ 1; sp 0 2; sp 1 0.
 by sim />=> /#.
 qed.
 
+(* EasyCrypt-only adapter: fixes bDem = false in the KEM reduction.
+   It introduces no Domino gamehop; it selects the false instance around
+   Domino proofstep 4, `reduction H2 H3 using CCA_KEM`. *)
 local equiv B_kem_0_wrap:
   KEM_CCA_Exp(E_kem, B_kem_b(E_s, A)).run ~
   KEM_CCA_Exp(E_kem, B_kem_0(E_s, A)).run:
@@ -868,6 +958,9 @@ swap {2} ^B_kem_b.b_lor<- @ 1; sp 0 2; sp 1 0.
 by sim />=> /#.
 qed.
 
+(* EasyCrypt-only adapter: fixes bDem = true in the KEM reduction.
+   It introduces no Domino gamehop; it selects the true instance around
+   Domino proofstep 4, `reduction H2 H3 using CCA_KEM`. *)
 local equiv B_kem_1_wrap:
   KEM_CCA_Exp(E_kem, B_kem_b(E_s, A)).run ~
   KEM_CCA_Exp(E_kem, B_kem_1(E_s, A)).run:
@@ -878,6 +971,8 @@ swap {2} ^B_kem_b.b_lor<- @ 1; sp 0 2; sp 1 0.
 by sim />=> /#.
 qed.
 
+(* The bDem = true instance of Domino proofstep 0 (`CCA_PKE == H0`),
+   followed only by the corresponding EasyCrypt adapter. *)
 local lemma pke_cor0_1 &m:
     Pr[PKE_CCA_Exp(KEMDEM(E_kem, E_s), A).run(true) @ &m: res]
   = Pr[KEM_Correctness_b(E_kem, B_cor_1(E_s, A)).run(false) @ &m: res].
@@ -893,6 +988,8 @@ transitivity
 by conseq B_cor_1_wrap=> />.
 qed.
 
+(* Domino proofsteps 2 and 3 at bDem = false (H1 == Perfect_KEM == H2),
+   with the EasyCrypt-only bit adapters made explicit on both ends. *)
 local equiv cor1_kem0_0_eq:
   KEM_Correctness_b(E_kem, B_cor_0(E_s, A)).run ~
   KEM_CCA_Exp(E_kem, B_kem_0(E_s, A)).run:
@@ -922,6 +1019,8 @@ local lemma cor1_kem0_0 &m:
   = Pr[KEM_CCA_Exp(E_kem, B_kem_0(E_s, A)).run(false) @ &m: res].
 proof. by byequiv cor1_kem0_0_eq. qed.
 
+(* Domino proofsteps 2 and 3 at bDem = true (H1 == Perfect_KEM == H2),
+   with the EasyCrypt-only bit adapters made explicit on both ends. *)
 local equiv cor1_kem0_1_eq:
   KEM_Correctness_b(E_kem, B_cor_1(E_s, A)).run ~
   KEM_CCA_Exp(E_kem, B_kem_1(E_s, A)).run:
@@ -951,6 +1050,8 @@ local lemma cor1_kem0_1 &m:
   = Pr[KEM_CCA_Exp(E_kem, B_kem_1(E_s, A)).run(false) @ &m: res].
 proof. by byequiv cor1_kem0_1_eq. qed.
 
+(* Domino proofsteps 5 and 6 at bDem = false (H3 == Ideal_KEM == H4),
+   with the EasyCrypt-only KEM-bit adapter on the left. *)
 local equiv kem1_dem_0_eq:
   KEM_CCA_Exp(E_kem, B_kem_0(E_s, A)).run ~
   DEM_CCA_Exp(E_s, B_s(E_kem, E_s, A)).run:
@@ -971,6 +1072,8 @@ local lemma kem1_dem_0 &m:
   = Pr[DEM_CCA_Exp(E_s, B_s(E_kem, E_s, A)).run(false) @ &m: res].
 proof. by byequiv kem1_dem_0_eq. qed.
 
+(* Domino proofsteps 5 and 6 at bDem = true (H3 == Ideal_KEM == H4),
+   with the EasyCrypt-only KEM-bit adapter on the left. *)
 local equiv kem1_dem_1_eq:
   KEM_CCA_Exp(E_kem, B_kem_1(E_s, A)).run ~
   DEM_CCA_Exp(E_s, B_s(E_kem, E_s, A)).run:
@@ -991,6 +1094,11 @@ local lemma kem1_dem_1 &m:
   = Pr[DEM_CCA_Exp(E_s, B_s(E_kem, E_s, A)).run(true) @ &m: res].
 proof. by byequiv kem1_dem_1_eq. qed.
 
+(* The five advantage terms are the quantitative counterparts of Domino's
+   reduction proofsteps: Correct_KEM (step 1) at both bDem endpoints,
+   CCA_KEM (step 4) at both endpoints, and CCA_DEM (step 7) between H4_0
+   and H4_1.  The six exact equalities above discharge equivalence steps
+   0, 2, 3, 5, and 6 around those reductions. *)
 lemma security_of_kem_dem &m:
      `|  Pr[PKE_CCA_Exp(KEMDEM(E_kem, E_s), A).run(false) @ &m: res]
        - Pr[PKE_CCA_Exp(KEMDEM(E_kem, E_s), A).run(true)  @ &m: res]|
