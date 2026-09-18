@@ -410,7 +410,7 @@ pub fn tex_write_theorem(
                                   where $\\rdv_{{{redcount}}}$ is defined in Fig.~\\ref{{{label}}}.")?;
                     redcount += 1;
                 }
-                GameHop::Hybrid(_) => todo!(),
+                GameHop::Hybrid(_) => {},
             }
             writeln!(file, "\\end{{claim}}")?;
         }
