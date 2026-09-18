@@ -39,8 +39,7 @@ package Correct_KEM {
 
     oracle CORR_DECAPS(c_: Bits(kctl)) -> Maybe(Bits(dkeyl)) {
         assert (sk != None);
-        assert (c != None);
-        if ((c_ == Unwrap(c)) and b) {
+        if ((Some(c_) == c) and b) {
             return k;
         } else {
             k_ <- invoke KEM_DECAPS(Unwrap(sk), c_);

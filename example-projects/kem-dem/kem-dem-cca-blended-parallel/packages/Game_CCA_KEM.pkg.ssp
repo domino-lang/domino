@@ -41,7 +41,7 @@ package CCA_KEM {
 
     oracle DECAPS(c_: Bits(kctl)) -> Maybe(Bits(dkeyl)) {
         assert (sk != None);
-        assert (c_ != Unwrap(c));
+        assert (Some(c_) != c);
         k <- parse invoke KEM_DECAPS(Unwrap(sk), c_);
         return k;
     }

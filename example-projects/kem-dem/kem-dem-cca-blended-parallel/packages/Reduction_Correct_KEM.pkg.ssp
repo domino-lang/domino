@@ -44,7 +44,7 @@ package Reduction_Correct_KEM {
 
     oracle PKDEC(c_: (Bits(kctl),Bits(dctl))) -> Maybe(Bits(ptl)) {
         assert (pk != None);
-        assert (c_ != Unwrap(c));
+        assert (Some(c_) != c);
         (c_kem, c_dem) <- parse c_;
         k <- invoke CORR_DECAPS(c_kem);
         if (k == None) {
