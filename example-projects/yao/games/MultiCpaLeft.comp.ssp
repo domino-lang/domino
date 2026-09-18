@@ -1,0 +1,25 @@
+composition MultiCpaLeft {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance cpa = MultiCpaLeft {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    compose {
+        adversary: {
+            SAMPLEKEY: cpa,
+            ENCN: cpa,
+            ENCM: cpa,
+        }
+    }
+}

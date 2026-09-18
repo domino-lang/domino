@@ -1,0 +1,159 @@
+theorem TwocpaSecurity {
+    const n: Integer;
+    const m: Integer;
+    const p: Integer;
+    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+
+    instance Twocpa0 = Twocpa0 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance Twocpa1 = Twocpa1 {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance MultiCpaLeft = MultiCpaLeft {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance MultiCpaRight = MultiCpaRight {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance ViaLeft = TwocpaViaMultiCpaLeft {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    instance ViaRight = TwocpaViaMultiCpaRight {
+        params {
+            n: n,
+            m: m,
+            p: p,
+            encn: encn,
+            encm: encm,
+        }
+    }
+
+    assumptions {
+        MultiInstanceCpa: MultiCpaLeft ~ MultiCpaRight
+    }
+
+    gamehops {
+        equivalence Twocpa0 ViaLeft {
+            invariant: [
+                ./theorem/TwocpaSecurity/invariant-Twocpa0-ViaLeft.smt2
+            ]
+            SETBIT: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            GETAOUT: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCN: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCM: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+
+        reduction ViaLeft ViaRight {
+            assumption MultiInstanceCpa
+
+            map MultiCpaLeft ViaLeft {
+                cpa: cpa
+            }
+
+            map MultiCpaRight ViaRight {
+                cpa: cpa
+            }
+        }
+
+        equivalence ViaRight Twocpa1 {
+            invariant: [
+                ./theorem/TwocpaSecurity/invariant-ViaRight-Twocpa1.smt2
+            ]
+            SETBIT: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            GETAOUT: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCN: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            ENCM: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+    }
+
+    propositions {
+        Twocpa: Twocpa0 ~ Twocpa1
+    }
+}

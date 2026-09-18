@@ -1,0 +1,36 @@
+package MultiCpaRight {
+    params {
+        n: Integer,
+        m: Integer,
+        p: Integer,
+        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+    }
+
+    state {
+        Key: Table(Integer, Bits(n)),
+    }
+
+    oracle SAMPLEKEY(h: Integer) {
+        assert (Key[h] == None as Bits(n));
+        k <-$ Bits(n) sample-name k;
+        Key[h] <- Some(k);
+        return;
+    }
+
+    oracle ENCN(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m) {
+        assert (Key[h] != None as Bits(n));
+        k <- Unwrap(Key[h]);
+        r <-$ Bits(n) sample-name r;
+        c <- encn(k, right, r);
+        return c;
+    }
+
+    oracle ENCM(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p) {
+        assert (Key[h] != None as Bits(n));
+        k <- Unwrap(Key[h]);
+        r <-$ Bits(n) sample-name r;
+        c <- encm(k, right, r);
+        return c;
+    }
+}
