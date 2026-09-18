@@ -1,4 +1,4 @@
-package MODGB {
+package ModGb {
     params {
         w: Integer,
         p: Integer,

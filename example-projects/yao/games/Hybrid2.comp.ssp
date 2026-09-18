@@ -80,21 +80,21 @@ composition Hybrid2 {
         }
     }
 
-    instance modgb1 = MODGB {
+    instance modgb1 = ModGb {
         params {
             p: p,
             w: w,
         }
     }
 
-    instance modgb2 = MODGB {
+    instance modgb2 = ModGb {
         params {
             p: p,
             w: w,
         }
     }
 
-    instance modgb3 = MODGB {
+    instance modgb3 = ModGb {
         params {
             p: p,
             w: w,

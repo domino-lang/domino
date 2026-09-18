@@ -39,7 +39,7 @@ composition YaoReal {
         }
     }
 
-    instance MODGB = LayeredMODGB {
+    instance ModGb = LayeredModGb {
         params {
             p: p,
             w: w,
@@ -62,10 +62,10 @@ composition YaoReal {
         Mod: {
             GETAOUT: LayerMap,
             SETBIT: LayerMap,
-            GBL: MODGB,
+            GBL: ModGb,
             GETKEYSIN: LayerMap,
         }
-        MODGB: {
+        ModGb: {
             GBLG: LayerMap,
         }
         LayerMap: {
