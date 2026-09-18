@@ -25,11 +25,12 @@ domino-collections = { path = "crates/domino-collections" }
 
 sspverif-smtlib = { path = "crates/smtlib" }
 sspverif = { path = "" }
-thiserror = "1.0.61"
 
 pest = "2.7"
 pest_derive = "2.7"
 miette = "7.6.0"
+thiserror = "1.0.61"
+hashbrown = "0.17.1"
 
 [package]
 name = "sspverif"
