@@ -129,6 +129,7 @@ composition Hybrid0 {
             GBLG: gate1,
         }
         gate1: {
+            SETBIT: keys1,
             ENCN: enc1,
             ENCM: enc1,
             GETKEYSOUT: keys1,
@@ -140,6 +141,7 @@ composition Hybrid0 {
             GBLG: gate2,
         }
         gate2: {
+            SETBIT: keys2,
             ENCN: enc2,
             ENCM: enc2,
             GETKEYSOUT: keys2,
@@ -151,6 +153,7 @@ composition Hybrid0 {
             GBLG: gate3,
         }
         gate3: {
+            SETBIT: keys3,
             ENCN: enc3,
             ENCM: enc3,
             GETKEYSOUT: keys3,

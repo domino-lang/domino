@@ -1,0 +1,105 @@
+package KeysFilter {
+    /*
+     * KeysFilter sits between every layered consumer (LayerMap, LayeredGate,
+     * LayeredEnc0, LayeredSim, LayeredLev) and the *single* merged LayeredKeys
+     * instance of a hybrid game.
+     *
+     * Wire layers are numbered 1..(d + 1): the gates of gate layer i read the wire
+     * keys of wire layer i and write the wire keys of wire layer (i + 1).
+     *
+     * In the h-th hybrid, gate layer h is handled by the assumption (LayerReal /
+     * LayerIdeal), so its two key packages own two wire layers:
+     *
+     *   wire layer h       -> KeysTop  (the assumption's keys_top)
+     *   wire layer (h + 1) -> KeysBot  (the assumption's keys_bottom)
+     *   every other layer  -> LayeredKeys (merged, shared by simulated and real layers)
+     *
+     * The assumption only exports SETBIT/GETAOUT on keys_top and GETKEYSIN on
+     * keys_bottom, and those are exactly the three accesses that reach across the
+     * assumption boundary:
+     *
+     *   LSETBIT(h, .)      from LayerMap (h == 1) or LayeredLev (gate layer h - 1)
+     *   LGETAOUT(h, .)     from LayerMap (h == 1) or LayeredSim (gate layer h - 1)
+     *   LGETKEYSIN(h+1, .) from LayeredEnc0 (gate layer h + 1) or LayerMap (h == d)
+     *
+     * All other oracles never see wire layer h or h + 1 and are plain forwards.
+     *
+     * The redirection is guarded by 0 < h <= d, so that h outside that range makes
+     * this package a pure forwarder: h = 0 is the all-real game (CoreReal) and
+     * h = d + 1 is the all-simulated game (CoreIdeal), with the assumption
+     * packages left dangling.
+     */
+
+    params {
+        n: Integer,
+        h: Integer, /* hybrid parameter: the gate layer served by the assumption */
+        d: Integer, /* number of gate layers of the circuit */
+    }
+
+    import oracles {
+        /* assumption, top wires: wire layer h */
+        SETBIT(j: Integer, b: Bool),
+        GETAOUT(j: Integer) -> Bits(n),
+
+        /* assumption, bottom wires: wire layer (h + 1) */
+        GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
+
+        /* merged layered keys: every other wire layer */
+        LSETBIT(i: Integer, j: Integer, b: Bool),
+        LGETAOUT(i: Integer, j: Integer) -> Bits(n),
+        LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
+        LGETAIN(i: Integer, j: Integer) -> Bits(n),
+        LGETINAIN(i: Integer, j: Integer) -> Bits(n),
+        LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
+        LGETBIT(i: Integer, j: Integer) -> Bool,
+    }
+
+    oracle LSETBIT(i: Integer, j: Integer, b: Bool) {
+        if ((h > 0) and (h <= d) and (i == h)) {
+            invoke SETBIT(j, b);
+        } else {
+            invoke LSETBIT(i, j, b);
+        }
+        return;
+    }
+
+    oracle LGETAOUT(i: Integer, j: Integer) -> Bits(n) {
+        if ((h > 0) and (h <= d) and (i == h)) {
+            k <- invoke GETAOUT(j);
+        } else {
+            k <- invoke LGETAOUT(i, j);
+        }
+        return k;
+    }
+
+    oracle LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)) {
+        if ((h > 0) and (h <= d) and (i == (h + 1))) {
+            Z <- invoke GETKEYSIN(j);
+        } else {
+            Z <- invoke LGETKEYSIN(i, j);
+        }
+        return Z;
+    }
+
+    /* the oracles below are never called on wire layer h or (h + 1) */
+
+    oracle LGETAIN(i: Integer, j: Integer) -> Bits(n) {
+        k <- invoke LGETAIN(i, j);
+        return k;
+    }
+
+    oracle LGETINAIN(i: Integer, j: Integer) -> Bits(n) {
+        k <- invoke LGETINAIN(i, j);
+        return k;
+    }
+
+    oracle LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)) {
+        Z <- invoke LGETKEYSOUT(i, j);
+        return Z;
+    }
+
+    oracle LGETBIT(i: Integer, j: Integer) -> Bool {
+        zz <- invoke LGETBIT(i, j);
+        return zz;
+    }
+}

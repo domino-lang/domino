@@ -6,18 +6,16 @@ package Keys {
     state {
         WireKey: Table(Integer, Table(Bool, Bits(n))),
         ActiveBit: Table(Integer, Bool),
-        ActiveBitSetAndGenerated: Table(Integer, Bool),
     }
 
 
     oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
-        assert (ActiveBitSetAndGenerated[h] == Some(true));
+        assert (ActiveBit[h] != None);
         W <- Unwrap(WireKey[h]);
         return W;
     }
 
     oracle GETAIN(h: Integer) -> Bits(n) {
-        assert (ActiveBitSetAndGenerated[h] == Some(true));
         W <- Unwrap(WireKey[h]);
         a <- Unwrap(ActiveBit[h]);
         k <- Unwrap(W[a]);
@@ -25,7 +23,6 @@ package Keys {
     }
 
     oracle GETINAIN(h: Integer) -> Bits(n) {
-        assert (ActiveBitSetAndGenerated[h] == Some(true));
         W <- Unwrap(WireKey[h]);
         a <- Unwrap(ActiveBit[h]);
         k <- Unwrap(W[not a]);
@@ -33,7 +30,6 @@ package Keys {
     }
 
     oracle GETAOUT(h: Integer) -> Bits(n) {
-        ActiveBitSetAndGenerated[h] <- Some(true);
         W <- new Table(Bool, Bits(n));
         if (WireKey[h] == None) {
             r <-$ Bits(n) sample-name r;
@@ -49,8 +45,6 @@ package Keys {
     }
 
     oracle GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)) {
-        assert (ActiveBitSetAndGenerated[h] != Some(true));
-        ActiveBitSetAndGenerated[h] <- Some(true);
         W <- new Table(Bool, Bits(n));
         if (WireKey[h] == None) {
             r <-$ Bits(n) sample-name r;

@@ -151,6 +151,7 @@ composition Hybrid2 {
             GBLG: gate3,
         }
         gate3: {
+            SETBIT: keys3,
             ENCN: enc3,
             ENCM: enc3,
             GETKEYSOUT: keys3,

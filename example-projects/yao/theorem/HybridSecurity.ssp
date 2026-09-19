@@ -54,7 +54,7 @@ theorem HybridSecurity {
             m: m,
             p: p,
             d: d,
-            h: 1,
+            h: 0,
             encm: encm,
             encn: encn,
         }

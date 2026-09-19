@@ -1,4 +1,13 @@
 composition HybridReal {
+    /*
+     * h-th hybrid, real side: gate layers 1..(h - 1) are simulated, gate layer h is
+     * the real side of the Layer assumption, gate layers (h + 1)..d are real.
+     *
+     * All simulated and all real layers share one LayeredKeys instance; KeysFilter
+     * carves wire layer h out to KeysTop and wire layer (h + 1) out to KeysBot.
+     * For h = 0 this is CoreReal with the assumption packages left dangling.
+     */
+
     const h: Integer; /* hybrid parameter */
     const n: Integer;
     const p: Integer;
@@ -7,15 +16,17 @@ composition HybridReal {
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-    instance RealLayersKeys = LayeredKeys {
+    instance LayeredKeys = LayeredKeys {
         params {
             n: n,
         }
     }
 
-    instance SimulatedLayersKeys = LayeredKeys {
+    instance KeysFilter = KeysFilter {
         params {
             n: n,
+            h: h,
+            d: d,
         }
     }
 
@@ -49,32 +60,29 @@ composition HybridReal {
         }
     }
 
-    instance LayeredLev = HybridLayeredLev {
+    instance LayeredLev = LayeredLev {
         params {
             n: n,
-            h: h
         }
     }
 
-    instance LayeredEnc0 = HybridLayeredEnc0 {
+    instance LayeredEnc0 = LayeredEnc0 {
         params {
             p: p,
             n: n,
             m: m,
             encn: encn,
             encm: encm,
-            h: h
         }
     }
 
-    instance LayeredSim = HybridLayeredSim {
+    instance LayeredSim = LayeredSim {
         params {
             n: n,
             m: m,
             p: p,
             encn: encn,
             encm: encm,
-            h: h
         }
     }
 
@@ -103,17 +111,27 @@ composition HybridReal {
             GETKEYSIN: LayerMap,
         }
         LayerMap: {
+            LSETBIT: KeysFilter,
+            LGETAOUT: KeysFilter,
+            LGETKEYSIN: KeysFilter,
+            GBLG: Gate,
+            LSIMGBLG: LayeredSim,
+            LGATEGBLG: LayeredGate,
+        }
+        KeysFilter: {
             SETBIT: KeysTop,
             GETAOUT: KeysTop,
             GETKEYSIN: KeysBot,
-            GBLG: Gate,
-            LSETBIT: SimulatedLayersKeys,
-            LGETAOUT: SimulatedLayersKeys,
-            LSIMGBLG: LayeredSim,
-            LGATEGBLG: LayeredGate,
-            LGETKEYSIN: RealLayersKeys,
+            LSETBIT: LayeredKeys,
+            LGETAOUT: LayeredKeys,
+            LGETKEYSIN: LayeredKeys,
+            LGETAIN: LayeredKeys,
+            LGETINAIN: LayeredKeys,
+            LGETKEYSOUT: LayeredKeys,
+            LGETBIT: LayeredKeys,
         }
         Gate: {
+            SETBIT: KeysBot,
             ENCN: Enc,
             ENCM: Enc,
             GETKEYSOUT: KeysBot,
@@ -122,25 +140,23 @@ composition HybridReal {
             GETKEYSIN: KeysTop,
         }
         LayeredGate: {
+            LSETBIT: KeysFilter,
             LENCN: LayeredEnc0,
             LENCM: LayeredEnc0,
-            LGETKEYSOUT: RealLayersKeys,
+            LGETKEYSOUT: KeysFilter,
         }
         LayeredEnc0: {
-            LGETKEYSIN: RealLayersKeys,
-            GETKEYSIN: KeysBot,
+            LGETKEYSIN: KeysFilter,
         }
         LayeredSim: {
             LEVAL: LayeredLev,
-            LGETAIN: SimulatedLayersKeys,
-            LGETINAIN: SimulatedLayersKeys,
-            LGETAOUT: SimulatedLayersKeys,
-            GETAOUT: KeysTop,
+            LGETAIN: KeysFilter,
+            LGETINAIN: KeysFilter,
+            LGETAOUT: KeysFilter,
         }
         LayeredLev: {
-            LGETBIT: SimulatedLayersKeys,
-            LSETBIT: SimulatedLayersKeys,
-            SETBIT: KeysTop,
+            LGETBIT: KeysFilter,
+            LSETBIT: KeysFilter,
         }
     }
 }

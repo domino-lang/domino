@@ -6,6 +6,7 @@ package Gate {
     }
 
     import oracles {
+        SETBIT(h: Integer, a: Bool),
         GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)),
         ENCN(j: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m),
         ENCM(j: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
@@ -17,6 +18,23 @@ package Gate {
         op: Table((Bool, Bool), Bool),
         j: Integer
     ) -> Table(Bits(p), Bool) {
+        /*
+        Set a dummy as the input bit of the next layer.
+        This helps to drop the used-to "flag" in the Keys package which aimed
+        to simulate input bits in lower layers (other than circuit input bits which 
+        is set on both sides) and help proving equivalence of layer with 
+        ideal encryption with a simulated layer because the simulated layer 
+        sets the true input bit of the next.
+        We garble a gate without looking into the inputs to the gate so we are not 
+        allowed to compute the gate output here. This will also break the encryption 
+        assumption.
+        In the real game, the encryption oracle does not need 
+        the input. However, the ideal encryption requires the input bit which 
+        indicates the secret key. However, we only idealize a layer 
+        when previous layers are already simulated (or is the circuit input)
+        and hence are true input bits. 
+        */
+        invoke SETBIT(j, false);
         C <- new Table(Bits(p), Bool);
         Z <- invoke GETKEYSOUT(j);
         bl <- false;

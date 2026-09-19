@@ -43,6 +43,7 @@ composition LayerReal {
             GETKEYSIN: keys_bottom,
         }
         gate: {
+            SETBIT: keys_bottom,
             ENCN: enc,
             ENCM: enc,
             GETKEYSOUT: keys_bottom,

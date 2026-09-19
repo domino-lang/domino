@@ -52,6 +52,7 @@ composition CoreReal {
             LGBLG: LGATEGBLG of Gate,
         }
         Gate: {
+            LSETBIT: Keys,
             LENCN: Enc,
             LENCM: Enc,
             LGETKEYSOUT: Keys,

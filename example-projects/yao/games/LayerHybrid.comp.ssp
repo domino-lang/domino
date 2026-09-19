@@ -43,6 +43,7 @@ composition LayerHybrid {
             GBLG: gate,
         }
         gate: {
+            SETBIT: keys_bottom,
             ENCN: enc,
             ENCM: enc,
             GETKEYSOUT: keys_bottom,

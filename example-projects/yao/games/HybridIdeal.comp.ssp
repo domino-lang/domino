@@ -1,4 +1,13 @@
 composition HybridIdeal {
+    /*
+     * h-th hybrid, ideal side: gate layers 1..(h - 1) are simulated, gate layer h is
+     * the ideal side of the Layer assumption, gate layers (h + 1)..d are real.
+     *
+     * Identical to HybridReal except for the assumption layer itself (Lev / Simgate
+     * instead of Enc0 / Gate). For h = d + 1 this is CoreIdeal with the assumption
+     * packages left dangling.
+     */
+
     const h: Integer; /* hybrid parameter */
     const n: Integer;
     const p: Integer;
@@ -7,15 +16,17 @@ composition HybridIdeal {
     const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
-    instance RealLayersKeys = LayeredKeys {
+    instance LayeredKeys = LayeredKeys {
         params {
             n: n,
         }
     }
 
-    instance SimulatedLayersKeys = LayeredKeys {
+    instance KeysFilter = KeysFilter {
         params {
             n: n,
+            h: h,
+            d: d,
         }
     }
 
@@ -47,32 +58,29 @@ composition HybridIdeal {
         }
     }
 
-    instance LayeredLev = HybridLayeredLev {
+    instance LayeredLev = LayeredLev {
         params {
             n: n,
-            h: h
         }
     }
 
-    instance LayeredEnc0 = HybridLayeredEnc0 {
+    instance LayeredEnc0 = LayeredEnc0 {
         params {
             p: p,
             n: n,
             m: m,
             encn: encn,
             encm: encm,
-            h: h
         }
     }
 
-    instance LayeredSim = HybridLayeredSim {
+    instance LayeredSim = LayeredSim {
         params {
             n: n,
             m: m,
             p: p,
             encn: encn,
             encm: encm,
-            h: h
         }
     }
 
@@ -101,15 +109,24 @@ composition HybridIdeal {
             GETKEYSIN: LayerMap,
         }
         LayerMap: {
+            LSETBIT: KeysFilter,
+            LGETAOUT: KeysFilter,
+            LGETKEYSIN: KeysFilter,
+            GBLG: Sim,
+            LSIMGBLG: LayeredSim,
+            LGATEGBLG: LayeredGate,
+        }
+        KeysFilter: {
             SETBIT: KeysTop,
             GETAOUT: KeysTop,
             GETKEYSIN: KeysBot,
-            GBLG: Sim,
-            LSETBIT: SimulatedLayersKeys,
-            LGETAOUT: SimulatedLayersKeys,
-            LSIMGBLG: LayeredSim,
-            LGATEGBLG: LayeredGate,
-            LGETKEYSIN: RealLayersKeys,
+            LSETBIT: LayeredKeys,
+            LGETAOUT: LayeredKeys,
+            LGETKEYSIN: LayeredKeys,
+            LGETAIN: LayeredKeys,
+            LGETINAIN: LayeredKeys,
+            LGETKEYSOUT: LayeredKeys,
+            LGETBIT: LayeredKeys,
         }
         Sim: {
             GETAIN: KeysTop,
@@ -122,25 +139,23 @@ composition HybridIdeal {
             SETBIT: KeysBot,
         }
         LayeredGate: {
+            LSETBIT: KeysFilter,
             LENCN: LayeredEnc0,
             LENCM: LayeredEnc0,
-            LGETKEYSOUT: RealLayersKeys,
+            LGETKEYSOUT: KeysFilter,
         }
         LayeredEnc0: {
-            LGETKEYSIN: RealLayersKeys,
-            GETKEYSIN: KeysBot,
+            LGETKEYSIN: KeysFilter,
         }
         LayeredSim: {
             LEVAL: LayeredLev,
-            LGETAIN: SimulatedLayersKeys,
-            LGETINAIN: SimulatedLayersKeys,
-            LGETAOUT: SimulatedLayersKeys,
-            GETAOUT: KeysTop,
+            LGETAIN: KeysFilter,
+            LGETINAIN: KeysFilter,
+            LGETAOUT: KeysFilter,
         }
         LayeredLev: {
-            LGETBIT: SimulatedLayersKeys,
-            LSETBIT: SimulatedLayersKeys,
-            SETBIT: KeysTop,
+            LGETBIT: KeysFilter,
+            LSETBIT: KeysFilter,
         }
     }
 }
