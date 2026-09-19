@@ -68,7 +68,7 @@ package HybridLayerMap {
         return k;
     }
 
-    oracle GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)) {
+    oracle GetOutputWireKeys(wire: Integer) -> Table(Bool, Bits(n)) {
         assert (d > 0);
         T <- invoke GetWireKeys((d + 1), wire);
         return T;

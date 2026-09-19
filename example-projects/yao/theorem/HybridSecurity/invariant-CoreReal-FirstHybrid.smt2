@@ -17,8 +17,7 @@
         (and
             (=>
                 (= i 1)
-                (and 
-                    (= (select state-left.Keys.flag (mk-tuple2 i j)) (select state-right.KeysTop.ActiveBitSetAndGenerated j))
+                (and
                     (= (select state-left.Keys.ActiveBit (mk-tuple2 i j)) (select state-right.KeysTop.ActiveBit j))
                     (= (select state-left.Keys.WireKey (mk-tuple2 i j)) (select state-right.KeysTop.WireKey j))
                 )

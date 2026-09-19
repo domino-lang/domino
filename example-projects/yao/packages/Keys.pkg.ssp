@@ -1,14 +1,4 @@
 package Keys {
-    /*
-     * The wire keys of one wire layer.
-     *
-     * Every wire carries two keys, indexed by the bit they stand for, plus the
-     * *active bit*: the value the wire takes on the evaluated input, i.e. the
-     * one whose key the evaluator learns.
-     *
-     * GenerateWireKeys samples the two keys of a wire; the three getters only
-     * read.  Whoever needs a key calls GenerateWireKeys first.
-     */
     params {
         n: Integer,
     }
@@ -32,9 +22,9 @@ package Keys {
     }
 
     oracle GenerateWireKeys(wire: Integer) {
-        /* The active bit of a wire has to be fixed before its keys are
-           generated: it decides which of the two keys is the one handed out,
-           and the 2CPA reduction commits to that split when it generates. */
+        /* Enforcing wire key generation after setting input is not necessary 
+        but makes reduction to CPA easier as we can know which key should be 
+        stored in CPA game and which in reduction */
         assert (ActiveBit[wire] != None as Bool);
         if (WireKey[wire] == None) {
             W <- new Table(Bool, Bits(n));
@@ -47,6 +37,8 @@ package Keys {
     }
 
     oracle GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)) {
+        /* Real garbler sets a dummy active bit for output keys. Simulator 
+        sets the true active bit due to gate evaluation */
         assert (ActiveBit[wire] != None);
         W <- Unwrap(WireKey[wire]);
         return W;

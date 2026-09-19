@@ -62,7 +62,7 @@ composition YaoIdeal {
             GetInputWireKey: LayerMap,
             SetInputBit: LayerMap,
             GBL: MODGB,
-            GetWireKeys: LayerMap,
+            GetOutputWireKeys: LayerMap,
         }
         MODGB: {
             GarbleGate: LayerMap,

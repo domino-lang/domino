@@ -229,11 +229,9 @@ theorem HybridSecurity {
             }
             equivalence {
                 invariant: [
-                    /* the following order matters during concatenation */
-                    ./theorem/HybridSecurity/assertion-HybridIdeal-HybridReal1.smt2
-                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
-                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
+                    ./theorem/HybridSecurity/randomness-HybridIdeal-HybridReal1.smt2
+                    ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2
+                    ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the invariant */
                 ]
                 SetInputBit: {
                     randomness: none

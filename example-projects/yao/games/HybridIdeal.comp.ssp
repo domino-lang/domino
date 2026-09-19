@@ -107,7 +107,7 @@ composition HybridIdeal {
             GetInputWireKey: LayerMap,
             SetInputBit: LayerMap,
             GarbleGate: LayerMap,
-            GetWireKeys: LayerMap,
+            GetOutputWireKeys: LayerMap,
         }
         LayerMap: {
             SetActiveBit: KeysFilter,

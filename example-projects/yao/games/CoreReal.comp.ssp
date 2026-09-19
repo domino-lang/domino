@@ -44,7 +44,7 @@ composition CoreReal {
             GetInputWireKey: LayerMap,
             SetInputBit: LayerMap,
             GarbleGate: LayerMap,
-            GetWireKeys: LayerMap,
+            GetOutputWireKeys: LayerMap,
         }
         LayerMap: {
             SetActiveBit: Keys,

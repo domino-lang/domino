@@ -12,7 +12,7 @@ package Mod {
              -> Table(Integer, Table(Bits(p), Bool)),
         GenerateInputWireKeys(wire: Integer),
         GetInputWireKey(wire: Integer) -> Bits(n),
-        GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
+        GetOutputWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
     }
 
     oracle GARBLE(
@@ -40,7 +40,7 @@ package Mod {
         }
         dinf   <- new Table(Integer,Table(Bool,Bits(n)));
         for wire: 1 <= wire <= w {
-            ktable <- invoke GetWireKeys(wire);
+            ktable <- invoke GetOutputWireKeys(wire);
             dinf[wire] <- Some(ktable);
         }
         return (Ctilde,xtilde,dinf);
