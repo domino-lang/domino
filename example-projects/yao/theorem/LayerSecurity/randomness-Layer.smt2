@@ -4,6 +4,23 @@
    (offset-0 Int)
    (offset-1 Int))
   Bool
+  ;; Left game:  LayerHybrid (Gate + real-or-zeros Enc1)
+  ;; Right game: LayerIdeal  (Simgate)
+  ;;
+  ;; The four rows of the garbled gate are produced by Gate in the fixed order
+  ;;   row 0 = (bl, br) = (false, false)   row 1 = (true,  false)
+  ;;   row 2 = (bl, br) = (false, true)    row 3 = (true,  true)
+  ;; so ENCN and ENCM are each called once per row and the sample offset of a
+  ;; row equals its index (bl ? 1 : 0) + (br ? 2 : 0).
+  ;;
+  ;; With real-or-zeros encryption only six of those eight ciphertexts carry
+  ;; randomness that reaches the output:
+  ;;   * the row (bl, br) = (la, ra)        -- both keys active: inner + outer
+  ;;   * the row (bl, br) = (not la, ra)    -- outer key active: inner + outer
+  ;;   * the two rows with br = not ra      -- the outer encryption of zeros
+  ;;     swallows the inner ciphertext, so only the outer coin matters and the
+  ;;     two inner ENCN coins of those rows stay unmapped.
+  ;; Those six line up with the six coins drawn by Simgate.
   (let ((keys-top
           (<game-LayerHybrid-<$<!n!><!m!><!p!>$>-pkgstate-keys_top>
             <<game-state-LayerHybrid-old>>)))
@@ -34,114 +51,102 @@
           (and (not left-active)
                (not right-active)
                (or
+                 ;; the active row: real inner and outer encryption
                  (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_0"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_active"))
                       (= offset-0 0) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_0"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_active"))
                       (= offset-0 0) (= offset-1 0))
+                 ;; inactive left key inside, active right key outside
                  (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_1"))
-                      (= offset-0 2) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_1"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_inactive"))
                       (= offset-0 1) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_2"))
-                      (= offset-0 5) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_2"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_inactive"))
+                      (= offset-0 1) (= offset-1 0))
+                 ;; inactive right key outside: encryptions of zeros
+                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_0"))
                       (= offset-0 2) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_3"))
-                      (= offset-0 7) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_3"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_1"))
                       (= offset-0 3) (= offset-1 0))))
 
           ;; Active input bits: (false, true).
           (and (not left-active)
                right-active
                (or
+                 ;; the active row: real inner and outer encryption
                  (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_0"))
-                      (= offset-0 4) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_0"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_active"))
                       (= offset-0 2) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_1"))
-                      (= offset-0 6) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_1"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_active"))
+                      (= offset-0 2) (= offset-1 0))
+                 ;; inactive left key inside, active right key outside
+                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_inactive"))
                       (= offset-0 3) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_2"))
-                      (= offset-0 1) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_2"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_inactive"))
+                      (= offset-0 3) (= offset-1 0))
+                 ;; inactive right key outside: encryptions of zeros
+                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_0"))
                       (= offset-0 0) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_3"))
-                      (= offset-0 3) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_3"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_1"))
                       (= offset-0 1) (= offset-1 0))))
 
           ;; Active input bits: (true, false).
           (and left-active
                (not right-active)
                (or
+                 ;; the active row: real inner and outer encryption
                  (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_0"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_active"))
+                      (= offset-0 1) (= offset-1 0))
+                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_active"))
+                      (= offset-0 1) (= offset-1 0))
+                 ;; inactive left key inside, active right key outside
+                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_inactive"))
+                      (= offset-0 0) (= offset-1 0))
+                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_inactive"))
+                      (= offset-0 0) (= offset-1 0))
+                 ;; inactive right key outside: encryptions of zeros
+                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_0"))
                       (= offset-0 2) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_0"))
-                      (= offset-0 1) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_1"))
-                      (= offset-0 0) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_1"))
-                      (= offset-0 0) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_2"))
-                      (= offset-0 7) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_2"))
-                      (= offset-0 3) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_3"))
-                      (= offset-0 5) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_3"))
-                      (= offset-0 2) (= offset-1 0))))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_1"))
+                      (= offset-0 3) (= offset-1 0))))
 
           ;; Active input bits: (true, true).
           (and left-active
                right-active
                (or
+                 ;; the active row: real inner and outer encryption
                  (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_0"))
-                      (= offset-0 6) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_0"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_active"))
                       (= offset-0 3) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_1"))
-                      (= offset-0 4) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_1"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_active"))
+                      (= offset-0 3) (= offset-1 0))
+                 ;; inactive left key inside, active right key outside
+                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rin_inactive"))
                       (= offset-0 2) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_2"))
-                      (= offset-0 3) (= offset-1 0))
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_2"))
-                      (= offset-0 1) (= offset-1 0))
-                 (and (= id-0 (sample-id "enc" "ENCN" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rin_round_3"))
-                      (= offset-0 1) (= offset-1 0))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_inactive"))
+                      (= offset-0 2) (= offset-1 0))
+                 ;; inactive right key outside: encryptions of zeros
                  (and (= id-0 (sample-id "enc" "ENCM" "r"))
-                      (= id-1 (sample-id "simgate" "GBLG" "rout_round_3"))
-                      (= offset-0 0) (= offset-1 0)))))))))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_0"))
+                      (= offset-0 0) (= offset-1 0))
+                 (and (= id-0 (sample-id "enc" "ENCM" "r"))
+                      (= id-1 (sample-id "simgate" "GBLG" "rout_zero_1"))
+                      (= offset-0 1) (= offset-1 0)))))))))

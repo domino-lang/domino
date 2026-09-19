@@ -1,4 +1,8 @@
 package Enc0 {
+    /*
+     * Real encryption of the 2CPA game: every message is encrypted as given,
+     * under the key selected by the bit b.
+     */
     params {
         n: Integer,
         m: Integer,
@@ -12,17 +16,17 @@ package Enc0 {
     }
 
 
-    oracle ENCN(j: Integer, b: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+    oracle ENCN(j: Integer, b: Bool, msg: Bits(n)) -> Bits(m) {
         K <- invoke GETKEYSIN(j);
         r <-$ Bits(n) sample-name r;
-        c <- encn(Unwrap(K[b]), nzero, r);
+        c <- encn(Unwrap(K[b]), msg, r);
         return c;
     }
 
-    oracle ENCM(j: Integer, b: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+    oracle ENCM(j: Integer, b: Bool, msg: Bits(m)) -> Bits(p) {
         K <- invoke GETKEYSIN(j);
         r <-$ Bits(n) sample-name r;
-        c <- encm(Unwrap(K[b]), mzero, r);
+        c <- encm(Unwrap(K[b]), msg, r);
         return c;
     }
 }

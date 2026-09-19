@@ -8,8 +8,8 @@ package Gate {
     import oracles {
         SETBIT(h: Integer, a: Bool),
         GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)),
-        ENCN(j: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m),
-        ENCM(j: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
+        ENCN(j: Integer, d: Bool, msg: Bits(n)) -> Bits(m),
+        ENCM(j: Integer, d: Bool, msg: Bits(m)) -> Bits(p),
     }
 
     oracle GBLG(
@@ -34,40 +34,43 @@ package Gate {
         when previous layers are already simulated (or is the circuit input)
         and hence are true input bits. 
         */
+        /*
+        Each of the four rows is the *real* nested encryption
+            ENCM(r, br, ENCN(l, bl, Z[op(bl, br)]))
+        of the output wire key belonging to the row.  Idealization happens
+        entirely inside the encryption package (real-or-zeros 2CPA), so the
+        garbler never needs a second "right" message.
+        */
         invoke SETBIT(j, false);
         C <- new Table(Bits(p), Bool);
         Z <- invoke GETKEYSOUT(j);
         bl <- false;
         br <- false;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
-        conein <- invoke ENCN(l, bl, 0_n, 0_n);
-        cout <- invoke ENCM(r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke ENCN(l, bl, kj);
+        cout <- invoke ENCM(r, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- false;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
-        conein <- invoke ENCN(l, bl, 0_n, 0_n);
-        cout <- invoke ENCM(r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke ENCN(l, bl, kj);
+        cout <- invoke ENCM(r, br, cin);
         C[cout] <- Some(true);
         bl <- false;
         br <- true;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
-        conein <- invoke ENCN(l, bl, 0_n, 0_n);
-        cout <- invoke ENCM(r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke ENCN(l, bl, kj);
+        cout <- invoke ENCM(r, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- true;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke ENCN(l, bl, kzero, 0_n);
-        conein <- invoke ENCN(l, bl, 0_n, 0_n);
-        cout <- invoke ENCM(r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke ENCN(l, bl, kj);
+        cout <- invoke ENCM(r, br, cin);
         C[cout] <- Some(true);
         return C;
     }

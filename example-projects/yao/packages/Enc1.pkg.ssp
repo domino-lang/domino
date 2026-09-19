@@ -1,4 +1,12 @@
 package Enc1 {
+    /*
+     * Ideal (real-or-zeros) encryption of the 2CPA game.
+     *
+     * Every wire h carries two keys: the *active* one K[z], which the adversary
+     * learns, and the *inactive* one K[not z], which stays secret.  Encryptions
+     * under the active key are real; encryptions under the inactive key are
+     * replaced by encryptions of the all-zero string of the appropriate length.
+     */
     params {
         n: Integer,
         m: Integer,
@@ -13,26 +21,26 @@ package Enc1 {
     }
 
 
-    oracle ENCN(j: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+    oracle ENCN(j: Integer, d: Bool, msg: Bits(n)) -> Bits(m) {
         K <- invoke GETKEYSIN(j);
         z <- invoke GETBIT(j);
         r <-$ Bits(n) sample-name r;
         if (d == z) {
-            c <- encn(Unwrap(K[d]), nzero, r);
+            c <- encn(Unwrap(K[d]), msg, r);
         } else {
-            c <- encn(Unwrap(K[d]), none, r);
+            c <- encn(Unwrap(K[d]), 0_n, r);
         }
         return c;
     }
 
-    oracle ENCM(j: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+    oracle ENCM(j: Integer, d: Bool, msg: Bits(m)) -> Bits(p) {
         K <- invoke GETKEYSIN(j);
         z <- invoke GETBIT(j);
         r <-$ Bits(n) sample-name r;
         if (d == z) {
-            c <- encm(Unwrap(K[d]), mzero, r);
+            c <- encm(Unwrap(K[d]), msg, r);
         } else {
-            c <- encm(Unwrap(K[d]), mone, r);
+            c <- encm(Unwrap(K[d]), 0_m, r);
         }
         return c;
     }

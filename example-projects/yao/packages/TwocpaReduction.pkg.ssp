@@ -37,28 +37,30 @@ package TwocpaReduction {
         return key;
     }
 
-    oracle ENCN(h: Integer, d: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m) {
+    oracle ENCN(h: Integer, d: Bool, msg: Bits(n)) -> Bits(m) {
         assert (Generated[h] == Some(true));
         active <- Unwrap(ActiveBit[h]);
         if (d == active) {
             key <- Unwrap(ActiveKey[h]);
             r <-$ Bits(n) sample-name r;
-            c <- encn(key, nzero, r);
+            c <- encn(key, msg, r);
         } else {
-            c <- invoke LR_ENCN(h, nzero, none);
+            /* real-or-zeros: the secret key encrypts zeros in the ideal game */
+            c <- invoke LR_ENCN(h, msg, 0_n);
         }
         return c;
     }
 
-    oracle ENCM(h: Integer, d: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p) {
+    oracle ENCM(h: Integer, d: Bool, msg: Bits(m)) -> Bits(p) {
         assert (Generated[h] == Some(true));
         active <- Unwrap(ActiveBit[h]);
         if (d == active) {
             key <- Unwrap(ActiveKey[h]);
             r <-$ Bits(n) sample-name r;
-            c <- encm(key, mzero, r);
+            c <- encm(key, msg, r);
         } else {
-            c <- invoke LR_ENCM(h, mzero, mone);
+            /* real-or-zeros: the secret key encrypts zeros in the ideal game */
+            c <- invoke LR_ENCM(h, msg, 0_m);
         }
         return c;
     }

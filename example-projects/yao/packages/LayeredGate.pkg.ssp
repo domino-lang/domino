@@ -1,4 +1,5 @@
 package LayeredGate {
+    /* layered mirror of Gate */
     params {
         n: Integer,
         m: Integer,
@@ -8,8 +9,8 @@ package LayeredGate {
     import oracles {
         LSETBIT(i: Integer, j: Integer, b: Bool),
         LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
-        LENCN(i: Integer, j: Integer, b: Bool, nzero: Bits(n), none: Bits(n)) -> Bits(m),
-        LENCM(i: Integer, j: Integer, b: Bool, mzero: Bits(m), mone: Bits(m)) -> Bits(p),
+        LENCN(i: Integer, j: Integer, b: Bool, msg: Bits(n)) -> Bits(m),
+        LENCM(i: Integer, j: Integer, b: Bool, msg: Bits(m)) -> Bits(p),
     }
 
     oracle LGATEGBLG(
@@ -25,34 +26,30 @@ package LayeredGate {
         bl <- false;
         br <- false;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke LENCN(i, l, bl, kzero, 0_n);
-        conein <- invoke LENCN(i, l, bl, 0_n, 0_n);
-        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke LENCN(i, l, bl, kj);
+        cout <- invoke LENCM(i, r, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- false;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke LENCN(i, l, bl, kzero, 0_n);
-        conein <- invoke LENCN(i, l, bl, 0_n, 0_n);
-        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke LENCN(i, l, bl, kj);
+        cout <- invoke LENCM(i, r, br, cin);
         C[cout] <- Some(true);
         bl <- false;
         br <- true;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke LENCN(i, l, bl, kzero, 0_n);
-        conein <- invoke LENCN(i, l, bl, 0_n, 0_n);
-        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke LENCN(i, l, bl, kj);
+        cout <- invoke LENCM(i, r, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- true;
         bj <- Unwrap(op[(bl, br)]);
-        kzero <- Unwrap(Z[bj]);
-        czeroin <- invoke LENCN(i, l, bl, kzero, 0_n);
-        conein <- invoke LENCN(i, l, bl, 0_n, 0_n);
-        cout <- invoke LENCM(i, r, br, czeroin, conein);
+        kj <- Unwrap(Z[bj]);
+        cin <- invoke LENCN(i, l, bl, kj);
+        cout <- invoke LENCM(i, r, br, cin);
         C[cout] <- Some(true);
         return C;
     }
