@@ -1,4 +1,4 @@
-(define-package-invariant
+(define-package-invariant main
 (forall ((i Int) (b Bool))
                     (=> (not (is-mk-none (select pkg.T i)))
                     (not (is-mk-none (select (maybe-get (select pkg.T i)) b))))))
