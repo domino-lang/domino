@@ -1,0 +1,16 @@
+(define-fun randomness-mapping-Test
+    ((id-0 SampleId) (id-1 SampleId)
+     (offset-0 Int) (offset-1 Int))
+  Bool
+  (or (and (= id-0 (sample-id "C" "Test" "1"))
+           (= id-1 (sample-id "D" "Test" "1"))
+           (= offset-0 0)
+           (= offset-1 2))
+      (and (= id-0 (sample-id "C" "Test" "1"))
+           (= id-1 (sample-id "D" "Test" "1"))
+           (= offset-0 1)
+           (= offset-1 1))
+      (and (= id-0 (sample-id "C" "Test" "1"))
+           (= id-1 (sample-id "D" "Test" "1"))
+           (= offset-0 2)
+           (= offset-1 0))))

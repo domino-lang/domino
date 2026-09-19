@@ -1,6 +1,8 @@
 theorem Eq {
     instance A = A {}
     instance B = B {}
+    instance C = C {}
+    instance D = D {}
 
     gamehops {
         equivalence A B {
@@ -9,6 +11,20 @@ theorem Eq {
                 ]
             Test: {
                 randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }  
+        }
+        equivalence C D {
+                invariant: [
+                    theorem/invariant.smt2,
+                    theorem/random.smt2
+                ]
+            Test: {
+                randomness: custom
                 lemmas {
                     equal-aborts: []
                     invariant:    [no-abort]

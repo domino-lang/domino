@@ -1,0 +1,11 @@
+package D {
+  oracle Test() -> (Integer, Integer, Integer) {
+    T <- new Table(Integer, Integer);
+    for i: 0 <= i < 3 {
+      x <-$ Integer;
+      T[i] <- Some(x);
+    }
+    res <- (Unwrap(T[2]), Unwrap(T[1]), Unwrap(T[0]));
+    return res;
+  }
+}
