@@ -1,4 +1,13 @@
-(define-fun randomness-mapping-GETAOUT
+;; TODO: this file still predates the LayeredKeys/Keys refactor.  It refers to
+;; the package-state field `flag` and to `ActiveBitSetAndGenerated`, which no
+;; longer exist, to the game instances `RealLayersKeys`/`SimulatedLayersKeys`,
+;; which have been merged into a single `LayeredKeys`, and (in the randomness
+;; mappings) to the eight coins `rin_round_*`/`rout_round_*` of the old
+;; simulator, which now draws six (`rin_active`, `rout_active`, `rin_inactive`,
+;; `rout_inactive`, `rout_zero_0`, `rout_zero_1`).  The names below have been
+;; propagated mechanically; the statements themselves still need reworking.
+
+(define-fun randomness-mapping-GenerateInputWireKeys
     (
         (sample-id-left SampleId)
         (sample-id-right SampleId)
@@ -8,21 +17,21 @@
     Bool
     (or 
         (and 
-            (= sample-id-left (sample-id "Keys" "LGETAOUT" "r"))
-            (= sample-id-right (sample-id "KeysTop" "GETAOUT" "r"))
+            (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_true"))
+            (= sample-id-right (sample-id "KeysTop" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and 
-            (= sample-id-left (sample-id "Keys" "LGETAOUT" "rr"))
-            (= sample-id-right (sample-id "KeysTop" "GETAOUT" "rr"))
+            (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_false"))
+            (= sample-id-right (sample-id "KeysTop" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
     )
 )
 
-(define-fun randomness-mapping-GBLG
+(define-fun randomness-mapping-GarbleGate
     (
         (sample-id-left SampleId)
         (sample-id-right SampleId)
@@ -32,55 +41,55 @@
     Bool
     (or
         (and
-            (= <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "r"))
-            (= sample-id-right (sample-id "KeysBot" "GETKEYSOUT" "r"))
+            (= <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_true"))
+            (= sample-id-right (sample-id "KeysBot" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (= <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "rr"))
-            (= sample-id-right (sample-id "KeysBot" "GETKEYSOUT" "rr"))
+            (= <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_false"))
+            (= sample-id-right (sample-id "KeysBot" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (= <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Enc" "LENCN" "r"))
-            (= sample-id-right (sample-id "Enc" "ENCN" "r"))
+            (= <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Enc" "EncInner" "r"))
+            (= sample-id-right (sample-id "Enc" "EncInner" "r"))
             (= sample-offset-left sample-offset-right)
         )
         (and
-            (= <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Enc" "LENCM" "r"))
-            (= sample-id-right (sample-id "Enc" "ENCM" "r"))
+            (= <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Enc" "EncOuter" "r"))
+            (= sample-id-right (sample-id "Enc" "EncOuter" "r"))
             (= sample-offset-left sample-offset-right)
         )
         (and
-            (> <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "r"))
-            (= sample-id-right (sample-id "RealLayersKeys" "LGETKEYSOUT" "r"))
+            (> <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_true"))
+            (= sample-id-right (sample-id "RealLayersKeys" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (> <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Keys" "LGETKEYSOUT" "rr"))
-            (= sample-id-right (sample-id "RealLayersKeys" "LGETKEYSOUT" "rr"))
+            (> <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_false"))
+            (= sample-id-right (sample-id "RealLayersKeys" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (> <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Enc" "LENCN" "r"))
-            (= sample-id-right (sample-id "LayeredEnc0" "LENCN" "r"))
+            (> <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Enc" "EncInner" "r"))
+            (= sample-id-right (sample-id "LayeredEnc0" "EncInner" "r"))
             (= sample-offset-left sample-offset-right)
         )
         (and
-            (> <arg-CoreReal-GBLG-i> 1)
-            (= sample-id-left (sample-id "Enc" "LENCM" "r"))
-            (= sample-id-right (sample-id "LayeredEnc0" "LENCM" "r"))
+            (> <arg-CoreReal-GarbleGate-layer> 1)
+            (= sample-id-left (sample-id "Enc" "EncOuter" "r"))
+            (= sample-id-right (sample-id "LayeredEnc0" "EncOuter" "r"))
             (= sample-offset-left sample-offset-right)
         )
     )

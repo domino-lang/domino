@@ -70,7 +70,7 @@ theorem Yao {
 
             map CoreIdeal YaoIdeal {
                 Keys: Keys
-                Lev: Lev
+                Ev: Ev
                 Sim: Sim
                 LayerMap: LayerMap
             }

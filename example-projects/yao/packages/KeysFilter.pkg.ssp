@@ -1,7 +1,7 @@
 package KeysFilter {
     /*
      * KeysFilter sits between every layered consumer (LayerMap, LayeredGate,
-     * LayeredEnc0, LayeredSim, LayeredLev) and the *single* merged LayeredKeys
+     * LayeredEnc0, LayeredSim, LayeredEval) and the *single* merged LayeredKeys
      * instance of a hybrid game.
      *
      * Wire layers are numbered 1..(d + 1): the gates of gate layer i read the wire
@@ -14,13 +14,14 @@ package KeysFilter {
      *   wire layer (h + 1) -> KeysBot  (the assumption's keys_bottom)
      *   every other layer  -> LayeredKeys (merged, shared by simulated and real layers)
      *
-     * The assumption only exports SETBIT/GETAOUT on keys_top and GETKEYSIN on
-     * keys_bottom, and those are exactly the three accesses that reach across the
-     * assumption boundary:
+     * The assumption only exports SetActiveBit/GenerateWireKeys/GetActiveWireKey on
+     * keys_top and GetWireKeys on keys_bottom, and those are exactly the accesses
+     * that reach across the assumption boundary:
      *
-     *   LSETBIT(h, .)      from LayerMap (h == 1) or LayeredLev (gate layer h - 1)
-     *   LGETAOUT(h, .)     from LayerMap (h == 1) or LayeredSim (gate layer h - 1)
-     *   LGETKEYSIN(h+1, .) from LayeredEnc0 (gate layer h + 1) or LayerMap (h == d)
+     *   SetActiveBit(h, .)       from LayerMap (h == 1) or LayeredEval (gate layer h - 1)
+     *   GenerateWireKeys(h, .)   from LayerMap (h == 1) or LayeredSim (gate layer h - 1)
+     *   GetActiveWireKey(h, .)   from LayerMap (h == 1) or LayeredSim (gate layer h - 1)
+     *   GetWireKeys(h + 1, .)    from LayeredEnc0 (gate layer h + 1) or LayerMap (h == d)
      *
      * All other oracles never see wire layer h or h + 1 and are plain forwards.
      *
@@ -38,68 +39,67 @@ package KeysFilter {
 
     import oracles {
         /* assumption, top wires: wire layer h */
-        SETBIT(j: Integer, b: Bool),
-        GETAOUT(j: Integer) -> Bits(n),
+        TopSetActiveBit(wire: Integer, bit: Bool),
+        TopGenerateWireKeys(wire: Integer),
+        TopGetActiveWireKey(wire: Integer) -> Bits(n),
 
         /* assumption, bottom wires: wire layer (h + 1) */
-        GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
+        BotGetWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
 
         /* merged layered keys: every other wire layer */
-        LSETBIT(i: Integer, j: Integer, b: Bool),
-        LGETAOUT(i: Integer, j: Integer) -> Bits(n),
-        LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
-        LGETAIN(i: Integer, j: Integer) -> Bits(n),
-        LGETINAIN(i: Integer, j: Integer) -> Bits(n),
-        LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
-        LGETBIT(i: Integer, j: Integer) -> Bool,
+        SetActiveBit(layer: Integer, wire: Integer, bit: Bool),
+        GetActiveBit(layer: Integer, wire: Integer) -> Bool,
+        GenerateWireKeys(layer: Integer, wire: Integer),
+        GetWireKeys(layer: Integer, wire: Integer) -> Table(Bool, Bits(n)),
+        GetActiveWireKey(layer: Integer, wire: Integer) -> Bits(n),
+        GetInactiveWireKey(layer: Integer, wire: Integer) -> Bits(n),
     }
 
-    oracle LSETBIT(i: Integer, j: Integer, b: Bool) {
-        if ((h > 0) and (h <= d) and (i == h)) {
-            invoke SETBIT(j, b);
+    oracle SetActiveBit(layer: Integer, wire: Integer, bit: Bool) {
+        if ((h > 0) and (h <= d) and (layer == h)) {
+            invoke TopSetActiveBit(wire, bit);
         } else {
-            invoke LSETBIT(i, j, b);
+            invoke SetActiveBit(layer, wire, bit);
         }
         return;
     }
 
-    oracle LGETAOUT(i: Integer, j: Integer) -> Bits(n) {
-        if ((h > 0) and (h <= d) and (i == h)) {
-            k <- invoke GETAOUT(j);
+    oracle GenerateWireKeys(layer: Integer, wire: Integer) {
+        if ((h > 0) and (h <= d) and (layer == h)) {
+            invoke TopGenerateWireKeys(wire);
         } else {
-            k <- invoke LGETAOUT(i, j);
+            invoke GenerateWireKeys(layer, wire);
+        }
+        return;
+    }
+
+    oracle GetActiveWireKey(layer: Integer, wire: Integer) -> Bits(n) {
+        if ((h > 0) and (h <= d) and (layer == h)) {
+            k <- invoke TopGetActiveWireKey(wire);
+        } else {
+            k <- invoke GetActiveWireKey(layer, wire);
         }
         return k;
     }
 
-    oracle LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)) {
-        if ((h > 0) and (h <= d) and (i == (h + 1))) {
-            Z <- invoke GETKEYSIN(j);
+    oracle GetWireKeys(layer: Integer, wire: Integer) -> Table(Bool, Bits(n)) {
+        if ((h > 0) and (h <= d) and (layer == (h + 1))) {
+            Z <- invoke BotGetWireKeys(wire);
         } else {
-            Z <- invoke LGETKEYSIN(i, j);
+            Z <- invoke GetWireKeys(layer, wire);
         }
         return Z;
     }
 
     /* the oracles below are never called on wire layer h or (h + 1) */
 
-    oracle LGETAIN(i: Integer, j: Integer) -> Bits(n) {
-        k <- invoke LGETAIN(i, j);
+    oracle GetInactiveWireKey(layer: Integer, wire: Integer) -> Bits(n) {
+        k <- invoke GetInactiveWireKey(layer, wire);
         return k;
     }
 
-    oracle LGETINAIN(i: Integer, j: Integer) -> Bits(n) {
-        k <- invoke LGETINAIN(i, j);
-        return k;
-    }
-
-    oracle LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)) {
-        Z <- invoke LGETKEYSOUT(i, j);
-        return Z;
-    }
-
-    oracle LGETBIT(i: Integer, j: Integer) -> Bool {
-        zz <- invoke LGETBIT(i, j);
-        return zz;
+    oracle GetActiveBit(layer: Integer, wire: Integer) -> Bool {
+        b <- invoke GetActiveBit(layer, wire);
+        return b;
     }
 }

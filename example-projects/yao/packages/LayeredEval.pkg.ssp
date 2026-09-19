@@ -1,0 +1,29 @@
+package LayeredEval {
+    /* layered mirror of Eval */
+    params {
+        n: Integer,
+    }
+
+    import oracles {
+        GetActiveBit(layer: Integer, wire: Integer) -> Bool,
+        SetActiveBit(layer: Integer, wire: Integer, bit: Bool),
+    }
+
+    oracle Eval(
+        layer: Integer,
+        output: Integer,
+        left_input: Integer,
+        right_input: Integer,
+        gate: Table((Bool, Bool), Bool))
+    {
+        zl <- invoke GetActiveBit(layer, left_input);
+        zr <- invoke GetActiveBit(layer, right_input);
+        z <- Unwrap(gate[(zl, zr)]);
+        invoke SetActiveBit((layer + 1), output, z);
+        _gate <- Unwrap(gate[(false, false)]);
+        _gate <- Unwrap(gate[(false, true)]);
+        _gate <- Unwrap(gate[(true, false)]);
+        _gate <- Unwrap(gate[(true, true)]);
+        return;
+    }
+}

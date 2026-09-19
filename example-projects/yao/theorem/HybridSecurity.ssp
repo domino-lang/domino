@@ -109,7 +109,7 @@ theorem HybridSecurity {
                     ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
                     ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
             ]
-            SETBIT: {
+            SetInputBit: {
                 randomness: none
                 lemmas {
                     equal-aborts: []
@@ -117,7 +117,15 @@ theorem HybridSecurity {
                     same-output:  [no-abort]
                 }
             }
-            GETAOUT: {
+            GetInputWireKey: {
+                randomness: none
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+            GenerateInputWireKeys: {
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -126,7 +134,7 @@ theorem HybridSecurity {
                 }
             }
 
-            GBLG: {
+            GarbleGate: {
                 lemmas {
                     case-i-is-one: [no-abort]
                     case-i-is-two: [no-abort]
@@ -141,7 +149,7 @@ theorem HybridSecurity {
                 }
             }
 
-            GETKEYSIN: {
+            GetWireKeys: {
                 randomness: none
                 lemmas {
                     same-output:  [no-abort]
@@ -156,7 +164,7 @@ theorem HybridSecurity {
                 ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
                 ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
             ]
-            SETBIT: {
+            SetInputBit: {
                 randomness: none
                 lemmas {
                     same-output:  [no-abort]
@@ -164,7 +172,15 @@ theorem HybridSecurity {
                     invariant:    [no-abort]
                 }
             }
-            GETAOUT: {
+            GetInputWireKey: {
+                randomness: none
+                lemmas {
+                    same-output:  [no-abort]
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                }
+            }
+            GenerateInputWireKeys: {
                 lemmas {
                     same-output:  [no-abort]
                     equal-aborts: []
@@ -173,7 +189,7 @@ theorem HybridSecurity {
                 }
             }
 
-            GBLG: {
+            GarbleGate: {
                 lemmas {
                     same-output:            [no-abort, case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
                     equal-aborts:           [case-i-lt-dminusone, case-i-is-dminusone, case-i-is-d]
@@ -184,7 +200,7 @@ theorem HybridSecurity {
                 }
             }
 
-            GETKEYSIN: {
+            GetWireKeys: {
                 randomness: none
                 lemmas {
                     same-output:  [no-abort]
@@ -207,7 +223,7 @@ theorem HybridSecurity {
                 map LayerIdeal Hybrid[true] {
                     keys_top: KeysTop
                     keys_bottom: KeysBot
-                    ev: Lev
+                    ev: Ev
                     simgate: Sim
                 }
             }
@@ -219,7 +235,7 @@ theorem HybridSecurity {
                     ./theorem/HybridSecurity/invariant-HybridIdeal-HybridReal1.smt2 /* depends on the assertion */
                     ./theorem/HybridSecurity/lemma-HybridIdeal-HybridReal1.smt2 /* depends on the assertion and invariant */
                 ]
-                SETBIT: {
+                SetInputBit: {
                     randomness: none
                     lemmas {
                         same-output:  [no-abort]
@@ -227,7 +243,15 @@ theorem HybridSecurity {
                         invariant:    [no-abort]
                     }
                 }
-                GETAOUT: {
+                GetInputWireKey: {
+                    randomness: none
+                    lemmas {
+                        same-output:  [no-abort]
+                        equal-aborts: []
+                        invariant:    [no-abort]
+                    }
+                }
+                GenerateInputWireKeys: {
                     lemmas {
                         same-output:  [no-abort]
                         equal-aborts: []
@@ -235,7 +259,7 @@ theorem HybridSecurity {
                     }
                 }
           
-                GBLG: {
+                GarbleGate: {
                     lemmas {
                         inv-case-i-gt-hplustwo: [no-abort, inv-case-i-gt-hplustwo-assumptions]
                         inv-case-i-gt-hplustwo-assumptions: [no-abort]
@@ -281,7 +305,7 @@ theorem HybridSecurity {
                     }
                 }
           
-                GETKEYSIN: {
+                GetWireKeys: {
                     randomness: none
                     lemmas {
                         same-output:  [no-abort]

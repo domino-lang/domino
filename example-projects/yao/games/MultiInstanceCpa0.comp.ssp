@@ -18,9 +18,9 @@ composition MultiInstanceCpa0 {
 
     compose {
         adversary: {
-            SAMPLEKEY: cpa,
-            ENCN: cpa,
-            ENCM: cpa,
+            SampleKey: cpa,
+            EncInner: cpa,
+            EncOuter: cpa,
         }
     }
 }

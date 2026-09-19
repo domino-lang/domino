@@ -75,7 +75,7 @@ theorem TwocpaSecurity {
                 ./theorem/TwocpaSecurity/invariant-left.smt2,
                 ./theorem/TwocpaSecurity/randomness-left.smt2
             ]
-            GETAOUT: {
+            GenerateInputWireKeys: {
                 randomness: custom
                 lemmas {
                     equal-aborts: []
@@ -83,7 +83,7 @@ theorem TwocpaSecurity {
                     same-output: [no-abort]
                 }
             }
-            SETBIT: {
+            GetInputWireKey: {
                 randomness: none
                 lemmas {
                     equal-aborts: []
@@ -91,7 +91,15 @@ theorem TwocpaSecurity {
                     same-output: [no-abort]
                 }
             }
-            ENCN: {
+            SetInputBit: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            EncInner: {
                 randomness: custom
                 lemmas {
                     equal-aborts: []
@@ -99,7 +107,7 @@ theorem TwocpaSecurity {
                     same-output: [no-abort]
                 }
             }
-            ENCM: {
+            EncOuter: {
                 randomness: custom
                 lemmas {
                     equal-aborts: []
@@ -126,7 +134,7 @@ theorem TwocpaSecurity {
                 ./theorem/TwocpaSecurity/invariant-right.smt2,
                 ./theorem/TwocpaSecurity/randomness-right.smt2
             ]
-            GETAOUT: {
+            GenerateInputWireKeys: {
                 randomness: custom
                 lemmas {
                     equal-aborts: []
@@ -134,7 +142,7 @@ theorem TwocpaSecurity {
                     same-output: [no-abort]
                 }
             }
-            SETBIT: {
+            GetInputWireKey: {
                 randomness: none
                 lemmas {
                     equal-aborts: []
@@ -142,7 +150,15 @@ theorem TwocpaSecurity {
                     same-output: [no-abort]
                 }
             }
-            ENCN: {
+            SetInputBit: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+            EncInner: {
                 randomness: custom
                 lemmas {
                     equal-aborts: []
@@ -150,7 +166,7 @@ theorem TwocpaSecurity {
                     same-output: [no-abort]
                 }
             }
-            ENCM: {
+            EncOuter: {
                 randomness: custom
                 lemmas {
                     equal-aborts: []

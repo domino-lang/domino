@@ -1,0 +1,36 @@
+package Eval {
+    params {
+        n: Integer,
+    }
+
+    import oracles {
+        GetActiveBit(wire: Integer) -> Bool,
+        SetActiveBit(wire: Integer, bit: Bool),
+    }
+
+
+    state {
+        y: Integer
+    }
+
+    oracle Eval(
+        output: Integer,
+        left_input: Integer,
+        right_input: Integer,
+        gate: Table((Bool, Bool), Bool)
+    ) {
+        zl <- invoke GetActiveBit(left_input);
+        zr <- invoke GetActiveBit(right_input);
+        z <- Unwrap(gate[(zl, zr)]);
+        invoke SetActiveBit(output, z);
+        /* for lemma aborts when proving GarbleGate in equiv LayerHybrid = LayerIdeal */
+        /* Essentially in LayerHybrid, Gate evaluates the gate on each possible pair 
+        of inputs and the uses the corresponding output wire key while the simulator 
+        only uses the evaluation of active wire key. */
+        _gate <- Unwrap(gate[(false, false)]);
+        _gate <- Unwrap(gate[(false, true)]);
+        _gate <- Unwrap(gate[(true, false)]);
+        _gate <- Unwrap(gate[(true, true)]);
+        return;
+    }
+}

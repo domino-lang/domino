@@ -2,10 +2,11 @@ package Enc1 {
     /*
      * Ideal (real-or-zeros) encryption of the 2CPA game.
      *
-     * Every wire h carries two keys: the *active* one K[z], which the adversary
-     * learns, and the *inactive* one K[not z], which stays secret.  Encryptions
-     * under the active key are real; encryptions under the inactive key are
-     * replaced by encryptions of the all-zero string of the appropriate length.
+     * Every wire carries two keys: the *active* one K[active_bit], which the
+     * adversary learns, and the *inactive* one K[not active_bit], which stays
+     * secret.  Encryptions under the active key are real; encryptions under the
+     * inactive key are replaced by encryptions of the all-zero string of the
+     * appropriate length.
      */
     params {
         n: Integer,
@@ -16,31 +17,31 @@ package Enc1 {
     }
 
     import oracles {
-        GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)),
-        GETBIT(h: Integer) -> Bool,
+        GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
+        GetActiveBit(wire: Integer) -> Bool,
     }
 
 
-    oracle ENCN(j: Integer, d: Bool, msg: Bits(n)) -> Bits(m) {
-        K <- invoke GETKEYSIN(j);
-        z <- invoke GETBIT(j);
+    oracle EncInner(wire: Integer, bit: Bool, msg: Bits(n)) -> Bits(m) {
+        K <- invoke GetWireKeys(wire);
+        active_bit <- invoke GetActiveBit(wire);
         r <-$ Bits(n) sample-name r;
-        if (d == z) {
-            c <- encn(Unwrap(K[d]), msg, r);
+        if (bit == active_bit) {
+            c <- encn(Unwrap(K[bit]), msg, r);
         } else {
-            c <- encn(Unwrap(K[d]), 0_n, r);
+            c <- encn(Unwrap(K[bit]), 0_n, r);
         }
         return c;
     }
 
-    oracle ENCM(j: Integer, d: Bool, msg: Bits(m)) -> Bits(p) {
-        K <- invoke GETKEYSIN(j);
-        z <- invoke GETBIT(j);
+    oracle EncOuter(wire: Integer, bit: Bool, msg: Bits(m)) -> Bits(p) {
+        K <- invoke GetWireKeys(wire);
+        active_bit <- invoke GetActiveBit(wire);
         r <-$ Bits(n) sample-name r;
-        if (d == z) {
-            c <- encm(Unwrap(K[d]), msg, r);
+        if (bit == active_bit) {
+            c <- encm(Unwrap(K[bit]), msg, r);
         } else {
-            c <- encm(Unwrap(K[d]), 0_m, r);
+            c <- encm(Unwrap(K[bit]), 0_m, r);
         }
         return c;
     }

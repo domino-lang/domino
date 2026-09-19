@@ -118,48 +118,52 @@ composition Hybrid0 {
             GARBLE: Mod,
         }
         Mod: {
-            GETAOUT: keys0,
-            SETBIT: keys0,
+            GenerateInputWireKeys: GenerateWireKeys of keys0,
+            GetInputWireKey: GetActiveWireKey of keys0,
+            SetInputBit: SetActiveBit of keys0,
             GBL1: GBL of modgb1,
             GBL2: GBL of modgb2,
             GBL3: GBL of modgb3,
-            GETKEYSIN: keys3,
+            GetWireKeys: keys3,
         }
         modgb1: {
-            GBLG: gate1,
+            GarbleGate: gate1,
         }
         gate1: {
-            SETBIT: keys1,
-            ENCN: enc1,
-            ENCM: enc1,
-            GETKEYSOUT: keys1,
+            SetInputBit: SetActiveBit of keys1,
+            GenerateWireKeys: keys1,
+            GetWireKeys: keys1,
+            EncInner: enc1,
+            EncOuter: enc1,
         }
         enc1: {
-            GETKEYSIN: keys0,
+            GetWireKeys: keys0,
         }
         modgb2: {
-            GBLG: gate2,
+            GarbleGate: gate2,
         }
         gate2: {
-            SETBIT: keys2,
-            ENCN: enc2,
-            ENCM: enc2,
-            GETKEYSOUT: keys2,
+            SetInputBit: SetActiveBit of keys2,
+            GenerateWireKeys: keys2,
+            GetWireKeys: keys2,
+            EncInner: enc2,
+            EncOuter: enc2,
         }
         enc2: {
-            GETKEYSIN: keys1,
+            GetWireKeys: keys1,
         }
         modgb3: {
-            GBLG: gate3,
+            GarbleGate: gate3,
         }
         gate3: {
-            SETBIT: keys3,
-            ENCN: enc3,
-            ENCM: enc3,
-            GETKEYSOUT: keys3,
+            SetInputBit: SetActiveBit of keys3,
+            GenerateWireKeys: keys3,
+            GetWireKeys: keys3,
+            EncInner: enc3,
+            EncOuter: enc3,
         }
         enc3: {
-            GETKEYSIN: keys2,
+            GetWireKeys: keys2,
         }
     }
 }

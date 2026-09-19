@@ -12,18 +12,16 @@
                )
           )
 
-          ; context dependent package invariant
-          (forall ((i Int)) 
-               (= 
-                    (is-mk-none (select right-game.keys_bottom.ActiveBit i)) 
-                    (is-mk-none (select right-game.keys_bottom.WireKey i))
-               )
-          )
-
-          (forall ((i Int) (b Bool))
-               (=> 
+          ;; GenerateWireKeys refuses to run before SetActiveBit, so a wire that
+          ;; has keys also has an active bit.  Needed for GarbleGate's aborts:
+          ;; a wire whose keys already exist makes both SetInputBit (left) and
+          ;; Eval's SetActiveBit (right) abort, which is what keeps Gate's
+          ;; Unwrap(Z[bj]) -- it reads *both* entries of the table -- in step
+          ;; with the simulator, which only ever reads the active one.
+          (forall ((i Int))
+               (=>
                     (not (is-mk-none (select left-game.keys_bottom.WireKey i)))
-                    (not (is-mk-none (select (maybe-get (select left-game.keys_bottom.WireKey i)) b)))
+                    (not (is-mk-none (select left-game.keys_bottom.ActiveBit i)))
                )
           )
      )

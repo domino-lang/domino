@@ -1,4 +1,4 @@
-(define-fun randomness-mapping-GETAOUT
+(define-fun randomness-mapping-GenerateInputWireKeys
   ((id-0 SampleId) (id-1 SampleId) (offset-0 Int) (offset-1 Int))
   Bool
   (let ((reduction
@@ -8,21 +8,21 @@
             (maybe-get
               (select
                 (<pkg-state-TwocpaReduction-<$<!m!><!n!><!p!>$>-ActiveBit> reduction)
-                <arg-TwocpaViaCpa1-GETAOUT-h>))))
+                <arg-TwocpaViaCpa1-GenerateInputWireKeys-wire>))))
       (and (= offset-0 0) (= offset-1 0)
         (ite active
           (or
-            (and (= id-0 (sample-id "reduction" "GETAOUT" "active_key"))
-                 (= id-1 (sample-id "keys_top" "GETAOUT" "r")))
-            (and (= id-0 (sample-id "cpa" "SAMPLEKEY" "key"))
-                 (= id-1 (sample-id "keys_top" "GETAOUT" "rr"))))
+            (and (= id-0 (sample-id "reduction" "GenerateWireKeys" "active_key"))
+                 (= id-1 (sample-id "keys_top" "GenerateWireKeys" "key_true")))
+            (and (= id-0 (sample-id "cpa" "SampleKey" "key"))
+                 (= id-1 (sample-id "keys_top" "GenerateWireKeys" "key_false"))))
           (or
-            (and (= id-0 (sample-id "cpa" "SAMPLEKEY" "key"))
-                 (= id-1 (sample-id "keys_top" "GETAOUT" "r")))
-            (and (= id-0 (sample-id "reduction" "GETAOUT" "active_key"))
-                 (= id-1 (sample-id "keys_top" "GETAOUT" "rr")))))))))
+            (and (= id-0 (sample-id "cpa" "SampleKey" "key"))
+                 (= id-1 (sample-id "keys_top" "GenerateWireKeys" "key_true")))
+            (and (= id-0 (sample-id "reduction" "GenerateWireKeys" "active_key"))
+                 (= id-1 (sample-id "keys_top" "GenerateWireKeys" "key_false")))))))))
 
-(define-fun randomness-mapping-ENCN
+(define-fun randomness-mapping-EncInner
   ((id-0 SampleId) (id-1 SampleId) (offset-0 Int) (offset-1 Int))
   Bool
   (let ((reduction
@@ -32,14 +32,14 @@
             (maybe-get
               (select
                 (<pkg-state-TwocpaReduction-<$<!m!><!n!><!p!>$>-ActiveBit> reduction)
-                <arg-TwocpaViaCpa1-ENCN-h>))))
-      (and (= id-1 (sample-id "enc" "ENCN" "r"))
+                <arg-TwocpaViaCpa1-EncInner-wire>))))
+      (and (= id-1 (sample-id "enc" "EncInner" "r"))
            (= offset-0 0) (= offset-1 0)
-           (ite (= <arg-TwocpaViaCpa1-ENCN-d> active)
-             (= id-0 (sample-id "reduction" "ENCN" "r"))
-             (= id-0 (sample-id "cpa" "ENCN" "r")))))))
+           (ite (= <arg-TwocpaViaCpa1-EncInner-bit> active)
+             (= id-0 (sample-id "reduction" "EncInner" "r"))
+             (= id-0 (sample-id "cpa" "EncInner" "r")))))))
 
-(define-fun randomness-mapping-ENCM
+(define-fun randomness-mapping-EncOuter
   ((id-0 SampleId) (id-1 SampleId) (offset-0 Int) (offset-1 Int))
   Bool
   (let ((reduction
@@ -49,9 +49,9 @@
             (maybe-get
               (select
                 (<pkg-state-TwocpaReduction-<$<!m!><!n!><!p!>$>-ActiveBit> reduction)
-                <arg-TwocpaViaCpa1-ENCM-h>))))
-      (and (= id-1 (sample-id "enc" "ENCM" "r"))
+                <arg-TwocpaViaCpa1-EncOuter-wire>))))
+      (and (= id-1 (sample-id "enc" "EncOuter" "r"))
            (= offset-0 0) (= offset-1 0)
-           (ite (= <arg-TwocpaViaCpa1-ENCM-d> active)
-             (= id-0 (sample-id "reduction" "ENCM" "r"))
-             (= id-0 (sample-id "cpa" "ENCM" "r")))))))
+           (ite (= <arg-TwocpaViaCpa1-EncOuter-bit> active)
+             (= id-0 (sample-id "reduction" "EncOuter" "r"))
+             (= id-0 (sample-id "cpa" "EncOuter" "r")))))))

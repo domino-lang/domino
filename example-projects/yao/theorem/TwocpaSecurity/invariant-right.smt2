@@ -18,7 +18,7 @@
       (let ((active (maybe-get (select old.keys_top.ActiveBit h)))
             (wire-keys (maybe-get (select old.keys_top.WireKey h))))
         (and
-          ;; GETAOUT only generates the keys of h after SETBIT(h, .)
+          ;; GenerateWireKeys only generates the keys of h after SetActiveBit(h, .)
           (not (is-mk-none (select old.keys_top.ActiveBit h)))
           (not (is-mk-none (select via.reduction.ActiveKey h)))
           (not (is-mk-none (select via.cpa.Key h)))

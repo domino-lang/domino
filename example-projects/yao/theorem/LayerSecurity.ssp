@@ -79,7 +79,7 @@ theorem LayerSecurity {
                     ./theorem/LayerSecurity/invariant-Layer.smt2
                     ./theorem/LayerSecurity/randomness-Layer.smt2
                 ]
-            GETAOUT: {
+            GenerateInputWireKeys: {
                 randomness: simple
                 lemmas {
                     equal-aborts: []
@@ -87,7 +87,7 @@ theorem LayerSecurity {
                     same-output:  [no-abort]
                 }
             }
-            SETBIT: {
+            GetInputWireKey: {
                 randomness: none
                 lemmas {
                     equal-aborts: []
@@ -95,7 +95,7 @@ theorem LayerSecurity {
                     same-output:  [no-abort]
                 }
             }
-            GETKEYSIN: {
+            SetInputBit: {
                 randomness: none
                 lemmas {
                     equal-aborts: []
@@ -103,7 +103,15 @@ theorem LayerSecurity {
                     same-output:  [no-abort]
                 }
             }
-            GBLG: {
+            GetOutputWireKeys: {
+                randomness: none
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            GarbleGate: {
                lemmas {
                     same-output: [no-abort]
                     equal-aborts: []

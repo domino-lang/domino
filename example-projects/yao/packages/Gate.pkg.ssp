@@ -6,21 +6,25 @@ package Gate {
     }
 
     import oracles {
-        SETBIT(h: Integer, a: Bool),
-        GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)),
-        ENCN(j: Integer, d: Bool, msg: Bits(n)) -> Bits(m),
-        ENCM(j: Integer, d: Bool, msg: Bits(m)) -> Bits(p),
+        /* on the wire layer below: the output wire of this gate */
+        SetInputBit(wire: Integer, bit: Bool),
+        GenerateWireKeys(wire: Integer),
+        GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
+
+        /* on the wire layer above: the input wires of this gate */
+        EncInner(wire: Integer, bit: Bool, msg: Bits(n)) -> Bits(m),
+        EncOuter(wire: Integer, bit: Bool, msg: Bits(m)) -> Bits(p),
     }
 
-    oracle GBLG(
-        l: Integer,
-        r: Integer,
-        op: Table((Bool, Bool), Bool),
-        j: Integer
+    oracle GarbleGate(
+        left_input: Integer,
+        right_input: Integer,
+        gate: Table((Bool, Bool), Bool),
+        output: Integer
     ) -> Table(Bits(p), Bool) {
         /*
         Set a dummy as the input bit of the next layer.
-        This helps to drop the used-to "flag" in the Keys package which aimed
+        This helps to drop the used-to "flag" state of the Keys package which aimed
         to simulate input bits in lower layers (other than circuit input bits which 
         is set on both sides) and help proving equivalence of layer with 
         ideal encryption with a simulated layer because the simulated layer 
@@ -34,43 +38,37 @@ package Gate {
         when previous layers are already simulated (or is the circuit input)
         and hence are true input bits. 
         */
-        /*
-        Each of the four rows is the *real* nested encryption
-            ENCM(r, br, ENCN(l, bl, Z[op(bl, br)]))
-        of the output wire key belonging to the row.  Idealization happens
-        entirely inside the encryption package (real-or-zeros 2CPA), so the
-        garbler never needs a second "right" message.
-        */
-        invoke SETBIT(j, false);
+        invoke SetInputBit(output, false);
         C <- new Table(Bits(p), Bool);
-        Z <- invoke GETKEYSOUT(j);
+        invoke GenerateWireKeys(output);
+        Z <- invoke GetWireKeys(output);
         bl <- false;
         br <- false;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke ENCN(l, bl, kj);
-        cout <- invoke ENCM(r, br, cin);
+        cin <- invoke EncInner(left_input, bl, kj);
+        cout <- invoke EncOuter(right_input, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- false;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke ENCN(l, bl, kj);
-        cout <- invoke ENCM(r, br, cin);
+        cin <- invoke EncInner(left_input, bl, kj);
+        cout <- invoke EncOuter(right_input, br, cin);
         C[cout] <- Some(true);
         bl <- false;
         br <- true;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke ENCN(l, bl, kj);
-        cout <- invoke ENCM(r, br, cin);
+        cin <- invoke EncInner(left_input, bl, kj);
+        cout <- invoke EncOuter(right_input, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- true;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke ENCN(l, bl, kj);
-        cout <- invoke ENCM(r, br, cin);
+        cin <- invoke EncInner(left_input, bl, kj);
+        cout <- invoke EncOuter(right_input, br, cin);
         C[cout] <- Some(true);
         return C;
     }

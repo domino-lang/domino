@@ -60,28 +60,31 @@ composition YaoReal {
             GARBLE: Mod,
         }
         Mod: {
-            GETAOUT: LayerMap,
-            SETBIT: LayerMap,
+            GenerateInputWireKeys: LayerMap,
+            GetInputWireKey: LayerMap,
+            SetInputBit: LayerMap,
             GBL: MODGB,
-            GETKEYSIN: LayerMap,
+            GetWireKeys: LayerMap,
         }
         MODGB: {
-            GBLG: LayerMap,
+            GarbleGate: LayerMap,
         }
         LayerMap: {
-            LSETBIT: Keys,
-            LGETAOUT: Keys,
-            LGETKEYSIN: Keys,
-            LGBLG: LGATEGBLG of Gate
+            SetActiveBit: Keys,
+            GenerateWireKeys: Keys,
+            GetActiveWireKey: Keys,
+            GetWireKeys: Keys,
+            GarbleGate: Gate,
         }
         Gate: {
-            LSETBIT: Keys,
-            LENCN: Enc,
-            LENCM: Enc,
-            LGETKEYSOUT: Keys,
+            SetInputBit: SetActiveBit of Keys,
+            GenerateWireKeys: Keys,
+            GetWireKeys: Keys,
+            EncInner: Enc,
+            EncOuter: Enc,
         }
         Enc: {
-            LGETKEYSIN: Keys,
+            GetWireKeys: Keys,
         }
     }
 }

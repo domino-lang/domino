@@ -7,11 +7,12 @@ package Mod {
     }
 
     import oracles {
-        SETBIT(j: Integer, b: Bool),
-        GBL(i: Integer, Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
+        SetInputBit(wire: Integer, bit: Bool),
+        GBL(layer: Integer, Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
              -> Table(Integer, Table(Bits(p), Bool)),
-        GETAOUT(j: Integer) -> Bits(n),
-        GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
+        GenerateInputWireKeys(wire: Integer),
+        GetInputWireKey(wire: Integer) -> Bits(n),
+        GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
     }
 
     oracle GARBLE(
@@ -22,24 +23,25 @@ package Mod {
                         Table(Integer,Table(Bool,Bits(n))))
     {
         xtilde <- new Table(Integer, Bits(n));
-        for j: 1 <= j <= w {
-            assert (x[j] != None);
-            z <- Unwrap(x[j]);
-            invoke SETBIT(j,z);
-            k <- invoke GETAOUT(j);
-            xtilde[j] <- Some(k);
+        for wire: 1 <= wire <= w {
+            assert (x[wire] != None);
+            z <- Unwrap(x[wire]);
+            invoke SetInputBit(wire, z);
+            invoke GenerateInputWireKeys(wire);
+            k <- invoke GetInputWireKey(wire);
+            xtilde[wire] <- Some(k);
         }
         Ctilde <- new Table(Integer,Table(Integer,Table(Bits(p), Bool)));
-        for i: 1 <= i <= d {
-            assert (C[i] != None);
-            Ci <- Unwrap(C[i]);
-            gCi <- invoke GBL(i, Ci);
-            Ctilde[i] <- Some(gCi);
+        for layer: 1 <= layer <= d {
+            assert (C[layer] != None);
+            Ci <- Unwrap(C[layer]);
+            gCi <- invoke GBL(layer, Ci);
+            Ctilde[layer] <- Some(gCi);
         }
         dinf   <- new Table(Integer,Table(Bool,Bits(n)));
-        for j: 1 <= j <= w {
-            ktable <- invoke GETKEYSIN(j);
-            dinf[j] <- Some(ktable);
+        for wire: 1 <= wire <= w {
+            ktable <- invoke GetWireKeys(wire);
+            dinf[wire] <- Some(ktable);
         }
         return (Ctilde,xtilde,dinf);
     }

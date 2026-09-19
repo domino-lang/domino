@@ -6,15 +6,16 @@ package Mod3Layer {
     }
 
     import oracles {
-        SETBIT(j: Integer, b: Bool),
+        SetInputBit(wire: Integer, bit: Bool),
         GBL1(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
              -> Table(Integer, Table(Bits(p), Bool)),
         GBL2(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
              -> Table(Integer, Table(Bits(p), Bool)),
         GBL3(Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
              -> Table(Integer, Table(Bits(p), Bool)),
-        GETAOUT(j: Integer) -> Bits(n),
-        GETKEYSIN(j: Integer) -> Table(Bool, Bits(n)),
+        GenerateInputWireKeys(wire: Integer),
+        GetInputWireKey(wire: Integer) -> Bits(n),
+        GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)),
     }
 
     oracle GARBLE(
@@ -25,12 +26,13 @@ package Mod3Layer {
                         Table(Integer,Table(Bool,Bits(n))))
     {
         xtilde <- new Table(Integer, Bits(n));
-        for j: 1 <= j <= w {
-            assert (x[j] != None);
-            z <- Unwrap(x[j]);
-            invoke SETBIT(j,z);
-            k <- invoke GETAOUT(j);
-            xtilde[j] <- Some(k);
+        for wire: 1 <= wire <= w {
+            assert (x[wire] != None);
+            z <- Unwrap(x[wire]);
+            invoke SetInputBit(wire, z);
+            invoke GenerateInputWireKeys(wire);
+            k <- invoke GetInputWireKey(wire);
+            xtilde[wire] <- Some(k);
         }
         Ctilde <- new Table(Integer,Table(Integer,Table(Bits(p), Bool)));
         assert (C[1] != None);
@@ -46,9 +48,9 @@ package Mod3Layer {
         gCi <- invoke GBL3(Ci);
         Ctilde[3] <- Some(gCi);
         dinf   <- new Table(Integer,Table(Bool,Bits(n)));
-        for j: 1 <= j <= w {
-            ktable <- invoke GETKEYSIN(j);
-            dinf[j] <- Some(ktable);
+        for wire: 1 <= wire <= w {
+            ktable <- invoke GetWireKeys(wire);
+            dinf[wire] <- Some(ktable);
         }
         return (Ctilde,xtilde,dinf);
     }

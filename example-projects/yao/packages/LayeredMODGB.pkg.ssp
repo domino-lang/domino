@@ -5,29 +5,29 @@ package LayeredMODGB {
     }
 
     import oracles {
-        GBLG(
-            i: Integer, 
-            l: Integer, 
-            r: Integer, 
-            op: Table((Bool,Bool),Bool), 
-            j: Integer) -> Table(Bits(p),Bool),
+        GarbleGate(
+            layer: Integer, 
+            left_input: Integer, 
+            right_input: Integer, 
+            gate: Table((Bool,Bool),Bool), 
+            output: Integer) -> Table(Bits(p),Bool),
     }
 
     oracle GBL(
-            i: Integer, 
+            layer: Integer, 
             Ci: Table(Integer, (Integer, Integer, Table((Bool,Bool),Bool)))) 
             -> Table(Integer, Table(Bits(p), Bool)) 
     {
         T   <- new Table(Integer, Table(Bits(p), Bool));
         tmp <- new Table(Bits(p),Bool);
-        for j: 1 <= j <= w {
-            (l,r,op) <- parse Unwrap(Ci[j]);
-            assert not (op[(true,  true)] == None);
-            assert not (op[(true, false)] == None);
-            assert not (op[(false, true)] == None);
-            assert not (op[(false,false)] == None);
-            tmp <- invoke GBLG(i, l, r, op, j);
-            T[j] <- Some(tmp);
+        for wire: 1 <= wire <= w {
+            (left_input, right_input, gate) <- parse Unwrap(Ci[wire]);
+            assert not (gate[(true,  true)] == None);
+            assert not (gate[(true, false)] == None);
+            assert not (gate[(false, true)] == None);
+            assert not (gate[(false,false)] == None);
+            tmp <- invoke GarbleGate(layer, left_input, right_input, gate, wire);
+            T[wire] <- Some(tmp);
         }
         return T;
     }

@@ -23,14 +23,15 @@ composition Twocpa1 {
 
     compose {
         adversary: {
-            GETAOUT: keys_top,
-            SETBIT: keys_top,
-            ENCN: enc,
-            ENCM: enc,
+            GenerateInputWireKeys: GenerateWireKeys of keys_top,
+            GetInputWireKey: GetActiveWireKey of keys_top,
+            SetInputBit: SetActiveBit of keys_top,
+            EncInner: enc,
+            EncOuter: enc,
         }
         enc: {
-            GETKEYSIN: keys_top,
-            GETBIT: keys_top,
+            GetWireKeys: keys_top,
+            GetActiveBit: keys_top,
         }
     }
 }

@@ -60,7 +60,7 @@ composition HybridReal {
         }
     }
 
-    instance LayeredLev = LayeredLev {
+    instance LayeredEval = LayeredEval {
         params {
             n: n,
         }
@@ -105,58 +105,62 @@ composition HybridReal {
 
     compose {
         adversary: {
-            GETAOUT: LayerMap,
-            SETBIT: LayerMap,
-            GBLG: LayerMap,
-            GETKEYSIN: LayerMap,
+            GenerateInputWireKeys: LayerMap,
+            GetInputWireKey: LayerMap,
+            SetInputBit: LayerMap,
+            GarbleGate: LayerMap,
+            GetWireKeys: LayerMap,
         }
         LayerMap: {
-            LSETBIT: KeysFilter,
-            LGETAOUT: KeysFilter,
-            LGETKEYSIN: KeysFilter,
-            GBLG: Gate,
-            LSIMGBLG: LayeredSim,
-            LGATEGBLG: LayeredGate,
+            SetActiveBit: KeysFilter,
+            GenerateWireKeys: KeysFilter,
+            GetActiveWireKey: KeysFilter,
+            GetWireKeys: KeysFilter,
+            Assumption: GarbleGate of Gate,
+            SimulateGarbledGate: LayeredSim,
+            GarbleGate: LayeredGate,
         }
         KeysFilter: {
-            SETBIT: KeysTop,
-            GETAOUT: KeysTop,
-            GETKEYSIN: KeysBot,
-            LSETBIT: LayeredKeys,
-            LGETAOUT: LayeredKeys,
-            LGETKEYSIN: LayeredKeys,
-            LGETAIN: LayeredKeys,
-            LGETINAIN: LayeredKeys,
-            LGETKEYSOUT: LayeredKeys,
-            LGETBIT: LayeredKeys,
+            TopSetActiveBit: SetActiveBit of KeysTop,
+            TopGenerateWireKeys: GenerateWireKeys of KeysTop,
+            TopGetActiveWireKey: GetActiveWireKey of KeysTop,
+            BotGetWireKeys: GetWireKeys of KeysBot,
+            SetActiveBit: LayeredKeys,
+            GetActiveBit: LayeredKeys,
+            GenerateWireKeys: LayeredKeys,
+            GetWireKeys: LayeredKeys,
+            GetActiveWireKey: LayeredKeys,
+            GetInactiveWireKey: LayeredKeys,
         }
         Gate: {
-            SETBIT: KeysBot,
-            ENCN: Enc,
-            ENCM: Enc,
-            GETKEYSOUT: KeysBot,
+            SetInputBit: SetActiveBit of KeysBot,
+            GenerateWireKeys: KeysBot,
+            GetWireKeys: KeysBot,
+            EncInner: Enc,
+            EncOuter: Enc,
         }
         Enc: {
-            GETKEYSIN: KeysTop,
+            GetWireKeys: KeysTop,
         }
         LayeredGate: {
-            LSETBIT: KeysFilter,
-            LENCN: LayeredEnc0,
-            LENCM: LayeredEnc0,
-            LGETKEYSOUT: KeysFilter,
+            SetInputBit: SetActiveBit of KeysFilter,
+            GenerateWireKeys: KeysFilter,
+            GetWireKeys: KeysFilter,
+            EncInner: LayeredEnc0,
+            EncOuter: LayeredEnc0,
         }
         LayeredEnc0: {
-            LGETKEYSIN: KeysFilter,
+            GetWireKeys: KeysFilter,
         }
         LayeredSim: {
-            LEVAL: LayeredLev,
-            LGETAIN: KeysFilter,
-            LGETINAIN: KeysFilter,
-            LGETAOUT: KeysFilter,
+            Eval: LayeredEval,
+            GetActiveWireKey: KeysFilter,
+            GetInactiveWireKey: KeysFilter,
+            GenerateWireKeys: KeysFilter,
         }
-        LayeredLev: {
-            LGETBIT: KeysFilter,
-            LSETBIT: KeysFilter,
+        LayeredEval: {
+            GetActiveBit: KeysFilter,
+            SetActiveBit: KeysFilter,
         }
     }
 }

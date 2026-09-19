@@ -6,9 +6,11 @@
 ;;
 ;; The old Keys package tracked "the active bit is set and the keys have been
 ;; generated" in a dedicated table.  That flag is gone; keys are generated
-;; exactly by GETAOUT, which is also the only oracle writing WireKey in this
-;; game, so `WireKey[h] != None` now plays the role of the flag and matches
+;; exactly by GenerateWireKeys, which is also the only oracle writing WireKey in
+;; this game, so `WireKey[h] != None` now plays the role of the flag and matches
 ;; `reduction.Generated[h] == Some(true)`.
+
+
 
 (define-state-relation generated (old via)
   (forall ((h Int))
@@ -26,7 +28,7 @@
       (let ((active (maybe-get (select old.keys_top.ActiveBit h)))
             (wire-keys (maybe-get (select old.keys_top.WireKey h))))
         (and
-          ;; GETAOUT only generates the keys of h after SETBIT(h, .)
+          ;; GenerateWireKeys only generates the keys of h after SetActiveBit(h, .)
           (not (is-mk-none (select old.keys_top.ActiveBit h)))
           (not (is-mk-none (select via.reduction.ActiveKey h)))
           (not (is-mk-none (select via.cpa.Key h)))

@@ -28,15 +28,16 @@ composition TwocpaViaCpa0 {
 
     compose {
         reduction: {
-            SAMPLEKEY: cpa,
-            LR_ENCN: ENCN of cpa,
-            LR_ENCM: ENCM of cpa,
+            SampleKey: cpa,
+            LR_EncInner: EncInner of cpa,
+            LR_EncOuter: EncOuter of cpa,
         }
         adversary: {
-            GETAOUT: reduction,
-            SETBIT: reduction,
-            ENCN: reduction,
-            ENCM: reduction,
+            GenerateInputWireKeys: GenerateWireKeys of reduction,
+            GetInputWireKey: GetActiveWireKey of reduction,
+            SetInputBit: SetActiveBit of reduction,
+            EncInner: reduction,
+            EncOuter: reduction,
         }
     }
 }

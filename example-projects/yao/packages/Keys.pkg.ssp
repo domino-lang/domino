@@ -1,4 +1,14 @@
 package Keys {
+    /*
+     * The wire keys of one wire layer.
+     *
+     * Every wire carries two keys, indexed by the bit they stand for, plus the
+     * *active bit*: the value the wire takes on the evaluated input, i.e. the
+     * one whose key the evaluator learns.
+     *
+     * GenerateWireKeys samples the two keys of a wire; the three getters only
+     * read.  Whoever needs a key calls GenerateWireKeys first.
+     */
     params {
         n: Integer,
     }
@@ -9,63 +19,50 @@ package Keys {
     }
 
 
-    oracle GETKEYSIN(h: Integer) -> Table(Bool, Bits(n)) {
-        assert (ActiveBit[h] != None);
-        W <- Unwrap(WireKey[h]);
-        return W;
-    }
-
-    oracle GETAIN(h: Integer) -> Bits(n) {
-        W <- Unwrap(WireKey[h]);
-        a <- Unwrap(ActiveBit[h]);
-        k <- Unwrap(W[a]);
-        return k;
-    }
-
-    oracle GETINAIN(h: Integer) -> Bits(n) {
-        W <- Unwrap(WireKey[h]);
-        a <- Unwrap(ActiveBit[h]);
-        k <- Unwrap(W[not a]);
-        return k;
-    }
-
-    oracle GETAOUT(h: Integer) -> Bits(n) {
-        W <- new Table(Bool, Bits(n));
-        if (WireKey[h] == None) {
-            r <-$ Bits(n) sample-name r;
-            W[true] <- Some(r);
-            rr <-$ Bits(n) sample-name rr;
-            W[false] <- Some(rr);
-            WireKey[h] <- Some(W);
-        }
-        W <- Unwrap(WireKey[h]);
-        a <- Unwrap(ActiveBit[h]);
-        k <- Unwrap(W[a]);
-        return k;
-    }
-
-    oracle GETKEYSOUT(h: Integer) -> Table(Bool, Bits(n)) {
-        W <- new Table(Bool, Bits(n));
-        if (WireKey[h] == None) {
-            r <-$ Bits(n) sample-name r;
-            W[true] <- Some(r);
-            rr <-$ Bits(n) sample-name rr;
-            W[false] <- Some(rr);
-            WireKey[h] <- Some(W);
-        }
-        W <- Unwrap(WireKey[h]);
-        return W;
-    }
-
-    oracle GETBIT(h: Integer) -> Bool {
-        assert (ActiveBit[h] != None as Bool);
-        a <- Unwrap(ActiveBit[h]);
-        return a;
-    }
-
-    oracle SETBIT(h: Integer, a: Bool) {
-        assert (ActiveBit[h] == None as Bool);
-        ActiveBit[h] <- Some(a);
+    oracle SetActiveBit(wire: Integer, bit: Bool) {
+        assert (ActiveBit[wire] == None as Bool);
+        ActiveBit[wire] <- Some(bit);
         return;
+    }
+
+    oracle GetActiveBit(wire: Integer) -> Bool {
+        assert (ActiveBit[wire] != None as Bool);
+        b <- Unwrap(ActiveBit[wire]);
+        return b;
+    }
+
+    oracle GenerateWireKeys(wire: Integer) {
+        /* The active bit of a wire has to be fixed before its keys are
+           generated: it decides which of the two keys is the one handed out,
+           and the 2CPA reduction commits to that split when it generates. */
+        assert (ActiveBit[wire] != None as Bool);
+        if (WireKey[wire] == None) {
+            W <- new Table(Bool, Bits(n));
+            k1 <-$ Bits(n) sample-name key_true;
+            W[true] <- Some(k1);
+            k0 <-$ Bits(n) sample-name key_false;
+            W[false] <- Some(k0);
+            WireKey[wire] <- Some(W);
+        }
+    }
+
+    oracle GetWireKeys(wire: Integer) -> Table(Bool, Bits(n)) {
+        assert (ActiveBit[wire] != None);
+        W <- Unwrap(WireKey[wire]);
+        return W;
+    }
+
+    oracle GetActiveWireKey(wire: Integer) -> Bits(n) {
+        W <- Unwrap(WireKey[wire]);
+        b <- Unwrap(ActiveBit[wire]);
+        k <- Unwrap(W[b]);
+        return k;
+    }
+
+    oracle GetInactiveWireKey(wire: Integer) -> Bits(n) {
+        W <- Unwrap(WireKey[wire]);
+        b <- Unwrap(ActiveBit[wire]);
+        k <- Unwrap(W[not b]);
+        return k;
     }
 }

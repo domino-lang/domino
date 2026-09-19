@@ -3,7 +3,7 @@ composition HybridIdeal {
      * h-th hybrid, ideal side: gate layers 1..(h - 1) are simulated, gate layer h is
      * the ideal side of the Layer assumption, gate layers (h + 1)..d are real.
      *
-     * Identical to HybridReal except for the assumption layer itself (Lev / Simgate
+     * Identical to HybridReal except for the assumption layer itself (Eval / Simgate
      * instead of Enc0 / Gate). For h = d + 1 this is CoreIdeal with the assumption
      * packages left dangling.
      */
@@ -42,7 +42,7 @@ composition HybridIdeal {
         }
     }
 
-    instance Lev = Lev {
+    instance Ev = Eval {
         params {
             n: n
         }
@@ -58,7 +58,7 @@ composition HybridIdeal {
         }
     }
 
-    instance LayeredLev = LayeredLev {
+    instance LayeredEval = LayeredEval {
         params {
             n: n,
         }
@@ -103,59 +103,63 @@ composition HybridIdeal {
 
     compose {
         adversary: {
-            GETAOUT: LayerMap,
-            SETBIT: LayerMap,
-            GBLG: LayerMap,
-            GETKEYSIN: LayerMap,
+            GenerateInputWireKeys: LayerMap,
+            GetInputWireKey: LayerMap,
+            SetInputBit: LayerMap,
+            GarbleGate: LayerMap,
+            GetWireKeys: LayerMap,
         }
         LayerMap: {
-            LSETBIT: KeysFilter,
-            LGETAOUT: KeysFilter,
-            LGETKEYSIN: KeysFilter,
-            GBLG: Sim,
-            LSIMGBLG: LayeredSim,
-            LGATEGBLG: LayeredGate,
+            SetActiveBit: KeysFilter,
+            GenerateWireKeys: KeysFilter,
+            GetActiveWireKey: KeysFilter,
+            GetWireKeys: KeysFilter,
+            Assumption: SimulateGarbledGate of Sim,
+            SimulateGarbledGate: LayeredSim,
+            GarbleGate: LayeredGate,
         }
         KeysFilter: {
-            SETBIT: KeysTop,
-            GETAOUT: KeysTop,
-            GETKEYSIN: KeysBot,
-            LSETBIT: LayeredKeys,
-            LGETAOUT: LayeredKeys,
-            LGETKEYSIN: LayeredKeys,
-            LGETAIN: LayeredKeys,
-            LGETINAIN: LayeredKeys,
-            LGETKEYSOUT: LayeredKeys,
-            LGETBIT: LayeredKeys,
+            TopSetActiveBit: SetActiveBit of KeysTop,
+            TopGenerateWireKeys: GenerateWireKeys of KeysTop,
+            TopGetActiveWireKey: GetActiveWireKey of KeysTop,
+            BotGetWireKeys: GetWireKeys of KeysBot,
+            SetActiveBit: LayeredKeys,
+            GetActiveBit: LayeredKeys,
+            GenerateWireKeys: LayeredKeys,
+            GetWireKeys: LayeredKeys,
+            GetActiveWireKey: LayeredKeys,
+            GetInactiveWireKey: LayeredKeys,
         }
         Sim: {
-            GETAIN: KeysTop,
-            GETINAIN: KeysTop,
-            EVAL: Lev,
-            GETAOUT: KeysBot,
+            GetActiveWireKey: KeysTop,
+            GetInactiveWireKey: KeysTop,
+            Eval: Ev,
+            GenerateWireKeys: KeysBot,
+            GetActiveOutputWireKey: GetActiveWireKey of KeysBot,
         }
-        Lev: {
-            GETBIT: KeysTop,
-            SETBIT: KeysBot,
+        Ev: {
+            GetActiveBit: KeysTop,
+            SetActiveBit: KeysBot,
         }
         LayeredGate: {
-            LSETBIT: KeysFilter,
-            LENCN: LayeredEnc0,
-            LENCM: LayeredEnc0,
-            LGETKEYSOUT: KeysFilter,
+            SetInputBit: SetActiveBit of KeysFilter,
+            GenerateWireKeys: KeysFilter,
+            GetWireKeys: KeysFilter,
+            EncInner: LayeredEnc0,
+            EncOuter: LayeredEnc0,
         }
         LayeredEnc0: {
-            LGETKEYSIN: KeysFilter,
+            GetWireKeys: KeysFilter,
         }
         LayeredSim: {
-            LEVAL: LayeredLev,
-            LGETAIN: KeysFilter,
-            LGETINAIN: KeysFilter,
-            LGETAOUT: KeysFilter,
+            Eval: LayeredEval,
+            GetActiveWireKey: KeysFilter,
+            GetInactiveWireKey: KeysFilter,
+            GenerateWireKeys: KeysFilter,
         }
-        LayeredLev: {
-            LGETBIT: KeysFilter,
-            LSETBIT: KeysFilter,
+        LayeredEval: {
+            GetActiveBit: KeysFilter,
+            SetActiveBit: KeysFilter,
         }
     }
 }

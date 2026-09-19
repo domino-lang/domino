@@ -9,26 +9,28 @@ package LayeredSim {
     }
 
     import oracles {
-        LGETAIN(i: Integer, j: Integer) -> Bits(n),
-        LGETINAIN(i: Integer, j: Integer) -> Bits(n),
-        LEVAL(i: Integer, j: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool)),
-        LGETAOUT(i: Integer, j: Integer) -> Bits(n),
+        GetActiveWireKey(layer: Integer, wire: Integer) -> Bits(n),
+        GetInactiveWireKey(layer: Integer, wire: Integer) -> Bits(n),
+        GenerateWireKeys(layer: Integer, wire: Integer),
+        Eval(layer: Integer, output: Integer, left_input: Integer,
+             right_input: Integer, gate: Table((Bool, Bool), Bool)),
     }
 
-    oracle LSIMGBLG(
-        i: Integer,
-        l: Integer,
-        r: Integer,
-        op: Table((Bool, Bool), Bool),
-        j: Integer
+    oracle SimulateGarbledGate(
+        layer: Integer,
+        left_input: Integer,
+        right_input: Integer,
+        gate: Table((Bool, Bool), Bool),
+        output: Integer
     ) -> Table(Bits(p), Bool) {
         C <- new Table(Bits(p), Bool);
-        invoke LEVAL(i, j, l, r, op);
-        akl <- invoke LGETAIN(i, l);
-        ikl <- invoke LGETINAIN(i, l);
-        akr <- invoke LGETAIN(i, r);
-        ikr <- invoke LGETINAIN(i, r);
-        akj <- invoke LGETAOUT((i + 1), j);
+        invoke Eval(layer, output, left_input, right_input, gate);
+        akl <- invoke GetActiveWireKey(layer, left_input);
+        ikl <- invoke GetInactiveWireKey(layer, left_input);
+        akr <- invoke GetActiveWireKey(layer, right_input);
+        ikr <- invoke GetInactiveWireKey(layer, right_input);
+        invoke GenerateWireKeys((layer + 1), output);
+        akj <- invoke GetActiveWireKey((layer + 1), output);
 
         /* the active row */
         rin <-$ Bits(n) sample-name rin_active;

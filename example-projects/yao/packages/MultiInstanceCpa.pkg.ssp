@@ -1,4 +1,8 @@
 package MultiInstanceCpa {
+    /*
+     * Multi-instance left-or-right CPA game for the two ciphertext lengths used
+     * by the garbler: EncInner encrypts a wire key, EncOuter an inner ciphertext.
+     */
     params {
         b: Bool,
         n: Integer,
@@ -12,14 +16,14 @@ package MultiInstanceCpa {
         Key: Table(Integer, Bits(n)),
     }
 
-    oracle SAMPLEKEY(h: Integer) {
+    oracle SampleKey(h: Integer) {
         assert (Key[h] == None as Bits(n));
         key <-$ Bits(n) sample-name key;
         Key[h] <- Some(key);
         return;
     }
 
-    oracle ENCN(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m) {
+    oracle EncInner(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m) {
         assert (Key[h] != None as Bits(n));
         key <- Unwrap(Key[h]);
         r <-$ Bits(n) sample-name r;
@@ -31,7 +35,7 @@ package MultiInstanceCpa {
         return c;
     }
 
-    oracle ENCM(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p) {
+    oracle EncOuter(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p) {
         assert (Key[h] != None as Bits(n));
         key <- Unwrap(Key[h]);
         r <-$ Bits(n) sample-name r;

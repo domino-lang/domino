@@ -7,49 +7,51 @@ package LayeredGate {
     }
 
     import oracles {
-        LSETBIT(i: Integer, j: Integer, b: Bool),
-        LGETKEYSOUT(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
-        LENCN(i: Integer, j: Integer, b: Bool, msg: Bits(n)) -> Bits(m),
-        LENCM(i: Integer, j: Integer, b: Bool, msg: Bits(m)) -> Bits(p),
+        SetInputBit(layer: Integer, wire: Integer, bit: Bool),
+        GenerateWireKeys(layer: Integer, wire: Integer),
+        GetWireKeys(layer: Integer, wire: Integer) -> Table(Bool, Bits(n)),
+        EncInner(layer: Integer, wire: Integer, bit: Bool, msg: Bits(n)) -> Bits(m),
+        EncOuter(layer: Integer, wire: Integer, bit: Bool, msg: Bits(m)) -> Bits(p),
     }
 
-    oracle LGATEGBLG(
-        i: Integer,
-        l: Integer,
-        r: Integer,
-        op: Table((Bool, Bool), Bool),
-        j: Integer
+    oracle GarbleGate(
+        layer: Integer,
+        left_input: Integer,
+        right_input: Integer,
+        gate: Table((Bool, Bool), Bool),
+        output: Integer
     ) -> Table(Bits(p), Bool) {
-        invoke LSETBIT((i + 1), j, false);
+        invoke SetInputBit((layer + 1), output, false);
         C <- new Table(Bits(p), Bool);
-        Z <- invoke LGETKEYSOUT((i + 1), j);
+        invoke GenerateWireKeys((layer + 1), output);
+        Z <- invoke GetWireKeys((layer + 1), output);
         bl <- false;
         br <- false;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke LENCN(i, l, bl, kj);
-        cout <- invoke LENCM(i, r, br, cin);
+        cin <- invoke EncInner(layer, left_input, bl, kj);
+        cout <- invoke EncOuter(layer, right_input, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- false;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke LENCN(i, l, bl, kj);
-        cout <- invoke LENCM(i, r, br, cin);
+        cin <- invoke EncInner(layer, left_input, bl, kj);
+        cout <- invoke EncOuter(layer, right_input, br, cin);
         C[cout] <- Some(true);
         bl <- false;
         br <- true;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke LENCN(i, l, bl, kj);
-        cout <- invoke LENCM(i, r, br, cin);
+        cin <- invoke EncInner(layer, left_input, bl, kj);
+        cout <- invoke EncOuter(layer, right_input, br, cin);
         C[cout] <- Some(true);
         bl <- true;
         br <- true;
-        bj <- Unwrap(op[(bl, br)]);
+        bj <- Unwrap(gate[(bl, br)]);
         kj <- Unwrap(Z[bj]);
-        cin <- invoke LENCN(i, l, bl, kj);
-        cout <- invoke LENCM(i, r, br, cin);
+        cin <- invoke EncInner(layer, left_input, bl, kj);
+        cout <- invoke EncOuter(layer, right_input, br, cin);
         C[cout] <- Some(true);
         return C;
     }

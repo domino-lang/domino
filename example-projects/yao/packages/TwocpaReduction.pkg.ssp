@@ -1,4 +1,9 @@
 package TwocpaReduction {
+    /*
+     * Reduction from the two-key game (Twocpa) to multi-instance CPA: the active
+     * key of a wire is held by the reduction itself, the inactive (secret) one by
+     * the CPA game.
+     */
     params {
         n: Integer,
         m: Integer,
@@ -8,9 +13,9 @@ package TwocpaReduction {
     }
 
     import oracles {
-        SAMPLEKEY(h: Integer),
-        LR_ENCN(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m),
-        LR_ENCM(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p),
+        SampleKey(h: Integer),
+        LR_EncInner(h: Integer, left: Bits(n), right: Bits(n)) -> Bits(m),
+        LR_EncOuter(h: Integer, left: Bits(m), right: Bits(m)) -> Bits(p),
     }
 
     state {
@@ -19,48 +24,53 @@ package TwocpaReduction {
         Generated: Table(Integer, Bool),
     }
 
-    oracle SETBIT(h: Integer, active: Bool) {
-        assert (ActiveBit[h] == None as Bool);
-        ActiveBit[h] <- Some(active);
+    oracle SetActiveBit(wire: Integer, bit: Bool) {
+        assert (ActiveBit[wire] == None as Bool);
+        ActiveBit[wire] <- Some(bit);
         return;
     }
 
-    oracle GETAOUT(h: Integer) -> Bits(n) {
-        assert (ActiveBit[h] != None as Bool);
-        if (Generated[h] != Some(true)) {
-            invoke SAMPLEKEY(h);
+    oracle GenerateWireKeys(wire: Integer) {
+        /* mirrors Keys: the bit is fixed before the keys are generated */
+        assert (ActiveBit[wire] != None as Bool);
+        if (Generated[wire] != Some(true)) {
+            invoke SampleKey(wire);
             active_key <-$ Bits(n) sample-name active_key;
-            ActiveKey[h] <- Some(active_key);
-            Generated[h] <- Some(true);
+            ActiveKey[wire] <- Some(active_key);
+            Generated[wire] <- Some(true);
         }
-        key <- Unwrap(ActiveKey[h]);
+    }
+
+    oracle GetActiveWireKey(wire: Integer) -> Bits(n) {
+        assert (ActiveBit[wire] != None as Bool);
+        key <- Unwrap(ActiveKey[wire]);
         return key;
     }
 
-    oracle ENCN(h: Integer, d: Bool, msg: Bits(n)) -> Bits(m) {
-        assert (Generated[h] == Some(true));
-        active <- Unwrap(ActiveBit[h]);
-        if (d == active) {
-            key <- Unwrap(ActiveKey[h]);
+    oracle EncInner(wire: Integer, bit: Bool, msg: Bits(n)) -> Bits(m) {
+        assert (Generated[wire] == Some(true));
+        active <- Unwrap(ActiveBit[wire]);
+        if (bit == active) {
+            key <- Unwrap(ActiveKey[wire]);
             r <-$ Bits(n) sample-name r;
             c <- encn(key, msg, r);
         } else {
             /* real-or-zeros: the secret key encrypts zeros in the ideal game */
-            c <- invoke LR_ENCN(h, msg, 0_n);
+            c <- invoke LR_EncInner(wire, msg, 0_n);
         }
         return c;
     }
 
-    oracle ENCM(h: Integer, d: Bool, msg: Bits(m)) -> Bits(p) {
-        assert (Generated[h] == Some(true));
-        active <- Unwrap(ActiveBit[h]);
-        if (d == active) {
-            key <- Unwrap(ActiveKey[h]);
+    oracle EncOuter(wire: Integer, bit: Bool, msg: Bits(m)) -> Bits(p) {
+        assert (Generated[wire] == Some(true));
+        active <- Unwrap(ActiveBit[wire]);
+        if (bit == active) {
+            key <- Unwrap(ActiveKey[wire]);
             r <-$ Bits(n) sample-name r;
             c <- encm(key, msg, r);
         } else {
             /* real-or-zeros: the secret key encrypts zeros in the ideal game */
-            c <- invoke LR_ENCM(h, msg, 0_m);
+            c <- invoke LR_EncOuter(wire, msg, 0_m);
         }
         return c;
     }

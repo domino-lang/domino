@@ -8,10 +8,16 @@ package Simgate {
     }
 
     import oracles {
-        GETAIN(h: Integer) -> Bits(n),
-        GETINAIN(h: Integer) -> Bits(n),
-        EVAL(j: Integer, l: Integer, r: Integer, op: Table((Bool, Bool), Bool)),
-        GETAOUT(h: Integer) -> Bits(n),
+        /* on the wire layer above: the input wires of this gate */
+        GetActiveWireKey(wire: Integer) -> Bits(n),
+        GetInactiveWireKey(wire: Integer) -> Bits(n),
+
+        Eval(output: Integer, left_input: Integer, right_input: Integer,
+             gate: Table((Bool, Bool), Bool)),
+
+        /* on the wire layer below: the output wire of this gate */
+        GenerateWireKeys(wire: Integer),
+        GetActiveOutputWireKey(wire: Integer) -> Bits(n),
     }
 
     state {
@@ -19,11 +25,11 @@ package Simgate {
     }
 
 
-    oracle GBLG(
-        l: Integer,
-        r: Integer,
-        op: Table((Bool, Bool), Bool),
-        j: Integer
+    oracle SimulateGarbledGate(
+        left_input: Integer,
+        right_input: Integer,
+        gate: Table((Bool, Bool), Bool),
+        output: Integer
     ) -> Table(Bits(p), Bool) {
         /*
         The simulated garbled gate consists of four rows.  Writing akl/ikl for the
@@ -47,12 +53,13 @@ package Simgate {
         elements to true), so the order of the rows is irrelevant.
         */
         C <- new Table(Bits(p), Bool);
-        invoke EVAL(j, l, r, op);
-        akl <- invoke GETAIN(l);
-        ikl <- invoke GETINAIN(l);
-        akr <- invoke GETAIN(r);
-        ikr <- invoke GETINAIN(r);
-        akj <- invoke GETAOUT(j);
+        invoke Eval(output, left_input, right_input, gate);
+        akl <- invoke GetActiveWireKey(left_input);
+        ikl <- invoke GetInactiveWireKey(left_input);
+        akr <- invoke GetActiveWireKey(right_input);
+        ikr <- invoke GetInactiveWireKey(right_input);
+        invoke GenerateWireKeys(output);
+        akj <- invoke GetActiveOutputWireKey(output);
 
         /* the active row */
         rin <-$ Bits(n) sample-name rin_active;

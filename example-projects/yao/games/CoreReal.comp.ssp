@@ -40,25 +40,28 @@ composition CoreReal {
 
     compose {
         adversary: {
-            GETAOUT: LayerMap,
-            SETBIT: LayerMap,
-            GBLG: LayerMap,
-            GETKEYSIN: LayerMap,
+            GenerateInputWireKeys: LayerMap,
+            GetInputWireKey: LayerMap,
+            SetInputBit: LayerMap,
+            GarbleGate: LayerMap,
+            GetWireKeys: LayerMap,
         }
         LayerMap: {
-            LSETBIT: Keys,
-            LGETAOUT: Keys,
-            LGETKEYSIN: Keys,
-            LGBLG: LGATEGBLG of Gate,
+            SetActiveBit: Keys,
+            GenerateWireKeys: Keys,
+            GetActiveWireKey: Keys,
+            GetWireKeys: Keys,
+            GarbleGate: Gate,
         }
         Gate: {
-            LSETBIT: Keys,
-            LENCN: Enc,
-            LENCM: Enc,
-            LGETKEYSOUT: Keys,
+            SetInputBit: SetActiveBit of Keys,
+            GenerateWireKeys: Keys,
+            GetWireKeys: Keys,
+            EncInner: Enc,
+            EncOuter: Enc,
         }
         Enc: {
-            LGETKEYSIN: Keys,
+            GetWireKeys: Keys,
         }
     }
 }

@@ -12,7 +12,7 @@ composition CoreIdeal {
         }
     }
 
-    instance Lev = LayeredLev {
+    instance Ev = LayeredEval {
         params {
             n: n,
         }
@@ -38,26 +38,28 @@ composition CoreIdeal {
 
     compose {
         adversary: {
-            GETAOUT: LayerMap,
-            SETBIT: LayerMap,
-            GBLG: LayerMap,
-            GETKEYSIN: LayerMap,
+            GenerateInputWireKeys: LayerMap,
+            GetInputWireKey: LayerMap,
+            SetInputBit: LayerMap,
+            GarbleGate: LayerMap,
+            GetWireKeys: LayerMap,
         }
         LayerMap: {
-            LSETBIT: Keys,
-            LGETAOUT: Keys,
-            LGETKEYSIN: Keys,
-            LGBLG: LSIMGBLG of Sim
+            SetActiveBit: Keys,
+            GenerateWireKeys: Keys,
+            GetActiveWireKey: Keys,
+            GetWireKeys: Keys,
+            GarbleGate: SimulateGarbledGate of Sim,
         }
         Sim: {
-            LGETAOUT: Keys,
-            LEVAL: Lev,
-            LGETAIN: Keys,
-            LGETINAIN: Keys,
+            GetActiveWireKey: Keys,
+            GetInactiveWireKey: Keys,
+            GenerateWireKeys: Keys,
+            Eval: Ev,
         }
-        Lev: {
-            LGETBIT: Keys,
-            LSETBIT: Keys,
+        Ev: {
+            GetActiveBit: Keys,
+            SetActiveBit: Keys,
         }
     }
 }

@@ -17,7 +17,7 @@ composition LayerIdeal {
         }
     }
 
-    instance ev = Lev {
+    instance ev = Eval {
         params {
             n: n,
         }
@@ -35,20 +35,22 @@ composition LayerIdeal {
 
     compose {
         adversary: {
-            GETAOUT: keys_top,
-            SETBIT: keys_top,
-            GBLG: simgate,
-            GETKEYSIN: keys_bottom,
+            GenerateInputWireKeys: GenerateWireKeys of keys_top,
+            GetInputWireKey: GetActiveWireKey of keys_top,
+            SetInputBit: SetActiveBit of keys_top,
+            GarbleGate: SimulateGarbledGate of simgate,
+            GetOutputWireKeys: GetWireKeys of keys_bottom,
         }
         simgate: {
-            GETAIN: keys_top,
-            GETINAIN: keys_top,
-            EVAL: ev,
-            GETAOUT: keys_bottom,
+            GetActiveWireKey: keys_top,
+            GetInactiveWireKey: keys_top,
+            Eval: ev,
+            GenerateWireKeys: keys_bottom,
+            GetActiveOutputWireKey: GetActiveWireKey of keys_bottom,
         }
         ev: {
-            GETBIT: keys_top,
-            SETBIT: keys_bottom,
+            GetActiveBit: keys_top,
+            SetActiveBit: keys_bottom,
         }
     }
 }

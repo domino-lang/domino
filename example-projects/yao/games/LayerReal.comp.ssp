@@ -37,19 +37,21 @@ composition LayerReal {
 
     compose {
         adversary: {
-            GETAOUT: keys_top,
-            SETBIT: keys_top,
-            GBLG: gate,
-            GETKEYSIN: keys_bottom,
+            GenerateInputWireKeys: GenerateWireKeys of keys_top,
+            GetInputWireKey: GetActiveWireKey of keys_top,
+            SetInputBit: SetActiveBit of keys_top,
+            GarbleGate: gate,
+            GetOutputWireKeys: GetWireKeys of keys_bottom,
         }
         gate: {
-            SETBIT: keys_bottom,
-            ENCN: enc,
-            ENCM: enc,
-            GETKEYSOUT: keys_bottom,
+            SetInputBit: SetActiveBit of keys_bottom,
+            GenerateWireKeys: keys_bottom,
+            GetWireKeys: keys_bottom,
+            EncInner: enc,
+            EncOuter: enc,
         }
         enc: {
-            GETKEYSIN: keys_top,
+            GetWireKeys: keys_top,
         }
     }
 }

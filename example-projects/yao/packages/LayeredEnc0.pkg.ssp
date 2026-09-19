@@ -1,5 +1,5 @@
 package LayeredEnc0 {
-    /* layered mirror of Enc0 (real encryption, real-or-zeros 2CPA flavour) */
+    /* layered mirror of Enc0 */
     params {
         n: Integer,
         m: Integer,
@@ -9,30 +9,30 @@ package LayeredEnc0 {
     }
 
     import oracles {
-        LGETKEYSIN(i: Integer, j: Integer) -> Table(Bool, Bits(n)),
+        GetWireKeys(layer: Integer, wire: Integer) -> Table(Bool, Bits(n)),
     }
 
-    oracle LENCN(
-        i: Integer, 
-        j: Integer, 
-        b: Bool, 
-        msg: Bits(n)) -> Bits(m) 
+    oracle EncInner(
+        layer: Integer,
+        wire: Integer,
+        bit: Bool,
+        msg: Bits(n)) -> Bits(m)
     {
-        K <- invoke LGETKEYSIN(i, j);
+        K <- invoke GetWireKeys(layer, wire);
         r <-$ Bits(n) sample-name r;
-        c <- encn(Unwrap(K[b]), msg, r);
+        c <- encn(Unwrap(K[bit]), msg, r);
         return c;
     }
 
-    oracle LENCM(
-        i: Integer, 
-        j: Integer, 
-        b: Bool, 
-        msg: Bits(m)) -> Bits(p) 
+    oracle EncOuter(
+        layer: Integer,
+        wire: Integer,
+        bit: Bool,
+        msg: Bits(m)) -> Bits(p)
     {
-        K <- invoke LGETKEYSIN(i, j);
+        K <- invoke GetWireKeys(layer, wire);
         r <-$ Bits(n) sample-name r;
-        c <- encm(Unwrap(K[b]), msg, r);
+        c <- encm(Unwrap(K[bit]), msg, r);
         return c;
     }
 }
