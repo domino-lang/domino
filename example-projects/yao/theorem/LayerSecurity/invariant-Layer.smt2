@@ -34,5 +34,9 @@
           ; Another approach is to assert WireKey[wire] == None when setting the 
           ; active bit. Then we don't need this invariant and 2CPA can also be proved 
           ; as we still commit to active bit and then generate
+
+          ; If we make wire key generation unconditional and don't move the order assertion
+          ; to SetActiveBit, the invariant is still correct because of key generation and 
+          ; setting bit both happens in the same oracle GBLG
      )
 )

@@ -25,14 +25,14 @@ package TwocpaReduction {
     }
 
     oracle SetActiveBit(wire: Integer, bit: Bool) {
-        assert (ActiveBit[wire] == None as Bool);
+        assert (ActiveBit[wire] == None);
         ActiveBit[wire] <- Some(bit);
         return;
     }
 
     oracle GenerateWireKeys(wire: Integer) {
         /* mirrors Keys: the bit is fixed before the keys are generated */
-        assert (ActiveBit[wire] != None as Bool);
+        assert (ActiveBit[wire] != None);
         if (Generated[wire] != Some(true)) {
             invoke SampleKey(wire);
             active_key <-$ Bits(n) sample-name active_key;
@@ -42,7 +42,7 @@ package TwocpaReduction {
     }
 
     oracle GetActiveWireKey(wire: Integer) -> Bits(n) {
-        assert (ActiveBit[wire] != None as Bool);
+        assert (ActiveBit[wire] != None);
         key <- Unwrap(ActiveKey[wire]);
         return key;
     }

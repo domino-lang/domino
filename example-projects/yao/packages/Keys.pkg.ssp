@@ -10,13 +10,13 @@ package Keys {
 
 
     oracle SetActiveBit(wire: Integer, bit: Bool) {
-        assert (ActiveBit[wire] == None as Bool);
+        assert (ActiveBit[wire] == None);
         ActiveBit[wire] <- Some(bit);
         return;
     }
 
     oracle GetActiveBit(wire: Integer) -> Bool {
-        assert (ActiveBit[wire] != None as Bool);
+        assert (ActiveBit[wire] != None);
         b <- Unwrap(ActiveBit[wire]);
         return b;
     }
@@ -25,7 +25,7 @@ package Keys {
         /* Enforcing wire key generation after setting input is not necessary 
         but makes reduction to CPA easier as we can know which key should be 
         stored in CPA game and which in reduction */
-        assert (ActiveBit[wire] != None as Bool);
+        assert (ActiveBit[wire] != None);
         if (WireKey[wire] == None) {
             W <- new Table(Bool, Bits(n));
             k1 <-$ Bits(n) sample-name key_true;

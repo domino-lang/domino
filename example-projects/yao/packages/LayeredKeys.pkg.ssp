@@ -16,19 +16,19 @@ package LayeredKeys {
 
 
     oracle SetActiveBit(layer: Integer, wire: Integer, bit: Bool) {
-        assert (ActiveBit[(layer, wire)] == None as Bool);
+        assert (ActiveBit[(layer, wire)] == None);
         ActiveBit[(layer, wire)] <- Some(bit);
         return;
     }
 
     oracle GetActiveBit(layer: Integer, wire: Integer) -> Bool {
-        assert (ActiveBit[(layer, wire)] != None as Bool);
+        assert (ActiveBit[(layer, wire)] != None);
         b <- Unwrap(ActiveBit[(layer, wire)]);
         return b;
     }
 
     oracle GenerateWireKeys(layer: Integer, wire: Integer) {
-        assert (ActiveBit[(layer, wire)] != None as Bool);
+        assert (ActiveBit[(layer, wire)] != None);
         if (WireKey[(layer, wire)] == None) {
             W <- new Table(Bool, Bits(n));
             k1 <-$ Bits(n) sample-name key_true;
