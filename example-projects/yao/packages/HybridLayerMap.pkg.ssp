@@ -8,8 +8,11 @@ package HybridLayerMap {
      *
      * The key oracles need no special casing any more: they go to KeysFilter,
      * which routes wire layers h and (h + 1) to the assumption. For h = 0 every
-     * gate layer is real and for h = d + 1 every gate layer is simulated, so this
+     * gate layer is real and for h = d every valid gate layer is simulated, so this
      * package degenerates to LayerMap composed with the real resp. simulated side.
+     * Since theorem parameters cannot currently contain `d + 1`, h = d is used as
+     * the all-simulated sentinel; assumption layers are therefore restricted to
+     * 0 < h < d.
      */
 
     params {
@@ -83,7 +86,7 @@ package HybridLayerMap {
     {
         assert (layer >= 1);
         assert (layer <= d);
-        if (layer < h) {
+        if ((h == d) or (layer < h)) {
             C <- invoke SimulateGarbledGate(layer, left_input, right_input, gate, output);
             return C;
         }

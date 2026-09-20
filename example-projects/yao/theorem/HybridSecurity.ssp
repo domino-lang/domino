@@ -54,7 +54,7 @@ theorem HybridSecurity {
             m: m,
             p: p,
             d: d,
-            h: 1,
+            h: 0,
             encm: encm,
             encn: encn,
         }
@@ -107,7 +107,6 @@ theorem HybridSecurity {
             invariant: [
                     ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
                     ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
-                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
             ]
             SetInputBit: {
                 randomness: none
@@ -118,18 +117,6 @@ theorem HybridSecurity {
             GenerateInputWireKeys: {
             }
             GarbleGate: {
-                lemmas {
-                    case-i-is-one: [no-abort]
-                    case-i-is-two: [no-abort]
-                    case-i-gt-two: [no-abort]
-                    same-output: [no-abort, case-i-is-one, case-i-is-two, case-i-gt-two]
-                    abort-case-i-is-one: []
-                    abort-case-i-is-two-assumptions: []
-                    abort-case-i-is-two: [abort-case-i-is-two-assumptions]
-                    abort-case-i-gt-two: []
-                    equal-aborts: [abort-case-i-is-one, abort-case-i-is-two, abort-case-i-gt-two]
-                    invariant: [no-abort]
-                }
             }
             GetOutputWireKeys: {
                 randomness: none
@@ -139,7 +126,6 @@ theorem HybridSecurity {
             invariant: [
                 ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
                 ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
-                ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
             ]
             SetInputBit: {
                 randomness: none
@@ -151,17 +137,6 @@ theorem HybridSecurity {
             }
 
             GarbleGate: {
-                lemmas {
-                    case-i-lt-dminusone: []
-                    case-i-is-dminusone: []
-                    case-i-is-d: []
-                    same-output: [
-                        no-abort,
-                        case-i-lt-dminusone,
-                        case-i-is-dminusone,
-                        case-i-is-d
-                    ]
-                }
             }
 
             GetOutputWireKeys: {

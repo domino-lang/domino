@@ -4,7 +4,7 @@ composition HybridIdeal {
      * the ideal side of the Layer assumption, gate layers (h + 1)..d are real.
      *
      * Identical to HybridReal except for the assumption layer itself (Eval / Simgate
-     * instead of Enc0 / Gate). For h = d + 1 this is CoreIdeal with the assumption
+     * instead of Enc0 / Gate). For h = d this is CoreIdeal with the assumption
      * packages left dangling.
      */
 
