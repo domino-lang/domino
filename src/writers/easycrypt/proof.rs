@@ -309,90 +309,48 @@ fn bullet_line(text: impl Into<String>) -> ProofLine {
     }
 }
 
-/// The mangled names `Exp_<mangled>.run`'s own parameter list uses, in
-/// `comp.consts` order — reproduces `game.rs::render_game_file`'s own
-/// `init_args` naming (a fresh `Names(Var)` over the exact same
-/// [`composition_const_needs_arg`] filter) independently rather than
-/// threading it out of `game.rs`, matching this file's own established
-/// "recomputed, not threaded through" precedent ([`compute_layout`],
-/// [`restrictions_for`]). Always the same length, in the same order, as
-/// [`side_run_args`]'s own result for the same `comp` — both filter
-/// `comp.consts` identically.
-fn run_param_names(comp: &Composition) -> Result<Vec<String>, EcExportError> {
-    let mut names = Names::new();
-    let mut out = Vec::new();
-    for (name, ty) in &comp.consts {
-        if composition_const_needs_arg(comp, name, ty) {
-            out.push(names.mangle(NameKind::Var, name)?);
-        }
-    }
-    Ok(out)
-}
-
-/// One side's conjuncts for the `byequiv` precondition (story 13 §3.1): one
-/// `<param>{side} = <value>` per `run` argument, zipping
-/// [`run_param_names`] with [`side_run_args`]'s own resolved values — both
-/// filter `comp.consts` the same way, so they always line up positionally.
-/// Every parameter is listed, unconditionally, even when the value is a
-/// theorem constant both sides also bind (owner's decision, story 13 §3.1:
-/// never collapsed into `={b}`).
-fn side_precondition_conjuncts(
-    comp: &Composition,
+/// One side's conjunct for the `byequiv` precondition (story 15 §3.1):
+/// `arg{side} = <value>` for a one-argument `run`, `arg{side} = (<v1>, …,
+/// <vn>)` for more, and none at all for a zero-argument one. `arg` is
+/// EasyCrypt's name for the tuple of the procedure's arguments — a *program*
+/// identifier, so a lemma binder spelled like a `run` parameter cannot shadow
+/// it the way it voids `<param>{side} = <value>` (story 15 §1). A single
+/// argument is the bare value, not a one-tuple.
+fn side_precondition_conjunct(
     args: &[RunArgValue],
     side: u8,
     binder_mangled: &HashMap<String, String>,
-) -> Result<Vec<EcExpr>, EcExportError> {
-    let params = run_param_names(comp)?;
-    debug_assert_eq!(
-        params.len(),
-        args.len(),
-        "run_param_names and side_run_args must filter comp.consts identically"
-    );
-    Ok(params
-        .into_iter()
-        .zip(args.iter())
-        .map(|(param, value)| {
-            let rhs = match value {
-                RunArgValue::Literal(text) => literal_text_to_expr(text),
-                RunArgValue::TheoremConst(name) => EcExpr::Var(binder_mangled[name].clone()),
-            };
-            EcExpr::Binop {
-                op: super::ast::EcBinop::Eq,
-                lhs: Box::new(EcExpr::Qualified {
-                    path: vec![param],
-                    mem: Some(side),
-                }),
-                rhs: Box::new(rhs),
-            }
-        })
-        .collect())
+) -> Option<EcExpr> {
+    let mut values = args_to_exprs(args, binder_mangled);
+    let rhs = match values.len() {
+        0 => return None,
+        1 => values.remove(0),
+        _ => EcExpr::Tuple(values),
+    };
+    Some(EcExpr::Binop {
+        op: super::ast::EcBinop::Eq,
+        lhs: Box::new(EcExpr::Qualified {
+            path: vec!["arg".to_string()],
+            mem: Some(side),
+        }),
+        rhs: Box::new(rhs),
+    })
 }
 
-/// The full `byequiv` induction-start precondition (story 13 §3.1):
-/// `={glob A}`, then every parameter of side 1, then every parameter of
-/// side 2, in [`side_run_args`]'s own composition-const order. If a
-/// composition takes no `run` arguments, this is just `[={glob A}]`.
+/// The full `byequiv` induction-start precondition (story 15 §3.1):
+/// `={glob A}`, then side 1's `arg` conjunct, then side 2's, each in
+/// [`side_run_args`]'s own composition-const order and each omitted when that
+/// side's `run` takes no arguments. Both sides are always listed separately,
+/// never collapsed into `arg{1} = arg{2}`: their arities can differ.
 fn build_byequiv_precondition(
-    left_comp: &Composition,
     left_args: &[RunArgValue],
-    right_comp: &Composition,
     right_args: &[RunArgValue],
     binder_mangled: &HashMap<String, String>,
-) -> Result<Vec<EcExpr>, EcExportError> {
+) -> Vec<EcExpr> {
     let mut conjuncts = vec![EcExpr::GlobEq("A".to_string())];
-    conjuncts.extend(side_precondition_conjuncts(
-        left_comp,
-        left_args,
-        1,
-        binder_mangled,
-    )?);
-    conjuncts.extend(side_precondition_conjuncts(
-        right_comp,
-        right_args,
-        2,
-        binder_mangled,
-    )?);
-    Ok(conjuncts)
+    conjuncts.extend(side_precondition_conjunct(left_args, 1, binder_mangled));
+    conjuncts.extend(side_precondition_conjunct(right_args, 2, binder_mangled));
+    conjuncts
 }
 
 fn build_equivalence_file(
@@ -503,11 +461,10 @@ fn build_equivalence_file(
     };
 
     // --- the byequiv induction start's own relational precondition
-    // (story 13 §3.1): `={glob A}` then every run() parameter of both
-    // sides, unconditionally, even when both sides bind the same theorem
-    // constant --------------------------------------------------------
-    let precondition =
-        build_byequiv_precondition(left_comp, &left_args, right_comp, &right_args, &binder_mangled)?;
+    // (story 15 §3.1): `={glob A}` then one `arg{side} = …` per side,
+    // (a side whose run() takes no arguments contributes none), even when
+    // both sides bind the same theorem constant ------------------------
+    let precondition = build_byequiv_precondition(&left_args, &right_args, &binder_mangled);
 
     // --- oracle bullets: the game interface's own export order (§3;
     // load-bearing per story 04's own note) -----------------------------
@@ -805,7 +762,7 @@ mod tests {
     }
 
     #[test]
-    fn real_hybrid3_ideal_hybrid3_precondition_lists_every_literal_on_both_sides() {
+    fn real_hybrid3_ideal_hybrid3_precondition_is_one_arg_tuple_per_side() {
         let files = load("example-projects/4WHS", "Simple4WHS");
         let f = &files
             .iter()
@@ -816,10 +773,8 @@ mod tests {
             precondition_conjuncts(f),
             vec![
                 "={glob A}".to_string(),
-                "b{1} = false".to_string(),
-                "bprf{1} = true".to_string(),
-                "b{2} = true".to_string(),
-                "bprf{2} = true".to_string(),
+                "arg{1} = (false, true)".to_string(),
+                "arg{2} = (true, true)".to_string(),
             ]
         );
     }
@@ -832,16 +787,96 @@ mod tests {
             .find(|f| f.proof.file_name == "Eq_Hybrid0_Hybrid1.ec")
             .unwrap()
             .proof;
-        // Both sides bind the *same* theorem constant `b` — story 13 §3.1
-        // says this must still list both sides unconditionally
-        // (`b{1} = b /\ b{2} = b`), never collapsed into `={b}`.
+        // Both sides bind the *same* theorem constant `b` — both sides are
+        // still listed (`arg{1} = b /\ arg{2} = b`), never collapsed into
+        // `={b}` or `arg{1} = arg{2}`. One argument per side renders as the
+        // bare value, not a one-tuple (story 15 §3.1).
         assert_eq!(
             precondition_conjuncts(f),
             vec![
                 "={glob A}".to_string(),
-                "b{1} = b".to_string(),
-                "b{2} = b".to_string(),
+                "arg{1} = b".to_string(),
+                "arg{2} = b".to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn hybrid1_hybrid2_precondition_has_a_tuple_on_the_side_with_two_arguments() {
+        let files = load("example-projects/4WHS", "Simple4WHS");
+        let f = &files
+            .iter()
+            .find(|f| f.proof.file_name == "Eq_Hybrid1_Hybrid2.ec")
+            .unwrap()
+            .proof;
+        assert_eq!(
+            precondition_conjuncts(f),
+            vec![
+                "={glob A}".to_string(),
+                "arg{1} = b".to_string(),
+                "arg{2} = (b, false)".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn full_4whs_h0_h1_0_precondition_has_different_arities_per_side() {
+        let files = load("example-projects/4WHS", "Full4WHS");
+        let f = &files
+            .iter()
+            .find(|f| f.proof.file_name == "Eq_H0_H1_0.ec")
+            .unwrap()
+            .proof;
+        // H0 takes one argument, H1 takes two — the reason the two sides are
+        // never collapsed into `arg{1} = arg{2}`.
+        assert_eq!(
+            precondition_conjuncts(f),
+            vec![
+                "={glob A}".to_string(),
+                "arg{1} = b".to_string(),
+                "arg{2} = (b, false)".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn no_precondition_names_a_run_parameter_directly() {
+        // Story 15 §1: `<param>{side} = <value>` is voided by a lemma binder
+        // spelled like the parameter. Every conjunct must go through `arg`.
+        for (root, theorem) in [
+            ("example-projects/4WHS", "Simple4WHS"),
+            ("example-projects/4WHS", "Full4WHS"),
+        ] {
+            for f in &load(root, theorem) {
+                for c in precondition_conjuncts(&f.proof).iter().skip(1) {
+                    assert!(
+                        c.starts_with("arg{1} = ") || c.starts_with("arg{2} = "),
+                        "{}: {c}",
+                        f.proof.file_name
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_side_with_no_run_arguments_contributes_no_conjunct() {
+        let binders = HashMap::new();
+        let rendered = |args: &[RunArgValue], other: &[RunArgValue]| -> Vec<String> {
+            build_byequiv_precondition(args, other, &binders)
+                .iter()
+                .map(render_expr)
+                .collect()
+        };
+        let lit = |t: &str| RunArgValue::Literal(t.to_string());
+        assert_eq!(rendered(&[], &[]), vec!["={glob A}"]);
+        assert_eq!(
+            rendered(&[], &[lit("true")]),
+            vec!["={glob A}", "arg{2} = true"]
+        );
+        assert_eq!(
+            rendered(&[lit("true"), lit("3")], &[]),
+            vec!["={glob A}", "arg{1} = (true, 3)"]
         );
     }
 

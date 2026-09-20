@@ -499,26 +499,13 @@ mod tests {
         for name in &exported.game_names {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
-        // Story 07: every equivalence's invariants file compiles for real
-        // (no known gap there). Story 13: the `byequiv` precondition now
-        // makes the *same-composition* hop's base case genuinely
-        // discharge (`Eq_Real_Hybrid3_Ideal_Hybrid3.ec` — plain
-        // `assert_compiles`, no tolerance). The two *cross-composition*
-        // hops (`Eq_Hybrid0_Hybrid1.ec`, `Eq_Hybrid1_Hybrid2.ec`) still hit
-        // the known base-case gap — see `test_support::
-        // assert_compiles_or_known_base_case_gap`'s own doc and this
-        // story's implementation report for the exact residual goal.
+        // Story 07: every equivalence's invariants file compiles for real.
+        // Story 15: with the `arg` precondition every `Simple4WHS` proof
+        // skeleton compiles clean, base case discharged — plain
+        // `assert_compiles`, no tolerance.
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            let proof_path = format!("{base}/{}", eq.proof_file);
-            if eq.proof_file == "Eq_Real_Hybrid3_Ideal_Hybrid3.ec" {
-                super::super::test_support::assert_compiles(&base, &proof_path);
-            } else {
-                super::super::test_support::assert_compiles_or_known_base_case_gap(
-                    &[&base],
-                    &proof_path,
-                );
-            }
+            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.proof_file));
         }
 
         std::fs::remove_dir_all(&tmp).unwrap();
@@ -585,12 +572,25 @@ mod tests {
         for name in &exported.game_names {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
+        // Story 15: every hop compiles clean except these three, which
+        // still fail — only at the base case — for story 13 §1.1's
+        // cross-composition state-record gap.
+        const KNOWN_BASE_CASE_GAPS: [&str; 3] = [
+            "Eq_H0_H1_0.ec",
+            "Eq_H1_1_H2_0.ec",
+            "Eq_H3_1_H4.ec",
+        ];
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            super::super::test_support::assert_compiles_or_known_base_case_gap(
-                &[&base],
-                &format!("{base}/{}", eq.proof_file),
-            );
+            let proof_path = format!("{base}/{}", eq.proof_file);
+            if KNOWN_BASE_CASE_GAPS.contains(&eq.proof_file.as_str()) {
+                super::super::test_support::assert_compiles_or_known_base_case_gap(
+                    &[&base],
+                    &proof_path,
+                );
+            } else {
+                super::super::test_support::assert_compiles(&base, &proof_path);
+            }
         }
 
         std::fs::remove_dir_all(&tmp).unwrap();

@@ -170,8 +170,22 @@ const KEYWORDS: &[&str] = &[
     "zeta",
 ];
 
+/// Names that are not lexer keywords but that the exporter's own generated
+/// text relies on resolving to EasyCrypt's built-in meaning, so a Domino
+/// identifier spelled the same must be escaped too. Sorted.
+///
+/// `arg` is the tuple of a procedure's arguments in a relational formula
+/// (`arg{1} = b`, story 15): a Domino theorem constant spelled `arg` would
+/// otherwise mangle to `arg` and reintroduce the very shadowing that form
+/// exists to avoid (`arg{1} = arg`).
+const RESERVED_NAMES: &[&str] = &["arg"];
+
 fn is_keyword(name: &str) -> bool {
     KEYWORDS.binary_search(&name).is_ok()
+}
+
+fn is_reserved_name(name: &str) -> bool {
+    RESERVED_NAMES.binary_search(&name).is_ok()
 }
 
 /// The namespace a name is mangled into. Two names only collide if they are
@@ -228,7 +242,9 @@ impl Names {
     /// 2. For [`NameKind::Module`] / [`NameKind::ModuleType`]: uppercase the
     ///    first letter; prefix `M_` if it starts with a digit or `_`.
     /// 3. For every other kind: if the name starts with an uppercase letter,
-    ///    or is an EasyCrypt keyword, prefix `d_`. A multi-character name
+    ///    or is an EasyCrypt keyword or a name the exporter's own text needs
+    ///    to keep its built-in meaning (`arg`, [`RESERVED_NAMES`]), prefix
+    ///    `d_`. A multi-character name
     ///    that merely *starts* with `_` (`_U`) is legal in EasyCrypt and is
     ///    left alone; a *bare* `_` (Domino's own discarded-binding
     ///    identifier) is EasyCrypt's wildcard pattern, not a legal bound
@@ -306,6 +322,7 @@ fn mangle_name(kind: NameKind, raw: &str) -> String {
             let is_bare_underscore = replaced == "_";
             let needs_prefix = starts_uppercase
                 || is_keyword(&replaced)
+                || is_reserved_name(&replaced)
                 || replaced.starts_with("ec_")
                 || is_bare_underscore;
             if needs_prefix {
@@ -326,6 +343,21 @@ mod tests {
         let mut sorted = KEYWORDS.to_vec();
         sorted.sort_unstable();
         assert_eq!(KEYWORDS, sorted.as_slice());
+    }
+
+    #[test]
+    fn reserved_names_are_sorted() {
+        let mut sorted = RESERVED_NAMES.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(RESERVED_NAMES, sorted.as_slice());
+    }
+
+    #[test]
+    fn mangle_arg_is_escaped() {
+        // `arg` is the procedure-argument tuple in `arg{1} = b` (story 15);
+        // a theorem constant spelled `arg` must not shadow it.
+        let mut names = Names::new();
+        assert_eq!(names.mangle(NameKind::Var, "arg").unwrap(), "d_arg");
     }
 
     #[test]

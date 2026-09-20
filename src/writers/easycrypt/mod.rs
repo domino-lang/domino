@@ -52,9 +52,25 @@ pub(crate) mod test_support {
     /// which writes its rendered file to a scratch dir but reads `Types.ec`
     /// from a separate `testdata/` fixture dir).
     pub(crate) fn assert_compiles_with_paths(dirs: &[&str], file: &str) {
+        let Some(output) = run_compile(dirs, file) else {
+            return;
+        };
+        assert!(
+            output.status.success(),
+            "easycrypt compile failed:\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_no_unused_memory_warning(&output);
+    }
+
+    /// Runs `easycrypt compile` with one `-I` per entry in `dirs`, or
+    /// returns `None` (after saying so on stderr) when `easycrypt` isn't on
+    /// `PATH`.
+    fn run_compile(dirs: &[&str], file: &str) -> Option<std::process::Output> {
         if !easycrypt_available() {
             eprintln!("`easycrypt` not on PATH, skipping compile check");
-            return;
+            return None;
         }
         let mut args = vec!["compile".to_string()];
         for dir in dirs {
@@ -62,15 +78,26 @@ pub(crate) mod test_support {
             args.push(dir.to_string());
         }
         args.push(file.to_string());
-        let output = Command::new("easycrypt")
-            .args(&args)
-            .output()
-            .expect("failed to run easycrypt compile");
+        Some(
+            Command::new("easycrypt")
+                .args(&args)
+                .output()
+                .expect("failed to run easycrypt compile"),
+        )
+    }
+
+    /// Story 15 §6: EasyCrypt accepts a relational formula whose `{1}`/`{2}`
+    /// tag was silently discarded (a lemma binder shadowing a program
+    /// variable) and reports it only as `unused memory `&1', while typing
+    /// b` — a warning, exit code 0. Treat that warning as a failure, so the
+    /// bug can't come back invisibly.
+    fn assert_no_unused_memory_warning(output: &std::process::Output) {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
-            output.status.success(),
-            "easycrypt compile failed:\nstdout:\n{}\nstderr:\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
+            !stdout.contains("unused memory") && !stderr.contains("unused memory"),
+            "easycrypt compiled with an `unused memory` warning — a relational formula lost \
+             its memory tag:\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
     }
 
@@ -82,53 +109,37 @@ pub(crate) mod test_support {
     /// real `smt(…)` call, not `admit`, is itself the acceptance bar, not
     /// the base case actually discharging).
     ///
-    /// **Narrowed by story 13**: adding the `byequiv` induction start's own
-    /// explicit relational precondition (`={glob A} /\ <every run arg of
-    /// both sides>`) made the base case genuinely discharge for the
-    /// equivalence hop named in the story's own worked example
-    /// (`Eq_Real_Hybrid3_Ideal_Hybrid3.ec`, `Simple4WHS`) and for most —
-    /// but, empirically, not all — of the *cross-composition* hops it was
-    /// tried against: `Eq_H5_H6_0.ec`, `Eq_H6_1_0_H6_1_1.ec`,
-    /// `Eq_H6_1_1_H7_0.ec` and `Eq_H7_1_1_0_H7_1_1_1.ec` (`Full4WHS`) also
-    /// now compile with plain [`assert_compiles`], no tolerance. This
-    /// helper is still needed — confirmed still failing, with the exact
-    /// same failure mode, only at this exact tactic — for
-    /// `Eq_Hybrid0_Hybrid1.ec` and `Eq_Hybrid1_Hybrid2.ec` (`Simple4WHS`),
-    /// five of `Full4WHS`'s remaining nine hops (`Eq_H0_H1_0.ec`,
-    /// `Eq_H1_1_H2_0.ec`, `Eq_H2_1_H3_0.ec`, `Eq_H3_1_H4.ec`,
-    /// `Eq_H4_H5.ec`), and `kem-dem-cca-ssp`'s one hop — story 13's
-    /// implementation report has the exact residual goal for each. The gap
-    /// is in `params_inv`/the state relation (a `forall &1 &2` induction
-    /// step loses the tie between the two sides' `run` arguments that the
-    /// top-level precondition established at the fixed memory `&m`, printed
-    /// by EasyCrypt as an unresolved `b{!1}`/`b{!2}`), not in the
-    /// precondition itself, and it is **not** simply "same composition
-    /// passes, cross composition fails" — `Eq_H5_H6_0.ec` is a
-    /// cross-composition hop that already discharges cleanly. Do not widen
-    /// the `smt` call to chase the remaining ones. Everything else in the
-    /// file, up to and including that one tactic, must still succeed, so
-    /// any *other* failure (a real bug: wrong syntax, a bad restriction, a
-    /// bullet mismatch, …) still fails this assertion.
+    /// **Narrowed by story 13, again by story 15.** Story 13's explicit
+    /// `byequiv` relational precondition made the same-composition base case
+    /// discharge; story 15 rewrote it as one `arg{side} = …` conjunct per
+    /// side, because the per-parameter form was silently voided whenever a
+    /// lemma binder shared a `run` parameter's name (`b{1} = b` collapsed to
+    /// `b = b`). With that fixed, every `Simple4WHS` proof compiles clean, as
+    /// do six of `Full4WHS`'s nine. What still needs this helper —
+    /// confirmed failing only at the base case's `smt(emptyE map_empty)`,
+    /// `cannot prove goal (strict)` — is `Eq_H0_H1_0.ec`, `Eq_H1_1_H2_0.ec`
+    /// and `Eq_H3_1_H4.ec` (`Full4WHS`), and `kem-dem-cca-ssp`'s one hop:
+    /// the two sides' game-state records are structurally different (a
+    /// `forall &1 &2` induction step loses the tie between the two sides'
+    /// `run` arguments that the top-level precondition fixed at `&m`), a
+    /// `params_inv`/state-relation gap, not a precondition one. Do not widen
+    /// the `smt` call to chase them. Everything else in the file, up to and
+    /// including that one tactic, must still succeed, so any *other*
+    /// failure (wrong syntax, a bad restriction, a bullet mismatch, …) still
+    /// fails this assertion — and so does an `unused memory` warning, which
+    /// is how a voided relational precondition shows up.
     pub(crate) fn assert_compiles_or_known_base_case_gap(dirs: &[&str], file: &str) {
-        if !easycrypt_available() {
-            eprintln!("`easycrypt` not on PATH, skipping compile check");
+        let Some(output) = run_compile(dirs, file) else {
             return;
-        }
-        let mut args = vec!["compile".to_string()];
-        for dir in dirs {
-            args.push("-I".to_string());
-            args.push(dir.to_string());
-        }
-        args.push(file.to_string());
-        let output = Command::new("easycrypt")
-            .args(&args)
-            .output()
-            .expect("failed to run easycrypt compile");
+        };
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        // Story 15: a base-case failure is tolerated, a voided precondition
+        // is not — even in a file that fails for the known reason.
+        assert_no_unused_memory_warning(&output);
         if output.status.success() {
             return;
         }
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(
             stdout.contains("cannot prove goal (strict)")
                 || stderr.contains("cannot prove goal (strict)"),
