@@ -2,13 +2,13 @@
   ((id-0 SampleId) (id-1 SampleId) (offset-0 Int) (offset-1 Int))
   Bool
   (let ((reduction
-          (<game-TwocpaViaCpa1-<$<!n!><!m!><!p!>$>-pkgstate-reduction>
-            <<game-state-TwocpaViaCpa1-old>>)))
+          (<game-TwocpaReduction-<$<!n!><!m!><!p!>$>-pkgstate-reduction>
+            <<game-state-TwocpaReduction1-old>>)))
     (let ((active
             (maybe-get
               (select
                 (<pkg-state-TwocpaReduction-<$<!m!><!n!><!p!>$>-ActiveBit> reduction)
-                <arg-TwocpaViaCpa1-GenerateInputWireKeys-wire>))))
+                <arg-TwocpaReduction-GenerateInputWireKeys-wire>))))
       (and (= offset-0 0) (= offset-1 0)
         (ite active
           (or
@@ -26,16 +26,16 @@
   ((id-0 SampleId) (id-1 SampleId) (offset-0 Int) (offset-1 Int))
   Bool
   (let ((reduction
-          (<game-TwocpaViaCpa1-<$<!n!><!m!><!p!>$>-pkgstate-reduction>
-            <<game-state-TwocpaViaCpa1-old>>)))
+          (<game-TwocpaReduction-<$<!n!><!m!><!p!>$>-pkgstate-reduction>
+            <<game-state-TwocpaReduction1-old>>)))
     (let ((active
             (maybe-get
               (select
                 (<pkg-state-TwocpaReduction-<$<!m!><!n!><!p!>$>-ActiveBit> reduction)
-                <arg-TwocpaViaCpa1-EncInner-wire>))))
+                <arg-TwocpaReduction-EncInner-wire>))))
       (and (= id-1 (sample-id "enc" "EncInner" "r"))
            (= offset-0 0) (= offset-1 0)
-           (ite (= <arg-TwocpaViaCpa1-EncInner-bit> active)
+           (ite (= <arg-TwocpaReduction-EncInner-bit> active)
              (= id-0 (sample-id "reduction" "EncInner" "r"))
              (= id-0 (sample-id "cpa" "EncInner" "r")))))))
 
@@ -43,15 +43,15 @@
   ((id-0 SampleId) (id-1 SampleId) (offset-0 Int) (offset-1 Int))
   Bool
   (let ((reduction
-          (<game-TwocpaViaCpa1-<$<!n!><!m!><!p!>$>-pkgstate-reduction>
-            <<game-state-TwocpaViaCpa1-old>>)))
+          (<game-TwocpaReduction-<$<!n!><!m!><!p!>$>-pkgstate-reduction>
+            <<game-state-TwocpaReduction1-old>>)))
     (let ((active
             (maybe-get
               (select
                 (<pkg-state-TwocpaReduction-<$<!m!><!n!><!p!>$>-ActiveBit> reduction)
-                <arg-TwocpaViaCpa1-EncOuter-wire>))))
+                <arg-TwocpaReduction-EncOuter-wire>))))
       (and (= id-1 (sample-id "enc" "EncOuter" "r"))
            (= offset-0 0) (= offset-1 0)
-           (ite (= <arg-TwocpaViaCpa1-EncOuter-bit> active)
+           (ite (= <arg-TwocpaReduction-EncOuter-bit> active)
              (= id-0 (sample-id "reduction" "EncOuter" "r"))
              (= id-0 (sample-id "cpa" "EncOuter" "r")))))))

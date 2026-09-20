@@ -1,13 +1,14 @@
-composition MultiInstanceCpa1 {
+composition MultiInstanceCpa {
     const n: Integer;
     const m: Integer;
     const p: Integer;
+    const b: Bool;
     const enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
     const enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
     instance cpa = MultiInstanceCpa {
         params {
-            b: true,
+            b: b,
             n: n,
             m: m,
             p: p,

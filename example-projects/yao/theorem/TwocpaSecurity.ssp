@@ -15,21 +15,23 @@ theorem TwocpaSecurity {
         }
     }
 
-    instance TwocpaViaCpa0 = TwocpaViaCpa0 {
+    instance TwocpaReduction0 = TwocpaReduction {
         params {
             n: n,
             m: m,
             p: p,
+            b: false,
             enc_inner: enc_inner,
             enc_outer: enc_outer,
         }
     }
 
-    instance TwocpaViaCpa1 = TwocpaViaCpa1 {
+    instance TwocpaReduction1 = TwocpaReduction {
         params {
             n: n,
             m: m,
             p: p,
+            b: true,
             enc_inner: enc_inner,
             enc_outer: enc_outer,
         }
@@ -45,21 +47,23 @@ theorem TwocpaSecurity {
         }
     }
 
-    instance MultiInstanceCpa0 = MultiInstanceCpa0 {
+    instance MultiInstanceCpa0 = MultiInstanceCpa {
         params {
             n: n,
             m: m,
             p: p,
+            b: false,
             enc_inner: enc_inner,
             enc_outer: enc_outer,
         }
     }
 
-    instance MultiInstanceCpa1 = MultiInstanceCpa1 {
+    instance MultiInstanceCpa1 = MultiInstanceCpa {
         params {
             n: n,
             m: m,
             p: p,
+            b: true,
             enc_inner: enc_inner,
             enc_outer: enc_outer,
         }
@@ -70,26 +74,16 @@ theorem TwocpaSecurity {
     }
 
     gamehops {
-        equivalence Twocpa0 TwocpaViaCpa0 {
+        equivalence Twocpa0 TwocpaReduction0 {
             invariant: [
                 ./theorem/TwocpaSecurity/invariant-left.smt2,
                 ./theorem/TwocpaSecurity/randomness-left.smt2
             ]
             GenerateInputWireKeys: {
                 randomness: custom
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             GetInputWireKey: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             SetInputBit: {
                 randomness: none
@@ -102,19 +96,19 @@ theorem TwocpaSecurity {
             }
         }
 
-        reduction TwocpaViaCpa0 TwocpaViaCpa1 {
+        reduction TwocpaReduction0 TwocpaReduction1 {
             assumption MultiInstanceCpa
 
-            map MultiInstanceCpa0 TwocpaViaCpa0 {
+            map MultiInstanceCpa0 TwocpaReduction0 {
                 cpa: cpa
             }
 
-            map MultiInstanceCpa1 TwocpaViaCpa1 {
+            map MultiInstanceCpa1 TwocpaReduction1 {
                 cpa: cpa
             }
         }
 
-        equivalence TwocpaViaCpa1 Twocpa1 {
+        equivalence TwocpaReduction1 Twocpa1 {
             invariant: [
                 ./theorem/TwocpaSecurity/invariant-right.smt2,
                 ./theorem/TwocpaSecurity/randomness-right.smt2
