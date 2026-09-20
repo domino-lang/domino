@@ -126,6 +126,7 @@ theorem HybridSecurity {
             invariant: [
                 ./theorem/HybridSecurity/invariant-CoreIdeal-LastHybrid.smt2
                 ./theorem/HybridSecurity/randomness-CoreIdeal-LastHybrid.smt2
+                ./theorem/HybridSecurity/lemma-CoreIdeal-LastHybrid.smt2
             ]
             SetInputBit: {
                 randomness: none
@@ -137,6 +138,17 @@ theorem HybridSecurity {
             }
 
             GarbleGate: {
+                lemmas {
+                    case-i-lt-dminusone: []
+                    case-i-is-dminusone: []
+                    case-i-is-d: []
+                    same-output: [
+                        no-abort,
+                        case-i-lt-dminusone,
+                        case-i-is-dminusone,
+                        case-i-is-d
+                    ]
+                }
             }
 
             GetOutputWireKeys: {
