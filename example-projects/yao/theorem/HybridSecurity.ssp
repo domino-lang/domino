@@ -169,24 +169,12 @@ theorem HybridSecurity {
                 ]
                 SetInputBit: {
                     randomness: none
-                    lemmas {
-                        same-output:  [no-abort]
-                        equal-aborts: []
-                        invariant:    [no-abort]
-                    }
                 }
                 GetInputWireKey: {
                     randomness: none
-                    lemmas {
-                        same-output:  [no-abort]
-                        equal-aborts: []
-                        invariant:    [no-abort]
-                    }
                 }
                 GenerateInputWireKeys: {
                     lemmas {
-                        same-output:  [no-abort]
-                        equal-aborts: []
                         generate-h0-old-layer1: []
                         generate-old-layered-layer1: []
                         generate-h0-layer1: [no-abort, generate-h0-old-layer1]
@@ -254,11 +242,6 @@ theorem HybridSecurity {
           
                 GetOutputWireKeys: {
                     randomness: none
-                    lemmas {
-                        same-output:  [no-abort]
-                        equal-aborts: []
-                        invariant:    [no-abort]
-                    }
                 }
             }
         }

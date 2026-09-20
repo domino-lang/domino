@@ -81,43 +81,17 @@ theorem LayerSecurity {
                 ]
             GenerateInputWireKeys: {
                 randomness: simple
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             GetInputWireKey: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             SetInputBit: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             GetOutputWireKeys: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant:    [no-abort]
-                    same-output:  [no-abort]
-                }
             }
             GarbleGate: {
-               lemmas {
-                    same-output: [no-abort]
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    
-                }
             }
         }
     }

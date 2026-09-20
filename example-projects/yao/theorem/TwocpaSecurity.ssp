@@ -93,27 +93,12 @@ theorem TwocpaSecurity {
             }
             SetInputBit: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             EncInner: {
                 randomness: custom
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             EncOuter: {
                 randomness: custom
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
         }
 
@@ -136,43 +121,18 @@ theorem TwocpaSecurity {
             ]
             GenerateInputWireKeys: {
                 randomness: custom
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             GetInputWireKey: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             SetInputBit: {
                 randomness: none
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             EncInner: {
                 randomness: custom
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
             EncOuter: {
                 randomness: custom
-                lemmas {
-                    equal-aborts: []
-                    invariant: [no-abort]
-                    same-output: [no-abort]
-                }
             }
         }
     }
