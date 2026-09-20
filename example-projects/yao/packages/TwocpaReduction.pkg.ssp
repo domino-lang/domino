@@ -8,8 +8,8 @@ package TwocpaReduction {
         n: Integer,
         m: Integer,
         p: Integer,
-        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
-        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
     }
 
     import oracles {
@@ -53,7 +53,7 @@ package TwocpaReduction {
         if (bit == active) {
             key <- Unwrap(ActiveKey[wire]);
             r <-$ Bits(n) sample-name r;
-            c <- encn(key, msg, r);
+            c <- enc_inner(key, msg, r);
         } else {
             /* real-or-zeros: the secret key encrypts zeros in the ideal game */
             c <- invoke LR_EncInner(wire, msg, 0_n);
@@ -67,7 +67,7 @@ package TwocpaReduction {
         if (bit == active) {
             key <- Unwrap(ActiveKey[wire]);
             r <-$ Bits(n) sample-name r;
-            c <- encm(key, msg, r);
+            c <- enc_outer(key, msg, r);
         } else {
             /* real-or-zeros: the secret key encrypts zeros in the ideal game */
             c <- invoke LR_EncOuter(wire, msg, 0_m);

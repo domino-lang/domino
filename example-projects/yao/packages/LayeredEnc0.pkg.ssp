@@ -4,8 +4,8 @@ package LayeredEnc0 {
         n: Integer,
         m: Integer,
         p: Integer,
-        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
-        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
     }
 
     import oracles {
@@ -20,7 +20,7 @@ package LayeredEnc0 {
     {
         K <- invoke GetWireKeys(layer, wire);
         r <-$ Bits(n) sample-name r;
-        c <- encn(Unwrap(K[bit]), msg, r);
+        c <- enc_inner(Unwrap(K[bit]), msg, r);
         return c;
     }
 
@@ -32,7 +32,7 @@ package LayeredEnc0 {
     {
         K <- invoke GetWireKeys(layer, wire);
         r <-$ Bits(n) sample-name r;
-        c <- encm(Unwrap(K[bit]), msg, r);
+        c <- enc_outer(Unwrap(K[bit]), msg, r);
         return c;
     }
 }

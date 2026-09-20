@@ -2,16 +2,16 @@ theorem LayerSecurity {
     const n: Integer;
     const m: Integer;
     const p: Integer;
-    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
-    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+    const enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
     instance Twocpa0 = Twocpa0 {
         params {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -20,8 +20,8 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -30,8 +30,8 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -40,8 +40,8 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -50,8 +50,8 @@ theorem LayerSecurity {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 

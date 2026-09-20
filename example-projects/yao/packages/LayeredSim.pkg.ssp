@@ -4,8 +4,8 @@ package LayeredSim {
         n: Integer,
         m: Integer,
         p: Integer,
-        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
-        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
     }
 
     import oracles {
@@ -35,24 +35,24 @@ package LayeredSim {
         /* the active row */
         rin <-$ Bits(n) sample-name rin_active;
         rout <-$ Bits(n) sample-name rout_active;
-        cin <- encn(akl, akj, rin);
-        cout <- encm(akr, cin, rout);
+        cin <- enc_inner(akl, akj, rin);
+        cout <- enc_outer(akr, cin, rout);
         C[cout] <- Some(true);
 
         /* active outer key, inactive inner key */
         rin <-$ Bits(n) sample-name rin_inactive;
         rout <-$ Bits(n) sample-name rout_inactive;
-        cin <- encn(ikl, 0_n, rin);
-        cout <- encm(akr, cin, rout);
+        cin <- enc_inner(ikl, 0_n, rin);
+        cout <- enc_outer(akr, cin, rout);
         C[cout] <- Some(true);
 
         /* inactive outer key: two independent encryptions of zeros */
         rout <-$ Bits(n) sample-name rout_zero_0;
-        cout <- encm(ikr, 0_m, rout);
+        cout <- enc_outer(ikr, 0_m, rout);
         C[cout] <- Some(true);
 
         rout <-$ Bits(n) sample-name rout_zero_1;
-        cout <- encm(ikr, 0_m, rout);
+        cout <- enc_outer(ikr, 0_m, rout);
         C[cout] <- Some(true);
 
         return C;

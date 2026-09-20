@@ -8,8 +8,8 @@ package MultiInstanceCpa {
         n: Integer,
         m: Integer,
         p: Integer,
-        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
-        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
     }
 
     state {
@@ -28,9 +28,9 @@ package MultiInstanceCpa {
         key <- Unwrap(Key[h]);
         r <-$ Bits(n) sample-name r;
         if b {
-            c <- encn(key, right, r);
+            c <- enc_inner(key, right, r);
         } else {
-            c <- encn(key, left, r);
+            c <- enc_inner(key, left, r);
         }
         return c;
     }
@@ -40,9 +40,9 @@ package MultiInstanceCpa {
         key <- Unwrap(Key[h]);
         r <-$ Bits(n) sample-name r;
         if b {
-            c <- encm(key, right, r);
+            c <- enc_outer(key, right, r);
         } else {
-            c <- encm(key, left, r);
+            c <- enc_outer(key, left, r);
         }
         return c;
     }

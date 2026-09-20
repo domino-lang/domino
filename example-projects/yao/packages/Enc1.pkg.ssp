@@ -12,8 +12,8 @@ package Enc1 {
         n: Integer,
         m: Integer,
         p: Integer,
-        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
-        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
     }
 
     import oracles {
@@ -27,9 +27,9 @@ package Enc1 {
         active_bit <- invoke GetActiveBit(wire);
         r <-$ Bits(n) sample-name r;
         if (bit == active_bit) {
-            c <- encn(Unwrap(K[bit]), msg, r);
+            c <- enc_inner(Unwrap(K[bit]), msg, r);
         } else {
-            c <- encn(Unwrap(K[bit]), 0_n, r);
+            c <- enc_inner(Unwrap(K[bit]), 0_n, r);
         }
         return c;
     }
@@ -39,9 +39,9 @@ package Enc1 {
         active_bit <- invoke GetActiveBit(wire);
         r <-$ Bits(n) sample-name r;
         if (bit == active_bit) {
-            c <- encm(Unwrap(K[bit]), msg, r);
+            c <- enc_outer(Unwrap(K[bit]), msg, r);
         } else {
-            c <- encm(Unwrap(K[bit]), 0_m, r);
+            c <- enc_outer(Unwrap(K[bit]), 0_m, r);
         }
         return c;
     }

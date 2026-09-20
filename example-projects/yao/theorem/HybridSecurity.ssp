@@ -3,16 +3,16 @@ theorem HybridSecurity {
     const m: Integer;
     const p: Integer;
     const d: Integer;
-    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
-    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+    const enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
     instance LayerReal = LayerReal {
         params {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -21,8 +21,8 @@ theorem HybridSecurity {
             n: n,
             m: m,
             p: p,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -32,8 +32,8 @@ theorem HybridSecurity {
             m: m,
             p: p,
             d: d,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -43,8 +43,8 @@ theorem HybridSecurity {
             m: m,
             p: p,
             d: d,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -55,8 +55,8 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: 0,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -67,8 +67,8 @@ theorem HybridSecurity {
             p: p,
             d: d,
             h: d,
-            encm: encm,
-            encn: encn,
+            enc_outer: enc_outer,
+            enc_inner: enc_inner,
         }
     }
 
@@ -80,8 +80,8 @@ theorem HybridSecurity {
                 p: p,
                 d: d,
                 h: hy,
-                encm: encm,
-                encn: encn,
+                enc_outer: enc_outer,
+                enc_inner: enc_inner,
             }
         }
         HybridIdeal {
@@ -91,8 +91,8 @@ theorem HybridSecurity {
                 p: p,
                 d: d,
                 h: hy,
-                encm: encm,
-                encn: encn,
+                enc_outer: enc_outer,
+                enc_inner: enc_inner,
             }
         }
     }

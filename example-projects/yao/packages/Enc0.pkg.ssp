@@ -7,8 +7,8 @@ package Enc0 {
         n: Integer,
         m: Integer,
         p: Integer,
-        encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
-        encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
+        enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m),
+        enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p),
     }
 
     import oracles {
@@ -19,14 +19,14 @@ package Enc0 {
     oracle EncInner(wire: Integer, bit: Bool, msg: Bits(n)) -> Bits(m) {
         K <- invoke GetWireKeys(wire);
         r <-$ Bits(n) sample-name r;
-        c <- encn(Unwrap(K[bit]), msg, r);
+        c <- enc_inner(Unwrap(K[bit]), msg, r);
         return c;
     }
 
     oracle EncOuter(wire: Integer, bit: Bool, msg: Bits(m)) -> Bits(p) {
         K <- invoke GetWireKeys(wire);
         r <-$ Bits(n) sample-name r;
-        c <- encm(Unwrap(K[bit]), msg, r);
+        c <- enc_outer(Unwrap(K[bit]), msg, r);
         return c;
     }
 }

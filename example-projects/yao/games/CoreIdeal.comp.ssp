@@ -3,8 +3,8 @@ composition CoreIdeal {
     const p: Integer;
     const m: Integer;
     const d: Integer;
-    const encn: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
-    const encm: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
+    const enc_inner: fn Bits(n),Bits(n),Bits(n) -> Bits(m);
+    const enc_outer: fn Bits(n),Bits(m),Bits(n) -> Bits(p);
 
     instance Keys = LayeredKeys {
         params {
@@ -23,8 +23,8 @@ composition CoreIdeal {
             p: p,
             n: n,
             m: m,
-            encn: encn,
-            encm: encm,
+            enc_inner: enc_inner,
+            enc_outer: enc_outer,
         }
     }
 
