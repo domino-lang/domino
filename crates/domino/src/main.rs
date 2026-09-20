@@ -54,10 +54,10 @@ enum Error {
 }
 
 fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
-    let project_root = p
-        .path
-        .to_owned()
-        .unwrap_or(project::directory::find_project_root()?);
+    let project_root = match &p.path {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
@@ -66,10 +66,10 @@ fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
 }
 
 fn prove(p: &Prove) -> Result<(), Error> {
-    let project_root = p
-        .path
-        .to_owned()
-        .unwrap_or(project::directory::find_project_root()?);
+    let project_root = match &p.path {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
@@ -97,10 +97,10 @@ fn prove(p: &Prove) -> Result<(), Error> {
 }
 
 fn latex(l: &Latex) -> Result<(), Error> {
-    let project_root = l
-        .path
-        .to_owned()
-        .unwrap_or(project::directory::find_project_root()?);
+    let project_root = match &l.path {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
