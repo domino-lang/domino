@@ -107,6 +107,7 @@ theorem HybridSecurity {
             invariant: [
                     ./theorem/HybridSecurity/invariant-CoreReal-FirstHybrid.smt2
                     ./theorem/HybridSecurity/randomness-CoreReal-FirstHybrid.smt2
+                    ./theorem/HybridSecurity/lemma-CoreReal-FirstHybrid.smt2
             ]
             SetInputBit: {
                 randomness: none
@@ -117,6 +118,18 @@ theorem HybridSecurity {
             GenerateInputWireKeys: {
             }
             GarbleGate: {
+                lemmas {
+                    case-i-is-one: [no-abort]
+                    case-i-is-two: [no-abort]
+                    case-i-gt-two: [no-abort]
+                    same-output: [no-abort, case-i-is-one, case-i-is-two, case-i-gt-two]
+                    abort-case-i-is-one: []
+                    abort-case-i-is-two-assumptions: []
+                    abort-case-i-is-two: [abort-case-i-is-two-assumptions]
+                    abort-case-i-gt-two: []
+                    equal-aborts: [abort-case-i-is-one, abort-case-i-is-two, abort-case-i-gt-two]
+                    invariant: [no-abort]
+                }
             }
             GetOutputWireKeys: {
                 randomness: none
