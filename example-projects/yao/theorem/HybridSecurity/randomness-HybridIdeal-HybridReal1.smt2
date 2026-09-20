@@ -6,10 +6,15 @@
         (sample-offset-right Int)
     )
     Bool
-    (let ((h (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>)))
+    (let
+      (
+        (h (<theorem-consts-HybridSecurity-hybrid$loop> <<theorem-consts>>))
+        (d (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+      )
       (or
         (and
             (= h 0)
+            (> d 1)
             (= sample-id-left (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-id-right (sample-id "KeysTop" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
@@ -17,6 +22,7 @@
         )
         (and
             (= h 0)
+            (> d 1)
             (= sample-id-left (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-id-right (sample-id "KeysTop" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
@@ -24,6 +30,7 @@
         )
         (and
             (= h 1)
+            (> d 1)
             (= sample-id-left (sample-id "KeysTop" "GenerateWireKeys" "key_true"))
             (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
@@ -31,20 +38,21 @@
         )
         (and
             (= h 1)
+            (> d 1)
             (= sample-id-left (sample-id "KeysTop" "GenerateWireKeys" "key_false"))
             (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (and (not (= h 0)) (not (= h 1)))
+            (or (<= d 1) (and (not (= h 0)) (not (= h 1))))
             (= sample-id-left (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
-            (and (not (= h 0)) (not (= h 1)))
+            (or (<= d 1) (and (not (= h 0)) (not (= h 1))))
             (= sample-id-left (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
@@ -81,7 +89,7 @@
         )
         (and
             (= <arg-HybridIdeal-GarbleGate-layer> (- h 1))
-            (<= h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (< h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
             (= sample-id-left (sample-id "KeysTop" "GenerateWireKeys" "key_true"))
             (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
@@ -89,7 +97,7 @@
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> (- h 1))
-            (<= h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (< h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
             (= sample-id-left (sample-id "KeysTop" "GenerateWireKeys" "key_false"))
             (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
@@ -97,14 +105,14 @@
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> (- h 1))
-            (> h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (>= h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
             (= sample-id-left sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> (- h 1))
-            (> h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (>= h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
             (= sample-id-left sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
@@ -124,7 +132,7 @@
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> h)
-            (< h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (< h (- (<theorem-consts-HybridSecurity-d> <<theorem-consts>>) 1))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
             (= sample-id-left (sample-id "KeysBot" "GenerateWireKeys" "key_true"))
@@ -132,7 +140,7 @@
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> h)
-            (< h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (< h (- (<theorem-consts-HybridSecurity-d> <<theorem-consts>>) 1))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
             (= sample-id-left (sample-id "KeysBot" "GenerateWireKeys" "key_false"))
@@ -140,7 +148,7 @@
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> h)
-            (= h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (= h (- (<theorem-consts-HybridSecurity-d> <<theorem-consts>>) 1))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
             (= sample-id-left (sample-id "KeysBot" "GenerateWireKeys" "key_true"))
@@ -148,7 +156,7 @@
         )
         (and 
             (= <arg-HybridIdeal-GarbleGate-layer> h)
-            (= h (<theorem-consts-HybridSecurity-d> <<theorem-consts>>))
+            (= h (- (<theorem-consts-HybridSecurity-d> <<theorem-consts>>) 1))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
             (= sample-id-left (sample-id "KeysBot" "GenerateWireKeys" "key_false"))

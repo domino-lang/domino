@@ -8,7 +8,7 @@
         (and
             ; Outside the meaningful hybrid range both games use LayeredKeys.
             (=>
-                (or (<= d 0) (< h 0) (> h d))
+                (or (<= d 1) (< h 0) (>= h d))
                 (forall
                     ((i Int) (j Int))
                     (and
@@ -23,7 +23,7 @@
             ; h = 0: CoreReal on the left and the first real layer on the
             ; right differ only by the KeysTop/KeysBot carve-out.
             (=>
-                (and (> d 0) (= h 0))
+                (and (> d 1) (= h 0))
                 (and
                     (forall
                         ((j Int))
@@ -56,7 +56,7 @@
             ; Interior hop: ideal layer h on the left and real layer h + 1 on
             ; the right overlap through both key packages.
             (=>
-                (and (> h 0) (< h d))
+                (and (> h 0) (< h (- d 1)))
                 (and
                     (forall
                         ((i Int) (j Int))
@@ -102,9 +102,9 @@
                 )
             )
 
-            ; h = d: the right game is the all-simulated endpoint.
+            ; h = d - 1: the right game is the all-simulated endpoint h = d.
             (=>
-                (and (> d 0) (= h d))
+                (and (> d 1) (= h (- d 1)))
                 (and
                     (forall
                         ((i Int) (j Int))

@@ -50,7 +50,7 @@ package LayerMap {
         output: Integer
     ) -> Table(Bits(p), Bool) {
         assert (layer > 0);
-        assert (layer <= d);
+        assert (layer < d);
         C <- invoke GarbleGate(layer, left_input, right_input, gate, output);
         return C;
     }

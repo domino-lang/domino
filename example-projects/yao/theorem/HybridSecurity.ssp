@@ -191,7 +191,7 @@ theorem HybridSecurity {
                         generate-old-layered-layer1: []
                         generate-h0-layer1: [no-abort, generate-h0-old-layer1]
                         generate-layered-layer1: [no-abort, generate-old-layered-layer1]
-                        inv-generate-h-is-zero: [no-abort, generate-h0-layer1]
+                        inv-generate-h-is-zero: [no-abort, generate-h0-layer1, generate-layered-layer1]
                         inv-generate-h-is-one: [no-abort]
                         inv-generate-h-is-other: [no-abort, generate-layered-layer1]
                         invariant: [
@@ -229,19 +229,22 @@ theorem HybridSecurity {
                         same-output:  [no-abort, 
                             case-i-is-h, 
                             case-i-is-hplusone, 
-                            case-i-is-hplustwo, 
+                            case-i-is-hplustwo-negative,
+                            case-i-is-hplustwo-nonnegative,
                             case-i-gt-hplustwo, 
                             case-i-lt-hminusone, 
                             case-i-is-hminusone]
                         equal-aborts: [
                             case-i-is-h, 
                             case-i-is-hplusone, 
-                            case-i-is-hplustwo, 
+                            case-i-is-hplustwo-negative,
+                            case-i-is-hplustwo-nonnegative,
                             case-i-gt-hplustwo, 
                             case-i-lt-hminusone, 
                             case-i-is-hminusone]
                         case-i-gt-hplustwo: [case-i-gt-hplustwo-assumptions]
-                        case-i-is-hplustwo: [case-i-is-hplustwo-assumptions]
+                        case-i-is-hplustwo-negative: [case-i-is-hplustwo-assumptions]
+                        case-i-is-hplustwo-nonnegative: [case-i-is-hplustwo-assumptions]
                         case-i-is-h: [case-i-is-h-assumptions]
                         case-i-is-hplusone: [case-i-is-hplusone-assumptions]
                         case-i-is-hminusone: [case-i-is-hminusone-assumptions]
