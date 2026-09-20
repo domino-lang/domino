@@ -84,9 +84,9 @@ package HybridLayerMap {
         gate: Table((Bool, Bool), Bool),
         output: Integer) -> Table(Bits(p), Bool)
     {
-        assert (layer >= 1);
+        assert (layer > 0);
         assert (layer < d);
-        if ((h == d) or (layer < h)) {
+        if (layer < h) {
             C <- invoke SimulateGarbledGate(layer, left_input, right_input, gate, output);
             return C;
         }
