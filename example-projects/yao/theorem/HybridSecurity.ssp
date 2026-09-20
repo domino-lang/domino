@@ -199,7 +199,19 @@ theorem HybridSecurity {
                     lemmas {
                         same-output:  [no-abort]
                         equal-aborts: []
-                        invariant:    [no-abort]
+                        generate-h0-old-layer1: []
+                        generate-old-layered-layer1: []
+                        generate-h0-layer1: [no-abort, generate-h0-old-layer1]
+                        generate-layered-layer1: [no-abort, generate-old-layered-layer1]
+                        inv-generate-h-is-zero: [no-abort, generate-h0-layer1]
+                        inv-generate-h-is-one: [no-abort]
+                        inv-generate-h-is-other: [no-abort, generate-layered-layer1]
+                        invariant: [
+                            no-abort,
+                            inv-generate-h-is-zero,
+                            inv-generate-h-is-one,
+                            inv-generate-h-is-other
+                        ]
                     }
                 }
           

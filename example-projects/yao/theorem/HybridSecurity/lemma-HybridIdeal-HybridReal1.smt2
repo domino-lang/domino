@@ -1,60 +1,119 @@
-;; TODO: this file still predates the LayeredKeys/Keys refactor.  It refers to
-;; the package-state field `flag` and to `ActiveBitSetAndGenerated`, which no
-;; longer exist, to the game instances `RealLayersKeys`/`SimulatedLayersKeys`,
-;; which have been merged into a single `LayeredKeys`, and (in the randomness
-;; mappings) to the eight coins `rin_round_*`/`rout_round_*` of the old
-;; simulator, which now draws six (`rin_active`, `rout_active`, `rin_inactive`,
-;; `rout_inactive`, `rout_zero_0`, `rout_zero_1`).  The names below have been
-;; propagated mechanically; the statements themselves still need reworking.
-
-(define-lemma <relation-value-of-h-Hybrid$true$-Hybrid$false$+-SetInputBit>
+(define-lemma <relation-generate-h0-old-layer1-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
     (
         old-state-left
         old-state-right
         return-left
         return-right
-        (j Int)
-        (b Bool)
+        (wire Int)
     )
-    (= old-state-left.h -2)
+    (=>
+        (and (> old-state-left.d 0) (= old-state-left.h 0))
+        (and
+            (= (select old-state-left.LayeredKeys.WireKey (mk-tuple2 1 wire))
+               (select old-state-right.KeysTop.WireKey wire))
+            (= (select old-state-left.LayeredKeys.ActiveBit (mk-tuple2 1 wire))
+               (select old-state-right.KeysTop.ActiveBit wire))
+        )
+    )
 )
 
-
-(define-lemma <relation-value-of-h-Hybrid$true$-Hybrid$false$+-GetWireKeys>
+(define-lemma <relation-generate-old-layered-layer1-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
     (
         old-state-left
         old-state-right
         return-left
         return-right
-        (j Int)
+        (wire Int)
     )
-    (= old-state-left.h 1)
+    (=>
+        (and (not (= old-state-left.h 0)) (not (= old-state-left.h 1)))
+        (and
+            (= (select old-state-left.LayeredKeys.WireKey (mk-tuple2 1 wire))
+               (select old-state-right.LayeredKeys.WireKey (mk-tuple2 1 wire)))
+            (= (select old-state-left.LayeredKeys.ActiveBit (mk-tuple2 1 wire))
+               (select old-state-right.LayeredKeys.ActiveBit (mk-tuple2 1 wire)))
+        )
+    )
 )
 
-(define-lemma <relation-value-of-h-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
+(define-lemma <relation-generate-h0-layer1-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
     (
         old-state-left
         old-state-right
         return-left
         return-right
-        (j Int)
+        (wire Int)
     )
-    (= old-state-left.h 1)
+    (=>
+        (= old-state-left.h 0)
+        (and
+            (= (select return-left.state.LayeredKeys.WireKey (mk-tuple2 1 wire))
+               (select return-right.state.KeysTop.WireKey wire))
+            (= (select return-left.state.LayeredKeys.ActiveBit (mk-tuple2 1 wire))
+               (select return-right.state.KeysTop.ActiveBit wire))
+        )
+    )
 )
 
-(define-lemma <relation-value-of-i-Hybrid$true$-Hybrid$false$+-GarbleGate>
+(define-lemma <relation-generate-layered-layer1-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
     (
         old-state-left
         old-state-right
         return-left
         return-right
-        (i Int)
-        (l Int)
-        (r Int)
-        (op (Array (Tuple2 Bool Bool) (Maybe Bool)))
-        (j Int)
+        (wire Int)
     )
-    (= i (+ old-state-left.h 1))
+    (=>
+        (and (not (= old-state-left.h 0)) (not (= old-state-left.h 1)))
+        (and
+            (= (select return-left.state.LayeredKeys.WireKey (mk-tuple2 1 wire))
+               (select return-right.state.LayeredKeys.WireKey (mk-tuple2 1 wire)))
+            (= (select return-left.state.LayeredKeys.ActiveBit (mk-tuple2 1 wire))
+               (select return-right.state.LayeredKeys.ActiveBit (mk-tuple2 1 wire)))
+        )
+    )
+)
+
+(define-lemma <relation-inv-generate-h-is-zero-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
+    (
+        old-state-left
+        old-state-right
+        return-left
+        return-right
+        (wire Int)
+    )
+    (=>
+        (= old-state-left.h 0)
+        (invariant return-left.state return-right.state)
+    )
+)
+
+(define-lemma <relation-inv-generate-h-is-one-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
+    (
+        old-state-left
+        old-state-right
+        return-left
+        return-right
+        (wire Int)
+    )
+    (=>
+        (= old-state-left.h 1)
+        (invariant return-left.state return-right.state)
+    )
+)
+
+(define-lemma <relation-inv-generate-h-is-other-Hybrid$true$-Hybrid$false$+-GenerateInputWireKeys>
+    (
+        old-state-left
+        old-state-right
+        return-left
+        return-right
+        (wire Int)
+    )
+    (=>
+        (and (not (= old-state-left.h 0)) (not (= old-state-left.h 1)))
+        (invariant return-left.state return-right.state)
+    )
 )
 
 (define-lemma <relation-inv-case-i-lt-hminusone-assumptions-Hybrid$true$-Hybrid$false$+-GarbleGate>
@@ -72,22 +131,12 @@
     (=>
         (< i (- old-state-left.h 1))
         (and
-            (= return-left.state.RealLayersKeys.flag old-state-left.RealLayersKeys.flag)
-            (= return-left.state.KeysTop.ActiveBitSetAndGenerated old-state-left.KeysTop.ActiveBitSetAndGenerated)
-            (= return-left.state.KeysBot.ActiveBitSetAndGenerated old-state-left.KeysBot.ActiveBitSetAndGenerated)
-            (= return-right.state.RealLayersKeys.flag old-state-right.RealLayersKeys.flag)
-            (= return-right.state.KeysTop.ActiveBitSetAndGenerated old-state-right.KeysTop.ActiveBitSetAndGenerated)
-            (= return-right.state.KeysBot.ActiveBitSetAndGenerated old-state-right.KeysBot.ActiveBitSetAndGenerated)
-            (= return-left.state.RealLayersKeys.WireKey old-state-left.RealLayersKeys.WireKey)
             (= return-left.state.KeysTop.WireKey old-state-left.KeysTop.WireKey)
             (= return-left.state.KeysBot.WireKey old-state-left.KeysBot.WireKey)
-            (= return-right.state.RealLayersKeys.WireKey old-state-right.RealLayersKeys.WireKey)
             (= return-right.state.KeysTop.WireKey old-state-right.KeysTop.WireKey)
             (= return-right.state.KeysBot.WireKey old-state-right.KeysBot.WireKey)
-            (= return-left.state.RealLayersKeys.ActiveBit old-state-left.RealLayersKeys.ActiveBit)
             (= return-left.state.KeysTop.ActiveBit old-state-left.KeysTop.ActiveBit)
             (= return-left.state.KeysBot.ActiveBit old-state-left.KeysBot.ActiveBit)
-            (= return-right.state.RealLayersKeys.ActiveBit old-state-right.RealLayersKeys.ActiveBit)
             (= return-right.state.KeysTop.ActiveBit old-state-right.KeysTop.ActiveBit)
             (= return-right.state.KeysBot.ActiveBit old-state-right.KeysBot.ActiveBit)
         )
@@ -198,78 +247,15 @@
     )
     (=>
         (> i (+ old-state-left.h 2))
-        (let
-            (
-                (r return-right.state.RealLayersKeys.r)
-                (rr return-right.state.RealLayersKeys.rr)
-            )
-            (and
-                (= return-left.state.RealLayersKeys.flag (store old-state-left.RealLayersKeys.flag (mk-tuple2 (+ i 1) j) (mk-some true)))
-                (= return-left.state.SimulatedLayersKeys.flag old-state-left.SimulatedLayersKeys.flag)
-                (= return-left.state.KeysTop.ActiveBitSetAndGenerated old-state-left.KeysTop.ActiveBitSetAndGenerated)
-                (= return-left.state.KeysBot.ActiveBitSetAndGenerated old-state-left.KeysBot.ActiveBitSetAndGenerated)
-                (= return-right.state.RealLayersKeys.flag (store old-state-right.RealLayersKeys.flag (mk-tuple2 (+ i 1) j) (mk-some true)))
-                (= return-right.state.SimulatedLayersKeys.flag old-state-right.SimulatedLayersKeys.flag)
-                (= return-right.state.KeysTop.ActiveBitSetAndGenerated old-state-right.KeysTop.ActiveBitSetAndGenerated)
-                (= return-right.state.KeysBot.ActiveBitSetAndGenerated old-state-right.KeysBot.ActiveBitSetAndGenerated)
-
-                (=>
-                    (not (is-mk-none (select old-state-left.RealLayersKeys.WireKey (mk-tuple2 (+ i 1) j))))
-                    (= return-left.state.RealLayersKeys.WireKey old-state-left.RealLayersKeys.WireKey)
-                )
-                (=>
-                    (is-mk-none (select old-state-left.RealLayersKeys.WireKey (mk-tuple2 (+ i 1) j)))
-                    (= return-left.state.RealLayersKeys.WireKey
-                        (store old-state-left.RealLayersKeys.WireKey (mk-tuple2 (+ i 1) j)
-                            (mk-some (store
-                                (store
-                                    ((as const (Array Bool (Maybe Bits_n))) (as mk-none (Maybe Bits_n)))
-                                    true
-                                    (mk-some r)
-                                )
-                                false
-                                (mk-some rr)
-                            ))
-                        )
-                    )
-                )
-                (= return-left.state.SimulatedLayersKeys.WireKey old-state-left.SimulatedLayersKeys.WireKey)
-                (= return-left.state.KeysTop.WireKey old-state-left.KeysTop.WireKey)
-                (= return-left.state.KeysBot.WireKey old-state-left.KeysBot.WireKey)
-
-                (=>
-                    (not (is-mk-none (select old-state-right.RealLayersKeys.WireKey (mk-tuple2 (+ i 1) j))))
-                    (= return-right.state.RealLayersKeys.WireKey old-state-right.RealLayersKeys.WireKey)
-                )
-                (=>
-                    (is-mk-none (select old-state-right.RealLayersKeys.WireKey (mk-tuple2 (+ i 1) j)))
-                    (= return-right.state.RealLayersKeys.WireKey
-                        (store old-state-right.RealLayersKeys.WireKey (mk-tuple2 (+ i 1) j)
-                            (mk-some (store
-                                (store
-                                    ((as const (Array Bool (Maybe Bits_n))) (as mk-none (Maybe Bits_n)))
-                                    true
-                                    (mk-some r)
-                                )
-                                false
-                                (mk-some rr)
-                            ))
-                        )
-                    )
-                )
-                (= return-right.state.SimulatedLayersKeys.WireKey old-state-right.SimulatedLayersKeys.WireKey)
-                (= return-right.state.KeysTop.WireKey old-state-right.KeysTop.WireKey)
-                (= return-right.state.KeysBot.WireKey old-state-right.KeysBot.WireKey)
-
-                (= return-left.state.RealLayersKeys.ActiveBit old-state-left.RealLayersKeys.ActiveBit)
-                (= return-left.state.SimulatedLayersKeys.ActiveBit old-state-left.SimulatedLayersKeys.ActiveBit)
-                (= return-left.state.KeysTop.ActiveBit old-state-left.KeysTop.ActiveBit)
-                (= return-left.state.KeysBot.ActiveBit old-state-left.KeysBot.ActiveBit)
-                (= return-right.state.RealLayersKeys.ActiveBit old-state-right.RealLayersKeys.ActiveBit)
-                (= return-right.state.SimulatedLayersKeys.ActiveBit old-state-right.SimulatedLayersKeys.ActiveBit)
-                (= return-right.state.KeysTop.ActiveBit old-state-right.KeysTop.ActiveBit)
-                (= return-right.state.KeysBot.ActiveBit old-state-right.KeysBot.ActiveBit)
-            )
+        (and
+            (= return-left.state.KeysTop.WireKey old-state-left.KeysTop.WireKey)
+            (= return-left.state.KeysBot.WireKey old-state-left.KeysBot.WireKey)
+            (= return-right.state.KeysTop.WireKey old-state-right.KeysTop.WireKey)
+            (= return-right.state.KeysBot.WireKey old-state-right.KeysBot.WireKey)
+            (= return-left.state.KeysTop.ActiveBit old-state-left.KeysTop.ActiveBit)
+            (= return-left.state.KeysBot.ActiveBit old-state-left.KeysBot.ActiveBit)
+            (= return-right.state.KeysTop.ActiveBit old-state-right.KeysTop.ActiveBit)
+            (= return-right.state.KeysBot.ActiveBit old-state-right.KeysBot.ActiveBit)
         )
     )
 )
@@ -306,16 +292,15 @@
         (j Int)
     )
     (=>
-        (< i (- state-left.h 1))
+        (and (> state-left.d 0) (>= i 1) (<= i state-left.d)
+             (< i (- state-left.h 1)))
         (and
-            (= (select state-left.SimulatedLayersKeys.ActiveBit (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 i l)))
-            (= (select state-left.SimulatedLayersKeys.ActiveBit (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 i r)))
-            (= (select state-left.SimulatedLayersKeys.flag (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i l)))
-            (= (select state-left.SimulatedLayersKeys.flag (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i r)))
-            (= (select state-left.SimulatedLayersKeys.WireKey (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 i l)))
-            (= (select state-left.SimulatedLayersKeys.WireKey (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 i r)))
-            (= (select state-left.SimulatedLayersKeys.ActiveBit (mk-tuple2 (+ i 1) j)) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 (+ i 1) j)))
-            (= (select state-left.SimulatedLayersKeys.WireKey (mk-tuple2 (+ i 1) j)) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 (+ i 1) j)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i l)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i l)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i r)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i r)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i l)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i l)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i r)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i r)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 (+ i 1) j)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 (+ i 1) j)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 (+ i 1) j)) (select state-right.LayeredKeys.WireKey (mk-tuple2 (+ i 1) j)))
         )
     )
 )
@@ -352,16 +337,27 @@
         (j Int)
     )
     (=>
-        (= i (- state-left.h 1))
+        (and (> state-left.d 0) (>= i 1) (<= i state-left.d)
+             (= i (- state-left.h 1)))
         (and
-            (= (select state-left.SimulatedLayersKeys.ActiveBit (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 i l)))
-            (= (select state-left.SimulatedLayersKeys.ActiveBit (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 i r)))
-            (= (select state-left.SimulatedLayersKeys.flag (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i l)))
-            (= (select state-left.SimulatedLayersKeys.flag (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 i r)))
-            (= (select state-left.SimulatedLayersKeys.WireKey (mk-tuple2 i l)) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 i l)))
-            (= (select state-left.SimulatedLayersKeys.WireKey (mk-tuple2 i r)) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 i r)))
-            (= (select state-left.KeysTop.ActiveBit j) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 state-left.h j)))
-            (= (select state-left.KeysTop.WireKey j) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 state-left.h j)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i l)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i l)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i r)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i r)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i l)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i l)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i r)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i r)))
+            (=>
+                (<= state-left.h state-left.d)
+                (and
+                    (= (select state-left.KeysTop.ActiveBit j) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 state-left.h j)))
+                    (= (select state-left.KeysTop.WireKey j) (select state-right.LayeredKeys.WireKey (mk-tuple2 state-left.h j)))
+                )
+            )
+            (=>
+                (> state-left.h state-left.d)
+                (and
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 state-left.h j)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 state-left.h j)))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 state-left.h j)) (select state-right.LayeredKeys.WireKey (mk-tuple2 state-left.h j)))
+                )
+            )
         )
     )
 )
@@ -398,17 +394,27 @@
         (j Int)
     )
     (=>
-        (= i state-left.h)
+        (and (> state-left.d 0) (>= i 1) (<= i state-left.d)
+             (= i state-left.h))
         (and
-            (= (select state-left.KeysTop.ActiveBit l) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 state-left.h l)))
-            (= (select state-left.KeysTop.ActiveBit r) (select state-right.SimulatedLayersKeys.ActiveBit (mk-tuple2 state-left.h r)))
-            (= (select state-left.KeysTop.ActiveBitSetAndGenerated l) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 state-left.h l)))
-            (= (select state-left.KeysTop.ActiveBitSetAndGenerated r) (select state-right.SimulatedLayersKeys.flag (mk-tuple2 state-left.h r)))
-            (= (select state-left.KeysTop.WireKey l) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 state-left.h l)))
-            (= (select state-left.KeysTop.WireKey r) (select state-right.SimulatedLayersKeys.WireKey (mk-tuple2 state-left.h r)))
-            (= (select state-left.KeysBot.ActiveBit j) (select state-right.KeysTop.ActiveBit j))
-            (= (select state-left.KeysBot.WireKey j) (select state-right.KeysTop.WireKey j))
-            (= (select state-left.KeysBot.ActiveBitSetAndGenerated j) (select state-right.KeysTop.ActiveBitSetAndGenerated j))
+            (= (select state-left.KeysTop.ActiveBit l) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 state-left.h l)))
+            (= (select state-left.KeysTop.ActiveBit r) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 state-left.h r)))
+            (= (select state-left.KeysTop.WireKey l) (select state-right.LayeredKeys.WireKey (mk-tuple2 state-left.h l)))
+            (= (select state-left.KeysTop.WireKey r) (select state-right.LayeredKeys.WireKey (mk-tuple2 state-left.h r)))
+            (=>
+                (< state-left.h state-left.d)
+                (and
+                    (= (select state-left.KeysBot.ActiveBit j) (select state-right.KeysTop.ActiveBit j))
+                    (= (select state-left.KeysBot.WireKey j) (select state-right.KeysTop.WireKey j))
+                )
+            )
+            (=>
+                (= state-left.h state-left.d)
+                (and
+                    (= (select state-left.KeysBot.ActiveBit j) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 (+ state-left.h 1) j)))
+                    (= (select state-left.KeysBot.WireKey j) (select state-right.LayeredKeys.WireKey (mk-tuple2 (+ state-left.h 1) j)))
+                )
+            )
         )
     )
 )
@@ -445,14 +451,29 @@
         (j Int)
     )
     (=>
-        (= i (+ 1 state-left.h))
+        (and (> state-left.d 0) (>= i 1) (<= i state-left.d)
+             (= i (+ 1 state-left.h)))
         (and
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 2 state-left.h) j)) (select state-right.KeysBot.ActiveBitSetAndGenerated j))
-            (= (select state-left.KeysBot.ActiveBitSetAndGenerated l) (select state-right.KeysTop.ActiveBitSetAndGenerated l))
-            (= (select state-left.KeysBot.ActiveBitSetAndGenerated r) (select state-right.KeysTop.ActiveBitSetAndGenerated r))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 (+ 2 state-left.h) j)) (select state-right.KeysBot.WireKey j))
-            (= (select state-left.KeysBot.WireKey l) (select state-right.KeysTop.WireKey l))
-            (= (select state-left.KeysBot.WireKey r) (select state-right.KeysTop.WireKey r))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 (+ 2 state-left.h) j)) (select state-right.KeysBot.ActiveBit j))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 (+ 2 state-left.h) j)) (select state-right.KeysBot.WireKey j))
+            (=>
+                (= state-left.h 0)
+                (and
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i l)) (select state-right.KeysTop.ActiveBit l))
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i r)) (select state-right.KeysTop.ActiveBit r))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i l)) (select state-right.KeysTop.WireKey l))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i r)) (select state-right.KeysTop.WireKey r))
+                )
+            )
+            (=>
+                (> state-left.h 0)
+                (and
+                    (= (select state-left.KeysBot.ActiveBit l) (select state-right.KeysTop.ActiveBit l))
+                    (= (select state-left.KeysBot.ActiveBit r) (select state-right.KeysTop.ActiveBit r))
+                    (= (select state-left.KeysBot.WireKey l) (select state-right.KeysTop.WireKey l))
+                    (= (select state-left.KeysBot.WireKey r) (select state-right.KeysTop.WireKey r))
+                )
+            )
         )
     )
 )
@@ -488,14 +509,29 @@
         (j Int)
     )
     (=>
-        (= i (+ 2 state-left.h))
+        (and (> state-left.d 0) (>= i 1) (<= i state-left.d)
+             (= i (+ 2 state-left.h)))
         (and
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)) (select state-right.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)))
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 i l)) (select state-right.KeysBot.ActiveBitSetAndGenerated l))
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 i r)) (select state-right.KeysBot.ActiveBitSetAndGenerated r))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 (+ 1 i) j)) (select state-right.RealLayersKeys.WireKey (mk-tuple2 (+ 1 i) j)))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 i l)) (select state-right.KeysBot.WireKey l))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 i r)) (select state-right.KeysBot.WireKey r))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 (+ 1 i) j)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 (+ 1 i) j)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 (+ 1 i) j)) (select state-right.LayeredKeys.WireKey (mk-tuple2 (+ 1 i) j)))
+            (=>
+                (< state-left.h 0)
+                (and
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i l)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i l)))
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i r)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i r)))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i l)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i l)))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i r)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i r)))
+                )
+            )
+            (=>
+                (>= state-left.h 0)
+                (and
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i l)) (select state-right.KeysBot.ActiveBit l))
+                    (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i r)) (select state-right.KeysBot.ActiveBit r))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i l)) (select state-right.KeysBot.WireKey l))
+                    (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i r)) (select state-right.KeysBot.WireKey r))
+                )
+            )
         )
     )
 )
@@ -531,14 +567,15 @@
         (j Int)
     )
     (=>
-        (> i (+ 2 state-left.h))
+        (and (> state-left.d 0) (>= i 1) (<= i state-left.d)
+             (> i (+ 2 state-left.h)))
         (and
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)) (select state-right.RealLayersKeys.flag (mk-tuple2 (+ 1 i) j)))
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 i l)) (select state-right.RealLayersKeys.flag (mk-tuple2 i l)))
-            (= (select state-left.RealLayersKeys.flag (mk-tuple2 i r)) (select state-right.RealLayersKeys.flag (mk-tuple2 i r)))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 (+ 1 i) j)) (select state-right.RealLayersKeys.WireKey (mk-tuple2 (+ 1 i) j)))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 i l)) (select state-right.RealLayersKeys.WireKey (mk-tuple2 i l)))
-            (= (select state-left.RealLayersKeys.WireKey (mk-tuple2 i r)) (select state-right.RealLayersKeys.WireKey (mk-tuple2 i r)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 (+ 1 i) j)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 (+ 1 i) j)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i l)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i l)))
+            (= (select state-left.LayeredKeys.ActiveBit (mk-tuple2 i r)) (select state-right.LayeredKeys.ActiveBit (mk-tuple2 i r)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 (+ 1 i) j)) (select state-right.LayeredKeys.WireKey (mk-tuple2 (+ 1 i) j)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i l)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i l)))
+            (= (select state-left.LayeredKeys.WireKey (mk-tuple2 i r)) (select state-right.LayeredKeys.WireKey (mk-tuple2 i r)))
         )
     )
 )
