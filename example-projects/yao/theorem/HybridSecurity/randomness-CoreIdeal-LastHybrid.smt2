@@ -23,14 +23,14 @@
             (and
                 (> d 1)
                 (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_true"))
-                (= sample-id-right (sample-id "SimulatedLayersKeys" "GenerateWireKeys" "key_true"))
+                (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and
                 (> d 1)
                 (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_false"))
-                (= sample-id-right (sample-id "SimulatedLayersKeys" "GenerateWireKeys" "key_false"))
+                (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
@@ -183,14 +183,14 @@
             (and 
                 (< <arg-CoreIdeal-GarbleGate-layer> (- d 1))
                 (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_true"))
-                (= sample-id-right (sample-id "SimulatedLayersKeys" "GenerateWireKeys" "key_true"))
+                (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )
             (and 
                 (< <arg-CoreIdeal-GarbleGate-layer> (- d 1))
                 (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_false"))
-                (= sample-id-right (sample-id "SimulatedLayersKeys" "GenerateWireKeys" "key_false"))
+                (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
                 (= sample-offset-left 0)
                 (= sample-offset-right 0)
             )

@@ -69,14 +69,14 @@
         (and
             (> <arg-CoreReal-GarbleGate-layer> 1)
             (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_true"))
-            (= sample-id-right (sample-id "RealLayersKeys" "GenerateWireKeys" "key_true"))
+            (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_true"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
         (and
             (> <arg-CoreReal-GarbleGate-layer> 1)
             (= sample-id-left (sample-id "Keys" "GenerateWireKeys" "key_false"))
-            (= sample-id-right (sample-id "RealLayersKeys" "GenerateWireKeys" "key_false"))
+            (= sample-id-right (sample-id "LayeredKeys" "GenerateWireKeys" "key_false"))
             (= sample-offset-left 0)
             (= sample-offset-right 0)
         )
