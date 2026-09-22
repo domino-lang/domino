@@ -861,10 +861,10 @@ impl OracleTranslator<'_> {
         Ok(EcBlock(out))
     }
 
-    /// `T[k] <- rhs` (§3.4). `rhs` is never `Unwrap`-headed here:
-    /// `unwrapify` hoists every `Unwrap` — including one that is a table
-    /// assignment's entire right-hand side — into its own preceding
-    /// `Ident`-pattern statement.
+    /// `T[k] <- rhs` (§3.4). `rhs` may be `Unwrap`-headed — `T[k] <-
+    /// Unwrap(m)` for `m : Maybe(Maybe(V))`, once story 17 has inlined
+    /// `unwrapify`'s temporary back into it. It is guarded by then and falls
+    /// to the general arm below, which only ever `oget`s it.
     fn translate_table_write(
         &mut self,
         ident: &Identifier,
@@ -1417,16 +1417,54 @@ mod tests {
     }
 
     /// `KX_noprfkey::Send3` additionally writes `ReverseMac` *inside*
-    /// `if (mess == 2)`, after the `First`/`Second` cascade — a second,
-    /// nested join, so it has two guards. The tail still appears once.
+    /// `if (mess == 2)`, after the `First`/`Second` cascade. Before story 17
+    /// that was a second, nested join with its own flag guard; the cascade's
+    /// three dominated `Unwrap(sid)` guards were what could terminate it.
+    /// With them dropped (story 17 §3.3) the cascade cannot terminate, and
+    /// one guard is left. The tail still appears once.
     #[test]
-    fn full_4whs_kx_noprfkey_send3_has_its_tail_once_and_a_guard_per_join() {
+    fn full_4whs_kx_noprfkey_send3_has_its_tail_once_and_one_flag_guard() {
         let rendered = full_4whs_kx_noprfkey();
         let send3 = proc_text(&rendered, "d_Send3");
-        assert_eq!(send3.matches("if (!ec_done)").count(), 2, "{send3}");
+        assert_eq!(send3.matches("if (!ec_done)").count(), 1, "{send3}");
         assert_eq!(send3.matches("d_State.[ctr] <- state;").count(), 1, "{send3}");
         assert_eq!(send3.matches("ec_result <- Some msg_;").count(), 1, "{send3}");
         assert_eq!(send3.matches("d_ReverseMac.[").count(), 1, "{send3}");
+        assert_eq!(send3.matches("(sid = None)").count(), 1, "{send3}");
+        assert!(!send3.contains("unwrap_"), "{send3}");
+    }
+
+    /// Story 17 §1.2/§4: `KX_nochecks::Send3` (the oracle story 16 §1.1
+    /// quotes) declares no `unwrap_N`, tests `sid = None` once, and its
+    /// `if (_mess = 2)` cascade is the Domino source's structure. The one
+    /// difference from §1.2's listing is the `else { ec_done <- true; }`
+    /// arm: `sid = None` still aborts there, and the tail after the join
+    /// must not run when it does.
+    #[test]
+    fn full_4whs_kx_nochecks_send3_cascade_has_one_sid_guard_and_no_temporaries() {
+        let rendered = full_4whs_variant("KX_nochecks");
+        let send3 = proc_text(&rendered, "d_Send3");
+        assert!(!send3.contains("unwrap_"), "{send3}");
+        assert_eq!(send3.matches("(sid = None)").count(), 1, "{send3}");
+        let cascade = "
+          if (_mess = 2) {
+            if (!(sid = None)) {
+              if (d_First.[oget sid] = None) {
+                d_First.[oget sid] <- ctr;
+              } else {
+                if (d_Second.[oget sid] = None) {
+                  d_Second.[oget sid] <- ctr;
+                }
+              }
+            } else {
+              ec_done <- true;
+            }
+          }
+          if (!ec_done) {
+";
+        assert!(send3.contains(cascade), "{send3}");
+        // the `State[ctr]` unwrap binds `state` directly
+        assert!(send3.contains("state <- oget d_State.[ctr];"), "{send3}");
     }
 
     #[test]

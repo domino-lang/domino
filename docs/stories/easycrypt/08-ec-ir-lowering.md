@@ -59,6 +59,25 @@ The generated module bodies and the router's shape:
 returning options, `ec_result`/`ec_r<N>` temporaries, and the continuation-nesting shape for
 `Unwrap`/invoke (story 03 §3.5).
 
+### 2.4 From story 17 (added by the story 17 session)
+
+Read `16-easycryptify-IMPLEMENTATION-REPORT.md` and `17-unwrap-temporaries-IMPLEMENTATION-REPORT.md`
+first: stories 16–17 replaced the §2.3 continuation-nesting shape. The facts that bear on the
+lowering:
+
+- **There are no `unwrap_N` temporaries in exported code any more.** `Unwrap(e)` now appears
+  *inside* other expressions: conditions (`if (d_First.[oget sid] = None)`), table indices, call
+  arguments (`O.d_ENC(oget pk, m1)`), tuple right-hand sides, and nested in another unwrap's
+  operand (`d_State.[oget d_First.[sid]]`). Every such `oget e` sits inside the then-branch of an
+  `if (!(e = None))`, and `easycryptify` asserts that (`every_unwrap_is_guarded`).
+- `src/writers/smt/expr_expr.rs` now lowers an `Unwrap` *inside* an expression to
+  `(maybe-get e)` instead of panicking, so the executor can run the easycryptified code. That is
+  EasyCrypt's `oget`: total, with an unspecified value on `None`. A whole-right-hand-side
+  `x <- Unwrap(e)` still becomes an `InlStmt::Unwrap` fork. Its `unwrap-none` child is infeasible,
+  because the guard dominates it.
+- On a Domino listing (`DebugTransform`, no `--easycrypt`) nothing changed: `unwrapify` still
+  hoists every unwrap into an `unwrap-N` binding there.
+
 ## 3. Work to do
 
 New file `src/writers/easycrypt/lower.rs`.

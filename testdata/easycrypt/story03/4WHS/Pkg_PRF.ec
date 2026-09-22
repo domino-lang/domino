@@ -36,17 +36,14 @@ module PRF = {
 
   proc d_Eval(kid : int, x : (int * int * bits_n * bits_n * bool)) : bits_n option = {
     var ec_result : bits_n option;
-    var unwrap_1 : bits_n;
     var k : bits_n;
     var temp : bits_n;
     var y : bits_n option;
-    var unwrap_2 : bits_n;
     ec_result <- None;
     if (!(d_LTK.[kid] = None)) {
       if (d_H.[kid] = Some false \/ !b) {
         if (!(d_LTK.[kid] = None)) {
-          unwrap_1 <- oget d_LTK.[kid];
-          k <- unwrap_1;
+          k <- oget d_LTK.[kid];
           ec_result <- Some (func_prf k x);
         }
       } else {
@@ -56,8 +53,7 @@ module PRF = {
         }
         y <- d_PRF.[(kid, x)];
         if (!(y = None)) {
-          unwrap_2 <- oget y;
-          ec_result <- Some unwrap_2;
+          ec_result <- Some (oget y);
         }
       }
     }
@@ -66,12 +62,10 @@ module PRF = {
 
   proc d_Hon(kid : int) : bool option = {
     var ec_result : bool option;
-    var unwrap_1 : bool;
     ec_result <- None;
     if (!(d_H.[kid] = None)) {
       if (!(d_H.[kid] = None)) {
-        unwrap_1 <- oget d_H.[kid];
-        ec_result <- Some unwrap_1;
+        ec_result <- Some (oget d_H.[kid]);
       }
     }
     return ec_result;

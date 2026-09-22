@@ -22,10 +22,15 @@ impl From<&Expression> for SmtExpr {
                     .into(),
                 other => panic!("Empty table of type {other:?}"),
             },
+            // `unwrapify` hoists every `Unwrap` out of expressions for the
+            // SMT writer, so it never reaches this point from `prove`. After
+            // `easycryptify` (story 17) an `Unwrap` does sit inside other
+            // expressions — `First[Unwrap(sid)]` — always under a guard
+            // that already tested it, and the executor lowers that code
+            // through here. `maybe-get` is exactly EasyCrypt's `oget`: total,
+            // with an unspecified value on `mk-none`.
             ExpressionKind::Unwrap(inner) => {
-                panic!("found an unwrap and don't knwo what to do with it -- {inner:?}");
-                //panic!("unwrap expressions need to be on the right hand side of an assign!");
-                // TODO find a better way to present that error to the user.
+                SmtExpr::List(vec![SmtExpr::Atom("maybe-get".into()), (&**inner).into()])
             }
             ExpressionKind::Some(inner) => SmtExpr::List(vec![
                 SmtExpr::Atom("mk-some".into()),

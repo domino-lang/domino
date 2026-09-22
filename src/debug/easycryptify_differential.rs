@@ -553,6 +553,43 @@ fn synthetic_project() -> tempfile::TempDir {
         }
         return ctr;
     }
+
+    oracle Dominated(k: Integer) -> Integer {
+        y <- Unwrap(u[k]);
+        if (y == 0) {
+            z <- Unwrap(u[k]);
+        } else {
+            z <- 1;
+        }
+        m <- invoke Get(k);
+        ctr <- (ctr + Unwrap(u[k]));
+        return z;
+    }
+
+    oracle AfterJoin(x: Integer, k: Integer) -> Integer {
+        if (x == 1) {
+            y <- Unwrap(u[k]);
+        } else {
+            y <- 0;
+        }
+        z <- Unwrap(u[k]);
+        return (y + z);
+    }
+
+    oracle TableWritten(k: Integer, j: Integer) -> Integer {
+        y <- Unwrap(u[k]);
+        u[j] <- None as Integer;
+        z <- Unwrap(u[k]);
+        return (y + z);
+    }
+
+    oracle LocalReassigned(k: Integer) -> Integer {
+        m <- u[k];
+        y <- Unwrap(m);
+        m <- u[(k + 1)];
+        z <- Unwrap(m);
+        return (y + z);
+    }
 }
 ",
     );
@@ -576,6 +613,10 @@ fn synthetic_project() -> tempfile::TempDir {
             Join: caller,
             NestedReturn: caller,
             Chain: caller,
+            Dominated: caller,
+            AfterJoin: caller,
+            TableWritten: caller,
+            LocalReassigned: caller,
         },
         caller: {
             Get: callee,
@@ -630,6 +671,26 @@ fn synthetic_project() -> tempfile::TempDir {
                     equal-aborts: []
                 }
             }
+            Dominated: {
+                lemmas {
+                    equal-aborts: []
+                }
+            }
+            AfterJoin: {
+                lemmas {
+                    equal-aborts: []
+                }
+            }
+            TableWritten: {
+                lemmas {
+                    equal-aborts: []
+                }
+            }
+            LocalReassigned: {
+                lemmas {
+                    equal-aborts: []
+                }
+            }
         }
     }
 }
@@ -671,6 +732,17 @@ fn easycryptify_matches_treeify() {
         run(synthetic.path(), "T", 0, left, "NestedReturn");
         // a bare invoke, and a `Maybe`-returning callee that may abort
         run(synthetic.path(), "T", 0, left, "Chain");
+        // story 17: guards dropped as dominated, with a *feasible* first
+        // abort, the dominating guard reached across an `if` and an invoke
+        // (the callee cannot write the caller's `u`, §2.2)
+        run(synthetic.path(), "T", 0, left, "Dominated");
+        // story 17: guards that must *not* be dropped — one after a join
+        // whose other branch never unwrapped, one after a write to the
+        // unwrapped table (at a possibly equal index), one after the
+        // unwrapped local is reassigned
+        run(synthetic.path(), "T", 0, left, "AfterJoin");
+        run(synthetic.path(), "T", 0, left, "TableWritten");
+        run(synthetic.path(), "T", 0, left, "LocalReassigned");
     }
     eprintln!("{}", report.join("\n"));
 }

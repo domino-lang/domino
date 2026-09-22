@@ -34,6 +34,22 @@ pub enum EquivalenceTransformError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     EasyCryptUnsupportedLoop(#[from] easycryptify::UnsupportedLoopError),
+
+    /// A temporary [`EasyCryptTransform`] has to keep would be named after
+    /// the value it holds, but that name is already taken in the oracle
+    /// (story 17 §3.4). Only [`EasyCryptTransform`] raises this.
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    EasyCryptTemporaryNameCollision(#[from] easycryptify::TemporaryNameCollision),
+}
+
+impl From<easycryptify::EasyCryptifyError> for EquivalenceTransformError {
+    fn from(err: easycryptify::EasyCryptifyError) -> Self {
+        match err {
+            easycryptify::EasyCryptifyError::UnsupportedLoop(e) => e.into(),
+            easycryptify::EasyCryptifyError::TemporaryNameCollision(e) => e.into(),
+        }
+    }
 }
 
 // Bundles the per-game-instance data produced by the transform pipeline

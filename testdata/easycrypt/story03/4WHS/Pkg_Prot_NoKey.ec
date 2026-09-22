@@ -75,13 +75,9 @@ module Prot_NoKey = {
     var mess : int;
     var nr : bits_n;
     var tau : bits_n;
-    var unwrap_1 : bits_n;
     var kmac : bits_n;
-    var unwrap_2 : bits_n;
     var tau_ : bits_n;
-    var unwrap_3 : bits_n;
     var sid : (int * int * bits_n * bits_n * bits_n);
-    var unwrap_4 : bits_n;
     ec_result <- None;
     (d_U, u, d_V, ltk, acc, ni, nr_, kmac_, sid_, mess) <- state;
     if (u = false) {
@@ -89,23 +85,13 @@ module Prot_NoKey = {
         if (mess = 1) {
           (nr, tau) <- msg;
           if (!(ni = None)) {
-            unwrap_1 <- oget ni;
-            kmac <- func_prf ltk (d_U, d_V, unwrap_1, nr, false);
-            if (!(ni = None)) {
-              unwrap_2 <- oget ni;
-              tau_ <- func_mac kmac unwrap_2 3;
-              if (!(ni = None)) {
-                unwrap_3 <- oget ni;
-                sid <- (d_U, d_V, unwrap_3, nr, tau);
-                if (func_mac kmac nr 2 = tau) {
-                  if (!(ni = None)) {
-                    unwrap_4 <- oget ni;
-                    ec_result <- Some ((d_U, u, d_V, ltk, None, ni, Some nr, Some kmac, Some sid, 2), (unwrap_4, tau_));
-                  }
-                } else {
-                  ec_result <- Some (state, (zero_n, zero_n));
-                }
-              }
+            kmac <- func_prf ltk (d_U, d_V, oget ni, nr, false);
+            tau_ <- func_mac kmac (oget ni) 3;
+            sid <- (d_U, d_V, oget ni, nr, tau);
+            if (func_mac kmac nr 2 = tau) {
+              ec_result <- Some ((d_U, u, d_V, ltk, None, ni, Some nr, Some kmac, Some sid, 2), (oget ni, tau_));
+            } else {
+              ec_result <- Some (state, (zero_n, zero_n));
             }
           }
         }
@@ -128,9 +114,6 @@ module Prot_NoKey = {
     var mess : int;
     var ni : bits_n;
     var tau : bits_n;
-    var unwrap_1 : bits_n;
-    var unwrap_2 : bits_n;
-    var unwrap_3 : bits_n;
     var tau_ : bits_n;
     ec_result <- None;
     (d_U, v, d_V, ltk, acc, ni_, nr, kmac, sid, mess) <- state;
@@ -139,16 +122,11 @@ module Prot_NoKey = {
         if (mess = 1) {
           (ni, tau) <- msg;
           if (!(kmac = None)) {
-            unwrap_1 <- oget kmac;
             if (!(ni_ = None)) {
-              unwrap_2 <- oget ni_;
-              if (func_mac unwrap_1 ni 3 = tau /\ ni = unwrap_2) {
+              if (func_mac (oget kmac) ni 3 = tau /\ ni = oget ni_) {
                 acc <- Some true;
-                if (!(kmac = None)) {
-                  unwrap_3 <- oget kmac;
-                  tau_ <- func_mac unwrap_3 zero_n 4;
-                  ec_result <- Some ((d_U, v, d_V, ltk, acc, ni_, nr, kmac, sid, 2), tau_);
-                }
+                tau_ <- func_mac (oget kmac) zero_n 4;
+                ec_result <- Some ((d_U, v, d_V, ltk, acc, ni_, nr, kmac, sid, 2), tau_);
               } else {
                 acc <- Some false;
                 ec_result <- Some ((d_U, v, d_V, ltk, acc, ni_, nr, kmac, sid, 2), zero_n);
@@ -173,15 +151,13 @@ module Prot_NoKey = {
     var kmac : bits_n option;
     var sid : (int * int * bits_n * bits_n * bits_n) option;
     var mess : int;
-    var unwrap_1 : bits_n;
     ec_result <- None;
     (d_U, u, d_V, ltk, acc, ni, nr, kmac, sid, mess) <- state;
     if (u = false) {
       if (acc = None) {
         if (mess = 2) {
           if (!(kmac = None)) {
-            unwrap_1 <- oget kmac;
-            if (func_mac unwrap_1 zero_n 4 = tau) {
+            if (func_mac (oget kmac) zero_n 4 = tau) {
               ec_result <- Some ((d_U, u, d_V, ltk, Some true, ni, nr, kmac, sid, 3), true);
             } else {
               ec_result <- Some (state, false);

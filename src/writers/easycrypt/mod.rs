@@ -220,6 +220,12 @@ impl From<EquivalenceTransformError> for EcExportError {
     }
 }
 
+impl From<crate::transforms::easycryptify::EasyCryptifyError> for EcExportError {
+    fn from(err: crate::transforms::easycryptify::EasyCryptifyError) -> Self {
+        EquivalenceTransformError::from(err).into()
+    }
+}
+
 impl From<crate::transforms::easycryptify::UnsupportedLoopError> for EcExportError {
     fn from(err: crate::transforms::easycryptify::UnsupportedLoopError) -> Self {
         EcExportError::UnsupportedStatement {
