@@ -57,8 +57,8 @@ files, or read out of this repository's source. §8 lists the evidence.
 | **Package state** | **Module variables**, not one record per package. Records would force a copy-and-`{\| … with … \|}` dance at every table write, and EasyCrypt forbids two record types sharing a field name. |
 | **Tables** | `fmap`. `T[k] <- Some e` → `T.[k] <- e`; `T[k] <- None` → `T <- rem T k`; an arbitrary `Maybe` right-hand side → `T <- if e = None then rem T k else T.[k <- oget e]`. |
 | **Abort** | An oracle returning `T` in Domino returns `T option` in EasyCrypt; `None` is abort. An oracle with no return value returns `unit option` and returns `Some tt`. The abort **flag lives only in the router**, never in a package. |
-| **Early return / abort mid-body** | The export pipeline runs `treeify`, which already pushes the continuation of an `if` (and therefore of an `assert`) into both branches. `treeify` does **not** cover `Unwrap` and `InvokeOracle`, so the translator nests the rest of the block into the `else` of those two itself. |
-| **Pipeline** | `EquivalenceTransform` — the existing `prove` pipeline, `run_treeify = true` (`src/transforms/theorem_transforms.rs:99`). No new pipeline. |
+| **Early return / abort mid-body** | ~~The export pipeline runs `treeify`, which already pushes the continuation of an `if` (and therefore of an `assert`) into both branches. `treeify` does **not** cover `Unwrap` and `InvokeOracle`, so the translator nests the rest of the block into the `else` of those two itself.~~ **Superseded by story 16.** EasyCrypt restricts us to one *exit point*, not one statement, so nothing is duplicated. `easycryptify` moves the continuation into the sole surviving branch where there is one (this is what `assert`, `Unwrap` and `InvokeOracle` all are), and guards it with a `ec_done` flag at a genuine join of two live paths. Its output is valid Domino with no `Abort` and a single trailing `Return`; oracle signatures become `Maybe(T)`. Story 03 §3.5 and the first two bullets of its §6 no longer apply. |
+| **Pipeline** | ~~`EquivalenceTransform` — the existing `prove` pipeline, `run_treeify = true`.~~ **Amended by story 16:** `EasyCryptTransform` — the same pipeline with `easycryptify` in place of `treeify`, running last, after `tableinitialize`. `treeify` is unchanged and still serves the SMT writer via `EquivalenceTransform`. `domino inline/debug` **with** `--easycrypt` use `EasyCryptTransform`, so the debugger shows the code that is actually exported; **without** the flag they keep using `DebugTransform` unchanged, so a Domino listing still renders `assert` as `assert`. The transform, not a flag inside the IR, is what makes the two listings differ. |
 | **Naming** | Deterministic mangling: lowercase-first names survive unchanged; uppercase-first names and EasyCrypt keywords get a `d_` prefix (`NewKey` → `d_NewKey`, `LTK` → `d_LTK`, `return` → `d_return`) — EasyCrypt requires `proc`/`var` names to start lowercase, which is the whole reason the prefix exists; `-` → `_` in SMT-derived names; modules are `Pkg_<inst>`, `Game_<comp>`, `Exp_<comp>`. A residual collision is a hard error. **Amended by story 10:** generated *theories* are `Variant_<X>` / `Comp_<X>`, which retires both stdlib-collision hacks. **Amended by story 14:** theories are `Pkg_<X>` / `Comp_<X>`; inside a game file, the clone is `Cloned_Pkg_<inst>`, the instance module `Pkg_Inst_<inst>` and the import adapter `Pkg_Imports_<inst>`; a package's import interface is `<Variant>_Imports` in the package's own file. |
 | **Output layout** | **Amended by story 10: flat.** One directory per theorem, no `packages/`/`games/` subdirectories, so `easycrypt compile -I <dir>` needs a single `-I`. |
 | **Games** | One game file per **composition** (not per game instance). Game instances appear only as the arguments of an `Eq_*` lemma. |
@@ -76,7 +76,7 @@ files, or read out of this repository's source. §8 lists the evidence.
 ```
       domino easycrypt --theorem T
                  |
-        EquivalenceTransform (treeify = true)     <- existing, unchanged
+        EasyCryptTransform (easycryptify)         <- story 16; was EquivalenceTransform (treeify)
                  |
         +--------+-----------------------------------------+
         |                       |                          |
@@ -114,6 +114,8 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 13 | `byequiv` relational precondition | `13-byequiv-precondition.md` | 07, 10 |
 | 14 | Package import interfaces, adapters and the `Pkg_` prefixes | `14-package-import-interfaces-and-prefixes.md` | 03, 04, 10, 11 |
 | 15 | `byequiv` precondition via `arg`, not per-parameter conjuncts | `15-byequiv-arg-tuple-precondition.md` | 13, 14 |
+| 16 | `easycryptify`: lowering early exits without duplicating code | `16-easycryptify.md` | 03, 04, 14 |
+| 17 | Removing the `unwrap_N` temporaries and their duplicate guards | `17-unwrap-temporaries.md` | 16 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
@@ -122,6 +124,10 @@ Stories 10–15 are follow-ups on the implemented export (owner review after sto
 independent of 08/09 and **should be done first**, because 10 relocates and renames every golden
 file that 08 would otherwise inherit. Within 10–13: do 10 first, then 11/12/13 in any order. 15
 supersedes story 13's rendering of the precondition and should be done after 13 and 14.
+
+Stories 16–17 replace `treeify` in the export pipeline and change the shape of every generated
+oracle body. Do them **before 08/09**: 08's listing labels and 09's execution paths are derived
+from that shape, and doing them in the other order means redoing both. 16 first, then 17.
 
 ## 6. Working agreement (important)
 

@@ -16,7 +16,11 @@ under an instance name. By the time a proof runs, an instance's code has been re
 every parameter and type is substituted: an instance is *monomorphic*.
 
 **Composition** (also **game**) — a set of package instances plus the call graph wiring them
-together, and the list of oracles it exports to the adversary.
+together, and the list of oracles it exports to the adversary. The call graph is **acyclic**, and an
+oracle cannot call another oracle of its own package, so a call can never re-enter the package it
+came from. Package instances do **not** share state: an oracle can only write its own instance's
+state fields. (The SMT encoding collects all of a game's state into one datatype; that is an
+encoding convenience, not shared ownership.)
 
 **Game instance** — a composition with its game constants bound, named in a theorem. Several game
 instances can share one composition and differ only in the constants they bind.
@@ -26,6 +30,9 @@ from there into package instances. Boolean, integer or function.
 
 **Oracle** — a procedure a package defines. An **exported oracle** is one the composition offers
 to the adversary.
+
+**Continuation** — the statements that follow a given statement in the same block, together with
+everything that follows the blocks enclosing it. What a mid-body abort or return skips.
 
 **Abort** — an oracle ending without a value: an explicit `abort`, an `assert` whose condition is
 false, or unwrapping a `None`. An abort is not an error; it is a run of the game in which the
@@ -72,6 +79,11 @@ themselves carry no abort flag.
 
 **Abort flag** — the router's single piece of state, recording that the game has aborted. It is the
 EasyCrypt counterpart of Domino's abort cascade: while it is set, every oracle returns `None`.
+
+**Done flag** — a *per-oracle local*, distinct from the router's abort flag, recording that this
+oracle has already aborted or returned. EasyCrypt allows only one exit point, so an oracle's
+continuation cannot be skipped by returning early; it is skipped by being guarded on this flag
+instead. An oracle whose continuation is never at risk carries no done flag.
 
 **Experiment** — the EasyCrypt module that initializes a router with a game instance's constants and
 runs the adversary against it. One per composition; the constants are its `run` arguments.

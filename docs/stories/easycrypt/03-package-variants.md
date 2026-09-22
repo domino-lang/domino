@@ -161,6 +161,11 @@ a local `var` plus `g <- empty;`.
 
 ### 3.5 Continuation nesting (the part `treeify` does **not** do)
 
+> **Superseded by story 16.** `easycryptify` replaced `treeify` in the export pipeline and now
+> generates these guards itself, so the writer no longer nests continuations and no longer emits an
+> empty `then` branch. §3.5 and the first two bullets of §6 below describe the behaviour as it was
+> implemented in this story; read `16-easycryptify.md` for what the writer does now.
+
 `treeify` only duplicates after an `if`. Two statement kinds abort *without* being an `if`, and for
 those the translator nests the **rest of the block** into the `else` branch itself:
 

@@ -8,3 +8,9 @@ test*.z3out
 *.eco
 .DS_Store
 .vscode
+
+.codex/
+.github
+.sdlc-workspace
+opencode.json
+.mcp.json
