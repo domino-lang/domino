@@ -153,7 +153,12 @@ impl From<&Expression> for SmtExpr {
             //     &SelfStatePattern,
             // )
             //     .into(),
-            ExpressionKind::Bot => panic!("bot is broken"),
+            // `()`, the one value of `Type::empty()` (SMT sort `Empty`). The
+            // parser never produces it; `easycryptify` does, for the
+            // `Some(())` a valueless `return` becomes (story 16 §3.3) — the
+            // same `mk-empty` the executor and the writer already use for
+            // a valueless return.
+            ExpressionKind::Bot => SmtExpr::Atom("mk-empty".into()),
             ExpressionKind::TableAccess(table, index) => SmtExpr::List(vec![
                 SmtExpr::Atom("select".into()),
                 table.into(),

@@ -9,13 +9,12 @@
 //! a [`Theorem`], deduplicates package instances that share a variant key,
 //! and renders one [`EcFile`] per distinct variant.
 //!
-//! The oracle-body translator (§3.3-3.6 of the story) turns Domino's abort
-//! statement into EasyCrypt's `T option` return convention: every procedure
-//! has a single `ec_result` local and a single trailing `return ec_result;`.
-//! `treeify` (run before export) pushes the continuation of every `if` into
-//! both branches, but does **not** do this for `Unwrap` or an oracle
-//! `invoke` — the translator nests the rest of the block into the `else` of
-//! those two itself (§3.5).
+//! The oracle-body translator is a near-identity lowering (story 16 §3.5):
+//! `easycryptify` (the last stage of `EasyCryptTransform`, run before export)
+//! has already turned every oracle into EasyCrypt's single-exit shape — no
+//! `abort`, one trailing `return ec_result`, every `Unwrap` and `invoke`
+//! guarded where it stood, and every signature `Maybe(T)` (`T option`, `None`
+//! is abort). The writer does no control-flow reasoning of its own.
 
 use std::collections::{HashMap, HashSet};
 
@@ -34,6 +33,7 @@ use super::ast::{
     EcBlock, EcExpr, EcFile, EcItem, EcLvalue, EcModule, EcProc, EcStmt, EcType, ProcSig, Require,
 };
 use super::names::{NameKind, Names};
+use crate::transforms::easycryptify;
 use super::types::{bits_suffix, translate_expr, translate_type};
 use super::EcExportError;
 
@@ -398,7 +398,9 @@ fn build_import_procs(pkg: &Package) -> Result<Vec<ProcSig>, EcExportError> {
             let mangled = names.mangle(NameKind::Var, name)?;
             args.push((mangled, translate_type(ty, *span)?));
         }
-        let ret = EcType::Option(Box::new(translate_type(&sig.ty, *span)?));
+        // `easycryptify` has already made the signature `Maybe(T)`, which
+        // translates to `T option` — no extra wrapping (story 16 §3.5).
+        let ret = translate_type(&sig.ty, *span)?;
         procs.push(ProcSig {
             name: proc_name,
             args,
@@ -613,6 +615,19 @@ fn collect_locals(
     Ok(())
 }
 
+/// The EasyCrypt name of a variable. `easycryptify`'s own locals
+/// (`ec_result`, `ec_done`, `ec_r<N>` — [`easycryptify::is_generated_name`])
+/// are exporter-owned and pass through verbatim: the mangler reserves the
+/// `ec_` prefix precisely for such names and escapes every *user* identifier
+/// starting with it (`ec_foo` → `d_ec_foo`), so they can never collide.
+fn var_name(scope: &mut PackageScope, id: &Identifier) -> Result<String, EcExportError> {
+    let (raw, _ty) = ident_raw_name_and_type(id);
+    if matches!(id, Identifier::Generated(..)) && easycryptify::is_generated_name(&raw) {
+        return Ok(raw);
+    }
+    Ok(scope.names.mangle(NameKind::Var, &raw)?)
+}
+
 fn record_local(
     id: &Identifier,
     scope: &mut PackageScope,
@@ -623,21 +638,27 @@ fn record_local(
     if is_state_field(id) {
         return Ok(());
     }
-    let (raw, ty) = ident_raw_name_and_type(id);
-    if seen.contains(&raw) {
+    // Keyed by the *EasyCrypt* name: `easycryptify`'s `ec_result` and a
+    // user local spelled `ec_result` share a raw name but not a declaration.
+    let (_raw, ty) = ident_raw_name_and_type(id);
+    let mangled = var_name(scope, id)?;
+    if !seen.insert(mangled.clone()) {
         return Ok(());
     }
-    seen.insert(raw.clone());
-    let mangled = scope.names.mangle(NameKind::Var, &raw)?;
     let ecty = translate_type(&ty, span)?;
     out.push((mangled, ecty));
     Ok(())
 }
 
+/// Translates one oracle whose body `easycryptify` has already lowered
+/// (story 16 §3.1): its signature returns `Maybe(T)` (rendered `T option`),
+/// its body contains no `Abort`, and its only `Return` is the final
+/// statement. The writer therefore does no control-flow reasoning of its own
+/// — the body is lowered statement by statement and the trailing `Return`
+/// becomes the proc's `return`.
 fn build_proc(scope: &mut PackageScope, oracle: &OracleDef) -> Result<EcProc, EcExportError> {
     let span = oracle.file_pos;
-    let ret_ec_ty = translate_type(&oracle.sig.ty, span)?;
-    let ret_option_ty = EcType::Option(Box::new(ret_ec_ty.clone()));
+    let ret = translate_type(&oracle.sig.ty, span)?;
 
     let mut args = Vec::new();
     for (name, ty) in &oracle.sig.args {
@@ -649,21 +670,26 @@ fn build_proc(scope: &mut PackageScope, oracle: &OracleDef) -> Result<EcProc, Ec
     let mut seen = HashSet::new();
     collect_locals(&oracle.code, scope, &mut locals, &mut seen)?;
 
-    let mut ec_locals = vec![(
-        "ec_result".to_string(),
-        ret_option_ty.clone(),
-        Some(EcExpr::None_(ret_ec_ty)),
-    )];
-    for (name, ty) in locals {
-        ec_locals.push((name, ty, None));
-    }
+    let Some((Statement::Return(Some(ret_value), ret_span), body_stmts)) =
+        oracle.code.0.split_last()
+    else {
+        unreachable!(
+            "easycryptify ends every oracle body in a single `return ec_result` \
+             (oracle `{}`)",
+            oracle.sig.name
+        )
+    };
 
     let mut translator = OracleTranslator {
         scope,
         temp_ctr: 0,
         temp_decls: Vec::new(),
     };
-    let body = translator.translate_block(&oracle.code.0)?;
+    let body = translator.translate_block(body_stmts)?;
+    let ret_expr = translator.translate_e(ret_value, *ret_span)?;
+
+    let mut ec_locals: Vec<(String, EcType, Option<EcExpr>)> =
+        locals.into_iter().map(|(name, ty)| (name, ty, None)).collect();
     for (name, ty) in translator.temp_decls {
         ec_locals.push((name, ty, None));
     }
@@ -673,45 +699,42 @@ fn build_proc(scope: &mut PackageScope, oracle: &OracleDef) -> Result<EcProc, Ec
     Ok(EcProc {
         name: proc_name,
         args,
-        ret: ret_option_ty,
+        ret,
         locals: ec_locals,
         body,
-        ret_expr: Some(EcExpr::Var("ec_result".to_string())),
+        ret_expr: Some(ret_expr),
     })
 }
 
 struct OracleTranslator<'a> {
     scope: &'a mut PackageScope,
     temp_ctr: usize,
-    /// `ec_r<N>` proc-local declarations, collected as they are introduced
-    /// during translation (their type is only known once the corresponding
-    /// call/sample is translated) and appended to [`EcProc::locals`]
-    /// afterwards — EasyCrypt requires every proc-local, including these
-    /// generated temporaries, to have an explicit `var` declaration.
+    /// `ec_s<N>` proc-local declarations for a sample into a table entry
+    /// (`T[k] <-$ τ`, which EasyCrypt cannot express directly), appended to
+    /// [`EcProc::locals`] afterwards. Every other generated local —
+    /// `ec_result`, `ec_done`, the `ec_r<N>` invoke temporaries — arrives
+    /// from `easycryptify` as an ordinary Domino local.
     temp_decls: Vec<(String, EcType)>,
 }
 
 impl OracleTranslator<'_> {
-    /// Declares and returns a fresh `ec_r<N>` temporary of type `ty`.
-    fn declare_temp(&mut self, ty: EcType) -> String {
+    /// Declares and returns a fresh `ec_s<N>` sample temporary of type `ty`.
+    fn declare_sample_temp(&mut self, ty: EcType) -> String {
         self.temp_ctr += 1;
-        let name = format!("ec_r{}", self.temp_ctr);
+        let name = format!("ec_s{}", self.temp_ctr);
         self.temp_decls.push((name.clone(), ty));
         name
     }
 
     fn translate_e(&mut self, expr: &Expression, span: SourceSpan) -> Result<EcExpr, EcExportError> {
         let mut resolver = |id: &Identifier, _s: SourceSpan| -> Result<EcExpr, EcExportError> {
-            let (raw, _ty) = ident_raw_name_and_type(id);
-            let mangled = self.scope.names.mangle(NameKind::Var, &raw)?;
-            Ok(EcExpr::Var(mangled))
+            Ok(EcExpr::Var(var_name(self.scope, id)?))
         };
         translate_expr(expr, span, &mut resolver)
     }
 
     fn resolve_name(&mut self, id: &Identifier) -> Result<String, EcExportError> {
-        let (raw, _ty) = ident_raw_name_and_type(id);
-        Ok(self.scope.names.mangle(NameKind::Var, &raw)?)
+        var_name(self.scope, id)
     }
 
     fn sample_distr(&self, ty: &Type, span: SourceSpan) -> Result<EcExpr, EcExportError> {
@@ -730,116 +753,63 @@ impl OracleTranslator<'_> {
         }
     }
 
-    /// `Unwrap`'s operand must be `Maybe`-typed by construction; extracts and
-    /// translates the inner type, for the `None<:T>` annotation in the
-    /// nested-if abort check (§3.5).
-    fn maybe_inner_ec_type(&self, expr: &Expression, span: SourceSpan) -> Result<EcType, EcExportError> {
-        let TypeKind::Maybe(inner) = expr.get_type().into_kind() else {
-            unreachable!("Unwrap's operand is always Maybe-typed")
-        };
-        translate_type(&inner, span)
+    fn translate_pattern(&mut self, pattern: &Pattern) -> Result<EcLvalue, EcExportError> {
+        Ok(match pattern {
+            Pattern::Ident(id) => EcLvalue::Var(self.resolve_name(id)?),
+            Pattern::Tuple(ids) => EcLvalue::Tuple(
+                ids.iter()
+                    .map(|id| self.resolve_name(id))
+                    .collect::<Result<Vec<_>, _>>()?,
+            ),
+            Pattern::Table { .. } => {
+                unreachable!("table patterns are translated by their own callers")
+            }
+        })
     }
 
-    /// Translates `stmts`, implementing §3.3-3.5: `Return`/`Abort` end the
-    /// current block immediately (discarding anything syntactically
-    /// following them — `treeify` can leave unreachable statements after an
-    /// already-terminal branch when it blindly appends the continuation of a
-    /// *later* `if`/`assert` into a branch that already returned or
-    /// aborted; see the implementation report), and `Unwrap`/`Invoke` nest
-    /// the rest of the block into the `else` of a freshly built `if`.
+    /// Translates `stmts` one statement at a time (story 16 §3.5). The input
+    /// is `easycryptify`'s output, so nothing here terminates early: an
+    /// `Unwrap` is already guarded (and becomes a plain `oget`), an `invoke`
+    /// already binds its `ec_r<N>` temporary, and an `if` with an empty else
+    /// branch renders with no `else` at all.
     fn translate_block(&mut self, stmts: &[Statement]) -> Result<EcBlock, EcExportError> {
         let mut out = Vec::new();
-        let mut i = 0;
-        while i < stmts.len() {
-            match &stmts[i] {
-                Statement::Abort(_) => return Ok(EcBlock(out)),
-
-                Statement::Return(value, span) => {
-                    let rhs = match value {
-                        Some(e) => EcExpr::Some_(Box::new(self.translate_e(e, *span)?)),
-                        None => EcExpr::Some_(Box::new(EcExpr::Unit)),
-                    };
-                    out.push(EcStmt::Assign {
-                        lhs: EcLvalue::Var("ec_result".to_string()),
-                        rhs,
-                    });
-                    return Ok(EcBlock(out));
-                }
+        for stmt in stmts {
+            match stmt {
+                Statement::Abort(_) => unreachable!("easycryptify leaves no `abort` in an oracle body"),
+                Statement::Return(..) => unreachable!(
+                    "easycryptify leaves a single `return`, as the last statement of the body"
+                ),
+                Statement::For(..) => unreachable!("easycryptify rejects every surviving `for` loop"),
 
                 Statement::IfThenElse(ite) => {
                     let cond = self.translate_e(&ite.cond, ite.full_span)?;
                     let then_block = self.translate_block(&ite.then_block.0)?;
-                    let else_block = self.translate_block(&ite.else_block.0)?;
+                    let else_block = if ite.else_block.0.is_empty() {
+                        None
+                    } else {
+                        Some(self.translate_block(&ite.else_block.0)?)
+                    };
                     out.push(EcStmt::If {
                         cond,
                         then_block,
-                        else_block: Some(else_block),
-                    });
-                    return Ok(EcBlock(out));
-                }
-
-                Statement::For(_, _, _, _, span) => {
-                    return Err(EcExportError::UnsupportedStatement {
-                        construct: "For (loopunroll leaves only unbounded loops, which have no EasyCrypt translation)",
-                        span: *span,
+                        else_block,
                     });
                 }
 
                 Statement::Assignment(Assignment { pattern, rhs }, span) => {
                     let span = *span;
                     match rhs {
-                        AssignmentRhs::Expression(expr) => {
-                            if let (Pattern::Ident(id), ExpressionKind::Unwrap(inner)) =
-                                (pattern, expr.kind())
-                            {
-                                let inner_ec = self.translate_e(inner, span)?;
-                                let inner_ty = self.maybe_inner_ec_type(inner, span)?;
-                                let name = self.resolve_name(id)?;
-                                let cond = EcExpr::Binop {
-                                    op: super::ast::EcBinop::Eq,
-                                    lhs: Box::new(inner_ec.clone()),
-                                    rhs: Box::new(EcExpr::None_(inner_ty)),
-                                };
-                                let mut rest = self.translate_block(&stmts[i + 1..])?;
-                                let mut else_stmts = vec![EcStmt::Assign {
-                                    lhs: EcLvalue::Var(name),
-                                    rhs: EcExpr::Oget(Box::new(inner_ec)),
-                                }];
-                                else_stmts.append(&mut rest.0);
-                                out.push(EcStmt::If {
-                                    cond,
-                                    then_block: EcBlock(vec![]),
-                                    else_block: Some(EcBlock(else_stmts)),
-                                });
-                                return Ok(EcBlock(out));
+                        AssignmentRhs::Expression(expr) => match pattern {
+                            Pattern::Table { ident, index } => {
+                                out.extend(self.translate_table_write(ident, index, expr, span)?);
                             }
-
-                            match pattern {
-                                Pattern::Ident(id) => {
-                                    let name = self.resolve_name(id)?;
-                                    let value = self.translate_e(expr, span)?;
-                                    out.push(EcStmt::Assign {
-                                        lhs: EcLvalue::Var(name),
-                                        rhs: value,
-                                    });
-                                }
-                                Pattern::Tuple(ids) => {
-                                    let names = ids
-                                        .iter()
-                                        .map(|id| self.resolve_name(id))
-                                        .collect::<Result<Vec<_>, _>>()?;
-                                    let value = self.translate_e(expr, span)?;
-                                    out.push(EcStmt::Assign {
-                                        lhs: EcLvalue::Tuple(names),
-                                        rhs: value,
-                                    });
-                                }
-                                Pattern::Table { ident, index } => {
-                                    out.extend(self.translate_table_write(ident, index, expr, span)?);
-                                }
+                            _ => {
+                                let lhs = self.translate_pattern(pattern)?;
+                                let rhs = self.translate_e(expr, span)?;
+                                out.push(EcStmt::Assign { lhs, rhs });
                             }
-                            i += 1;
-                        }
+                        },
 
                         AssignmentRhs::Sample { ty, .. } => {
                             let distr = self.sample_distr(ty, span)?;
@@ -853,7 +823,7 @@ impl OracleTranslator<'_> {
                                 }
                                 Pattern::Table { ident, index } => {
                                     let sample_ty = translate_type(ty, span)?;
-                                    let tmp = self.declare_temp(sample_ty);
+                                    let tmp = self.declare_sample_temp(sample_ty);
                                     out.push(EcStmt::Sample {
                                         lhs: EcLvalue::Var(tmp.clone()),
                                         distr,
@@ -869,24 +839,22 @@ impl OracleTranslator<'_> {
                                     unreachable!("the parser rejects a tuple-pattern sample")
                                 }
                             }
-                            i += 1;
                         }
 
-                        AssignmentRhs::Invoke { args, edge, return_type, .. } => {
-                            return self.translate_invoke(
-                                Some(pattern),
-                                args,
-                                edge,
-                                return_type.as_ref(),
-                                span,
-                                &stmts[i + 1..],
-                            );
+                        AssignmentRhs::Invoke { args, edge, .. } => {
+                            let Pattern::Ident(_) = pattern else {
+                                unreachable!("easycryptify binds every invoke to an `ec_r<N>` temporary")
+                            };
+                            let lhs = self.translate_pattern(pattern)?;
+                            out.push(self.translate_invoke(Some(lhs), args, edge, span)?);
                         }
                     }
                 }
 
                 Statement::InvokeOracle(InvokeOracle { args, edge, file_pos, .. }) => {
-                    return self.translate_invoke(None, args, edge, None, *file_pos, &stmts[i + 1..]);
+                    // `easycryptify` binds even a bare invoke, to check its
+                    // abort; kept for completeness.
+                    out.push(self.translate_invoke(None, args, edge, *file_pos)?);
                 }
             }
         }
@@ -954,18 +922,15 @@ impl OracleTranslator<'_> {
         }
     }
 
-    /// `y <- invoke O(args)` / bare `invoke O(args)` (§3.5). `pattern` is
-    /// `None` for a bare `InvokeOracle` (the return value is discarded, but
-    /// the abort still has to propagate).
+    /// `ec_r<N> <@ O.p(args)` (story 14 §3.3). `lhs` is `None` only for a
+    /// bare `invoke`, which `easycryptify` never leaves behind.
     fn translate_invoke(
         &mut self,
-        pattern: Option<&Pattern>,
+        lhs: Option<EcLvalue>,
         args: &[Expression],
         edge: &Option<Edge>,
-        explicit_return_type: Option<&Type>,
         span: SourceSpan,
-        rest: &[Statement],
-    ) -> Result<EcBlock, EcExportError> {
+    ) -> Result<EcStmt, EcExportError> {
         let edge = edge
             .as_ref()
             .expect("resolveoracles attaches a resolved Edge to every invoke reaching export");
@@ -988,65 +953,12 @@ impl OracleTranslator<'_> {
             .map(|a| self.translate_e(a, span))
             .collect::<Result<Vec<_>, _>>()?;
 
-        let result_ec_ty = match explicit_return_type {
-            Some(t) => translate_type(t, span)?,
-            None => translate_type(&edge.sig().ty, span)?,
-        };
-
-        let tmp = self.declare_temp(EcType::Option(Box::new(result_ec_ty.clone())));
-        let mut out = vec![EcStmt::Call {
-            lhs: Some(EcLvalue::Var(tmp.clone())),
+        Ok(EcStmt::Call {
+            lhs,
             module,
             proc,
             args: translated_args,
-        }];
-        let cond = EcExpr::Binop {
-            op: super::ast::EcBinop::Eq,
-            lhs: Box::new(EcExpr::Var(tmp.clone())),
-            rhs: Box::new(EcExpr::None_(result_ec_ty)),
-        };
-
-        let mut else_stmts = Vec::new();
-        if let Some(pattern) = pattern {
-            let unwrapped = EcExpr::Oget(Box::new(EcExpr::Var(tmp)));
-            match pattern {
-                Pattern::Ident(id) => {
-                    let name = self.resolve_name(id)?;
-                    else_stmts.push(EcStmt::Assign {
-                        lhs: EcLvalue::Var(name),
-                        rhs: unwrapped,
-                    });
-                }
-                Pattern::Tuple(ids) => {
-                    let names = ids
-                        .iter()
-                        .map(|id| self.resolve_name(id))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    else_stmts.push(EcStmt::Assign {
-                        lhs: EcLvalue::Tuple(names),
-                        rhs: unwrapped,
-                    });
-                }
-                Pattern::Table { ident, index } => {
-                    let map = self.resolve_name(ident)?;
-                    let key = self.translate_e(index, span)?;
-                    else_stmts.push(EcStmt::Assign {
-                        lhs: EcLvalue::MapSet { map, key },
-                        rhs: unwrapped,
-                    });
-                }
-            }
-        }
-
-        let mut rest_translated = self.translate_block(rest)?;
-        else_stmts.append(&mut rest_translated.0);
-
-        out.push(EcStmt::If {
-            cond,
-            then_block: EcBlock(vec![]),
-            else_block: Some(EcBlock(else_stmts)),
-        });
-        Ok(EcBlock(out))
+        })
     }
 }
 
@@ -1058,8 +970,8 @@ mod tests {
     use crate::package::OracleSig;
     use crate::packageinstance::PackageInstance;
     use crate::project::{DirectoryFiles, DirectoryProject, Project};
-    use crate::transforms::theorem_transforms::EquivalenceTransform;
-    use crate::transforms::TheoremTransform;
+    use crate::transforms::theorem_transforms::EasyCryptTransform;
+    use crate::transforms::{TheoremTransform, Transformation as _};
 
     use super::super::render::render_file;
     use super::*;
@@ -1111,6 +1023,9 @@ mod tests {
             consts: vec![],
             invariants: vec![],
         };
+        // The writer consumes `easycryptify`'s output (story 16), exactly as
+        // `export_theorem` hands it over via `EasyCryptTransform`.
+        let (comp, ()) = crate::transforms::easycryptify::Transformation(&comp).transform()?;
         let keys = compute_all_keys(&comp);
         render_variant(&comp, 0, "Test", &keys[0])
     }
@@ -1197,6 +1112,69 @@ mod tests {
         );
     }
 
+    // --- story 16: `Maybe`-returning oracles --------------------------------
+
+    /// No project under `example-projects/` or `test-projects/` has an oracle
+    /// that already returns `Maybe(T)`, so this is hand-built (story 16 §3.4):
+    /// the outer option is abort, the inner the value.
+    #[test]
+    fn oracle_already_returning_maybe_is_t_option_option() {
+        let inst = minimal_instance(
+            "Lookup",
+            Type::maybe(Type::integer()),
+            vec![Statement::Return(
+                Some(Expression::from_kind(ExpressionKind::None(Type::integer()))),
+                span(),
+            )],
+        );
+        let file = render_single(inst).unwrap();
+        let rendered = render_file(&file);
+        assert!(
+            rendered.contains("proc d_Lookup() : int option option = {"),
+            "expected `int option option`, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("var ec_result : int option option;"),
+            "got:\n{rendered}"
+        );
+        assert!(rendered.contains("ec_result <- Some None;"), "got:\n{rendered}");
+    }
+
+    /// A user identifier starting with `ec_` is still escaped (`d_ec_…`), so
+    /// it can never collide with `easycryptify`'s own `ec_result`.
+    #[test]
+    fn a_user_local_named_ec_result_does_not_collide() {
+        let local = Identifier::PackageIdentifier(PackageIdentifier::Local(
+            crate::identifier::pkg_ident::PackageLocalIdentifier {
+                pkg_name: "Test".to_string(),
+                oracle_name: "O".to_string(),
+                name: "ec_result".to_string(),
+                ty: Type::integer(),
+                pkg_inst_name: Some("test".to_string()),
+                game_name: None,
+                game_inst_name: None,
+                theorem_name: None,
+            },
+        ));
+        let inst = minimal_instance(
+            "O",
+            Type::integer(),
+            vec![
+                Statement::Assignment(
+                    Assignment {
+                        pattern: Pattern::Ident(local.clone()),
+                        rhs: AssignmentRhs::Expression(Expression::integer(1)),
+                    },
+                    span(),
+                ),
+                Statement::Return(Some(local.into()), span()),
+            ],
+        );
+        let rendered = render_file(&render_single(inst).unwrap());
+        assert!(rendered.contains("var d_ec_result : int;"), "got:\n{rendered}");
+        assert!(rendered.contains("ec_result <- Some d_ec_result;"), "got:\n{rendered}");
+    }
+
     // --- §4: hard errors --------------------------------------------------
 
     #[test]
@@ -1267,7 +1245,7 @@ mod tests {
         let project: &'static DirectoryProject =
             Box::leak(Box::new(DirectoryProject::load(PathBuf::from(dir), files).unwrap()));
         let theorem = project.get_theorem(theorem_name).unwrap();
-        let (theorem, _auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
         compute_package_variants(&theorem).unwrap()
     }
 
@@ -1308,7 +1286,7 @@ mod tests {
         let project: &'static DirectoryProject =
             Box::leak(Box::new(DirectoryProject::load(PathBuf::from(dir), files).unwrap()));
         let theorem = project.get_theorem("Proof").unwrap();
-        let (theorem, _auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
 
         let medium = theorem.find_game_instance("medium_composition").unwrap().game();
         let big = theorem.find_game_instance("big_composition").unwrap().game();
@@ -1385,6 +1363,80 @@ mod tests {
         // beyond `Types.ec`).
         assert_compiles("testdata/easycrypt/story03/4WHS", "Pkg_Prot.ec");
         assert_compiles("testdata/easycrypt/story03/4WHS", "Pkg_PRF.ec");
+    }
+
+    // --- story 16 acceptance: `Send1` / `Send3` / `NewSession` -------------
+
+    /// The body of `proc <name>(` in `rendered`, up to its closing `  }`.
+    fn proc_text<'a>(rendered: &'a str, name: &str) -> &'a str {
+        let start = rendered
+            .find(&format!("proc {name}("))
+            .unwrap_or_else(|| panic!("no proc {name}"));
+        let len = rendered[start..].find("\n  }\n").expect("proc is closed");
+        &rendered[start..start + len]
+    }
+
+    fn full_4whs_kx_noprfkey() -> String {
+        let variants = load_variants("example-projects/4WHS", "Full4WHS");
+        let v = variants
+            .iter()
+            .find(|v| v.name == "KX_noprfkey")
+            .expect("Full4WHS has a KX_noprfkey variant");
+        render_file(&v.file)
+    }
+
+    #[test]
+    fn full_4whs_send1_has_one_if_per_abort_point_and_no_empty_branch() {
+        let rendered = full_4whs_kx_noprfkey();
+        let send1 = proc_text(&rendered, "d_Send1");
+        assert_eq!(send1.matches(" if (").count(), 3, "{send1}");
+        assert!(!send1.contains("else"), "no `else` on an abort-only branch:\n{send1}");
+        assert!(!send1.contains("ec_done"), "{send1}");
+        assert!(!send1.contains("{\n\n"), "no empty branch:\n{send1}");
+    }
+
+    fn full_4whs_variant(name: &str) -> String {
+        let variants = load_variants("example-projects/4WHS", "Full4WHS");
+        let v = variants
+            .iter()
+            .find(|v| v.name == name)
+            .unwrap_or_else(|| panic!("Full4WHS has a {name} variant"));
+        render_file(&v.file)
+    }
+
+    /// `KX_nochecks::Send3` is the oracle story 16 §1.1 quotes: one join
+    /// (after the `if (_mess = 2)` cascade), so exactly one flag guard, and
+    /// the tail appears once.
+    #[test]
+    fn full_4whs_kx_nochecks_send3_has_its_tail_once_and_one_flag_guard() {
+        let rendered = full_4whs_variant("KX_nochecks");
+        let send3 = proc_text(&rendered, "d_Send3");
+        assert_eq!(send3.matches("if (!ec_done)").count(), 1, "{send3}");
+        assert_eq!(send3.matches("d_State.[ctr] <- state;").count(), 1, "{send3}");
+        assert_eq!(send3.matches("ec_result <- Some msg_;").count(), 1, "{send3}");
+    }
+
+    /// `KX_noprfkey::Send3` additionally writes `ReverseMac` *inside*
+    /// `if (mess == 2)`, after the `First`/`Second` cascade — a second,
+    /// nested join, so it has two guards. The tail still appears once.
+    #[test]
+    fn full_4whs_kx_noprfkey_send3_has_its_tail_once_and_a_guard_per_join() {
+        let rendered = full_4whs_kx_noprfkey();
+        let send3 = proc_text(&rendered, "d_Send3");
+        assert_eq!(send3.matches("if (!ec_done)").count(), 2, "{send3}");
+        assert_eq!(send3.matches("d_State.[ctr] <- state;").count(), 1, "{send3}");
+        assert_eq!(send3.matches("ec_result <- Some msg_;").count(), 1, "{send3}");
+        assert_eq!(send3.matches("d_ReverseMac.[").count(), 1, "{send3}");
+    }
+
+    #[test]
+    fn full_4whs_new_session_declares_no_flag() {
+        let rendered = full_4whs_kx_noprfkey();
+        let new_session = proc_text(&rendered, "d_NewSession");
+        assert!(!new_session.contains("ec_done"), "{new_session}");
+        // and keeps the statements before its `invoke` (the pre-story-16
+        // writer dropped them)
+        assert!(new_session.contains("ctr_ <- ctr_ + 1;"), "{new_session}");
     }
 
     // --- naming / dedup on hand-built fixtures ------------------------------

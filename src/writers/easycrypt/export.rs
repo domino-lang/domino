@@ -7,10 +7,10 @@
 //! — plus the data `domino easycrypt`'s stdout
 //! report is built from. All files land directly in the theorem's own
 //! output directory, flat (story 10 §3.2: no `packages/`/`games/`
-//! subdirectories). It runs [`EquivalenceTransform`] itself (§2 of the
-//! story: "the export pipeline is the existing `EquivalenceTransform`"), so
-//! callers pass the *untransformed* theorem exactly as `Project::get_theorem`
-//! returns it.
+//! subdirectories). It runs [`EasyCryptTransform`] itself (story 16 §3.6
+//! replaced story 05's `EquivalenceTransform`: the same pipeline with
+//! `easycryptify` in place of `treeify`), so callers pass the *untransformed*
+//! theorem exactly as `Project::get_theorem` returns it.
 //!
 //! Nothing here touches disk — [`write_files`] is the "thin wrapper" the
 //! story asks for, kept separate so golden/unit tests can build an
@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use crate::gamehops::GameHop;
 use crate::project::Project;
 use crate::theorem::{RandomnessType, Theorem};
-use crate::transforms::theorem_transforms::EquivalenceTransform;
+use crate::transforms::theorem_transforms::EasyCryptTransform;
 use crate::transforms::TheoremTransform;
 use crate::types::Type;
 
@@ -149,7 +149,7 @@ fn count_randomness_mapping_oracles(theorem: &Theorem<'_>) -> usize {
 }
 
 /// Builds the whole EasyCrypt project for `theorem` in memory (§3.2, §3.4).
-/// Runs [`EquivalenceTransform`] itself — `theorem` is the plain,
+/// Runs [`EasyCryptTransform`] itself — `theorem` is the plain,
 /// untransformed `Theorem` a `Project` hands back. Never touches disk and
 /// never invokes a solver (§6: "export must never invoke cvc5 or touch
 /// `EquivalenceContext`"). `project` is needed to read each equivalence
@@ -162,7 +162,7 @@ pub fn export_theorem(
     let skipped = compute_skipped(theorem);
     let randomness_mapping_oracles = count_randomness_mapping_oracles(theorem);
 
-    let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
+    let (theorem, auxs) = EasyCryptTransform.transform_theorem(theorem)?;
 
     let types: HashSet<Type> = auxs
         .iter()

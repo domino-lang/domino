@@ -156,7 +156,7 @@ mod tests {
         Identifier,
     };
     use crate::project::{DirectoryFiles, DirectoryProject, Project};
-    use crate::transforms::theorem_transforms::EquivalenceTransform;
+    use crate::transforms::theorem_transforms::EasyCryptTransform;
     use crate::transforms::TheoremTransform;
     use crate::writers::easycrypt::render::render_file;
 
@@ -303,7 +303,7 @@ mod tests {
         ));
         let theorem = project.get_theorem(theorem_name).unwrap();
 
-        let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
         let types: HashSet<Type> = auxs
             .iter()
             .flat_map(|(_, aux)| aux.types.iter().cloned())

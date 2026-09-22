@@ -4,7 +4,7 @@ require import AllCore Distr FMap Int IntDiv Types.
 
 module Prot = {
   proc d_Run1(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option = {
-    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option <- None;
+    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option;
     var d_U : int;
     var u : bool;
     var d_V : int;
@@ -17,26 +17,21 @@ module Prot = {
     var sid : (int * int * bits_n * bits_n * bits_n) option;
     var mess : int;
     var ni : bits_n;
+    ec_result <- None;
     (d_U, u, d_V, ltk, acc, k, ni_, nr, kmac, sid, mess) <- state;
     if (acc = None) {
       if (mess = 0) {
         if (u = false) {
           ni <$ dbits_n;
           ec_result <- Some ((d_U, u, d_V, ltk, None, k, Some ni, nr, kmac, sid, 1), ni);
-        } else {
-
         }
-      } else {
-
       }
-    } else {
-
     }
     return ec_result;
   }
 
   proc d_Run2(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), ni : bits_n) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option = {
-    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option <- None;
+    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option;
     var d_U : int;
     var v : bool;
     var d_V : int;
@@ -53,6 +48,7 @@ module Prot = {
     var kmac : bits_n;
     var tau : bits_n;
     var sid : (int * int * bits_n * bits_n * bits_n);
+    ec_result <- None;
     (d_U, v, d_V, ltk, acc, k_, ni_, nr_, kmac_, sid_, mess) <- state;
     if (acc = None) {
       if (mess = 0) {
@@ -63,20 +59,14 @@ module Prot = {
           tau <- func_mac kmac nr 2;
           sid <- (d_U, d_V, ni, nr, tau);
           ec_result <- Some ((d_U, v, d_V, ltk, None, Some k, Some ni, Some nr, Some kmac, Some sid, 1), (nr, tau));
-        } else {
-
         }
-      } else {
-
       }
-    } else {
-
     }
     return ec_result;
   }
 
   proc d_Run3(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), msg : (bits_n * bits_n)) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option = {
-    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option <- None;
+    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * (bits_n * bits_n)) option;
     var d_U : int;
     var u : bool;
     var d_V : int;
@@ -99,35 +89,26 @@ module Prot = {
     var unwrap_4 : bits_n;
     var sid : (int * int * bits_n * bits_n * bits_n);
     var unwrap_5 : bits_n;
+    ec_result <- None;
     (d_U, u, d_V, ltk, acc, k_, ni, nr_, kmac_, sid_, mess) <- state;
     if (acc = None) {
       if (mess = 1) {
         if (u = false) {
           (nr, tau) <- msg;
-          if (ni = None) {
-
-          } else {
+          if (!(ni = None)) {
             unwrap_1 <- oget ni;
             k <- func_prf ltk (d_U, d_V, unwrap_1, nr, true);
-            if (ni = None) {
-
-            } else {
+            if (!(ni = None)) {
               unwrap_2 <- oget ni;
               kmac <- func_prf ltk (d_U, d_V, unwrap_2, nr, false);
-              if (ni = None) {
-
-              } else {
+              if (!(ni = None)) {
                 unwrap_3 <- oget ni;
                 tau_ <- func_mac kmac unwrap_3 3;
-                if (ni = None) {
-
-                } else {
+                if (!(ni = None)) {
                   unwrap_4 <- oget ni;
                   sid <- (d_U, d_V, unwrap_4, nr, tau);
                   if (func_mac kmac nr 2 = tau) {
-                    if (ni = None) {
-
-                    } else {
+                    if (!(ni = None)) {
                       unwrap_5 <- oget ni;
                       ec_result <- Some ((d_U, u, d_V, ltk, None, Some k, ni, Some nr, Some kmac, Some sid, 2), (unwrap_5, tau_));
                     }
@@ -138,20 +119,14 @@ module Prot = {
               }
             }
           }
-        } else {
-
         }
-      } else {
-
       }
-    } else {
-
     }
     return ec_result;
   }
 
   proc d_Run4(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), msg : (bits_n * bits_n)) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option = {
-    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option <- None;
+    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bits_n) option;
     var d_U : int;
     var v : bool;
     var d_V : int;
@@ -169,24 +144,19 @@ module Prot = {
     var unwrap_2 : bits_n;
     var unwrap_3 : bits_n;
     var tau_ : bits_n;
+    ec_result <- None;
     (d_U, v, d_V, ltk, acc, k, ni_, nr, kmac, sid, mess) <- state;
     if (acc = None) {
       if (mess = 1) {
         if (v = true) {
           (ni, tau) <- msg;
-          if (kmac = None) {
-
-          } else {
+          if (!(kmac = None)) {
             unwrap_1 <- oget kmac;
-            if (ni_ = None) {
-
-            } else {
+            if (!(ni_ = None)) {
               unwrap_2 <- oget ni_;
               if (func_mac unwrap_1 ni 3 = tau /\ ni = unwrap_2) {
                 acc <- Some true;
-                if (kmac = None) {
-
-                } else {
+                if (!(kmac = None)) {
                   unwrap_3 <- oget kmac;
                   tau_ <- func_mac unwrap_3 zero_n 4;
                   ec_result <- Some ((d_U, v, d_V, ltk, acc, k, ni_, nr, kmac, sid, 2), tau_);
@@ -197,20 +167,14 @@ module Prot = {
               }
             }
           }
-        } else {
-
         }
-      } else {
-
       }
-    } else {
-
     }
     return ec_result;
   }
 
   proc d_Run5(state : (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int), tau : bits_n) : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool) option = {
-    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool) option <- None;
+    var ec_result : ((int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int) * bool) option;
     var d_U : int;
     var u : bool;
     var d_V : int;
@@ -223,13 +187,12 @@ module Prot = {
     var sid : (int * int * bits_n * bits_n * bits_n) option;
     var mess : int;
     var unwrap_1 : bits_n;
+    ec_result <- None;
     (d_U, u, d_V, ltk, acc, k, ni, nr, kmac, sid, mess) <- state;
     if (acc = None) {
       if (mess = 2) {
         if (u = false) {
-          if (kmac = None) {
-
-          } else {
+          if (!(kmac = None)) {
             unwrap_1 <- oget kmac;
             if (func_mac unwrap_1 zero_n 4 = tau) {
               ec_result <- Some ((d_U, u, d_V, ltk, Some true, k, ni, nr, kmac, sid, 3), true);
@@ -237,14 +200,8 @@ module Prot = {
               ec_result <- Some (state, false);
             }
           }
-        } else {
-
         }
-      } else {
-
       }
-    } else {
-
     }
     return ec_result;
   }

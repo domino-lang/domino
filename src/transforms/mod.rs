@@ -6,6 +6,7 @@ use crate::{package::Composition, theorem::Theorem};
 //pub mod resolvetypes;
 
 pub mod deconstructinvoke;
+pub mod easycryptify;
 pub mod loopunroll;
 pub mod resolveoracles;
 pub mod returnify;

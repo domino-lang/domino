@@ -610,7 +610,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use crate::project::{DirectoryFiles, DirectoryProject, Project};
-    use crate::transforms::theorem_transforms::EquivalenceTransform;
+    use crate::transforms::theorem_transforms::EasyCryptTransform;
     use crate::transforms::TheoremTransform;
 
     use super::super::interfaces::build_interfaces_file;
@@ -623,7 +623,7 @@ mod tests {
         let project: &'static DirectoryProject =
             Box::leak(Box::new(DirectoryProject::load(PathBuf::from(dir), files).unwrap()));
         let theorem = project.get_theorem(theorem_name).unwrap();
-        let (theorem, _auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
         let interfaces = build_interfaces_file(&theorem).unwrap();
         compute_equivalence_files(&theorem, project, &interfaces).unwrap()
     }

@@ -101,7 +101,8 @@ fn build_export_procs(comp: &Composition) -> Result<Vec<ProcSig>, EcExportError>
             let mangled = names.mangle(NameKind::Var, name)?;
             args.push((mangled, translate_type(ty, span)?));
         }
-        let ret = EcType::Option(Box::new(translate_type(&export.sig().ty, span)?));
+        // Already `Maybe(T)` (`T option`) after `easycryptify` (story 16 §3.5).
+        let ret = translate_type(&export.sig().ty, span)?;
         procs.push(ProcSig {
             name: proc_name,
             args,
@@ -226,7 +227,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use crate::project::{DirectoryFiles, DirectoryProject, Project};
-    use crate::transforms::theorem_transforms::EquivalenceTransform;
+    use crate::transforms::theorem_transforms::EasyCryptTransform;
     use crate::transforms::TheoremTransform;
 
     use super::super::render::render_file;
@@ -238,7 +239,7 @@ mod tests {
         let project: &'static DirectoryProject =
             Box::leak(Box::new(DirectoryProject::load(PathBuf::from(dir), files).unwrap()));
         let theorem = project.get_theorem(theorem_name).unwrap();
-        let (theorem, _auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
         build_interfaces_file(&theorem).unwrap()
     }
 

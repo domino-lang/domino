@@ -8,7 +8,7 @@ use thiserror::Error;
 use crate::{theorem::GameInstance, types::Type};
 
 use super::{
-    deconstructinvoke, loopunroll,
+    deconstructinvoke, easycryptify, loopunroll,
     resolveoracles::{self, ResolutionError},
     returnify, sample_max_counter_extractor, samplify, tableinitialize, treeify, type_extract,
     unwrapify, GameTransform, Transformation,
@@ -27,6 +27,13 @@ pub enum EquivalenceTransformError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     UnboundedLoop(#[from] sample_max_counter_extractor::UnboundedLoopError),
+
+    /// A loop `loopunroll` could not unroll survived into an oracle body that
+    /// [`EasyCryptTransform`] has to lower. EasyCrypt export has no
+    /// translation for it; only [`EasyCryptTransform`] raises this.
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    EasyCryptUnsupportedLoop(#[from] easycryptify::UnsupportedLoopError),
 }
 
 // Bundles the per-game-instance data produced by the transform pipeline
@@ -49,7 +56,7 @@ impl super::TheoremTransform for EquivalenceTransform {
         let results = theorem
             .instances
             .iter()
-            .map(|game_inst| transform_game_inst_common(game_inst, true));
+            .map(|game_inst| transform_game_inst_common(game_inst, ControlFlowLowering::Treeify));
         let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
         let theorem = theorem.with_new_instances(instances);
 
@@ -85,7 +92,7 @@ impl super::TheoremTransform for DebugTransform {
         let results = theorem
             .instances
             .iter()
-            .map(|game_inst| transform_game_inst_common(game_inst, false));
+            .map(|game_inst| transform_game_inst_common(game_inst, ControlFlowLowering::None));
         let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
         let theorem = theorem.with_new_instances(instances);
 
@@ -93,12 +100,60 @@ impl super::TheoremTransform for DebugTransform {
     }
 }
 
-/// Shared pipeline for [`EquivalenceTransform`] (`run_treeify = true`) and
-/// [`DebugTransform`] (`run_treeify = false`). The two must never drift, so the
+/// Like [`EquivalenceTransform`], but prepares game instances for the
+/// EasyCrypt exporter (`domino easycrypt`) — and, once stories 08/09 add the
+/// flag, for `domino inline/debug --easycrypt`
+/// (`docs/stories/easycrypt/16-easycryptify.md`).
+///
+/// It runs the exact same pipeline **minus `treeify`**, plus
+/// [`easycryptify`] as the very last stage, after `tableinitialize`
+/// (`tableinitialize` pattern-matches on `T[k] <- invoke …`, a shape
+/// `easycryptify` rewrites). `easycryptify` lowers every early exit into
+/// EasyCrypt's single-exit shape without duplicating code, and turns every
+/// oracle's return type `T` into `Maybe(T)` (`None` is abort).
+///
+/// [`DebugTransform`] stays the transform for a plain Domino listing: it never
+/// runs `easycryptify`, so an `assert` there still renders as `assert`.
+pub struct EasyCryptTransform;
+
+impl super::TheoremTransform for EasyCryptTransform {
+    type Err = EquivalenceTransformError;
+
+    type Aux = Vec<(String, GameInstAux)>;
+
+    fn transform_theorem<'a>(
+        &self,
+        theorem: &'a crate::theorem::Theorem<'a>,
+    ) -> Result<(crate::theorem::Theorem<'a>, Self::Aux), Self::Err> {
+        let results = theorem.instances.iter().map(|game_inst| {
+            transform_game_inst_common(game_inst, ControlFlowLowering::EasyCryptify)
+        });
+        let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
+        let theorem = theorem.with_new_instances(instances);
+
+        Ok((theorem, auxs))
+    }
+}
+
+/// The one point where the three pipelines differ: how control flow after an
+/// `if` / early exit is lowered for the consumer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ControlFlowLowering {
+    /// [`EquivalenceTransform`]: `treeify` (the SMT writer's nested `ite`).
+    Treeify,
+    /// [`DebugTransform`]: none — keep the source's 1:1 statement structure.
+    None,
+    /// [`EasyCryptTransform`]: `easycryptify`, run after `tableinitialize`.
+    EasyCryptify,
+}
+
+/// Shared pipeline for [`EquivalenceTransform`] ([`ControlFlowLowering::Treeify`]),
+/// [`DebugTransform`] ([`ControlFlowLowering::None`]) and [`EasyCryptTransform`]
+/// ([`ControlFlowLowering::EasyCryptify`]). The three must never drift, so the
 /// only difference between them lives here.
 fn transform_game_inst_common(
     game_inst: &GameInstance,
-    run_treeify: bool,
+    lowering: ControlFlowLowering,
 ) -> Result<(GameInstance, (String, GameInstAux)), EquivalenceTransformError> {
     let comp = game_inst.game();
 
@@ -144,7 +199,7 @@ fn transform_game_inst_common(
     let (comp, _) = returnify::TransformNg
         .transform_game(&comp)
         .expect("returnify transformation failed unexpectedly");
-    let comp = if run_treeify {
+    let comp = if lowering == ControlFlowLowering::Treeify {
         treeify::Transformation(&comp)
             .transform()
             .expect("treeify transformation failed unexpectedly")
@@ -155,6 +210,11 @@ fn transform_game_inst_common(
     let (comp, _) = tableinitialize::Transformation(&comp)
         .transform()
         .expect("tableinitialize transformation failed unexpectedly");
+    let comp = if lowering == ControlFlowLowering::EasyCryptify {
+        easycryptify::Transformation(&comp).transform()?.0
+    } else {
+        comp
+    };
 
     Ok((
         game_inst.with_other_game(comp),

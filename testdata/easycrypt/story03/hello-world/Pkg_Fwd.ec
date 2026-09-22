@@ -14,13 +14,12 @@ module Fwd (O : Fwd_Imports) = {
   }
 
   proc d_UsefulOracle() : (int * bits_n) option = {
-    var ec_result : (int * bits_n) option <- None;
-    var y : (int * bits_n);
+    var ec_result : (int * bits_n) option;
     var ec_r1 : (int * bits_n) option;
+    var y : (int * bits_n);
+    ec_result <- None;
     ec_r1 <@ O.d_UsefulOracle();
-    if (ec_r1 = None) {
-
-    } else {
+    if (!(ec_r1 = None)) {
       y <- oget ec_r1;
       ec_result <- Some y;
     }
@@ -28,11 +27,10 @@ module Fwd (O : Fwd_Imports) = {
   }
 
   proc d_UselessOracle(x : int) : int option = {
-    var ec_result : int option <- None;
+    var ec_result : int option;
+    ec_result <- None;
     if (x = 1) {
       ec_result <- Some 1;
-    } else {
-
     }
     return ec_result;
   }

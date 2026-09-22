@@ -196,12 +196,35 @@ pub enum EcExportError {
     #[error(transparent)]
     Invariant(#[from] invariant::InvariantError),
 
-    /// The equivalence transform pipeline (`EquivalenceTransform`, run once
-    /// per exported theorem before any translation) failed. The only way a
+    /// The transform pipeline (`EasyCryptTransform`, run once per exported
+    /// theorem before any translation) failed. The only way a
     /// parser-accepted project can hit this is a sample reachable through a
     /// loop `loopunroll` could not unroll — see
-    /// [`EquivalenceTransformError`].
+    /// [`EquivalenceTransformError`]. A surviving loop *without* a sample is
+    /// reported as [`EcExportError::UnsupportedStatement`] instead (see the
+    /// `From` impl below).
     #[error(transparent)]
     #[diagnostic(transparent)]
-    Transform(#[from] EquivalenceTransformError),
+    Transform(EquivalenceTransformError),
+}
+
+impl From<EquivalenceTransformError> for EcExportError {
+    /// `easycryptify` rejects a surviving `for` loop; that is the same hard
+    /// error the writer itself raised for it before story 16, just raised
+    /// earlier, so it keeps its shape and its span.
+    fn from(err: EquivalenceTransformError) -> Self {
+        match err {
+            EquivalenceTransformError::EasyCryptUnsupportedLoop(e) => e.into(),
+            other => EcExportError::Transform(other),
+        }
+    }
+}
+
+impl From<crate::transforms::easycryptify::UnsupportedLoopError> for EcExportError {
+    fn from(err: crate::transforms::easycryptify::UnsupportedLoopError) -> Self {
+        EcExportError::UnsupportedStatement {
+            construct: crate::transforms::easycryptify::UNSUPPORTED_FOR,
+            span: err.span,
+        }
+    }
 }

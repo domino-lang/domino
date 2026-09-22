@@ -14,3 +14,6 @@ pub mod progress;
 pub mod render;
 pub mod report;
 pub mod smtout;
+
+#[cfg(test)]
+mod easycryptify_differential;

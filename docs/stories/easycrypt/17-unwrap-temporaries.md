@@ -91,6 +91,26 @@ if (not (e == None)) {
 binding, which is exactly where Domino aborts. Story 16 never moves an abort. This story must not
 either.
 
+### 2.1a Implementation facts from story 16 (added by the story 16 session)
+
+Read `16-easycryptify-IMPLEMENTATION-REPORT.md` for the full list; the ones this story needs:
+
+- **`Pkg_KX_noprfkey.ec`'s `Send3` is not quite the §1.2 oracle.** Its source
+  (`KX_noprfkey.pkg.ssp`) binds `mess`, not `_mess`, and additionally writes
+  `ReverseMac[((kid,U,V,Unwrap(ni),Unwrap(nr)), (Unwrap(ni),3))]` *inside* `if (mess == 2)`,
+  after the `First`/`Second` cascade. That is a second, nested join, so after story 16 it has
+  **two** `if (!ec_done)` guards and three more unwraps (`ni`, `nr`, `ni`). The oracle story 16
+  §1.1 quotes is `KX_nochecks::Send3`, rendered in `Pkg_KX_nochecks.ec` (one guard). Check this
+  story's §1.2/§4 targets against the right file.
+- `easycryptify`'s own locals (`ec_result`, `ec_done`, `ec_r<N>`) bypass the writer's name
+  mangler through `easycryptify::is_generated_name`; any new exporter-owned `ec_*` local this
+  story introduces must be recognised there too, or it will be rendered `d_ec_…`.
+- The differential test is `src/debug/easycryptify_differential.rs`
+  (`easycryptify_matches_treeify`). Beyond the four oracles of story 16 §5.1 it also checks five
+  oracles of a synthetic project (both sides of its equivalence), including two joins whose early
+  exit is *feasible* — in the 4WHS oracles every exit reaching a join is infeasible, so there the
+  `ec_done` guard is not load-bearing.
+
 ### 2.2 Facts about Domino compositions (confirmed by the owner)
 
 - The composition graph is a **DAG**.

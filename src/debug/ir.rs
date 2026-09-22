@@ -1190,6 +1190,54 @@ mod tests {
         );
     }
 
+    /// Story 16 §4 regression: a plain `domino inline` (no `--easycrypt`) runs
+    /// [`DebugTransform`], which never runs `easycryptify`, so an `assert` in
+    /// the source still renders as `assert (…);` in the Domino listing.
+    #[test]
+    fn plain_domino_listing_still_renders_assert() {
+        with_debug_theorem(
+            "example-projects/kem-dem/kem-dem-cca-ssp",
+            "kem_dem_cca_ssp",
+            |theorem| {
+                let gi = theorem.find_game_instance("Game_MON_CCA_PKE").unwrap();
+                let inl = inline_oracle(gi, "PKENC").unwrap();
+                assert!(
+                    inl.listing.text.contains("assert ("),
+                    "the Domino listing must keep `assert`:\n{}",
+                    inl.listing.text
+                );
+                assert!(inl
+                    .listing
+                    .sites
+                    .values()
+                    .any(|site| site.kind == SiteKind::Assert));
+            },
+        );
+    }
+
+    /// The same oracle through [`EasyCryptTransform`] — the view stories 08/09
+    /// will select with `--easycrypt` — has no `assert` left: EasyCrypt has
+    /// none, and `easycryptify` turned each into an `if`. The two listings
+    /// differ by construction (the transform), not by a flag in the IR.
+    #[test]
+    fn easycrypt_transform_listing_has_no_assert() {
+        use crate::transforms::theorem_transforms::EasyCryptTransform;
+        let dir = "example-projects/kem-dem/kem-dem-cca-ssp";
+        let files = crate::project::DirectoryFiles::load(std::path::Path::new(dir)).unwrap();
+        let project =
+            crate::project::DirectoryProject::load(std::path::PathBuf::from(dir), &files).unwrap();
+        let theorem = project.get_theorem("kem_dem_cca_ssp").unwrap();
+        let (theorem, _aux) = EasyCryptTransform.transform_theorem(theorem).unwrap();
+        let gi = theorem.find_game_instance("Game_MON_CCA_PKE").unwrap();
+        let inl = inline_oracle(gi, "PKENC").unwrap();
+        assert!(
+            !inl.listing.text.contains("assert ("),
+            "{}",
+            inl.listing.text
+        );
+        assert!(!inl.listing.text.contains("abort;"), "{}", inl.listing.text);
+    }
+
     #[test]
     fn snapshot_hello_world_small_useful_oracle() {
         with_debug_theorem("example-projects/hello-world", "Proof", |theorem| {

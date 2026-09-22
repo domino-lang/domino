@@ -218,7 +218,8 @@ fn build_import_adapter(
             args.push((mangled.clone(), translate_type(ty, *ispan)?));
             arg_exprs.push(EcExpr::Var(mangled));
         }
-        let ret_option_ty = EcType::Option(Box::new(translate_type(&sig.ty, *ispan)?));
+        // Already `Maybe(T)` (`T option`) after `easycryptify` (story 16 §3.5).
+        let ret_option_ty = translate_type(&sig.ty, *ispan)?;
 
         // A fresh registry is correct here (not a collision-detection gap):
         // it reproduces the callee's own already-validated `Proc`-namespace
@@ -413,8 +414,12 @@ fn render_game_file(
             let mangled_name = router_names.mangle(NameKind::Var, name)?;
             args.push((mangled_name, translate_type(ty, span)?));
         }
-        let ret_ec_ty = translate_type(&export.sig().ty, span)?;
-        let ret_option_ty = EcType::Option(Box::new(ret_ec_ty.clone()));
+        // Already `Maybe(T)` (`T option`) after `easycryptify` (story 16 §3.5).
+        let ret_option_ty = translate_type(&export.sig().ty, span)?;
+        let EcType::Option(ret_ec_ty) = &ret_option_ty else {
+            unreachable!("easycryptify makes every exported signature Maybe-typed")
+        };
+        let ret_ec_ty = (**ret_ec_ty).clone();
 
         // A fresh registry is correct here (not a collision-detection gap):
         // it reproduces the callee's own already-validated `Proc`-namespace
@@ -543,7 +548,7 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use crate::project::{DirectoryFiles, DirectoryProject, Project};
-    use crate::transforms::theorem_transforms::EquivalenceTransform;
+    use crate::transforms::theorem_transforms::EasyCryptTransform;
     use crate::transforms::TheoremTransform;
 
     use super::super::render::render_file;
@@ -555,7 +560,7 @@ mod tests {
         let project: &'static DirectoryProject =
             Box::leak(Box::new(DirectoryProject::load(PathBuf::from(dir), files).unwrap()));
         let theorem = project.get_theorem(theorem_name).unwrap();
-        let (theorem, _auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
         compute_game_files(&theorem).unwrap()
     }
 

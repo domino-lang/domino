@@ -2067,7 +2067,7 @@ mod tests {
         &'static crate::project::DirectoryProject<'static>,
     ) {
         use crate::project::{DirectoryFiles, DirectoryProject, Project};
-        use crate::transforms::theorem_transforms::EquivalenceTransform;
+        use crate::transforms::theorem_transforms::EasyCryptTransform;
         use crate::transforms::TheoremTransform;
 
         let dir = "example-projects/4WHS";
@@ -2077,7 +2077,7 @@ mod tests {
             DirectoryProject::load(std::path::PathBuf::from(dir), files).unwrap(),
         ));
         let theorem = project.get_theorem("Simple4WHS").unwrap();
-        let (theorem, _auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
         (theorem, project)
     }
 

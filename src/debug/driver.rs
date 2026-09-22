@@ -536,6 +536,14 @@ where
     // `sample_info`, argument names, `<return-…>` names and game-state constants
     // are identical between the two — the per-path DSA encoding lines up with the
     // base frame.
+    //
+    // A third transform exists and is deliberately *not* used here:
+    // `EasyCryptTransform` (story 16) runs `easycryptify` instead of `treeify`,
+    // lowering every `assert`/`abort`/early `return` into EasyCrypt's single-exit
+    // shape (no `abort`, `Maybe`-typed signatures). It is what `domino easycrypt`
+    // exports. A `--easycrypt` flag on `domino inline/debug` (stories 08/09)
+    // must select it for that flag only; without the flag this stays
+    // `DebugTransform`, so a Domino listing keeps rendering `assert` as `assert`.
     let (theorem_eq, auxs_eq) = EquivalenceTransform.transform_theorem(theorem)?;
     let mut eqctx = EquivalenceContext::new(eq, &theorem_eq, &auxs_eq);
     eqctx.load_invariants(project)?;
