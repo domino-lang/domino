@@ -116,6 +116,7 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 15 | `byequiv` precondition via `arg`, not per-parameter conjuncts | `15-byequiv-arg-tuple-precondition.md` | 13, 14 |
 | 16 | `easycryptify`: lowering early exits without duplicating code | `16-easycryptify.md` | 03, 04, 14 |
 | 17 | Removing the `unwrap_N` temporaries and their duplicate guards | `17-unwrap-temporaries.md` | 16 |
+| 18 | Dead `ec_done` writes and guards a user `assert` already covers | `18-dead-flags-and-assert-guards.md` | 08, 16, 17 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
