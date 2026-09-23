@@ -202,10 +202,10 @@ pub trait Project {
 
         for name in self.games() {
             let game = self.get_game(name).unwrap();
-            let (transformed, _) = crate::transforms::resolveoracles::Transformation(game)
+            let (transformed, _) = crate::transforms::samplify::Transformation(game)
                 .transform()
                 .unwrap();
-            let (transformed, _) = crate::transforms::samplify::Transformation(&transformed)
+            let (transformed, _) = crate::transforms::resolveoracles::Transformation(&transformed)
                 .transform()
                 .unwrap();
             for lossy in [true, false] {

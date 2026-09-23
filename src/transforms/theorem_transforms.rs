@@ -72,13 +72,14 @@ fn transform_game_inst(
      * be sampled from is computed afterwards by `sample_max_counter_extractor`,
      * which needs to run after loop unrolling (so samples inside bounded
      * loops are counted once per unrolled iteration) and after oracle
-     * resolution (to follow resolved oracle invocations). samplify itself
-     * has to stay before loop unrolling because it is also used by the latex
-     * export, which must not unroll loops.
+     * resolution (to follow resolved oracle invocations).
      */
     let (comp, _) = deconstructinvoke::Transformation(&comp)
         .transform()
         .expect("splitinvoke failed unexpectedly");
+    let (comp, sample_info) = samplify::Transformation(&comp)
+        .transform()
+        .expect("samplify transformation failed unexpectedly");
     let (comp, _) = unwrapify::Transformation(&comp)
         .transform()
         .expect("unwrapify transformation failed unexpectedly");
@@ -90,17 +91,14 @@ fn transform_game_inst(
             // (`no_such_oracle`), so resolution cannot fail on a parsed game.
             unreachable!("resolveoracles should have caught this: {failed_oracle_stmts:?}")
         });
-    let (comp, sample_info) = samplify::Transformation(&comp)
-        .transform()
-        .expect("samplify transformation failed unexpectedly");
+    let (comp, _) = returnify::TransformNg
+        .transform_game(&comp)
+        .expect("returnify transformation failed unexpectedly");
     let (comp, _) = loopunroll::Transformation(&comp)
         .transform()
         .expect("unroll transformation failed unexpectedly");
     let (comp, max_offsets) =
         sample_max_counter_extractor::Transformation(&comp, &sample_info.positions).transform()?;
-    let (comp, _) = returnify::TransformNg
-        .transform_game(&comp)
-        .expect("returnify transformation failed unexpectedly");
     let (comp, _) = treeify::Transformation(&comp)
         .transform()
         .expect("treeify transformation failed unexpectedly");

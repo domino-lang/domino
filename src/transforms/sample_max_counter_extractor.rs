@@ -4,16 +4,15 @@
 //! counter/offset each sampling position reachable from that export can be
 //! sampled at.
 //!
-//! This is the former second stage of `samplify`. It has been split out
-//! because it needs to run after `loopunroll`, so that a sample inside a
+//! This transform needs to run after `loopunroll`, so that a sample inside a
 //! bounded loop is counted once per unrolled iteration: loop bodies keep the
 //! `sample_id` assigned by `samplify` when they get unrolled, so several
 //! statements can share the same id by the time this transform sees them.
-//! `samplify` itself has to keep running before loop unrolling, since it is
-//! also used by the latex export, which must not unroll loops. It must also
-//! run after `resolveoracles`, so oracle invocations carry a resolved `edge`
-//! to follow, and before `treeify`, which discards the sequential structure
-//! this traversal relies on.
+//! `samplify` itself has to keep running before loop unrolling, since we
+//! want to have only id's the user sees in the code, which must not unroll loops.
+//! This transform must also run after `resolveoracles`, so oracle invocations
+//! carry a resolved `edge` to follow, and before `treeify`, which discards
+//! the sequential structure this traversal relies on.
 //!
 //! Given that ordering, most of the ways this traversal could go wrong are
 //! already ruled out by an earlier stage and show up here as `unreachable!`:
