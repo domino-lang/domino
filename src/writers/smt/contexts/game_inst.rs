@@ -5,11 +5,9 @@ use crate::{
     identifier::game_ident::GameConstIdentifier,
     package::Composition,
     theorem::GameInstance,
-    transforms::samplify::{Position as SamplePosition, SampleInfo},
-    types::Type,
+    transforms::samplify::SampleInfo,
     writers::smt::{
         exprs::SmtExpr,
-        names,
         patterns::{
             self, game_consts::GameConstsPattern, DatastructurePattern, GameStateDeclareInfo,
             GameStatePattern, GameStateSelector,
@@ -206,16 +204,6 @@ impl GameInstanceContext<'_> {
             self.smt_access_gamestate_rand(sample_info, state.clone(), target_sample_id)?;
         let new_value = ("+", 1, old_value);
         self.smt_update_gamestate_rand(state, sample_info, target_sample_id, new_value)
-    }
-
-    pub(crate) fn smt_eval_randfn<CTR: Into<SmtExpr>>(
-        &self,
-        sample_pos: &SamplePosition,
-        ctr: CTR,
-        ty: &Type,
-    ) -> SmtExpr {
-        let rand_fn_name = names::fn_sample_rand_name(&self.game_inst.name, ty);
-        (rand_fn_name, sample_pos, ctr).into()
     }
 }
 
