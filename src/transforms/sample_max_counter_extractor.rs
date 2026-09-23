@@ -94,7 +94,7 @@ fn add_offsets(target: &mut OffsetMap, source: &OffsetMap) {
 // Takes union of the given maps and for elements that exist in both maps
 // compute the maximum offset.
 fn max_offsets(left: &OffsetMap, right: &OffsetMap) -> OffsetMap {
-    let mut result = left.to_owned();
+    let mut result = left.clone();
 
     for (pos, offset) in right {
         result
