@@ -589,7 +589,7 @@ impl<'a> EquivalenceContext<'a> {
 
         base_declarations.extend(hacks::MaybeDeclaration);
         base_declarations.push(hacks::ReturnValueDeclaration.into());
-        base_declarations.extend(hacks::TuplesDeclaration(1..32));
+        base_declarations.extend(hacks::TuplesDeclaration(0..32));
         base_declarations.extend(hacks::EmptyDeclaration);
         base_declarations.push(hacks::SampleIdDeclaration.into());
 

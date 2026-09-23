@@ -130,7 +130,7 @@ fn_arglist = { fn_arg_spec ~ ( "," ~ fn_arg_spec )* }
 fn_arg_spec = { tipe }
 
 /// Tuple types
-type_tuple = { "(" ~ tipe ~ ( "," ~ tipe )* ~ ")"}
+type_tuple = { "(" ~ (tipe ~ ( "," ~ tipe )*)? ~ ")"}
 
 /// The unit type (not the empty type, a bit of a misnomer)
 type_empty = { "()" }
@@ -231,7 +231,7 @@ expr_unwrap = { "Unwrap" ~ "(" ~ expression ~ ")" }
 table_access = { identifier ~ "[" ~ expression ~             "]" }
 
 /// Constructs a tuple.
-expr_tuple   = {        "(" ~ expression ~ ("," ~ expression)* ~ ")" }
+expr_tuple   = {        "(" ~ (expression ~ ("," ~ expression)*)? ~ ")" }
 
 /// A list of values.
 /// Currently not really implemented, so type inference doesn't have to work well.
