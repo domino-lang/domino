@@ -54,12 +54,10 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
     ec_result <- None;
     if (!(d_LTK.[kid] = None)) {
       ctr_ <- ctr_ + 1;
-      if (!(d_LTK.[kid] = None)) {
-        ltk <- oget d_LTK.[kid];
-        d_State.[ctr_] <- (d_U, u, d_V, ltk, None, None, None, None, None, 0);
-        d_Fresh <- if d_H.[kid] = None then rem d_Fresh ctr_ else d_Fresh.[ctr_ <- oget d_H.[kid]];
-        ec_result <- Some ctr_;
-      }
+      ltk <- oget d_LTK.[kid];
+      d_State.[ctr_] <- (d_U, u, d_V, ltk, None, None, None, None, None, 0);
+      d_Fresh <- if d_H.[kid] = None then rem d_Fresh ctr_ else d_Fresh.[ctr_ <- oget d_H.[kid]];
+      ec_result <- Some ctr_;
     }
     return ec_result;
   }
@@ -72,15 +70,13 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
     var msg : bits_n;
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run1(state);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run1(state);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg;
       }
     }
     return ec_result;
@@ -94,15 +90,13 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
     var msg_ : (bits_n * bits_n);
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run2(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg_) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg_;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run2(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg_) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg_;
       }
     }
     return ec_result;
@@ -116,15 +110,13 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
     var msg_ : (bits_n * bits_n);
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run3(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg_) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg_;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run3(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg_) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg_;
       }
     }
     return ec_result;
@@ -138,15 +130,13 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
     var msg_ : bits_n;
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run4(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg_) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg_;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run4(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg_) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg_;
       }
     }
     return ec_result;
@@ -160,15 +150,13 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
     var stop : bool;
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run5(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, stop) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some stop;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run5(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, stop) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some stop;
       }
     }
     return ec_result;
@@ -246,25 +234,12 @@ module KX_NoKeys (O : KX_NoKeys_Imports) = {
                 }
                 if (!ec_done) {
                   ec_result <- Some k;
-                  ec_done <- true;
                 }
-              } else {
-                ec_done <- true;
               }
-            } else {
-              ec_done <- true;
             }
-          } else {
-            ec_done <- true;
           }
-        } else {
-          ec_done <- true;
         }
-      } else {
-        ec_done <- true;
       }
-    } else {
-      ec_done <- true;
     }
     return ec_result;
   }

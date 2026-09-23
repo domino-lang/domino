@@ -51,15 +51,13 @@ module KX_NoPrf (O : KX_NoPrf_Imports) = {
     var msg : bits_n;
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run1(state);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run1(state);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg;
       }
     }
     return ec_result;
@@ -73,15 +71,13 @@ module KX_NoPrf (O : KX_NoPrf_Imports) = {
     var msg_ : (bits_n * bits_n);
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run2(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg_) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg_;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run2(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg_) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg_;
       }
     }
     return ec_result;
@@ -95,15 +91,13 @@ module KX_NoPrf (O : KX_NoPrf_Imports) = {
     var msg_ : (bits_n * bits_n);
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run3(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg_) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg_;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run3(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg_) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg_;
       }
     }
     return ec_result;
@@ -117,15 +111,13 @@ module KX_NoPrf (O : KX_NoPrf_Imports) = {
     var msg_ : bits_n;
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run4(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, msg_) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some msg_;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run4(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, msg_) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some msg_;
       }
     }
     return ec_result;
@@ -139,15 +131,13 @@ module KX_NoPrf (O : KX_NoPrf_Imports) = {
     var stop : bool;
     ec_result <- None;
     if (!(d_State.[ctr] = None)) {
-      if (!(d_State.[ctr] = None)) {
-        state <- oget d_State.[ctr];
-        ec_r1 <@ O.d_Run5(state, msg);
-        if (!(ec_r1 = None)) {
-          d_return <- oget ec_r1;
-          (state, stop) <- d_return;
-          d_State.[ctr] <- state;
-          ec_result <- Some stop;
-        }
+      state <- oget d_State.[ctr];
+      ec_r1 <@ O.d_Run5(state, msg);
+      if (!(ec_r1 = None)) {
+        d_return <- oget ec_r1;
+        (state, stop) <- d_return;
+        d_State.[ctr] <- state;
+        ec_result <- Some stop;
       }
     }
     return ec_result;
@@ -235,25 +225,12 @@ module KX_NoPrf (O : KX_NoPrf_Imports) = {
                 }
                 if (!ec_done) {
                   ec_result <- Some k;
-                  ec_done <- true;
                 }
-              } else {
-                ec_done <- true;
               }
-            } else {
-              ec_done <- true;
             }
-          } else {
-            ec_done <- true;
           }
-        } else {
-          ec_done <- true;
         }
-      } else {
-        ec_done <- true;
       }
-    } else {
-      ec_done <- true;
     }
     return ec_result;
   }

@@ -1473,7 +1473,9 @@ mod tests {
     fn full_4whs_send1_has_one_if_per_abort_point_and_no_empty_branch() {
         let rendered = full_4whs_kx_noprfkey();
         let send1 = proc_text(&rendered, "d_Send1");
-        assert_eq!(send1.matches(" if (").count(), 3, "{send1}");
+        // The `State[ctr]` test is written once (story 18 §4), so what is
+        // left is the `State` test and the `invoke` guard.
+        assert_eq!(send1.matches(" if (").count(), 2, "{send1}");
         assert!(!send1.contains("else"), "no `else` on an abort-only branch:\n{send1}");
         assert!(!send1.contains("ec_done"), "{send1}");
         assert!(!send1.contains("{\n\n"), "no empty branch:\n{send1}");
@@ -1531,20 +1533,20 @@ mod tests {
         assert!(!send3.contains("unwrap_"), "{send3}");
         assert_eq!(send3.matches("(sid = None)").count(), 1, "{send3}");
         let cascade = "
-          if (_mess = 2) {
-            if (!(sid = None)) {
-              if (d_First.[oget sid] = None) {
-                d_First.[oget sid] <- ctr;
-              } else {
-                if (d_Second.[oget sid] = None) {
-                  d_Second.[oget sid] <- ctr;
-                }
-              }
+        if (_mess = 2) {
+          if (!(sid = None)) {
+            if (d_First.[oget sid] = None) {
+              d_First.[oget sid] <- ctr;
             } else {
-              ec_done <- true;
+              if (d_Second.[oget sid] = None) {
+                d_Second.[oget sid] <- ctr;
+              }
             }
+          } else {
+            ec_done <- true;
           }
-          if (!ec_done) {
+        }
+        if (!ec_done) {
 ";
         assert!(send3.contains(cascade), "{send3}");
         // the `State[ctr]` unwrap binds `state` directly

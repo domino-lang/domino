@@ -393,14 +393,20 @@ fn executor_walks_every_structural_path() {
             .any(|p| matches!(p.terminal, Terminal::Return { .. })));
         // Falling through to the router is an abort wherever a path can get
         // there without having returned or aborted first: where the entry
-        // procedure dropped `ec_done` and has a guard with no else side.
-        // `small_composition` never aborts; `Game_MON_CCA_PKE` keeps the flag,
-        // so each of its aborts is an explicit `ec_done <- true`.
+        // procedure has a guard with no else side, or a pruned
+        // `ec_done <- true` (story 18: a write no done guard can read is
+        // deleted, so that path now aborts at the router instead of at the
+        // write). `small_composition` never aborts. `Game_MON_CCA_PKE` still
+        // has a live flag, but its outer guards' `else { ec_done <- true }`
+        // arms are dead and were pruned, so it reaches the router abort too.
         let router_abort = label_of(inl.body.0.last().unwrap());
         let reaches_router_abort = paths
             .iter()
             .any(|p| matches!(p.terminal, Terminal::Abort { label } if label == router_abort));
-        let expected = matches!(gi, "medium_composition" | "Game_MOD_CCA_PKE_Real_KEM");
+        let expected = matches!(
+            gi,
+            "medium_composition" | "Game_MON_CCA_PKE" | "Game_MOD_CCA_PKE_Real_KEM"
+        );
         assert_eq!(reaches_router_abort, expected, "{gi}");
         if dir == KEM_DEM {
             assert!(paths.iter().any(|p| p.terminal.is_abort()), "{gi}");
@@ -426,8 +432,12 @@ fn kem_dem_pkenc_path_counts() {
     // `ec_done <- true`, or falling through to the router's abort) that is
     // only reachable if the callee returned `None` without aborting — which
     // the inlined callee body rules out. Structurally present, infeasible.
-    assert_eq!(counts["Game_MON_CCA_PKE"], (12, 6));
-    assert_eq!(counts["Game_MOD_CCA_PKE_Real_KEM"], (31, 16));
+    // Story 18 deleted dead `ec_done <- true` writes. An else side that used
+    // to end in its own abort leaf now falls through to the frame's shared
+    // exit, so some of the infeasible surplus above (12 and 31 before) is
+    // merged away. The Domino counts, and every feasible path, are unchanged.
+    assert_eq!(counts["Game_MON_CCA_PKE"], (10, 6));
+    assert_eq!(counts["Game_MOD_CCA_PKE_Real_KEM"], (28, 16));
 }
 
 // --- the listing is real EasyCrypt ----------------------------------------------

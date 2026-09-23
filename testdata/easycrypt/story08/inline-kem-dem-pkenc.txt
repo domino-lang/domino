@@ -48,107 +48,98 @@ theorem kem_dem_cca_ssp, proofstep 0 (Game_MON_CCA_PKE == Game_MOD_CCA_PKE_Real_
   45 |   if (!Game_Game_MON_CCA_PKE.abort_flag) {                                                     |    45 |           ec_result_1 <- None;
   46 |     (* ec_result <@ Pkg_Inst_MON_CCA_PKE.d_PKENC(m0, m1); *)                                   |    46 |           if (!(Pkg_Inst_KEM.pk = None)) {
   47 |     ec_result <- None;                                                                         |    47 |             if (Pkg_Inst_KEM.c = None) {
-  48 |     ec_done <- false;                                                                          |    48 |               if (!(Pkg_Inst_KEM.pk = None)) {
-  49 |     if (!(Pkg_Inst_MON_CCA_PKE.pk = None)) {                                                   |    49 |                 (* ec_r1_1 <@ Pkg_Inst_Scheme_KEM.d_KEM_ENCAPS(oget Pkg_Inst_KEM.pk); *)
-  50 |       if (Pkg_Inst_MON_CCA_PKE.c = None) {                                                     |    50 |                   pk <- oget Pkg_Inst_KEM.pk;
-  51 |         if (Pkg_Inst_MON_CCA_PKE.b) {                                                          |    51 |                   ec_result_2 <- None;
-  52 |           if (!(Pkg_Inst_MON_CCA_PKE.pk = None)) {                                             |    52 |                   r <$ dbits_kencr;
-  53 |             (* ec_r1 <@ Pkg_Inst_Scheme_PKE.d_ENC(oget Pkg_Inst_MON_CCA_PKE.pk, m1); *)        |    53 |                   (k_2, c) <- func_kem_encaps r pk;
-  54 |               pk <- oget Pkg_Inst_MON_CCA_PKE.pk;                                              |    54 |                   ec_result_2 <- Some (k_2, c);
-  55 |               m <- m1;                                                                         |    55 |                 ec_r1_1 <- ec_result_2;
-  56 |               ec_result_1 <- None;                                                             |    56 |                 if (!(ec_r1_1 = None)) {
-  57 |               (* ec_r1_1 <@ Pkg_Inst_Scheme_KEM.d_KEM_ENCAPS(pk); *)                           |    57 |                   invoke_result_1 <- oget ec_r1_1;
-  58 |                 pk_2 <- pk;                                                                    |    58 |                   (k, c__1) <- invoke_result_1;
-  59 |                 ec_result_2 <- None;                                                           |    59 |                   Pkg_Inst_KEM.c <- Some c__1;
-  60 |                 r <$ dbits_kencr;                                                              |    60 |                   (* ec_r2_1 <@ Pkg_Inst_Key.d_SET(k); *)
-  61 |                 (k_2, c) <- func_kem_encaps r pk_2;                                            |    61 |                     k_ <- k;
-  62 |                 ec_result_2 <- Some (k_2, c);                                                  |    62 |                     ec_result_3 <- None;
-  63 |               ec_r1_1 <- ec_result_2;                                                          |    63 |                     if (Pkg_Inst_Key.k = None) {
-  64 |               if (!(ec_r1_1 = None)) {                                                         |    64 |                       if (Pkg_Inst_Key.b) {
-  65 |                 invoke_result_1_1 <- oget ec_r1_1;                                             |    65 |                         k__ <$ dbits_dkeyl;
-  66 |                 (k, c_kem_1) <- invoke_result_1_1;                                             |    66 |                         Pkg_Inst_Key.k <- Some k__;
-  67 |                 (* ec_r2_1 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k, m); *)                          |    67 |                         ec_result_3 <- Some tt;
-  68 |                   k_3 <- k;                                                                    |    68 |                       } else {
-  69 |                   m_3 <- m;                                                                    |    69 |                         Pkg_Inst_Key.k <- Some k_;
-  70 |                   ec_result_3 <- None;                                                         |    70 |                         ec_result_3 <- Some tt;
-  71 |                   ec_result_3 <- Some (func_dem_enc k_3 m_3);                                  |    71 |                       }
-  72 |                 ec_r2_1 <- ec_result_3;                                                        |    72 |                     }
-  73 |                 if (!(ec_r2_1 = None)) {                                                       |    73 |                   ec_r2_1 <- ec_result_3;
-  74 |                   c_dem_1 <- oget ec_r2_1;                                                     |    74 |                   if (!(ec_r2_1 = None)) {
-  75 |                   ec_result_1 <- Some (c_kem_1, c_dem_1);                                      |    75 |                     ec_result_1 <- Some c__1;
-  76 |                 }                                                                              |    76 |                   }
-  77 |               }                                                                                |    77 |                 }
-  78 |             ec_r1 <- ec_result_1;                                                              |    78 |               }
-  79 |             if (!(ec_r1 = None)) {                                                             |    79 |             }
-  80 |               invoke_result_1 <- oget ec_r1;                                                   |    80 |           }
-  81 |               (c_kem, c_dem) <- invoke_result_1;                                               |    81 |         ec_r1 <- ec_result_1;
-  82 |             } else {                                                                           |    82 |         if (!(ec_r1 = None)) {
-  83 |               ec_done <- true;                                                                 |    83 |           c_kem <- oget ec_r1;
-  84 |             }                                                                                  |    84 |           (* ec_r2 <@ Pkg_Inst_DEM.d_ENC(m0, m1); *)
-  85 |           } else {                                                                             |    85 |             m0_4 <- m0;
-  86 |             ec_done <- true;                                                                   |    86 |             m1_4 <- m1;
-  87 |           }                                                                                    |    87 |             ec_result_4 <- None;
-  88 |         } else {                                                                               |    88 |             ec_done <- false;
-  89 |           if (!(Pkg_Inst_MON_CCA_PKE.pk = None)) {                                             |    89 |             if (Pkg_Inst_DEM.c = None) {
-  90 |             (* ec_r2 <@ Pkg_Inst_Scheme_PKE.d_ENC(oget Pkg_Inst_MON_CCA_PKE.pk, m0); *)        |    90 |               (* ec_r1_4 <@ Pkg_Inst_Key.d_GET(); *)
-  91 |               pk_4 <- oget Pkg_Inst_MON_CCA_PKE.pk;                                            |    91 |                 ec_result_5 <- None;
-  92 |               m_4 <- m0;                                                                       |    92 |                 if (!(Pkg_Inst_Key.k = None)) {
-  93 |               ec_result_4 <- None;                                                             |    93 |                   if (!(Pkg_Inst_Key.k = None)) {
-  94 |               (* ec_r1_4 <@ Pkg_Inst_Scheme_KEM.d_KEM_ENCAPS(pk_4); *)                         |    94 |                     ec_result_5 <- Some (oget Pkg_Inst_Key.k);
-  95 |                 pk_5 <- pk_4;                                                                  |    95 |                   }
-  96 |                 ec_result_5 <- None;                                                           |    96 |                 }
-  97 |                 r_5 <$ dbits_kencr;                                                            |    97 |               ec_r1_4 <- ec_result_5;
-  98 |                 (k_5, c_5) <- func_kem_encaps r_5 pk_5;                                        |    98 |               if (!(ec_r1_4 = None)) {
-  99 |                 ec_result_5 <- Some (k_5, c_5);                                                |    99 |                 k_4 <- oget ec_r1_4;
- 100 |               ec_r1_4 <- ec_result_5;                                                          |   100 |                 if (Pkg_Inst_DEM.b) {
- 101 |               if (!(ec_r1_4 = None)) {                                                         |   101 |                   (* ec_r2_4 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k_4, m1_4); *)
- 102 |                 invoke_result_1_4 <- oget ec_r1_4;                                             |   102 |                     k_6 <- k_4;
- 103 |                 (k_4, c_kem_4) <- invoke_result_1_4;                                           |   103 |                     m <- m1_4;
- 104 |                 (* ec_r2_4 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k_4, m_4); *)                      |   104 |                     ec_result_6 <- None;
- 105 |                   k_6 <- k_4;                                                                  |   105 |                     ec_result_6 <- Some (func_dem_enc k_6 m);
- 106 |                   m_6 <- m_4;                                                                  |   106 |                   ec_r2_4 <- ec_result_6;
- 107 |                   ec_result_6 <- None;                                                         |   107 |                   if (!(ec_r2_4 = None)) {
- 108 |                   ec_result_6 <- Some (func_dem_enc k_6 m_6);                                  |   108 |                     c__4 <- oget ec_r2_4;
- 109 |                 ec_r2_4 <- ec_result_6;                                                        |   109 |                   } else {
- 110 |                 if (!(ec_r2_4 = None)) {                                                       |   110 |                     ec_done <- true;
- 111 |                   c_dem_4 <- oget ec_r2_4;                                                     |   111 |                   }
- 112 |                   ec_result_4 <- Some (c_kem_4, c_dem_4);                                      |   112 |                 } else {
- 113 |                 }                                                                              |   113 |                   (* ec_r3 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k_4, m0_4); *)
- 114 |               }                                                                                |   114 |                     k_7 <- k_4;
- 115 |             ec_r2 <- ec_result_4;                                                              |   115 |                     m_7 <- m0_4;
- 116 |             if (!(ec_r2 = None)) {                                                             |   116 |                     ec_result_7 <- None;
- 117 |               invoke_result_2 <- oget ec_r2;                                                   |   117 |                     ec_result_7 <- Some (func_dem_enc k_7 m_7);
- 118 |               (c_kem, c_dem) <- invoke_result_2;                                               |   118 |                   ec_r3 <- ec_result_7;
- 119 |             } else {                                                                           |   119 |                   if (!(ec_r3 = None)) {
- 120 |               ec_done <- true;                                                                 |   120 |                     c__4 <- oget ec_r3;
- 121 |             }                                                                                  |   121 |                   } else {
- 122 |           } else {                                                                             |   122 |                     ec_done <- true;
- 123 |             ec_done <- true;                                                                   |   123 |                   }
- 124 |           }                                                                                    |   124 |                 }
- 125 |         }                                                                                      |   125 |                 if (!ec_done) {
- 126 |         if (!ec_done) {                                                                        |   126 |                   Pkg_Inst_DEM.c <- Some c__4;
- 127 |           Pkg_Inst_MON_CCA_PKE.c <- Some (c_kem, c_dem);                                       |   127 |                   ec_result_4 <- Some c__4;
- 128 |           ec_result <- Some (c_kem, c_dem);                                                    |   128 |                   ec_done <- true;
- 129 |           ec_done <- true;                                                                     |   129 |                 }
- 130 |         }                                                                                      |   130 |               } else {
- 131 |       } else {                                                                                 |   131 |                 ec_done <- true;
- 132 |         ec_done <- true;                                                                       |   132 |               }
- 133 |       }                                                                                        |   133 |             } else {
- 134 |     } else {                                                                                   |   134 |               ec_done <- true;
- 135 |       ec_done <- true;                                                                         |   135 |             }
- 136 |     }                                                                                          |   136 |           ec_r2 <- ec_result_4;
- 137 |     if (ec_result = None) {                                                                    |   137 |           if (!(ec_r2 = None)) {
- 138 |       Game_Game_MON_CCA_PKE.abort_flag <- true;                                                |   138 |             c_dem <- oget ec_r2;
- 139 |     }                                                                                          |   139 |             c_ <- (c_kem, c_dem);
- 140 |   }                                                                                            |   140 |             Pkg_Inst_MOD_CCA_PKE.c <- Some c_;
- 141 |   return ec_result;                                                                            |   141 |             ec_result <- Some c_;
- 142 | }                                                                                              |   142 |           }
-                                                                                                      |   143 |         }
-                                                                                                      |   144 |       }
-                                                                                                      |   145 |     }
-                                                                                                      |   146 |     if (ec_result = None) {
-                                                                                                      |   147 |       Game_Game_MOD_CCA_PKE.abort_flag <- true;
-                                                                                                      |   148 |     }
-                                                                                                      |   149 |   }
-                                                                                                      |   150 |   return ec_result;
-                                                                                                      |   151 | }
+  48 |     ec_done <- false;                                                                          |    48 |               (* ec_r1_1 <@ Pkg_Inst_Scheme_KEM.d_KEM_ENCAPS(oget Pkg_Inst_KEM.pk); *)
+  49 |     if (!(Pkg_Inst_MON_CCA_PKE.pk = None)) {                                                   |    49 |                 pk <- oget Pkg_Inst_KEM.pk;
+  50 |       if (Pkg_Inst_MON_CCA_PKE.c = None) {                                                     |    50 |                 ec_result_2 <- None;
+  51 |         if (Pkg_Inst_MON_CCA_PKE.b) {                                                          |    51 |                 r <$ dbits_kencr;
+  52 |           (* ec_r1 <@ Pkg_Inst_Scheme_PKE.d_ENC(oget Pkg_Inst_MON_CCA_PKE.pk, m1); *)          |    52 |                 (k_2, c) <- func_kem_encaps r pk;
+  53 |             pk <- oget Pkg_Inst_MON_CCA_PKE.pk;                                                |    53 |                 ec_result_2 <- Some (k_2, c);
+  54 |             m <- m1;                                                                           |    54 |               ec_r1_1 <- ec_result_2;
+  55 |             ec_result_1 <- None;                                                               |    55 |               if (!(ec_r1_1 = None)) {
+  56 |             (* ec_r1_1 <@ Pkg_Inst_Scheme_KEM.d_KEM_ENCAPS(pk); *)                             |    56 |                 invoke_result_1 <- oget ec_r1_1;
+  57 |               pk_2 <- pk;                                                                      |    57 |                 (k, c__1) <- invoke_result_1;
+  58 |               ec_result_2 <- None;                                                             |    58 |                 Pkg_Inst_KEM.c <- Some c__1;
+  59 |               r <$ dbits_kencr;                                                                |    59 |                 (* ec_r2_1 <@ Pkg_Inst_Key.d_SET(k); *)
+  60 |               (k_2, c) <- func_kem_encaps r pk_2;                                              |    60 |                   k_ <- k;
+  61 |               ec_result_2 <- Some (k_2, c);                                                    |    61 |                   ec_result_3 <- None;
+  62 |             ec_r1_1 <- ec_result_2;                                                            |    62 |                   if (Pkg_Inst_Key.k = None) {
+  63 |             if (!(ec_r1_1 = None)) {                                                           |    63 |                     if (Pkg_Inst_Key.b) {
+  64 |               invoke_result_1_1 <- oget ec_r1_1;                                               |    64 |                       k__ <$ dbits_dkeyl;
+  65 |               (k, c_kem_1) <- invoke_result_1_1;                                               |    65 |                       Pkg_Inst_Key.k <- Some k__;
+  66 |               (* ec_r2_1 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k, m); *)                            |    66 |                       ec_result_3 <- Some tt;
+  67 |                 k_3 <- k;                                                                      |    67 |                     } else {
+  68 |                 m_3 <- m;                                                                      |    68 |                       Pkg_Inst_Key.k <- Some k_;
+  69 |                 ec_result_3 <- None;                                                           |    69 |                       ec_result_3 <- Some tt;
+  70 |                 ec_result_3 <- Some (func_dem_enc k_3 m_3);                                    |    70 |                     }
+  71 |               ec_r2_1 <- ec_result_3;                                                          |    71 |                   }
+  72 |               if (!(ec_r2_1 = None)) {                                                         |    72 |                 ec_r2_1 <- ec_result_3;
+  73 |                 c_dem_1 <- oget ec_r2_1;                                                       |    73 |                 if (!(ec_r2_1 = None)) {
+  74 |                 ec_result_1 <- Some (c_kem_1, c_dem_1);                                        |    74 |                   ec_result_1 <- Some c__1;
+  75 |               }                                                                                |    75 |                 }
+  76 |             }                                                                                  |    76 |               }
+  77 |           ec_r1 <- ec_result_1;                                                                |    77 |             }
+  78 |           if (!(ec_r1 = None)) {                                                               |    78 |           }
+  79 |             invoke_result_1 <- oget ec_r1;                                                     |    79 |         ec_r1 <- ec_result_1;
+  80 |             (c_kem, c_dem) <- invoke_result_1;                                                 |    80 |         if (!(ec_r1 = None)) {
+  81 |           } else {                                                                             |    81 |           c_kem <- oget ec_r1;
+  82 |             ec_done <- true;                                                                   |    82 |           (* ec_r2 <@ Pkg_Inst_DEM.d_ENC(m0, m1); *)
+  83 |           }                                                                                    |    83 |             m0_4 <- m0;
+  84 |         } else {                                                                               |    84 |             m1_4 <- m1;
+  85 |           (* ec_r2 <@ Pkg_Inst_Scheme_PKE.d_ENC(oget Pkg_Inst_MON_CCA_PKE.pk, m0); *)          |    85 |             ec_result_4 <- None;
+  86 |             pk_4 <- oget Pkg_Inst_MON_CCA_PKE.pk;                                              |    86 |             ec_done <- false;
+  87 |             m_4 <- m0;                                                                         |    87 |             if (Pkg_Inst_DEM.c = None) {
+  88 |             ec_result_4 <- None;                                                               |    88 |               (* ec_r1_4 <@ Pkg_Inst_Key.d_GET(); *)
+  89 |             (* ec_r1_4 <@ Pkg_Inst_Scheme_KEM.d_KEM_ENCAPS(pk_4); *)                           |    89 |                 ec_result_5 <- None;
+  90 |               pk_5 <- pk_4;                                                                    |    90 |                 if (!(Pkg_Inst_Key.k = None)) {
+  91 |               ec_result_5 <- None;                                                             |    91 |                   ec_result_5 <- Some (oget Pkg_Inst_Key.k);
+  92 |               r_5 <$ dbits_kencr;                                                              |    92 |                 }
+  93 |               (k_5, c_5) <- func_kem_encaps r_5 pk_5;                                          |    93 |               ec_r1_4 <- ec_result_5;
+  94 |               ec_result_5 <- Some (k_5, c_5);                                                  |    94 |               if (!(ec_r1_4 = None)) {
+  95 |             ec_r1_4 <- ec_result_5;                                                            |    95 |                 k_4 <- oget ec_r1_4;
+  96 |             if (!(ec_r1_4 = None)) {                                                           |    96 |                 if (Pkg_Inst_DEM.b) {
+  97 |               invoke_result_1_4 <- oget ec_r1_4;                                               |    97 |                   (* ec_r2_4 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k_4, m1_4); *)
+  98 |               (k_4, c_kem_4) <- invoke_result_1_4;                                             |    98 |                     k_6 <- k_4;
+  99 |               (* ec_r2_4 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k_4, m_4); *)                        |    99 |                     m <- m1_4;
+ 100 |                 k_6 <- k_4;                                                                    |   100 |                     ec_result_6 <- None;
+ 101 |                 m_6 <- m_4;                                                                    |   101 |                     ec_result_6 <- Some (func_dem_enc k_6 m);
+ 102 |                 ec_result_6 <- None;                                                           |   102 |                   ec_r2_4 <- ec_result_6;
+ 103 |                 ec_result_6 <- Some (func_dem_enc k_6 m_6);                                    |   103 |                   if (!(ec_r2_4 = None)) {
+ 104 |               ec_r2_4 <- ec_result_6;                                                          |   104 |                     c__4 <- oget ec_r2_4;
+ 105 |               if (!(ec_r2_4 = None)) {                                                         |   105 |                   } else {
+ 106 |                 c_dem_4 <- oget ec_r2_4;                                                       |   106 |                     ec_done <- true;
+ 107 |                 ec_result_4 <- Some (c_kem_4, c_dem_4);                                        |   107 |                   }
+ 108 |               }                                                                                |   108 |                 } else {
+ 109 |             }                                                                                  |   109 |                   (* ec_r3 <@ Pkg_Inst_Scheme_DEM.d_DEM_ENC(k_4, m0_4); *)
+ 110 |           ec_r2 <- ec_result_4;                                                                |   110 |                     k_7 <- k_4;
+ 111 |           if (!(ec_r2 = None)) {                                                               |   111 |                     m_7 <- m0_4;
+ 112 |             invoke_result_2 <- oget ec_r2;                                                     |   112 |                     ec_result_7 <- None;
+ 113 |             (c_kem, c_dem) <- invoke_result_2;                                                 |   113 |                     ec_result_7 <- Some (func_dem_enc k_7 m_7);
+ 114 |           } else {                                                                             |   114 |                   ec_r3 <- ec_result_7;
+ 115 |             ec_done <- true;                                                                   |   115 |                   if (!(ec_r3 = None)) {
+ 116 |           }                                                                                    |   116 |                     c__4 <- oget ec_r3;
+ 117 |         }                                                                                      |   117 |                   } else {
+ 118 |         if (!ec_done) {                                                                        |   118 |                     ec_done <- true;
+ 119 |           Pkg_Inst_MON_CCA_PKE.c <- Some (c_kem, c_dem);                                       |   119 |                   }
+ 120 |           ec_result <- Some (c_kem, c_dem);                                                    |   120 |                 }
+ 121 |         }                                                                                      |   121 |                 if (!ec_done) {
+ 122 |       }                                                                                        |   122 |                   Pkg_Inst_DEM.c <- Some c__4;
+ 123 |     }                                                                                          |   123 |                   ec_result_4 <- Some c__4;
+ 124 |     if (ec_result = None) {                                                                    |   124 |                 }
+ 125 |       Game_Game_MON_CCA_PKE.abort_flag <- true;                                                |   125 |               }
+ 126 |     }                                                                                          |   126 |             }
+ 127 |   }                                                                                            |   127 |           ec_r2 <- ec_result_4;
+ 128 |   return ec_result;                                                                            |   128 |           if (!(ec_r2 = None)) {
+ 129 | }                                                                                              |   129 |             c_dem <- oget ec_r2;
+                                                                                                      |   130 |             c_ <- (c_kem, c_dem);
+                                                                                                      |   131 |             Pkg_Inst_MOD_CCA_PKE.c <- Some c_;
+                                                                                                      |   132 |             ec_result <- Some c_;
+                                                                                                      |   133 |           }
+                                                                                                      |   134 |         }
+                                                                                                      |   135 |       }
+                                                                                                      |   136 |     }
+                                                                                                      |   137 |     if (ec_result = None) {
+                                                                                                      |   138 |       Game_Game_MOD_CCA_PKE.abort_flag <- true;
+                                                                                                      |   139 |     }
+                                                                                                      |   140 |   }
+                                                                                                      |   141 |   return ec_result;
+                                                                                                      |   142 | }

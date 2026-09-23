@@ -42,10 +42,8 @@ module PRF = {
     ec_result <- None;
     if (!(d_LTK.[kid] = None)) {
       if (d_H.[kid] = Some false \/ !b) {
-        if (!(d_LTK.[kid] = None)) {
-          k <- oget d_LTK.[kid];
-          ec_result <- Some (func_prf k x);
-        }
+        k <- oget d_LTK.[kid];
+        ec_result <- Some (func_prf k x);
       } else {
         if (d_PRF.[(kid, x)] = None) {
           temp <$ dbits_n;
@@ -64,9 +62,7 @@ module PRF = {
     var ec_result : bool option;
     ec_result <- None;
     if (!(d_H.[kid] = None)) {
-      if (!(d_H.[kid] = None)) {
-        ec_result <- Some (oget d_H.[kid]);
-      }
+      ec_result <- Some (oget d_H.[kid]);
     }
     return ec_result;
   }

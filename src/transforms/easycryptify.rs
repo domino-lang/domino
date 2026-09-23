@@ -49,8 +49,9 @@ use crate::types::{Type, TypeKind};
 /// until a `return` sets it to `Some(v)`.
 pub const EC_RESULT: &str = "ec_result";
 /// The oracle-local recording that a `return` or `abort` has already
-/// happened, read only by the `if (not ec_done)` guard after a join. Dropped
-/// from an oracle that has no such guard.
+/// happened, read only by the `if (not ec_done)` guard after a join. Every
+/// write no such guard can read is pruned (story 18), so an oracle without a
+/// guard has no `ec_done` at all.
 pub const EC_DONE: &str = "ec_done";
 /// Prefix of the `ec_r<N>` temporaries binding an `invoke`'s `Maybe` result.
 pub const EC_INVOKE_PREFIX: &str = "ec_r";
@@ -255,9 +256,11 @@ fn lower_oracle(
         oracle_span,
     ));
 
-    if !contains_done_guard(&out, &lowerer.ec_done) {
-        out = drop_done(out, &lowerer.ec_done);
-    }
+    debug_assert!(
+        ec_done_is_only_read_by_done_guards(&out, &lowerer.ec_done),
+        "`ec_done` is read outside a done guard, so pruning its writes is unsound: {out:#?}"
+    );
+    out = prune_done(out, &lowerer.ec_done, false).0;
     // Story 17 §3.3: a dropped guard is only ever one that a guard for the
     // same operand already dominates *structurally*. Every `Unwrap(e)` left
     // in the body must therefore sit inside the then-branch of an
@@ -671,11 +674,30 @@ impl UnwrapGuards {
                 }
 
                 Statement::IfThenElse(ite) => {
-                    let then = self.block(&ite.then_block.0, facts.clone());
+                    // Story 18 §4: a user's `None` test proves its operand
+                    // `Some` inside the then-branch, and after the `if` when
+                    // the else-branch always terminates (the `assert` shape).
+                    let tested = some_test(&ite.cond).cloned();
+                    let mut then_facts = facts.clone();
+                    if let Some(e) = &tested {
+                        if !then_facts.contains(e) {
+                            then_facts.push(e.clone());
+                        }
+                    }
+                    let then = self.block(&ite.then_block.0, then_facts);
                     let els = self.block(&ite.else_block.0, facts.clone());
-                    let mut written = block_writes(&ite.then_block.0);
+                    let then_writes = block_writes(&ite.then_block.0);
+                    let mut written = then_writes.clone();
                     written.extend(block_writes(&ite.else_block.0));
                     kill(&mut facts, &written);
+                    if let Some(e) = tested {
+                        if term_block(&ite.else_block.0) == Term::Always
+                            && !then_writes.iter().any(|w| expr_reads(&e).contains(w))
+                            && !facts.contains(&e)
+                        {
+                            facts.push(e);
+                        }
+                    }
                     out.push(Statement::IfThenElse(IfThenElse {
                         then_block: CodeBlock(then),
                         else_block: CodeBlock(els),
@@ -1075,23 +1097,27 @@ fn rename_block(stmts: &[Statement], renames: &BTreeMap<String, Identifier>) -> 
         .collect()
 }
 
+/// `e` when `cond` is exactly `not (e == None)` (`None` second, two
+/// elements): what `assert not (e == None)`, `if (e != None)` and an unwrap
+/// guard all parse to (story 18 §4.1).
+fn some_test(cond: &Expression) -> Option<&Expression> {
+    let ExpressionKind::Not(inner) = cond.kind() else {
+        return None;
+    };
+    match inner.kind() {
+        ExpressionKind::Equals(es)
+            if es.len() == 2 && matches!(es[1].kind(), ExpressionKind::None(_)) =>
+        {
+            Some(&es[0])
+        }
+        _ => None,
+    }
+}
+
 /// The containment story 17 §3.3 asks to be asserted: every `Unwrap(e)` —
 /// in a condition, an assignment, an argument or a table index — lies inside
 /// the then-branch of an `if (not (e == None))`.
 fn every_unwrap_is_guarded(stmts: &[Statement]) -> bool {
-    fn guarded_operand(cond: &Expression) -> Option<&Expression> {
-        let ExpressionKind::Not(inner) = cond.kind() else {
-            return None;
-        };
-        match inner.kind() {
-            ExpressionKind::Equals(es)
-                if es.len() == 2 && matches!(es[1].kind(), ExpressionKind::None(_)) =>
-            {
-                Some(&es[0])
-            }
-            _ => None,
-        }
-    }
     fn expr_ok(e: &Expression, guards: &[&Expression]) -> bool {
         let here = match e.kind() {
             ExpressionKind::Unwrap(inner) => guards.contains(&&**inner),
@@ -1104,7 +1130,7 @@ fn every_unwrap_is_guarded(stmts: &[Statement]) -> bool {
             own_exprs(stmt).iter().all(|e| expr_ok(e, guards))
                 && match stmt {
                     Statement::IfThenElse(ite) => {
-                        let guard = guarded_operand(&ite.cond);
+                        let guard = some_test(&ite.cond);
                         guards.extend(guard);
                         let then_ok = walk(&ite.then_block.0, guards);
                         if guard.is_some() {
@@ -1121,7 +1147,7 @@ fn every_unwrap_is_guarded(stmts: &[Statement]) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Dropping an unused `ec_done` (§3.4)
+// Pruning dead `ec_done` writes (story 18 §3)
 // ---------------------------------------------------------------------------
 
 fn is_done_guard(cond: &Expression, ec_done: &Identifier) -> bool {
@@ -1132,60 +1158,96 @@ fn is_done_guard(cond: &Expression, ec_done: &Identifier) -> bool {
     )
 }
 
-fn contains_done_guard(stmts: &[Statement], ec_done: &Identifier) -> bool {
-    stmts.iter().any(|stmt| match stmt {
-        Statement::IfThenElse(ite) => {
-            is_done_guard(&ite.cond, ec_done)
-                || contains_done_guard(&ite.then_block.0, ec_done)
-                || contains_done_guard(&ite.else_block.0, ec_done)
-        }
-        _ => false,
+/// The only reader of `ec_done` is a done guard's condition; `prune_done`
+/// relies on it.
+fn ec_done_is_only_read_by_done_guards(stmts: &[Statement], ec_done: &Identifier) -> bool {
+    stmts.iter().all(|stmt| {
+        let reads_ok = match stmt {
+            Statement::IfThenElse(ite) if is_done_guard(&ite.cond, ec_done) => true,
+            _ => own_exprs(stmt)
+                .iter()
+                .all(|e| !expr_reads(e).contains(&ec_done.ident())),
+        };
+        reads_ok
+            && match stmt {
+                Statement::IfThenElse(ite) => {
+                    ec_done_is_only_read_by_done_guards(&ite.then_block.0, ec_done)
+                        && ec_done_is_only_read_by_done_guards(&ite.else_block.0, ec_done)
+                }
+                Statement::For(_, _, _, body, _) => {
+                    ec_done_is_only_read_by_done_guards(&body.0, ec_done)
+                }
+                _ => true,
+            }
     })
 }
 
-/// Deletes every `ec_done <- …`. An `if` whose *then* branch held nothing but
-/// such an assignment (`if c { abort } else { … }` in the source) would be
-/// left with an empty *then* branch; it is flipped to `if (not c) { … }` so
-/// the writer never emits an empty branch. An `if` that already had an empty
-/// branch in the source is left as the source had it.
-fn drop_done(stmts: Vec<Statement>, ec_done: &Identifier) -> Vec<Statement> {
-    stmts
-        .into_iter()
-        .filter(|stmt| {
-            !matches!(
-                stmt,
-                Statement::Assignment(Assignment { pattern: Pattern::Ident(id), .. }, _) if id == ec_done
-            )
-        })
-        .map(|stmt| match stmt {
-            Statement::IfThenElse(ite) => {
-                let then_was_empty = ite.then_block.0.is_empty();
-                let then = drop_done(ite.then_block.0, ec_done);
-                let els = drop_done(ite.else_block.0, ec_done);
-                if then.is_empty() && !then_was_empty && !els.is_empty() {
-                    let cond = match ite.cond.into_kind() {
-                        ExpressionKind::Not(inner) => *inner,
-                        other => not(Expression::from_kind(other)),
-                    };
-                    Statement::IfThenElse(IfThenElse {
-                        cond,
-                        then_block: CodeBlock(els),
-                        else_block: CodeBlock(vec![]),
-                        then_span: ite.else_span,
-                        else_span: ite.then_span,
-                        full_span: ite.full_span,
-                    })
-                } else {
-                    Statement::IfThenElse(IfThenElse {
-                        then_block: CodeBlock(then),
-                        else_block: CodeBlock(els),
-                        ..ite
-                    })
+/// Backwards liveness of `ec_done` over a loop-free body. Deletes every
+/// `ec_done <- …` that no later done guard can read, and flips every `if`
+/// left with an empty then-branch and a non-empty else-branch to
+/// `if (not c) { else }` so the writer never prints an empty then-branch
+/// (§3.2). Returns the pruned statements and whether the flag is live before
+/// them, given whether it is live after.
+fn prune_done(
+    stmts: Vec<Statement>,
+    ec_done: &Identifier,
+    live_after: bool,
+) -> (Vec<Statement>, bool) {
+    let mut live = live_after;
+    let mut kept = Vec::with_capacity(stmts.len());
+    for stmt in stmts.into_iter().rev() {
+        match stmt {
+            Statement::Assignment(Assignment { pattern: Pattern::Ident(ref id), .. }, _)
+                if id == ec_done =>
+            {
+                if live {
+                    kept.push(stmt);
                 }
+                live = false;
             }
-            other => other,
-        })
-        .collect()
+            Statement::IfThenElse(ite) if is_done_guard(&ite.cond, ec_done) => {
+                let (then, _) = prune_done(ite.then_block.0, ec_done, live);
+                live = true;
+                kept.push(flip_if_then_empty(IfThenElse {
+                    then_block: CodeBlock(then),
+                    ..ite
+                }));
+            }
+            Statement::IfThenElse(ite) => {
+                let (then, live_then) = prune_done(ite.then_block.0, ec_done, live);
+                let (els, live_else) = prune_done(ite.else_block.0, ec_done, live);
+                live = live_then || live_else;
+                kept.push(flip_if_then_empty(IfThenElse {
+                    then_block: CodeBlock(then),
+                    else_block: CodeBlock(els),
+                    ..ite
+                }));
+            }
+            other => kept.push(other),
+        }
+    }
+    kept.reverse();
+    (kept, live)
+}
+
+/// §3.2: an empty then with a non-empty else becomes `if (not c) { else }`,
+/// with `not (not c')` collapsed to `c'`.
+fn flip_if_then_empty(ite: IfThenElse) -> Statement {
+    if !ite.then_block.0.is_empty() || ite.else_block.0.is_empty() {
+        return Statement::IfThenElse(ite);
+    }
+    let cond = match ite.cond.into_kind() {
+        ExpressionKind::Not(inner) => *inner,
+        other => not(Expression::from_kind(other)),
+    };
+    Statement::IfThenElse(IfThenElse {
+        cond,
+        then_block: ite.else_block,
+        else_block: CodeBlock(vec![]),
+        then_span: ite.else_span,
+        else_span: ite.then_span,
+        full_span: ite.full_span,
+    })
 }
 
 #[cfg(test)]
@@ -1548,7 +1610,6 @@ if c {
 if not ec_done {
   y <- 3
   ec_result <- Some(4)
-  ec_done <- true
 }
 return ec_result
 "
@@ -1739,7 +1800,6 @@ if c1 {
 if not ec_done {
   tail <- 9
   ec_result <- Some(4)
-  ec_done <- true
 }
 return ec_result
 "
@@ -1760,9 +1820,17 @@ return ec_result
         let out = lower_int_oracle(input);
 
         // statement for statement: `ec_result <- None`, the body, then the
-        // lowered `return` and the single exit.
+        // lowered `return` and the single exit. The one difference is story
+        // 18 §3.2: `if d {} else { … }` is flipped so no then is empty.
+        let mut expected = body.clone();
+        expected[2] = if_then_else(
+            not(bool_var("d")),
+            vec![set("x", 2)],
+            vec![],
+            span(),
+        );
         assert_eq!(out.0.len(), body.len() + 3);
-        assert_eq!(&out.0[1..=body.len()], body.as_slice());
+        assert_eq!(&out.0[1..=body.len()], expected.as_slice());
         assert_single_exit(&out);
     }
 
@@ -1816,6 +1884,224 @@ return ec_result
             err,
             EasyCryptifyError::UnsupportedLoop(UnsupportedLoopError { span: loop_span })
         );
+    }
+
+    // --- story 18 part A: dead `ec_done` writes -----------------------------
+
+    #[test]
+    fn a_join_keeps_the_inner_abort_write_and_drops_the_outer_ones() {
+        let out = lower_int_oracle(vec![
+            ite("c", vec![assert_("a"), set("x", 1)], vec![set("x", 2)]),
+            set("y", 3),
+            ret(4),
+        ]);
+        assert_single_exit(&out);
+        assert_eq!(
+            show(&out),
+            "\
+ec_result <- None
+ec_done <- false
+if c {
+  if a {
+    x <- 1
+  } else {
+    ec_done <- true
+  }
+} else {
+  x <- 2
+}
+if not ec_done {
+  y <- 3
+  ec_result <- Some(4)
+}
+return ec_result
+"
+        );
+    }
+
+    #[test]
+    fn a_write_inside_a_branch_that_a_later_guard_reads_is_kept() {
+        // The write sits two levels down, its guard after the outer `if`.
+        let out = lower_int_oracle(vec![
+            ite(
+                "c",
+                vec![ite("d", vec![assert_("a"), set("x", 1)], vec![set("x", 2)])],
+                vec![],
+            ),
+            ret(4),
+        ]);
+        assert_single_exit(&out);
+        let text = show(&out);
+        assert_eq!(text.matches("ec_done <- true").count(), 1, "{text}");
+        assert!(text.contains("if not ec_done"), "{text}");
+    }
+
+    #[test]
+    fn both_branches_emptied_keeps_the_if() {
+        let out = lower_int_oracle(vec![ite("c", vec![abort()], vec![abort()])]);
+        assert_single_exit(&out);
+        assert_eq!(
+            show(&out),
+            "\
+ec_result <- None
+if c {
+}
+return ec_result
+"
+        );
+    }
+
+    #[test]
+    fn an_assert_ending_its_block_inside_a_join_is_flipped() {
+        // §1.3: the assert's then-branch is empty before any pruning.
+        let out = lower_int_oracle(vec![
+            ite("b", vec![assert_("a")], vec![]),
+            set("y", 3),
+            ret(4),
+        ]);
+        assert_single_exit(&out);
+        assert!(!has_empty_then(&out.0), "{}", show(&out));
+        assert_eq!(
+            show(&out),
+            "\
+ec_result <- None
+ec_done <- false
+if b {
+  if not a {
+    ec_done <- true
+  }
+}
+if not ec_done {
+  y <- 3
+  ec_result <- Some(4)
+}
+return ec_result
+"
+        );
+    }
+
+    #[test]
+    fn a_flipped_negation_becomes_the_bare_condition() {
+        let out = lower_int_oracle(vec![
+            ite_e(not(bool_var("c")), vec![abort()], vec![]),
+            ret(4),
+        ]);
+        assert_eq!(
+            show(&out),
+            "\
+ec_result <- None
+if c {
+  ec_result <- Some(4)
+}
+return ec_result
+"
+        );
+    }
+
+    // --- story 18 part B: a user's `None` test is a fact --------------------
+
+    fn maybe_var(name: &str) -> Identifier {
+        var(name, Type::maybe(Type::integer()))
+    }
+
+    /// `assert not (e == None)`, as the parser desugars it.
+    fn assert_some_e(e: Expression) -> Statement {
+        ite_e(not(is_none(e)), vec![], vec![abort()])
+    }
+
+    #[test]
+    fn an_assert_covers_the_unwrap_after_it() {
+        let out = lower_int_oracle(vec![
+            assert_some_e(maybe_int("x")),
+            unwrap("y", "x"),
+            ret(1),
+        ]);
+        assert_eq!(
+            show(&out),
+            "\
+ec_result <- None
+if not (x == None) {
+  y <- Unwrap(x)
+  ec_result <- Some(1)
+}
+return ec_result
+"
+        );
+    }
+
+    #[test]
+    fn a_write_between_the_assert_and_the_unwrap_keeps_both_guards() {
+        let reassign = assign(
+            Pattern::Ident(maybe_var("x")),
+            Expression::from_kind(ExpressionKind::None(Type::integer())),
+            span(),
+        );
+        let out = lower_int_oracle(vec![
+            assert_some_e(maybe_int("x")),
+            reassign,
+            unwrap("y", "x"),
+            ret(1),
+        ]);
+        let text = show(&out);
+        assert_eq!(text.matches("if not (x == None)").count(), 2, "{text}");
+    }
+
+    #[test]
+    fn a_none_test_covers_unwraps_in_its_then_branch() {
+        let out = lower_int_oracle(vec![
+            ite_e(not(is_none(maybe_int("x"))), vec![unwrap("y", "x")], vec![]),
+            ret(1),
+        ]);
+        assert_eq!(
+            show(&out),
+            "\
+ec_result <- None
+if not (x == None) {
+  y <- Unwrap(x)
+}
+ec_result <- Some(1)
+return ec_result
+"
+        );
+    }
+
+    #[test]
+    fn a_none_test_does_not_cover_its_else_branch_or_a_non_terminating_join() {
+        let else_unwrap = lower_int_oracle(vec![
+            ite_e(
+                not(is_none(maybe_int("x"))),
+                vec![set("a", 1)],
+                vec![unwrap("y", "x")],
+            ),
+            ret(1),
+        ]);
+        let text = show(&else_unwrap);
+        assert_eq!(text.matches("if not (x == None)").count(), 2, "{text}");
+
+        let join_unwrap = lower_int_oracle(vec![
+            ite_e(
+                not(is_none(maybe_int("x"))),
+                vec![set("a", 1)],
+                vec![set("b", 1)],
+            ),
+            unwrap("y", "x"),
+            ret(1),
+        ]);
+        let text = show(&join_unwrap);
+        assert_eq!(text.matches("if not (x == None)").count(), 2, "{text}");
+    }
+
+    #[test]
+    fn a_table_write_invalidates_an_asserted_table_operand() {
+        let out = lower_int_oracle(vec![
+            assert_some_e(get("T", int("k"))),
+            put("T", int("j"), int("v")),
+            bind(1, get("T", int("k"))),
+            let_("y", tmp(1)),
+            ret(1),
+        ]);
+        let text = show(&out);
+        assert_eq!(text.matches("if not (T[k] == None)").count(), 2, "{text}");
     }
 
     // --- story 17: unwrap temporaries and their guards ---------------------
@@ -2066,9 +2352,6 @@ if not ec_done {
   if not (m == None) {
     z <- Unwrap(m)
     ec_result <- Some(1)
-    ec_done <- true
-  } else {
-    ec_done <- true
   }
 }
 return ec_result
@@ -2528,53 +2811,26 @@ return ec_result
     /// Story 17 §4 over every example, both 4WHS theorems included:
     ///
     /// - no path through an exported oracle tests the same `e == None` twice.
-    ///   The one allowed repeat is a guard directly repeating the user's own
-    ///   `assert not (e == None)` (story 16 §1.2's `State[ctr]`). Removing
-    ///   that is redundant-*condition* elimination, which §6 defers;
+    ///   That includes a guard repeating the user's own `assert not (e ==
+    ///   None)` (story 18 §4). A `None` test buried in a conjunction is not
+    ///   recognised as a guard, so `AtLeast`'s duplicate stays;
     /// - no `unwrap-N` temporary survives, because in every project each use
     ///   follows its binding directly and every operand is small;
     /// - and every `Unwrap` sits inside a guard for its operand (the
     ///   `debug_assert` in `lower_oracle`, checked here in release builds
-    ///   too).
+    ///   too);
+    /// - and (story 18 §3) pruning again changes nothing: every remaining
+    ///   `ec_done` write is live and no `if` has an empty then-branch next to
+    ///   a non-empty else-branch.
     #[test]
     fn no_example_repeats_an_unwrap_guard_on_one_path_or_keeps_a_temporary() {
         use crate::project::{DirectoryFiles, DirectoryProject, Project as _};
-        use crate::transforms::theorem_transforms::{DebugTransform, EasyCryptTransform};
+        use crate::transforms::theorem_transforms::EasyCryptTransform;
         use crate::transforms::TheoremTransform as _;
-
-        /// `e` for a condition `not (e == None)`.
-        fn guarded(cond: &Expression) -> Option<&Expression> {
-            let ExpressionKind::Not(inner) = cond.kind() else {
-                return None;
-            };
-            match inner.kind() {
-                ExpressionKind::Equals(es)
-                    if es.len() == 2 && matches!(es[1].kind(), ExpressionKind::None(_)) =>
-                {
-                    Some(&es[0])
-                }
-                _ => None,
-            }
-        }
-
-        /// Operands of the source's `assert not (e == None)`s, read off the
-        /// un-lowered (`DebugTransform`) body.
-        fn asserted(stmts: &[Statement], out: &mut Vec<Expression>) {
-            for s in stmts {
-                if let Statement::IfThenElse(ite) = s {
-                    if matches!(ite.else_block.0.as_slice(), [Statement::Abort(_)]) {
-                        out.extend(guarded(&ite.cond).cloned());
-                    }
-                    asserted(&ite.then_block.0, out);
-                    asserted(&ite.else_block.0, out);
-                }
-            }
-        }
 
         fn walk<'a>(
             stmts: &'a [Statement],
             path: &mut Vec<&'a Expression>,
-            asserted: &[Expression],
             where_: &str,
         ) {
             for s in stmts {
@@ -2589,23 +2845,24 @@ return ec_result
                 let Statement::IfThenElse(ite) = s else {
                     continue;
                 };
-                let guard = guarded(&ite.cond);
+                let guard = some_test(&ite.cond);
                 if let Some(e) = guard {
                     let seen = path.iter().filter(|p| **p == e).count();
-                    let allowed = usize::from(asserted.contains(e));
+                    // Story 18 §4: the user's own `assert not (e == None)`
+                    // counts too, so no repeat is allowed at all.
                     assert!(
-                        seen <= allowed,
+                        seen == 0,
                         "{where_}: `{} == None` is tested {} times on one path",
                         show_expr(e),
                         seen + 1
                     );
                     path.push(e);
                 }
-                walk(&ite.then_block.0, path, asserted, where_);
+                walk(&ite.then_block.0, path, where_);
                 if guard.is_some() {
                     path.pop();
                 }
-                walk(&ite.else_block.0, path, asserted, where_);
+                walk(&ite.else_block.0, path, where_);
             }
         }
 
@@ -2625,17 +2882,19 @@ return ec_result
             for name in *theorems {
                 let theorem = project.get_theorem(name).unwrap();
                 let (exported, _) = EasyCryptTransform.transform_theorem(theorem).unwrap();
-                let (source, _) = DebugTransform.transform_theorem(theorem).unwrap();
-                for (gi, src_gi) in exported.instances.iter().zip(&source.instances) {
-                    for (inst, src_inst) in gi.game().pkgs.iter().zip(&src_gi.game().pkgs) {
-                        for (oracle, src_oracle) in
-                            inst.pkg.oracles.iter().zip(&src_inst.pkg.oracles)
-                        {
+                for gi in &exported.instances {
+                    for inst in &gi.game().pkgs {
+                        for oracle in &inst.pkg.oracles {
                             let where_ = format!("{name} {}::{}", inst.pkg.name, oracle.sig.name);
-                            let mut asserts = Vec::new();
-                            asserted(&src_oracle.code.0, &mut asserts);
-                            walk(&oracle.code.0, &mut Vec::new(), &asserts, &where_);
+                            walk(&oracle.code.0, &mut Vec::new(), &where_);
                             assert!(every_unwrap_is_guarded(&oracle.code.0), "{where_}");
+                            // Story 18 §3: every remaining `ec_done` write is
+                            // live and no `if` has an empty then next to a
+                            // non-empty else, i.e. pruning again is a no-op.
+                            let ec_done =
+                                Identifier::Generated(EC_DONE.to_string(), Type::boolean());
+                            let (again, _) = prune_done(oracle.code.0.clone(), &ec_done, false);
+                            assert_eq!(again, oracle.code.0, "{where_}: not fully pruned");
                             guards_checked += 1;
                         }
                     }

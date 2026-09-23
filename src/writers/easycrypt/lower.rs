@@ -36,9 +36,13 @@
 //!   valueless return). In an inlined callee it is the whole `Some e`, which
 //!   is what the caller's `ec_r<N> : T option` receives.
 //! - `ec_done <- true` on its own is an [`InlStmt::Abort`]: it is exactly
-//!   where the Domino oracle aborted. After an `ec_result <- Some e` it is
-//!   unreachable in the IR (the `Return` already ended the frame) and is
-//!   left unlabelled, as is `ec_done <- false` and `ec_result <- None`.
+//!   where the Domino oracle aborted, but only where it survives.
+//!   `easycryptify` deletes every write no `if (!ec_done)` guard can read
+//!   (story 18); a path that aborted there runs to the end of its frame and
+//!   aborts at the fall-through abort below instead. After an
+//!   `ec_result <- Some e` it is unreachable in the IR (the `Return` already
+//!   ended the frame) and is left unlabelled, as is `ec_done <- false` and
+//!   `ec_result <- None`.
 //! - an `if (!ec_done) { … }` guard is structural: every path that set
 //!   `ec_done` has already ended in a `Return` or `Abort`, so on every path
 //!   that reaches the guard it holds. Its body is spliced into the enclosing
