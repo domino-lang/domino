@@ -1,0 +1,14 @@
+theorem A {
+  instance a = A {}
+  instance b = A {}
+
+  gamehops {
+    equivalence a b {
+      invariant: ./theorem/invariant.smt2
+
+      O: {
+        randomness: none
+      }
+    }
+  }
+}

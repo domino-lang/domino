@@ -85,7 +85,7 @@ impl Display for TupleDeclaration {
         let n = *n;
 
         if n == 0 {
-            return writeln!(f, "(declare-datatypes ((Tuple0 0)) ((mk-tuple0))))");
+            return writeln!(f, "(declare-datatype Tuple0 ((mk-tuple0)) )");
         }
 
         let types: String = (1..n + 1)
@@ -110,7 +110,7 @@ impl From<TupleDeclaration> for Vec<SmtExpr> {
         let TupleDeclaration(n) = val;
 
         if n == 0 {
-            return vec![("declare-datatypes", (("Tuple0", n),), (("mk-typle0",),)).into()];
+            return vec![("declare-datatype", "Tuple0", (("mk-tuple0",),)).into()];
         }
 
         let types: Vec<SmtExpr> = (1..n + 1)
