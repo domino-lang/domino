@@ -432,10 +432,10 @@ fn kem_dem_pkenc_path_counts() {
     // `ec_done <- true`, or falling through to the router's abort) that is
     // only reachable if the callee returned `None` without aborting — which
     // the inlined callee body rules out. Structurally present, infeasible.
-    // Story 18 deleted dead `ec_done <- true` writes. An else side that used
-    // to end in its own abort leaf now falls through to the frame's shared
-    // exit, so some of the infeasible surplus above (12 and 31 before) is
-    // merged away. The Domino counts, and every feasible path, are unchanged.
+    // Story 18 part B removed the `pk = None` guard that repeated the user's
+    // own `assert`, so each inlined copy has one fewer infeasible branch
+    // (12 and 31 before). Part A alone leaves these counts as they were. The
+    // Domino counts, and every feasible path, are unchanged.
     assert_eq!(counts["Game_MON_CCA_PKE"], (10, 6));
     assert_eq!(counts["Game_MOD_CCA_PKE_Real_KEM"], (28, 16));
 }

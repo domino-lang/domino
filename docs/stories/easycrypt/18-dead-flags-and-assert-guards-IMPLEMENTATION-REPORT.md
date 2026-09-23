@@ -36,9 +36,10 @@ theorems. `AtLeast` keeps its three `ec_done <- true` arms.
 - `executor_walks_every_structural_path`: `Game_MON_CCA_PKE` now also reaches the router abort
   (its outer `else { ec_done <- true }` arms were dead and pruned). Comment updated.
 - `kem_dem_pkenc_path_counts`: **not unchanged, contrary to §3.5/§5.** The EasyCrypt counts went from
-  `(12, 6)` and `(31, 16)` to `(10, 6)` and `(28, 16)`. The Domino counts are unchanged. An else side
-  that used to end in its own abort leaf now falls through to the frame's shared exit, which merges
-  some of the infeasible surplus that test already documents. `executor_walks_every_structural_path`
+  `(12, 6)` and `(31, 16)` to `(10, 6)` and `(28, 16)`. The Domino counts are unchanged. **This comes
+  from Part B, not Part A**: with pruning disabled the counts are identical. Dropping the guard that
+  repeated the user's `assert` removes an infeasible branch from each inlined copy. Part A leaves the
+  branch structure alone, as the spec says. `executor_walks_every_structural_path`
   still checks that executed paths equal `count_terminals`. **The owner should confirm this.**
 - `every_ec_done_true_that_is_not_after_a_return_is_an_abort` passes unchanged.
 
