@@ -1,0 +1,6 @@
+package A {
+  oracle O (y: ()) -> () {
+    x <- ();
+    return x;
+  }
+}
