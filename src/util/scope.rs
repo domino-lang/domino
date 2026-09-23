@@ -7,31 +7,22 @@ use crate::package::OracleSig;
 use miette::Diagnostic;
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum OracleContext {
-    Package {
-        pkg_name: String,
-    },
-
-    PackageInstance {
-        pkg_name: String,
-        pkg_inst_name: String,
-        game_name: String,
-    },
-}
-
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Declaration {
     Identifier(Identifier),
-    Oracle(OracleContext, OracleSig),
+    Oracle(OracleSig),
+    PackageInstance,
+    GameInstance,
 }
 
 impl Declaration {
     pub fn into_identifier(self) -> Result<Identifier, Self> {
         match self {
             Declaration::Identifier(ident) => Ok(ident),
-            Declaration::Oracle(_, _) => Err(self),
+            Declaration::Oracle(_) | Declaration::PackageInstance | Declaration::GameInstance => {
+                Err(self)
+            }
         }
     }
 }
@@ -130,7 +121,9 @@ impl Scope {
     pub fn lookup_identifier(&self, id: &str) -> Option<Identifier> {
         self.lookup(id).and_then(|decl| match decl {
             Declaration::Identifier(identifier) => Some(identifier),
-            Declaration::Oracle(_, _) => None,
+            Declaration::Oracle(_) | Declaration::PackageInstance | Declaration::GameInstance => {
+                None
+            }
         })
     }
 }

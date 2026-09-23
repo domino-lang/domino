@@ -4,7 +4,7 @@ composition ConstructionReal {
     const prf: fn Bits(n), Bits(n) -> Bits(n);
     const enc: fn Bits(n), Bits(n), Bits(n) -> Bits(m);
     
-    instance prf = PRF {
+    instance Prf = PRF {
         params {
             n:   n,
             prf: prf,
@@ -17,7 +17,7 @@ composition ConstructionReal {
         }
     }
     
-    instance enc = Enc {
+    instance Enc = Enc {
         params {
             n:   n,
             m:   m,
@@ -27,13 +27,13 @@ composition ConstructionReal {
     
     compose {
         adversary: {
-            Eval: prf,
-            Enc:  enc,
+            Eval: Prf,
+            Enc:  Enc,
         },
-        prf: {
+        Prf: {
             Set: key,
         },
-        enc: {
+        Enc: {
             Get: key,
         }
     }

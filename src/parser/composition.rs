@@ -670,6 +670,9 @@ pub(crate) fn handle_instance_decl<'a>(
             pkg_name: pkg_name.to_string(),
         }))?;
 
+    ctx.declare(pkg_inst_name, Declaration::PackageInstance)
+        .unwrap();
+
     let instance_assign_ast = inner.next().unwrap();
     let (mut param_list, type_list) =
         handle_instance_assign_list(ctx, instance_assign_ast, pkg_inst_name, pkg)?;
