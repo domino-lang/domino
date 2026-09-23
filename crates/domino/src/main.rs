@@ -258,12 +258,12 @@ fn inline(i: &Inline) -> Result<(), Error> {
         .get_theorem(&i.proof)
         .ok_or_else(|| TheoremNotFound(i.proof.clone()))?;
 
-    let listing = sspverif::debug::render::render_side_by_side(
-        theorem,
-        i.proofstep,
-        &i.oracle,
-        !i.no_line_numbers,
-    )?;
+    let render = if i.easycrypt {
+        sspverif::debug::render::render_side_by_side_easycrypt
+    } else {
+        sspverif::debug::render::render_side_by_side
+    };
+    let listing = render(theorem, i.proofstep, &i.oracle, !i.no_line_numbers)?;
     print!("{listing}");
     Ok(())
 }

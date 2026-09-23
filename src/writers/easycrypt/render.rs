@@ -230,25 +230,12 @@ fn render_module(m: &EcModule) -> String {
 }
 
 fn render_proc(p: &EcProc, level: usize) -> String {
-    let pad = indent(level);
-    let inner_pad = indent(level + 1);
-
-    let mut out = format!(
-        "{pad}proc {}({}) : {} = {{\n",
-        p.name,
-        render_typed_args(&p.args),
-        render_type(&p.ret)
-    );
+    let mut out = render_proc_open(&p.name, &p.args, &p.ret, level);
+    out.push('\n');
 
     for (name, ty, init) in &p.locals {
-        match init {
-            Some(e) => out.push_str(&format!(
-                "{inner_pad}var {name} : {} <- {};\n",
-                render_type(ty),
-                render_expr(e)
-            )),
-            None => out.push_str(&format!("{inner_pad}var {name} : {};\n", render_type(ty))),
-        }
+        out.push_str(&render_local_decl(name, ty, init.as_ref(), level + 1));
+        out.push('\n');
     }
 
     for stmt in &p.body.0 {
@@ -257,14 +244,56 @@ fn render_proc(p: &EcProc, level: usize) -> String {
     }
 
     if let Some(ret) = &p.ret_expr {
-        out.push_str(&format!(
-            "{inner_pad}return {};\n",
-            render_expr(ret)
-        ));
+        out.push_str(&render_return(ret, level + 1));
+        out.push('\n');
     }
 
-    out.push_str(&format!("{pad}}}"));
+    out.push_str(&render_block_close(level));
     out
+}
+
+// The one-line pieces below are what a multi-line form (a `proc`, an `if`)
+// is assembled from. They are public for the debugger listing (story 08,
+// `super::lower`), which lays EasyCrypt out one row per line so that every
+// row can carry its own label — it must never `format!` EasyCrypt itself.
+
+/// `proc name(a : t, …) : ret = {`
+pub fn render_proc_open(name: &str, args: &[(String, EcType)], ret: &EcType, level: usize) -> String {
+    format!(
+        "{}proc {name}({}) : {} = {{",
+        indent(level),
+        render_typed_args(args),
+        render_type(ret)
+    )
+}
+
+/// `var x : t;` or `var x : t <- e;`
+pub fn render_local_decl(name: &str, ty: &EcType, init: Option<&EcExpr>, level: usize) -> String {
+    let pad = indent(level);
+    match init {
+        Some(e) => format!("{pad}var {name} : {} <- {};", render_type(ty), render_expr(e)),
+        None => format!("{pad}var {name} : {};", render_type(ty)),
+    }
+}
+
+/// `return e;`
+pub fn render_return(e: &EcExpr, level: usize) -> String {
+    format!("{}return {};", indent(level), render_expr(e))
+}
+
+/// `if (cond) {`
+pub fn render_if_open(cond: &EcExpr, level: usize) -> String {
+    format!("{}if ({}) {{", indent(level), render_expr(cond))
+}
+
+/// `} else {`
+pub fn render_else_open(level: usize) -> String {
+    format!("{}}} else {{", indent(level))
+}
+
+/// `}` — closes a proc or a branch.
+pub fn render_block_close(level: usize) -> String {
+    format!("{}}}", indent(level))
 }
 
 /// Render one statement at `level` levels of two-space indent. A conditional
@@ -303,14 +332,17 @@ pub fn render_stmt(stmt: &EcStmt, level: usize) -> String {
             then_block,
             else_block,
         } => {
-            let mut out = format!("{pad}if ({}) {{\n", render_expr(cond));
+            let mut out = render_if_open(cond, level);
+            out.push('\n');
             out.push_str(&render_block_lines(then_block, level + 1));
-            out.push_str(&format!("\n{pad}}}"));
+            out.push('\n');
             if let Some(else_b) = else_block {
-                out.push_str(" else {\n");
+                out.push_str(&render_else_open(level));
+                out.push('\n');
                 out.push_str(&render_block_lines(else_b, level + 1));
-                out.push_str(&format!("\n{pad}}}"));
+                out.push('\n');
             }
+            out.push_str(&render_block_close(level));
             out
         }
     }

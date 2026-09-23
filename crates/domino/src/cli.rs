@@ -91,6 +91,10 @@ pub(crate) struct Inline {
     /// Print without line numbers (useful for diffing two runs).
     #[clap(long)]
     pub(crate) no_line_numbers: bool,
+    /// Show the generated EasyCrypt code (as `domino easycrypt` exports it)
+    /// instead of the Domino code, on both sides.
+    #[clap(long)]
+    pub(crate) easycrypt: bool,
 }
 
 #[derive(clap::Args, Debug)]

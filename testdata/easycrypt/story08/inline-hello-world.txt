@@ -1,0 +1,29 @@
+theorem Proof, proofstep 0 (medium_composition == small_composition), oracle UsefulOracle (EasyCrypt)
+(left and right line numbers are independent — they index different columns)
+
+   1 | (* game instance: medium_composition   (package instance: fwd, package: Fwd) *)  |     1 | (* game instance: small_composition   (package instance: rand, package: Rand) *)
+   2 | proc d_UsefulOracle() : (int * bits_n) option = {                                |     2 | proc d_UsefulOracle() : (int * bits_n) option = {
+   3 |   var ec_result : (int * bits_n) option <- None;                                 |     3 |   var ec_result : (int * bits_n) option <- None;
+   4 |   var ec_r1 : (int * bits_n) option;                                             |     4 |   var rand : bits_n;
+   5 |   var y : (int * bits_n);                                                        |     5 |   if (!Game_SmallComposition.abort_flag) {
+   6 |   var ec_result_1 : (int * bits_n) option;                                       |     6 |     (* ec_result <@ Pkg_Inst_Rand.d_UsefulOracle(); *)
+   7 |   var rand : bits_n;                                                             |     7 |     ec_result <- None;
+   8 |   if (!Game_MediumComposition.abort_flag) {                                      |     8 |     Pkg_Inst_Rand.ctr <- Pkg_Inst_Rand.ctr + 1;
+   9 |     (* ec_result <@ Pkg_Inst_Fwd.d_UsefulOracle(); *)                            |     9 |     rand <$ dbits_n;
+  10 |     ec_result <- None;                                                           |    10 |     ec_result <- Some (Pkg_Inst_Rand.ctr, rand);
+  11 |     (* ec_r1 <@ Pkg_Inst_Rand.d_UsefulOracle(); *)                               |    11 |     if (ec_result = None) {
+  12 |       ec_result_1 <- None;                                                       |    12 |       Game_SmallComposition.abort_flag <- true;
+  13 |       Pkg_Inst_Rand.ctr <- Pkg_Inst_Rand.ctr + 1;                                |    13 |     }
+  14 |       rand <$ dbits_n;                                                           |    14 |   }
+  15 |       ec_result_1 <- Some (Pkg_Inst_Rand.ctr, rand);                             |    15 |   return ec_result;
+  16 |     ec_r1 <- ec_result_1;                                                        |    16 | }
+  17 |     if (!(ec_r1 = None)) {                                                       |  
+  18 |       y <- oget ec_r1;                                                           |  
+  19 |       ec_result <- Some y;                                                       |  
+  20 |     }                                                                            |  
+  21 |     if (ec_result = None) {                                                      |  
+  22 |       Game_MediumComposition.abort_flag <- true;                                 |  
+  23 |     }                                                                            |  
+  24 |   }                                                                              |  
+  25 |   return ec_result;                                                              |  
+  26 | }                                                                                |  

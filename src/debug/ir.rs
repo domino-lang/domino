@@ -133,6 +133,9 @@ pub enum InlStmt {
         body: InlBlock,
         /// `{`, the `param <- arg;` bindings and the closing `}` of the
         /// inlined frame: `(first, last)` — `first` is the `{`, `last` the `}`.
+        /// An EasyCrypt listing (`crate::writers::easycrypt::lower`) has no
+        /// braces there: `first` is the call line itself and `last` the
+        /// `ec_r<N> <- ec_result;` line that binds the callee's result.
         frame_lines: (Label, Label),
         /// The argument-binding rows, `(first, last)`; `None` for a 0-arg
         /// oracle.
@@ -215,7 +218,7 @@ pub struct SiteInfo {
     pub depth: usize,
 }
 
-#[derive(Debug, thiserror::Error, miette::Diagnostic)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, miette::Diagnostic)]
 pub enum InlineError {
     #[error("oracle `{oracle}` is not exported by game instance `{game_inst}`")]
     OracleNotExported { oracle: String, game_inst: String },
@@ -366,6 +369,30 @@ enum Ret {
 
 impl Frame {
     fn key(&self, name: &str) -> VarKey {
+        self.scope().key(name)
+    }
+
+    fn scope(&self) -> FrameScope<'_> {
+        FrameScope {
+            pkg_inst_name: &self.pkg_inst_name,
+            frame_id: self.frame_id,
+        }
+    }
+}
+
+/// The namespace frame-locals are alpha-renamed into: one package instance's
+/// frame. Shared with the EasyCrypt lowering
+/// (`crate::writers::easycrypt::lower`), so both listings key their locals
+/// identically.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct FrameScope<'a> {
+    pub(crate) pkg_inst_name: &'a str,
+    pub(crate) frame_id: usize,
+}
+
+impl FrameScope<'_> {
+    /// `"{pkg_inst}#{frame_id}::{name}"`.
+    pub(crate) fn key(&self, name: &str) -> VarKey {
         format!("{}#{}::{}", self.pkg_inst_name, self.frame_id, name)
     }
 }
@@ -450,7 +477,7 @@ impl<'c> Inliner<'c> {
             }
 
             Statement::Return(value, span) => {
-                let value_ir = value.as_ref().map(|e| rewrite_expr(e, frame));
+                let value_ir = value.as_ref().map(|e| rewrite_expr(e, frame.scope()));
                 let content = match &frame.ret {
                     Ret::Top => match value {
                         Some(e) => format!("return {};", render_expr(e)),
@@ -528,7 +555,7 @@ impl<'c> Inliner<'c> {
                         Ok(InlStmt::Unwrap {
                             label,
                             target,
-                            inner: rewrite_expr(inner, frame),
+                            inner: rewrite_expr(inner, frame.scope()),
                         })
                     } else {
                         let content = format!("{} <- {};", render_pattern(pattern), render_expr(e));
@@ -537,7 +564,7 @@ impl<'c> Inliner<'c> {
                         Ok(InlStmt::Assign {
                             label,
                             target,
-                            rhs: rewrite_expr(e, frame),
+                            rhs: rewrite_expr(e, frame.scope()),
                         })
                     }
                 }
@@ -564,7 +591,7 @@ impl<'c> Inliner<'c> {
                     && ite.else_block.0.len() == 1
                     && matches!(ite.else_block.0[0], Statement::Abort(_));
 
-                let cond_ir = rewrite_expr(&ite.cond, frame);
+                let cond_ir = rewrite_expr(&ite.cond, frame.scope());
 
                 if is_assert {
                     let content = format!("assert ({});", render_expr(&ite.cond));
@@ -718,7 +745,7 @@ impl<'c> Inliner<'c> {
                 callee_frame.key(param_name),
                 param_ty.clone(),
                 // argument expressions live in the *caller's* namespace
-                rewrite_expr(arg_expr, caller),
+                rewrite_expr(arg_expr, caller.scope()),
             ));
         }
 
@@ -742,20 +769,25 @@ impl<'c> Inliner<'c> {
     }
 
     fn place_from_pattern(&self, pattern: &Pattern, frame: &Frame) -> Place {
-        match pattern {
-            Pattern::Ident(id) => place_from_ident(id, frame),
-            Pattern::Table { ident, index } => Place::Index {
-                base: Box::new(place_from_ident(ident, frame)),
-                index: rewrite_expr(index, frame),
-            },
-            Pattern::Tuple(ids) => {
-                Place::Tuple(ids.iter().map(|id| place_from_ident(id, frame)).collect())
-            }
+        place_from_pattern(pattern, frame.scope())
+    }
+}
+
+/// The [`Place`] an assignment `pattern` in `frame` writes.
+pub(crate) fn place_from_pattern(pattern: &Pattern, frame: FrameScope<'_>) -> Place {
+    match pattern {
+        Pattern::Ident(id) => place_from_ident(id, frame),
+        Pattern::Table { ident, index } => Place::Index {
+            base: Box::new(place_from_ident(ident, frame)),
+            index: rewrite_expr(index, frame),
+        },
+        Pattern::Tuple(ids) => {
+            Place::Tuple(ids.iter().map(|id| place_from_ident(id, frame)).collect())
         }
     }
 }
 
-fn place_from_ident(id: &Identifier, frame: &Frame) -> Place {
+fn place_from_ident(id: &Identifier, frame: FrameScope<'_>) -> Place {
     if id.ident_ref() == "_" {
         return Place::Discard;
     }
@@ -787,7 +819,7 @@ fn place_from_ident(id: &Identifier, frame: &Frame) -> Place {
 /// Alpha-renames frame-local identifiers in `e` into the frame's namespace and
 /// leaves package state / constants untouched. Uses [`Expression::map`], like
 /// `unwrapify`.
-fn rewrite_expr(e: &Expression, frame: &Frame) -> Expression {
+pub(crate) fn rewrite_expr(e: &Expression, frame: FrameScope<'_>) -> Expression {
     e.map(|sub| match sub.kind() {
         ExpressionKind::Identifier(id) => Expression::from(rewrite_ident(id, frame)),
         ExpressionKind::TableAccess(id, index) => Expression::from_kind(
@@ -797,7 +829,7 @@ fn rewrite_expr(e: &Expression, frame: &Frame) -> Expression {
     })
 }
 
-fn rewrite_ident(id: &Identifier, frame: &Frame) -> Identifier {
+fn rewrite_ident(id: &Identifier, frame: FrameScope<'_>) -> Identifier {
     match id {
         Identifier::Generated(name, ty) => Identifier::Generated(frame.key(name), ty.clone()),
         Identifier::PackageIdentifier(PackageIdentifier::Local(l)) => {

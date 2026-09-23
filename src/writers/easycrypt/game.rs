@@ -251,6 +251,50 @@ fn build_import_adapter(
     }))
 }
 
+/// Every package instance's mangled name, by index into `comp.pkgs`. One
+/// dedicated registry for instance-name mangling (`Cloned_Pkg_<inst>` /
+/// `Pkg_Inst_<inst>` / `Pkg_Imports_<inst>` all derive from it) — a fresh,
+/// call-scoped `Names` shared across the whole composition, mirroring
+/// `package.rs`'s naming precedent, so two differently-named instances that
+/// happened to mangle to the same name are caught as a hard collision
+/// instead of silently colliding.
+fn instance_mangled_names(comp: &Composition) -> Result<Vec<String>, EcExportError> {
+    let mut inst_names = Names::new();
+    let mut inst_mangled: Vec<String> = Vec::with_capacity(comp.pkgs.len());
+    for inst in &comp.pkgs {
+        inst_mangled.push(inst_names.mangle(NameKind::Module, &inst.name)?);
+    }
+    Ok(inst_mangled)
+}
+
+/// `Pkg_Inst_<inst>` for every package instance, by index into `comp.pkgs`.
+/// Every instance gets this name, unconditionally (story 14 §3.4) — the
+/// decision that lets every call site, restriction and state path name an
+/// instance with no variant-name component. The debugger listing (story 08)
+/// qualifies inlined package state with it.
+pub(super) fn instance_module_names(comp: &Composition) -> Result<Vec<String>, EcExportError> {
+    Ok(instance_mangled_names(comp)?
+        .iter()
+        .map(|m| format!("Pkg_Inst_{m}"))
+        .collect())
+}
+
+/// The router module of `comp`, `Game_<Comp>`, and the name of its abort
+/// flag variable.
+pub(super) fn router_module_and_flag(comp: &Composition) -> Result<(String, String), EcExportError> {
+    // `interfaces::build_interfaces_file` mangles every composition name in
+    // one shared registry; mangling is a pure function of the name, so a
+    // fresh registry gives the same spelling (a collision between two
+    // compositions is already a hard error at export).
+    let mangled = Names::new().mangle(NameKind::Module, &comp.name)?;
+    let abort_flag = Names::new().mangle(NameKind::Var, ABORT_FLAG)?;
+    Ok((format!("Game_{mangled}"), abort_flag))
+}
+
+/// The router's own abort flag — the one piece of state with no Domino
+/// counterpart (overview §3, "Abort").
+const ABORT_FLAG: &str = "abort_flag";
+
 fn render_game_file(
     theorem_name: &str,
     comp: &Composition,
@@ -282,16 +326,9 @@ fn render_game_file(
     // mirroring `package.rs`'s naming precedent, so two differently-named
     // instances that happened to mangle to the same name are caught as a
     // hard collision instead of silently colliding.
-    let mut inst_names = Names::new();
-    let mut inst_mangled: Vec<String> = Vec::with_capacity(comp.pkgs.len());
-    for inst in &comp.pkgs {
-        inst_mangled.push(inst_names.mangle(NameKind::Module, &inst.name)?);
-    }
+    let inst_mangled = instance_mangled_names(comp)?;
     let clone_name: Vec<String> = inst_mangled.iter().map(|m| format!("Cloned_Pkg_{m}")).collect();
-    // Every instance gets this name, unconditionally (story 14 §3.4) — the
-    // decision that lets every call site, restriction and state path name an
-    // instance with no variant-name component.
-    let inst_module_name: Vec<String> = inst_mangled.iter().map(|m| format!("Pkg_Inst_{m}")).collect();
+    let inst_module_name = instance_module_names(comp)?;
 
     // The theory a package variant renders into is `Pkg_<Variant>.ec` (story
     // 14 §3.6) — the module inside it keeps its own unprefixed name
@@ -360,7 +397,7 @@ fn render_game_file(
 
     // --- router -------------------------------------------------------
     let mut router_names = Names::new();
-    let abort_flag = router_names.mangle(NameKind::Var, "abort_flag")?;
+    let abort_flag = router_names.mangle(NameKind::Var, ABORT_FLAG)?;
 
     let mut init_args: Vec<(String, EcType)> = Vec::new();
     for (name, ty) in &comp.consts {

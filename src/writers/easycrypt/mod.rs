@@ -12,6 +12,7 @@ pub mod export;
 pub mod game;
 pub mod interfaces;
 pub mod invariant;
+pub mod lower;
 pub mod names;
 pub mod package;
 pub mod proof;
@@ -206,6 +207,14 @@ pub enum EcExportError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     Transform(EquivalenceTransformError),
+
+    /// Inlining an oracle for the debugger listing (story 08,
+    /// [`lower::inline_oracle_ec`]) failed the same way the Domino listing
+    /// would: the oracle is not exported, a callee is missing, or the
+    /// composition is recursive.
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Inline(#[from] crate::debug::ir::InlineError),
 }
 
 impl From<EquivalenceTransformError> for EcExportError {

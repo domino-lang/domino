@@ -44,6 +44,36 @@ concise report on stdout and the per-path tree in `summary.txt`; story 16 paints
 listing text is EasyCrypt), the elimination of `abort_flag`/`ec_result`, and the fact that
 `treeify` makes the EasyCrypt listing have more syntactic paths than the Domino one.
 
+**Corrected by the story 08 session — read `08-ec-ir-lowering-IMPLEMENTATION-REPORT.md` first.**
+The last clause above, and every mention of `treeify` duplication in this file (§3.3 "modulo the
+path multiplicity `treeify` introduces", §6 "Path explosion"), is stale: since story 16 the export
+pipeline is `EasyCryptTransform` (`easycryptify`), which never duplicates a statement. The facts
+that replace it:
+
+- `pub fn inline_oracle_ec(game_inst: &GameInstance, oracle_name: &str) -> Result<InlinedOracle,
+  EcExportError>` in `src/writers/easycrypt/lower.rs`. `game_inst` must come from
+  `EasyCryptTransform`. `render_side_by_side_easycrypt` in `src/debug/render.rs` shows how.
+- **Pair the IR with the Domino game instance.** Run the executor with the `DebugTransform` game
+  instance and its `sample_info`, exactly as for a Domino listing — not the easycryptified one
+  (whose signatures are `Maybe(T)`). The state places, sample ids and entry-frame `Return` values
+  are the Domino ones, and `InlinedOracle::return_type`/`args`/`entry_pkg_inst` equal the Domino
+  listing's. `no_path_reads_an_unbound_local_and_the_domino_game_instance_pairs_with_it` runs this
+  pairing (no solver).
+- **The EasyCrypt listing still has more syntactic paths, for a different reason:** each inlined
+  call that can return adds one structurally present but infeasible child — the caller's
+  `if (!(ec_rN = None))` else side, reachable only if the callee returned `None` without aborting.
+  kem-dem `PKENC`: 12 vs 6 (`Game_MON_CCA_PKE`), 31 vs 16 (`Game_MOD_CCA_PKE_Real_KEM`). Pruning
+  should remove every one. A *feasible* extra path would be a lowering bug.
+- **Story 16 §8's warning (infeasible paths reading unassigned locals, illegal `<pkg#N::x>`
+  symbols) does not arise for this IR:** every point that sets `ec_done` is lowered to a terminal,
+  so an `if (!ec_done)` body is reached only on paths that assigned what it reads. The test above
+  checks that no path mentions an unbound frame-local.
+- `frame_lines` for an EasyCrypt call is `(call line, "ec_rN <- ec_result…;" line)`; there are no
+  braces. `then_lines`/`else_lines`/`arg_lines` are as in `ir.rs`. The unlabelled rows (the `var`
+  block, `ec_result <- None;`, `ec_done <- …` plumbing, the `if (!ec_done) {`/`}` guard, the
+  router's `if (!abort_flag) {` and the call comment) are never painted, since painting is
+  label-driven; decide whether that is acceptable for the viewer.
+
 ## 3. Work to do
 
 ### 3.1 The flag

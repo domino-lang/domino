@@ -213,7 +213,7 @@ struct PackageScope {
     names: Names,
 }
 
-fn ident_raw_name_and_type(id: &Identifier) -> (String, Type) {
+pub(super) fn ident_raw_name_and_type(id: &Identifier) -> (String, Type) {
     match id {
         Identifier::PackageIdentifier(p) => (p.ident(), p.get_type()),
         Identifier::Generated(name, ty) => (name.clone(), ty.clone()),
@@ -622,10 +622,26 @@ fn collect_locals(
 /// starting with it (`ec_foo` → `d_ec_foo`), so they can never collide.
 fn var_name(scope: &mut PackageScope, id: &Identifier) -> Result<String, EcExportError> {
     let (raw, _ty) = ident_raw_name_and_type(id);
-    if matches!(id, Identifier::Generated(..)) && easycryptify::is_generated_name(&raw) {
-        return Ok(raw);
+    var_spelling(
+        &mut scope.names,
+        &raw,
+        matches!(id, Identifier::Generated(..)),
+    )
+}
+
+/// [`var_name`] on a raw name: `generated` says whether it names an
+/// [`Identifier::Generated`], the only kind `easycryptify`'s own locals are.
+/// Shared with the debugger listing (story 08), which spells a package's
+/// variables exactly as its module does.
+pub(super) fn var_spelling(
+    names: &mut Names,
+    raw: &str,
+    generated: bool,
+) -> Result<String, EcExportError> {
+    if generated && easycryptify::is_generated_name(raw) {
+        return Ok(raw.to_string());
     }
-    Ok(scope.names.mangle(NameKind::Var, &raw)?)
+    Ok(names.mangle(NameKind::Var, raw)?)
 }
 
 fn record_local(
@@ -680,17 +696,17 @@ fn build_proc(scope: &mut PackageScope, oracle: &OracleDef) -> Result<EcProc, Ec
         )
     };
 
+    let mut temps = SampleTemps::default();
     let mut translator = OracleTranslator {
-        scope,
-        temp_ctr: 0,
-        temp_decls: Vec::new(),
+        naming: &mut *scope,
+        temps: &mut temps,
     };
     let body = translator.translate_block(body_stmts)?;
     let ret_expr = translator.translate_e(ret_value, *ret_span)?;
 
     let mut ec_locals: Vec<(String, EcType, Option<EcExpr>)> =
         locals.into_iter().map(|(name, ty)| (name, ty, None)).collect();
-    for (name, ty) in translator.temp_decls {
+    for (name, ty) in temps.decls {
         ec_locals.push((name, ty, None));
     }
 
@@ -706,35 +722,91 @@ fn build_proc(scope: &mut PackageScope, oracle: &OracleDef) -> Result<EcProc, Ec
     })
 }
 
+/// How the identifiers of an oracle body are spelled in EasyCrypt.
+///
+/// Inside the package's own module ([`PackageScope`]) every variable — state
+/// field, parameter, argument, local — is a bare name. The debugger listing
+/// (story 08, `super::lower`) inlines several procedures into one, so there
+/// state is qualified with its instance module (`Pkg_Inst_KEM.pk`) and a
+/// callee's locals may be renamed apart from its caller's.
+pub(super) trait OracleNaming {
+    /// `id` in expression position.
+    fn expr(&mut self, id: &Identifier) -> Result<EcExpr, EcExportError>;
+    /// `id` as the target of an assignment: a (possibly qualified)
+    /// program-variable path.
+    fn target(&mut self, id: &Identifier) -> Result<String, EcExportError>;
+}
+
+impl OracleNaming for PackageScope {
+    fn expr(&mut self, id: &Identifier) -> Result<EcExpr, EcExportError> {
+        Ok(EcExpr::Var(var_name(self, id)?))
+    }
+
+    fn target(&mut self, id: &Identifier) -> Result<String, EcExportError> {
+        var_name(self, id)
+    }
+}
+
+/// `ec_s<N>` proc-local declarations for a sample into a table entry
+/// (`T[k] <-$ τ`, which EasyCrypt cannot express directly), appended to
+/// [`EcProc::locals`] afterwards. Every other generated local —
+/// `ec_result`, `ec_done`, the `ec_r<N>` invoke temporaries — arrives from
+/// `easycryptify` as an ordinary Domino local.
+#[derive(Default)]
+pub(super) struct SampleTemps {
+    ctr: usize,
+    pub(super) decls: Vec<(String, EcType)>,
+}
+
+/// Translates one statement of an `easycryptify`-lowered oracle body with
+/// the given naming — the per-statement entry point of the oracle
+/// translator, for the debugger listing (story 08). An `if` is translated
+/// whole, branches included.
+pub(super) fn translate_oracle_stmt(
+    naming: &mut dyn OracleNaming,
+    temps: &mut SampleTemps,
+    stmt: &Statement,
+) -> Result<Vec<EcStmt>, EcExportError> {
+    OracleTranslator { naming, temps }.translate_stmt(stmt)
+}
+
+/// Translates one expression of an oracle body with the given naming.
+pub(super) fn translate_oracle_expr(
+    naming: &mut dyn OracleNaming,
+    expr: &Expression,
+    span: SourceSpan,
+) -> Result<EcExpr, EcExportError> {
+    let mut temps = SampleTemps::default();
+    OracleTranslator {
+        naming,
+        temps: &mut temps,
+    }
+    .translate_e(expr, span)
+}
+
 struct OracleTranslator<'a> {
-    scope: &'a mut PackageScope,
-    temp_ctr: usize,
-    /// `ec_s<N>` proc-local declarations for a sample into a table entry
-    /// (`T[k] <-$ τ`, which EasyCrypt cannot express directly), appended to
-    /// [`EcProc::locals`] afterwards. Every other generated local —
-    /// `ec_result`, `ec_done`, the `ec_r<N>` invoke temporaries — arrives
-    /// from `easycryptify` as an ordinary Domino local.
-    temp_decls: Vec<(String, EcType)>,
+    naming: &'a mut dyn OracleNaming,
+    temps: &'a mut SampleTemps,
 }
 
 impl OracleTranslator<'_> {
     /// Declares and returns a fresh `ec_s<N>` sample temporary of type `ty`.
     fn declare_sample_temp(&mut self, ty: EcType) -> String {
-        self.temp_ctr += 1;
-        let name = format!("ec_s{}", self.temp_ctr);
-        self.temp_decls.push((name.clone(), ty));
+        self.temps.ctr += 1;
+        let name = format!("ec_s{}", self.temps.ctr);
+        self.temps.decls.push((name.clone(), ty));
         name
     }
 
     fn translate_e(&mut self, expr: &Expression, span: SourceSpan) -> Result<EcExpr, EcExportError> {
-        let mut resolver = |id: &Identifier, _s: SourceSpan| -> Result<EcExpr, EcExportError> {
-            Ok(EcExpr::Var(var_name(self.scope, id)?))
-        };
+        let naming = &mut *self.naming;
+        let mut resolver =
+            |id: &Identifier, _s: SourceSpan| -> Result<EcExpr, EcExportError> { naming.expr(id) };
         translate_expr(expr, span, &mut resolver)
     }
 
     fn resolve_name(&mut self, id: &Identifier) -> Result<String, EcExportError> {
-        var_name(self.scope, id)
+        self.naming.target(id)
     }
 
     fn sample_distr(&self, ty: &Type, span: SourceSpan) -> Result<EcExpr, EcExportError> {
@@ -775,6 +847,17 @@ impl OracleTranslator<'_> {
     fn translate_block(&mut self, stmts: &[Statement]) -> Result<EcBlock, EcExportError> {
         let mut out = Vec::new();
         for stmt in stmts {
+            out.extend(self.translate_stmt(stmt)?);
+        }
+        Ok(EcBlock(out))
+    }
+
+    /// One statement of [`Self::translate_block`]. Every statement becomes
+    /// one EasyCrypt statement, except a sample into a table entry, which
+    /// becomes two.
+    fn translate_stmt(&mut self, stmt: &Statement) -> Result<Vec<EcStmt>, EcExportError> {
+        let mut out = Vec::new();
+        {
             match stmt {
                 Statement::Abort(_) => unreachable!("easycryptify leaves no `abort` in an oracle body"),
                 Statement::Return(..) => unreachable!(
@@ -858,7 +941,7 @@ impl OracleTranslator<'_> {
                 }
             }
         }
-        Ok(EcBlock(out))
+        Ok(out)
     }
 
     /// `T[k] <- rhs` (§3.4). `rhs` may be `Unwrap`-headed — `T[k] <-
@@ -873,6 +956,7 @@ impl OracleTranslator<'_> {
         span: SourceSpan,
     ) -> Result<Vec<EcStmt>, EcExportError> {
         let map = self.resolve_name(ident)?;
+        let map_expr = self.naming.expr(ident)?;
         let key = self.translate_e(index, span)?;
 
         match rhs_expr.kind() {
@@ -884,9 +968,9 @@ impl OracleTranslator<'_> {
                 }])
             }
             ExpressionKind::None(_) => Ok(vec![EcStmt::Assign {
-                lhs: EcLvalue::Var(map.clone()),
+                lhs: EcLvalue::Var(map),
                 rhs: EcExpr::MapRem {
-                    map: Box::new(EcExpr::Var(map)),
+                    map: Box::new(map_expr),
                     key: Box::new(key),
                 },
             }]),
@@ -902,12 +986,12 @@ impl OracleTranslator<'_> {
                     rhs: Box::new(EcExpr::None_(inner_ec_ty)),
                 };
                 let else_expr = EcExpr::MapSet {
-                    map: Box::new(EcExpr::Var(map.clone())),
+                    map: Box::new(map_expr.clone()),
                     key: Box::new(key.clone()),
                     value: Box::new(EcExpr::Oget(Box::new(rhs))),
                 };
                 let then_expr = EcExpr::MapRem {
-                    map: Box::new(EcExpr::Var(map.clone())),
+                    map: Box::new(map_expr),
                     key: Box::new(key),
                 };
                 Ok(vec![EcStmt::Assign {

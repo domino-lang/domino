@@ -16,10 +16,13 @@
 //! right. This is the single easiest thing to misread, so the header says so too.
 
 use crate::debug::ir::{inline_oracle, InlineError};
-use crate::gamehops::GameHop;
+use crate::gamehops::{equivalence::Equivalence, GameHop};
 use crate::theorem::Theorem;
-use crate::transforms::theorem_transforms::{DebugTransform, EquivalenceTransformError};
+use crate::transforms::theorem_transforms::{
+    DebugTransform, EasyCryptTransform, EquivalenceTransformError,
+};
 use crate::transforms::TheoremTransform;
+use crate::writers::easycrypt::{lower::inline_oracle_ec, EcExportError};
 
 /// Render `left` and `right` (each a `\n`-separated listing) into two
 /// line-numbered columns joined by `  |  `. The left column is padded to the
@@ -104,6 +107,22 @@ pub enum RenderError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     Inline(#[from] InlineError),
+
+    /// Lowering the EasyCrypt listing (`--easycrypt`) failed for a reason
+    /// that is not an [`InlineError`].
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    EasyCrypt(#[from] EcExportError),
+}
+
+impl RenderError {
+    /// An inlining failure reads the same with or without `--easycrypt`.
+    fn from_ec(err: EcExportError) -> Self {
+        match err {
+            EcExportError::Inline(e) => RenderError::Inline(e),
+            other => RenderError::EasyCrypt(other),
+        }
+    }
 }
 
 /// Render the inlined code of `oracle_name` for both sides of the equivalence
@@ -119,8 +138,72 @@ pub fn render_side_by_side(
     oracle_name: &str,
     line_numbers: bool,
 ) -> Result<String, RenderError> {
-    use std::fmt::Write as _;
+    let eq = equivalence_at(theorem, proofstep)?;
 
+    let (theorem_dbg, _aux) = DebugTransform.transform_theorem(theorem)?;
+    let left_inst = theorem_dbg
+        .find_game_instance(eq.left_name())
+        .expect("equivalence references a valid left game instance");
+    let right_inst = theorem_dbg
+        .find_game_instance(eq.right_name())
+        .expect("equivalence references a valid right game instance");
+
+    let left_inl = inline_oracle(left_inst, oracle_name)?;
+    let right_inl = inline_oracle(right_inst, oracle_name)?;
+
+    Ok(render_listings(
+        theorem,
+        proofstep,
+        eq,
+        oracle_name,
+        "",
+        &left_inl.listing.text,
+        &right_inl.listing.text,
+        line_numbers,
+    ))
+}
+
+/// `domino inline --easycrypt` (story 08 of the EasyCrypt epic): like
+/// [`render_side_by_side`], but both sides are the **EasyCrypt** listings —
+/// the theorem goes through [`EasyCryptTransform`], the pipeline
+/// `domino easycrypt` exports, and each side is lowered by
+/// [`crate::writers::easycrypt::lower::inline_oracle_ec`].
+pub fn render_side_by_side_easycrypt(
+    theorem: &Theorem,
+    proofstep: usize,
+    oracle_name: &str,
+    line_numbers: bool,
+) -> Result<String, RenderError> {
+    let eq = equivalence_at(theorem, proofstep)?;
+
+    let (theorem_ec, _aux) = EasyCryptTransform.transform_theorem(theorem)?;
+    let left_inst = theorem_ec
+        .find_game_instance(eq.left_name())
+        .expect("equivalence references a valid left game instance");
+    let right_inst = theorem_ec
+        .find_game_instance(eq.right_name())
+        .expect("equivalence references a valid right game instance");
+
+    let left_inl = inline_oracle_ec(left_inst, oracle_name).map_err(RenderError::from_ec)?;
+    let right_inl = inline_oracle_ec(right_inst, oracle_name).map_err(RenderError::from_ec)?;
+
+    Ok(render_listings(
+        theorem,
+        proofstep,
+        eq,
+        oracle_name,
+        " (EasyCrypt)",
+        &left_inl.listing.text,
+        &right_inl.listing.text,
+        line_numbers,
+    ))
+}
+
+/// The equivalence proved at `proofstep` of `theorem`.
+fn equivalence_at<'t>(
+    theorem: &'t Theorem<'_>,
+    proofstep: usize,
+) -> Result<&'t Equivalence, RenderError> {
     let hop = theorem
         .game_hops
         .get(proofstep)
@@ -135,29 +218,34 @@ pub fn render_side_by_side(
         index: proofstep,
         kind,
     };
-    let eq = match hop {
-        GameHop::Equivalence(eq) => eq,
+    match hop {
+        GameHop::Equivalence(eq) => Ok(eq),
         // `prove` treats a hybrid as its underlying equivalence; so do we.
-        GameHop::Hybrid(hyb) => hyb.equivalence(),
-        GameHop::Reduction(_) => return Err(not_eq("reduction")),
-        GameHop::Conjecture(_) => return Err(not_eq("conjecture")),
-    };
+        GameHop::Hybrid(hyb) => Ok(hyb.equivalence()),
+        GameHop::Reduction(_) => Err(not_eq("reduction")),
+        GameHop::Conjecture(_) => Err(not_eq("conjecture")),
+    }
+}
 
-    let (theorem_dbg, _aux) = DebugTransform.transform_theorem(theorem)?;
-    let left_inst = theorem_dbg
-        .find_game_instance(eq.left_name())
-        .expect("equivalence references a valid left game instance");
-    let right_inst = theorem_dbg
-        .find_game_instance(eq.right_name())
-        .expect("equivalence references a valid right game instance");
-
-    let left_inl = inline_oracle(left_inst, oracle_name)?;
-    let right_inl = inline_oracle(right_inst, oracle_name)?;
+/// The header and the two columns. `oracle_suffix` follows the oracle name
+/// on the first header line.
+#[allow(clippy::too_many_arguments)]
+fn render_listings(
+    theorem: &Theorem,
+    proofstep: usize,
+    eq: &Equivalence,
+    oracle_name: &str,
+    oracle_suffix: &str,
+    left: &str,
+    right: &str,
+    line_numbers: bool,
+) -> String {
+    use std::fmt::Write as _;
 
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "theorem {}, proofstep {proofstep} ({} == {}), oracle {oracle_name}",
+        "theorem {}, proofstep {proofstep} ({} == {}), oracle {oracle_name}{oracle_suffix}",
         theorem.name,
         eq.left_name(),
         eq.right_name(),
@@ -167,12 +255,8 @@ pub fn render_side_by_side(
         "(left and right line numbers are independent — they index different columns)"
     );
     out.push('\n');
-    out.push_str(&columns(
-        &left_inl.listing.text,
-        &right_inl.listing.text,
-        line_numbers,
-    ));
-    Ok(out)
+    out.push_str(&columns(left, right, line_numbers));
+    out
 }
 
 #[cfg(test)]
@@ -273,6 +357,27 @@ mod tests {
                 other => panic!("expected ProofstepNotEquivalence, got {other:?}"),
             }
             match render_side_by_side(theorem, 0, "NoSuchOracle", true) {
+                Err(RenderError::Inline(InlineError::OracleNotExported { .. })) => {}
+                other => panic!("expected Inline(OracleNotExported), got {other:?}"),
+            }
+        });
+    }
+
+    /// `--easycrypt` rejects the same inputs with the same errors.
+    #[test]
+    fn easycrypt_errors_are_the_domino_errors() {
+        with_raw_theorem("example-projects/hello-world", "Proof", |theorem| {
+            match render_side_by_side_easycrypt(theorem, 9, "UsefulOracle", true) {
+                Err(RenderError::ProofstepOutOfRange { len, .. }) => assert_eq!(len, 2),
+                other => panic!("expected ProofstepOutOfRange, got {other:?}"),
+            }
+            match render_side_by_side_easycrypt(theorem, 1, "UsefulOracle", true) {
+                Err(RenderError::ProofstepNotEquivalence { kind, .. }) => {
+                    assert_eq!(kind, "reduction")
+                }
+                other => panic!("expected ProofstepNotEquivalence, got {other:?}"),
+            }
+            match render_side_by_side_easycrypt(theorem, 0, "NoSuchOracle", true) {
                 Err(RenderError::Inline(InlineError::OracleNotExported { .. })) => {}
                 other => panic!("expected Inline(OracleNotExported), got {other:?}"),
             }
