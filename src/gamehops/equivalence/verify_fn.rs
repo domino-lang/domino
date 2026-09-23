@@ -11,8 +11,7 @@ use crate::theorem::RandomnessMappingInjectivityCheck;
 use crate::{
     gamehops::equivalence::{
         error::{ClaimTheoremFailedError, Error, Result},
-        smtrewrite::SmtStatementKind,
-        ClaimType, ResolvedClaim, ResolvedDependency,
+        ResolvedClaim,
     },
     package::Export,
     project::Project,
@@ -117,6 +116,27 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         }
     }
 
+    fn oracle_sequence(&self) -> Vec<&'a Export> {
+        self.eqctx
+            .oracle_sequence()
+            .into_iter()
+            .filter(|export| {
+                if let Some(name) = self.req_oracle {
+                    export.name() == name
+                } else {
+                    true
+                }
+            })
+            .collect()
+    }
+
+    fn is_claim_requested(&self, claim_name: &str) -> bool {
+        match &self.req_claim {
+            Some(req_claim) => req_claim.is_match(claim_name.as_bytes()),
+            None => true,
+        }
+    }
+
     pub(crate) fn verify<UI: TheoremUI + Send>(&mut self, ui: &mut UI) -> Result<()> {
         self.eqctx.verify_exports_match()?;
 
@@ -211,18 +231,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         Ok(())
     }
 
-    fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
-        self.generate_game_or_package_invariant_claims()
-            .iter()
-            .map(|claim| {
-                let smt = self
-                    .eqctx
-                    .emit_game_or_package_invariant_start_assert(claim);
-                (claim.name().to_string(), smt)
-            })
-            .collect()
-    }
-
     fn verify_invariant_start<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
@@ -240,7 +248,11 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             "invariant".to_string(),
             self.eqctx.emit_invariant_start_assert(),
         )];
-        checks.append(&mut self.generate_game_or_package_invariant_start_asserts());
+        checks.append(
+            &mut self
+                .eqctx
+                .generate_game_or_package_invariant_start_asserts(),
+        );
 
         let num_claims = checks.len();
         self.verify_as_ui_claim_group(ui.clone(), &claim_group, num_claims, || {
@@ -257,73 +269,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         })
     }
 
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<ResolvedClaim> {
-        fn new_claim(ty: ClaimType, name: String) -> Option<ResolvedClaim> {
-            Some(ResolvedClaim {
-                admitted: false,
-                dependencies: vec![ResolvedDependency {
-                    name: "no-abort".to_string(),
-                    ty: ClaimType::Lemma,
-                }],
-                ty,
-                name,
-            })
-        }
-
-        self.eqctx
-            .left_invariants()
-            .iter()
-            .filter_map(|stmt| match stmt.kind {
-                SmtStatementKind::PackageInvariant { .. } => {
-                    new_claim(ClaimType::LeftPackageInvariant, stmt.kind.name())
-                }
-                SmtStatementKind::GameInvariant { .. } => {
-                    new_claim(ClaimType::LeftGameInvariant, stmt.kind.name())
-                }
-                _ => None,
-            })
-            .chain(
-                self.eqctx
-                    .right_invariants()
-                    .iter()
-                    .filter_map(|stmt| match stmt.kind {
-                        SmtStatementKind::PackageInvariant { .. } => {
-                            new_claim(ClaimType::RightPackageInvariant, stmt.kind.name())
-                        }
-                        SmtStatementKind::GameInvariant { .. } => {
-                            new_claim(ClaimType::RightGameInvariant, stmt.kind.name())
-                        }
-                        _ => None,
-                    }),
-            )
-            .collect()
-    }
-
-    fn verify_randomness_mapping_injectivity<UI: TheoremUI + Send>(
-        &self,
-        ui: Arc<Mutex<&mut UI>>,
-        oracle_smt: &SmtBuf,
-        oracle_name: &str,
-        claim_group: &ClaimGroup,
-    ) -> Vec<Result<()>> {
-        log::info!("verify: randomness mapping injectivity of oracle {oracle_name}");
-
-        RandomnessMappingInjectivityCheck::ALL
-            .as_slice()
-            .par_iter()
-            .filter(|check| self.is_claim_requested(check.name()))
-            .map(|check| {
-                let claim_name = check.name();
-
-                let claim_smt = check.emit_randomness_mapping_injectivity_check(oracle_name);
-                let mut smt = oracle_smt.to_owned();
-                smt.push(claim_smt.as_slice());
-
-                self.verify_with_solver_as_ui_claim(ui.clone(), smt, claim_group, claim_name)
-            })
-            .collect()
-    }
-
     fn verify_oracle<UI: TheoremUI + Send>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
@@ -332,7 +277,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     ) -> Vec<Result<()>> {
         let mut claims = self.eqctx.claims_by_oracle_name(oracle.name());
 
-        claims.append(&mut self.generate_game_or_package_invariant_claims());
+        claims.append(&mut self.eqctx.generate_game_or_package_invariant_claims());
 
         let claim_group = ClaimGroup::Oracle {
             oracle_name: oracle.name().to_string(),
@@ -430,6 +375,31 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             .collect()
     }
 
+    fn verify_randomness_mapping_injectivity<UI: TheoremUI + Send>(
+        &self,
+        ui: Arc<Mutex<&mut UI>>,
+        oracle_smt: &SmtBuf,
+        oracle_name: &str,
+        claim_group: &ClaimGroup,
+    ) -> Vec<Result<()>> {
+        log::info!("verify: randomness mapping injectivity of oracle {oracle_name}");
+
+        RandomnessMappingInjectivityCheck::ALL
+            .as_slice()
+            .par_iter()
+            .filter(|check| self.is_claim_requested(check.name()))
+            .map(|check| {
+                let claim_name = check.name();
+
+                let claim_smt = check.emit_randomness_mapping_injectivity_check(oracle_name);
+                let mut smt = oracle_smt.to_owned();
+                smt.push(claim_smt.as_slice());
+
+                self.verify_with_solver_as_ui_claim(ui.clone(), smt, claim_group, claim_name)
+            })
+            .collect()
+    }
+
     fn verify_oracle_claim<UI: TheoremUI>(
         &self,
         ui: Arc<Mutex<&mut UI>>,
@@ -476,13 +446,6 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
 
         result
-    }
-
-    fn is_claim_requested(&self, claim_name: &str) -> bool {
-        match &self.req_claim {
-            Some(req_claim) => req_claim.is_match(claim_name.as_bytes()),
-            None => true,
-        }
     }
 
     fn verify_with_solver(
@@ -541,19 +504,5 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 .into())
             }
         }
-    }
-
-    fn oracle_sequence(&self) -> Vec<&'a Export> {
-        self.eqctx
-            .oracle_sequence()
-            .into_iter()
-            .filter(|export| {
-                if let Some(name) = self.req_oracle {
-                    export.name() == name
-                } else {
-                    true
-                }
-            })
-            .collect()
     }
 }
