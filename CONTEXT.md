@@ -51,6 +51,57 @@ obligations are discharged per exported oracle.
 **State relation** — a predicate over the left and right game states, hand-written in SMT-LIB, that
 an equivalence maintains. One set of state relations per equivalence.
 
+**Randomness mapping** — a per-oracle predicate, hand-written in SMT-LIB or chosen by name, that
+says which left sampling draws the same value as which right sampling. It may depend on the state
+and the oracle's arguments, so whether two particular samplings are paired is a question for the
+solver, not something read off the mapping's text.
+
+## Debugging
+
+**Sequential exploration** — the debugger's original strategy: every path of the left oracle,
+then, under each, every path of the right oracle.
+
+**Lockstep execution** — the debugger's EasyCrypt-mode strategy: both oracles advance together,
+each over its straight-line code up to its next *decision point*, and the two decision points are
+then resolved jointly. It is what an EasyCrypt pRHL proof does, which is why it exists.
+_Avoid_: synchronized execution (the word *synchronized* is reserved for the outcomes below).
+
+**Decision point** — where one side of a lockstep execution cannot continue as straight-line
+code: a branch, a sampling, or the end of the oracle.
+
+**Synchronized branch** — both sides at a branch whose conditions are equivalent under the path
+condition and the assumptions, so both take *then* or both take *else*. A branch that is not
+synchronized is **split**: every combination of the two sides' outcomes is considered, and the
+infeasible ones are pruned. A branch on one side only is always split.
+
+**Synchronized sampling** — both sides at a sampling that the randomness mapping, under the path
+condition, forces to draw equal values. A sampling the mapping relates to nothing on the other side
+is an **independent sampling** and is consumed on its side alone.
+
+**Stuck point** — a place on a joint path where lockstep execution cannot hand EasyCrypt a proof
+step: a paired sampling reached on one side before its partner, or a sampling whose pairing the
+solver cannot decide under the path condition. The proof admits it; the execution carries on past
+it with Domino's randomness semantics, so the paths below still get verdicts.
+
+**Joint path** — one path of a lockstep execution: the sequence of joint decisions from the start
+of both oracles to a pair of terminals.
+
+**Plumbing branch** — a branch that exists in the EasyCrypt code only because EasyCrypt allows one
+exit point: a *done flag* guard, the guard on an inlined call's result, or the router's abort-flag
+guard. It decides nothing Domino would call a decision, but an EasyCrypt proof has to step over it
+like any other branch.
+
+**Decision skeleton** — a program with its straight-line code erased: the tree of its branches,
+samplings and ends. Two programs that differ only in assignments have the same skeleton.
+
+**Alignment** — matching the decision skeleton EasyCrypt shows for an oracle with the one lockstep
+execution walks, so that each EasyCrypt proof step can be tied to a joint decision. Where the two
+disagree there is a **mismatch**.
+
+**Equal-output** — the claim, checked in EasyCrypt mode, that both oracles produce the same result
+where an abort counts as a result: *same-output* and *equal-aborts* together, with *no-abort* not
+assumed. It is EasyCrypt's `={res}` on an optional result, and is never declared in a project.
+
 ## EasyCrypt export
 
 **Package variant** — one EasyCrypt module generated for a package, specialised to a distinct

@@ -1,5 +1,22 @@
 # Story 09 — `domino debug --easycrypt`
 
+> **SUPERSEDED — do not implement.** The second design session (2026-09-23, owner requirement
+> `docs/easycrypt-interaction-and-branching.md`) replaced this story's approach, which ran the
+> sequential left-then-right exploration on the EasyCrypt listing. `domino debug --easycrypt` now
+> means **lockstep execution**:
+>
+> - `22-plumbing-decision-points.md` — the IR keeps plumbing branches;
+> - `23-lockstep-execution.md` — the engine, the CLI, both claims and stuck points;
+> - `24-joint-tree-viewer.md` — the HTML.
+>
+> What survives from this story:
+>
+> - its §2.2 facts about `inline_oracle_ec` and the pairing with the Domino game instance;
+> - its correctness idea, that the EasyCrypt run must agree with a Domino run. That check is now
+>   the one-directional consistency test in story 23 §4.
+>
+> The body is kept for history.
+
 **Epic:** EasyCrypt Export — see `docs/stories/easycrypt/00-overview.md`.
 **Branch:** `amir/easycrypt-export`
 **Depends on:** story 08 (lowering + EasyCrypt listings).
