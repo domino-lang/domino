@@ -351,7 +351,6 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             }
 
             Statement::For(var, from, to, _, _) => {
-                println!("{var:?}");
                 if let Identifier::PackageIdentifier(PackageIdentifier::CodeLoopVar(
                     PackageOracleCodeLoopVarIdentifier {
                         start_comp,
