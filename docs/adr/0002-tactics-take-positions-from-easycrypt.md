@@ -40,7 +40,8 @@ inliner we depend on, and EasyCrypt cannot change it without changing the progra
 ## Consequences
 
 - Tactic generation needs a live EasyCrypt with `cli -json`
-  (`25-easycrypt-json-cli.md`). The standalone debugger (`domino debug --easycrypt`) does not.
+  (`25-easycrypt-json-cli.md`). The standalone debugger (`domino easycrypt --debug`, which was
+  `domino debug --easycrypt` until ADR 0003) does not.
 - Alignment runs at the start of every oracle's translation, and is exposed on its own as
   `domino easycrypt --check-alignment`. Its acceptance bar is zero mismatches across the testing
   ladder, 4WHS included, so a mismatch at translation time is a regression, not an expected event.

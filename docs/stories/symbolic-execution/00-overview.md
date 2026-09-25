@@ -24,7 +24,8 @@ breaks the claim. Debugging means reading SMT by hand.
 
 ## 2. What we are building
 
-`domino debug --proof <T> --proofstep <N> --oracle <O> --claim <C>`:
+`domino debug [--proof <T>] [--proofstep <N>] [--oracle <O>] [--claim <C>]` — every filter optional
+since story 19, and `--lockstep` selects the joint strategy over the sequential one:
 
 1. Runs a debug-specific transform pipeline and **inlines** the exported oracle `O` across
    package boundaries for both the left and the right game instance, producing a labelled
@@ -48,14 +49,16 @@ breaks the claim. Debugging means reading SMT by hand.
 | **Inlining** | A new **AST-level** inline transform producing a labelled inlined IR. The textual `src/inline.rs` on branch `amir/ty-params-features` is a pretty-printer only; it is re-implemented on top of the new IR, not ported as-is. |
 | **Pipeline** | A debug-specific pipeline **without `treeify`**. `treeify` duplicates every statement following an `if` into both branches purely so the SMT writer can emit `ite`; that would multiply path counts and destroy statement identity, which the labels depend on. |
 | **Base frame** | The debugger's base frame carries **datatypes and constants only** — no `(define-fun <oracle-…>)` bodies and no return constraint for any export but the debugged oracle (story 15). Nothing in the run evaluates an oracle function: story 05's per-path DSA encoding replaced it. Since those bodies were the only consumer of `treeify`, `domino debug` runs `DebugTransform` **once** by default; `--with-oracle-functions` restores the full `prove`-shaped frame (and the treeified transform) for cross-checking a verdict. |
-| **Claim scope** | `--claim` is **required**. One claim per run. |
-| **Assumptions** | The randomness-mapping condition, the invariants on the old game states (main + per-game + per-package) and **all of the claim's dependencies** are asserted up front, before the left oracle is executed. A dependency like `no-abort` will therefore make left abort paths `unsat` — that is intended and visible. |
+| **Claim scope** | **Since story 19:** all four filters (`--proof`, `--proofstep`, `--oracle`, `--claim`) are optional — omitted means *all*, as in `prove`. A run without `--claim` is an **all-claim run**: one exploration serves the oracle's whole obligation set, one `check-sat` per claim per terminal pair. ~~`--claim` is **required**. One claim per run.~~ (was, until story 19) |
+| **Assumptions** | The randomness-mapping condition and the invariants on the old game states (main + per-game + per-package) are asserted up front, before the left oracle is executed. **Since story 19** the claim's own dependencies join them only when `--claim` is given; in an all-claim run they move to the **terminal pair**, one `push` above the pair's path conditions, so a single exploration serves every claim. A dependency like `no-abort` therefore makes left abort paths `unsat` under `--claim` (they vanish) and `Unreachable { DependencyFalse }` without it (they are enumerated and reported). Both are intended and visible. ~~**all of the claim's dependencies** are asserted up front~~ (was, until story 19) |
 | **Per-path encoding** | The per-path DSA encoding **replaces** the monolithic `(assert (= <return-X> (oracle-X <old-state> <consts> <args>)))`. `<return-value-X>`, `<is-abort-X>` and `<new-state-X>` stay constrained off `<return-X>`, so `emit_oracle_claim_assert` and the invariant/relation machinery keep working unchanged. |
-| **Output** | `index.html` (self-contained, collapsible left→right tree) + labelled `inlined.txt` + `trace.json` + `summary.txt` + per-failure models + a `smt/` tree of runnable per-path queries, under `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`. The monolithic `transcript.smt2` is opt-in (`--transcript`) as of story 11. As of story 17 `summary.txt` holds the **per-path tree** and the concise run report goes to **stdout**. |
+| **Output** | `index.html` (self-contained, collapsible left→right tree) + labelled `inlined.txt` + `trace.json` + `summary.txt` + per-failure models + a `smt/` tree of runnable per-path queries, under `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/` (story 19; `!all-claims!` in
+place of `<claim>` for an all-claim run, and every artifact name prefixed `sequential_` /
+`lockstep_` so the two strategies coexist). The monolithic `transcript.smt2` is opt-in (`--transcript`) as of story 11. As of story 17 `summary.txt` holds the **per-path tree** and the concise run report goes to **stdout**. |
 | **Guardrails** | `--timeout <ms>` (mapped to cvc5's `tlimit-per`; a timeout counts as *unknown*, i.e. explored, never pruned) and `--max-paths <n>` — **unlimited by default** as of story 10, with `Ctrl-C` as the interactive stop. No depth limit and no first-failure flag. |
 | **Labels** | **Line numbers in the emitted inlined listing**: `L12:then`, `L19:assert-holds`, `L27:return`. The listing is the single source of truth for labels. |
 | **`domino inline`** | In scope, as its own story, built on the new IR. |
-| **Vacuity** | Yes. Before checking the goal at a terminal pair, one extra `check-sat` of the assumptions plus both path conditions. `unsat` there means the pair is **unreachable**, not **verified**. As of story 08 this check is **unconditional** — it is what makes the four verdicts distinguishable, and it is not tied to the `--no-check-left` / `--no-check-right` pruning flags. |
+| **Vacuity** | Yes. Before checking the goal at a terminal pair, one extra `check-sat` of the assumptions plus both path conditions. `unsat` there means the pair is **unreachable**, not **verified**. Story 19 gives `Unreachable` a *reason*: the pair itself is infeasible, or this one claim's dependency is false on it. As of story 08 this check is **unconditional** — it is what makes the four verdicts distinguishable, and it is not tied to the `--no-check-left` / `--no-check-right` pruning flags. |
 
 ### Label format (agreed with the owner)
 
@@ -73,7 +76,7 @@ left path #3:
 ## 4. Architecture at a glance
 
 ```
-                    domino debug --proof/--proofstep/--oracle/--claim
+              domino debug [--proof/--proofstep/--oracle/--claim] [--lockstep]
                                         |
        +--------------------------------+---------------------------------+
        |                                |                                 |
