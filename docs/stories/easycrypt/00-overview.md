@@ -160,6 +160,10 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 28 | Live translation page and EasyCrypt transcript | `28-live-translation-page.md` | 27 |
 | 29 | *Documented, not scheduled:* invariant case analysis on table writes | `29-invariant-case-analysis.md` | 27 |
 | 30 | *Documented, not scheduled:* explicit randomness | `30-explicit-randomness.md` | 23, 27 |
+| 31 | The EasyCrypt transcript is bounded | `31-bounded-ec-transcript.md` | 27, 28 |
+| 32 | The export tree is never overwritten without `--force` | `32-never-overwrite-the-export-tree.md` | 05, 10 |
+| 33 | Incremental writes and sealing: the file on disk is what is proven | `33-incremental-writes-and-sealing.md` | 27, 28, 31, 32 |
+| 34 | Ctrl-C stops a tactics run and leaves a partial proof | `34-ctrl-c-stops-a-tactics-run.md` | 33 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
@@ -182,6 +186,17 @@ first. Then there are two parallel tracks that meet at 26:
 
 27 needs both tracks, and 28 builds on 27. 29 and 30 are design records only. Do not implement
 them until the owner schedules them.
+
+Stories 31–34 come from the third design session and are about **what a tactics run leaves on
+disk**. Do them in order. 31 is first not because it is the loudest problem but because it is the
+precondition for the rest: 33 is verified by running `--tactics` on kem-dem's long oracles
+repeatedly, which is not affordable at 549 MB of transcript per theorem (story 28 could not run
+`PKENC` at all for this reason). 32 is independent and cheap, and belongs before 33 so that the
+partial proofs 33 starts producing are not clobbered by the next export. 33 carries the removal of
+the `easycrypt compile` gate (ADR 0005) in the same story, because that gate's recovery path
+discards proved work, which is exactly what 33 exists to prevent. 34 is last: its deliverable *is*
+33's seal, and it threads a stop flag through the `run_lockstep_command` call that
+`docs/stories/symbolic-execution/19-…` rewrites.
 
 ## 6. Working agreement (important)
 

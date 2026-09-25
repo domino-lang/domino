@@ -58,13 +58,30 @@ solver, not something read off the mapping's text.
 
 ## Debugging
 
-**Sequential exploration** — the debugger's original strategy: every path of the left oracle,
-then, under each, every path of the right oracle.
+**Strategy** — how the debugger walks two oracles: *sequential exploration* or *lockstep
+execution*. Independent of the **listing** it walks them on.
 
-**Lockstep execution** — the debugger's EasyCrypt-mode strategy: both oracles advance together,
-each over its straight-line code up to its next *decision point*, and the two decision points are
-then resolved jointly. It is what an EasyCrypt pRHL proof does, which is why it exists.
+**Listing** — the code the debugger executes and labels: the Domino code, or the EasyCrypt code the
+export produces. `domino debug` walks the Domino listing; the EasyCrypt listing is reached through
+`domino easycrypt`.
+
+**Sequential exploration** — the strategy that takes every path of the left oracle, then, under
+each, every path of the right oracle.
+
+**Lockstep execution** — the strategy in which both oracles advance together, each over its
+straight-line code up to its next *decision point*, and the two decision points are then resolved
+jointly. It is what an EasyCrypt pRHL proof does, which is why it exists.
 _Avoid_: synchronized execution (the word *synchronized* is reserved for the outcomes below).
+
+**All-claim run** — a debugger run that names no claim and therefore checks the oracle's whole
+obligation set — its proof tree plus the generated package and game invariant claims — on one
+shared exploration.
+_Avoid_: claim-free run, full-obligation run.
+
+**Unreachable** — a verdict meaning a claim was not refuted because the situation it was checked in
+cannot arise *under the assumptions in force*. Either the path pair itself is infeasible, or the
+pair happens but this one claim's dependency is false on it. It is never a synonym for *verified*:
+telling the two apart is what stops an all-green run from being mistaken for a proof.
 
 **Decision point** — where one side of a lockstep execution cannot continue as straight-line
 code: a branch, a sampling, or the end of the oracle.
@@ -148,3 +165,24 @@ router or package ever uses it.
 
 **`Domino_` operator** — an EasyCrypt operator translated from a hand-written SMT-LIB state relation
 or helper function, named after its SMT original.
+
+**Tactics run** — one translation of a theorem's equivalences into EasyCrypt proofs against a live
+EasyCrypt. Its defining property: the proof files on disk always hold what has been proved so far,
+so stopping it early costs no proved oracle.
+
+**Seal** — to close every goal an oracle still has open with `admit`, so the oracle's proof is
+complete as written even though the walk had not finished it. Sealing is what makes a stopped
+tactics run leave a usable file.
+
+**Partial proof** — a proof file holding proved bullets alongside the admits of a seal. It is a
+proof EasyCrypt accepts, not a draft.
+
+**Run artifact** — a file a tactics run writes *about itself* rather than as translation output:
+the live page, the EasyCrypt transcript, the per-equivalence report, the alignment report, the
+debug output of lockstep execution. Regenerated every run and never hand-edited, so unlike
+translation output it may be overwritten without asking.
+
+**EasyCrypt transcript** — the record of one tactics run's exchange with EasyCrypt: every sentence
+sent, in order, with EasyCrypt's answer and how long it took. Undone attempts and the `undo`
+sentences themselves are part of it. _Distinguish_: the **solver transcript** is the raw incremental
+exchange with cvc5, a debugging aid for the debugger itself.
