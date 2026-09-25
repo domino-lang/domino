@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use super::*;
 use crate::debug::exec::{execute, Side, Terminal};
-use crate::debug::ir::{count_terminals, inline_oracle, Place};
+use crate::debug::ir::{count_terminals, inline_oracle, Place, Plumbing};
 use crate::debug::render::render_side_by_side_easycrypt;
 use crate::project::{DirectoryFiles, DirectoryProject, Project};
 use crate::theorem::Theorem;
@@ -377,6 +377,56 @@ fn every_ec_done_true_that_is_not_after_a_return_is_an_abort() {
     }
 }
 
+// --- plumbing branches (story 22) ----------------------------------------------
+
+/// Every guard row of the listing is a labelled `Branch` marked with the kind
+/// of plumbing it is, and nothing else is marked. A done guard's condition is
+/// the literal `true` and it has no else side.
+#[test]
+fn plumbing_branches_are_labelled_decision_points() {
+    let (mut done_guards, mut call_results) = (0, 0);
+    for &(dir, th, gi, o) in CASES {
+        let inl = lowered(dir, th, gi, o);
+        for (stmt, _) in stmts(&inl) {
+            let InlStmt::Branch {
+                label,
+                cond,
+                els,
+                plumbing,
+                ..
+            } = stmt
+            else {
+                continue;
+            };
+            let text = line(&inl, *label).trim();
+            if text == "if (!ec_done) {" {
+                done_guards += 1;
+                assert_eq!(*plumbing, Some(Plumbing::DoneGuard), "{gi}: line {label}");
+                assert_eq!(*cond, Expression::boolean(true), "{gi}: line {label}");
+                assert!(els.0.is_empty(), "{gi}: line {label}");
+            } else if text.starts_with("if (!(ec_r") && !text.starts_with("if (!(ec_result") {
+                call_results += 1;
+                assert_eq!(*plumbing, Some(Plumbing::CallResult), "{gi}: line {label}");
+            } else {
+                assert_eq!(*plumbing, None, "{gi}: line {label}: {text}");
+            }
+        }
+        // no `if (!ec_done)` row is left without a Branch
+        let labelled: HashSet<Label> = stmts(&inl).iter().map(|(s, _)| label_of(s)).collect();
+        for (i, text) in inl.listing.text.lines().enumerate() {
+            if text.trim() == "if (!ec_done) {" {
+                assert!(
+                    labelled.contains(&(i + 1)),
+                    "{gi}: line {} unlabelled",
+                    i + 1
+                );
+            }
+        }
+    }
+    assert!(done_guards > 0, "no done guard exercised");
+    assert!(call_results > 0, "no call-result guard exercised");
+}
+
 // --- the executor runs it -----------------------------------------------------
 
 #[test]
@@ -436,8 +486,12 @@ fn kem_dem_pkenc_path_counts() {
     // own `assert`, so each inlined copy has one fewer infeasible branch
     // (12 and 31 before). Part A alone leaves these counts as they were. The
     // Domino counts, and every feasible path, are unchanged.
-    assert_eq!(counts["Game_MON_CCA_PKE"], (10, 6));
-    assert_eq!(counts["Game_MOD_CCA_PKE_Real_KEM"], (28, 16));
+    //
+    // Story 22 keeps each `if (!ec_done)` guard as a labelled branch whose
+    // condition is the literal `true`, so each contributes an infeasible else
+    // child: 10 -> 12 and 28 -> 32.
+    assert_eq!(counts["Game_MON_CCA_PKE"], (12, 6));
+    assert_eq!(counts["Game_MOD_CCA_PKE_Real_KEM"], (32, 16));
 }
 
 // --- the listing is real EasyCrypt ----------------------------------------------

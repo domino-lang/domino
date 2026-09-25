@@ -43,10 +43,16 @@
 //!   `ec_result <- Some e` it is unreachable in the IR (the `Return` already
 //!   ended the frame) and is left unlabelled, as is `ec_done <- false` and
 //!   `ec_result <- None`.
-//! - an `if (!ec_done) { … }` guard is structural: every path that set
-//!   `ec_done` has already ended in a `Return` or `Abort`, so on every path
-//!   that reaches the guard it holds. Its body is spliced into the enclosing
-//!   block and its two lines are unlabelled.
+//! - an `if (!ec_done) { … }` guard is a *plumbing branch* (story 22):
+//!   EasyCrypt shows a real `if` there and a proof has to step over it, so it
+//!   is lowered to a labelled [`InlStmt::Branch`] marked
+//!   [`Plumbing::DoneGuard`], with the literal `true` as its condition and no
+//!   else side. Every path that set `ec_done` has already ended in a `Return`
+//!   or `Abort`, so the guard holds on every path that reaches it; the
+//!   literal says exactly that without inventing a place for the flag, and
+//!   lockstep execution (story 23) is to take the branch on its side alone (`rcondt`). The
+//!   `if (!(ec_rN = None))` call-result guards are marked
+//!   [`Plumbing::CallResult`].
 //! - a frame that falls off its end without returning has aborted
 //!   (`ec_result` is still `None`). For an inlined callee that last line is
 //!   `ec_r<N> <- ec_result;`; for the entry frame it is the router's
@@ -55,6 +61,15 @@
 //! - the router's `abort_flag` is dropped from the IR entirely, and so is its
 //!   `if (!abort_flag)` guard: the debugger already models "this oracle call
 //!   happens".
+//!   The router's prelude (`ec_result <- None; if (!abort_flag) { … }`) and
+//!   tail (`if (ec_result = None) { abort_flag <- true; }`) stay out of the IR
+//!   **by design**, since Domino has no abort flag to decide them with.
+//!   Skeleton alignment and tactic generation (stories 26/27) know the
+//!   router's shape because `game.rs` generates it, not because they match
+//!   names in EasyCrypt's output. Anything after a terminal (guarded dead
+//!   code, the router tail) is consumed by the proof's closing step:
+//!   alignment treats a lockstep terminal as matching whatever EasyCrypt
+//!   skeleton remains on that side.
 //!
 //! An `Unwrap` needs nothing of its own: since story 17 every `oget e` sits
 //! under the `if (!(e = None))` guard `easycryptify` placed where the Domino
@@ -88,14 +103,16 @@ use miette::SourceSpan;
 
 use crate::debug::ir::{
     place_from_pattern, rewrite_expr, FrameInfo, FrameScope, InlBlock, InlStmt, InlineError,
-    InlinedOracle, Label, Listing, SiteInfo, SiteKind, MAX_INLINE_DEPTH,
+    InlinedOracle, Label, Listing, Plumbing, SiteInfo, SiteKind, MAX_INLINE_DEPTH,
 };
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
 use crate::package::{Composition, Edge, OracleDef};
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement};
+use crate::statement::{
+    Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
+};
 use crate::theorem::GameInstance;
-use crate::transforms::easycryptify::{EC_DONE, EC_RESULT};
+use crate::transforms::easycryptify::{EC_DONE, EC_INVOKE_PREFIX, EC_RESULT};
 use crate::types::{Type, TypeKind};
 
 use super::ast::{EcBinop, EcExpr, EcLvalue, EcStmt, EcType, EcUnop};
@@ -443,8 +460,8 @@ enum Shape<'s> {
     SetResult(&'s Expression),
     /// `ec_done <- true`.
     SetDone,
-    /// `if (!ec_done) { … }`.
-    DoneGuard(&'s CodeBlock),
+    /// `if (!ec_done) { … }`: a labelled [`Plumbing::DoneGuard`] branch.
+    DoneGuard(&'s IfThenElse),
     Other,
 }
 
@@ -479,10 +496,25 @@ fn shape(stmt: &Statement) -> Shape<'_> {
                 && matches!(ite.cond.kind(), ExpressionKind::Not(inner)
                     if matches!(inner.kind(), ExpressionKind::Identifier(id) if is_generated(id, EC_DONE))) =>
         {
-            Shape::DoneGuard(&ite.then_block)
+            Shape::DoneGuard(ite)
         }
         _ => Shape::Other,
     }
+}
+
+/// `!(ec_rN = None)`: the guard `easycryptify` puts on the use of an inlined
+/// call's result.
+fn call_result_guard(cond: &Expression) -> bool {
+    let ExpressionKind::Not(inner) = cond.kind() else {
+        return false;
+    };
+    matches!(inner.kind(), ExpressionKind::Equals(es)
+    if es.len() == 2
+        && matches!(es[1].kind(), ExpressionKind::None(_))
+        && matches!(es[0].kind(), ExpressionKind::Identifier(Identifier::Generated(n, _))
+            if n.strip_prefix(EC_INVOKE_PREFIX).is_some_and(|k| {
+                !k.is_empty() && k.bytes().all(|b| b.is_ascii_digit())
+            })))
 }
 
 fn stmt_span(stmt: &Statement) -> SourceSpan {
@@ -712,14 +744,15 @@ impl<'c> Lowerer<'c> {
                     out.push(InlStmt::Return { label, value });
                     ended = true;
                 }
-                Shape::DoneGuard(block) => {
-                    let Statement::IfThenElse(ite) = stmt else {
-                        unreachable!()
-                    };
-                    let cond = self.translate_expr(frame, &ite.cond, ite.full_span)?;
-                    self.emit_plain_line(&render_if_open(&cond, level));
-                    out.extend(self.lower_block(&block.0, frame, depth, level + 1)?.0);
-                    self.emit_plain_line(&render_block_close(level));
+                Shape::DoneGuard(ite) => {
+                    out.push(self.lower_if(
+                        ite,
+                        Expression::boolean(true),
+                        Some(Plumbing::DoneGuard),
+                        frame,
+                        depth,
+                        level,
+                    )?);
                 }
                 Shape::Other => out.push(self.lower_stmt(stmt, frame, depth, level)?),
             }
@@ -797,34 +830,9 @@ impl<'c> Lowerer<'c> {
             ),
 
             Statement::IfThenElse(ite) => {
-                let cond = self.translate_expr(frame, &ite.cond, ite.full_span)?;
-                let label = self.emit_site(
-                    &render_if_open(&cond, level),
-                    SiteKind::Branch,
-                    ite.full_span,
-                    frame,
-                    depth,
-                );
-                let then_first = label + 1;
-                let then = self.lower_block(&ite.then_block.0, frame, depth, level + 1)?;
-                let (then_close, els, else_lines) = if ite.else_block.0.is_empty() {
-                    let close = self.alloc_line(&render_block_close(level));
-                    (close, InlBlock(vec![]), None)
-                } else {
-                    let close = self.alloc_line(&render_else_open(level));
-                    let els = self.lower_block(&ite.else_block.0, frame, depth, level + 1)?;
-                    let els_close = self.alloc_line(&render_block_close(level));
-                    (close, els, Some((close + 1, els_close)))
-                };
-                Ok(InlStmt::Branch {
-                    label,
-                    cond: rewrite_expr(&ite.cond, frame.scope()),
-                    then,
-                    els,
-                    is_assert: false,
-                    then_lines: Some((then_first, then_close)),
-                    else_lines,
-                })
+                let plumbing = call_result_guard(&ite.cond).then_some(Plumbing::CallResult);
+                let cond_ir = rewrite_expr(&ite.cond, frame.scope());
+                self.lower_if(ite, cond_ir, plumbing, frame, depth, level)
             }
 
             Statement::Abort(_) => unreachable!("easycryptify leaves no `abort` in an oracle body"),
@@ -833,6 +841,48 @@ impl<'c> Lowerer<'c> {
             ),
             Statement::For(..) => unreachable!("easycryptify rejects every surviving `for` loop"),
         }
+    }
+
+    /// A labelled `if`. `cond_ir` is the condition the IR decides on: the
+    /// statement's own, except for a done guard (see [`Plumbing::DoneGuard`]).
+    fn lower_if(
+        &mut self,
+        ite: &'c IfThenElse,
+        cond_ir: Expression,
+        plumbing: Option<Plumbing>,
+        frame: &EcFrame<'c>,
+        depth: usize,
+        level: usize,
+    ) -> Result<InlStmt, EcExportError> {
+        let cond = self.translate_expr(frame, &ite.cond, ite.full_span)?;
+        let label = self.emit_site(
+            &render_if_open(&cond, level),
+            SiteKind::Branch,
+            ite.full_span,
+            frame,
+            depth,
+        );
+        let then_first = label + 1;
+        let then = self.lower_block(&ite.then_block.0, frame, depth, level + 1)?;
+        let (then_close, els, else_lines) = if ite.else_block.0.is_empty() {
+            let close = self.alloc_line(&render_block_close(level));
+            (close, InlBlock(vec![]), None)
+        } else {
+            let close = self.alloc_line(&render_else_open(level));
+            let els = self.lower_block(&ite.else_block.0, frame, depth, level + 1)?;
+            let els_close = self.alloc_line(&render_block_close(level));
+            (close, els, Some((close + 1, els_close)))
+        };
+        Ok(InlStmt::Branch {
+            label,
+            cond: cond_ir,
+            then,
+            els,
+            is_assert: false,
+            then_lines: Some((then_first, then_close)),
+            else_lines,
+            plumbing,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]

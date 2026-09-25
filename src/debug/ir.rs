@@ -87,6 +87,22 @@ pub struct InlinedOracle {
 #[derive(Debug, Clone)]
 pub struct InlBlock(pub Vec<InlStmt>);
 
+/// Why an [`InlStmt::Branch`] exists when it decides nothing Domino would call
+/// a decision: a *plumbing branch* (`CONTEXT.md`) of the EasyCrypt export.
+/// Only the EasyCrypt lowering produces them; every branch of a Domino IR has
+/// `plumbing: None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Plumbing {
+    /// `if (!ec_done) { … }` — guards a continuation after a point that could
+    /// have exited. Its condition is the literal `true`: every point that sets
+    /// the done flag is already a terminal on the IR path, so on every path
+    /// that reaches the guard it holds.
+    DoneGuard,
+    /// `if (!(ec_rN = None)) { … } else { … }` — guards the use of an inlined
+    /// call's result.
+    CallResult,
+}
+
 #[derive(Debug, Clone)]
 pub enum InlStmt {
     Assign {
@@ -122,6 +138,9 @@ pub enum InlStmt {
         then_lines: Option<(Label, Label)>,
         /// Likewise for the *else* block, `None` when there is no `else`.
         else_lines: Option<(Label, Label)>,
+        /// `Some` for a branch that exists only because EasyCrypt allows one
+        /// exit point; always `None` in a Domino IR.
+        plumbing: Option<Plumbing>,
     },
     /// An inlined `invoke`. The callee body is NESTED, not flattened. A
     /// [`InlStmt::Return`] inside `body` binds its value into `bind` and
@@ -614,6 +633,7 @@ impl<'c> Inliner<'c> {
                         is_assert: true,
                         then_lines: None,
                         else_lines: None,
+                        plumbing: None,
                     })
                 } else {
                     let content = format!("if ({}) {{", render_expr(&ite.cond));
@@ -646,6 +666,7 @@ impl<'c> Inliner<'c> {
                         is_assert: false,
                         then_lines: Some((then_first, then_close)),
                         else_lines,
+                        plumbing: None,
                     })
                 }
             }

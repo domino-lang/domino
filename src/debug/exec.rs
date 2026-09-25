@@ -782,6 +782,7 @@ impl<'a> Executor<'a> {
                     is_assert,
                     then_lines,
                     else_lines,
+                    ..
                 } => {
                     let cond_smt = to_smt(&st, cond);
                     let (d_then, d_else) = if *is_assert {
