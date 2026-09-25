@@ -101,53 +101,6 @@ pub(crate) mod test_support {
              its memory tag:\nstdout:\n{stdout}\nstderr:\n{stderr}"
         );
     }
-
-    /// Like [`assert_compiles_with_paths`], but for story 07's own
-    /// `Eq_*.ec` proof skeletons: tolerates *exactly* the base case's known
-    /// `smt(emptyE map_empty)` discharge gap (`docs/stories/easycrypt/
-    /// 07-proof-skeleton.md` §6/§4 — "the base case may genuinely fail...
-    /// report the goal rather than widening the `smt` call blindly", and a
-    /// real `smt(…)` call, not `admit`, is itself the acceptance bar, not
-    /// the base case actually discharging).
-    ///
-    /// **Narrowed by story 13, again by story 15.** Story 13's explicit
-    /// `byequiv` relational precondition made the same-composition base case
-    /// discharge; story 15 rewrote it as one `arg{side} = …` conjunct per
-    /// side, because the per-parameter form was silently voided whenever a
-    /// lemma binder shared a `run` parameter's name (`b{1} = b` collapsed to
-    /// `b = b`). With that fixed, every `Simple4WHS` proof compiles clean, as
-    /// do six of `Full4WHS`'s nine. What still needs this helper —
-    /// confirmed failing only at the base case's `smt(emptyE map_empty)`,
-    /// `cannot prove goal (strict)` — is `Eq_H0_H1_0.ec`, `Eq_H1_1_H2_0.ec`
-    /// and `Eq_H3_1_H4.ec` (`Full4WHS`), and `kem-dem-cca-ssp`'s one hop:
-    /// the two sides' game-state records are structurally different (a
-    /// `forall &1 &2` induction step loses the tie between the two sides'
-    /// `run` arguments that the top-level precondition fixed at `&m`), a
-    /// `params_inv`/state-relation gap, not a precondition one. Do not widen
-    /// the `smt` call to chase them. Everything else in the file, up to and
-    /// including that one tactic, must still succeed, so any *other*
-    /// failure (wrong syntax, a bad restriction, a bullet mismatch, …) still
-    /// fails this assertion — and so does an `unused memory` warning, which
-    /// is how a voided relational precondition shows up.
-    pub(crate) fn assert_compiles_or_known_base_case_gap(dirs: &[&str], file: &str) {
-        let Some(output) = run_compile(dirs, file) else {
-            return;
-        };
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        // Story 15: a base-case failure is tolerated, a voided precondition
-        // is not — even in a file that fails for the known reason.
-        assert_no_unused_memory_warning(&output);
-        if output.status.success() {
-            return;
-        }
-        assert!(
-            stdout.contains("cannot prove goal (strict)")
-                || stderr.contains("cannot prove goal (strict)"),
-            "easycrypt compile failed with something other than the known base-case gap:\n\
-             stdout:\n{stdout}\nstderr:\n{stderr}"
-        );
-    }
 }
 
 use miette::{Diagnostic, SourceSpan};

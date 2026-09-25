@@ -122,3 +122,14 @@ through `arg`), `a_side_with_no_run_arguments_contributes_no_conjunct` (0-arity 
   an invariant-translation problem (story 07 §6.2), unrelated and untouched.
 - Whether `arg` should also be reserved for `NameKind::Lemma`/`Module` was considered and left
   out: neither can shadow a program identifier in a formula.
+
+
+---
+
+## Corrected by story 19
+
+The "known base-case gap" diagnosis above (the `smt(emptyE map_empty)` failing for want of a tie
+between the two sides' `run` arguments) was wrong. `auto => />.` already closes the base case, so
+the following `smt` ran on the first oracle's goal. Story 19 emits `auto => />; smt(emptyE
+map_empty).` as one line; every file this report lists as needing the helper now compiles, and the tolerance
+helper is gone.

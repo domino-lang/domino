@@ -474,8 +474,10 @@ fn build_equivalence_file(
         plain_line("proc; inline."),
         plain_line(format!("call (: {}); last first.", render_expr(&inv_app))),
         blank_line(),
-        plain_line("auto => />."),
-        plain_line("smt(emptyE map_empty)."),
+        // Story 19: one line. `t1; t2` runs `t2` on every goal `t1` leaves and
+        // on none when `t1` closes the base case, so the `smt` can never fall
+        // through onto the first oracle's goal.
+        plain_line("auto => />; smt(emptyE map_empty)."),
     ];
 
     for export in &left_comp.exports {

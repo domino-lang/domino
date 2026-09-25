@@ -256,3 +256,14 @@ invariant translation, so it cannot affect this gap either way; verified instead
   against, say, `Eq_H0_H1_0_Invariants.ec` to see what's different about their `params_inv`/
   `Domino_*` predicates would be the natural next step, not attempted here per the story's own
   explicit instruction not to chase this.
+
+
+---
+
+## Corrected by story 19
+
+The "known base-case gap" diagnosis above (the `smt(emptyE map_empty)` failing for want of a tie
+between the two sides' `run` arguments) was wrong. `auto => />.` already closes the base case, so
+the following `smt` ran on the first oracle's goal. Story 19 emits `auto => />; smt(emptyE
+map_empty).` as one line; every file this report calls tolerated now compiles, and the tolerance
+helper is gone.

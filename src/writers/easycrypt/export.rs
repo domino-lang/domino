@@ -417,6 +417,12 @@ mod tests {
             .files
             .contains_key(Path::new(&eq.invariants_file)));
         assert!(exported.files.contains_key(Path::new(&eq.proof_file)));
+
+        // Story 19: the base case is one line, so the `smt` can never run on
+        // the first oracle's goal when `auto => />` already closed the base.
+        let proof = &exported.files[Path::new(&eq.proof_file)];
+        assert!(proof.lines().any(|l| l.trim() == "auto => />; smt(emptyE map_empty)."));
+        assert!(!proof.lines().any(|l| l.trim() == "smt(emptyE map_empty)."));
     }
 
     #[test]
@@ -537,10 +543,7 @@ mod tests {
         }
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            super::super::test_support::assert_compiles_or_known_base_case_gap(
-                &[&base],
-                &format!("{base}/{}", eq.proof_file),
-            );
+            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.proof_file));
         }
 
         std::fs::remove_dir_all(&tmp).unwrap();
@@ -572,25 +575,9 @@ mod tests {
         for name in &exported.game_names {
             super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
         }
-        // Story 15: every hop compiles clean except these three, which
-        // still fail — only at the base case — for story 13 §1.1's
-        // cross-composition state-record gap.
-        const KNOWN_BASE_CASE_GAPS: [&str; 3] = [
-            "Eq_H0_H1_0.ec",
-            "Eq_H1_1_H2_0.ec",
-            "Eq_H3_1_H4.ec",
-        ];
         for eq in &exported.equivalences {
             super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            let proof_path = format!("{base}/{}", eq.proof_file);
-            if KNOWN_BASE_CASE_GAPS.contains(&eq.proof_file.as_str()) {
-                super::super::test_support::assert_compiles_or_known_base_case_gap(
-                    &[&base],
-                    &proof_path,
-                );
-            } else {
-                super::super::test_support::assert_compiles(&base, &proof_path);
-            }
+            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.proof_file));
         }
 
         std::fs::remove_dir_all(&tmp).unwrap();
