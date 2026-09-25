@@ -1,0 +1,4 @@
+tactics for Eq_medium_composition_small_composition.ec (proofstep 0: medium_composition ~ small_composition)
+  UsefulOracle: lockstep 1 joint paths, 3 nodes, 0 stuck points (0.1s)
+    goals closed: 3, no admit, fallbacks: 0, EasyCrypt time 0.5s (0 attempts undone)
+1 oracles, 3 goals closed, 0 admits, 3.2s

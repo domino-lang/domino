@@ -160,7 +160,7 @@ pub fn align_goal(
 }
 
 /// The sentences of `file` up to and including the one that ends `last first.`.
-fn sentences_until_call(file: &str, source: &str) -> Result<Vec<String>, CheckError> {
+pub(crate) fn sentences_until_call(file: &str, source: &str) -> Result<Vec<String>, CheckError> {
     let mut out = Vec::new();
     for sentence in split_sentences(source) {
         let done = sentence.starts_with("call") && sentence.ends_with("last first.");
@@ -174,7 +174,7 @@ fn sentences_until_call(file: &str, source: &str) -> Result<Vec<String>, CheckEr
     })
 }
 
-fn ok_or_reject<'r>(
+pub(crate) fn ok_or_reject<'r>(
     response: &'r Response,
     file: &str,
     sentence: &str,
@@ -224,6 +224,65 @@ pub fn check_alignment(
     })
 }
 
+/// What both story 26's alignment check and story 27's tactic generation need to know about one
+/// exported equivalence: its two game instances (after `EasyCryptTransform`), their routers'
+/// abort flags as EasyCrypt prints them, and the exported oracles with their EasyCrypt names.
+pub(crate) struct EquivalenceSetup<'t> {
+    pub left_inst: &'t crate::theorem::GameInstance,
+    pub right_inst: &'t crate::theorem::GameInstance,
+    pub left_router: String,
+    pub right_router: String,
+    pub left_flag: String,
+    pub right_flag: String,
+    /// `(exported name, EasyCrypt's procedure name)`, in the game interface's order.
+    pub oracles: Vec<(String, String)>,
+}
+
+pub(crate) fn equivalence_setup<'t>(
+    theorem_ec: &'t Theorem<'_>,
+    eq: &EquivalenceReport,
+) -> Result<EquivalenceSetup<'t>, CheckError> {
+    let left_inst = theorem_ec
+        .find_game_instance(&eq.left_name)
+        .expect("an exported equivalence names a game instance of its theorem");
+    let right_inst = theorem_ec
+        .find_game_instance(&eq.right_name)
+        .expect("an exported equivalence names a game instance of its theorem");
+    let (left_router, flag) = router_module_and_flag(left_inst.game())?;
+    let (right_router, _) = router_module_and_flag(right_inst.game())?;
+    let mut oracles = Vec::new();
+    for export in &left_inst.game().exports {
+        let proc_name = Names::new().mangle(NameKind::Proc, export.name())?;
+        oracles.push((export.name().to_string(), proc_name));
+    }
+    Ok(EquivalenceSetup {
+        left_inst,
+        right_inst,
+        left_flag: format!("{left_router}.{flag}"),
+        right_flag: format!("{right_router}.{flag}"),
+        left_router,
+        right_router,
+        oracles,
+    })
+}
+
+impl EquivalenceSetup<'_> {
+    /// The exported oracle whose `equivF` `goal` is, identified from the JSON: the procedure
+    /// name and both routers.
+    pub(crate) fn oracle_of_goal(&self, goal: &Goal) -> Option<String> {
+        let (l, r) = goal.concl.equiv_procs()?;
+        self.oracles
+            .iter()
+            .find(|(_, proc_name)| {
+                *proc_name == l.name
+                    && l.name == r.name
+                    && l.top.ends_with(&self.left_router)
+                    && r.top.ends_with(&self.right_router)
+            })
+            .map(|(name, _)| name.clone())
+    }
+}
+
 fn check_equivalence(
     theorem_ec: &Theorem<'_>,
     exported: &ExportedTheorem,
@@ -238,23 +297,10 @@ fn check_equivalence(
         .get(Path::new(&file))
         .ok_or_else(|| CheckError::MissingFile { file: file.clone() })?;
 
-    let left_inst = theorem_ec
-        .find_game_instance(&eq.left_name)
-        .expect("an exported equivalence names a game instance of its theorem");
-    let right_inst = theorem_ec
-        .find_game_instance(&eq.right_name)
-        .expect("an exported equivalence names a game instance of its theorem");
-    let (left_router, flag) = router_module_and_flag(left_inst.game())?;
-    let (right_router, _) = router_module_and_flag(right_inst.game())?;
-    let left_flag = format!("{left_router}.{flag}");
-    let right_flag = format!("{right_router}.{flag}");
-
-    // (exported name, EasyCrypt's procedure name), in the game interface's order
-    let mut oracles = Vec::new();
-    for export in &left_inst.game().exports {
-        let proc_name = Names::new().mangle(NameKind::Proc, export.name())?;
-        oracles.push((export.name().to_string(), proc_name));
-    }
+    let setup = equivalence_setup(theorem_ec, eq)?;
+    let (left_inst, right_inst) = (setup.left_inst, setup.right_inst);
+    let (left_flag, right_flag) = (&setup.left_flag, &setup.right_flag);
+    let oracles = &setup.oracles;
     if let Some(wanted) = &options.oracle {
         if !oracles.iter().any(|(name, _)| name == wanted) {
             return Err(CheckError::NoSuchOracle {
@@ -273,17 +319,7 @@ fn check_equivalence(
     let mut results: Vec<OracleAlignment> = Vec::new();
     // The goals are handled from the first one on; each is identified from its JSON.
     while let Some(goal) = session.goals().first() {
-        let target = goal.concl.equiv_procs().and_then(|(l, r)| {
-            oracles
-                .iter()
-                .find(|(_, proc_name)| {
-                    *proc_name == l.name
-                        && l.name == r.name
-                        && l.top.ends_with(&left_router)
-                        && r.top.ends_with(&right_router)
-                })
-                .map(|(name, _)| name.clone())
-        });
+        let target = setup.oracle_of_goal(goal);
         if let Some(oracle) = target.filter(|name| {
             options
                 .oracle
@@ -297,7 +333,7 @@ fn check_equivalence(
                 left_inst,
                 right_inst,
                 &oracle,
-                (&left_flag, &right_flag),
+                (left_flag, right_flag),
             )?;
             results.push(OracleAlignment {
                 elapsed: began.elapsed(),
@@ -310,7 +346,7 @@ fn check_equivalence(
     }
 
     // every selected oracle must have had its goal
-    for (name, _) in &oracles {
+    for (name, _) in oracles {
         if options.oracle.as_ref().is_some_and(|w| w != name) {
             continue;
         }
@@ -392,7 +428,7 @@ fn describe_path(path: &[PathStep]) -> String {
         .join(" > ")
 }
 
-fn describe_mismatch(m: &Mismatch) -> String {
+pub(crate) fn describe_mismatch(m: &Mismatch) -> String {
     let mut s = format!("{} at {}", m.kind.slug(), describe_path(&m.path));
     if let Some(ec) = &m.ec {
         let _ = write!(s, "\n        EasyCrypt: {}", ec.replace('\n', " "));

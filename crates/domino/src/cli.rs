@@ -56,6 +56,7 @@ pub(crate) enum Commands {
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
+#[clap(group(clap::ArgGroup::new("ec_mode").args(["check_alignment", "tactics"]).multiple(true)))]
 pub(crate) struct Easycrypt {
     /// Path to the Domino project. Defaults to searching the current
     /// directory and its ancestors for an `ssp.toml`.
@@ -76,11 +77,33 @@ pub(crate) struct Easycrypt {
     /// `<out>/<theorem>/alignment.txt`.
     #[clap(long)]
     pub(crate) check_alignment: bool,
-    /// With `--check-alignment`: only this proofstep (as printed by `domino proofsteps`).
-    #[clap(long, requires = "check_alignment")]
+    /// After exporting, prove as much of each oracle as possible: run lockstep execution
+    /// on it, walk the joint tree alongside a live EasyCrypt (`DOMINO_EASYCRYPT`, an
+    /// `easycrypt cli -json` binary), and write the accepted tactics into `Eq_*.ec`. What
+    /// could not be closed stays an `admit` labelled with the claim, the id (`J`/`S`) and
+    /// what Domino concluded. Writes `Eq_*.report.txt` and `progress/ec-transcript.jsonl`
+    /// next to the export. Needs the `cvc5-lib` build. Never run it on 4WHS or yao: it runs
+    /// lockstep execution, which is the debugger.
+    #[clap(long)]
+    pub(crate) tactics: bool,
+    /// With `--tactics`: seconds one EasyCrypt sentence may run before it is interrupted.
+    #[clap(long, requires = "tactics", default_value_t = 60)]
+    pub(crate) ec_timeout: u64,
+    /// With `--tactics`: the seconds splitting one leaf by meaning may take before its
+    /// remaining parts are admitted (each sentence of a deep goal costs seconds).
+    #[clap(long, requires = "tactics", default_value_t = 300)]
+    pub(crate) leaf_budget: u64,
+    /// With `--tactics`: skip rung 0 (`auto => /#.` on every program goal), so the walk of
+    /// the joint tree is exercised even where one tactic closes an oracle. For testing.
+    #[clap(long, requires = "tactics", hide = true)]
+    pub(crate) no_rung0: bool,
+    /// With `--check-alignment` or `--tactics`: only this proofstep (as printed by
+    /// `domino proofsteps`). Without `--tactics` the export is not affected.
+    #[clap(long, requires = "ec_mode")]
     pub(crate) proofstep: Option<usize>,
-    /// With `--check-alignment`: only this exported oracle.
-    #[clap(long, requires = "check_alignment")]
+    /// With `--check-alignment` or `--tactics`: only this exported oracle; with `--tactics`
+    /// the rest keep `+ proc; inline. admit.`.
+    #[clap(long, requires = "ec_mode")]
     pub(crate) oracle: Option<String>,
 }
 

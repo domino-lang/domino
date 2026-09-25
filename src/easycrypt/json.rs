@@ -209,8 +209,16 @@ pub struct LValue {
 }
 
 /// Parses one line of an EasyCrypt answer.
+///
+/// The recursion limit is off: after a few `sp`s the goals nest a formula deeper than serde's
+/// default of 128, and the answer is still well-formed. The caller must have stack for it (the
+/// session parses on a thread with a large one).
 pub fn parse_response(line: &str) -> Result<Response, serde_json::Error> {
-    serde_json::from_str(line)
+    let mut deserializer = serde_json::Deserializer::from_str(line);
+    deserializer.disable_recursion_limit();
+    let response = Response::deserialize(&mut deserializer)?;
+    deserializer.end()?;
+    Ok(response)
 }
 
 /// A list of formulas, or a single formula (`pr`'s `args`) as a list of one.

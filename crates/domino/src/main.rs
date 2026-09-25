@@ -51,6 +51,17 @@ pub struct DebugNotVerified;
 pub struct AlignmentMismatch(pub usize);
 
 #[derive(Error, Diagnostic, Debug)]
+#[error(
+    "`domino easycrypt --tactics` runs lockstep execution, which needs the native cvc5 backend \
+     behind the `cvc5-lib` cargo feature"
+)]
+#[diagnostic(help(
+    "rebuild with `cargo build --features cvc5-lib` (see the cvc5-lib section of Readme.md \
+     and scripts/setup-cvc5-lib.sh for the one-time prerequisites)"
+))]
+pub struct TacticsNeedCvc5Lib;
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("theorem `{0}` not found")]
 #[diagnostic(code(cli::theorem_not_found))]
 pub struct TheoremNotFound(pub String);
@@ -93,7 +104,14 @@ enum Error {
     #[diagnostic(transparent)]
     AlignmentMismatch(#[from] AlignmentMismatch),
     #[error(transparent)]
+    #[diagnostic(transparent)]
+    TacticsNeedCvc5Lib(#[from] TacticsNeedCvc5Lib),
+    #[error(transparent)]
     EcCheck(#[from] sspverif::easycrypt::check::CheckError),
+    #[error(transparent)]
+    EcTactics(#[from] sspverif::easycrypt::tactics::TacticsError),
+    #[error(transparent)]
+    EcSession(#[from] sspverif::easycrypt::session::SessionError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     EcExport(#[from] sspverif::writers::easycrypt::EcExportError),
@@ -444,6 +462,14 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root.clone(), &files)?;
 
+    if e.tactics {
+        // fail early and clearly: a solver and a `-json`-capable EasyCrypt are prerequisites
+        #[cfg(not(feature = "cvc5-lib"))]
+        return Err(TacticsNeedCvc5Lib.into());
+        #[cfg(feature = "cvc5-lib")]
+        drop(sspverif::easycrypt::session::Session::start(&std::env::temp_dir())?);
+    }
+
     let theorem_names: Vec<String> = match &e.theorem {
         Some(name) => {
             if project.get_theorem(name).is_none() {
@@ -492,6 +518,30 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| theorem_out.display().to_string());
         print_easycrypt_report(name, exported, &display_path);
+    }
+
+    #[cfg(feature = "cvc5-lib")]
+    if e.tactics {
+        use sspverif::easycrypt::tactics::{read_smt_hints, run_tactics, TacticsOptions};
+
+        let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, None);
+        let options = TacticsOptions {
+            proofstep: e.proofstep,
+            oracle: e.oracle.clone(),
+            ec_timeout: std::time::Duration::from_secs(e.ec_timeout),
+            smt_hints: read_smt_hints(&project_root)?,
+            lockstep_timeout_ms: None,
+            rung0: !e.no_rung0,
+            leaf_budget: std::time::Duration::from_secs(e.leaf_budget),
+        };
+        for (name, exported) in &exports {
+            let theorem = project.get_theorem(name).unwrap();
+            let theorem_out = out_base.join(name);
+            let result = run_tactics(theorem, &project, exported, &theorem_out, &backend, &options)?;
+            let report = result.render();
+            println!();
+            print!("{report}");
+        }
     }
 
     if e.check_alignment {

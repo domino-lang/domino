@@ -1446,6 +1446,7 @@ dependencies = [
  "subprocess",
  "tempfile",
  "thiserror 1.0.61",
+ "toml",
  "walkdir",
  "wildcard",
  "zip",

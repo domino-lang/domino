@@ -54,6 +54,8 @@ pub enum SessionError {
         sentence: String,
         source: serde_json::Error,
     },
+    #[error("EasyCrypt refused `{sentence}`, which the prover relies on: {msg}")]
+    Refused { sentence: String, msg: String },
     #[error("EasyCrypt did not answer `{sentence}` after being interrupted")]
     Unresponsive { sentence: String },
     #[error("io error talking to EasyCrypt: {0}")]
@@ -67,15 +69,37 @@ pub struct Exchange {
     pub response: Response,
 }
 
+/// A line of EasyCrypt's output and its parse, done on the reader thread (see
+/// [`READER_STACK`]).
+struct Line {
+    raw: String,
+    parsed: Result<Response, serde_json::Error>,
+}
+
+/// The stack of the thread that reads and parses EasyCrypt's answers: a goal's formulas nest
+/// deeply, and parsing is recursive.
+const READER_STACK: usize = 1 << 30;
+
 pub struct Session {
     child: Child,
     stdin: Option<ChildStdin>,
-    lines: Receiver<std::io::Result<String>>,
+    lines: Receiver<std::io::Result<Line>>,
     binary: PathBuf,
     transcript: Vec<Exchange>,
     /// The state before the first sentence: no proof, depth 0.
     empty: Option<Response>,
     timeout: Duration,
+    sink: Option<TranscriptSink>,
+}
+
+/// Where [`Session::send`] appends every exchange, one JSON object per line: `{"file": <tag>,
+/// "ctx": <the caller's note>, "sentence": <the sentence>, "ms": <how long EasyCrypt took>,
+/// "response": <EasyCrypt's answer, verbatim>}`.
+struct TranscriptSink {
+    writer: Box<dyn Write + Send>,
+    tag: String,
+    /// What the caller says it is working on; written with every record.
+    context: String,
 }
 
 /// The binary a session will run: `DOMINO_EASYCRYPT`, else `easycrypt`.
@@ -114,24 +138,27 @@ impl Session {
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().expect("stdout is piped");
         let (tx, lines) = mpsc::channel();
-        std::thread::spawn(move || {
-            let mut reader = BufReader::new(stdout);
-            loop {
-                let mut line = String::new();
-                match reader.read_line(&mut line) {
-                    Ok(0) => break,
-                    Ok(_) => {
-                        if tx.send(Ok(line)).is_err() {
+        std::thread::Builder::new()
+            .stack_size(READER_STACK)
+            .spawn(move || {
+                let mut reader = BufReader::new(stdout);
+                loop {
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => break,
+                        Ok(_) => {
+                            let parsed = json::parse_response(&line);
+                            if tx.send(Ok(Line { raw: line, parsed })).is_err() {
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Err(e));
                             break;
                         }
                     }
-                    Err(e) => {
-                        let _ = tx.send(Err(e));
-                        break;
-                    }
                 }
-            }
-        });
+            })?;
         let mut session = Session {
             child,
             stdin,
@@ -140,6 +167,7 @@ impl Session {
             transcript: Vec::new(),
             empty: None,
             timeout: DEFAULT_TIMEOUT,
+            sink: None,
         };
         session.check_capability()?;
         Ok(session)
@@ -160,7 +188,7 @@ impl Session {
                 return Err(not_json("it exited without answering".into()))
             }
         };
-        let response = json::parse_response(&line).map_err(|e| not_json(e.to_string()))?;
+        let response = line.parsed.map_err(|e| not_json(e.to_string()))?;
         if response.version != FORMAT_VERSION {
             return Err(not_json(format!("version `{}`", response.version)));
         }
@@ -180,6 +208,35 @@ impl Session {
         self.timeout = timeout;
     }
 
+    /// Appends every later exchange, with EasyCrypt's answer verbatim, to `writer` as one JSON
+    /// line (`{"file": tag, "ctx": …, "sentence": …, "ms": …, "response": …}`): undone attempts included, goals
+    /// included. This is `ec-transcript.jsonl` (story 27 §3.7).
+    pub fn set_transcript_sink(&mut self, writer: Box<dyn Write + Send>, tag: &str) {
+        self.sink = Some(TranscriptSink {
+            writer,
+            tag: tag.to_string(),
+            context: String::new(),
+        });
+    }
+
+    /// A free-form note (the oracle and joint node being worked on) that goes into every later
+    /// transcript record as `"ctx"`. Without a transcript sink it is ignored.
+    pub fn set_context(&mut self, context: &str) {
+        if let Some(sink) = &mut self.sink {
+            sink.context = context.to_string();
+        }
+    }
+
+    /// The current per-sentence timeout.
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    /// The binary this session runs.
+    pub fn binary(&self) -> &Path {
+        &self.binary
+    }
+
     fn write_line(&mut self, sentence: &str) -> Result<(), SessionError> {
         let stdin = self.stdin.as_mut().ok_or_else(|| SessionError::Closed {
             sentence: sentence.to_string(),
@@ -195,6 +252,7 @@ impl Session {
     /// Sends one sentence and returns EasyCrypt's answer. A sentence still running after the
     /// timeout is interrupted, and the answer is then `Status::Interrupted`.
     pub fn send(&mut self, sentence: &str) -> Result<&Response, SessionError> {
+        let began = std::time::Instant::now();
         self.write_line(sentence)?;
         let line = match self.lines.recv_timeout(self.timeout) {
             Ok(line) => line,
@@ -213,7 +271,18 @@ impl Session {
             }
         };
         let line = line?;
-        let response = json::parse_response(&line).map_err(|source| SessionError::BadAnswer {
+        if let Some(sink) = &mut self.sink {
+            let record = format!(
+                "{{\"file\":{},\"ctx\":{},\"sentence\":{},\"ms\":{},\"response\":{}}}\n",
+                serde_json::Value::from(sink.tag.as_str()),
+                serde_json::Value::from(sink.context.as_str()),
+                serde_json::Value::from(sentence),
+                began.elapsed().as_millis(),
+                line.raw.trim_end()
+            );
+            sink.writer.write_all(record.as_bytes())?;
+        }
+        let response = line.parsed.map_err(|source| SessionError::BadAnswer {
             sentence: sentence.to_string(),
             source,
         })?;

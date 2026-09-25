@@ -7,9 +7,11 @@
 //! - [`skeleton`] and [`align`]: decision skeletons of EasyCrypt's program and of the
 //!   lowering's IR, and their alignment (ADR 0002).
 //! - [`check`]: `domino easycrypt --check-alignment`.
+//! - [`tactics`]: `domino easycrypt --tactics` (story 27).
 
 pub mod align;
 pub mod check;
 pub mod json;
 pub mod session;
 pub mod skeleton;
+pub mod tactics;
