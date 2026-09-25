@@ -268,32 +268,59 @@ mod tests {
         export_theorem(theorem, &project)
     }
 
-    // `hello-world`'s `theorem/invariant.smt2` predates the
-    // `define-state-relation (left right)` grammar story 06's
-    // `invariant.rs` supports: it is written against `src/writers/smt`'s
-    // own *solver-facing* encoding — one opaque whole-game-state sort per
-    // side (`<GameState_MediumComposition_<$<!n!>$>>`) with datatype
-    // selector functions (`<game-...-pkgstate-rand>`,
-    // `<pkg-state-Rand-...-ctr>`) — rather than story 06's flat
-    // per-`(instance, field)` record model. This is a real, pre-existing
-    // gap discovered only now that story 07 wires `build_invariant_file`
-    // into every equivalence hop of every project's export (previously
-    // only `Simple4WHS`'s `Hybrid0 ~ Hybrid1` had ever been run through
-    // it) — see the story 07 implementation report §"hello-world does not
-    // export" for the full writeup. Fixing it is out of story 07's scope
-    // (it is a story-06-shaped grammar-coverage gap, not a proof-skeleton
-    // one); `export_theorem` is correctly all-or-nothing per theorem
-    // (matching `yao_theorem_fails_with_a_real_miette_diagnostic`'s
-    // existing precedent for an unsupported construct), so this pins the
-    // known failure rather than papering over it.
+    /// Writes `exported` to a scratch directory and compiles every file in
+    /// dependency order (skips without `easycrypt`). `tag` only names the scratch
+    /// directory.
+    fn assert_tree_compiles(exported: &ExportedTheorem, tag: &str) {
+        let tmp = std::env::temp_dir().join(format!(
+            "domino-easycrypt-export-compile-test-{tag}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        write_files(&tmp, &exported.files).unwrap();
+        let base = tmp.to_str().unwrap().to_string();
+        let compile = super::super::test_support::assert_compiles;
+        compile(&base, &format!("{base}/Types.ec"));
+        compile(&base, &format!("{base}/Interfaces.ec"));
+        for name in &exported.package_variant_names {
+            compile(&base, &format!("{base}/Pkg_{name}.ec"));
+        }
+        for name in &exported.game_names {
+            compile(&base, &format!("{base}/Comp_{name}.ec"));
+        }
+        for eq in &exported.equivalences {
+            compile(&base, &format!("{base}/{}", eq.invariants_file));
+            compile(&base, &format!("{base}/{}", eq.proof_file));
+        }
+        std::fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    // Story 20: `hello-world`'s invariant was migrated from the old
+    // solver-facing `GameState_` dialect to `define-state-relation`, so the
+    // project now exports (this replaces the test that pinned the failure).
     #[test]
-    fn hello_world_fails_on_its_pre_easycrypt_invariant_format() {
-        let err = export("example-projects/hello-world", "Proof").unwrap_err();
-        let report = format!("{:?}", miette::Report::new(err));
+    fn hello_world_exports_its_one_equivalence() {
+        let exported = export("example-projects/hello-world", "Proof").unwrap();
+        assert_eq!(exported.equivalences.len(), 1);
+        let eq = &exported.equivalences[0];
+        assert_eq!(eq.left_name, "medium_composition");
+        assert_eq!(eq.right_name, "small_composition");
+        assert_eq!(eq.oracle_count, 1);
+        assert_eq!(eq.admit_count, 1);
+        assert_eq!(eq.oracle_set_mismatch, None);
+        let invariants = &exported.files[Path::new(&eq.invariants_file)];
         assert!(
-            report.contains("unsupported SMT sort"),
-            "expected the known GameState-sort gap, got: {report}"
+            invariants.contains(
+                "op Domino_invariant (l : medium_composition_state) (r : small_composition_state) : bool = l.`l_pkg_rand_ctr = r.`r_pkg_rand_ctr."
+            ),
+            "{invariants}"
         );
+    }
+
+    #[test]
+    fn hello_world_full_tree_compiles() {
+        let exported = export("example-projects/hello-world", "Proof").unwrap();
+        assert_tree_compiles(&exported, "hello-world");
     }
 
     #[test]
@@ -371,22 +398,46 @@ mod tests {
         }
     }
 
-    // Acceptance §4's other target project beyond hello-world/4WHS above,
-    // literal-width `Bits(256)`: `simple-KEM-example`. Its own hand-written
-    // invariants (`theorem/invariant-*.smt2`) turn out to be the same
-    // pre-easycrypt `GameState_`-sort shape as `hello-world`'s (see that
-    // test above) — not a story-07 acceptance target itself (only
-    // "kem-dem and hello-world" are named in §4), so this pins the same
-    // known gap rather than the story's own illustrative "exports without
-    // error".
+    // Story 20: `simple-KEM-example` (literal-width `Bits(256)`) had its two
+    // invariants migrated to `define-state-relation`; both equivalences now
+    // export, four oracles each, the invariant relating every state field.
     #[test]
-    fn simple_kem_example_fails_on_its_pre_easycrypt_invariant_format() {
-        let err = export("example-projects/simple-KEM-example", "KEM_Proof").unwrap_err();
-        let report = format!("{:?}", miette::Report::new(err));
-        assert!(
-            report.contains("unsupported SMT sort"),
-            "expected the known GameState-sort gap, got: {report}"
+    fn simple_kem_example_exports_its_two_equivalences() {
+        let exported = export("example-projects/simple-KEM-example", "KEM_Proof").unwrap();
+        assert_eq!(exported.bits_type_names, vec!["bits_256"]);
+        let pairs: Vec<(&str, &str)> = exported
+            .equivalences
+            .iter()
+            .map(|eq| (eq.left_name.as_str(), eq.right_name.as_str()))
+            .collect();
+        assert_eq!(
+            pairs,
+            vec![
+                ("Prot", "H1_kem_correctness_real"),
+                ("H1_kem_correctness_ideal", "H2"),
+            ]
         );
+        for eq in &exported.equivalences {
+            assert_eq!(eq.oracle_count, 4);
+            assert_eq!(eq.oracle_set_mismatch, None);
+        }
+        let first = &exported.files[Path::new(&exported.equivalences[0].invariants_file)];
+        for field in ["d_SENTCTXT", "d_SENTKEY", "d_RECEIVEDCTXT", "d_RECEIVEDKEY", "d_TESTED"] {
+            assert!(
+                first.contains(&format!("l.`l_pkg_Prot_{field} = r.`r_pkg_Corr_reduction_{field}")),
+                "{field}: {first}"
+            );
+        }
+        assert!(first.contains("l.`l_pkg_Prot_sk = r.`r_pkg_Corr_KEM_sk"), "{first}");
+        let second = &exported.files[Path::new(&exported.equivalences[1].invariants_file)];
+        assert!(second.contains("l.`l_pkg_Corr_reduction_ctr = r.`r_pkg_CPA_ctr"), "{second}");
+        assert!(second.contains("l.`l_pkg_Corr_KEM_pk = r.`r_pkg_CPA_pk"), "{second}");
+    }
+
+    #[test]
+    fn simple_kem_example_full_tree_compiles() {
+        let exported = export("example-projects/simple-KEM-example", "KEM_Proof").unwrap();
+        assert_tree_compiles(&exported, "simple-kem");
     }
 
     #[test]
@@ -485,36 +536,7 @@ mod tests {
     #[test]
     fn simple_4whs_full_tree_compiles_in_dependency_order() {
         let exported = export("example-projects/4WHS", "Simple4WHS").unwrap();
-        let tmp = std::env::temp_dir().join(format!(
-            "domino-easycrypt-export-compile-test-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&tmp);
-        write_files(&tmp, &exported.files).unwrap();
-
-        let base = tmp.to_str().unwrap().to_string();
-
-        // Story 10: a single `-I .` compiles the whole flat theorem
-        // directory — no `packages/`/`games/` subdirectories, so no
-        // `assert_compiles_with_paths`.
-        super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
-        super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
-        for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Pkg_{name}.ec"));
-        }
-        for name in &exported.game_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
-        }
-        // Story 07: every equivalence's invariants file compiles for real.
-        // Story 15: with the `arg` precondition every `Simple4WHS` proof
-        // skeleton compiles clean, base case discharged — plain
-        // `assert_compiles`, no tolerance.
-        for eq in &exported.equivalences {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.proof_file));
-        }
-
-        std::fs::remove_dir_all(&tmp).unwrap();
+        assert_tree_compiles(&exported, "simple4whs");
     }
 
     #[test]
@@ -524,29 +546,7 @@ mod tests {
             "kem_dem_cca_ssp",
         )
         .unwrap();
-        let tmp = std::env::temp_dir().join(format!(
-            "domino-easycrypt-export-compile-test-kemdem-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&tmp);
-        write_files(&tmp, &exported.files).unwrap();
-
-        let base = tmp.to_str().unwrap().to_string();
-
-        super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
-        super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
-        for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Pkg_{name}.ec"));
-        }
-        for name in &exported.game_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
-        }
-        for eq in &exported.equivalences {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.proof_file));
-        }
-
-        std::fs::remove_dir_all(&tmp).unwrap();
+        assert_tree_compiles(&exported, "kemdem");
     }
 
     // `Full4WHS` is a much larger project than `Simple4WHS`/`kem-dem-cca-ssp`
@@ -558,28 +558,6 @@ mod tests {
     #[test]
     fn full_4whs_full_tree_compiles_in_dependency_order() {
         let exported = export("example-projects/4WHS", "Full4WHS").unwrap();
-        let tmp = std::env::temp_dir().join(format!(
-            "domino-easycrypt-export-compile-test-full4whs-{}",
-            std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&tmp);
-        write_files(&tmp, &exported.files).unwrap();
-
-        let base = tmp.to_str().unwrap().to_string();
-
-        super::super::test_support::assert_compiles(&base, &format!("{base}/Types.ec"));
-        super::super::test_support::assert_compiles(&base, &format!("{base}/Interfaces.ec"));
-        for name in &exported.package_variant_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Pkg_{name}.ec"));
-        }
-        for name in &exported.game_names {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/Comp_{name}.ec"));
-        }
-        for eq in &exported.equivalences {
-            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.invariants_file));
-            super::super::test_support::assert_compiles(&base, &format!("{base}/{}", eq.proof_file));
-        }
-
-        std::fs::remove_dir_all(&tmp).unwrap();
+        assert_tree_compiles(&exported, "full4whs");
     }
 }

@@ -1,35 +1,15 @@
-(define-fun invariant ( 
-  (prot    <GameState_Prot>)
-  (h1      <GameState_H1>)
-) Bool
-; BEGIN FUNCTION BODY
-  (let 
-    (
-      (prot.prot   (<game-Prot-pkgstate-Prot>   prot    ))
-      (h1.corr_kem (<game-H1-pkgstate-Corr_KEM> h1      ))
-      (h1.corr_red (<game-H1-pkgstate-Corr_reduction> h1))
-    )
-    ; BEGIN LET DEFINITION USAGE
-    (and 
-      (= (<pkg-state-Prot-SENTCTXT>           prot.prot)
-         (<pkg-state-Corr_reduction-SENTCTXT> h1.corr_red))
-      (= (<pkg-state-Prot-SENTKEY>            prot.prot)
-         (<pkg-state-Corr_reduction-SENTKEY>  h1.corr_red))
-      (= (<pkg-state-Prot-RECEIVEDCTXT>       prot.prot)
-         (<pkg-state-Corr_reduction-RECEIVEDCTXT> h1.corr_red))
-      (= (<pkg-state-Prot-RECEIVEDKEY>        prot.prot)
-         (<pkg-state-Corr_reduction-RECEIVEDKEY> h1.corr_red))
-      (= (<pkg-state-Prot-TESTED>             prot.prot)
-         (<pkg-state-Corr_reduction-TESTED>   h1.corr_red))
-      (= (<pkg-state-Prot-ctr>                prot.prot)
-         (<pkg-state-Corr_reduction-ctr>      h1.corr_red))
-      (= (<pkg-state-Prot-sk>                 prot.prot)
-         (<pkg-state-Corr_KEM-sk>             h1.corr_kem))
-      (= (<pkg-state-Prot-pk>                 prot.prot)
-         (<pkg-state-Corr_KEM-pk>             h1.corr_kem))
-    )
-  )
-)
+; left: Prot, right: H1 (Corr_KEM + Corr_reduction)
+(define-state-relation invariant
+  (left right)
+  (and
+    (= left.Prot.SENTCTXT     right.Corr_reduction.SENTCTXT)
+    (= left.Prot.SENTKEY      right.Corr_reduction.SENTKEY)
+    (= left.Prot.RECEIVEDCTXT right.Corr_reduction.RECEIVEDCTXT)
+    (= left.Prot.RECEIVEDKEY  right.Corr_reduction.RECEIVEDKEY)
+    (= left.Prot.TESTED       right.Corr_reduction.TESTED)
+    (= left.Prot.ctr          right.Corr_reduction.ctr)
+    (= left.Prot.sk           right.Corr_KEM.sk)
+    (= left.Prot.pk           right.Corr_KEM.pk)))
 
 ; Each sample operation is fully indexec by the pair (statement id, sample counter)
 ; "stmt" – Each instructions containing a sampling operation in the game is assigned a statement id number; check the generated latex code for the proof (not games/compositions or packages) to find the statement ids.
