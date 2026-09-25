@@ -567,7 +567,9 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
 
     #[cfg(feature = "cvc5-lib")]
     if e.tactics {
-        use sspverif::easycrypt::tactics::{read_smt_hints, run_tactics_observed, TacticsOptions};
+        use sspverif::easycrypt::tactics::{
+            read_smt_hints, run_tactics_observed, EcTranscriptMode, TacticsOptions,
+        };
 
         let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, None);
         let options = TacticsOptions {
@@ -578,6 +580,10 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             lockstep_timeout_ms: None,
             rung0: !e.no_rung0,
             leaf_budget: std::time::Duration::from_secs(e.leaf_budget),
+            ec_transcript: match e.ec_transcript {
+                EcTranscriptArg::Capped => EcTranscriptMode::Capped,
+                EcTranscriptArg::Full => EcTranscriptMode::Full,
+            },
         };
         for (name, exported) in &exports {
             let theorem = project.get_theorem(name).unwrap();

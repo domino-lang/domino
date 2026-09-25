@@ -241,7 +241,7 @@ impl Live {
         out.push_str("</main>\n<footer><p>Only the goal text of the steps shown here is embedded (the step EasyCrypt is working on, the steps of the goal being worked on, and the last step of each goal), each cut at ");
         let _ = writeln!(
             out,
-            "{} characters and {} goals. Every sentence with EasyCrypt's full answer is in <code>ec-transcript.jsonl</code> next to this page (record numbers below are its line numbers).</p></footer>",
+            "{} characters and {} goals. Every sentence with EasyCrypt's answer is in <code>ec-transcript.jsonl</code> next to this page (record numbers below are its line numbers); its goals are cut the same way unless the run had <code>--ec-transcript full</code>.</p></footer>",
             super::GOAL_TEXT_CAP,
             super::GOALS_PER_STEP
         );
@@ -452,10 +452,14 @@ impl Live {
         }
         let _ = write!(out, "<span class=\"t\" data-t=\"s{id}\"></span>");
         out.push_str("<div class=\"detail\">");
+        let record = match step.record {
+            Some(span) => format!("transcript record {}", span.line),
+            None => "no transcript record".to_string(),
+        };
         let _ = write!(
             out,
-            "<div class=\"note\">transcript record {} ({} goal(s) left, EasyCrypt depth {})</div>",
-            step.line, step.goals_left, step.state
+            "<div class=\"note\">{record} ({} goal(s) left, EasyCrypt depth {})</div>",
+            step.goals_left, step.state
         );
         if let Some(error) = &step.error {
             let _ = write!(
@@ -490,30 +494,34 @@ impl Live {
                     if texts.cut[i] > 0 {
                         let _ = write!(
                             out,
-                            "<div class=\"note\">... {} more characters, see transcript record {}</div>",
-                            texts.cut[i], step.line
+                            "<div class=\"note\">... {} more characters, see {record}</div>",
+                            texts.cut[i]
                         );
                     }
                 }
                 if texts.total > texts.goals.len() {
                     let _ = write!(
                         out,
-                        "<div class=\"note\">{} more goal(s), see transcript record {}</div>",
+                        "<div class=\"note\">{} more goal(s), see {record}</div>",
                         texts.total - texts.goals.len(),
-                        step.line
                     );
                 }
                 if texts.total == 0 {
                     out.push_str("<div class=\"note\">no goal left</div>");
                 }
             }
-            _ => {
-                let _ = write!(
-                    out,
-                    "<div class=\"note\">goal text not embedded; it is in <code>ec-transcript.jsonl</code>, record {}</div>",
-                    step.line
-                );
-            }
+            _ => match step.record {
+                Some(span) => {
+                    let _ = write!(
+                        out,
+                        "<div class=\"note\">goal text not embedded; it is in <code>ec-transcript.jsonl</code>, record {}</div>",
+                        span.line
+                    );
+                }
+                None => out.push_str(
+                    "<div class=\"note\">goal text not embedded; the transcript was not written for this step</div>",
+                ),
+            },
         }
         out.push_str("</div></li>\n");
     }

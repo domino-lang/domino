@@ -21,7 +21,10 @@
 //! *shown* steps only is read back from there, once per step: the step EasyCrypt is working on
 //! (the goals it was applied to), the steps of the goal being worked on, and the last step of
 //! each goal. Each goal's text is cut at [`GOAL_TEXT_CAP`] characters and at most
-//! [`GOALS_PER_STEP`] goals are embedded per step; the cut says where the rest is. So the page
+//! [`GOALS_PER_STEP`] goals are embedded per step; the cut says where the rest is. The capped
+//! transcript (story 31) holds exactly this much of each answer, and says what it cut, so the
+//! page is the same whichever `--ec-transcript` mode wrote the transcript. A step with no record
+//! (the capped transcript was dropped after a failed write) has no goal text. So the page
 //! grows with the number of goals (nodes), not with the number of sentences or with the size of
 //! the goals, and the transcript is never embedded whole.
 //!
@@ -44,15 +47,12 @@ use serde_derive::Deserialize;
 
 use crate::easycrypt::json::Status;
 use crate::easycrypt::session::SessionEvent;
+use crate::easycrypt::transcript::{GOALS_PER_STEP, GOAL_TEXT_CAP};
 use crate::writers::easycrypt::progress::{ExportEvent, ExportObserver, ExportPhase};
 
 use super::driver::Admit;
 use super::{EquivalenceTactics, OracleTactics};
 
-/// The most characters of one goal's text embedded in the page.
-pub const GOAL_TEXT_CAP: usize = 12_000;
-/// The most goals of one step embedded in the page.
-pub const GOALS_PER_STEP: usize = 3;
 /// The most steps of the goal being worked on that are embedded (the newest).
 const CURRENT_STEPS_SHOWN: usize = 12;
 /// The most characters of an error or message kept per step.
@@ -69,12 +69,19 @@ pub(super) enum StepStatus {
     TimedOut,
 }
 
-#[derive(Debug, Clone)]
-pub(super) struct Step {
-    /// Number of the record in `ec-transcript.jsonl`, from 0: `sed -n <line+1>p`.
+/// Where a step's record is in `ec-transcript.jsonl`.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct RecordSpan {
+    /// Number of the record, from 0: `sed -n <line+1>p`.
     pub line: usize,
     pub offset: u64,
     pub len: usize,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Step {
+    /// `None` when no record was written for it (the transcript was dropped).
+    pub record: Option<RecordSpan>,
     pub sentence: String,
     pub status: StepStatus,
     /// Accepted, and later undone (by `undo N.` in the session).
@@ -524,12 +531,18 @@ impl Live {
                 record_bytes,
             } => {
                 self.pending = None;
-                let len = record_bytes.unwrap_or(0);
-                let undo_to = parse_undo(sentence);
-                let step = Step {
+                let record = record_bytes.map(|len| RecordSpan {
                     line: self.lines,
                     offset: self.offset,
                     len,
+                });
+                if let Some(span) = record {
+                    self.lines += 1;
+                    self.offset += span.len as u64;
+                }
+                let undo_to = parse_undo(sentence);
+                let step = Step {
+                    record,
                     sentence: (*sentence).to_string(),
                     status: match response.status {
                         Status::Ok => StepStatus::Accepted,
@@ -549,8 +562,6 @@ impl Live {
                     state: response.state,
                     goals_left: response.proof.as_ref().map_or(0, |p| p.goals.len()),
                 };
-                self.lines += 1;
-                self.offset += len as u64;
                 let id = self.steps.len();
                 if let Some(to) = undo_to {
                     // the sentences accepted after depth `to` are gone
@@ -572,6 +583,8 @@ impl Live {
                 }
                 self.touch(false);
             }
+            // the session warned on stderr; the steps from here on have no record
+            SessionEvent::TranscriptDropped { .. } => {}
         }
     }
 
@@ -627,20 +640,18 @@ impl Live {
         shown
     }
 
-    /// Reads the goal text of every step in `shown` that has none yet from the transcript.
+    /// Reads the goal text of every step in `shown` that has a record and no text yet from the
+    /// transcript.
     pub(super) fn load_texts(&mut self, shown: &BTreeSet<usize>) {
-        let wanted: Vec<usize> = shown
+        let spans: Vec<(usize, u64, usize)> = shown
             .iter()
-            .copied()
             .filter(|id| !self.texts.contains_key(id))
+            .filter_map(|&id| self.steps[id].record.map(|r| (id, r.offset, r.len)))
             .collect();
-        if wanted.is_empty() {
+        if spans.is_empty() {
             return;
         }
-        let spans: Vec<(usize, u64, usize)> = wanted
-            .iter()
-            .map(|&id| (id, self.steps[id].offset, self.steps[id].len))
-            .collect();
+        let wanted: Vec<usize> = spans.iter().map(|&(id, _, _)| id).collect();
         let path = self.transcript.clone();
         // parsing is recursive and the goals nest deeply: the session's reader has the same stack
         let read = std::thread::Builder::new()
@@ -727,17 +738,23 @@ struct ResponseT {
     #[serde(default)]
     proof: Option<ProofT>,
 }
+/// A full answer's proof, or a capped one's (`goals_dropped`, `text_dropped`: story 31).
 #[derive(Deserialize)]
 struct ProofT {
     goals: Vec<GoalT>,
+    #[serde(default)]
+    goals_dropped: usize,
 }
 #[derive(Deserialize)]
 struct GoalT {
     #[serde(default)]
     text: String,
+    #[serde(default)]
+    text_dropped: usize,
 }
 
-/// The `pp` of the goals in the transcript record at `offset`, cut to the embedding limits.
+/// The `pp` of the goals in the transcript record at `offset`, cut to the embedding limits. A
+/// capped record is cut to them already, and says how much more the answer held.
 fn read_goal_texts(path: &Path, offset: u64, len: usize) -> GoalTexts {
     use std::io::{Read, Seek, SeekFrom};
     let read = || -> std::io::Result<Vec<u8>> {
@@ -759,14 +776,19 @@ fn read_goal_texts(path: &Path, offset: u64, len: usize) -> GoalTexts {
             ..GoalTexts::default()
         };
     };
-    let goals = record.response.proof.map(|p| p.goals).unwrap_or_default();
+    let (goals, goals_dropped) = record
+        .response
+        .proof
+        .map_or((Vec::new(), 0), |p| (p.goals, p.goals_dropped));
     let mut texts = GoalTexts {
-        total: goals.len(),
+        total: goals.len() + goals_dropped,
         ..GoalTexts::default()
     };
     for goal in goals.into_iter().take(GOALS_PER_STEP) {
         let chars = goal.text.chars().count();
-        texts.cut.push(chars.saturating_sub(GOAL_TEXT_CAP));
+        texts
+            .cut
+            .push(chars.saturating_sub(GOAL_TEXT_CAP) + goal.text_dropped);
         texts
             .goals
             .push(goal.text.chars().take(GOAL_TEXT_CAP).collect());

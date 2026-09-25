@@ -48,7 +48,8 @@ use super::check::{
 use super::json::Goal;
 use super::session::{split_sentences, Session, SessionError};
 
-pub use live::{strip_timings, LiveConfig, LiveHandle, GOALS_PER_STEP, GOAL_TEXT_CAP};
+pub use super::transcript::{EcTranscriptMode, GOALS_PER_STEP, GOAL_TEXT_CAP};
+pub use live::{strip_timings, LiveConfig, LiveHandle};
 
 pub use driver::{Admit, AdmitReason, DominoView, OracleStats, Timeouts};
 use driver::{OracleTree, Prover};
@@ -86,6 +87,8 @@ pub struct TacticsOptions {
     /// The most time splitting one leaf by meaning may take before its remaining parts are
     /// admitted.
     pub leaf_budget: Duration,
+    /// What `ec-transcript.jsonl` keeps of EasyCrypt's answers (`--ec-transcript`).
+    pub ec_transcript: EcTranscriptMode,
 }
 
 impl Default for TacticsOptions {
@@ -98,6 +101,7 @@ impl Default for TacticsOptions {
             lockstep_timeout_ms: None,
             rung0: true,
             leaf_budget: Duration::from_secs(300),
+            ec_transcript: EcTranscriptMode::Capped,
         }
     }
 }
@@ -314,7 +318,8 @@ where
     let (theorem_ec, _aux) = EasyCryptTransform.transform_theorem(theorem)?;
     let progress_dir = out_dir.join("progress");
     let transcript_path = progress_dir.join("ec-transcript.jsonl");
-    let transcript = File::create(&transcript_path)?;
+    // one file for every equivalence; `None` once a capped write failed (story 31 §3.3)
+    let mut transcript = Some(File::create(&transcript_path)?);
 
     let mut equivalences = Vec::new();
     for eq in &exported.equivalences {
@@ -330,7 +335,8 @@ where
             out_dir,
             backend,
             options,
-            transcript.try_clone()?,
+            &mut transcript,
+            &transcript_path,
             live,
         )?);
     }
@@ -352,7 +358,8 @@ fn tactics_for_equivalence<P, B>(
     out_dir: &Path,
     backend: &B,
     options: &TacticsOptions,
-    transcript: File,
+    transcript: &mut Option<File>,
+    transcript_path: &Path,
     live: &LiveHandle,
 ) -> Result<EquivalenceTactics, TacticsError>
 where
@@ -389,7 +396,14 @@ where
     live.equivalence_started(&file, eq.proofstep, &eq.left_name, &eq.right_name, &selected_oracles);
     live.activity("starting EasyCrypt and opening the proof");
     let mut session = Session::start(out_dir)?;
-    session.set_transcript_sink(Box::new(transcript), &file);
+    if let Some(transcript) = transcript {
+        session.set_transcript_sink(
+            Box::new(transcript.try_clone()?),
+            transcript_path,
+            options.ec_transcript,
+            &file,
+        );
+    }
     session.set_observer(live.session_observer());
     session.set_timeout(options.ec_timeout);
     for sentence in &call_prefix {
@@ -440,6 +454,10 @@ where
         }
     }
     results.sort_by_key(|r| position(&r.oracle));
+    if session.transcript_dropped() {
+        // a later record would start at an offset the live page does not know
+        *transcript = None;
+    }
     drop(session);
 
     // write the file and check it with `easycrypt compile` (§3.7)

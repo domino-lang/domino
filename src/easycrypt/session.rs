@@ -5,7 +5,8 @@
 //! [`Session::send`] writes one sentence and reads the one JSON line EasyCrypt answers with
 //! (`easycrypt/doc/json-output.md`). The state of the session after the sentence is the
 //! returned [`Response`]; [`Session::undo_to`] goes back to an earlier one in O(1). Every
-//! exchange is kept in [`Session::transcript`], for story 27 to write to a file.
+//! exchange is kept in [`Session::transcript`]; with a transcript sink it is also written to
+//! `ec-transcript.jsonl` as it happens ([`Session::set_transcript_sink`], module [`transcript`]).
 //!
 //! The binary is found through the `DOMINO_EASYCRYPT` environment variable, falling back to
 //! `easycrypt` on `PATH`, and is checked at startup: a binary that does not answer in
@@ -21,6 +22,7 @@ use std::time::Duration;
 use thiserror::Error;
 
 use super::json::{self, Goal, Response, Status, FORMAT_VERSION};
+use super::transcript::{self, EcTranscriptMode};
 
 /// The environment variable naming the `-json`-capable EasyCrypt binary.
 pub const ENV_VAR: &str = "DOMINO_EASYCRYPT";
@@ -58,6 +60,11 @@ pub enum SessionError {
     Refused { sentence: String, msg: String },
     #[error("EasyCrypt did not answer `{sentence}` after being interrupted")]
     Unresponsive { sentence: String },
+    #[error("could not write the EasyCrypt transcript `{}` (`--ec-transcript full`): {source}", path.display())]
+    Transcript {
+        path: PathBuf,
+        source: std::io::Error,
+    },
     #[error("io error talking to EasyCrypt: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -95,6 +102,9 @@ pub enum SessionEvent<'a> {
         elapsed: Duration,
         record_bytes: Option<usize>,
     },
+    /// Writing the transcript failed under [`EcTranscriptMode::Capped`]: no record is written
+    /// from this sentence on (story 31 §3.3). Sent once, before that sentence's `Answered`.
+    TranscriptDropped { path: &'a Path, cause: &'a str },
 }
 
 /// How often a running sentence is reported to the observer as [`SessionEvent::Waiting`].
@@ -110,14 +120,24 @@ pub struct Session {
     empty: Option<Response>,
     timeout: Duration,
     sink: Option<TranscriptSink>,
+    /// A capped transcript's write failed and the sink was dropped.
+    sink_dropped: bool,
     observer: Option<Box<dyn FnMut(&SessionEvent<'_>)>>,
 }
 
-/// Where [`Session::send`] appends every exchange, one JSON object per line: `{"file": <tag>,
-/// "ctx": <the caller's note>, "sentence": <the sentence>, "ms": <how long EasyCrypt took>,
-/// "response": <EasyCrypt's answer, verbatim>}`.
+/// Where [`Session::send`] appends every exchange, one record per line
+/// ([`transcript::record`]): `{"file": <tag>, "ctx": <the caller's note>, "sentence": <the
+/// sentence>, "ms": <how long EasyCrypt took>, "response": <EasyCrypt's answer>}`, the answer
+/// capped or verbatim by `mode`.
+///
+/// Records are only ever appended, each capped as it is written: the live page holds the byte
+/// offset of every record it has seen, so the file must never be compacted, compressed or
+/// rewritten afterwards (see [`transcript`]).
 struct TranscriptSink {
     writer: Box<dyn Write + Send>,
+    /// Named in the warning or error when a write fails.
+    path: PathBuf,
+    mode: EcTranscriptMode,
     tag: String,
     /// What the caller says it is working on; written with every record.
     context: String,
@@ -189,6 +209,7 @@ impl Session {
             empty: None,
             timeout: DEFAULT_TIMEOUT,
             sink: None,
+            sink_dropped: false,
             observer: None,
         };
         session.check_capability()?;
@@ -230,15 +251,34 @@ impl Session {
         self.timeout = timeout;
     }
 
-    /// Appends every later exchange, with EasyCrypt's answer verbatim, to `writer` as one JSON
-    /// line (`{"file": tag, "ctx": …, "sentence": …, "ms": …, "response": …}`): undone attempts included, goals
-    /// included. This is `ec-transcript.jsonl` (story 27 §3.7).
-    pub fn set_transcript_sink(&mut self, writer: Box<dyn Write + Send>, tag: &str) {
+    /// Appends every later exchange to `writer` as one JSON line (`{"file": tag, "ctx": …,
+    /// "sentence": …, "ms": …, "response": …}`), undone attempts included. This is
+    /// `ec-transcript.jsonl` at `path` (story 27 §3.7); `mode` says whether EasyCrypt's answers
+    /// are written verbatim or with their goals capped (story 31, [`transcript`]).
+    ///
+    /// A failed write fails [`Session::send`] under [`EcTranscriptMode::Full`]. Under
+    /// [`EcTranscriptMode::Capped`] it drops the sink instead, with a warning on stderr and a
+    /// [`SessionEvent::TranscriptDropped`]: a transcript is not worth a proof.
+    pub fn set_transcript_sink(
+        &mut self,
+        writer: Box<dyn Write + Send>,
+        path: &Path,
+        mode: EcTranscriptMode,
+        tag: &str,
+    ) {
         self.sink = Some(TranscriptSink {
             writer,
+            path: path.to_path_buf(),
+            mode,
             tag: tag.to_string(),
             context: String::new(),
         });
+    }
+
+    /// Whether a capped transcript's write failed and the sink was dropped: a later session of
+    /// the same run should not write to the same file (its records would have no known offset).
+    pub fn transcript_dropped(&self) -> bool {
+        self.sink_dropped
     }
 
     /// Calls `observer` before every later sentence, every [`WAIT_TICK`] while it runs, and with
@@ -330,19 +370,7 @@ impl Session {
             }
         };
         let line = line?;
-        let mut record_bytes = None;
-        if let Some(sink) = &mut self.sink {
-            let record = format!(
-                "{{\"file\":{},\"ctx\":{},\"sentence\":{},\"ms\":{},\"response\":{}}}\n",
-                serde_json::Value::from(sink.tag.as_str()),
-                serde_json::Value::from(sink.context.as_str()),
-                serde_json::Value::from(sentence),
-                began.elapsed().as_millis(),
-                line.raw.trim_end()
-            );
-            sink.writer.write_all(record.as_bytes())?;
-            record_bytes = Some(record.len());
-        }
+        let record_bytes = self.write_record(sentence, began.elapsed(), &line.raw)?;
         let response = line.parsed.map_err(|source| SessionError::BadAnswer {
             sentence: sentence.to_string(),
             source,
@@ -370,6 +398,48 @@ impl Session {
             }
         }
         Ok(&self.transcript.last().expect("just pushed").response)
+    }
+
+    /// Appends the record of one exchange to the transcript sink, if any, and returns its size.
+    fn write_record(
+        &mut self,
+        sentence: &str,
+        elapsed: Duration,
+        answer: &str,
+    ) -> Result<Option<usize>, SessionError> {
+        let Some(sink) = &mut self.sink else {
+            return Ok(None);
+        };
+        let record = transcript::record(
+            sink.mode,
+            &sink.tag,
+            &sink.context,
+            sentence,
+            elapsed.as_millis(),
+            answer,
+        );
+        let Err(source) = sink.writer.write_all(record.as_bytes()) else {
+            return Ok(Some(record.len()));
+        };
+        let sink = self.sink.take().expect("matched above");
+        if sink.mode == EcTranscriptMode::Full {
+            return Err(SessionError::Transcript {
+                path: sink.path,
+                source,
+            });
+        }
+        self.sink_dropped = true;
+        let cause = source.to_string();
+        eprintln!(
+            "warning: could not write the EasyCrypt transcript `{}`: {cause}. The run goes on \
+             without it; the live page shows no goal text from here on.",
+            sink.path.display()
+        );
+        self.notify(&SessionEvent::TranscriptDropped {
+            path: &sink.path,
+            cause: &cause,
+        });
+        Ok(None)
     }
 
     /// Returns to the state whose answer said `state` (`undo <state>.`).
@@ -488,7 +558,7 @@ pub fn split_sentences(source: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -549,6 +619,7 @@ mod tests {
                 SessionEvent::Answered { sentence, record_bytes, .. } => {
                     format!("answered {sentence} {}", record_bytes.is_some())
                 }
+                SessionEvent::TranscriptDropped { .. } => "dropped".to_string(),
             })
         }));
         session.send("quick.").unwrap();
@@ -559,6 +630,169 @@ mod tests {
         let waits = events.iter().filter(|e| e.starts_with("waiting slow.")).count();
         assert_eq!(waits, 2, "a tick each second of the 2.3 s: {events:?}");
         assert_eq!(events.last().unwrap(), "answered slow. false");
+    }
+
+    /// A stand-in EasyCrypt that answers every line with the contents of `answer`.
+    pub(crate) fn fake_easycrypt(dir: &Path, answer: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let answer_file = dir.join("answer.json");
+        std::fs::write(&answer_file, format!("{}\n", answer.trim_end())).unwrap();
+        let script = dir.join("fake-easycrypt");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nwhile IFS= read -r line; do\n  cat '{}'\ndone\n",
+                answer_file.display()
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    /// A transcript writer whose bytes the test can read, and that fails from its `fail_at`th
+    /// write on (`usize::MAX`: never).
+    #[derive(Clone)]
+    pub(crate) struct TestSink {
+        bytes: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+        writes: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+        fail_at: usize,
+    }
+
+    impl TestSink {
+        pub(crate) fn new(fail_at: usize) -> TestSink {
+            TestSink {
+                bytes: Default::default(),
+                writes: Default::default(),
+                fail_at,
+            }
+        }
+        pub(crate) fn text(&self) -> String {
+            String::from_utf8(self.bytes.lock().unwrap().clone()).unwrap()
+        }
+    }
+
+    impl Write for TestSink {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let n = self.writes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n >= self.fail_at {
+                return Err(std::io::Error::other("No space left on device"));
+            }
+            self.bytes.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn fake_session(dir: &Path, answer: &str, sink: &TestSink, mode: EcTranscriptMode) -> Session {
+        let script = fake_easycrypt(dir, answer);
+        let mut session = Session::start_with(&script, dir).unwrap();
+        session.set_transcript_sink(
+            Box::new(sink.clone()),
+            Path::new("/out/progress/ec-transcript.jsonl"),
+            mode,
+            "Eq.ec",
+        );
+        session
+    }
+
+    #[test]
+    fn the_sink_caps_a_large_answer_to_three_goals_of_twelve_thousand_characters() {
+        let dir = tempfile::tempdir().unwrap();
+        let answer = crate::easycrypt::transcript::tests::answer_with_goals(10, 50_000);
+        let sink = TestSink::new(usize::MAX);
+        let mut session = fake_session(dir.path(), &answer, &sink, EcTranscriptMode::Capped);
+        session.set_context("O N0");
+        let response = session.send("auto.").unwrap();
+        assert_eq!(response.proof.as_ref().unwrap().goals.len(), 10, "the session sees them all");
+        let text = sink.text();
+        assert_eq!(text.lines().count(), 1);
+        let record: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(record["file"], "Eq.ec");
+        assert_eq!(record["ctx"], "O N0");
+        assert_eq!(record["sentence"], "auto.");
+        let (capped, full) = (&record["response"], serde_json::from_str::<serde_json::Value>(&answer).unwrap());
+        for key in ["version", "state", "status", "error", "messages"] {
+            assert_eq!(capped[key], full[key], "{key}");
+        }
+        let goals = capped["proof"]["goals"].as_array().unwrap();
+        assert_eq!(goals.len(), 3);
+        assert_eq!(capped["proof"]["goals_dropped"], 7);
+        for goal in goals {
+            assert_eq!(goal["text"].as_str().unwrap().chars().count(), 12_000);
+            assert_eq!(goal["text_dropped"], 38_000);
+        }
+    }
+
+    #[test]
+    fn the_full_sink_writes_the_answer_verbatim() {
+        let dir = tempfile::tempdir().unwrap();
+        let answer =
+            std::fs::read_to_string("testdata/easycrypt/story31/answer-two-goals.json").unwrap();
+        let sink = TestSink::new(usize::MAX);
+        let mut session = fake_session(dir.path(), &answer, &sink, EcTranscriptMode::Full);
+        session.send("split.").unwrap();
+        let text = sink.text();
+        let ms: serde_json::Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            text,
+            format!(
+                "{{\"file\":\"Eq.ec\",\"ctx\":\"\",\"sentence\":\"split.\",\"ms\":{},\"response\":{}}}\n",
+                ms["ms"],
+                answer.trim_end()
+            )
+        );
+    }
+
+    #[test]
+    fn a_failed_capped_write_drops_the_transcript_once_and_the_session_goes_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let answer = crate::easycrypt::transcript::tests::answer_with_goals(1, 10);
+        let sink = TestSink::new(2);
+        let mut session = fake_session(dir.path(), &answer, &sink, EcTranscriptMode::Capped);
+        let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+        let seen = events.clone();
+        session.set_observer(Box::new(move |e| match e {
+            SessionEvent::TranscriptDropped { path, cause } => seen
+                .borrow_mut()
+                .push(format!("dropped {} {cause}", path.display())),
+            SessionEvent::Answered { record_bytes, .. } => {
+                seen.borrow_mut().push(format!("answered {}", record_bytes.is_some()))
+            }
+            _ => {}
+        }));
+        for _ in 0..5 {
+            assert_eq!(session.send("auto.").unwrap().status, Status::Error);
+        }
+        assert_eq!(sink.text().lines().count(), 2);
+        assert_eq!(
+            *events.borrow(),
+            [
+                "answered true",
+                "answered true",
+                "dropped /out/progress/ec-transcript.jsonl No space left on device",
+                "answered false",
+                "answered false",
+                "answered false",
+            ]
+        );
+        assert!(session.transcript_dropped());
+    }
+
+    #[test]
+    fn a_failed_full_write_fails_naming_the_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let answer = crate::easycrypt::transcript::tests::answer_with_goals(1, 10);
+        let sink = TestSink::new(1);
+        let mut session = fake_session(dir.path(), &answer, &sink, EcTranscriptMode::Full);
+        session.send("auto.").unwrap();
+        let err = session.send("auto.").err().unwrap();
+        assert!(matches!(err, SessionError::Transcript { .. }), "{err}");
+        let text = err.to_string();
+        assert!(text.contains("/out/progress/ec-transcript.jsonl"), "{text}");
+        assert!(text.contains("No space left on device"), "{text}");
     }
 
     fn session_in(dir: &Path) -> Option<Session> {

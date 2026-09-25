@@ -465,6 +465,34 @@ mod live {
         assert_eq!(strip_timings(&page_a), strip_timings(&page_b));
     }
 
+    /// Story 31: the capped transcript is smaller and the page cannot tell the difference.
+    #[test]
+    fn the_page_is_the_same_under_a_capped_and_a_full_transcript() {
+        let with = |ec_transcript| TacticsOptions {
+            rung0: false,
+            ec_transcript,
+            ..TacticsOptions::default()
+        };
+        let Some((capped, out_capped)) = run(
+            "example-projects/hello-world",
+            "Proof",
+            &with(EcTranscriptMode::Capped),
+        ) else {
+            return;
+        };
+        let (full, out_full) =
+            run("example-projects/hello-world", "Proof", &with(EcTranscriptMode::Full)).unwrap();
+        let page = |out: &tempfile::TempDir| {
+            strip_timings(&std::fs::read_to_string(out.path().join("progress/index.html")).unwrap())
+        };
+        assert_eq!(page(&out_capped), page(&out_full));
+        let size = |t: &TheoremTactics| std::fs::metadata(&t.transcript).unwrap().len();
+        assert!(size(&capped) < size(&full), "{} vs {}", size(&capped), size(&full));
+        let text = std::fs::read_to_string(&capped.transcript).unwrap();
+        assert!(text.contains("\"goals_dropped\":"));
+        assert!(!std::fs::read_to_string(&full.transcript).unwrap().contains("\"goals_dropped\":"));
+    }
+
     #[test]
     fn the_live_page_shows_the_oracle_its_goals_and_ends_without_a_refresh_tag() {
         let Some((result, out)) = run(

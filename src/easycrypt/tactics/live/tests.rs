@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use super::*;
 use crate::easycrypt::json::parse_response;
+use crate::easycrypt::transcript::{record, EcTranscriptMode};
 use crate::writers::easycrypt::progress::NopExportObserver;
 
 /// A live model over a temporary directory, fed hand-made session events.
@@ -13,11 +14,17 @@ struct Rig {
     live: LiveHandle,
     observer: Box<dyn FnMut(&SessionEvent<'_>)>,
     transcript: std::fs::File,
+    /// How the records are written; `None`: not at all (the transcript was dropped).
+    mode: Option<EcTranscriptMode>,
     state: u64,
 }
 
 impl Rig {
     fn new() -> Rig {
+        Rig::with_mode(EcTranscriptMode::Capped)
+    }
+
+    fn with_mode(mode: EcTranscriptMode) -> Rig {
         let dir = tempfile::tempdir().unwrap();
         let transcript_path = dir.path().join("ec-transcript.jsonl");
         let transcript = std::fs::File::create(&transcript_path).unwrap();
@@ -35,6 +42,7 @@ impl Rig {
             live,
             observer,
             transcript,
+            mode: Some(mode),
             state: 0,
         }
     }
@@ -48,7 +56,7 @@ impl Rig {
     }
 
     /// Answers `sentence`: `status` is `ok`/`error`/`interrupted`, `goals` the texts of the goals
-    /// it left. The record goes to the transcript like the session's.
+    /// it left. The record goes to the transcript as the session writes it.
     fn answer(
         &mut self,
         sentence: &str,
@@ -83,17 +91,17 @@ impl Rig {
             )),
             goal_json.join(",")
         );
-        let record = format!(
-            "{{\"file\":\"f\",\"ctx\":\"\",\"sentence\":{},\"ms\":{ms},\"response\":{response}}}\n",
-            serde_json::Value::from(sentence)
-        );
-        self.transcript.write_all(record.as_bytes()).unwrap();
+        let record_bytes = self.mode.map(|mode| {
+            let record = record(mode, "f", "", sentence, ms.into(), &response);
+            self.transcript.write_all(record.as_bytes()).unwrap();
+            record.len()
+        });
         let parsed = parse_response(&response).unwrap();
         (self.observer)(&SessionEvent::Answered {
             sentence,
             response: &parsed,
             elapsed: Duration::from_millis(ms),
-            record_bytes: Some(record.len()),
+            record_bytes,
         });
     }
 
@@ -272,6 +280,96 @@ fn goal_text_is_cut_and_the_cut_points_at_the_transcript() {
     assert!(page.contains("500 more characters, see transcript record 0"));
     assert!(page.contains("2 more goal(s), see transcript record 0"));
     assert!(page.len() < 100_000, "page is {} bytes", page.len());
+}
+
+#[test]
+fn the_page_is_the_same_from_a_capped_and_a_full_transcript() {
+    let run = |mode| {
+        let mut rig = Rig::with_mode(mode);
+        rig.one_oracle();
+        rig.live.node_entered("N0", "determined", vec![], Some(0));
+        let long = "é".repeat(GOAL_TEXT_CAP + 500);
+        let many: Vec<&str> = vec![long.as_str(), "short", long.as_str(), "a", "b"];
+        rig.answer("smt().", "error", Some("no"), &["g", "h"], 1);
+        rig.answer("sp 1 1.", "ok", None, &many, 1);
+        rig.live.node_left();
+        rig.live.finish();
+        let transcript = std::fs::read(rig.dir.path().join("ec-transcript.jsonl")).unwrap();
+        (strip_timings(&rig.page()), transcript.len())
+    };
+    let (capped, capped_bytes) = run(EcTranscriptMode::Capped);
+    let (full, full_bytes) = run(EcTranscriptMode::Full);
+    assert!(capped_bytes < full_bytes);
+    assert!(capped.contains("500 more characters, see transcript record 1"));
+    assert!(capped.contains("2 more goal(s), see transcript record 1"));
+    assert_eq!(capped, full);
+}
+
+#[test]
+fn steps_after_the_transcript_was_dropped_render_without_goal_text() {
+    let mut rig = Rig::new();
+    rig.one_oracle();
+    rig.live.node_entered("N0", "determined", vec![], Some(0));
+    rig.answer("sp 1 1.", "ok", None, &["GOAL-WRITTEN"], 1);
+    rig.mode = None;
+    rig.answer("if.", "ok", None, &["GOAL-NOT-WRITTEN"], 1);
+    rig.live.node_left();
+    rig.live.node_entered("N1", "determined", vec![], Some(1));
+    rig.answer("smt().", "ok", None, &[], 1);
+    rig.live.node_left();
+    rig.live.finish();
+    let page = rig.page();
+    assert!(!page.contains("GOAL-NOT-WRITTEN"));
+    assert!(page.contains("no transcript record"));
+    assert!(page.contains("goal text not embedded; the transcript was not written for this step"));
+    assert!(!page.contains("could not be read"));
+    assert!(
+        !page.contains("transcript record 1"),
+        "no step claims a record past the drop"
+    );
+}
+
+/// Story 31 §3.3 end to end: a session whose capped transcript fails after two records goes on,
+/// warns once, and the page still renders every step.
+#[test]
+fn a_session_whose_capped_transcript_fails_goes_on_and_the_page_renders() {
+    use crate::easycrypt::session::tests::{fake_easycrypt, TestSink};
+    use crate::easycrypt::session::Session;
+    let rig = Rig::new();
+    let answer = crate::easycrypt::transcript::tests::answer_with_goals(1, 10)
+        .replace("\"status\":\"error\"", "\"status\":\"ok\"");
+    let script = fake_easycrypt(rig.dir.path(), &answer);
+    let mut session = Session::start_with(&script, rig.dir.path()).unwrap();
+    let sink = TestSink::new(2);
+    session.set_transcript_sink(
+        Box::new(sink.clone()),
+        &rig.dir.path().join("ec-transcript.jsonl"),
+        EcTranscriptMode::Capped,
+        "Eq_A_B.ec",
+    );
+    let warnings = std::rc::Rc::new(std::cell::Cell::new(0));
+    let (seen, mut live_observer) = (warnings.clone(), rig.live.session_observer());
+    session.set_observer(Box::new(move |event| {
+        if let SessionEvent::TranscriptDropped { .. } = event {
+            seen.set(seen.get() + 1);
+        }
+        live_observer(event);
+    }));
+    rig.one_oracle();
+    rig.live.node_entered("N0", "determined", vec![], Some(0));
+    for sentence in ["sp 1 1.", "if.", "auto.", "smt()."] {
+        assert_eq!(session.send(sentence).unwrap().status, Status::Ok);
+    }
+    rig.live.node_left();
+    rig.live.finish();
+    assert_eq!(warnings.get(), 1);
+    assert!(session.transcript_dropped());
+    assert_eq!(sink.text().lines().count(), 2);
+    let page = rig.page();
+    for sentence in ["sp 1 1.", "if.", "auto.", "smt()."] {
+        assert!(page.contains(sentence), "{sentence}");
+    }
+    assert!(page.contains("goal text not embedded; the transcript was not written for this step"));
 }
 
 #[test]

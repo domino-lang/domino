@@ -4,6 +4,7 @@
 //!
 //! - [`json`]: the Rust mirror of `easycrypt cli -json`'s `domino-json/1` format.
 //! - [`session`]: a running `easycrypt cli -json` process.
+//! - [`transcript`]: the records of `ec-transcript.jsonl`, capped or full (story 31).
 //! - [`skeleton`] and [`align`]: decision skeletons of EasyCrypt's program and of the
 //!   lowering's IR, and their alignment (ADR 0002).
 //! - [`check`]: `domino easycrypt --check-alignment`.
@@ -15,3 +16,4 @@ pub mod json;
 pub mod session;
 pub mod skeleton;
 pub mod tactics;
+pub mod transcript;

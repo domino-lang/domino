@@ -31,6 +31,18 @@ pub(crate) enum SmtOutArg {
     Deltas,
 }
 
+/// What `domino easycrypt --tactics` keeps of EasyCrypt's answers in
+/// `progress/ec-transcript.jsonl` (story 31).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum EcTranscriptArg {
+    /// Each answer's goals cut to what the live page shows: at most 3 goals of 12 000
+    /// characters (the default). A failed write drops the transcript with a warning.
+    Capped,
+    /// EasyCrypt's answers verbatim, every goal in full (hundreds of MB on a large
+    /// theorem). A failed write fails the run.
+    Full,
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
     /// Export to LaTeX
@@ -98,6 +110,10 @@ pub(crate) struct Easycrypt {
     /// the joint tree is exercised even where one tactic closes an oracle. For testing.
     #[clap(long, requires = "tactics", hide = true)]
     pub(crate) no_rung0: bool,
+    /// With `--tactics`: what `progress/ec-transcript.jsonl` keeps of EasyCrypt's answers.
+    /// Not `--transcript`, which is the solver transcript of `domino debug`/`prove`.
+    #[clap(long, value_enum, requires = "tactics", default_value_t = EcTranscriptArg::Capped)]
+    pub(crate) ec_transcript: EcTranscriptArg,
     /// How the export reports what it is translating, on stderr (stdout and the written
     /// files are the same in every mode).
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
