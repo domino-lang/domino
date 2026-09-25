@@ -45,6 +45,8 @@ use super::EcExportError;
 /// rendered text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EquivalenceReport {
+    /// Index of the hop in `theorem.game_hops` (`domino proofsteps`' numbering).
+    pub proofstep: usize,
     pub left_name: String,
     pub right_name: String,
     pub invariants_file: String,
@@ -214,6 +216,7 @@ pub fn export_theorem(
             render_file(&ef.proof.file),
         );
         equivalences.push(EquivalenceReport {
+            proofstep: ef.proof.proofstep,
             left_name: ef.proof.left_name.clone(),
             right_name: ef.proof.right_name.clone(),
             invariants_file: ef.invariants.file_name.clone(),

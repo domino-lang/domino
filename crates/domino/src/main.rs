@@ -46,6 +46,11 @@ pub struct Cvc5LibNotEnabled;
 pub struct DebugNotVerified;
 
 #[derive(Error, Diagnostic, Debug)]
+#[error("`domino easycrypt --check-alignment` found {0} mismatches (see the report above)")]
+#[diagnostic(code(easycrypt::alignment_mismatch))]
+pub struct AlignmentMismatch(pub usize);
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("theorem `{0}` not found")]
 #[diagnostic(code(cli::theorem_not_found))]
 pub struct TheoremNotFound(pub String);
@@ -84,6 +89,11 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     InlineRender(#[from] sspverif::debug::render::RenderError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    AlignmentMismatch(#[from] AlignmentMismatch),
+    #[error(transparent)]
+    EcCheck(#[from] sspverif::easycrypt::check::CheckError),
     #[error(transparent)]
     #[diagnostic(transparent)]
     EcExport(#[from] sspverif::writers::easycrypt::EcExportError),
@@ -482,6 +492,32 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| theorem_out.display().to_string());
         print_easycrypt_report(name, exported, &display_path);
+    }
+
+    if e.check_alignment {
+        let mut mismatches = 0;
+        for (name, exported) in &exports {
+            let theorem = project.get_theorem(name).unwrap();
+            let theorem_out = out_base.join(name);
+            let options = sspverif::easycrypt::check::CheckOptions {
+                proofstep: e.proofstep,
+                oracle: e.oracle.clone(),
+            };
+            let alignment = sspverif::easycrypt::check::check_alignment(
+                theorem,
+                exported,
+                &theorem_out,
+                &options,
+            )?;
+            let report = alignment.render();
+            println!();
+            print!("{report}");
+            std::fs::write(theorem_out.join("alignment.txt"), &report)?;
+            mismatches += alignment.mismatch_count();
+        }
+        if mismatches > 0 {
+            return Err(AlignmentMismatch(mismatches).into());
+        }
     }
 
     Ok(())

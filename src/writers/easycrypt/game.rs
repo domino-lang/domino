@@ -281,7 +281,7 @@ pub(super) fn instance_module_names(comp: &Composition) -> Result<Vec<String>, E
 
 /// The router module of `comp`, `Game_<Comp>`, and the name of its abort
 /// flag variable.
-pub(super) fn router_module_and_flag(comp: &Composition) -> Result<(String, String), EcExportError> {
+pub(crate) fn router_module_and_flag(comp: &Composition) -> Result<(String, String), EcExportError> {
     // `interfaces::build_interfaces_file` mangles every composition name in
     // one shared registry; mangling is a pure function of the name, so a
     // fresh registry gives the same spelling (a collision between two

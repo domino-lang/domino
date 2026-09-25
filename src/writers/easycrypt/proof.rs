@@ -41,6 +41,8 @@ use super::EcExportError;
 /// One equivalence hop's rendered proof skeleton, ready for
 /// `Eq_<Left>_<Right>.ec`.
 pub struct EquivalenceProofFile {
+    /// Index of the hop in `theorem.game_hops` (`domino proofsteps`' numbering).
+    pub proofstep: usize,
     pub file_name: String,
     pub file: EcFile,
     pub left_name: String,
@@ -79,12 +81,18 @@ pub fn compute_equivalence_files(
     let mut lemma_names = Names::new();
 
     let mut out = Vec::new();
-    for hop in &theorem.game_hops {
+    for (proofstep, hop) in theorem.game_hops.iter().enumerate() {
         let Some(equivalence) = hop.as_equivalence() else {
             continue;
         };
         let invariants = invariant::build_invariant_file(theorem, equivalence, project)?;
-        let proof = build_equivalence_file(theorem, equivalence, interfaces, &mut lemma_names)?;
+        let proof = build_equivalence_file(
+            theorem,
+            proofstep,
+            equivalence,
+            interfaces,
+            &mut lemma_names,
+        )?;
         out.push(EquivalenceFiles { invariants, proof });
     }
     Ok(out)
@@ -355,6 +363,7 @@ fn build_byequiv_precondition(
 
 fn build_equivalence_file(
     theorem: &Theorem<'_>,
+    proofstep: usize,
     equivalence: &Equivalence,
     interfaces: &InterfacesOutput,
     lemma_names: &mut Names,
@@ -593,6 +602,7 @@ fn build_equivalence_file(
     };
 
     Ok(EquivalenceProofFile {
+        proofstep,
         file_name: format!(
             "Eq_{}_{}.ec",
             left_game_inst.name(),

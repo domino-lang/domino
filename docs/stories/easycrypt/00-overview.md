@@ -373,6 +373,16 @@ installed, so run EasyCrypt from outside the clone directory.
   The next line, `smt(emptyE map_empty).`, therefore runs on the **first oracle's** goal and fails
   there. That is the "known base-case gap" of stories 13/15, and it is misdiagnosed in
   `src/writers/easycrypt/mod.rs`.
+- **Skeleton alignment facts (story 26).** After `proc; inline.` the JSON program of an exported
+  oracle is `ec_result <- None; if (!<Router>.abort_flag) { … }` and nothing else at top level; the
+  router tail `if (ec_result = None) { abort_flag <- true }` sits **inside** that guard, as the
+  last statement, so it is what the IR's entry-frame end swallows. An inlined call leaves only
+  assignments (argument copies, `ec_r <- ec_result`) and its plumbing `if`s, so call frames are
+  transparent to the skeleton and terminals of a callee frame contribute nothing. No instruction
+  kind other than `asgn`, `rnd` and `if` was ever seen after `proc; inline.` on any project of the
+  ladder (no `call`, `while`, `match`). Goals after `call (…); last first.` are the base case
+  (`equivS`) first, then one `equivF` per oracle in interface order; they are identified by the
+  procedure name in the JSON. `pr` formulas carry `args` as a single formula, not a list.
 
 ### 8.1c The hand-written proofs (`~/Research/ec4whs/{simple,full}`)
 

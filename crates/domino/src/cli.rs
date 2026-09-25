@@ -69,6 +69,19 @@ pub(crate) struct Easycrypt {
     /// Defaults to `<project>/_build/easycrypt`.
     #[clap(long)]
     pub(crate) out: Option<std::path::PathBuf>,
+    /// After exporting, start EasyCrypt (`DOMINO_EASYCRYPT`, an `easycrypt cli -json`
+    /// binary) and check that the decision skeleton of every oracle's program after
+    /// `proc; inline.` aligns with the one the debugger's lowering has. The base case is
+    /// admitted, so no prover runs. Exits non-zero on any mismatch and writes
+    /// `<out>/<theorem>/alignment.txt`.
+    #[clap(long)]
+    pub(crate) check_alignment: bool,
+    /// With `--check-alignment`: only this proofstep (as printed by `domino proofsteps`).
+    #[clap(long, requires = "check_alignment")]
+    pub(crate) proofstep: Option<usize>,
+    /// With `--check-alignment`: only this exported oracle.
+    #[clap(long, requires = "check_alignment")]
+    pub(crate) oracle: Option<String>,
 }
 
 #[derive(clap::Args, Debug)]

@@ -15,6 +15,7 @@
 extern crate pest_derive;
 
 pub mod debug;
+pub mod easycrypt;
 pub mod expressions;
 pub mod format;
 pub mod gamehops;
