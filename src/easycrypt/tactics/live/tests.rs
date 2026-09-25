@@ -65,6 +65,19 @@ impl Rig {
         goals: &[&str],
         ms: u64,
     ) {
+        self.answer_as(sentence, status, error, goals, ms, false);
+    }
+
+    /// [`Rig::answer`]; `stopped`: the sentence was interrupted by a stop request (Ctrl-C).
+    fn answer_as(
+        &mut self,
+        sentence: &str,
+        status: &str,
+        error: Option<&str>,
+        goals: &[&str],
+        ms: u64,
+        stopped: bool,
+    ) {
         if status == "ok" {
             self.state = match sentence.strip_prefix("undo ") {
                 Some(n) => n.trim_end_matches('.').parse().unwrap(),
@@ -102,6 +115,7 @@ impl Rig {
             response: &parsed,
             elapsed: Duration::from_millis(ms),
             record_bytes,
+            stopped,
         });
     }
 
@@ -158,6 +172,34 @@ fn a_failed_run_says_so_and_stops_refreshing() {
     let page = rig.page();
     assert!(!page.contains("http-equiv"));
     assert!(page.contains("the run stopped: EasyCrypt closed its output"));
+}
+
+#[test]
+fn an_interrupted_run_says_so_and_stops_refreshing() {
+    let mut rig = Rig::new();
+    rig.one_oracle();
+    rig.sending("smt().");
+    rig.live
+        .interrupted("sealed PKENC with 2 admits at node N4");
+    let page = rig.page();
+    assert!(!page.contains("http-equiv"));
+    assert!(!page.contains("waiting for EasyCrypt"));
+    assert!(page.contains("tactics (interrupted)"), "{page}");
+    assert!(!page.contains("tactics (failed)"), "{page}");
+    assert!(page.contains("interrupted (Ctrl-C): sealed PKENC with 2 admits at node N4"));
+}
+
+#[test]
+fn a_sentence_stopped_by_ctrl_c_is_interrupted_and_one_out_of_time_is_timed_out() {
+    let mut rig = Rig::new();
+    rig.one_oracle();
+    rig.live.node_entered("N0", "synchronized", vec![], Some(0));
+    rig.answer_as("smt(foo).", "interrupted", None, &["g"], 60000, false);
+    rig.answer_as("smt(bar).", "interrupted", None, &["g"], 800, true);
+    rig.live.finish();
+    let page = rig.page();
+    assert_eq!(page.matches("b-timeout\">timed out").count(), 1, "{page}");
+    assert_eq!(page.matches("b-interrupted\">interrupted").count(), 1, "{page}");
 }
 
 #[test]

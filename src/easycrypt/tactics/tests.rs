@@ -212,6 +212,7 @@ fn the_report_counts_admits_by_reason_and_lists_the_verified_ones_with_their_goa
         base_case_admitted: false,
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
+        interrupted: None,
     };
     let report = eq.render();
     assert!(
@@ -260,6 +261,7 @@ fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
         base_case_admitted: false,
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
+        interrupted: None,
     };
     let report = eq.render();
     assert!(
@@ -270,6 +272,51 @@ fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
         report.contains("admit N3 open-goal [interrupted] Domino: n/a"),
         "{report}"
     );
+}
+
+#[test]
+fn an_interrupted_report_names_what_was_sealed() {
+    let sealed = |oracle: &str| Interrupted::Sealed {
+        oracle: oracle.into(),
+        admits: 5,
+        node: "N4".into(),
+    };
+    assert_eq!(
+        sealed("PKENC").to_string(),
+        "sealed PKENC with 5 admits at node N4"
+    );
+    assert_eq!(
+        Interrupted::Lockstep {
+            oracle: "PKDEC".into()
+        }
+        .to_string(),
+        "during lockstep execution of PKDEC, nothing sealed"
+    );
+    let mut eq = EquivalenceTactics {
+        proofstep: 0,
+        proof_file: "Eq_A_B.ec".into(),
+        left: "A".into(),
+        right: "B".into(),
+        oracles: vec![oracle_with(vec![])],
+        base_case_admitted: false,
+        elapsed: Duration::from_secs(4),
+        report_file: "Eq_A_B.report.txt".into(),
+        interrupted: None,
+    };
+    assert!(!eq.render().contains("interrupted"));
+    eq.interrupted = Some(sealed("PKENC"));
+    let report = eq.render();
+    assert!(
+        report.contains("\ninterrupted: sealed PKENC with 5 admits at node N4\n"),
+        "{report}"
+    );
+    let theorem = TheoremTactics {
+        theorem: "T".into(),
+        equivalences: vec![eq],
+        elapsed: Duration::from_secs(4),
+        transcript: PathBuf::from("t.jsonl"),
+    };
+    assert_eq!(theorem.interrupted(), Some(&sealed("PKENC")));
 }
 
 /// The `admit` sentences of a proof file with their labels' reasons.
@@ -366,6 +413,8 @@ mod live {
         ec: PathBuf,
         report: PathBuf,
         captures: std::rc::Rc<std::cell::RefCell<Vec<Capture>>>,
+        /// Sets the flag at the first event whose name starts so, as a Ctrl-C would (story 34).
+        stop_at: Option<(String, Arc<AtomicBool>)>,
     }
 
     impl ExportObserver for Capturing {
@@ -377,6 +426,11 @@ mod live {
                 ExportEvent::PhaseFinished { .. } => "finished".to_string(),
                 _ => return,
             };
+            if let Some((at, stop)) = &self.stop_at {
+                if event.starts_with(at.as_str()) {
+                    stop.store(true, Ordering::Relaxed);
+                }
+            }
             self.captures.borrow_mut().push(Capture {
                 event,
                 ec: std::fs::read_to_string(&self.ec).unwrap(),
@@ -390,6 +444,17 @@ mod live {
         dir: &str,
         theorem: &str,
         options: &TacticsOptions,
+    ) -> Option<(TheoremTactics, tempfile::TempDir, Vec<Capture>)> {
+        run_stopped_at(dir, theorem, options, None)
+    }
+
+    /// [`run_captured`], and the run is asked to stop at the first event whose name starts with
+    /// `stop_at`.
+    fn run_stopped_at(
+        dir: &str,
+        theorem: &str,
+        options: &TacticsOptions,
+        stop_at: Option<&str>,
     ) -> Option<(TheoremTactics, tempfile::TempDir, Vec<Capture>)> {
         if !json_binary_configured() {
             eprintln!("DOMINO_EASYCRYPT not set, skipping");
@@ -410,6 +475,10 @@ mod live {
                 .path()
                 .join(proof_file.trim_end_matches(".ec").to_string() + ".report.txt"),
             captures: captures.clone(),
+            stop_at: stop_at.map(|at| {
+                let stop = options.stop.clone().expect("a run to stop has a stop flag");
+                (at.to_string(), stop)
+            }),
         };
         let result = run_tactics_observed(
             theorem,
@@ -564,6 +633,7 @@ mod live {
             checkpoint: None,
             node: None,
             mismatches: vec![],
+            stopped: None,
         };
         // an alignment mismatch sends the whole oracle down the fallback
         prover
@@ -855,5 +925,119 @@ mod live {
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert!(!names.iter().any(|n| n.ends_with(".tmp")), "{names:?}");
+    }
+
+    // ------------------------------------------------------------------
+    // Story 34: Ctrl-C stops a tactics run and leaves a partial proof
+    // ------------------------------------------------------------------
+
+    fn stoppable(write_granularity: WriteGranularity) -> TacticsOptions {
+        TacticsOptions {
+            stop: Some(Arc::new(AtomicBool::new(false))),
+            ..walk(write_granularity)
+        }
+    }
+
+    #[test]
+    fn a_stop_in_the_walk_seals_the_oracle_where_it_stands_and_the_file_compiles() {
+        // the first joint node of the first oracle is done: the walk stops at its next sentence
+        let Some((result, out, captures)) = run_stopped_at(
+            TWO_ORACLES,
+            "Proof",
+            &stoppable(WriteGranularity::Oracle),
+            Some("goal N"),
+        ) else {
+            return;
+        };
+        assert!(
+            captures.iter().any(|c| c.event.starts_with("goal N")),
+            "{captures:?}"
+        );
+        let eq = &result.equivalences[0];
+        let Some(Interrupted::Sealed {
+            oracle,
+            admits,
+            node,
+        }) = &eq.interrupted
+        else {
+            panic!("sealed: {:?}\n{}", eq.interrupted, eq.render());
+        };
+        assert_eq!(result.interrupted(), eq.interrupted.as_ref());
+        // the oracle in flight is the only one in the report; the other is not reached
+        assert_eq!(eq.oracles.len(), 1);
+        assert_eq!(&eq.oracles[0].oracle, oracle);
+        let text = proof_file(&result, out.path());
+        assert_eq!(text.matches(UNTOUCHED).count(), 1, "{text}");
+        // its open goals are admitted `interrupted`, at the node the walk was in
+        let labelled = labelled_admits(&text);
+        let interrupted = labelled.iter().filter(|r| *r == "interrupted").count();
+        assert!(*admits > 0 && interrupted == *admits, "{text}");
+        assert!(
+            text.contains(&format!("admit. (* domino: {node} open-goal; reason: interrupted")),
+            "{text}"
+        );
+        // the report names what was sealed, and its admit counts are the file's
+        let report = std::fs::read_to_string(out.path().join(&eq.report_file)).unwrap();
+        assert_eq!(report, eq.render());
+        assert!(
+            report.contains(&format!(
+                "interrupted: sealed {oracle} with {admits} admits at node {node}"
+            )),
+            "{report}"
+        );
+        assert_eq!(report_admits(&report), (labelled.len(), interrupted));
+        // the page says interrupted, not failed
+        let page = std::fs::read_to_string(out.path().join("progress/index.html")).unwrap();
+        assert!(page.contains("tactics (interrupted)"));
+        assert!(!page.contains("http-equiv"));
+        // and the partial proof compiles
+        if let Err(e) = compile(
+            &crate::easycrypt::session::locate_binary(),
+            out.path(),
+            &eq.proof_file,
+        ) {
+            panic!("the partial proof does not compile: {e}\n{text}");
+        }
+    }
+
+    #[test]
+    fn a_stop_during_lockstep_execution_keeps_the_earlier_oracles_work() {
+        // the second oracle has started: its lockstep execution sees the stop
+        let Some((result, out, _)) = run_stopped_at(
+            TWO_ORACLES,
+            "Proof",
+            &stoppable(WriteGranularity::Oracle),
+            Some("item 2"),
+        ) else {
+            return;
+        };
+        let eq = &result.equivalences[0];
+        let [first] = eq.oracles.as_slice() else {
+            panic!("one oracle finished: {}", eq.render());
+        };
+        let Some(Interrupted::Lockstep { oracle }) = &eq.interrupted else {
+            panic!("stopped in lockstep execution: {:?}", eq.interrupted);
+        };
+        assert_ne!(oracle, &first.oracle);
+        // the finished oracle keeps its script, the stopped one its unlabelled admit
+        let text = proof_file(&result, out.path());
+        assert!(text.contains(first.script.trim_end()), "{text}");
+        assert_eq!(text.matches(UNTOUCHED).count(), 1, "{text}");
+        assert!(!text.contains("interrupted"), "{text}");
+        let report = std::fs::read_to_string(out.path().join(&eq.report_file)).unwrap();
+        assert!(
+            report.contains(&format!(
+                "interrupted: during lockstep execution of {oracle}, nothing sealed"
+            )),
+            "{report}"
+        );
+        // nothing was sent for the stopped oracle: one `proc; inline.` after the `call`
+        let sent = sentences(&result.transcript);
+        let call = sent.iter().position(|s| s.starts_with("call (")).unwrap();
+        assert_eq!(
+            sent[call..].iter().filter(|s| *s == "proc; inline.").count(),
+            1,
+            "{sent:?}"
+        );
     }
 }

@@ -66,7 +66,10 @@ const IDS_PER_NODE: usize = 6;
 pub(super) enum StepStatus {
     Accepted,
     Failed,
+    /// Interrupted by `--ec-timeout`.
     TimedOut,
+    /// Interrupted because the run was asked to stop (Ctrl-C, story 34).
+    Interrupted,
 }
 
 /// Where a step's record is in `ec-transcript.jsonl`.
@@ -171,6 +174,8 @@ pub(super) enum RunState {
     Running,
     Done,
     Failed(String),
+    /// Stopped by Ctrl-C (story 34): what was sealed, as the report says it.
+    Interrupted(String),
 }
 
 /// The goal text embedded for one step.
@@ -504,6 +509,16 @@ impl LiveHandle {
         live.pending = None;
         live.touch(true);
     }
+
+    /// The run was stopped by Ctrl-C (story 34): nothing went wrong, so not [`Self::fail`]. The
+    /// page stays as it is, without the refresh tag, and says what was sealed (`sealed`, as the
+    /// report says it).
+    pub fn interrupted(&self, sealed: &str) {
+        let mut live = self.0.borrow_mut();
+        live.state = RunState::Interrupted(sealed.to_string());
+        live.pending = None;
+        live.touch(true);
+    }
 }
 
 impl Live {
@@ -529,6 +544,7 @@ impl Live {
                 response,
                 elapsed,
                 record_bytes,
+                stopped,
             } => {
                 self.pending = None;
                 let record = record_bytes.map(|len| RecordSpan {
@@ -547,6 +563,7 @@ impl Live {
                     status: match response.status {
                         Status::Ok => StepStatus::Accepted,
                         Status::Error => StepStatus::Failed,
+                        Status::Interrupted if *stopped => StepStatus::Interrupted,
                         Status::Interrupted => StepStatus::TimedOut,
                     },
                     undone: false,

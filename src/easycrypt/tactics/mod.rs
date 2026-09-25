@@ -14,6 +14,10 @@
 //! after every joint node, the oracle in flight **sealed**). Nothing compiles the written file
 //! during a run (ADR 0005): every sentence in it was accepted by the live session.
 //!
+//! **Ctrl-C** (story 34, [`TacticsOptions::stop`]) stops the run where it stands: the running
+//! EasyCrypt sentence is interrupted, lockstep execution stops at its next node, the oracle in
+//! flight is sealed and written, and the result says so ([`Interrupted`]).
+//!
 //! - [`script`]: the accepted sentences, bullets and indentation.
 //! - [`goals`]: reading goals from the JSON.
 //! - [`driver`]: the prover.
@@ -29,6 +33,8 @@ mod script;
 use std::fmt::Write as _;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use thiserror::Error;
@@ -95,6 +101,49 @@ pub struct TacticsOptions {
     pub ec_transcript: EcTranscriptMode,
     /// How often `Eq_*.ec` and its report are written (`--write-granularity`).
     pub write_granularity: WriteGranularity,
+    /// Set by a Ctrl-C handler to stop the run (story 34). The run then stops where it stands,
+    /// seals the oracle in flight and returns normally, its result [`Interrupted`].
+    pub stop: Option<Arc<AtomicBool>>,
+}
+
+impl TacticsOptions {
+    fn stop_requested(&self) -> bool {
+        self.stop.as_ref().is_some_and(|s| s.load(Ordering::Relaxed))
+    }
+}
+
+/// Where a Ctrl-C stopped a tactics run (story 34). Oracles finished before keep their scripts,
+/// oracles not reached keep `+ proc; inline. admit.`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Interrupted {
+    /// While the proof was being opened, or between two oracles.
+    NoOracleInFlight,
+    /// During the oracle's lockstep execution, before it sent anything: it keeps its
+    /// `+ proc; inline. admit.`.
+    Lockstep { oracle: String },
+    /// While the oracle was being proved: it was sealed with `admits` admits labelled
+    /// `interrupted`, at `node` (`N<k>`, or `router`).
+    Sealed {
+        oracle: String,
+        admits: usize,
+        node: String,
+    },
+}
+
+impl std::fmt::Display for Interrupted {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Interrupted::NoOracleInFlight => write!(f, "no oracle was in flight"),
+            Interrupted::Lockstep { oracle } => {
+                write!(f, "during lockstep execution of {oracle}, nothing sealed")
+            }
+            Interrupted::Sealed {
+                oracle,
+                admits,
+                node,
+            } => write!(f, "sealed {oracle} with {admits} admits at node {node}"),
+        }
+    }
 }
 
 /// When a tactics run writes `Eq_*.ec` and its report (story 33). Both are one mechanism: seal
@@ -120,6 +169,7 @@ impl Default for TacticsOptions {
             leaf_budget: Duration::from_secs(300),
             ec_transcript: EcTranscriptMode::Capped,
             write_granularity: WriteGranularity::Oracle,
+            stop: None,
         }
     }
 }
@@ -228,6 +278,8 @@ pub struct EquivalenceTactics {
     pub elapsed: Duration,
     /// The written report, `Eq_<L>_<R>.report.txt` in the theorem's output directory.
     pub report_file: String,
+    /// The run was stopped by Ctrl-C while on this equivalence (story 34).
+    pub interrupted: Option<Interrupted>,
 }
 
 #[derive(Debug, Clone)]
@@ -247,6 +299,13 @@ impl TheoremTactics {
     /// The `admit` count over all translated oracles.
     pub fn admit_count(&self) -> usize {
         self.oracles().map(|o| o.stats.admits.len()).sum()
+    }
+
+    /// Where Ctrl-C stopped the run, if it did (story 34): the run ended there.
+    pub fn interrupted(&self) -> Option<&Interrupted> {
+        self.equivalences
+            .iter()
+            .find_map(|e| e.interrupted.as_ref())
     }
 }
 
@@ -309,7 +368,10 @@ where
     );
     // the last write always happens: the page on disk matches the end state
     match &result {
-        Ok(_) => live.finish(),
+        Ok(tactics) => match tactics.interrupted() {
+            Some(at) => live.interrupted(&at.to_string()),
+            None => live.finish(),
+        },
         Err(e) => live.fail(&e.to_string()),
     }
     result
@@ -340,7 +402,7 @@ where
         if options.proofstep.is_some_and(|p| p != eq.proofstep) {
             continue;
         }
-        equivalences.push(tactics_for_equivalence(
+        let tactics = tactics_for_equivalence(
             theorem,
             &theorem_ec,
             project,
@@ -352,7 +414,12 @@ where
             &mut transcript,
             &transcript_path,
             live,
-        )?);
+        )?;
+        let interrupted = tactics.interrupted.is_some();
+        equivalences.push(tactics);
+        if interrupted {
+            break;
+        }
     }
     Ok(TheoremTactics {
         theorem: theorem.name.clone(),
@@ -408,29 +475,6 @@ where
         .filter(|name| selected(name))
         .collect();
     live.equivalence_started(&file, eq.proofstep, &eq.left_name, &eq.right_name, &selected_oracles);
-    live.activity("starting EasyCrypt and opening the proof");
-    let mut session = Session::start(out_dir)?;
-    if let Some(transcript) = transcript {
-        session.set_transcript_sink(
-            Box::new(transcript.try_clone()?),
-            transcript_path,
-            options.ec_transcript,
-            &file,
-        );
-    }
-    session.set_observer(live.session_observer());
-    session.set_timeout(options.ec_timeout);
-    for sentence in &call_prefix {
-        ok_or_reject(session.send(sentence)?, &file, sentence)?;
-    }
-    let mut base_case_admitted = false;
-    if let Some(base) = sentences.get(call_prefix.len()) {
-        if session.send(base)?.status != super::json::Status::Ok {
-            base_case_admitted = true;
-            session.send("admit.")?;
-        }
-    }
-
     let report_file = file.trim_end_matches(".ec").to_string() + ".report.txt";
     let mut proof = ProofFile {
         source,
@@ -439,56 +483,113 @@ where
         started,
         tactics: EquivalenceTactics {
             proofstep: eq.proofstep,
-            proof_file: file,
+            proof_file: file.clone(),
             left: eq.left_name.clone(),
             right: eq.right_name.clone(),
             oracles: Vec::new(),
-            base_case_admitted,
+            base_case_admitted: false,
             elapsed: Duration::ZERO,
             report_file,
+            interrupted: None,
         },
     };
-    while let Some(goal) = session.goals().first() {
-        let target = setup.oracle_of_goal(goal).filter(|o| selected(o));
-        match target {
-            Some(oracle) => {
-                let result = tactics_for_oracle(
-                    &mut session,
-                    project,
-                    theorem,
-                    eq,
-                    &setup,
-                    &oracle,
-                    backend,
-                    options,
-                    live,
-                    &mut proof,
-                )?;
-                proof.tactics.oracles.push(result);
-                proof.write(None)?;
-                live.oracle_finished(proof.tactics.oracles.last().expect("just pushed"));
+    // Ctrl-C (story 34): the equivalence ends where it stands, with what is written
+    let interrupted = 'run: {
+        if options.stop_requested() {
+            break 'run Some(Interrupted::NoOracleInFlight);
+        }
+        live.activity("starting EasyCrypt and opening the proof");
+        let mut session = Session::start(out_dir)?;
+        if let Some(transcript) = transcript {
+            session.set_transcript_sink(
+                Box::new(transcript.try_clone()?),
+                transcript_path,
+                options.ec_transcript,
+                &file,
+            );
+        }
+        session.set_observer(live.session_observer());
+        session.set_timeout(options.ec_timeout);
+        if let Some(stop) = &options.stop {
+            session.set_stop(stop.clone());
+        }
+        for sentence in &call_prefix {
+            let response = session.send(sentence)?;
+            if options.stop_requested() {
+                break 'run Some(Interrupted::NoOracleInFlight);
             }
-            None => {
-                // the base case (admitted above), or an oracle that was not asked for
+            ok_or_reject(response, &file, sentence)?;
+        }
+        if let Some(base) = sentences.get(call_prefix.len()) {
+            if session.send(base)?.status != super::json::Status::Ok {
+                if options.stop_requested() {
+                    break 'run Some(Interrupted::NoOracleInFlight);
+                }
+                proof.tactics.base_case_admitted = true;
                 session.send("admit.")?;
             }
         }
-    }
-    for (name, _) in &setup.oracles {
-        if selected(name) && !proof.tactics.oracles.iter().any(|r| &r.oracle == name) {
-            let empty = OracleTactics::empty(
-                name,
-                "no goal for this oracle after `call (…); last first.`",
-            );
-            live.oracle_finished(&empty);
-            proof.tactics.oracles.push(empty);
+
+        let mut interrupted = None;
+        while let Some(goal) = session.goals().first() {
+            if options.stop_requested() {
+                interrupted = Some(Interrupted::NoOracleInFlight);
+                break;
+            }
+            let target = setup.oracle_of_goal(goal).filter(|o| selected(o));
+            match target {
+                Some(oracle) => {
+                    let end = tactics_for_oracle(
+                        &mut session,
+                        project,
+                        theorem,
+                        eq,
+                        &setup,
+                        &oracle,
+                        backend,
+                        options,
+                        live,
+                        &mut proof,
+                    )?;
+                    let (result, stopped) = match end {
+                        OracleEnd::Done(result) => (Some(result), None),
+                        OracleEnd::Stopped { sealed, at } => (sealed, Some(at)),
+                    };
+                    if let Some(result) = result {
+                        proof.tactics.oracles.push(result);
+                        proof.write(None)?;
+                        live.oracle_finished(proof.tactics.oracles.last().expect("just pushed"));
+                    }
+                    if stopped.is_some() {
+                        interrupted = stopped;
+                        break;
+                    }
+                }
+                None => {
+                    // the base case (admitted above), or an oracle that was not asked for
+                    session.send("admit.")?;
+                }
+            }
         }
-    }
-    if session.transcript_dropped() {
-        // a later record would start at an offset the live page does not know
-        *transcript = None;
-    }
-    drop(session);
+        if interrupted.is_none() {
+            for (name, _) in &setup.oracles {
+                if selected(name) && !proof.tactics.oracles.iter().any(|r| &r.oracle == name) {
+                    let empty = OracleTactics::empty(
+                        name,
+                        "no goal for this oracle after `call (…); last first.`",
+                    );
+                    live.oracle_finished(&empty);
+                    proof.tactics.oracles.push(empty);
+                }
+            }
+        }
+        if session.transcript_dropped() {
+            // a later record would start at an offset the live page does not know
+            *transcript = None;
+        }
+        interrupted
+    };
+    proof.tactics.interrupted = interrupted;
 
     let tactics = proof.write(None)?;
     live.equivalence_finished(&tactics);
@@ -568,6 +669,18 @@ fn write_atomically(path: &Path, tmp_dir: &Path, text: &str) -> std::io::Result<
     std::fs::rename(&tmp, path)
 }
 
+/// How [`tactics_for_oracle`] ended.
+enum OracleEnd {
+    /// The oracle's bullet is closed, or there was nothing to prove it with (`problem`).
+    Done(OracleTactics),
+    /// The run was asked to stop (Ctrl-C). `sealed` is the oracle as far as the walk got,
+    /// `None` if lockstep execution was stopped before anything was sent.
+    Stopped {
+        sealed: Option<OracleTactics>,
+        at: Interrupted,
+    },
+}
+
 #[allow(clippy::too_many_arguments)]
 fn tactics_for_oracle<P, B>(
     session: &mut Session,
@@ -580,7 +693,7 @@ fn tactics_for_oracle<P, B>(
     options: &TacticsOptions,
     live: &LiveHandle,
     proof: &mut ProofFile<'_>,
-) -> Result<OracleTactics, TacticsError>
+) -> Result<OracleEnd, TacticsError>
 where
     P: Project,
     B: SmtSolverBackend,
@@ -604,10 +717,19 @@ where
         backend,
         None,
         &mut NopObserver,
-        None,
+        options.stop.as_deref(),
     );
     let lockstep_time = lockstep_started.elapsed();
     live.activity("");
+    if options.stop_requested() {
+        // lockstep execution was stopped, or has just finished: nothing was sent
+        return Ok(OracleEnd::Stopped {
+            sealed: None,
+            at: Interrupted::Lockstep {
+                oracle: oracle.to_string(),
+            },
+        });
+    }
     if let Ok(run) = &run {
         live.lockstep_done(Path::new(&run.meta.out_dir));
     }
@@ -618,7 +740,7 @@ where
             let mut result =
                 OracleTactics::empty(oracle, &format!("lockstep execution failed: {source}"));
             result.lockstep_time = lockstep_time;
-            return Ok(result);
+            return Ok(OracleEnd::Done(result));
         }
     };
 
@@ -682,8 +804,9 @@ where
         },
         node: None,
         mismatches: Vec::new(),
+        stopped: None,
     };
-    prover.oracle(|goal: &Goal| {
+    let proved = prover.oracle(|goal: &Goal| {
         match super::check::align_goal(
             goal,
             (&left_ir, &setup.left_flag),
@@ -695,14 +818,43 @@ where
                 .flat_map(|s| s.alignment.mismatches.iter().map(describe_mismatch))
                 .collect(),
         }
-    })?;
-    // the oracle's bullet is closed: the seal is the script as it is
-    let sealed = prover.seal();
+    });
+    let stopped = match proved {
+        Ok(()) => None,
+        Err(SessionError::Stopped) => Some(
+            prover
+                .stopped
+                .take()
+                .expect("the walk seals the oracle before it stops"),
+        ),
+        Err(e) => return Err(e.into()),
+    };
+    let stopped_at = stopped.as_ref().map(|sealed| sealed.node.clone());
+    // the oracle's bullet is closed and the seal is the script as it is, or the walk sealed it
+    // where it stopped
+    let sealed = stopped.unwrap_or_else(|| prover.seal());
     drop(prover);
     if let Some(e) = write_failed {
         return Err(e.into());
     }
-    Ok(result_of(sealed))
+    let result = result_of(sealed);
+    let Some(node) = stopped_at else {
+        return Ok(OracleEnd::Done(result));
+    };
+    let at = Interrupted::Sealed {
+        oracle: oracle.to_string(),
+        admits: result
+            .stats
+            .admits
+            .iter()
+            .filter(|a| a.reason == AdmitReason::Interrupted)
+            .count(),
+        node,
+    };
+    Ok(OracleEnd::Stopped {
+        sealed: Some(result),
+        at,
+    })
 }
 
 fn secs(d: Duration) -> String {
@@ -770,6 +922,9 @@ impl EquivalenceTactics {
                     let _ = writeln!(out, "      goal: {goal}");
                 }
             }
+        }
+        if let Some(at) = &self.interrupted {
+            let _ = writeln!(out, "interrupted: {at}");
         }
         let closed: usize = self.oracles.iter().map(|o| o.stats.closed).sum();
         let admits: usize = self.oracles.iter().map(|o| o.stats.admits.len()).sum();

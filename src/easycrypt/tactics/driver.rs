@@ -276,6 +276,8 @@ pub(super) struct Sealed {
     pub script: String,
     pub stats: OracleStats,
     pub mismatches: Vec<String>,
+    /// The joint node the walk was in, as the `interrupted` admits name it: `N<k>` or `router`.
+    pub node: String,
 }
 
 /// A point to return to: the session's state and the script's.
@@ -314,6 +316,9 @@ pub(super) struct Prover<'a> {
     /// The descriptions of the alignment's mismatches: with any, the oracle is proved by the
     /// fallback.
     pub mismatches: Vec<String>,
+    /// The oracle sealed where the walk stood when it saw that the run was asked to stop
+    /// (Ctrl-C, story 34); the walk then unwinds with [`SessionError::Stopped`].
+    pub stopped: Option<Sealed>,
 }
 
 impl Prover<'_> {
@@ -333,6 +338,11 @@ impl Prover<'_> {
     /// the reason `interrupted` and the joint node the walk is in. Sends nothing to EasyCrypt,
     /// and the walk goes on from the unsealed script. Between two sentences is any time.
     pub(super) fn seal(&self) -> Sealed {
+        self.seal_with(self.count())
+    }
+
+    /// [`Self::seal`], with `open` goals open in the session.
+    fn seal_with(&self, open: usize) -> Sealed {
         let admit = Admit {
             reason: AdmitReason::Interrupted,
             id: self
@@ -342,14 +352,50 @@ impl Prover<'_> {
             domino: DominoView::NotApplicable,
             goal: String::new(),
         };
-        let (script, admits) = self.script.sealed(self.count(), &admit.label());
+        let (script, admits) = self.script.sealed(open, &admit.label());
+        let node = admit.id.clone();
         let mut stats = self.stats.clone();
         stats.admits.extend(std::iter::repeat_n(admit, admits));
         Sealed {
             script: script.render(),
             stats,
             mismatches: self.mismatches.clone(),
+            node,
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Ctrl-C (story 34)
+    // ------------------------------------------------------------------
+
+    /// Where the walk stops if the run was asked to stop: the oracle is sealed as it stands
+    /// ([`Self::stopped`]) and [`SessionError::Stopped`] unwinds the walk, ladders and leaf
+    /// splits included. Called before every sentence the walk sends, so after an interrupted
+    /// sentence has been rolled back like any failed attempt. The seal reads only the script and
+    /// the goal count, which agree between any two sentences.
+    fn stop_point(&mut self) -> R<()> {
+        if !self.session.stop_requested() {
+            return Ok(());
+        }
+        Err(self.stop_with(self.count()))
+    }
+
+    /// Seals the oracle with `open` goals open, unless it is sealed already, and returns
+    /// [`SessionError::Stopped`].
+    fn stop_with(&mut self, open: usize) -> SessionError {
+        if self.stopped.is_none() {
+            self.stopped = Some(self.seal_with(open));
+        }
+        SessionError::Stopped
+    }
+
+    /// `e`, unless the run was asked to stop: EasyCrypt not answering the interrupt then is a
+    /// stop like any other, with what has been proved so far.
+    fn session_failed(&mut self, e: SessionError) -> SessionError {
+        if matches!(e, SessionError::Unresponsive { .. }) && self.session.stop_requested() {
+            return self.stop_point().expect_err("a stop was requested");
+        }
+        e
     }
 
     /// Seals the oracle and hands it to the checkpoint, if there is one.
@@ -381,7 +427,9 @@ impl Prover<'_> {
 
     fn rollback(&mut self, snap: Snap) -> R<()> {
         if self.state() != snap.state {
-            self.session.undo_to(snap.state)?;
+            if let Err(e) = self.session.undo_to(snap.state) {
+                return Err(self.session_failed(e));
+            }
         }
         self.script.rollback(snap.script);
         self.stats.closed = snap.closed;
@@ -392,8 +440,14 @@ impl Prover<'_> {
     /// Sends one sentence; an accepted one goes into the script. `Ok(false)` if EasyCrypt
     /// refused it (or it was interrupted): the session is then where it was.
     pub(super) fn send(&mut self, sentence: &str) -> R<bool> {
+        self.stop_point()?;
         let before = self.count();
-        let ok = self.session.send(sentence)?.status == Status::Ok;
+        let ok = match self.session.send(sentence) {
+            // the sentence a stop interrupted lost its goals: stop as if it had not been sent
+            Ok(response) if response.goals_lost() => return Err(self.stop_with(before)),
+            Ok(response) => response.status == Status::Ok,
+            Err(e) => return Err(self.session_failed(e)),
+        };
         if ok {
             self.script.push(sentence, None);
             let after = self.count();
@@ -461,15 +515,24 @@ impl Prover<'_> {
             goal: goal_pp,
         };
         let label = admit.label();
-        let response = self.session.send("admit.")?;
+        self.stop_point()?;
+        let before = self.count();
+        let response = match self.session.send("admit.") {
+            Ok(response) if response.goals_lost() => return Err(self.stop_with(before)),
+            Ok(response) => response,
+            Err(e) => return Err(self.session_failed(e)),
+        };
         if response.status != Status::Ok {
+            let msg = response
+                .error
+                .as_ref()
+                .map_or_else(|| format!("{:?}", response.status), |e| e.msg.clone());
+            // interrupted by a stop request
+            self.stop_point()?;
             // `admit.` closes any goal: a refusal means there is none, and the walk is lost
             return Err(SessionError::Refused {
                 sentence: "admit.".into(),
-                msg: response
-                    .error
-                    .as_ref()
-                    .map_or_else(|| format!("{:?}", response.status), |e| e.msg.clone()),
+                msg,
             });
         }
         self.script.push("admit.", Some(label));

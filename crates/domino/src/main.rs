@@ -173,11 +173,31 @@ fn prove(p: &Prove) -> Result<(), Error> {
     Ok(())
 }
 
+/// Best-effort Ctrl-C handling, from here on: the first press sets the returned flag and prints
+/// `first`, a second press exits immediately with 130. If a handler is already installed the
+/// run just is not interruptible — not fatal.
+#[cfg(feature = "cvc5-lib")]
+fn stop_on_ctrl_c(first: &'static str) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::Arc;
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let flag = stop.clone();
+    let hits = AtomicUsize::new(0);
+    let _ = ctrlc::try_set_handler(move || {
+        if hits.fetch_add(1, Ordering::Relaxed) == 0 {
+            flag.store(true, Ordering::Relaxed);
+            eprintln!("\n{first}");
+        } else {
+            std::process::exit(130);
+        }
+    });
+    stop
+}
+
 #[cfg(feature = "cvc5-lib")]
 fn debug(d: &Debug) -> Result<(), Error> {
     use std::io::IsTerminal;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-    use std::sync::Arc;
 
     use sspverif::debug::driver::{run_debug_command, DebugOptions};
     use sspverif::debug::progress::{BarObserver, DebugObserver, NopObserver, PlainObserver};
@@ -228,22 +248,10 @@ fn debug(d: &Debug) -> Result<(), Error> {
     // that takes — and writes partial `trace.json` / `index.html`. A second
     // press exits immediately with 130. If a handler is already installed the
     // run just is not interruptible — not fatal.
-    let stop = Arc::new(AtomicBool::new(false));
-    {
-        let stop = stop.clone();
-        let hits = Arc::new(AtomicUsize::new(0));
-        let _ = ctrlc::try_set_handler(move || {
-            if hits.fetch_add(1, Ordering::Relaxed) == 0 {
-                stop.store(true, Ordering::Relaxed);
-                eprintln!(
-                    "\ndebug: interrupt — finishing the current solver query, then writing \
-                     partial results (Ctrl-C again to abort now)"
-                );
-            } else {
-                std::process::exit(130);
-            }
-        });
-    }
+    let stop = stop_on_ctrl_c(
+        "debug: interrupt — finishing the current solver query, then writing partial results \
+         (Ctrl-C again to abort now)",
+    );
 
     if d.easycrypt {
         use sspverif::debug::lockstep_report::render_summary;
@@ -599,6 +607,10 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
                 WriteGranularityArg::Oracle => WriteGranularity::Oracle,
                 WriteGranularityArg::Node => WriteGranularity::Node,
             },
+            stop: Some(stop_on_ctrl_c(
+                "easycrypt: interrupt — stopping the current EasyCrypt sentence, then writing the \
+                 partial proof (Ctrl-C again to abort now)",
+            )),
         };
         for (name, exported) in &exports {
             let theorem = project.get_theorem(name).unwrap();
@@ -616,6 +628,12 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             let report = result.render();
             println!();
             print!("{report}");
+            if result.interrupted().is_some() {
+                // a partial proof is not a success; 130 is what a second Ctrl-C exits with too
+                use std::io::Write as _;
+                let _ = std::io::stdout().flush();
+                std::process::exit(130);
+            }
         }
     }
 

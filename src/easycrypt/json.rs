@@ -31,6 +31,19 @@ pub struct Response {
     pub proof: Option<Proof>,
 }
 
+impl Response {
+    /// Whether the answer lost its goals: an interrupt that lands while EasyCrypt prints them
+    /// leaves the answer without them, with a `critical` message saying so (story 34). The
+    /// sentence's effect on the state stands.
+    pub fn goals_lost(&self) -> bool {
+        self.proof.is_none()
+            && self
+                .messages
+                .iter()
+                .any(|m| m.text.starts_with("cannot serialize the goals"))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Status {

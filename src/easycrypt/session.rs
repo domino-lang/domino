@@ -16,8 +16,10 @@
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use thiserror::Error;
 
@@ -36,6 +38,12 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// How long the answer to a `SIGINT` may take.
 const INTERRUPT_GRACE: Duration = Duration::from_secs(30);
+
+/// How long reading the goals again may take ([`Session::send`] on an answer that lost them).
+const REREAD_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// How often a running sentence looks at the stop flag ([`Session::set_stop`]).
+const STOP_POLL: Duration = Duration::from_millis(100);
 
 /// The startup check's sentence: it changes no state and is answered with one line.
 const PROBE_SENTENCE: &str = "pragma Goals:printall.";
@@ -60,6 +68,12 @@ pub enum SessionError {
     Refused { sentence: String, msg: String },
     #[error("EasyCrypt did not answer `{sentence}` after being interrupted")]
     Unresponsive { sentence: String },
+    #[error("EasyCrypt could not print the goals after `{sentence}`")]
+    GoalsLost { sentence: String },
+    /// The run was asked to stop (Ctrl-C, story 34). Not EasyCrypt's doing: the prover returns
+    /// it to unwind, once it has sealed what it proved.
+    #[error("the run was stopped (Ctrl-C)")]
+    Stopped,
     #[error("could not write the EasyCrypt transcript `{}` (`--ec-transcript full`): {source}", path.display())]
     Transcript {
         path: PathBuf,
@@ -95,12 +109,14 @@ pub enum SessionEvent<'a> {
     /// EasyCrypt has not answered yet; sent every [`WAIT_TICK`].
     Waiting { sentence: &'a str, elapsed: Duration },
     /// The answer. `record_bytes` is the size of the transcript record just written, if there
-    /// is a transcript sink (the record is on disk already).
+    /// is a transcript sink (the record is on disk already). `stopped`: the sentence was
+    /// interrupted because the run was asked to stop ([`Session::set_stop`]), not by the timeout.
     Answered {
         sentence: &'a str,
         response: &'a Response,
         elapsed: Duration,
         record_bytes: Option<usize>,
+        stopped: bool,
     },
     /// Writing the transcript failed under [`EcTranscriptMode::Capped`]: no record is written
     /// from this sentence on (story 31 §3.3). Sent once, before that sentence's `Answered`.
@@ -123,6 +139,17 @@ pub struct Session {
     /// A capped transcript's write failed and the sink was dropped.
     sink_dropped: bool,
     observer: Option<Box<dyn FnMut(&SessionEvent<'_>)>>,
+    /// Set when the run is asked to stop (Ctrl-C): see [`Session::set_stop`].
+    stop: Option<Arc<AtomicBool>>,
+}
+
+/// How waiting for an answer ended.
+enum Wait {
+    Line(std::io::Result<Line>),
+    TimedOut,
+    /// The stop flag was set while the sentence ran.
+    Stopped,
+    Closed,
 }
 
 /// Where [`Session::send`] appends every exchange, one record per line
@@ -211,6 +238,7 @@ impl Session {
             sink: None,
             sink_dropped: false,
             observer: None,
+            stop: None,
         };
         session.check_capability()?;
         Ok(session)
@@ -293,26 +321,54 @@ impl Session {
         }
     }
 
-    /// Waits for the next line, up to the timeout, reporting [`SessionEvent::Waiting`] on the way.
-    fn wait_line(
-        &mut self,
-        sentence: &str,
-        began: std::time::Instant,
-    ) -> Result<std::io::Result<Line>, RecvTimeoutError> {
-        if self.observer.is_none() {
-            return self.lines.recv_timeout(self.timeout);
-        }
+    /// `stop` is the run's stop flag (story 34), set by a Ctrl-C handler. A sentence running
+    /// when it is set is interrupted at once, as the timeout would, and its answer reported with
+    /// `stopped` ([`SessionEvent::Answered`]). The session sends nothing on its own: what comes
+    /// next is the caller's decision ([`Session::stop_requested`]). Sentences sent once the flag
+    /// is set, and `undo`s, run to their end. If the interrupted sentence's answer lost its
+    /// goals ([`Response::goals_lost`]), they are not read again: the caller is stopping, and
+    /// knows the goals from before the sentence.
+    pub fn set_stop(&mut self, stop: Arc<AtomicBool>) {
+        self.stop = Some(stop);
+    }
+
+    /// Whether the run has been asked to stop ([`Session::set_stop`]).
+    pub fn stop_requested(&self) -> bool {
+        self.stop.as_ref().is_some_and(|s| s.load(Ordering::Relaxed))
+    }
+
+    /// Waits for the next line, up to the timeout, reporting [`SessionEvent::Waiting`] on the
+    /// way; `stoppable`: also until the stop flag is set.
+    fn wait_line(&mut self, sentence: &str, began: Instant, stoppable: bool) -> Wait {
+        let deadline = began + self.timeout;
+        let mut next_tick = began + WAIT_TICK;
         loop {
-            let left = self.timeout.saturating_sub(began.elapsed());
-            if left.is_zero() {
-                return Err(RecvTimeoutError::Timeout);
+            if stoppable && self.stop_requested() {
+                return Wait::Stopped;
             }
-            match self.lines.recv_timeout(left.min(WAIT_TICK)) {
-                Err(RecvTimeoutError::Timeout) => self.notify(&SessionEvent::Waiting {
-                    sentence,
-                    elapsed: began.elapsed(),
-                }),
-                other => return other,
+            let now = Instant::now();
+            if now >= deadline {
+                return Wait::TimedOut;
+            }
+            let mut until = deadline;
+            if self.observer.is_some() {
+                until = until.min(next_tick);
+            }
+            if stoppable {
+                until = until.min(now + STOP_POLL);
+            }
+            match self.lines.recv_timeout(until.saturating_duration_since(now)) {
+                Ok(line) => return Wait::Line(line),
+                Err(RecvTimeoutError::Disconnected) => return Wait::Closed,
+                Err(RecvTimeoutError::Timeout) => {
+                    if self.observer.is_some() && Instant::now() >= next_tick {
+                        self.notify(&SessionEvent::Waiting {
+                            sentence,
+                            elapsed: began.elapsed(),
+                        });
+                        next_tick += WAIT_TICK;
+                    }
+                }
             }
         }
     }
@@ -348,22 +404,32 @@ impl Session {
     }
 
     /// Sends one sentence and returns EasyCrypt's answer. A sentence still running after the
-    /// timeout is interrupted, and the answer is then `Status::Interrupted`.
+    /// timeout, or when the run is asked to stop ([`Session::set_stop`]), is interrupted, and
+    /// the answer is then `Status::Interrupted`.
     pub fn send(&mut self, sentence: &str) -> Result<&Response, SessionError> {
-        let began = std::time::Instant::now();
+        self.exchange(sentence, true)
+    }
+
+    /// [`Session::send`]; `stoppable`: a stop request interrupts the sentence.
+    fn exchange(&mut self, sentence: &str, stoppable: bool) -> Result<&Response, SessionError> {
+        let began = Instant::now();
+        // a stop known before the sentence was sent is the caller's to act on
+        let stoppable = stoppable && !self.stop_requested();
         self.notify(&SessionEvent::Sending { sentence });
         self.write_line(sentence)?;
-        let line = match self.wait_line(sentence, began) {
-            Ok(line) => line,
-            Err(RecvTimeoutError::Timeout) => {
+        let (line, timed_out) = match self.wait_line(sentence, began, stoppable) {
+            Wait::Line(line) => (line, false),
+            Wait::TimedOut | Wait::Stopped => {
+                let timed_out = !self.stop_requested();
                 self.interrupt()?;
-                self.lines
-                    .recv_timeout(INTERRUPT_GRACE)
-                    .map_err(|_| SessionError::Unresponsive {
+                let line = self.lines.recv_timeout(INTERRUPT_GRACE).map_err(|_| {
+                    SessionError::Unresponsive {
                         sentence: sentence.to_string(),
-                    })?
+                    }
+                })?;
+                (line, timed_out)
             }
-            Err(RecvTimeoutError::Disconnected) => {
+            Wait::Closed => {
                 return Err(SessionError::Closed {
                     sentence: sentence.to_string(),
                 })
@@ -371,14 +437,22 @@ impl Session {
         };
         let line = line?;
         let record_bytes = self.write_record(sentence, began.elapsed(), &line.raw)?;
-        let response = line.parsed.map_err(|source| SessionError::BadAnswer {
+        let mut response = line.parsed.map_err(|source| SessionError::BadAnswer {
             sentence: sentence.to_string(),
             source,
         })?;
+        // an interrupt that landed while EasyCrypt printed the goals: read them again, unless
+        // this is the sentence a stop interrupted (the caller stops, and knows the goals from
+        // before it; reading them costs as much as printing them did)
+        if response.goals_lost() && !(stoppable && self.stop_requested()) {
+            response.proof = self.reread_goals(sentence)?;
+        }
         // A goal is hundreds of kilobytes of JSON: only the newest answer keeps its goals.
         if let Some(previous) = self.transcript.last_mut() {
             previous.response.proof = None;
         }
+        // a Ctrl-C reaches EasyCrypt itself too, so its answer can come before the flag is seen
+        let stopped = response.status == Status::Interrupted && !timed_out && self.stop_requested();
         self.transcript.push(Exchange {
             sentence: sentence.to_string(),
             response,
@@ -390,6 +464,7 @@ impl Session {
                 response: &exchange.response,
                 elapsed: began.elapsed(),
                 record_bytes,
+                stopped,
             };
             // `notify` borrows `self` mutably: take the observer out for the call
             if let Some(mut observer) = self.observer.take() {
@@ -398,6 +473,25 @@ impl Session {
             }
         }
         Ok(&self.transcript.last().expect("just pushed").response)
+    }
+
+    /// The goals as they are now, read with [`PROBE_SENTENCE`] (which changes no state), for an
+    /// answer that lost them ([`Response::goals_lost`]). Not an exchange: the transcript keeps the answer
+    /// as EasyCrypt gave it.
+    fn reread_goals(&mut self, sentence: &str) -> Result<Option<json::Proof>, SessionError> {
+        let lost = || SessionError::GoalsLost {
+            sentence: sentence.to_string(),
+        };
+        self.write_line(PROBE_SENTENCE)?;
+        let line = self
+            .lines
+            .recv_timeout(REREAD_TIMEOUT)
+            .map_err(|_| lost())??;
+        let response = line.parsed.map_err(|_| lost())?;
+        if response.goals_lost() {
+            return Err(lost());
+        }
+        Ok(response.proof)
     }
 
     /// Appends the record of one exchange to the transcript sink, if any, and returns its size.
@@ -442,9 +536,10 @@ impl Session {
         Ok(None)
     }
 
-    /// Returns to the state whose answer said `state` (`undo <state>.`).
+    /// Returns to the state whose answer said `state` (`undo <state>.`). A stop request does
+    /// not interrupt it: rolling back is how a caller gets to a consistent state to stop in.
     pub fn undo_to(&mut self, state: u64) -> Result<&Response, SessionError> {
-        self.send(&format!("undo {state}."))
+        self.exchange(&format!("undo {state}."), false)
     }
 
     /// Sends `SIGINT` to the process: the running sentence is answered `interrupted` and the
@@ -630,6 +725,129 @@ pub(crate) mod tests {
         let waits = events.iter().filter(|e| e.starts_with("waiting slow.")).count();
         assert_eq!(waits, 2, "a tick each second of the 2.3 s: {events:?}");
         assert_eq!(events.last().unwrap(), "answered slow. false");
+    }
+
+    /// A stand-in EasyCrypt that answers `ok` at once, except to lines with `slow` in them and
+    /// to `undo`s: those run until a `SIGINT` (answered `interrupted`) or for 2 s (answered
+    /// `ok`).
+    fn interruptible_easycrypt(dir: &Path) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let script = dir.join("fake-easycrypt");
+        std::fs::write(
+            &script,
+            r#"#!/bin/sh
+int=0
+trap 'int=1' INT
+ans() { echo "{\"version\":\"domino-json/1\",\"state\":1,\"status\":\"$1\",\"messages\":[]}"; }
+while IFS= read -r line; do
+  case "$line" in
+    *slow*|undo*)
+      int=0; n=0
+      while [ $int = 0 ] && [ $n -lt 20 ]; do sleep 0.1; n=$((n+1)); done
+      if [ $int = 1 ]; then ans interrupted; else ans ok; fi;;
+    *) ans ok;;
+  esac
+done
+"#,
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    /// A session of [`interruptible_easycrypt`] with a stop flag, and whether each answer the
+    /// observer saw was to a stop.
+    fn stoppable_session(
+        dir: &Path,
+    ) -> (
+        Session,
+        std::sync::Arc<std::sync::atomic::AtomicBool>,
+        std::rc::Rc<std::cell::RefCell<Vec<bool>>>,
+    ) {
+        let mut session = Session::start_with(&interruptible_easycrypt(dir), dir).unwrap();
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        session.set_stop(stop.clone());
+        let stopped = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let seen = stopped.clone();
+        session.set_observer(Box::new(move |e| {
+            if let SessionEvent::Answered { stopped, .. } = e {
+                seen.borrow_mut().push(*stopped);
+            }
+        }));
+        (session, stop, stopped)
+    }
+
+    /// Sets `stop` after `after`, from another thread (as the Ctrl-C handler does).
+    fn stop_after(stop: &std::sync::Arc<std::sync::atomic::AtomicBool>, after: Duration) {
+        let stop = stop.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(after);
+            stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+    }
+
+    #[test]
+    fn a_stop_request_interrupts_the_running_sentence_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut session, stop, stopped) = stoppable_session(dir.path());
+        assert!(!session.stop_requested());
+        stop_after(&stop, Duration::from_millis(300));
+        let began = std::time::Instant::now();
+        let status = session.send("slow.").unwrap().status;
+        assert_eq!(status, Status::Interrupted);
+        assert!(began.elapsed() < Duration::from_millis(1500), "{:?}", began.elapsed());
+        assert!(session.stop_requested());
+        assert_eq!(*stopped.borrow(), [true], "the answer is to the stop");
+    }
+
+    #[test]
+    fn the_timeout_still_interrupts_and_is_not_a_stop() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut session, _stop, stopped) = stoppable_session(dir.path());
+        session.set_timeout(Duration::from_millis(300));
+        assert_eq!(session.send("slow.").unwrap().status, Status::Interrupted);
+        assert_eq!(*stopped.borrow(), [false]);
+    }
+
+    #[test]
+    fn neither_an_undo_nor_a_sentence_sent_after_the_stop_is_interrupted() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut session, stop, stopped) = stoppable_session(dir.path());
+        // the stop comes while the undo runs: rolling back is how the prover gets consistent
+        stop_after(&stop, Duration::from_millis(300));
+        assert_eq!(session.undo_to(1).unwrap().status, Status::Ok);
+        // a sentence sent once the stop is known runs to its end
+        assert_eq!(session.send("slow.").unwrap().status, Status::Ok);
+        assert_eq!(*stopped.borrow(), [false, false]);
+    }
+
+    /// An interrupt that lands while EasyCrypt prints the goals leaves an `ok` answer without
+    /// them (`cannot serialize the goals: Sys.Break`); a Ctrl-C at a terminal reaches
+    /// EasyCrypt itself too, so this happens (story 34, seen on kem-dem).
+    #[test]
+    fn goals_lost_to_an_interrupt_are_read_again() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("fake-easycrypt");
+        std::fs::write(
+            &script,
+            r#"#!/bin/sh
+goal='{"id":1,"concl":{"kind":"app","pp":"c"},"text":"g"}'
+while IFS= read -r line; do
+  case "$line" in
+    pragma*) echo "{\"version\":\"domino-json/1\",\"state\":2,\"status\":\"ok\",\"messages\":[],\"proof\":{\"goals\":[$goal,$goal]}}";;
+    *) echo '{"version":"domino-json/1","state":2,"status":"ok","messages":[{"level":"critical","text":"cannot serialize the goals: Sys.Break"}],"proof":null}';;
+  esac
+done
+"#,
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut session = Session::start_with(&script, dir.path()).unwrap();
+        let r = session.send("rewrite /inv in hpre.").unwrap();
+        assert_eq!((r.status, r.state), (Status::Ok, 2));
+        assert_eq!(session.goals().len(), 2);
+        assert_eq!(session.transcript().len(), 1, "the re-read is not an exchange");
     }
 
     /// A stand-in EasyCrypt that answers every line with the contents of `answer`.

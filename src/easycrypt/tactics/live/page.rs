@@ -38,6 +38,7 @@ li.step { padding:1px 4px; border-radius:4px; cursor:pointer; }
 li.step:hover { background:var(--card); } li.step.sel, .flash { background:var(--sel); }
 .badge { font-size:11px; border-radius:8px; padding:0 6px; margin-right:6px; border:1px solid var(--line); }
 .b-accepted { color:var(--ok); } .b-failed { color:var(--bad); } .b-timeout { color:var(--warn); } .b-undone { color:var(--dim); }
+.b-interrupted { color:var(--acc); }
 li.step.undone code { text-decoration:line-through; color:var(--dim); }
 .err { color:var(--bad); } .t { color:var(--dim); font-size:11px; margin-left:6px; }
 .detail { display:none; margin:4px 0 8px 12px; } li.sel > .detail { display:block; }
@@ -263,6 +264,7 @@ impl Live {
             RunState::Running => ("active", "tactics (running)"),
             RunState::Done => ("done", "tactics (done)"),
             RunState::Failed(_) => ("active", "tactics (failed)"),
+            RunState::Interrupted(_) => ("active", "tactics (interrupted)"),
         };
         let _ = writeln!(out, "<span class=\"chip {class}\">{label}</span></div>");
         if let RunState::Failed(message) = &self.state {
@@ -270,6 +272,13 @@ impl Live {
                 out,
                 "<div class=\"banner failed\">the run stopped: {}</div>",
                 esc(message)
+            );
+        }
+        if let RunState::Interrupted(sealed) = &self.state {
+            let _ = writeln!(
+                out,
+                "<div class=\"banner\">interrupted (Ctrl-C): {}</div>",
+                esc(sealed)
             );
         }
         if running {
@@ -439,6 +448,7 @@ impl Live {
             (StepStatus::Accepted, false) => ("b-accepted", "accepted"),
             (StepStatus::Failed, _) => ("b-failed", "failed"),
             (StepStatus::TimedOut, _) => ("b-timeout", "timed out"),
+            (StepStatus::Interrupted, _) => ("b-interrupted", "interrupted"),
         };
         let _ = write!(
             out,
