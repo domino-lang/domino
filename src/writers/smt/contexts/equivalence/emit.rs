@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::{
+    gamehops::equivalence::smtrewrite::SmtStatementKind,
     hacks,
     theorem::{Claim, ClaimType, GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
     transforms::samplify::SampleInfo,
@@ -107,6 +108,10 @@ pub(crate) const RANDOMNESS_MAPPING_CONDITION_NAME: &str = "<randomness-mapping>
 
 #[derive(Clone, Debug)]
 pub(crate) struct RandomnessMappingEntry {
+    /// Index of the left sampling in its game instance's `SampleInfo::positions`.
+    pub(crate) sample_left: usize,
+    /// Likewise for the right sampling.
+    pub(crate) sample_right: usize,
     pub(crate) sample_id_left: SmtExpr,
     pub(crate) sample_id_right: SmtExpr,
     pub(crate) offset_left: usize,
@@ -538,7 +543,7 @@ impl<'a> EquivalenceContext<'a> {
         claims
     }
 
-    fn randomness_mapping_candidates(&self, oracle_name: &str) -> Vec<RandomnessMappingEntry> {
+    pub(crate) fn randomness_mapping_candidates(&self, oracle_name: &str) -> Vec<RandomnessMappingEntry> {
         let left_export = self
             .left_game_inst_ctx()
             .game()
@@ -583,12 +588,14 @@ impl<'a> EquivalenceContext<'a> {
 
         left_entries
             .iter()
-            .flat_map(|(_left_position, sample_id_left, offset_left, ty_left)| {
+            .flat_map(|(left_position, sample_id_left, offset_left, ty_left)| {
                 right_entries
                     .iter()
                     .filter(move |(_, _, _, ty_right)| ty_left.types_match(ty_right))
                     .map(
-                        move |(_, sample_id_right, offset_right, _)| RandomnessMappingEntry {
+                        move |(right_position, sample_id_right, offset_right, _)| RandomnessMappingEntry {
+                            sample_left: left_position.sample_id,
+                            sample_right: right_position.sample_id,
                             sample_id_left: sample_id_left.clone(),
                             sample_id_right: sample_id_right.clone(),
                             offset_left: *offset_left,
@@ -599,6 +606,45 @@ impl<'a> EquivalenceContext<'a> {
                             ty: (*ty_left).clone(),
                         },
                     )
+            })
+            .collect()
+    }
+
+    /// The condition `randomness-mapping-<O>` states for one candidate: that the
+    /// mapping pairs the left draw with the right one. It is a term over the
+    /// global constants, so it may depend on the state and the oracle's
+    /// arguments; the debugger asks the solver, it never reads it.
+    pub(crate) fn randomness_mapping_premise(
+        &self,
+        oracle_name: &str,
+        entry: &RandomnessMappingEntry,
+    ) -> SmtExpr {
+        (
+            format!("randomness-mapping-{oracle_name}"),
+            entry.sample_id_left.clone(),
+            entry.sample_id_right.clone(),
+            entry.offset_left,
+            entry.offset_right,
+        )
+            .into()
+    }
+
+    /// The names of the equivalence's `define-state-relation`s, in file order.
+    /// These are exactly the relations the EasyCrypt `inv` operator conjoins
+    /// (`writers::easycrypt::invariant`), each defined here as an SMT function
+    /// of the two game states.
+    pub(crate) fn state_relation_names(&self) -> Vec<String> {
+        self.invariants
+            .iter()
+            .filter(|stmt| matches!(stmt.sort, SmtStatementKind::StateRelation))
+            .filter_map(|stmt| match &stmt.expr {
+                SmtExpr::List(items) => match items.as_slice() {
+                    [SmtExpr::Atom(kw), SmtExpr::Atom(name), ..] if kw == "define-fun" => {
+                        Some(name.clone())
+                    }
+                    _ => None,
+                },
+                _ => None,
             })
             .collect()
     }
@@ -615,13 +661,7 @@ impl<'a> EquivalenceContext<'a> {
                 let right_rand_fn = names::fn_sample_rand_name(right_game_inst_name, &entry.ty);
 
                 SmtImplies(
-                    (
-                        format!("randomness-mapping-{oracle_name}"),
-                        entry.sample_id_left.clone(),
-                        entry.sample_id_right.clone(),
-                        entry.offset_left,
-                        entry.offset_right,
-                    ),
+                    self.randomness_mapping_premise(oracle_name, entry),
                     SmtEq2 {
                         lhs: (
                             left_rand_fn,

@@ -1,0 +1,88 @@
+package B {
+    params {
+        n: Integer,
+    }
+
+    state {
+        ctr: Integer,
+    }
+
+    oracle Determined(x: Integer) -> Integer {
+        assert (x >= 0);
+        return 2;
+    }
+
+    oracle Synced(b: Bool) -> Integer {
+        if b {
+            r <- 1;
+        } else {
+            r <- 2;
+        }
+        return r;
+    }
+
+    oracle Split(b: Bool, c: Bool) -> Integer {
+        if c {
+            r <- 1;
+        } else {
+            r <- 2;
+        }
+        return r;
+    }
+
+    oracle SplitPruned(b: Bool) -> Integer {
+        if not b {
+            r <- 2;
+        } else {
+            r <- 1;
+        }
+        return r;
+    }
+
+    oracle OneSided(b: Bool) -> Integer {
+        return 1;
+    }
+
+    oracle SyncSample() -> Bits(n) {
+        r <-$ Bits(n) sample-name s;
+        return r;
+    }
+
+    oracle IndepSample() -> Bits(n) {
+        r <-$ Bits(n) sample-name s;
+        return r;
+    }
+
+    oracle StuckArg(x: Integer) -> Bits(n) {
+        r <-$ Bits(n) sample-name s;
+        return r;
+    }
+
+    oracle StuckOrder() -> (Bits(n), Bits(n)) {
+        d <-$ Bits(n) sample-name s2;
+        a <-$ Bits(n) sample-name s1;
+        return (a, d);
+    }
+
+    oracle BadOutput(x: Integer) -> Integer {
+        return (x + 1);
+    }
+
+    oracle BadState(x: Integer) -> Integer {
+        return 0;
+    }
+
+    oracle AbortDiff(b: Bool) -> Integer {
+        return 1;
+    }
+
+    oracle AbortBoth(b: Bool) -> Integer {
+        assert b;
+        return 1;
+    }
+
+    oracle AbortState(b: Bool) -> Integer {
+        assert b;
+        return 1;
+    }
+}

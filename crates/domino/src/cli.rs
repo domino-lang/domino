@@ -113,24 +113,33 @@ pub(crate) struct Debug {
     /// Exported oracle name.
     #[clap(long)]
     pub(crate) oracle: String,
-    /// Claim to debug. Required — one claim per run.
+    /// Run lockstep execution on the generated EasyCrypt code instead of the
+    /// sequential exploration: both oracles advance together and each decision is
+    /// resolved jointly, as an EasyCrypt proof would. Both claims (equal-output and
+    /// invariant) are always checked, so `--claim` is not accepted; output goes to
+    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/easycrypt/`.
     #[clap(long)]
-    pub(crate) claim: String,
+    pub(crate) easycrypt: bool,
+    /// Claim to debug. Required (one claim per run) unless `--easycrypt` is given.
+    #[clap(long, required_unless_present = "easycrypt", conflicts_with = "easycrypt")]
+    pub(crate) claim: Option<String>,
     /// Do NOT prune unreachable LEFT branches early (default: it does). With this
-    /// set, every syntactic left path is explored.
-    #[clap(long)]
+    /// set, every syntactic left path is explored. Sequential mode only.
+    #[clap(long, conflicts_with = "easycrypt")]
     pub(crate) no_check_left: bool,
     /// Do NOT prune unreachable RIGHT branches early (default: it does). This only
     /// disables early branch pruning; the terminal-pair vacuity check that
     /// distinguishes `unreachable` from `verified` still runs unconditionally.
-    #[clap(long)]
+    /// Sequential mode only.
+    #[clap(long, conflicts_with = "easycrypt")]
     pub(crate) no_check_right: bool,
     /// Per-query solver timeout in milliseconds (cvc5 `tlimit-per`). A timeout counts
     /// as `unknown` (explored, never pruned, never "verified").
     #[clap(long)]
     pub(crate) timeout: Option<u64>,
     /// Stop after this many explored paths (left paths + right paths per left
-    /// path). Unlimited by default; `Ctrl-C` is the interactive stop.
+    /// path; with `--easycrypt`, joint paths). Unlimited by default; `Ctrl-C` is
+    /// the interactive stop.
     #[clap(long)]
     pub(crate) max_paths: Option<usize>,
     /// Live progress while exploring, on stderr (stdout carries only the final
@@ -150,7 +159,8 @@ pub(crate) struct Debug {
     #[clap(long)]
     pub(crate) transcript: bool,
     /// Output directory. Defaults to
-    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`.
+    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/` (with
+    /// `--easycrypt`: `.../<oracle>/easycrypt/`).
     #[clap(long)]
     pub(crate) out: Option<std::path::PathBuf>,
 }

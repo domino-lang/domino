@@ -70,9 +70,10 @@ use crate::debug::progress::{DebugEvent, DebugObserver, SharedObserver};
 use crate::debug::render;
 use crate::debug::report;
 use crate::debug::smtout::{SmtOut, SmtWriter};
+use crate::gamehops::equivalence::Equivalence;
 use crate::gamehops::GameHop;
 use crate::project::Project;
-use crate::theorem::{Claim, GameInstance};
+use crate::theorem::{Claim, GameInstance, Theorem};
 use crate::transforms::samplify::SampleInfo;
 use crate::transforms::theorem_transforms::{
     DebugTransform, EquivalenceTransform, EquivalenceTransformError,
@@ -156,6 +157,10 @@ pub enum DebugError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     Exec(#[from] ExecError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    EasyCrypt(#[from] crate::writers::easycrypt::EcExportError),
 
     #[error(transparent)]
     Solver(#[from] crate::util::smtsolver::error::Error),
@@ -346,7 +351,7 @@ impl From<&SiteInfo> for SiteView {
     }
 }
 
-fn sites_view(listing: &Listing) -> BTreeMap<Label, SiteView> {
+pub(crate) fn sites_view(listing: &Listing) -> BTreeMap<Label, SiteView> {
     listing
         .sites
         .iter()
@@ -431,6 +436,23 @@ pub enum Verdict {
     Inconclusive { model: Option<String> },
 }
 
+impl Verdict {
+    /// `verified`, `unreachable`, `goal-fails` or `inconclusive`.
+    pub fn slug(&self) -> &'static str {
+        match self {
+            Verdict::Verified => "verified",
+            Verdict::Unreachable => "unreachable",
+            Verdict::GoalFails { .. } => "goal-fails",
+            Verdict::Inconclusive { .. } => "inconclusive",
+        }
+    }
+
+    /// The claim does not hold, or the solver could not tell.
+    pub fn is_failure(&self) -> bool {
+        matches!(self, Verdict::GoalFails { .. } | Verdict::Inconclusive { .. })
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct Summary {
     pub left_paths: usize,
@@ -501,30 +523,7 @@ where
             name: req_proof.to_string(),
         })?;
 
-    let n_hops = theorem.game_hops.len();
-    let hop = theorem
-        .game_hops
-        .get(req_proofstep)
-        .ok_or(DebugError::ProofstepOutOfRange {
-            index: req_proofstep,
-            len: n_hops,
-        })?;
-    let eq = match hop {
-        GameHop::Equivalence(eq) => eq,
-        GameHop::Hybrid(hyb) => hyb.equivalence(),
-        GameHop::Reduction(_) => {
-            return Err(DebugError::ProofstepNotEquivalence {
-                index: req_proofstep,
-                kind: "reduction",
-            })
-        }
-        GameHop::Conjecture(_) => {
-            return Err(DebugError::ProofstepNotEquivalence {
-                index: req_proofstep,
-                kind: "conjecture",
-            })
-        }
-    };
+    let eq = equivalence_of(theorem, req_proofstep)?;
 
     // Two transforms of the same theorem:
     //  * `EquivalenceTransform` (with `treeify`) feeds the `EquivalenceContext` —
@@ -727,6 +726,33 @@ where
     Ok(run)
 }
 
+/// The equivalence proved at `proofstep` of `theorem`; a hybrid counts as its
+/// underlying equivalence, as in `prove`.
+pub(crate) fn equivalence_of<'t>(
+    theorem: &'t Theorem<'_>,
+    proofstep: usize,
+) -> Result<&'t Equivalence, DebugError> {
+    let hop = theorem
+        .game_hops
+        .get(proofstep)
+        .ok_or(DebugError::ProofstepOutOfRange {
+            index: proofstep,
+            len: theorem.game_hops.len(),
+        })?;
+    match hop {
+        GameHop::Equivalence(eq) => Ok(eq),
+        GameHop::Hybrid(hyb) => Ok(hyb.equivalence()),
+        GameHop::Reduction(_) => Err(DebugError::ProofstepNotEquivalence {
+            index: proofstep,
+            kind: "reduction",
+        }),
+        GameHop::Conjecture(_) => Err(DebugError::ProofstepNotEquivalence {
+            index: proofstep,
+            kind: "conjecture",
+        }),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Base frame
 // ---------------------------------------------------------------------------
@@ -734,7 +760,7 @@ where
 /// The declarations asserted once at solver level 0. Same order and content as
 /// `verify_fn.rs`, with `emit_constant_declarations` narrowed to `Some(oracle)`
 /// (story 04) and the claim assumptions split out and asserted positively.
-fn base_frame<'a>(
+pub(crate) fn base_frame<'a>(
     eqctx: &'a EquivalenceContext<'a>,
     oracle: &str,
     claim: &Claim,
@@ -1350,7 +1376,7 @@ impl<S: SmtSolver> BranchOracle for SolverPruner<'_, '_, S> {
 
 /// Writes the current model to `models/<rid>.smt2` and returns
 /// `(relative path, model text)`.
-fn write_model<S: SmtSolver>(
+pub(crate) fn write_model<S: SmtSolver>(
     solver: &mut S,
     out_dir: &Path,
     rid: &str,
@@ -1385,7 +1411,7 @@ fn collect_paths(
     Ok((paths, capped))
 }
 
-fn steps_view(listing: &Listing, steps: &[Step]) -> Vec<StepView> {
+pub(crate) fn steps_view(listing: &Listing, steps: &[Step]) -> Vec<StepView> {
     steps
         .iter()
         .map(|step| StepView {
@@ -1400,7 +1426,7 @@ fn steps_view(listing: &Listing, steps: &[Step]) -> Vec<StepView> {
         .collect()
 }
 
-fn terminal_view(listing: &Listing, terminal: &Terminal) -> TerminalView {
+pub(crate) fn terminal_view(listing: &Listing, terminal: &Terminal) -> TerminalView {
     let label = terminal.label();
     TerminalView {
         label,
@@ -1415,7 +1441,7 @@ fn terminal_view(listing: &Listing, terminal: &Terminal) -> TerminalView {
 
 /// [`TerminalPath::lines`] / a pruned branch's prefix, into the array-of-arrays
 /// shape `trace.json` uses (story 16).
-fn lines_view(lines: &[(Label, Label)]) -> Vec<[usize; 2]> {
+pub(crate) fn lines_view(lines: &[(Label, Label)]) -> Vec<[usize; 2]> {
     lines.iter().map(|&(a, b)| [a, b]).collect()
 }
 

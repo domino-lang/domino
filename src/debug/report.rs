@@ -114,7 +114,7 @@ fn stop_line(run: &DebugRun) -> Option<String> {
 }
 
 /// `1h 02m 03s` / `2m 04s` / `4.3s` / `0.2s`.
-fn format_elapsed(d: std::time::Duration) -> String {
+pub(crate) fn format_elapsed(d: std::time::Duration) -> String {
     let total = d.as_secs();
     if total >= 3600 {
         format!("{}h {:02}m {:02}s", total / 3600, (total % 3600) / 60, total % 60)

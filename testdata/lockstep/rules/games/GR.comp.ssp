@@ -1,0 +1,28 @@
+composition GR {
+    const n: Integer;
+
+    instance p = B {
+        params {
+            n: n,
+        }
+    }
+
+    compose {
+        adversary: {
+            Determined: p,
+            Synced: p,
+            Split: p,
+            SplitPruned: p,
+            OneSided: p,
+            SyncSample: p,
+            IndepSample: p,
+            StuckArg: p,
+            StuckOrder: p,
+            BadOutput: p,
+            BadState: p,
+            AbortDiff: p,
+            AbortBoth: p,
+            AbortState: p,
+        },
+    }
+}

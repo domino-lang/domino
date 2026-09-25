@@ -1,0 +1,133 @@
+theorem T {
+    const n: Integer;
+
+    instance gl = GL {
+        params {
+            n: n,
+        }
+    }
+
+    instance gr = GR {
+        params {
+            n: n,
+        }
+    }
+
+    gamehops {
+        equivalence gl gr {
+            invariant: [./theorem/invariant.smt2, ./theorem/randomness.smt2]
+            Determined: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            Synced: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            Split: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            SplitPruned: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            OneSided: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            SyncSample: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            IndepSample: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            StuckArg: {
+                randomness: custom
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            StuckOrder: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            BadOutput: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            BadState: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            AbortDiff: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            AbortBoth: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+            AbortState: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    []
+                    same-output:  []
+                }
+            }
+        }
+    }
+}

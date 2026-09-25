@@ -81,10 +81,7 @@ impl SmtOut {
         match self {
             SmtOut::None => false,
             SmtOut::All | SmtOut::Deltas => true,
-            SmtOut::Failures => matches!(
-                verdict,
-                Verdict::GoalFails { .. } | Verdict::Inconclusive { .. }
-            ),
+            SmtOut::Failures => verdict.is_failure(),
         }
     }
 
@@ -221,7 +218,7 @@ impl SmtWriter {
         ));
         s.push_str(&format!(
             "; verdict recorded by `domino debug`: {}\n;\n",
-            verdict_slug(&right.verdict)
+            right.verdict.slug()
         ));
         if self_contained {
             s.push_str("; run:  cvc5 --lang smt2 <this file>\n");
@@ -287,14 +284,6 @@ impl SmtWriter {
     }
 }
 
-fn verdict_slug(v: &Verdict) -> &'static str {
-    match v {
-        Verdict::Verified => "verified",
-        Verdict::Unreachable => "unreachable",
-        Verdict::GoalFails { .. } => "goal-fails",
-        Verdict::Inconclusive { .. } => "inconclusive",
-    }
-}
 
 /// `L12 then L19 holds -> L27 return` — a one-line summary of a path's steps and
 /// terminal, for the file header comment.

@@ -56,7 +56,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::ops::ControlFlow;
 
 use crate::debug::effect::{self, EffectInput, PathEffect, PkgInput, RandEffect};
-use crate::debug::ir::{InlBlock, InlStmt, InlinedOracle, Label, Place, VarKey};
+use crate::debug::ir::{InlBlock, InlStmt, InlinedOracle, Label, Place, Plumbing, VarKey};
 use crate::expressions::{Expression, ExpressionKind};
 use crate::identifier::pkg_ident::PackageIdentifier;
 use crate::identifier::Identifier;
@@ -482,6 +482,112 @@ enum FrameKind {
     },
 }
 
+/// Where a side of an execution stands after [`Executor::advance`] has
+/// consumed all the straight-line code in front of it (story 23). A sequential
+/// walk resolves a head at once; a lockstep execution holds two and decides
+/// them jointly.
+#[allow(clippy::large_enum_variant)] // matches `Terminal`; a head is short-lived
+#[derive(Clone)]
+pub(crate) enum Head<'a> {
+    /// A branch or an `unwrap`: the side forks here.
+    Branch(BranchHead<'a>),
+    /// A sampling, not yet drawn.
+    Sample(SampleHead<'a>),
+    /// A `return` at the entry frame or an `abort`; its label is already visited.
+    Terminal(Terminal),
+}
+
+#[derive(Clone)]
+pub(crate) struct BranchHead<'a> {
+    pub(crate) label: Label,
+    /// The condition under the side's current store. For an `unwrap` it is
+    /// "the inner value is `none`".
+    pub(crate) cond: SmtExpr,
+    pub(crate) form: BranchForm<'a>,
+}
+
+#[derive(Clone)]
+pub(crate) enum BranchForm<'a> {
+    If {
+        then: &'a InlBlock,
+        els: &'a InlBlock,
+        is_assert: bool,
+        plumbing: Option<Plumbing>,
+        then_lines: Option<(Label, Label)>,
+        else_lines: Option<(Label, Label)>,
+    },
+    /// `cond` is true on the *none* child, which aborts.
+    Unwrap {
+        target: &'a Place,
+        inner: SmtExpr,
+    },
+}
+
+impl BranchHead<'_> {
+    /// The two outcomes' decisions, in exploration order (the child whose
+    /// condition is `cond` first).
+    pub(crate) fn decisions(&self) -> (Decision, Decision) {
+        match &self.form {
+            BranchForm::If { is_assert, .. } => decisions(*is_assert),
+            BranchForm::Unwrap { .. } => (Decision::UnwrapNone, Decision::UnwrapSome),
+        }
+    }
+
+    pub(crate) fn plumbing(&self) -> Option<Plumbing> {
+        match &self.form {
+            BranchForm::If { plumbing, .. } => *plumbing,
+            BranchForm::Unwrap { .. } => None,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct SampleHead<'a> {
+    pub(crate) label: Label,
+    target: &'a Place,
+    pub(crate) sample_id: usize,
+    pub(crate) ty: Type,
+    /// How many times this sampling has been drawn before on the side's path.
+    pub(crate) ctr: usize,
+    /// The draw the executor would bind for it.
+    pub(crate) term: SmtExpr,
+}
+
+fn decisions(is_assert: bool) -> (Decision, Decision) {
+    if is_assert {
+        (Decision::AssertHolds, Decision::AssertFails)
+    } else {
+        (Decision::Then, Decision::Else)
+    }
+}
+
+/// One outcome of an `if` on a side: record the step and the path condition,
+/// and open the child block. The child's closing-delimiter label is not added
+/// to `visited` here: the caller pushes it once the child is entered, because
+/// a pruning oracle must not see it (story 16).
+fn open_if_child<'a>(
+    frames: &mut Vec<Cursor<'a>>,
+    st: &mut SymState,
+    label: Label,
+    cond: &SmtExpr,
+    decision: Decision,
+    block: &'a InlBlock,
+) {
+    st.steps.push(Step { label, decision });
+    let holds = matches!(decision, Decision::Then | Decision::AssertHolds);
+    let path_condition = if holds {
+        cond.clone()
+    } else {
+        SmtNot(cond.clone()).into()
+    };
+    st.constraints.push(SmtAssert(path_condition).into());
+    frames.push(Cursor {
+        block,
+        ip: 0,
+        kind: FrameKind::Sub,
+    });
+}
+
 struct Executor<'a> {
     inlined: &'a InlinedOracle,
     gctx: GameInstanceContext<'a>,
@@ -650,10 +756,8 @@ impl<'a> Executor<'a> {
     }
 
     fn do_sample(&mut self, st: &mut SymState, target: &Place, sample_id: usize, ty: &Type) {
-        let pos = &self.sample_info.positions[sample_id];
         let ctr = *st.rand_ctr.get(&sample_id).unwrap_or(&0);
-        let rand_fn = names::fn_sample_rand_name(self.game_inst_name, ty.clone());
-        let rand_val = SmtExpr::from((rand_fn, pos, ctr));
+        let rand_val = self.sample_term(sample_id, ty, ctr);
         *st.rand_ctr.entry(sample_id).or_insert(0) += 1;
         self.bind_fresh(st, target, rand_val);
     }
@@ -677,78 +781,31 @@ impl<'a> Executor<'a> {
         on_path: &mut dyn FnMut(&TerminalPath) -> ControlFlow<()>,
     ) -> Result<ControlFlow<()>, ExecError> {
         loop {
-            let (block, ip): (&'a InlBlock, usize) = {
-                let Some(cur) = frames.last_mut() else {
-                    unreachable!(
-                        "execution fell off the end of the oracle without a terminal — \
-                         `returnify` should guarantee every path ends in return/abort"
-                    );
-                };
-                if cur.ip >= cur.block.0.len() {
-                    frames.pop();
-                    continue;
-                }
-                let ip = cur.ip;
-                cur.ip += 1;
-                (cur.block, ip)
-            };
+            match self.advance(&mut frames, &mut st) {
+                Head::Terminal(terminal) => return self.emit_terminal(st, terminal, on_path),
 
-            match &block.0[ip] {
-                InlStmt::Assign { label, target, rhs } => {
-                    st.visited.push(*label);
-                    self.do_assign(&mut st, target, rhs)
-                }
+                // A sequential walk never waits at a sampling: it draws and goes on.
+                Head::Sample(sample) => self.take_sample(&mut st, &sample),
 
-                InlStmt::Sample {
+                Head::Branch(BranchHead {
                     label,
-                    target,
-                    sample_id,
-                    ty,
-                    ..
-                } => {
-                    st.visited.push(*label);
-                    self.do_sample(&mut st, target, *sample_id, ty)
-                }
-
-                InlStmt::Unwrap {
-                    label,
-                    target,
-                    inner,
-                } => {
-                    let inner_smt = to_smt(&st, inner);
-                    let maybe_sort: Sort = inner.get_type().into();
-                    let is_none: SmtExpr = SmtEq2 {
-                        lhs: inner_smt.clone(),
-                        rhs: SmtAs {
-                            term: "mk-none",
-                            sort: maybe_sort,
-                        },
-                    }
-                    .into();
-
-                    let label_v = *label;
-                    st.visited.push(label_v);
+                    cond: is_none,
+                    form: BranchForm::Unwrap { target, inner },
+                }) => {
+                    st.visited.push(label);
 
                     // none-child: aborts at the unwrap's own label
                     let mut st_none = st.clone();
-                    st_none.steps.push(Step {
-                        label: label_v,
-                        decision: Decision::UnwrapNone,
-                    });
-                    st_none.constraints.push(SmtAssert(is_none.clone()).into());
+                    self.apply_unwrap(&mut st_none, label, target, &inner, &is_none, true);
                     if self
                         .descend(
                             oracle,
-                            label_v,
+                            label,
                             Decision::UnwrapNone,
                             0,
                             st_none,
                             |exec, _oracle, st| {
-                                exec.emit_terminal(
-                                    st,
-                                    Terminal::Abort { label: label_v },
-                                    on_path,
-                                )
+                                exec.emit_terminal(st, Terminal::Abort { label }, on_path)
                             },
                         )?
                         .is_break()
@@ -757,16 +814,10 @@ impl<'a> Executor<'a> {
                     }
 
                     // some-child: continue the current frame stack
-                    st.steps.push(Step {
-                        label: label_v,
-                        decision: Decision::UnwrapSome,
-                    });
-                    st.constraints.push(SmtAssert(SmtNot(is_none)).into());
-                    let getter = SmtExpr::List(vec!["maybe-get".into(), inner_smt]);
-                    self.bind_fresh(&mut st, target, getter);
+                    self.apply_unwrap(&mut st, label, target, &inner, &is_none, false);
                     return self.descend(
                         oracle,
-                        label_v,
+                        label,
                         Decision::UnwrapSome,
                         1,
                         st,
@@ -774,47 +825,36 @@ impl<'a> Executor<'a> {
                     );
                 }
 
-                InlStmt::Branch {
-                    label,
-                    cond,
-                    then,
-                    els,
-                    is_assert,
-                    then_lines,
-                    else_lines,
-                    ..
-                } => {
-                    let cond_smt = to_smt(&st, cond);
-                    let (d_then, d_else) = if *is_assert {
-                        (Decision::AssertHolds, Decision::AssertFails)
-                    } else {
-                        (Decision::Then, Decision::Else)
+                Head::Branch(head) => {
+                    let BranchHead {
+                        label,
+                        cond: cond_smt,
+                        form:
+                            BranchForm::If {
+                                then,
+                                els,
+                                is_assert,
+                                then_lines,
+                                else_lines,
+                                ..
+                            },
+                    } = head
+                    else {
+                        unreachable!("unwrap heads are handled above");
                     };
-                    let label_v = *label;
+                    let (d_then, d_else) = decisions(is_assert);
                     // the fork itself always runs, whichever child is taken (and
                     // whether or not it is later pruned)
-                    st.visited.push(label_v);
+                    st.visited.push(label);
 
                     // then-child: clone and recurse to completion
                     let mut st_then = st.clone();
                     let mut frames_then = frames.clone();
-                    st_then.steps.push(Step {
-                        label: label_v,
-                        decision: d_then,
-                    });
-                    st_then
-                        .constraints
-                        .push(SmtAssert(cond_smt.clone()).into());
-                    frames_then.push(Cursor {
-                        block: then,
-                        ip: 0,
-                        kind: FrameKind::Sub,
-                    });
-                    let then_lines = *then_lines;
+                    open_if_child(&mut frames_then, &mut st_then, label, &cond_smt, d_then, then);
                     if self
                         .descend(
                             oracle,
-                            label_v,
+                            label,
                             d_then,
                             0,
                             st_then,
@@ -834,20 +874,10 @@ impl<'a> Executor<'a> {
                     }
 
                     // else-child: consume the current frame stack, recurse, return
-                    st.steps.push(Step {
-                        label: label_v,
-                        decision: d_else,
-                    });
-                    st.constraints.push(SmtAssert(SmtNot(cond_smt)).into());
-                    frames.push(Cursor {
-                        block: els,
-                        ip: 0,
-                        kind: FrameKind::Sub,
-                    });
-                    let else_lines = *else_lines;
+                    open_if_child(&mut frames, &mut st, label, &cond_smt, d_else, els);
                     return self.descend(
                         oracle,
-                        label_v,
+                        label,
                         d_else,
                         1,
                         st,
@@ -858,6 +888,109 @@ impl<'a> Executor<'a> {
                             exec.walk(oracle, frames, st, on_path)
                         },
                     );
+                }
+            }
+        }
+    }
+
+    /// Consume every statement that is not a decision point and stop at the next
+    /// one (a branch, an unwrap, a sampling, or the end of the oracle). Assigns
+    /// bind, an inlined call binds its arguments and opens its frame, a callee
+    /// `return` binds the caller's result and resumes it.
+    ///
+    /// The decision statement is *not* consumed by the walk it belongs to: its
+    /// label is not yet in `st.visited`, its outcome is not yet applied (see
+    /// [`Self::take_sample`], [`open_if_child`], [`Self::apply_unwrap`]). A
+    /// terminal is returned with its label already visited.
+    fn advance(&mut self, frames: &mut Vec<Cursor<'a>>, st: &mut SymState) -> Head<'a> {
+        loop {
+            let (block, ip): (&'a InlBlock, usize) = {
+                let Some(cur) = frames.last_mut() else {
+                    unreachable!(
+                        "execution fell off the end of the oracle without a terminal — \
+                         `returnify` should guarantee every path ends in return/abort"
+                    );
+                };
+                if cur.ip >= cur.block.0.len() {
+                    frames.pop();
+                    continue;
+                }
+                let ip = cur.ip;
+                cur.ip += 1;
+                (cur.block, ip)
+            };
+
+            match &block.0[ip] {
+                InlStmt::Assign { label, target, rhs } => {
+                    st.visited.push(*label);
+                    self.do_assign(st, target, rhs)
+                }
+
+                InlStmt::Sample {
+                    label,
+                    target,
+                    sample_id,
+                    ty,
+                    ..
+                } => {
+                    let ctr = *st.rand_ctr.get(sample_id).unwrap_or(&0);
+                    return Head::Sample(SampleHead {
+                        label: *label,
+                        target,
+                        sample_id: *sample_id,
+                        ty: ty.clone(),
+                        ctr,
+                        term: self.sample_term(*sample_id, ty, ctr),
+                    });
+                }
+
+                InlStmt::Unwrap {
+                    label,
+                    target,
+                    inner,
+                } => {
+                    let inner_smt = to_smt(st, inner);
+                    let maybe_sort: Sort = inner.get_type().into();
+                    let is_none: SmtExpr = SmtEq2 {
+                        lhs: inner_smt.clone(),
+                        rhs: SmtAs {
+                            term: "mk-none",
+                            sort: maybe_sort,
+                        },
+                    }
+                    .into();
+                    return Head::Branch(BranchHead {
+                        label: *label,
+                        cond: is_none,
+                        form: BranchForm::Unwrap {
+                            target,
+                            inner: inner_smt,
+                        },
+                    });
+                }
+
+                InlStmt::Branch {
+                    label,
+                    cond,
+                    then,
+                    els,
+                    is_assert,
+                    then_lines,
+                    else_lines,
+                    plumbing,
+                } => {
+                    return Head::Branch(BranchHead {
+                        label: *label,
+                        cond: to_smt(st, cond),
+                        form: BranchForm::If {
+                            then,
+                            els,
+                            is_assert: *is_assert,
+                            plumbing: *plumbing,
+                            then_lines: *then_lines,
+                            else_lines: *else_lines,
+                        },
+                    });
                 }
 
                 InlStmt::Call {
@@ -874,9 +1007,9 @@ impl<'a> Executor<'a> {
                         st.visited.extend(first..=last);
                     }
                     for (key, ty, expr) in &frame.arg_bindings {
-                        let value = to_smt(&st, expr);
-                        let id = self.fresh(&mut st, base_of_key(key), ty);
-                        self.define(&mut st, &id, value);
+                        let value = to_smt(st, expr);
+                        let id = self.fresh(st, base_of_key(key), ty);
+                        self.define(st, &id, value);
                         st.locals.insert(key.clone(), id);
                     }
                     frames.push(Cursor {
@@ -895,17 +1028,13 @@ impl<'a> Executor<'a> {
                         .iter()
                         .any(|f| matches!(f.kind, FrameKind::Call { .. }));
                     if !in_call {
-                        return self.emit_terminal(
-                            st,
-                            Terminal::Return {
-                                label: *label,
-                                value: value.clone(),
-                            },
-                            on_path,
-                        );
+                        return Head::Terminal(Terminal::Return {
+                            label: *label,
+                            value: value.clone(),
+                        });
                     }
                     // resume the nearest enclosing call
-                    let ret_val = value.as_ref().map(|e| to_smt(&st, e));
+                    let ret_val = value.as_ref().map(|e| to_smt(st, e));
                     loop {
                         let popped = frames.pop().expect("a Call frame is on the stack");
                         if let FrameKind::Call { bind, close_label } = popped.kind {
@@ -917,7 +1046,7 @@ impl<'a> Executor<'a> {
                                 let value = ret_val
                                     .clone()
                                     .unwrap_or_else(|| SmtExpr::Atom("mk-empty".to_string()));
-                                self.bind_fresh(&mut st, &place, value);
+                                self.bind_fresh(st, &place, value);
                             }
                             break;
                         }
@@ -926,9 +1055,52 @@ impl<'a> Executor<'a> {
 
                 InlStmt::Abort { label } => {
                     st.visited.push(*label);
-                    return self.emit_terminal(st, Terminal::Abort { label: *label }, on_path);
+                    return Head::Terminal(Terminal::Abort { label: *label });
                 }
             }
+        }
+    }
+
+    /// The draw a sampling would bind: `(<rand-fn of the game instance, type>
+    /// <sample position> <counter>)`.
+    fn sample_term(&self, sample_id: usize, ty: &Type, ctr: usize) -> SmtExpr {
+        let pos = &self.sample_info.positions[sample_id];
+        let rand_fn = names::fn_sample_rand_name(self.game_inst_name, ty.clone());
+        SmtExpr::from((rand_fn, pos, ctr))
+    }
+
+    /// Consume the sampling `sample` stands at: bind its draw and bump its counter.
+    fn take_sample(&mut self, st: &mut SymState, sample: &SampleHead<'a>) {
+        st.visited.push(sample.label);
+        self.do_sample(st, sample.target, sample.sample_id, &sample.ty);
+    }
+
+    /// One outcome of an `unwrap`: the value was `none` (`none_child`; the path
+    /// then aborts at the unwrap's own label) or `some` (the inner value is
+    /// bound into `target`). Records the step and the path condition.
+    fn apply_unwrap(
+        &mut self,
+        st: &mut SymState,
+        label: Label,
+        target: &Place,
+        inner: &SmtExpr,
+        is_none: &SmtExpr,
+        none_child: bool,
+    ) {
+        if none_child {
+            st.steps.push(Step {
+                label,
+                decision: Decision::UnwrapNone,
+            });
+            st.constraints.push(SmtAssert(is_none.clone()).into());
+        } else {
+            st.steps.push(Step {
+                label,
+                decision: Decision::UnwrapSome,
+            });
+            st.constraints.push(SmtAssert(SmtNot(is_none.clone())).into());
+            let getter = SmtExpr::List(vec!["maybe-get".into(), inner.clone()]);
+            self.bind_fresh(st, target, getter);
         }
     }
 
@@ -1307,6 +1479,161 @@ fn reconstruct_pkg_state(pctx: &PackageInstanceContext, st: &SymState) -> SmtExp
             ))
         })
         .expect("package state has a single constructor")
+}
+
+// ---------------------------------------------------------------------------
+// One side of a lockstep execution (story 23)
+// ---------------------------------------------------------------------------
+
+/// Where a side of a lockstep execution stands: its continuation stack and its
+/// symbolic store. Cloned at every fork of the joint tree.
+#[derive(Clone)]
+pub(crate) struct SidePos<'a> {
+    frames: Vec<Cursor<'a>>,
+    st: SymState,
+    /// Everything in `st.visited` before this index has been reported as
+    /// consumed (see [`Self::consumed`]).
+    consumed_mark: usize,
+}
+
+impl SidePos<'_> {
+    /// The `declare-const`s and `assert`s this side has produced since
+    /// [`Self::mark_reported`] was last called, in dependency order.
+    pub(crate) fn pending(&self) -> (&[SmtExpr], &[SmtExpr]) {
+        (
+            &self.st.decls[self.st.reported_decls..],
+            &self.st.constraints[self.st.reported_constraints..],
+        )
+    }
+
+    /// Record that everything produced so far is on the solver stack.
+    pub(crate) fn mark_reported(&mut self) {
+        self.st.reported_decls = self.st.decls.len();
+        self.st.reported_constraints = self.st.constraints.len();
+    }
+
+    /// The listing lines this side passed through since the last decision it
+    /// took (or since the start), as sorted inclusive ranges. The decision
+    /// statement itself is not among them: it is the edge into the next node.
+    pub(crate) fn consumed(&self) -> Vec<(Label, Label)> {
+        ranges(&mut self.st.visited[self.consumed_mark..].to_vec())
+    }
+
+    /// Report everything so far as consumed: the next [`Self::consumed`]
+    /// starts empty.
+    pub(crate) fn commit_consumed(&mut self) {
+        self.consumed_mark = self.st.visited.len();
+    }
+}
+
+/// The executor of one side, driven step by step by the lockstep engine
+/// instead of being run to a terminal in one go. It owns the side's SSA
+/// counter, so the two sides of a joint tree never share a name.
+pub(crate) struct SideExec<'a> {
+    exec: Executor<'a>,
+}
+
+impl<'a> SideExec<'a> {
+    pub(crate) fn new(
+        inlined: &'a InlinedOracle,
+        game_inst: &'a GameInstance,
+        sample_info: &'a SampleInfo,
+        side: Side,
+    ) -> Result<Self, ExecError> {
+        Ok(Self {
+            exec: Executor::new(inlined, game_inst, sample_info, side, None)?,
+        })
+    }
+
+    /// The side at the beginning of its oracle, advanced to its first decision
+    /// point.
+    pub(crate) fn start(&mut self) -> (SidePos<'a>, Head<'a>) {
+        let st = self.exec.initial_state();
+        let mut pos = SidePos {
+            frames: vec![Cursor {
+                block: &self.exec.inlined.body,
+                ip: 0,
+                kind: FrameKind::Sub,
+            }],
+            st,
+            consumed_mark: 0,
+        };
+        let head = self.exec.advance(&mut pos.frames, &mut pos.st);
+        (pos, head)
+    }
+
+    /// Take one outcome of the branch `head`, which `pos` stands at, and
+    /// advance to the next decision point. `decision` is one of
+    /// [`BranchHead::decisions`].
+    pub(crate) fn take_branch(
+        &mut self,
+        pos: &mut SidePos<'a>,
+        head: &BranchHead<'a>,
+        decision: Decision,
+    ) -> Head<'a> {
+        let label = head.label;
+        pos.st.visited.push(label);
+        match &head.form {
+            BranchForm::If {
+                then,
+                els,
+                then_lines,
+                else_lines,
+                ..
+            } => {
+                let first = decision == head.decisions().0;
+                let (block, lines) = if first {
+                    (*then, *then_lines)
+                } else {
+                    (*els, *else_lines)
+                };
+                open_if_child(&mut pos.frames, &mut pos.st, label, &head.cond, decision, block);
+                if let Some((_, close)) = lines {
+                    pos.st.visited.push(close);
+                }
+            }
+            BranchForm::Unwrap { target, inner } => {
+                let none_child = decision == Decision::UnwrapNone;
+                self.exec
+                    .apply_unwrap(&mut pos.st, label, target, inner, &head.cond, none_child);
+                if none_child {
+                    pos.commit_consumed();
+                    return Head::Terminal(Terminal::Abort { label });
+                }
+            }
+        }
+        pos.commit_consumed();
+        self.exec.advance(&mut pos.frames, &mut pos.st)
+    }
+
+    /// Draw the sampling `head` stands at (the executor's semantics: the draw
+    /// is the game's `rand` function of the sample position and the counter)
+    /// and advance to the next decision point.
+    pub(crate) fn take_sample(&mut self, pos: &mut SidePos<'a>, head: &SampleHead<'a>) -> Head<'a> {
+        self.exec.take_sample(&mut pos.st, head);
+        pos.commit_consumed();
+        self.exec.advance(&mut pos.frames, &mut pos.st)
+    }
+
+    /// The finished path of a side that stands at `terminal`: its full flat SMT
+    /// encoding, with the return constraint. `pos` is left as it was, so a
+    /// side that waits at its terminal for the other one can be finished again
+    /// under a different partner.
+    pub(crate) fn terminal_path(&mut self, pos: &SidePos<'a>, terminal: &Terminal) -> TerminalPath {
+        let mut out = None;
+        let flow = self.exec.emit_terminal(pos.st.clone(), terminal.clone(), &mut |path| {
+            out = Some(path.clone());
+            ControlFlow::Break(())
+        });
+        let _ = flow.expect("a lockstep executor has no path limit");
+        out.expect("emit_terminal hands over exactly one path")
+    }
+
+    /// The display name of a sampling, `inst.oracle.name`.
+    pub(crate) fn sample_name(&self, sample_id: usize) -> String {
+        let pos = &self.exec.sample_info.positions[sample_id];
+        format!("{}.{}.{}", pos.inst_name, pos.oracle_name, pos.sample_name)
+    }
 }
 
 /// Symbolically execute `inlined` to every terminal, returning one

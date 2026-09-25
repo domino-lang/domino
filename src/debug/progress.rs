@@ -109,6 +109,33 @@ pub enum DebugEvent<'a> {
 
     /// Exploration stopped — naturally, by `--max-paths`, or by `Ctrl-C`.
     Finished { summary: Summary, stop_reason: StopReason },
+
+    /// Lockstep execution (story 23): joint node `index` has been decided.
+    /// `kind` is its [`NodeKind`](crate::debug::lockstep::NodeKind) name.
+    JointNode { index: usize, kind: &'a str },
+
+    /// Lockstep execution: a joint path ended and its two claims were checked.
+    JointPairChecked {
+        id: &'a str,
+        equal_output: &'a Verdict,
+        invariant: &'a Verdict,
+        elapsed: Duration,
+    },
+
+    /// Lockstep execution: a sampling could not be paired (a stuck point).
+    StuckPointFound {
+        id: &'a str,
+        side: &'a str,
+        label: usize,
+        reason: &'a str,
+    },
+
+    /// A lockstep run is over — naturally, by `--max-paths`, or by `Ctrl-C`.
+    LockstepFinished {
+        pairs: usize,
+        stuck: usize,
+        stop_reason: StopReason,
+    },
 }
 
 /// Consumes [`DebugEvent`]s. Implementations must tolerate unknown future
@@ -228,6 +255,36 @@ fn plain_line(ev: &DebugEvent<'_>, left_total: u64, right_total: u64) -> Option<
                 StopReason::MaxPaths { limit } => format!("stopped: max-paths {limit}"),
             }
         ),
+        DebugEvent::JointNode { index, kind } => format!("debug:   node {index}  {kind}"),
+        DebugEvent::JointPairChecked {
+            id,
+            equal_output,
+            invariant,
+            elapsed,
+        } => format!(
+            "debug:   {id}  equal-output {:<12}  invariant {:<12}  {:.2}s",
+            verdict_label(equal_output),
+            verdict_label(invariant),
+            elapsed.as_secs_f64()
+        ),
+        DebugEvent::StuckPointFound {
+            id,
+            side,
+            label,
+            reason,
+        } => format!("debug: stuck point {id} ({side} L{label}): {reason}"),
+        DebugEvent::LockstepFinished {
+            pairs,
+            stuck,
+            stop_reason,
+        } => format!(
+            "debug: done — {pairs} joint paths, {stuck} stuck points ({})",
+            match stop_reason {
+                StopReason::Completed => "complete".to_string(),
+                StopReason::Interrupted => "stopped: interrupted".to_string(),
+                StopReason::MaxPaths { limit } => format!("stopped: max-paths {limit}"),
+            }
+        ),
         _ => return None,
     })
 }
@@ -276,6 +333,19 @@ impl DebugObserver for PlainObserver {
         if let DebugEvent::PairChecked { id, verdict, .. } = ev {
             if matches!(verdict, Verdict::GoalFails { .. }) {
                 let _ = writeln!(self.err, "debug: ⚠ GOAL FAILS at #{id}");
+            }
+        }
+        if let DebugEvent::JointPairChecked {
+            id,
+            equal_output,
+            invariant,
+            ..
+        } = ev
+        {
+            if matches!(equal_output, Verdict::GoalFails { .. })
+                || matches!(invariant, Verdict::GoalFails { .. })
+            {
+                let _ = writeln!(self.err, "debug: ⚠ GOAL FAILS at {id}");
             }
         }
     }
@@ -458,7 +528,31 @@ impl DebugObserver for BarObserver {
                     self.pairs.set_position(len);
                 }
             }
-            DebugEvent::Finished { .. } => {
+            DebugEvent::JointNode { index, kind } => {
+                self.left.set_message(format!("node {index}  {kind}"));
+            }
+            DebugEvent::JointPairChecked {
+                id,
+                equal_output,
+                invariant,
+                ..
+            } => {
+                self.tally.bump(equal_output);
+                self.tally.bump(invariant);
+                self.pairs.inc(1);
+                self.pairs.set_message(self.tally.render());
+                if matches!(equal_output, Verdict::GoalFails { .. })
+                    || matches!(invariant, Verdict::GoalFails { .. })
+                {
+                    let _ = self.mp.println(format!("⚠ GOAL FAILS at {id}"));
+                }
+            }
+            DebugEvent::StuckPointFound { id, side, label, reason } => {
+                let _ = self
+                    .mp
+                    .println(format!("stuck point {id} ({side} L{label}): {reason}"));
+            }
+            DebugEvent::Finished { .. } | DebugEvent::LockstepFinished { .. } => {
                 self.left.finish_and_clear();
                 self.pairs.finish_and_clear();
                 let _ = self.mp.clear();

@@ -214,12 +214,41 @@ fn debug(d: &Debug) -> Result<(), Error> {
         });
     }
 
+    if d.easycrypt {
+        use sspverif::debug::lockstep_report::render_summary;
+        use sspverif::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions};
+
+        let run = run_lockstep_command(
+            &project,
+            &d.proof,
+            d.proofstep,
+            &d.oracle,
+            &LockstepDebugOptions {
+                timeout_ms: opts.timeout_ms,
+                max_paths: opts.max_paths,
+                smt_out: opts.smt_out,
+                transcript: opts.transcript,
+            },
+            &backend,
+            d.out.clone(),
+            observer.as_mut(),
+            Some(&stop),
+        )?;
+        print!("{}", render_summary(&run));
+        if !run.is_ok() {
+            return Err(DebugNotVerified.into());
+        }
+        return Ok(());
+    }
+
+    // clap guarantees `--claim` unless `--easycrypt`
+    let claim = d.claim.as_deref().expect("`--claim` is required without `--easycrypt`");
     let run = run_debug_command(
         &project,
         &d.proof,
         d.proofstep,
         &d.oracle,
-        &d.claim,
+        claim,
         &opts,
         &backend,
         d.out.clone(),
