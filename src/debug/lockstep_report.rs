@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The artifacts of a lockstep run (story 23): `trace.json` (schema 9),
-//! `summary.txt` (the joint tree as text, in the story-17 style), the concise
-//! stdout report, the `index.html` viewer ([`crate::debug::lockstep_viewer`]), and
-//! the `smt/` files of the joint paths.
+//! The artifacts of a lockstep run (story 23): the trace (schema 10), the summary (the joint
+//! tree as text, in the story-17 style), the concise stdout report, the viewer
+//! ([`crate::debug::lockstep_viewer`]), and the `smt/` files of the joint paths. On the
+//! EasyCrypt listing they are `trace.json`, `summary.txt`, `index.html` and `smt/`; on the Domino
+//! listing each carries the strategy (`lockstep_trace.json`, …), so they can share a directory
+//! with the sequential debugger's (story 19, [`crate::debug::layout`]).
 //!
 //! Like the sequential artifacts, `trace.json` and `summary.txt` are
 //! byte-deterministic for an unchanged project: the absolute output directory
@@ -15,7 +17,8 @@ use std::path::{Path, PathBuf};
 
 use serde_derive::Serialize;
 
-use crate::debug::driver::{StopReason, Verdict};
+use crate::debug::driver::{describe_unreachable, GoalBlock, StopReason, Verdict};
+use crate::debug::layout::Layout;
 use crate::debug::exec::TerminalPath;
 use crate::debug::lockstep::{
     ChildOutcome, JointNode, JointTree, LockstepOutcome, PairRecord, SideStep, SideView, StuckPoint,
@@ -60,15 +63,19 @@ pub fn flush(
     };
     let mut json = serde_json::to_string_pretty(&trace).map_err(std::io::Error::other)?;
     json.push('\n');
-    std::fs::write(out_dir.join("trace.json"), &json)?;
+    std::fs::write(out_dir.join(meta.layout.trace()), &json)?;
     std::fs::write(
-        out_dir.join("summary.txt"),
+        out_dir.join(meta.layout.summary()),
         render_tree(meta, outcome, summary),
     )?;
     let compact = serde_json::to_string(&trace).map_err(std::io::Error::other)?;
     std::fs::write(
-        out_dir.join("index.html"),
-        lockstep_viewer::render_html(&compact, &lockstep_viewer::stuck_rollups(outcome), live),
+        out_dir.join(meta.layout.viewer()),
+        lockstep_viewer::render_html(
+            &compact,
+            &lockstep_viewer::stuck_rollups(outcome, &meta.claims),
+            live,
+        ),
     )?;
     Ok(())
 }
@@ -91,9 +98,12 @@ pub fn render_tree(
     );
     let _ = writeln!(
         out,
-        "oracle {}, lockstep execution on the EasyCrypt listing",
-        meta.oracle
+        "oracle {}, lockstep execution on the {} listing",
+        meta.oracle,
+        listing_name(meta)
     );
+    let _ = writeln!(out, "strategy {}", meta.mode);
+    let _ = writeln!(out, "claims {}", claim_names(meta));
     let _ = writeln!(out, "\nlisting: inlined.txt");
     let _ = writeln!(
         out,
@@ -166,23 +176,35 @@ fn render_node(
         .as_ref()
         .and_then(|id| outcome.pairs.iter().find(|p| &p.id == id))
     {
-        let _ = writeln!(
-            out,
-            "{pad}    equal-output: {}",
-            render_verdict(&pair.equal_output)
-        );
-        let _ = writeln!(
-            out,
-            "{pad}    invariant:    {}",
-            render_verdict(&pair.invariant)
-        );
-        for r in &pair.relations {
+        let width = pair
+            .claims
+            .iter()
+            .map(|c| c.claim.len() + 2)
+            .max()
+            .unwrap_or(0)
+            .max(14);
+        for c in &pair.claims {
+            let name = format!("{}:", c.claim);
+            let reason = match &c.verdict {
+                Verdict::Unreachable { reason } => format!(
+                    "  ({})",
+                    describe_unreachable(reason, &pair.left.terminal, &pair.right.terminal)
+                ),
+                _ => String::new(),
+            };
             let _ = writeln!(
                 out,
-                "{pad}      relation {}: {}",
-                r.name,
-                render_verdict(&r.verdict)
+                "{pad}    {name:<width$}{}{reason}",
+                render_verdict(&c.verdict)
             );
+            for r in &c.relations {
+                let _ = writeln!(
+                    out,
+                    "{pad}      relation {}: {}",
+                    r.name,
+                    render_verdict(&r.verdict)
+                );
+            }
         }
     }
 
@@ -292,7 +314,7 @@ fn answer_str(a: crate::debug::lockstep::Answer) -> &'static str {
 fn render_verdict(v: &Verdict) -> String {
     match v {
         Verdict::Verified => "[unsat: ok]".to_string(),
-        Verdict::Unreachable => "[unsat: unreachable]".to_string(),
+        Verdict::Unreachable { .. } => "[unsat: unreachable]".to_string(),
         Verdict::GoalFails { model } => format!("[sat: GOAL FAILS]  {model}"),
         Verdict::Inconclusive { model: Some(model) } => format!("[unknown: inconclusive]  {model}"),
         Verdict::Inconclusive { model: None } => "[unknown: inconclusive]".to_string(),
@@ -300,21 +322,50 @@ fn render_verdict(v: &Verdict) -> String {
 }
 
 fn one_line_summary(s: &LockstepSummary) -> String {
-    format!(
-        "summary: {} joint paths, {} stuck points; equal-output {} verified / {} GOAL FAILS / {} \
-         unreachable / {} inconclusive; invariant {} verified / {} GOAL FAILS / {} unreachable / {} \
-         inconclusive",
-        s.joint_paths,
-        s.stuck_points,
-        s.equal_output.verified,
-        s.equal_output.goal_fails,
-        s.equal_output.unreachable,
-        s.equal_output.inconclusive,
-        s.invariant.verified,
-        s.invariant.goal_fails,
-        s.invariant.unreachable,
-        s.invariant.inconclusive,
-    )
+    let mut line = format!(
+        "summary: {} joint paths, {} stuck points",
+        s.joint_paths, s.stuck_points
+    );
+    for c in &s.claims {
+        let c = (&c.claim, &c.counts);
+        let _ = write!(
+            line,
+            "; {} {} verified / {} GOAL FAILS / {} unreachable / {} inconclusive",
+            c.0, c.1.verified, c.1.goal_fails, c.1.unreachable, c.1.inconclusive
+        );
+    }
+    line
+}
+
+fn listing_name(meta: &LockstepMeta) -> &'static str {
+    if meta.listing == "easycrypt" {
+        "EasyCrypt"
+    } else {
+        "Domino"
+    }
+}
+
+/// `equal-output, invariant`, or `all 5 claims of the oracle`.
+fn claim_names(meta: &LockstepMeta) -> String {
+    let checked: Vec<&str> = meta
+        .claims
+        .iter()
+        .filter(|c| !c.admitted)
+        .map(|c| c.name.as_str())
+        .collect();
+    let admitted = meta.claims.len() - checked.len();
+    if meta.all_claims && meta.listing == "domino" {
+        if admitted == 0 {
+            format!("all {} claims of the oracle", checked.len())
+        } else {
+            format!(
+                "all {} claims of the oracle ({admitted} admitted, not checked)",
+                checked.len()
+            )
+        }
+    } else {
+        checked.join(", ")
+    }
 }
 
 fn stop_line(outcome: &LockstepOutcome) -> Option<String> {
@@ -335,17 +386,24 @@ fn stop_line(outcome: &LockstepOutcome) -> Option<String> {
 // stdout
 // ---------------------------------------------------------------------------
 
-/// The concise report `domino debug --easycrypt` prints: counts of joint paths
-/// per (equal-output, invariant) verdict pair, the stuck points, the failures
-/// per state relation, and why the run stopped. The full tree is `summary.txt`.
+/// The concise report `domino debug --lockstep` and `domino easycrypt --debug` print: counts
+/// of joint paths per claim and per combination of verdicts, the stuck points, the failures
+/// per state relation, and why the run stopped. The full tree is the summary file.
 pub fn render_summary(run: &LockstepRun) -> String {
     let meta = &run.meta;
     let outcome = &run.outcome;
     let sm = &run.summary;
     let mut s = String::new();
 
-    s.push_str("domino debug --easycrypt — summary\n");
-    s.push_str("===================================\n");
+    let title = if meta.listing == "easycrypt" {
+        "domino easycrypt --debug — summary"
+    } else {
+        "domino debug — summary"
+    };
+    let _ = writeln!(s, "{title}");
+    let _ = writeln!(s, "{}", "=".repeat(title.chars().count()));
+    let _ = writeln!(s, "{:<14}{}", "strategy", meta.mode);
+    let _ = writeln!(s, "{:<14}{}", "listing", listing_name(meta));
     let _ = writeln!(
         s,
         "{:<14}{}, proofstep {}",
@@ -357,6 +415,7 @@ pub fn render_summary(run: &LockstepRun) -> String {
         "games", meta.left_game, meta.right_game
     );
     let _ = writeln!(s, "{:<14}{}", "oracle", meta.oracle);
+    let _ = writeln!(s, "{:<14}{}", "claims", claim_names(meta));
     let o = &meta.options;
     let _ = writeln!(
         s,
@@ -394,16 +453,40 @@ pub fn render_summary(run: &LockstepRun) -> String {
         "joint nodes", sm.nodes, sm.pruned_children
     );
 
-    s.push_str("\nverdicts   (equal-output / invariant)\n");
-    if sm.verdict_pairs.is_empty() {
-        s.push_str("  none\n");
-    }
-    for vp in &sm.verdict_pairs {
+    let names: Vec<&str> = sm.claims.iter().map(|c| c.claim.as_str()).collect();
+    if names.len() <= 2 {
+        let _ = writeln!(s, "\nverdicts   ({})", names.join(" / "));
+        if sm.verdict_combos.is_empty() {
+            s.push_str("  none\n");
+        }
+        for combo in &sm.verdict_combos {
+            let cells: Vec<String> = combo.verdicts.iter().map(|v| format!("{v:<13}")).collect();
+            let _ = writeln!(s, "  {}{}", cells.join(" / "), combo.count);
+        }
+    } else {
+        // many claims: one row per claim rather than one column per claim
+        let width = names.iter().map(|n| n.len()).max().unwrap_or(0).max(5);
         let _ = writeln!(
             s,
-            "  {:<13} / {:<13}{}",
-            vp.equal_output, vp.invariant, vp.count
+            "\nclaims     {:<width$}  verified  unreachable (pair / dependency)  GOAL FAILS  inconclusive",
+            "claim"
         );
+        for c in &sm.claims {
+            let k = &c.counts;
+            let _ = writeln!(
+                s,
+                "           {:<width$}  {:>8}  {:>11} / {:<10}  {:>10}  {:>12}",
+                c.claim,
+                k.verified,
+                k.unreachable - k.unreachable_dependency,
+                k.unreachable_dependency,
+                k.goal_fails,
+                k.inconclusive,
+            );
+        }
+        for info in meta.claims.iter().filter(|c| c.admitted) {
+            let _ = writeln!(s, "           {:<width$}  admitted — not checked", info.name);
+        }
     }
 
     if !sm.relation_failures.is_empty() {
@@ -418,11 +501,7 @@ pub fn render_summary(run: &LockstepRun) -> String {
         let _ = writeln!(s, "  {}", describe_stuck(st));
     }
 
-    let failing: Vec<&PairRecord> = outcome
-        .pairs
-        .iter()
-        .filter(|p| p.equal_output.is_failure() || p.invariant.is_failure())
-        .collect();
+    let failing: Vec<&PairRecord> = outcome.pairs.iter().filter(|p| p.has_failure()).collect();
     if !failing.is_empty() {
         s.push_str("\nfailing joint paths\n");
         const CAP: usize = 20;
@@ -433,33 +512,49 @@ pub fn render_summary(run: &LockstepRun) -> String {
                 (false, true) => "   [right aborts]",
                 (true, true) => "   [both abort]",
             };
-            let _ = writeln!(
-                s,
-                "  {:<6} equal-output {:<14} invariant {:<14}{aborts}",
-                p.id,
-                p.equal_output.slug(),
-                p.invariant.slug(),
-            );
+            // two claims: both, as ever; more: the ones that failed
+            let shown: Vec<String> = p
+                .claims
+                .iter()
+                .filter(|c| p.claims.len() <= 2 || c.verdict.is_failure())
+                .map(|c| format!("{} {:<14}", c.claim, c.verdict.slug()))
+                .collect();
+            let _ = writeln!(s, "  {:<6} {}{aborts}", p.id, shown.join(" "));
         }
         if failing.len() > CAP {
             let _ = writeln!(s, "  … and {} more (see summary.txt)", failing.len() - CAP);
         }
     }
 
+    let layout = meta.layout;
     let _ = writeln!(s, "\n{:<14}{}", "artifacts", meta.out_dir);
     let _ = writeln!(
         s,
-        "  {:<12}summary.txt        (joint tree: {} nodes, {} joint paths)",
-        "tree", sm.nodes, sm.joint_paths
+        "  {:<12}{}        (joint tree: {} nodes, {} joint paths)",
+        "tree",
+        layout.summary(),
+        sm.nodes,
+        sm.joint_paths
     );
-    let _ = writeln!(s, "  {:<12}index.html         (joint-tree viewer)", "viewer");
-    let _ = writeln!(s, "  {:<12}trace.json", "trace");
+    let _ = writeln!(
+        s,
+        "  {:<12}{}         (joint-tree viewer)",
+        "viewer",
+        layout.viewer()
+    );
+    let _ = writeln!(s, "  {:<12}{}", "trace", layout.trace());
     let _ = writeln!(s, "  {:<12}inlined.txt", "listing");
     if o.smt.as_str() != "none" {
-        let _ = writeln!(s, "  {:<12}smt/               ({})", "smt", o.smt.as_str());
+        let _ = writeln!(
+            s,
+            "  {:<12}{}/               ({})",
+            "smt",
+            layout.rel("smt"),
+            o.smt.as_str()
+        );
     }
     if o.transcript {
-        let _ = writeln!(s, "  {:<12}transcript.smt2", "transcript");
+        let _ = writeln!(s, "  {:<12}{}", "transcript", layout.rel("transcript.smt2"));
     }
     s
 }
@@ -484,6 +579,8 @@ pub fn render_summary(run: &LockstepRun) -> String {
 /// `cat smt/base.smt2 smt/J3.smt2 | cvc5 --lang smt2 -`).
 pub struct LockstepSmtWriter {
     root: PathBuf,
+    /// `root` relative to the run's output directory.
+    rel: String,
     mode: SmtOut,
     header: String,
     base_body: String,
@@ -492,6 +589,7 @@ pub struct LockstepSmtWriter {
 impl LockstepSmtWriter {
     pub fn new(
         out_dir: &Path,
+        layout: Layout,
         mode: SmtOut,
         header: String,
         base_frame_smt: &str,
@@ -505,7 +603,8 @@ impl LockstepSmtWriter {
             preamble.push_str("(set-option :produce-models true)\n");
         }
         let writer = Self {
-            root: out_dir.join("smt"),
+            root: layout.path(out_dir, "smt"),
+            rel: layout.rel("smt"),
             mode,
             header,
             base_body: format!("{preamble}{base_frame_smt}\n"),
@@ -521,11 +620,7 @@ impl LockstepSmtWriter {
         match self.mode {
             SmtOut::None => false,
             SmtOut::All | SmtOut::Deltas => true,
-            SmtOut::Failures => {
-                pair.equal_output.is_failure()
-                    || pair.invariant.is_failure()
-                    || pair.relations.iter().any(|r| r.verdict.is_failure())
-            }
+            SmtOut::Failures => pair.has_failure(),
         }
     }
 
@@ -536,7 +631,7 @@ impl LockstepSmtWriter {
         pair: &PairRecord,
         left: &TerminalPath,
         right: &TerminalPath,
-        goals: &[(String, String)],
+        goals: &[GoalBlock],
     ) -> std::io::Result<()> {
         if !self.covers(pair) {
             return Ok(());
@@ -545,19 +640,20 @@ impl LockstepSmtWriter {
         let mut s = String::new();
         s.push_str(&self.header);
         let _ = writeln!(s, "; joint path {}", pair.id);
-        let _ = writeln!(
-            s,
-            "; verdicts recorded by `domino debug --easycrypt`: equal-output {}, invariant {}",
-            pair.equal_output.slug(),
-            pair.invariant.slug()
-        );
+        let recorded: Vec<String> = pair
+            .claims
+            .iter()
+            .map(|c| format!("{} {}", c.claim, c.verdict.slug()))
+            .collect();
+        let _ = writeln!(s, "; verdicts recorded: {}", recorded.join(", "));
         if self_contained {
             s.push_str("; run:  cvc5 --lang smt2 <this file>\n");
         } else {
             let _ = writeln!(
                 s,
-                "; run:  cat smt/base.smt2 smt/{}.smt2 | cvc5 --lang smt2 -",
-                pair.id
+                "; run:  cat {rel}/base.smt2 {rel}/{}.smt2 | cvc5 --lang smt2 -",
+                pair.id,
+                rel = self.rel
             );
         }
         s.push_str(
@@ -589,17 +685,16 @@ impl LockstepSmtWriter {
         s.push_str("; ---- vacuity ----------------------------------------------------------\n(check-sat)\n\n");
 
         let verdict_of = |name: &str| -> Option<&Verdict> {
-            match name {
-                "equal-output" => Some(&pair.equal_output),
-                "invariant" => Some(&pair.invariant),
-                other => pair
-                    .relations
+            pair.verdict_of(name).or_else(|| {
+                pair.claims
                     .iter()
-                    .find(|r| format!("relation-{}", r.name) == other)
-                    .map(|r| &r.verdict),
-            }
+                    .flat_map(|c| &c.relations)
+                    .find(|r| format!("relation-{}", r.name) == name)
+                    .map(|r| &r.verdict)
+            })
         };
-        for (name, smt) in goals {
+        for goal in goals {
+            let name = &goal.claim;
             let Some(verdict) = verdict_of(name) else {
                 continue;
             };
@@ -608,7 +703,11 @@ impl LockstepSmtWriter {
             }
             let _ = writeln!(s, "; ---- {name}: {} ----", verdict.slug());
             s.push_str("(push 1)\n");
-            s.push_str(smt);
+            for dependency in &goal.dependencies {
+                s.push_str(dependency);
+                s.push('\n');
+            }
+            s.push_str(&goal.negated);
             s.push_str("\n(check-sat)\n(get-model)\n(pop 1)\n\n");
         }
 

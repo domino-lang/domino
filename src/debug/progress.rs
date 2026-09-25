@@ -56,7 +56,7 @@ use std::time::Duration;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use indicatif_log_bridge::LogWrapper;
 
-use crate::debug::driver::{StopReason, Summary, Verdict};
+use crate::debug::driver::{ClaimVerdict, StopReason, Summary, Verdict};
 use crate::debug::exec::Side;
 
 /// A structured event emitted by `run_debug_command` as it explores.
@@ -114,11 +114,10 @@ pub enum DebugEvent<'a> {
     /// `kind` is its [`NodeKind`](crate::debug::lockstep::NodeKind) name.
     JointNode { index: usize, kind: &'a str },
 
-    /// Lockstep execution: a joint path ended and its two claims were checked.
+    /// Lockstep execution: a joint path ended and its claims were checked.
     JointPairChecked {
         id: &'a str,
-        equal_output: &'a Verdict,
-        invariant: &'a Verdict,
+        claims: &'a [ClaimVerdict],
         elapsed: Duration,
     },
 
@@ -166,7 +165,7 @@ impl DebugObserver for NopObserver {
 fn verdict_label(v: &Verdict) -> &'static str {
     match v {
         Verdict::Verified => "verified",
-        Verdict::Unreachable => "unreachable",
+        Verdict::Unreachable { .. } => "unreachable",
         Verdict::GoalFails { .. } => "GOAL FAILS",
         Verdict::Inconclusive { .. } => "inconclusive",
     }
@@ -258,13 +257,15 @@ fn plain_line(ev: &DebugEvent<'_>, left_total: u64, right_total: u64) -> Option<
         DebugEvent::JointNode { index, kind } => format!("debug:   node {index}  {kind}"),
         DebugEvent::JointPairChecked {
             id,
-            equal_output,
-            invariant,
+            claims,
             elapsed,
         } => format!(
-            "debug:   {id}  equal-output {:<12}  invariant {:<12}  {:.2}s",
-            verdict_label(equal_output),
-            verdict_label(invariant),
+            "debug:   {id}  {}  {:.2}s",
+            claims
+                .iter()
+                .map(|c| format!("{} {:<12}", c.claim, verdict_label(&c.verdict)))
+                .collect::<Vec<_>>()
+                .join("  "),
             elapsed.as_secs_f64()
         ),
         DebugEvent::StuckPointFound {
@@ -335,15 +336,10 @@ impl DebugObserver for PlainObserver {
                 let _ = writeln!(self.err, "debug: ⚠ GOAL FAILS at #{id}");
             }
         }
-        if let DebugEvent::JointPairChecked {
-            id,
-            equal_output,
-            invariant,
-            ..
-        } = ev
-        {
-            if matches!(equal_output, Verdict::GoalFails { .. })
-                || matches!(invariant, Verdict::GoalFails { .. })
+        if let DebugEvent::JointPairChecked { id, claims, .. } = ev {
+            if claims
+                .iter()
+                .any(|c| matches!(c.verdict, Verdict::GoalFails { .. }))
             {
                 let _ = writeln!(self.err, "debug: ⚠ GOAL FAILS at {id}");
             }
@@ -368,7 +364,7 @@ impl Tally {
     fn bump(&mut self, v: &Verdict) {
         match v {
             Verdict::Verified => self.verified += 1,
-            Verdict::Unreachable => self.unreachable += 1,
+            Verdict::Unreachable { .. } => self.unreachable += 1,
             Verdict::GoalFails { .. } => self.goal_fails += 1,
             Verdict::Inconclusive { .. } => self.inconclusive += 1,
         }
@@ -531,18 +527,15 @@ impl DebugObserver for BarObserver {
             DebugEvent::JointNode { index, kind } => {
                 self.left.set_message(format!("node {index}  {kind}"));
             }
-            DebugEvent::JointPairChecked {
-                id,
-                equal_output,
-                invariant,
-                ..
-            } => {
-                self.tally.bump(equal_output);
-                self.tally.bump(invariant);
+            DebugEvent::JointPairChecked { id, claims, .. } => {
+                for c in *claims {
+                    self.tally.bump(&c.verdict);
+                }
                 self.pairs.inc(1);
                 self.pairs.set_message(self.tally.render());
-                if matches!(equal_output, Verdict::GoalFails { .. })
-                    || matches!(invariant, Verdict::GoalFails { .. })
+                if claims
+                    .iter()
+                    .any(|c| matches!(c.verdict, Verdict::GoalFails { .. }))
                 {
                     let _ = self.mp.println(format!("⚠ GOAL FAILS at {id}"));
                 }

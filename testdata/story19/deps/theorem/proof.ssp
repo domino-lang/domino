@@ -1,0 +1,47 @@
+theorem T {
+    instance gl = GL {
+    }
+
+    instance gr = GR {
+    }
+
+    gamehops {
+        equivalence gl gr {
+            invariant: [./theorem/invariant.smt2, ./theorem/lemmas.smt2]
+            Branch: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    needs-positive: [positive]
+                }
+            }
+            AbortDiff: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            AbortBoth: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Admitted: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                    skipped: admit []
+                }
+            }
+        }
+    }
+}

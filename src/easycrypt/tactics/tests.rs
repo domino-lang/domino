@@ -2,8 +2,8 @@
 
 use super::driver::{pair_view, Part};
 use super::*;
-use crate::debug::driver::{TerminalView, Verdict};
-use crate::debug::lockstep::{PairRecord, PairSide, RelationVerdict};
+use crate::debug::driver::{ClaimVerdict, TerminalView, Verdict};
+use crate::debug::lockstep::{PairRecord, PairSide, RelationVerdict, EQUAL_OUTPUT};
 
 fn pair_view_for_tests(p: &PairRecord, part: &Part) -> &'static str {
     pair_view(p, part).slug()
@@ -33,15 +33,24 @@ fn pair(
         node: 0,
         left: side(aborts),
         right: side(false),
-        equal_output,
-        invariant,
-        relations: relations
-            .iter()
-            .map(|(name, verdict)| RelationVerdict {
-                name: name.to_string(),
-                verdict: verdict.clone(),
-            })
-            .collect(),
+        claims: vec![
+            ClaimVerdict {
+                claim: EQUAL_OUTPUT.into(),
+                verdict: equal_output,
+                relations: Vec::new(),
+            },
+            ClaimVerdict {
+                claim: "invariant".into(),
+                verdict: invariant,
+                relations: relations
+                    .iter()
+                    .map(|(name, verdict)| RelationVerdict {
+                        name: name.to_string(),
+                        verdict: verdict.clone(),
+                    })
+                    .collect(),
+            },
+        ],
     }
 }
 
@@ -136,7 +145,7 @@ fn dominos_verdicts_steer_per_claim_and_per_relation() {
 
     // unreachable pairs count as verified; inconclusive stays inconclusive
     let p = pair(
-        Verdict::Unreachable,
+        Verdict::pair_infeasible(),
         Verdict::Inconclusive { model: None },
         &[],
         false,

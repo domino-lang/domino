@@ -23,8 +23,9 @@ use std::collections::BTreeMap;
 
 use serde_derive::Serialize;
 
+use crate::debug::driver::ClaimInfo;
 use crate::debug::lockstep::{ChildOutcome, LockstepOutcome, PairRecord};
-use crate::debug::lockstep_run::VerdictCounts;
+use crate::debug::lockstep_run::{ClaimCounts, VerdictCounts};
 use crate::debug::report::{EFFECT_JS, VIEWER_CSS};
 
 /// What the Domino verdicts say about everything below one stuck point: how
@@ -37,8 +38,8 @@ pub struct StuckRollup {
     pub id: String,
     /// Joint paths in the subtree of the stuck point's node, found so far.
     pub pairs: usize,
-    pub equal_output: VerdictCounts,
-    pub invariant: VerdictCounts,
+    /// How each claim fared on them, in the order the run checks the claims.
+    pub claims: Vec<ClaimCounts>,
     /// Per state relation, the joint paths where it failed or was
     /// inconclusive, by relation name.
     pub relations: Vec<RelationRollup>,
@@ -59,7 +60,7 @@ pub struct RelationFailure {
 }
 
 /// One rollup per stuck point, in the order of [`LockstepOutcome::stuck`].
-pub fn stuck_rollups(outcome: &LockstepOutcome) -> Vec<StuckRollup> {
+pub fn stuck_rollups(outcome: &LockstepOutcome, claims: &[ClaimInfo]) -> Vec<StuckRollup> {
     let pairs_by_id: BTreeMap<&str, &PairRecord> =
         outcome.pairs.iter().map(|p| (p.id.as_str(), p)).collect();
     outcome
@@ -87,15 +88,24 @@ pub fn stuck_rollups(outcome: &LockstepOutcome) -> Vec<StuckRollup> {
             let mut rollup = StuckRollup {
                 id: stuck.id.clone(),
                 pairs: below.len(),
-                equal_output: VerdictCounts::default(),
-                invariant: VerdictCounts::default(),
+                claims: claims
+                    .iter()
+                    .filter(|c| !c.admitted)
+                    .map(|c| ClaimCounts {
+                        claim: c.name.clone(),
+                        counts: VerdictCounts::default(),
+                    })
+                    .collect(),
                 relations: Vec::new(),
             };
             let mut by_relation: BTreeMap<&str, Vec<RelationFailure>> = BTreeMap::new();
             for pair in below {
-                rollup.equal_output.bump(&pair.equal_output);
-                rollup.invariant.bump(&pair.invariant);
-                for r in pair.relations.iter().filter(|r| r.verdict.is_failure()) {
+                for c in &mut rollup.claims {
+                    if let Some(verdict) = pair.verdict_of(&c.claim) {
+                        c.counts.bump(verdict);
+                    }
+                }
+                for r in pair.relations().iter().filter(|r| r.verdict.is_failure()) {
                     by_relation.entry(&r.name).or_default().push(RelationFailure {
                         pair: pair.id.clone(),
                         verdict: r.verdict.slug(),
@@ -144,7 +154,7 @@ const TEMPLATE: &str = include_str!("lockstep_viewer.html");
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::debug::driver::{StopReason, TerminalView, Verdict};
+    use crate::debug::driver::{ClaimVerdict, StopReason, TerminalView, Verdict};
     use crate::debug::lockstep::{
         HeadKind, HeadView, JointChild, JointNode, JointTree, NodeKind, PairSide, RelationVerdict,
         SideStep, SideView, StuckPoint, StuckReason,
@@ -209,16 +219,40 @@ mod tests {
             node,
             left: side(),
             right: side(),
-            equal_output,
-            invariant,
-            relations: relations
-                .iter()
-                .map(|(name, verdict)| RelationVerdict {
-                    name: name.to_string(),
-                    verdict: verdict.clone(),
-                })
-                .collect(),
+            claims: vec![
+                ClaimVerdict {
+                    claim: "equal-output".to_string(),
+                    verdict: equal_output,
+                    relations: Vec::new(),
+                },
+                ClaimVerdict {
+                    claim: "invariant".to_string(),
+                    verdict: invariant,
+                    relations: relations
+                        .iter()
+                        .map(|(name, verdict)| RelationVerdict {
+                            name: name.to_string(),
+                            verdict: verdict.clone(),
+                        })
+                        .collect(),
+                },
+            ],
         }
+    }
+
+    fn claims() -> Vec<ClaimInfo> {
+        ["equal-output", "invariant"]
+            .iter()
+            .map(|name| ClaimInfo {
+                name: name.to_string(),
+                dependencies: Vec::new(),
+                admitted: false,
+            })
+            .collect()
+    }
+
+    fn counts<'a>(rollup: &'a StuckRollup, claim: &str) -> &'a VerdictCounts {
+        &rollup.claims.iter().find(|c| c.claim == claim).unwrap().counts
     }
 
     fn stuck(id: &str, node: usize) -> StuckPoint {
@@ -272,7 +306,7 @@ mod tests {
                 pair(
                     "J3",
                     5,
-                    Verdict::Unreachable,
+                    Verdict::pair_infeasible(),
                     unknown.clone(),
                     &[("rel_b", unknown), ("rel_a", fails("J3.relation-rel_a"))],
                 ),
@@ -285,15 +319,15 @@ mod tests {
 
     #[test]
     fn a_rollup_counts_the_joint_paths_below_the_stuck_point_only() {
-        let rollups = stuck_rollups(&outcome());
+        let rollups = stuck_rollups(&outcome(), &claims());
         let s1 = &rollups[0];
         assert_eq!(s1.id, "S1");
         assert_eq!(s1.pairs, 3, "J4 is beside the stuck point, not below it");
-        assert_eq!(s1.equal_output.verified, 2);
-        assert_eq!(s1.equal_output.unreachable, 1);
-        assert_eq!(s1.invariant.verified, 1);
-        assert_eq!(s1.invariant.goal_fails, 1);
-        assert_eq!(s1.invariant.inconclusive, 1);
+        assert_eq!(counts(s1, "equal-output").verified, 2);
+        assert_eq!(counts(s1, "equal-output").unreachable, 1);
+        assert_eq!(counts(s1, "invariant").verified, 1);
+        assert_eq!(counts(s1, "invariant").goal_fails, 1);
+        assert_eq!(counts(s1, "invariant").inconclusive, 1);
 
         let s2 = &rollups[1];
         assert_eq!((s2.id.as_str(), s2.pairs), ("S2", 2));
@@ -301,7 +335,7 @@ mod tests {
 
     #[test]
     fn a_rollup_names_the_failing_relations_and_where() {
-        let s1 = &stuck_rollups(&outcome())[0];
+        let s1 = &stuck_rollups(&outcome(), &claims())[0];
         let names: Vec<(&str, Vec<(&str, &str)>)> = s1
             .relations
             .iter()
@@ -330,9 +364,9 @@ mod tests {
         let mut o = outcome();
         o.tree.nodes[3].children.clear();
         o.pairs.retain(|p| p.id != "J2" && p.id != "J3");
-        let s2 = &stuck_rollups(&o)[1];
+        let s2 = &stuck_rollups(&o, &claims())[1];
         assert_eq!(s2.pairs, 0);
-        assert_eq!(s2.invariant, VerdictCounts::default());
+        assert_eq!(*counts(s2, "invariant"), VerdictCounts::default());
         assert!(s2.relations.is_empty());
     }
 
@@ -340,7 +374,7 @@ mod tests {
     fn a_pair_node_whose_record_is_not_written_yet_is_ignored() {
         let mut o = outcome();
         o.pairs.retain(|p| p.id != "J1");
-        assert_eq!(stuck_rollups(&o)[0].pairs, 2);
+        assert_eq!(stuck_rollups(&o, &claims())[0].pairs, 2);
     }
 
     #[test]
@@ -361,8 +395,8 @@ mod tests {
 
     #[test]
     fn rendering_is_a_pure_function_of_its_inputs() {
-        let a = render_html("{}", &stuck_rollups(&outcome()), false);
-        let b = render_html("{}", &stuck_rollups(&outcome()), false);
+        let a = render_html("{}", &stuck_rollups(&outcome(), &claims()), false);
+        let b = render_html("{}", &stuck_rollups(&outcome(), &claims()), false);
         assert_eq!(a, b);
     }
 }

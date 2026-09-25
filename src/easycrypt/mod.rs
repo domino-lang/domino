@@ -12,6 +12,7 @@
 
 pub mod align;
 pub mod check;
+pub mod debug;
 pub mod json;
 pub mod session;
 pub mod skeleton;

@@ -62,6 +62,34 @@ pub struct AlignmentMismatch(pub usize);
 pub struct TacticsNeedCvc5Lib;
 
 #[derive(Error, Diagnostic, Debug)]
+#[error(
+    "`domino easycrypt --debug` runs lockstep execution, which needs the native cvc5 backend \
+     behind the `cvc5-lib` cargo feature"
+)]
+#[diagnostic(help(
+    "rebuild with `cargo build --features cvc5-lib` (see the cvc5-lib section of Readme.md \
+     and scripts/setup-cvc5-lib.sh for the one-time prerequisites)"
+))]
+pub struct EcDebugNeedCvc5Lib;
+
+#[derive(Error, Diagnostic, Debug)]
+#[error("`--out` names one output directory, but this run covers {0} oracles")]
+#[diagnostic(help(
+    "name one oracle with `--proof`, `--proofstep` and `--oracle`, or drop `--out` to write \
+     each run under `_build/debug/domino/`"
+))]
+pub struct OutNeedsOneOracle(pub usize);
+
+#[derive(Error, Diagnostic, Debug)]
+#[error("io error writing the debug artifacts")]
+pub struct DebugIo(#[source] pub std::io::Error);
+
+#[derive(Error, Diagnostic, Debug)]
+#[error("`domino easycrypt --debug` found joint paths that fail equal-output or the invariant, or stopped early")]
+#[diagnostic(code(easycrypt::debug_not_verified))]
+pub struct EcDebugNotVerified;
+
+#[derive(Error, Diagnostic, Debug)]
 #[error("theorem `{0}` not found")]
 #[diagnostic(code(cli::theorem_not_found))]
 pub struct TheoremNotFound(pub String);
@@ -106,6 +134,20 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     TacticsNeedCvc5Lib(#[from] TacticsNeedCvc5Lib),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    EcDebugNeedCvc5Lib(#[from] EcDebugNeedCvc5Lib),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    OutNeedsOneOracle(#[from] OutNeedsOneOracle),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    DebugIo(#[from] DebugIo),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    EcDebugNotVerified(#[from] EcDebugNotVerified),
+    #[error(transparent)]
+    EcDebug(#[from] sspverif::easycrypt::debug::EcDebugError),
     #[error(transparent)]
     EcCheck(#[from] sspverif::easycrypt::check::CheckError),
     #[error(transparent)]
@@ -199,9 +241,17 @@ fn stop_on_ctrl_c(first: &'static str) -> std::sync::Arc<std::sync::atomic::Atom
 fn debug(d: &Debug) -> Result<(), Error> {
     use std::io::IsTerminal;
 
-    use sspverif::debug::driver::{run_debug_command, DebugOptions};
+    use sspverif::debug::driver::{run_debug_command, DebugError, DebugOptions};
+    use sspverif::debug::layout::DOMINO_DEBUG_DIR;
+    use sspverif::debug::lockstep_report::render_summary as render_lockstep_summary;
+    use sspverif::debug::lockstep_run::{run_lockstep_domino, LockstepDebugOptions};
     use sspverif::debug::progress::{BarObserver, DebugObserver, NopObserver, PlainObserver};
     use sspverif::debug::smtout::SmtOut;
+    use sspverif::debug::sweep::{self, SweepEntry};
+
+    if d.proofstep.is_some() && d.proof.is_none() {
+        return Err(IncompatibleArguments.into());
+    }
 
     // NB: `unwrap_or` would evaluate `find_project_root()?` eagerly even when
     // `--path` is given (and propagate its error). Match instead.
@@ -210,33 +260,64 @@ fn debug(d: &Debug) -> Result<(), Error> {
         None => project::directory::find_project_root()?,
     };
     let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(project_root, &files)?;
+    let project = project::DirectoryProject::load(project_root.clone(), &files)?;
 
+    // Every filter is optional: omitted means all, given means only that (as in `prove`).
+    let plan = sweep::plan(
+        &project,
+        d.proof.as_deref(),
+        d.proofstep,
+        d.oracle.as_deref(),
+    )?;
+    for skipped in &plan.skipped {
+        eprintln!("{}", skipped.note());
+    }
+    if plan.targets.is_empty() {
+        eprintln!("debug: the project has no equivalence proofstep to debug");
+        return Ok(());
+    }
+    if plan.targets.len() > 1 && d.out.is_some() {
+        return Err(OutNeedsOneOracle(plan.targets.len()).into());
+    }
+    // One oracle: today's concise report on stdout. Several: one line per oracle as it
+    // finishes, then the failures of the whole project.
+    let single = plan.targets.len() == 1;
+
+    let smt_out = match d.smt {
+        SmtOutArg::None => SmtOut::None,
+        SmtOutArg::Failures => SmtOut::Failures,
+        SmtOutArg::All => SmtOut::All,
+        SmtOutArg::Deltas => SmtOut::Deltas,
+    };
     let opts = DebugOptions {
         check_left: !d.no_check_left,
         check_right: !d.no_check_right,
         timeout_ms: d.timeout,
         max_paths: d.max_paths,
-        smt_out: match d.smt {
-            SmtOutArg::None => SmtOut::None,
-            SmtOutArg::Failures => SmtOut::Failures,
-            SmtOutArg::All => SmtOut::All,
-            SmtOutArg::Deltas => SmtOut::Deltas,
-        },
+        smt_out,
+        transcript: d.transcript,
+        first_failure_per_claim: d.first_failure_per_claim,
+    };
+    let lockstep_opts = LockstepDebugOptions {
+        timeout_ms: d.timeout,
+        max_paths: d.max_paths,
+        smt_out,
         transcript: d.transcript,
     };
 
     let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, d.timeout);
 
-    let mut observer: Box<dyn DebugObserver> = match d.progress {
-        ProgressMode::None => Box::new(NopObserver),
-        ProgressMode::Plain => Box::new(PlainObserver::new()),
-        ProgressMode::Bar => Box::new(BarObserver::new()),
-        ProgressMode::Auto => {
-            if std::io::stderr().is_terminal() {
-                Box::new(BarObserver::new())
-            } else {
-                Box::new(PlainObserver::new())
+    let make_observer = || -> Box<dyn DebugObserver> {
+        match d.progress {
+            ProgressMode::None => Box::new(NopObserver),
+            ProgressMode::Plain => Box::new(PlainObserver::new()),
+            ProgressMode::Bar => Box::new(BarObserver::new()),
+            ProgressMode::Auto => {
+                if std::io::stderr().is_terminal() {
+                    Box::new(BarObserver::new())
+                } else {
+                    Box::new(PlainObserver::new())
+                }
             }
         }
     };
@@ -253,55 +334,99 @@ fn debug(d: &Debug) -> Result<(), Error> {
          (Ctrl-C again to abort now)",
     );
 
-    if d.easycrypt {
-        use sspverif::debug::lockstep_report::render_summary;
-        use sspverif::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions};
-
-        let run = run_lockstep_command(
-            &project,
-            &d.proof,
-            d.proofstep,
-            &d.oracle,
-            &LockstepDebugOptions {
-                timeout_ms: opts.timeout_ms,
-                max_paths: opts.max_paths,
-                smt_out: opts.smt_out,
-                transcript: opts.transcript,
-            },
-            &backend,
-            d.out.clone(),
-            observer.as_mut(),
-            Some(&stop),
-        )?;
-        print!("{}", render_summary(&run));
-        if !run.is_ok() {
-            return Err(DebugNotVerified.into());
+    let mut entries: Vec<SweepEntry> = Vec::new();
+    let mut claim_not_found: Option<DebugError> = None;
+    for target in &plan.targets {
+        let mut observer = make_observer();
+        let entry = if d.lockstep {
+            match run_lockstep_domino(
+                &project,
+                &target.theorem,
+                target.proofstep,
+                &target.oracle,
+                d.claim.as_deref(),
+                &lockstep_opts,
+                &backend,
+                d.out.clone(),
+                observer.as_mut(),
+                Some(&stop),
+            ) {
+                Ok(run) => {
+                    if single {
+                        print!("{}", render_lockstep_summary(&run));
+                    }
+                    SweepEntry::from_lockstep(target.clone(), &run)
+                }
+                Err(e @ DebugError::ClaimNotFound { .. }) if !single => {
+                    claim_not_found = Some(e);
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        } else {
+            match run_debug_command(
+                &project,
+                &target.theorem,
+                target.proofstep,
+                &target.oracle,
+                d.claim.as_deref(),
+                &opts,
+                &backend,
+                d.out.clone(),
+                observer.as_mut(),
+                Some(&stop),
+            ) {
+                Ok(run) => {
+                    // Story 17: the concise report goes to stdout; the full per-left-path
+                    // tree is in the summary file (its `artifacts` block points at that and
+                    // every other file). The `Finished` event already cleared the progress
+                    // bar inside `run_debug_command`, so this never lands in a redrawn line.
+                    if single {
+                        print!("{}", sspverif::debug::report::render_summary(&run));
+                    }
+                    SweepEntry::from_sequential(target.clone(), &run)
+                }
+                Err(e @ DebugError::ClaimNotFound { .. }) if !single => {
+                    claim_not_found = Some(e);
+                    continue;
+                }
+                Err(e) => return Err(e.into()),
+            }
+        };
+        drop(observer);
+        if !single {
+            println!("{}", entry.one_line());
         }
-        return Ok(());
+        let interrupted = sweep::is_interrupted(&entry);
+        entries.push(entry);
+        if interrupted {
+            break;
+        }
     }
 
-    // clap guarantees `--claim` unless `--easycrypt`
-    let claim = d.claim.as_deref().expect("`--claim` is required without `--easycrypt`");
-    let run = run_debug_command(
-        &project,
-        &d.proof,
-        d.proofstep,
-        &d.oracle,
-        claim,
-        &opts,
-        &backend,
-        d.out.clone(),
-        observer.as_mut(),
-        Some(&stop),
-    )?;
+    // `--claim` names a claim only some oracles have: those that lack it are skipped, unless
+    // none has it.
+    if entries.is_empty() {
+        if let Some(e) = claim_not_found {
+            return Err(e.into());
+        }
+    }
 
-    // Story 17: the concise report goes to stdout; the full per-left-path tree is
-    // in `summary.txt` (its `artifacts` block points at that and every other
-    // file). The `Finished` event already cleared the progress bar inside
-    // `run_debug_command`, so this never lands in a redrawn line.
-    print!("{}", sspverif::debug::report::render_summary(&run));
+    if !single && !entries.is_empty() {
+        let table = sweep::failure_table(&entries);
+        if !table.is_empty() {
+            println!("\n{table}");
+        }
+        let root = project_root.join(DOMINO_DEBUG_DIR);
+        let (index, summary) = sweep::write_index(&root, &entries).map_err(DebugIo)?;
+        println!(
+            "\nindex    {}\nsummary  {}",
+            index.display(),
+            summary.display()
+        );
+    }
 
-    if !run.is_ok() {
+    if entries.iter().any(|entry| !entry.ok) {
         return Err(DebugNotVerified.into());
     }
     Ok(())
@@ -499,6 +624,12 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         sspverif::writers::easycrypt::overwrite::check_export_tree(&out_base, &names)?;
     }
 
+    if e.debug {
+        // fail early and clearly: lockstep execution needs a solver
+        #[cfg(not(feature = "cvc5-lib"))]
+        return Err(EcDebugNeedCvc5Lib.into());
+    }
+
     if e.tactics {
         // fail early and clearly: a solver and a `-json`-capable EasyCrypt are prerequisites
         #[cfg(not(feature = "cvc5-lib"))]
@@ -634,6 +765,46 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
                 let _ = std::io::stdout().flush();
                 std::process::exit(130);
             }
+        }
+    }
+
+    #[cfg(feature = "cvc5-lib")]
+    if e.debug {
+        use sspverif::easycrypt::debug::{debug_theorem, EcDebugOptions};
+
+        let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, e.debug_timeout);
+        let options = EcDebugOptions {
+            proofstep: e.proofstep,
+            oracle: e.oracle.clone(),
+            timeout_ms: e.debug_timeout,
+        };
+        let stop = stop_on_ctrl_c(
+            "easycrypt: interrupt — finishing the current solver query, then writing partial \
+             results (Ctrl-C again to abort now)",
+        );
+        let mut all_ok = true;
+        for (name, exported) in &exports {
+            let theorem = project.get_theorem(name).unwrap();
+            let theorem_out = out_base.join(name);
+            println!();
+            let entries = debug_theorem(
+                theorem,
+                &project,
+                exported,
+                &theorem_out,
+                &backend,
+                &options,
+                Some(&stop),
+                &mut |entry| println!("{}", entry.one_line()),
+            )?;
+            let table = sspverif::debug::sweep::failure_table(&entries);
+            if !table.is_empty() {
+                println!("\n{table}");
+            }
+            all_ok &= entries.iter().all(|entry| entry.ok);
+        }
+        if !all_ok {
+            return Err(EcDebugNotVerified.into());
         }
     }
 

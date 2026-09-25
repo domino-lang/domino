@@ -140,7 +140,7 @@ const kindClass = k => (k === "synchronized" || k === "sampling-synchronized") ?
   : k === "split" ? " split" : k === "stuck" ? " stuck" : "";
 
 // The model / SMT files a link may point at are relative paths this tool wrote.
-const safeRel = p => typeof p === "string" && /^[A-Za-z0-9_.\-]+(\/[A-Za-z0-9_.\-]+)*$/.test(p) && !p.includes("..");
+const safeRel = p => typeof p === "string" && /^[A-Za-z0-9_.!\-]+(\/[A-Za-z0-9_.!\-]+)*$/.test(p) && !p.includes("..");
 const link = (href, text) => {
   if (!safeRel(href)) return el("span", "eff-dim", text);
   const a = el("a", null, text);
@@ -148,12 +148,25 @@ const link = (href, text) => {
   return a;
 };
 const verdictChip = (name, v) => el("span", "badge " + badgeClass(verdictKind(v)), `${name}: ${badgeText(verdictKind(v))}`);
+// What each claim said about a pair, and the state relations of its `invariant`.
+const claimsOf = pair => pair.claims || [];
+const relationsOf = pair => { const c = claimsOf(pair).find(c => c.claim === "invariant"); return c ? (c.relations || []) : []; };
+const invariantFailing = pair => { const c = claimsOf(pair).find(c => c.claim === "invariant"); return !!c && failing(c.verdict); };
+// "left aborts at L27, and this claim assumes no-abort" for an unreachable verdict.
+const reasonText = (v, pair) => {
+  if (!v || v.kind !== "unreachable" || !v.reason) return "";
+  if (v.reason.kind === "pair-infeasible") return "pair infeasible";
+  const dep = v.reason.dependency;
+  const aborts = [["left", pair.left], ["right", pair.right]].filter(([, s]) => s.terminal.is_abort)
+    .map(([n, s]) => `${n} aborts at L${s.terminal.label}`);
+  return aborts.length ? `${aborts.join(" and ")}, and this claim assumes ${dep}` : `this claim assumes ${dep}, which is false here`;
+};
 
 // ---- header ---------------------------------------------------------------
 document.getElementById("h-title").textContent =
   `${T.theorem} · proofstep ${T.proofstep} · ${T.left_game} == ${T.right_game}`;
 document.getElementById("h-sub").textContent =
-  `oracle ${T.oracle} · lockstep execution on the ${T.listing} listing`;
+  `oracle ${T.oracle} · ${T.all_claims && T.listing === "domino" ? "all claims" : "claims " + T.claims.filter(c => !c.admitted).map(c => c.name).join(", ")} · lockstep execution on the ${T.listing} listing`;
 {
   const o = T.options, chips = document.getElementById("h-opts");
   [["timeout", o.timeout_ms == null ? "off" : o.timeout_ms + "ms"],
@@ -170,9 +183,11 @@ document.getElementById("h-sub").textContent =
   add("", `${s.nodes} nodes`);
   if (s.pruned_children) add("unreach", `${s.pruned_children} children pruned`);
   add(s.stuck_points ? "fail" : "", `${plural(s.stuck_points, "stuck point")}`);
-  [["equal-output", s.equal_output], ["invariant", s.invariant]].forEach(([name, c]) => {
+  (s.claims || []).forEach(c => {
+    const name = c.claim;
     add("ok", `${name}: ${c.verified} verified`);
-    if (c.unreachable) add("unreach", `${name}: ${c.unreachable} unreachable`);
+    if (c.unreachable) add("unreach", `${name}: ${c.unreachable} unreachable` +
+      (c.unreachable_dependency ? ` (${c.unreachable_dependency} by its own dependency)` : ""));
     if (c.goal_fails) add("fail", `${name}: ${c.goal_fails} goal fails`);
     if (c.inconclusive) add("amber", `${name}: ${c.inconclusive} inconclusive`);
   });
@@ -201,7 +216,8 @@ function rollupText(r) {
     if (c.inconclusive) more.push(`${c.inconclusive} inconclusive`);
     return more.length ? `${t} (${more.join(", ")})` : t;
   };
-  let t = `${plural(r.pairs, "pair")} below${LIVE ? " so far" : ""}; equal-output ${claim(r.equal_output)}; invariant ${claim(r.invariant)}`;
+  let t = `${plural(r.pairs, "pair")} below${LIVE ? " so far" : ""}; ` +
+    r.claims.map(c => `${c.claim} ${claim(c)}`).join("; ");
   r.relations.forEach(rel => {
     const by = kind => rel.failing.filter(f => f.verdict === kind).map(f => f.pair);
     const parts = [];
@@ -223,7 +239,7 @@ let selection = null;        // { node, child }  child != null: a pruned child o
 
 function relationList(pair) {
   const box = el("div", "rels");
-  pair.relations.forEach(r => {
+  relationsOf(pair).forEach(r => {
     const line = el("div", "rel");
     line.appendChild(document.createTextNode(`relation Domino_${r.name}`));
     line.appendChild(el("span", "badge " + badgeClass(verdictKind(r.verdict)), badgeText(verdictKind(r.verdict))));
@@ -254,15 +270,14 @@ function nodeEl(n) {
   const pair = n.pair && pairById.get(n.pair);
   if (pair) {
     row.appendChild(el("span", "badge jid", pair.id));
-    row.appendChild(verdictChip("equal-output", pair.equal_output));
-    row.appendChild(verdictChip("invariant", pair.invariant));
+    claimsOf(pair).forEach(c => row.appendChild(verdictChip(c.claim, c.verdict)));
   }
   activatable(row, e => {
     if (e.target === twist && n.children.length) { toggle(wrap); return; }
     select(n.index, null);
   });
   wrap.appendChild(row);
-  if (pair && pair.relations.length && failing(pair.invariant)) {
+  if (pair && relationsOf(pair).length && invariantFailing(pair)) {
     wrap.appendChild(relationList(pair));
   }
   wrap._n = n;
@@ -538,7 +553,7 @@ function pathTable(path, cut) {
 function verdictsBlock(pair) {
   const wrap = el("div");
   const smtMode = T.options && T.options.smt;
-  const anyFailure = [pair.equal_output, pair.invariant].concat(pair.relations.map(r => r.verdict))
+  const anyFailure = claimsOf(pair).map(c => c.verdict).concat(relationsOf(pair).map(r => r.verdict))
     .some(v => v.kind === "goal-fails" || v.kind === "inconclusive");
   const smtOnDisk = smtMode === "all" || smtMode === "deltas" || ((smtMode == null || smtMode === "failures") && anyFailure);
   const row = (label, v, name) => {
@@ -546,16 +561,17 @@ function verdictsBlock(pair) {
     r.appendChild(el("span", "k", label));
     r.appendChild(el("span", "badge " + badgeClass(verdictKind(v)), badgeText(verdictKind(v))));
     if (v.model) r.appendChild(link(v.model, "model: " + v.model));
+    const why = reasonText(v, pair);
+    if (why) r.appendChild(el("span", "eff-dim", " — " + why));
     wrap.appendChild(r);
     return r;
   };
-  row("equal-output", pair.equal_output);
-  row("invariant", pair.invariant);
-  if (pair.relations.length && failing(pair.invariant)) {
+  claimsOf(pair).forEach(c => row(c.claim, c.verdict));
+  if (relationsOf(pair).length && invariantFailing(pair)) {
     wrap.appendChild(el("div", "assertion-note",
       "the invariant is not verified; each state relation on its own:"));
     const box = el("div", "subrel");
-    pair.relations.forEach(r => {
+    relationsOf(pair).forEach(r => {
       const line = el("div", "vrow");
       line.appendChild(el("span", "k", "Domino_" + r.name));
       line.appendChild(el("span", "badge " + badgeClass(verdictKind(r.verdict)), badgeText(verdictKind(r.verdict))));
@@ -564,7 +580,7 @@ function verdictsBlock(pair) {
     });
     wrap.appendChild(box);
   }
-  if (pair.left.terminal.is_abort || pair.right.terminal.is_abort) {
+  if (T.listing === "easycrypt" && (pair.left.terminal.is_abort || pair.right.terminal.is_abort)) {
     wrap.appendChild(el("div", "assertion-note",
       `${pair.left.terminal.is_abort ? "left" : ""}${pair.left.terminal.is_abort && pair.right.terminal.is_abort ? " and " : ""}` +
       `${pair.right.terminal.is_abort ? "right" : ""} aborts on this path; Domino's invariant verdict compares the states at the abort, ` +
@@ -573,7 +589,7 @@ function verdictsBlock(pair) {
   if (smtOnDisk) {
     const r = el("div", "vrow");
     r.appendChild(el("span", "k", "runnable query"));
-    r.appendChild(link(`smt/${pair.id}.smt2`, `smt/${pair.id}.smt2`));
+    r.appendChild(link(`${T.smt_dir}/${pair.id}.smt2`, `${T.smt_dir}/${pair.id}.smt2`));
     wrap.appendChild(r);
   }
   return wrap;
@@ -589,8 +605,8 @@ function claimBlock(pair) {
   };
   wrap.appendChild(el("div", "assertion-note",
     `checked after joint path ${pair.id} ends; each goal is asserted after the vacuity (check-sat) and must be unsat`));
-  goal("equal-output (negated)", T.goals.equal_output_smt);
-  goal("invariant (negated)", T.goals.invariant_smt);
+  T.goals.claims.forEach(c => goal(`${c.claim} (negated)` + (c.dependencies.length ? ", on its own dependencies" : ""),
+    c.dependencies.concat([c.smt]).join("\n")));
   T.goals.relations.forEach(r => goal("relation Domino_" + r.name + " (negated)", r.smt));
   return wrap;
 }

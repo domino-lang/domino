@@ -236,6 +236,20 @@ impl<'a> EquivalenceContext<'a> {
         claim: &Claim,
         oracle_name: &str,
     ) -> (Vec<SmtExpr>, SmtExpr) {
+        let (mut deps, own, goal) = self.claim_assumption_parts(claim, oracle_name);
+        deps.extend(own);
+        (deps, goal)
+    }
+
+    /// [`claim_assumptions_and_goal`](Self::claim_assumptions_and_goal), with the assumptions
+    /// split by scope (story 19): what every claim of the oracle shares (the randomness-mapping
+    /// condition and the invariants on the old states), then the claim's own declared
+    /// dependencies, then the goal.
+    pub(crate) fn claim_assumption_parts(
+        &self,
+        claim: &Claim,
+        oracle_name: &str,
+    ) -> (Vec<SmtExpr>, Vec<SmtExpr>, SmtExpr) {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
 
@@ -432,11 +446,7 @@ impl<'a> EquivalenceContext<'a> {
             )));
         }
 
-        for dep in dep_calls {
-            dependencies_code.push(dep)
-        }
-
-        (dependencies_code, postcond_call)
+        (dependencies_code, dep_calls, postcond_call)
     }
 
     /// The single-refutation claim assertion `prove` uses:
@@ -458,6 +468,34 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn emit_claim_assumptions(&self, claim: &Claim, oracle_name: &str) -> Vec<SmtExpr> {
         let (deps, _goal) = self.claim_assumptions_and_goal(claim, oracle_name);
         deps.into_iter()
+            .map(|dep| crate::writers::smt::exprs::SmtAssert(dep).into())
+            .collect()
+    }
+
+    /// The assumptions every claim of `oracle_name` shares, asserted positively (story 19):
+    /// the randomness-mapping condition and the invariants on the old states.
+    pub(crate) fn emit_shared_assumptions(&self, oracle_name: &str) -> Vec<SmtExpr> {
+        // Any claim will do: the shared part does not depend on it.
+        let claim = Claim {
+            name: "invariant".to_string(),
+            ty: ClaimType::Invariant,
+            dependencies: Vec::new(),
+            admitted: false,
+        };
+        let (shared, _own, _goal) = self.claim_assumption_parts(&claim, oracle_name);
+        shared
+            .into_iter()
+            .map(|dep| crate::writers::smt::exprs::SmtAssert(dep).into())
+            .collect()
+    }
+
+    /// `claim`'s own declared dependencies (`no-abort`, project lemmas, …), asserted positively
+    /// — what [`emit_claim_assumptions`](Self::emit_claim_assumptions) has beyond
+    /// [`emit_shared_assumptions`](Self::emit_shared_assumptions). Story 19 asserts these at the
+    /// terminal pair in an all-claim run.
+    pub(crate) fn emit_claim_own_assumptions(&self, claim: &Claim, oracle_name: &str) -> Vec<SmtExpr> {
+        let (_shared, own, _goal) = self.claim_assumption_parts(claim, oracle_name);
+        own.into_iter()
             .map(|dep| crate::writers::smt::exprs::SmtAssert(dep).into())
             .collect()
     }

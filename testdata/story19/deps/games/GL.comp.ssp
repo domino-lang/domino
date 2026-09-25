@@ -1,0 +1,13 @@
+composition GL {
+    instance p = A {
+    }
+
+    compose {
+        adversary: {
+            Branch: p,
+            AbortDiff: p,
+            AbortBoth: p,
+            Admitted: p,
+        },
+    }
+}

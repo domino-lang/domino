@@ -1,0 +1,32 @@
+package A {
+    state {
+        ctr: Integer,
+    }
+
+    /* the same on both sides, branching on the argument */
+    oracle Branch(x: Integer) -> Integer {
+        if (x > 0) {
+            r <- 1;
+        } else {
+            r <- 2;
+        }
+        return r;
+    }
+
+    /* one side aborts where the other does not */
+    oracle AbortDiff(b: Bool) -> Integer {
+        assert b;
+        return 1;
+    }
+
+    /* both sides abort together */
+    oracle AbortBoth(b: Bool) -> Integer {
+        assert b;
+        return 1;
+    }
+
+    /* a claim of this oracle is admitted */
+    oracle Admitted(x: Integer) -> Integer {
+        return x;
+    }
+}

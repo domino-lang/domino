@@ -64,10 +64,12 @@ use std::time::{Duration, Instant};
 
 use serde_derive::Serialize;
 
+use crate::debug::claims::{check_claim, ClaimQuery, PairAborts};
 use crate::debug::driver::{
-    lines_view, steps_view, terminal_view, write_model, DebugError, StepView, StopReason,
-    TerminalView, Verdict,
+    lines_view, steps_view, terminal_view, write_model, ClaimVerdict, DebugError, StepView,
+    StopReason, TerminalView, Verdict,
 };
+use crate::debug::layout::Layout;
 use crate::debug::effect::PathEffect;
 use crate::debug::exec::{
     BranchForm, BranchHead, Decision, Head, SampleHead, Side, SideExec, SidePos, Terminal,
@@ -97,11 +99,11 @@ pub struct LockstepSide<'a> {
 /// The assumptions `A` themselves are not here: they are on the solver stack
 /// when [`run_lockstep`] is called.
 pub struct LockstepTerms {
-    /// `(assert (not <equal-output>))`, with equal-output the conjunction of
-    /// the `equal-aborts` and `same-output` goals, no dependencies.
-    pub equal_output_negated: SmtExpr,
-    /// `(assert (not (invariant <new left state> <new right state>)))`.
-    pub invariant_negated: SmtExpr,
+    /// The claims checked on every joint path, in order. Each keeps its own declared
+    /// dependencies (asserted at the terminal pair, one `push` above the paths); the claim set
+    /// of the EasyCrypt listing has none, and groups `equal-aborts` and `same-output` as
+    /// `equal-output`.
+    pub claims: Vec<ClaimQuery>,
     /// One entry per state relation the invariant conjoins, in file order.
     pub relations: Vec<RelationGoal>,
     /// Every pairing the randomness mapping could make.
@@ -132,8 +134,10 @@ pub struct LockstepOptions<'a> {
     pub max_paths: Option<usize>,
     /// `Ctrl-C`: checked at every node.
     pub stop: Option<&'a AtomicBool>,
-    /// Where models of failing checks go: `<out_dir>/models/<J>.<check>.smt2`.
+    /// Where models of failing checks go: `<out_dir>/models/<J>.<check>.smt2`, with the
+    /// layout's prefix for a Domino listing.
     pub out_dir: &'a Path,
+    pub layout: Layout,
 }
 
 /// Called in depth-first order while [`run_lockstep`] runs. Every method has a
@@ -398,13 +402,39 @@ pub struct PairRecord {
     pub node: usize,
     pub left: PairSide,
     pub right: PairSide,
-    /// Both sides abort, or neither does and the return values are equal.
-    pub equal_output: Verdict,
-    /// The `invariant` claim's goal on the new states.
-    pub invariant: Verdict,
-    /// Per-relation verdicts, present only when `invariant` is neither
+    /// What each claim said about the pair, in the order the run checks them. On the
+    /// EasyCrypt listing: `equal-output` and `invariant`.
+    pub claims: Vec<ClaimVerdict>,
+}
+
+/// The name under which the EasyCrypt listing groups `equal-aborts` and `same-output`: with the
+/// empty dependency set they genuinely share, the pair reads as one claim.
+pub const EQUAL_OUTPUT: &str = "equal-output";
+
+impl PairRecord {
+    /// What the claim called `claim` said about this pair.
+    pub fn verdict_of(&self, claim: &str) -> Option<&Verdict> {
+        self.claims
+            .iter()
+            .find(|c| c.claim == claim)
+            .map(|c| &c.verdict)
+    }
+
+    /// Per-relation verdicts of the `invariant` claim, present only when it is neither
     /// `verified` nor `unreachable`.
-    pub relations: Vec<RelationVerdict>,
+    pub fn relations(&self) -> &[RelationVerdict] {
+        self.claims
+            .iter()
+            .find(|c| c.claim == "invariant")
+            .map_or(&[], |c| c.relations.as_slice())
+    }
+
+    /// Some claim failed or could not be decided.
+    pub fn has_failure(&self) -> bool {
+        self.claims.iter().any(|c| {
+            c.verdict.is_failure() || c.relations.iter().any(|r| r.verdict.is_failure())
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1113,16 +1143,14 @@ impl<'a, S: SmtSolver> Engine<'_, 'a, S> {
         self.solver.push()?;
         let checks = self.check_pair(&id, &left_path, &right_path);
         self.solver.pop()?;
-        let (equal_output, invariant, relations) = checks?;
+        let claims = checks?;
 
         let record = PairRecord {
             id,
             node: 0,
             left: pair_side(self.left_inlined, &left_path),
             right: pair_side(self.right_inlined, &right_path),
-            equal_output,
-            invariant,
-            relations,
+            claims,
         };
         Ok(Decided::Plan {
             plan: Plan {
@@ -1134,13 +1162,14 @@ impl<'a, S: SmtSolver> Engine<'_, 'a, S> {
         })
     }
 
-    /// The vacuity check, then equal-output, invariant, and per relation.
+    /// The vacuity check, then each claim on its own dependencies and negated goal, and, when
+    /// the `invariant` is not verified, each state relation.
     fn check_pair(
         &mut self,
         id: &str,
         left: &TerminalPath,
         right: &TerminalPath,
-    ) -> Result<(Verdict, Verdict, Vec<RelationVerdict>), DebugError> {
+    ) -> Result<Vec<ClaimVerdict>, DebugError> {
         for path in [left, right] {
             for e in path.decls[path.reported_decls..]
                 .iter()
@@ -1151,30 +1180,60 @@ impl<'a, S: SmtSolver> Engine<'_, 'a, S> {
             self.solver.write_smt(path.return_constraint.clone())?;
         }
 
+        let terms = self.terms;
         // unconditional: `unsat` means the pair cannot happen, which is not
         // the same as verified
         if matches!(self.solver.check_sat()?, SmtSolverResponse::Unsat) {
-            return Ok((Verdict::Unreachable, Verdict::Unreachable, Vec::new()));
+            return Ok(terms
+                .claims
+                .iter()
+                .map(|claim| ClaimVerdict {
+                    claim: claim.name.clone(),
+                    verdict: Verdict::pair_infeasible(),
+                    relations: Vec::new(),
+                })
+                .collect());
         }
 
-        let terms = self.terms;
-        let equal_output = self.check_goal(&terms.equal_output_negated, id, "equal-output")?;
-        let invariant = self.check_goal(&terms.invariant_negated, id, "invariant")?;
-        let mut relations = Vec::new();
-        if !matches!(invariant, Verdict::Verified | Verdict::Unreachable) {
-            for relation in &terms.relations {
-                let verdict = self.check_goal(
-                    &relation.negated,
-                    id,
-                    &format!("relation-{}", relation.name),
-                )?;
-                relations.push(RelationVerdict {
-                    name: relation.name.clone(),
-                    verdict,
-                });
+        let aborts = PairAborts {
+            left: left.terminal.is_abort(),
+            right: right.terminal.is_abort(),
+        };
+        let mut checked = Vec::with_capacity(terms.claims.len());
+        for claim in &terms.claims {
+            let mut queries = 0;
+            let (verdict, _) = check_claim(
+                &mut *self.solver,
+                claim,
+                aborts,
+                self.opts.out_dir,
+                self.opts.layout,
+                &format!("{id}.{}", claim.name),
+                &mut queries,
+            )?;
+            let mut relations = Vec::new();
+            if claim.name == "invariant"
+                && !matches!(verdict, Verdict::Verified | Verdict::Unreachable { .. })
+            {
+                for relation in &terms.relations {
+                    let verdict = self.check_goal(
+                        &relation.negated,
+                        id,
+                        &format!("relation-{}", relation.name),
+                    )?;
+                    relations.push(RelationVerdict {
+                        name: relation.name.clone(),
+                        verdict,
+                    });
+                }
             }
+            checked.push(ClaimVerdict {
+                claim: claim.name.clone(),
+                verdict,
+                relations,
+            });
         }
-        Ok((equal_output, invariant, relations))
+        Ok(checked)
     }
 
     /// Assert one negated goal and classify the answer. A model of a failing
@@ -1192,11 +1251,11 @@ impl<'a, S: SmtSolver> Engine<'_, 'a, S> {
             Ok(match self.solver.check_sat()? {
                 SmtSolverResponse::Unsat => Verdict::Verified,
                 SmtSolverResponse::Sat => {
-                    let (model, _) = write_model(&mut *self.solver, self.opts.out_dir, &model_id)?;
+                    let (model, _) = write_model(&mut *self.solver, self.opts.out_dir, self.opts.layout, &model_id)?;
                     Verdict::GoalFails { model }
                 }
                 SmtSolverResponse::Unknown => {
-                    match write_model(&mut *self.solver, self.opts.out_dir, &model_id) {
+                    match write_model(&mut *self.solver, self.opts.out_dir, self.opts.layout, &model_id) {
                         Ok((model, _)) => Verdict::Inconclusive { model: Some(model) },
                         Err(_) => Verdict::Inconclusive { model: None },
                     }

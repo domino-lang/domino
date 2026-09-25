@@ -1,31 +1,34 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! `domino debug --easycrypt`: lockstep execution of one oracle of an
-//! equivalence, on the EasyCrypt listing (story 23).
+//! Lockstep execution of one oracle of an equivalence (story 23), on either listing:
+//! `domino debug --lockstep` on the Domino code, `domino easycrypt --debug` (and
+//! `--tactics`) on the EasyCrypt code.
 //!
-//! [`run_lockstep_command`] sets up what the engine ([`crate::debug::lockstep`])
+//! [`run_lockstep_on`] sets up what the engine ([`crate::debug::lockstep`])
 //! needs and writes the artifacts ([`crate::debug::lockstep_report`]):
 //!
-//! - The oracle is lowered from the `EasyCryptTransform` game instances
-//!   ([`inline_oracle_ec`]) and **executed against the Domino
+//! - The oracle is lowered from the game instances of the listing
+//!   ([`inline_oracle_ec`] for EasyCrypt) and **executed against the Domino
 //!   (`DebugTransform`) game instances**, whose state places, sample ids and
 //!   entry returns the claims are built from (story 08 §6).
-//! - The solver's base frame is the sequential debugger's, with the claim
-//!   assumptions of a claim with **no dependencies**: the invariant on the old
-//!   states (main, per game, per package), the randomness-mapping condition,
-//!   and `emit_auto_randomness`; the arguments are the same constants on both
-//!   sides. No `no-abort`, no project lemma: EasyCrypt has neither.
-//! - **Equal-output** is the conjunction of the `equal-aborts` and `same-output`
-//!   goals. `same-output` alone already means something when a side aborts: it
-//!   compares the two `ReturnValueOrAbort` values, and an aborting side's is the
-//!   `abort` constructor, so a pair where exactly one side aborts fails it. The
-//!   conjunction is kept so equal-output reads as the two claims it stands for.
-//! - **Invariant** is the `invariant` claim's goal on the new states. Domino's
-//!   abort return carries no game state (`smt_construct_abort` ignores it), so
-//!   on a side that aborts the new state is unconstrained; EasyCrypt's `inv`
-//!   instead guards the relations under `!abort_flag`. The two differ at pairs
-//!   where a side aborts, and `prove` gets around it with the `no-abort`
-//!   dependency this mode does not assume. `prove`'s semantics are unchanged.
+//! - The solver's base frame is the sequential all-claim frame
+//!   ([`shared_base_frame`]): the invariant on the old states (main, per game, per package),
+//!   the randomness-mapping condition, and `emit_auto_randomness`; the arguments are the same
+//!   constants on both sides. What a claim adds — its own declared dependencies — is asserted
+//!   at the terminal pair.
+//! - The claims checked ([`ClaimSet`]) differ by listing. **On the EasyCrypt listing** there
+//!   are two, with no dependencies (EasyCrypt has neither `no-abort` nor project lemmas):
+//!   *equal-output*, the conjunction of the `equal-aborts` and `same-output` goals — a
+//!   grouping that only makes sense with the empty dependency set they share — and
+//!   *invariant*, the `invariant` claim's goal on the new states. **On the Domino listing**
+//!   the claims are the oracle's obligation set, each with its own declared dependencies, so a
+//!   verdict is comparable to `domino prove`'s; `equal-aborts` and `same-output` are two claims,
+//!   because under `prove` semantics their dependency sets differ.
+//! - `smt_construct_abort` (`oracle.rs`) threads the game state through, so on a side that
+//!   aborts the new state is the state reached at the abort. EasyCrypt's `inv` instead guards
+//!   the relations under `!abort_flag`; the two differ at pairs where a side aborts, which is
+//!   why `prove` grants `invariant` the `no-abort` dependency and the EasyCrypt claim set,
+//!   which cannot, does not.
 //! - The per-relation sub-verdicts use the names of the `define-state-relation`s
 //!   ([`EquivalenceContext::state_relation_names`]), the list the EasyCrypt
 //!   `inv` operator conjoins (`writers::easycrypt::invariant`).
@@ -38,14 +41,17 @@ use std::time::{Duration, Instant};
 
 use serde_derive::Serialize;
 
+use crate::debug::claims::{obligations, ClaimQuery};
 use crate::debug::driver::{
-    base_frame, equivalence_of, sites_view, DebugError, SiteView, StopReason, Verdict,
+    equivalence_of, shared_base_frame, sites_view, ClaimInfo, DebugError, GoalBlock, SiteView,
+    StopReason, Unreachability, Verdict,
 };
+use crate::debug::layout::{Layout, ALL_CLAIMS_DIR, DOMINO_DEBUG_DIR};
 use crate::debug::exec::TerminalPath;
 use crate::debug::ir::{count_terminals, inline_oracle, Label};
 use crate::debug::lockstep::{
     run_lockstep, ChildOutcome, LockstepObserver, LockstepOptions, LockstepOutcome, LockstepSide,
-    LockstepTerms, PairRecord, Pairing, RelationGoal, StuckPoint,
+    LockstepTerms, PairRecord, Pairing, RelationGoal, StuckPoint, EQUAL_OUTPUT,
 };
 use crate::debug::lockstep_report::{self, LockstepSmtWriter};
 use crate::debug::lockstep_viewer;
@@ -65,7 +71,7 @@ use crate::writers::smt::exprs::{SmtAnd, SmtAssert, SmtExpr, SmtNot};
 
 /// Schema version of a lockstep `trace.json`. Sequential traces keep
 /// [`crate::debug::driver::TRACE_SCHEMA`].
-pub const LOCKSTEP_TRACE_SCHEMA: u32 = 9;
+pub const LOCKSTEP_TRACE_SCHEMA: u32 = 10;
 
 /// The least time between two flushes of the partial artifacts while a run is
 /// in progress: at most two a second (story 24). The page refreshes every two
@@ -104,6 +110,21 @@ pub struct LockstepDebugOptions {
     pub transcript: bool,
 }
 
+impl LockstepDebugOptions {
+    /// The options of a lockstep run on the EasyCrypt listing, as `domino easycrypt` runs it:
+    /// `--tactics` and `--debug` both take them from here, so the two cannot drift. Nothing but
+    /// the solver timeout is up to the caller; the paths are unbounded and only failures leave
+    /// `smt/` files.
+    pub fn easycrypt(timeout_ms: Option<u64>) -> Self {
+        Self {
+            timeout_ms,
+            max_paths: None,
+            smt_out: SmtOut::Failures,
+            transcript: false,
+        }
+    }
+}
+
 impl Default for LockstepDebugOptions {
     fn default() -> Self {
         Self {
@@ -137,9 +158,17 @@ impl From<&LockstepDebugOptions> for LockstepOptionsView {
 /// The negated goals the run asks about, rendered.
 #[derive(Debug, Clone, Serialize)]
 pub struct GoalsView {
-    pub equal_output_smt: String,
-    pub invariant_smt: String,
+    /// One per claim checked, in the order the engine checks them.
+    pub claims: Vec<ClaimGoalView>,
     pub relations: Vec<RelationGoalView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaimGoalView {
+    pub claim: String,
+    /// The claim's own dependencies, as the assertions made at the terminal pair.
+    pub dependencies: Vec<String>,
+    pub smt: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,19 +183,31 @@ pub struct RelationGoalView {
 pub struct LockstepMeta {
     /// Always [`LOCKSTEP_TRACE_SCHEMA`].
     pub schema: u32,
-    /// Always `lockstep`.
+    /// Always `lockstep`: the strategy, named in every summary header.
     pub mode: &'static str,
-    /// The listing the engine walked: `easycrypt` on the command line.
+    /// The listing the engine walked: `domino` or `easycrypt`.
     pub listing: &'static str,
     pub theorem: String,
     pub proofstep: usize,
     pub left_game: String,
     pub right_game: String,
     pub oracle: String,
+    /// `!all-claims!` when the run checks the oracle's whole obligation set.
+    pub claim: String,
+    pub all_claims: bool,
+    /// The claims of the run, in the order they are checked. An admitted claim is listed and
+    /// never checked.
+    pub claims: Vec<ClaimInfo>,
     /// The output directory. Absolute — kept out of `trace.json` so two runs of
     /// an unchanged project produce identical bytes.
     #[serde(skip)]
     pub out_dir: String,
+    /// How the artifacts are named: prefixed with the strategy on the Domino listing, plain
+    /// on the EasyCrypt one (story 19 §4.6).
+    #[serde(skip)]
+    pub layout: Layout,
+    /// `smt/`, relative to the output directory: the page links `<J>.smt2` under it.
+    pub smt_dir: String,
     pub options: LockstepOptionsView,
     /// The assumptions and definitions asserted once at solver level 0.
     pub base_frame_smt: String,
@@ -184,7 +225,11 @@ pub struct LockstepMeta {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 pub struct VerdictCounts {
     pub verified: usize,
+    /// Unreachable for either reason.
     pub unreachable: usize,
+    /// Of those, the ones whose reason is a false dependency of the claim, not an infeasible
+    /// pair.
+    pub unreachable_dependency: usize,
     pub goal_fails: usize,
     pub inconclusive: usize,
 }
@@ -193,17 +238,31 @@ impl VerdictCounts {
     pub(crate) fn bump(&mut self, v: &Verdict) {
         match v {
             Verdict::Verified => self.verified += 1,
-            Verdict::Unreachable => self.unreachable += 1,
+            Verdict::Unreachable { reason } => {
+                self.unreachable += 1;
+                if matches!(reason, Unreachability::DependencyFalse { .. }) {
+                    self.unreachable_dependency += 1;
+                }
+            }
             Verdict::GoalFails { .. } => self.goal_fails += 1,
             Verdict::Inconclusive { .. } => self.inconclusive += 1,
         }
     }
 }
 
+/// One claim's verdict counts over the joint paths.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ClaimCounts {
+    pub claim: String,
+    #[serde(flatten)]
+    pub counts: VerdictCounts,
+}
+
+/// How many joint paths got this combination of verdicts, one per claim in
+/// [`LockstepSummary::claims`]' order.
 #[derive(Debug, Clone, Serialize)]
-pub struct VerdictPairCount {
-    pub equal_output: &'static str,
-    pub invariant: &'static str,
+pub struct VerdictCombo {
+    pub verdicts: Vec<&'static str>,
     pub count: usize,
 }
 
@@ -214,10 +273,10 @@ pub struct LockstepSummary {
     /// Children of a split the solver proved infeasible.
     pub pruned_children: usize,
     pub node_kinds: BTreeMap<String, usize>,
-    pub equal_output: VerdictCounts,
-    pub invariant: VerdictCounts,
-    /// Joint paths per `(equal-output, invariant)` verdict pair.
-    pub verdict_pairs: Vec<VerdictPairCount>,
+    /// Verdict counts per claim, in the order the claims are checked.
+    pub claims: Vec<ClaimCounts>,
+    /// Joint paths per combination of verdicts, one per claim.
+    pub verdict_combos: Vec<VerdictCombo>,
     /// Joint paths on which a state relation failed or was inconclusive, per
     /// relation.
     pub relation_failures: BTreeMap<String, usize>,
@@ -241,20 +300,25 @@ impl LockstepRun {
     /// This is the process exit-code criterion.
     pub fn is_ok(&self) -> bool {
         self.outcome.stop_reason == StopReason::Completed
-            && !self
-                .outcome
-                .pairs
-                .iter()
-                .any(|p| p.equal_output.is_failure() || p.invariant.is_failure())
+            && !self.outcome.pairs.iter().any(PairRecord::has_failure)
     }
 }
 
-/// The counts of `outcome` so far.
-pub fn summarize(outcome: &LockstepOutcome) -> LockstepSummary {
+/// The counts of `outcome` so far. `claims` names the claims of the run, in order, so the
+/// counts are there even before the first joint path.
+pub fn summarize(outcome: &LockstepOutcome, claims: &[ClaimInfo]) -> LockstepSummary {
     let mut s = LockstepSummary {
         joint_paths: outcome.pairs.len(),
         nodes: outcome.tree.nodes.len(),
         stuck_points: outcome.stuck.len(),
+        claims: claims
+            .iter()
+            .filter(|c| !c.admitted)
+            .map(|c| ClaimCounts {
+                claim: c.name.clone(),
+                counts: VerdictCounts::default(),
+            })
+            .collect(),
         ..LockstepSummary::default()
     };
     for node in &outcome.tree.nodes {
@@ -267,36 +331,44 @@ pub fn summarize(outcome: &LockstepOutcome) -> LockstepSummary {
             .filter(|c| matches!(c.outcome, ChildOutcome::Pruned { .. }))
             .count();
     }
-    let mut pairs: BTreeMap<(usize, usize), usize> = BTreeMap::new();
+    let mut combos: BTreeMap<Vec<usize>, usize> = BTreeMap::new();
     for p in &outcome.pairs {
-        s.equal_output.bump(&p.equal_output);
-        s.invariant.bump(&p.invariant);
-        *pairs
-            .entry((rank(&p.equal_output), rank(&p.invariant)))
-            .or_insert(0) += 1;
-        for r in &p.relations {
+        let mut combo = Vec::with_capacity(s.claims.len());
+        for counts in &mut s.claims {
+            match p.verdict_of(&counts.claim) {
+                Some(verdict) => {
+                    counts.counts.bump(verdict);
+                    combo.push(rank(verdict));
+                }
+                None => combo.push(RANKED.len()),
+            }
+        }
+        *combos.entry(combo).or_insert(0) += 1;
+        for r in p.relations() {
             if r.verdict.is_failure() {
                 *s.relation_failures.entry(r.name.clone()).or_insert(0) += 1;
             }
         }
     }
-    s.verdict_pairs = pairs
+    s.verdict_combos = combos
         .into_iter()
-        .map(|((eo, inv), count)| VerdictPairCount {
-            equal_output: RANKED[eo],
-            invariant: RANKED[inv],
+        .map(|(combo, count)| VerdictCombo {
+            verdicts: combo
+                .into_iter()
+                .map(|r| RANKED.get(r).copied().unwrap_or("not-checked"))
+                .collect(),
             count,
         })
         .collect();
     s
 }
 
-const RANKED: [&str; 4] = ["verified", "unreachable", "goal-fails", "inconclusive"];
+pub(crate) const RANKED: [&str; 4] = ["verified", "unreachable", "goal-fails", "inconclusive"];
 
-fn rank(v: &Verdict) -> usize {
+pub(crate) fn rank(v: &Verdict) -> usize {
     match v {
         Verdict::Verified => 0,
-        Verdict::Unreachable => 1,
+        Verdict::Unreachable { .. } => 1,
         Verdict::GoalFails { .. } => 2,
         Verdict::Inconclusive { .. } => 3,
     }
@@ -315,22 +387,119 @@ fn no_dependency_claim(name: &str, ty: ClaimType) -> Claim {
     }
 }
 
+/// Which claims a lockstep run checks on every joint path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ClaimSet {
+    /// The EasyCrypt claim set: `equal-output` (the conjunction of the `equal-aborts` and
+    /// `same-output` goals) and `invariant`, none with a dependency. EasyCrypt has neither
+    /// `no-abort` nor project lemmas, and `--tactics` is built on exactly this set.
+    NoDependencies,
+    /// The oracle's obligation set, each claim with its own declared dependencies, narrowed to
+    /// one claim by name.
+    Obligations { only: Option<String> },
+}
+
+/// The claims of the run: what the engine checks, and what the reports say about them.
+struct ResolvedClaims {
+    queries: Vec<ClaimQuery>,
+    infos: Vec<ClaimInfo>,
+    all: bool,
+}
+
+impl ClaimSet {
+    fn resolve(
+        &self,
+        eqctx: &EquivalenceContext<'_>,
+        eq: &crate::gamehops::equivalence::Equivalence,
+        oracle: &str,
+    ) -> Result<ResolvedClaims, DebugError> {
+        match self {
+            ClaimSet::NoDependencies => {
+                let goal_of = |name: &str| {
+                    eqctx
+                        .claim_assumptions_and_goal(
+                            &no_dependency_claim(name, ClaimType::Lemma),
+                            oracle,
+                        )
+                        .1
+                };
+                let equal_output: SmtExpr =
+                    SmtAnd(vec![goal_of("equal-aborts"), goal_of("same-output")]).into();
+                let queries = vec![
+                    ClaimQuery::without_dependencies(
+                        EQUAL_OUTPUT,
+                        SmtAssert(SmtNot(equal_output)).into(),
+                    ),
+                    ClaimQuery::without_dependencies(
+                        "invariant",
+                        eqctx.emit_claim_goal_negated(
+                            &no_dependency_claim("invariant", ClaimType::Invariant),
+                            oracle,
+                        ),
+                    ),
+                ];
+                Ok(ResolvedClaims {
+                    infos: queries
+                        .iter()
+                        .map(|q| ClaimInfo {
+                            name: q.name.clone(),
+                            dependencies: Vec::new(),
+                            admitted: false,
+                        })
+                        .collect(),
+                    queries,
+                    all: true,
+                })
+            }
+            ClaimSet::Obligations { only } => {
+                let all_obligations = obligations(eqctx, eq, oracle);
+                let claims: Vec<Claim> = match only {
+                    Some(name) => vec![all_obligations
+                        .iter()
+                        .find(|claim| claim.name() == name)
+                        .cloned()
+                        .ok_or_else(|| DebugError::ClaimNotFound {
+                            claim: name.clone(),
+                            available: all_obligations
+                                .iter()
+                                .map(|c| c.name().to_string())
+                                .collect(),
+                        })?],
+                    None => all_obligations,
+                };
+                Ok(ResolvedClaims {
+                    infos: claims
+                        .iter()
+                        .map(|c| ClaimInfo {
+                            name: c.name().to_string(),
+                            dependencies: c.dependencies().to_vec(),
+                            admitted: c.is_admitted(),
+                        })
+                        .collect(),
+                    queries: claims
+                        .iter()
+                        .filter(|c| !c.is_admitted())
+                        .map(|c| ClaimQuery::of(eqctx, c, oracle))
+                        .collect(),
+                    all: only.is_none(),
+                })
+            }
+        }
+    }
+}
+
 /// The engine's solver vocabulary for `oracle`, from the equivalence context.
-fn lockstep_terms(eqctx: &EquivalenceContext<'_>, oracle: &str) -> LockstepTerms {
-    let goal_of = |name: &str| {
-        eqctx
-            .claim_assumptions_and_goal(&no_dependency_claim(name, ClaimType::Lemma), oracle)
-            .1
-    };
-    let equal_output: SmtExpr =
-        SmtAnd(vec![goal_of("equal-aborts"), goal_of("same-output")]).into();
+fn lockstep_terms(
+    eqctx: &EquivalenceContext<'_>,
+    oracle: &str,
+    claims: Vec<ClaimQuery>,
+) -> LockstepTerms {
     let negated_relation = |name: &str| {
         eqctx.emit_claim_goal_negated(&no_dependency_claim(name, ClaimType::Invariant), oracle)
     };
 
     LockstepTerms {
-        equal_output_negated: SmtAssert(SmtNot(equal_output)).into(),
-        invariant_negated: negated_relation("invariant"),
+        claims,
         relations: eqctx
             .state_relation_names()
             .into_iter()
@@ -364,7 +533,8 @@ struct RunObserver<'a, 'o> {
     meta: &'a LockstepMeta,
     out_dir: &'a Path,
     smt: &'a LockstepSmtWriter,
-    goals: Vec<(String, String)>,
+    goals: Vec<GoalBlock>,
+    claims: &'a [ClaimInfo],
     throttle: FlushThrottle,
 }
 
@@ -373,7 +543,8 @@ impl RunObserver<'_, '_> {
     /// refreshes itself), if the throttle allows.
     fn flush_if_due(&mut self, outcome: &LockstepOutcome) -> Result<(), DebugError> {
         if self.throttle.due(Instant::now()) {
-            lockstep_report::flush(self.meta, outcome, &summarize(outcome), self.out_dir, true)?;
+            let summary = summarize(outcome, self.claims);
+            lockstep_report::flush(self.meta, outcome, &summary, self.out_dir, true)?;
         }
         Ok(())
     }
@@ -401,8 +572,7 @@ impl LockstepObserver for RunObserver<'_, '_> {
             .borrow_mut()
             .on_event(&DebugEvent::JointPairChecked {
                 id: &pair.id,
-                equal_output: &pair.equal_output,
-                invariant: &pair.invariant,
+                claims: &pair.claims,
                 elapsed,
             });
         self.flush_if_due(outcome)
@@ -422,22 +592,19 @@ impl LockstepObserver for RunObserver<'_, '_> {
 
 /// Drop the refresh tag from the page on disk, after a run that died without
 /// its final write. Best effort: the run's own error is what gets reported.
-fn settle_page(out_dir: &Path) {
-    let path = out_dir.join("index.html");
+fn settle_page(out_dir: &Path, layout: Layout) {
+    let path = out_dir.join(layout.viewer());
     if let Ok(page) = std::fs::read_to_string(&path) {
         let _ = std::fs::write(&path, lockstep_viewer::without_refresh(&page));
     }
 }
 
-/// The code the engine walks. The command line only offers the EasyCrypt
-/// listing; the Domino listing (`inline_oracle` on the `DebugTransform` game
-/// instances) is what a follow-up on `amir/symbolic-execution-debugger` will
-/// expose, and is what the engine's own tests run on, since the engine does not
-/// care which it is.
+/// The code the engine walks: the Domino listing (`inline_oracle` on the `DebugTransform`
+/// game instances, `domino debug --lockstep`) or the EasyCrypt one (`domino easycrypt --debug`
+/// and `--tactics`). The engine does not care which it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ListingKind {
     EasyCrypt,
-    #[allow(dead_code)] // built by the engine tests, which need `cvc5-lib`
     Domino,
 }
 
@@ -448,11 +615,27 @@ impl ListingKind {
             ListingKind::Domino => "domino",
         }
     }
+
+    /// The EasyCrypt listing has one strategy, so its directory keeps the plain names
+    /// (`--tactics` resolves `index.html` by relative href). The Domino listing shares its
+    /// directory with the sequential strategy, and so prefixes its own.
+    fn layout(self) -> Layout {
+        match self {
+            ListingKind::EasyCrypt => Layout::Plain,
+            ListingKind::Domino => Layout::Strategy(LOCKSTEP),
+        }
+    }
 }
 
-/// Run `domino debug --easycrypt` for one oracle of the equivalence at
-/// `req_proofstep` of `req_proof`, and write its artifacts under `out`
-/// (default `_build/debug/<theorem>/<left>-<right>/<oracle>/easycrypt/`).
+/// The strategy name of lockstep execution, in [`LockstepMeta::mode`] and in every Domino
+/// artifact name.
+pub const LOCKSTEP: &str = "lockstep";
+
+/// Run lockstep execution on the **EasyCrypt** listing for one oracle of the equivalence at
+/// `req_proofstep` of `req_proof` — what `domino easycrypt --debug` does, and the call
+/// `--tactics` makes. The claims are the EasyCrypt claim set, with no dependencies. Writes the
+/// artifacts under `out` (default
+/// `_build/easycrypt/<theorem>/!debug!/<left>-<right>/<oracle>/`).
 #[allow(clippy::too_many_arguments)]
 pub fn run_lockstep_command<P, B>(
     project: &P,
@@ -471,6 +654,46 @@ where
 {
     run_lockstep_on(
         ListingKind::EasyCrypt,
+        ClaimSet::NoDependencies,
+        project,
+        req_proof,
+        req_proofstep,
+        oracle,
+        opts,
+        backend,
+        out,
+        observer,
+        stop,
+    )
+}
+
+/// Run lockstep execution on the **Domino** listing — `domino debug --lockstep`. The claims are
+/// the oracle's obligation set, each with its own declared dependencies, narrowed to `claim`
+/// when given. Writes the lockstep artifacts under `out` (default
+/// `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/`, `!all-claims!` in place of
+/// `<claim>` without one).
+#[allow(clippy::too_many_arguments)]
+pub fn run_lockstep_domino<P, B>(
+    project: &P,
+    req_proof: &str,
+    req_proofstep: usize,
+    oracle: &str,
+    claim: Option<&str>,
+    opts: &LockstepDebugOptions,
+    backend: &B,
+    out: Option<PathBuf>,
+    observer: &mut dyn DebugObserver,
+    stop: Option<&AtomicBool>,
+) -> Result<LockstepRun, DebugError>
+where
+    P: Project,
+    B: SmtSolverBackend,
+{
+    run_lockstep_on(
+        ListingKind::Domino,
+        ClaimSet::Obligations {
+            only: claim.map(str::to_string),
+        },
         project,
         req_proof,
         req_proofstep,
@@ -486,6 +709,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_lockstep_on<P, B>(
     listing: ListingKind,
+    claim_set: ClaimSet,
     project: &P,
     req_proof: &str,
     req_proofstep: usize,
@@ -501,6 +725,7 @@ where
     B: SmtSolverBackend,
 {
     let started = Instant::now();
+    let layout = listing.layout();
 
     let theorem = project
         .get_theorem(req_proof)
@@ -570,36 +795,76 @@ where
         ),
     };
 
+    let ResolvedClaims {
+        queries: claim_queries,
+        infos: claim_infos,
+        all: all_claims,
+    } = claim_set.resolve(&eqctx, eq, oracle)?;
+    let claim_label = match (&claim_set, all_claims) {
+        (ClaimSet::NoDependencies, _) => "equal-output, invariant".to_string(),
+        (ClaimSet::Obligations { .. }, true) => ALL_CLAIMS_DIR.to_string(),
+        (ClaimSet::Obligations { only }, false) => only.clone().unwrap_or_default(),
+    };
+    let goal_blocks: Vec<GoalBlock> = claim_queries
+        .iter()
+        .map(|claim| GoalBlock {
+            claim: claim.name.clone(),
+            dependencies: claim
+                .dependencies
+                .iter()
+                .map(|(_, assertion)| assertion.to_string())
+                .collect(),
+            negated: claim.negated.to_string(),
+        })
+        .collect();
+
     observer.on_event(&DebugEvent::Started {
         oracle,
-        claim: "equal-output, invariant",
+        claim: &claim_label,
         admitted: false,
     });
 
     let out_dir = out.unwrap_or_else(|| {
         let mut path = project.get_root_dir();
-        path.push("_build/debug");
-        path.push(eq.theorem_name());
+        match listing {
+            ListingKind::EasyCrypt => {
+                path.push("_build/easycrypt");
+                path.push(eq.theorem_name());
+                path.push("!debug!");
+            }
+            ListingKind::Domino => {
+                path.push(DOMINO_DEBUG_DIR);
+                path.push(eq.theorem_name());
+            }
+        }
         path.push(format!("{}-{}", eq.left_name(), eq.right_name()));
         path.push(oracle);
-        path.push("easycrypt");
+        if listing == ListingKind::Domino {
+            path.push(&claim_label);
+        }
         path
     });
-    std::fs::create_dir_all(out_dir.join("models"))?;
+    std::fs::create_dir_all(layout.path(&out_dir, "models"))?;
 
-    // The assumptions: the base frame with a claim that has no dependencies.
-    let assumptions_claim = no_dependency_claim("invariant", ClaimType::Invariant);
-    let base = base_frame(&eqctx, oracle, &assumptions_claim);
+    // The assumptions: what every claim shares. A claim's own dependencies wait for the
+    // terminal pair.
+    let base = shared_base_frame(&eqctx, oracle);
     let base_frame_smt = base
         .iter()
         .map(|e| e.to_string())
         .collect::<Vec<_>>()
         .join("\n");
 
-    let terms = lockstep_terms(&eqctx, oracle);
+    let terms = lockstep_terms(&eqctx, oracle, claim_queries);
     let goals_view = GoalsView {
-        equal_output_smt: terms.equal_output_negated.to_string(),
-        invariant_smt: terms.invariant_negated.to_string(),
+        claims: goal_blocks
+            .iter()
+            .map(|block| ClaimGoalView {
+                claim: block.claim.clone(),
+                dependencies: block.dependencies.clone(),
+                smt: block.negated.clone(),
+            })
+            .collect(),
         relations: terms
             .relations
             .iter()
@@ -609,31 +874,29 @@ where
             })
             .collect(),
     };
-    // `(name, smt)` of every check, in the order the engine runs them.
-    let mut goals = vec![
-        (
-            "equal-output".to_string(),
-            goals_view.equal_output_smt.clone(),
-        ),
-        ("invariant".to_string(), goals_view.invariant_smt.clone()),
-    ];
-    goals.extend(
-        goals_view
-            .relations
-            .iter()
-            .map(|r| (format!("relation-{}", r.name), r.smt.clone())),
-    );
+    // Every check, in the order the engine runs them: the claims, then the relations.
+    let mut goals = goal_blocks;
+    goals.extend(goals_view.relations.iter().map(|r| GoalBlock {
+        claim: format!("relation-{}", r.name),
+        dependencies: Vec::new(),
+        negated: r.smt.clone(),
+    }));
 
     let meta = LockstepMeta {
         schema: LOCKSTEP_TRACE_SCHEMA,
-        mode: "lockstep",
+        mode: LOCKSTEP,
         listing: listing.as_str(),
         theorem: eq.theorem_name().to_string(),
         proofstep: req_proofstep,
         left_game: eq.left_name().to_string(),
         right_game: eq.right_name().to_string(),
         oracle: oracle.to_string(),
+        claim: claim_label.clone(),
+        all_claims,
+        claims: claim_infos,
         out_dir: out_dir.display().to_string(),
+        layout,
+        smt_dir: layout.rel("smt"),
         options: LockstepOptionsView::from(opts),
         base_frame_smt,
         goals: goals_view,
@@ -646,14 +909,28 @@ where
     };
 
     let smt_header = format!(
-        "; domino debug --easycrypt — theorem {}, proofstep {}, {} == {}\n; oracle {}\n",
-        meta.theorem, meta.proofstep, meta.left_game, meta.right_game, meta.oracle
+        "; {} — theorem {}, proofstep {}, {} == {}\n; oracle {}\n",
+        match listing {
+            ListingKind::EasyCrypt => "domino easycrypt --debug",
+            ListingKind::Domino => "domino debug --lockstep",
+        },
+        meta.theorem,
+        meta.proofstep,
+        meta.left_game,
+        meta.right_game,
+        meta.oracle
     );
-    let smt_writer =
-        LockstepSmtWriter::new(&out_dir, opts.smt_out, smt_header, &meta.base_frame_smt)?;
+    let smt_writer = LockstepSmtWriter::new(
+        &out_dir,
+        layout,
+        opts.smt_out,
+        smt_header,
+        &meta.base_frame_smt,
+    )?;
 
     let mut solver = if opts.transcript {
-        let transcript = std::fs::File::create(out_dir.join("transcript.smt2"))?;
+        std::fs::create_dir_all(layout.path(&out_dir, ""))?;
+        let transcript = std::fs::File::create(layout.path(&out_dir, "transcript.smt2"))?;
         backend.new_smtsolver_with_transcript(transcript)?
     } else {
         backend.new_smtsolver()?
@@ -672,13 +949,14 @@ where
         stuck: Vec::new(),
         stop_reason: StopReason::Completed,
     };
-    lockstep_report::flush(&meta, &empty, &summarize(&empty), &out_dir, true)?;
+    lockstep_report::flush(&meta, &empty, &summarize(&empty, &meta.claims), &out_dir, true)?;
 
     let progress = RefCell::new(observer);
     let engine_opts = LockstepOptions {
         max_paths: opts.max_paths,
         stop,
         out_dir: &out_dir,
+        layout,
     };
     let mut run_observer = RunObserver {
         progress: &progress,
@@ -686,6 +964,7 @@ where
         out_dir: &out_dir,
         smt: &smt_writer,
         goals,
+        claims: &meta.claims,
         throttle: FlushThrottle::new(FLUSH_GAP, Instant::now()),
     };
     let outcome = run_lockstep(
@@ -710,12 +989,12 @@ where
         Err(e) => {
             // The run ended without a final write: the page must not keep
             // refreshing forever.
-            settle_page(&out_dir);
+            settle_page(&out_dir, layout);
             return Err(e);
         }
     };
 
-    let summary = summarize(&outcome);
+    let summary = summarize(&outcome, &meta.claims);
     let finish = || -> std::io::Result<()> {
         std::fs::write(
             out_dir.join("inlined.txt"),
@@ -724,7 +1003,7 @@ where
         lockstep_report::flush(&meta, &outcome, &summary, &out_dir, false)
     };
     if let Err(e) = finish() {
-        settle_page(&out_dir);
+        settle_page(&out_dir, layout);
         return Err(e.into());
     }
 
@@ -753,6 +1032,14 @@ mod tests {
     use crate::project::{DirectoryFiles, DirectoryProject};
     use crate::util::smtsolver::cvc5lib::Cvc5LibBackend;
 
+    fn equal_output(p: &PairRecord) -> &Verdict {
+        p.verdict_of(EQUAL_OUTPUT).expect("the EasyCrypt claim set")
+    }
+
+    fn invariant(p: &PairRecord) -> &Verdict {
+        p.verdict_of("invariant").expect("the EasyCrypt claim set")
+    }
+
     /// One oracle of `testdata/lockstep/rules`, whose two sides are built so that
     /// each rule of the story's §3.3 fires on its own oracle. The engine runs on
     /// the Domino listing: it is listing-agnostic, and that listing has no
@@ -772,6 +1059,7 @@ mod tests {
         let out = out.unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
         run_lockstep_on(
             ListingKind::Domino,
+            ClaimSet::NoDependencies,
             &project,
             "T",
             0,
@@ -793,7 +1081,7 @@ mod tests {
         run.outcome
             .pairs
             .iter()
-            .map(|p| (RANKED[rank(&p.equal_output)], RANKED[rank(&p.invariant)]))
+            .map(|p| (RANKED[rank(equal_output(p))], RANKED[rank(invariant(p))]))
             .collect()
     }
 
@@ -985,11 +1273,11 @@ mod tests {
     fn both_sides_are_checked_for_equal_output_at_a_terminal_pair() {
         let run = run_rules("BadOutput");
         assert_eq!(verdicts(&run), [("goal-fails", "verified")]);
-        let model = match &run.outcome.pairs[0].equal_output {
+        let model = match equal_output(&run.outcome.pairs[0]) {
             Verdict::GoalFails { model } => model.clone(),
             other => panic!("expected a failure, got {other:?}"),
         };
-        assert_eq!(model, "models/J1.equal-output.smt2");
+        assert_eq!(model, "lockstep/models/J1.equal-output.smt2");
     }
 
     #[test]
@@ -997,7 +1285,7 @@ mod tests {
         let run = run_rules("BadState");
         assert_eq!(verdicts(&run), [("verified", "goal-fails")]);
         let relations: Vec<_> = run.outcome.pairs[0]
-            .relations
+            .relations()
             .iter()
             .map(|r| (r.name.as_str(), rank(&r.verdict)))
             .collect();
@@ -1008,7 +1296,7 @@ mod tests {
     #[test]
     fn a_relation_breakdown_is_only_made_for_a_failing_invariant() {
         let run = run_rules("Synced");
-        assert!(run.outcome.pairs.iter().all(|p| p.relations.is_empty()));
+        assert!(run.outcome.pairs.iter().all(|p| p.relations().is_empty()));
     }
 
     #[test]
@@ -1023,7 +1311,7 @@ mod tests {
                 (
                     p.left.terminal.is_abort,
                     p.right.terminal.is_abort,
-                    rank(&p.equal_output),
+                    rank(equal_output(p)),
                 )
             })
             .collect();
@@ -1041,7 +1329,7 @@ mod tests {
                 (
                     p.left.terminal.is_abort,
                     p.right.terminal.is_abort,
-                    rank(&p.equal_output),
+                    rank(equal_output(p)),
                 )
             })
             .collect();
@@ -1064,8 +1352,8 @@ mod tests {
                 (
                     p.left.terminal.is_abort,
                     p.right.terminal.is_abort,
-                    rank(&p.equal_output),
-                    rank(&p.invariant),
+                    rank(equal_output(p)),
+                    rank(invariant(p)),
                 )
             })
             .collect();
@@ -1087,7 +1375,7 @@ mod tests {
                 LockstepDebugOptions::default(),
                 Some(b.path().to_path_buf()),
             );
-            for file in ["trace.json", "summary.txt", "index.html"] {
+            for file in ["lockstep_trace.json", "lockstep_summary.txt", "lockstep_viewer.html"] {
                 assert_eq!(
                     std::fs::read_to_string(a.path().join(file)).unwrap(),
                     std::fs::read_to_string(b.path().join(file)).unwrap(),
@@ -1139,6 +1427,7 @@ mod tests {
         let stop = AtomicBool::new(true);
         let run = run_lockstep_on(
             ListingKind::Domino,
+            ClaimSet::NoDependencies,
             &project,
             "T",
             0,
@@ -1225,12 +1514,15 @@ mod tests {
         };
         let left_inl = inline_oracle(left_inst, "StuckOrder").unwrap();
         let right_inl = inline_oracle(right_inst, "StuckOrder").unwrap();
-        let base = base_frame(
+        let base = shared_base_frame(&eqctx, "StuckOrder");
+        let terms = lockstep_terms(
             &eqctx,
             "StuckOrder",
-            &no_dependency_claim("invariant", ClaimType::Invariant),
+            ClaimSet::NoDependencies
+                .resolve(&eqctx, eq, "StuckOrder")
+                .unwrap()
+                .queries,
         );
-        let terms = lockstep_terms(&eqctx, "StuckOrder");
         let mut solver = Cvc5LibBackend::new(true, None).new_smtsolver().unwrap();
         for e in &base {
             solver.write_smt(e.clone()).unwrap();
@@ -1253,6 +1545,7 @@ mod tests {
                 max_paths: None,
                 stop: None,
                 out_dir: out.path(),
+                layout: Layout::Plain,
             },
             &mut recorder,
         )
@@ -1325,7 +1618,7 @@ mod tests {
             let trace: serde_json::Value =
                 serde_json::from_str(&std::fs::read_to_string(out.join("trace.json")).unwrap())
                     .unwrap();
-            assert_eq!(trace["schema"], 9);
+            assert_eq!(trace["schema"], 10);
             assert_eq!(trace["mode"], "lockstep");
             assert_eq!(trace["listing"], "easycrypt");
         }
@@ -1441,10 +1734,10 @@ mod tests {
             let out = tempfile::tempdir().unwrap();
             run_rules_with(oracle, LockstepDebugOptions::default(), Some(out.path().to_path_buf()));
             let trace: serde_json::Value = serde_json::from_str(
-                &std::fs::read_to_string(out.path().join("trace.json")).unwrap(),
+                &std::fs::read_to_string(out.path().join("lockstep_trace.json")).unwrap(),
             )
             .unwrap();
-            let page = std::fs::read_to_string(out.path().join("index.html")).unwrap();
+            let page = std::fs::read_to_string(out.path().join("lockstep_viewer.html")).unwrap();
             let rollups = embedded(&page, "rollups");
             let rollups = rollups.as_array().unwrap();
             assert_eq!(rollups.len(), trace["stuck"].as_array().unwrap().len(), "{oracle}");
@@ -1452,10 +1745,23 @@ mod tests {
                 let pairs = below(&trace, stuck["node"].as_u64().unwrap());
                 assert_eq!(rollup["id"], stuck["id"], "{oracle}");
                 assert_eq!(rollup["pairs"].as_u64().unwrap() as usize, pairs.len(), "{oracle}");
-                for claim in ["equal_output", "invariant"] {
+                for claim in ["equal-output", "invariant"] {
                     let count = |slug: &str| {
-                        pairs.iter().filter(|p| p[claim]["kind"] == slug).count() as u64
+                        pairs
+                            .iter()
+                            .filter(|p| {
+                                p["claims"].as_array().unwrap().iter().any(|c| {
+                                    c["claim"] == claim && c["verdict"]["kind"] == slug
+                                })
+                            })
+                            .count() as u64
                     };
+                    let rolled = rollup["claims"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|c| c["claim"] == claim)
+                        .unwrap();
                     for (field, slug) in [
                         ("verified", "verified"),
                         ("unreachable", "unreachable"),
@@ -1463,7 +1769,7 @@ mod tests {
                         ("inconclusive", "inconclusive"),
                     ] {
                         assert_eq!(
-                            rollup[claim][field].as_u64().unwrap(),
+                            rolled[field].as_u64().unwrap(),
                             count(slug),
                             "{oracle} {} {claim} {field}",
                             stuck["id"]
@@ -1472,7 +1778,11 @@ mod tests {
                 }
                 let failing_relations: usize = pairs
                     .iter()
-                    .flat_map(|p| p["relations"].as_array().unwrap())
+                    .flat_map(|p| {
+                        p["claims"].as_array().unwrap().iter().flat_map(|c| {
+                            c["relations"].as_array().cloned().unwrap_or_default()
+                        })
+                    })
                     .filter(|r| matches!(r["verdict"]["kind"].as_str(), Some("goal-fails" | "inconclusive")))
                     .count();
                 let rolled: usize = rollup["relations"]
@@ -1497,7 +1807,7 @@ mod tests {
         lockstep_report::flush(&run.meta, &run.outcome, &run.summary, out, true).unwrap();
         let live = std::fs::read_to_string(out.join("index.html")).unwrap();
         assert!(live.contains("<meta http-equiv=\"refresh\" content=\"2\">"));
-        settle_page(out);
+        settle_page(out, Layout::Plain);
         assert_eq!(std::fs::read_to_string(out.join("index.html")).unwrap(), page);
     }
 
@@ -1540,7 +1850,7 @@ mod tests {
             theorem,
             0,
             oracle,
-            claim,
+            Some(claim),
             &crate::debug::driver::DebugOptions::default(),
             &Cvc5LibBackend::new(true, None),
             Some(tempfile::tempdir().unwrap().into_path()),
@@ -1562,7 +1872,7 @@ mod tests {
             .outcome
             .pairs
             .iter()
-            .all(|p| matches!(p.equal_output, Verdict::Verified | Verdict::Unreachable));
+            .all(|p| matches!(equal_output(p), Verdict::Verified | Verdict::Unreachable { .. }));
         if equal_output_everywhere {
             for claim in ["equal-aborts", "same-output"] {
                 let (seq, _) = sequential(dir, theorem, oracle, claim);
@@ -1579,7 +1889,7 @@ mod tests {
                     .outcome
                     .pairs
                     .iter()
-                    .any(|p| p.invariant.is_failure()),
+                    .any(|p| invariant(p).is_failure()),
                 "{oracle}: sequential invariant fails but lockstep reports no failure"
             );
         }
@@ -1646,6 +1956,7 @@ mod tests {
         let mut events = Events::default();
         run_lockstep_on(
             ListingKind::Domino,
+            ClaimSet::NoDependencies,
             &project,
             "T",
             0,
@@ -1682,6 +1993,7 @@ mod tests {
         let stop = AtomicBool::new(true);
         run_lockstep_on(
             ListingKind::Domino,
+            ClaimSet::NoDependencies,
             &project,
             "T",
             0,
@@ -1694,10 +2006,10 @@ mod tests {
         )
         .unwrap();
         let trace: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(out.path().join("trace.json")).unwrap())
+            serde_json::from_str(&std::fs::read_to_string(out.path().join("lockstep_trace.json")).unwrap())
                 .unwrap();
         assert_eq!(trace["stop_reason"]["kind"], "interrupted");
-        let text = std::fs::read_to_string(out.path().join("summary.txt")).unwrap();
+        let text = std::fs::read_to_string(out.path().join("lockstep_summary.txt")).unwrap();
         assert!(text.contains("STOPPED EARLY (interrupted by Ctrl-C)"), "{text}");
     }
 
@@ -1752,7 +2064,7 @@ mod tests {
                 },
                 Some(out.path().to_path_buf()),
             );
-            let smt = out.path().join("smt");
+            let smt = out.path().join("lockstep/smt");
             for pair in &run.outcome.pairs {
                 let text = std::fs::read_to_string(smt.join(format!("{}.smt2", pair.id))).unwrap();
                 let code: String = text
@@ -1768,7 +2080,7 @@ mod tests {
                 let mut solver = Cvc5LibBackend::new(true, None).new_smtsolver().unwrap();
                 solver.write_str(paths).unwrap();
                 let vacuity = solver.check_sat().unwrap();
-                if matches!(pair.equal_output, Verdict::Unreachable) {
+                if matches!(equal_output(pair), Verdict::Unreachable { .. }) {
                     assert_eq!(vacuity, SmtSolverResponse::Unsat, "{oracle} {}", pair.id);
                     continue;
                 }
@@ -1785,9 +2097,9 @@ mod tests {
                         answer
                     })
                     .collect();
-                let expected: Vec<SmtSolverResponse> = [&pair.equal_output, &pair.invariant]
+                let expected: Vec<SmtSolverResponse> = [equal_output(pair), invariant(pair)]
                     .into_iter()
-                    .chain(pair.relations.iter().map(|r| &r.verdict))
+                    .chain(pair.relations().iter().map(|r| &r.verdict))
                     .map(|v| match v {
                         Verdict::Verified => SmtSolverResponse::Unsat,
                         Verdict::GoalFails { .. } => SmtSolverResponse::Sat,
@@ -1799,6 +2111,148 @@ mod tests {
         }
     }
 
+    fn deps_project() -> (PathBuf, DirectoryProject<'static>) {
+        // the files are leaked: the project borrows them for the length of the test binary
+        let dir = PathBuf::from("testdata/story19/deps");
+        let files: &'static DirectoryFiles =
+            Box::leak(Box::new(DirectoryFiles::load(&dir).unwrap()));
+        let project = DirectoryProject::load(dir.clone(), files).unwrap();
+        (dir, project)
+    }
+
+    fn deps_run(oracle: &str, claim: Option<&str>, out: &Path) -> LockstepRun {
+        let (_, project) = deps_project();
+        run_lockstep_domino(
+            &project,
+            "T",
+            0,
+            oracle,
+            claim,
+            &LockstepDebugOptions::default(),
+            &Cvc5LibBackend::new(true, None),
+            Some(out.to_path_buf()),
+            &mut NopObserver,
+            None,
+        )
+        .unwrap()
+    }
+
+    /// Under `prove` semantics `equal-aborts` has no dependencies and `same-output` has
+    /// `no-abort`, so on a pair where one side aborts they must not share a verdict.
+    #[test]
+    fn the_domino_listing_reports_equal_aborts_and_same_output_as_two_claims() {
+        let out = tempfile::tempdir().unwrap();
+        let run = deps_run("AbortDiff", None, out.path());
+        assert_eq!(run.meta.listing, "domino");
+        assert!(run.meta.all_claims);
+        let names: Vec<_> = run.summary.claims.iter().map(|c| c.claim.as_str()).collect();
+        assert_eq!(names, ["equal-aborts", "same-output", "invariant"]);
+        assert!(run.outcome.pairs.iter().all(|p| p.verdict_of(EQUAL_OUTPUT).is_none()));
+
+        let aborting = run
+            .outcome
+            .pairs
+            .iter()
+            .find(|p| p.left.terminal.is_abort && !p.right.terminal.is_abort)
+            .expect("the pair where the left side aborts");
+        assert!(matches!(
+            aborting.verdict_of("equal-aborts"),
+            Some(Verdict::GoalFails { .. })
+        ));
+        for claim in ["same-output", "invariant"] {
+            assert!(
+                matches!(
+                    aborting.verdict_of(claim),
+                    Some(Verdict::Unreachable {
+                        reason: Unreachability::DependencyFalse { dependency }
+                    }) if dependency == "no-abort"
+                ),
+                "{claim}: {:?}",
+                aborting.verdict_of(claim)
+            );
+        }
+        assert!(!run.is_ok(), "equal-aborts fails on that pair");
+        // the counts split the two kinds of unreachable
+        let same_output = &run.summary.claims[1].counts;
+        assert_eq!((same_output.unreachable, same_output.unreachable_dependency), (1, 1));
+    }
+
+    #[test]
+    fn a_lockstep_claim_filter_narrows_the_set_and_names_the_directory() {
+        let out = tempfile::tempdir().unwrap();
+        let run = deps_run("AbortDiff", Some("same-output"), out.path());
+        assert!(!run.meta.all_claims);
+        assert_eq!(run.meta.claim, "same-output");
+        assert_eq!(run.summary.claims.len(), 1);
+        assert!(run.is_ok(), "same-output assumes no-abort, so the aborting pair is unreachable");
+    }
+
+    /// Lockstep and sequential execution give one verdict per claim, and they agree about
+    /// which claims fail.
+    #[test]
+    fn lockstep_and_sequential_agree_about_which_claims_fail() {
+        for oracle in ["Branch", "AbortDiff", "AbortBoth", "Admitted"] {
+            let out = tempfile::tempdir().unwrap();
+            let lock = deps_run(oracle, None, out.path());
+            let (_, project) = deps_project();
+            let seq = crate::debug::driver::run_debug_command(
+                &project,
+                "T",
+                0,
+                oracle,
+                None,
+                &crate::debug::driver::DebugOptions::default(),
+                &Cvc5LibBackend::new(true, None),
+                Some(tempfile::tempdir().unwrap().into_path()),
+                &mut NopObserver,
+                None,
+            )
+            .unwrap();
+            for c in &lock.summary.claims {
+                let seq_fails = seq
+                    .claim_summaries
+                    .iter()
+                    .find(|s| s.claim == c.claim)
+                    .unwrap()
+                    .goal_fails;
+                assert_eq!(
+                    c.counts.goal_fails > 0,
+                    seq_fails > 0,
+                    "{oracle} {}: lockstep and sequential disagree",
+                    c.claim
+                );
+            }
+        }
+    }
+
+    /// `--tactics` is frozen: the EasyCrypt listing checks the same two claims with no
+    /// dependencies as ever, into the same file names.
+    #[test]
+    fn the_easycrypt_listing_keeps_its_two_dependency_free_claims_and_plain_names() {
+        let (_, project) = deps_project();
+        let out = tempfile::tempdir().unwrap();
+        let run = run_lockstep_command(
+            &project,
+            "T",
+            0,
+            "AbortBoth",
+            &LockstepDebugOptions::default(),
+            &Cvc5LibBackend::new(true, None),
+            Some(out.path().to_path_buf()),
+            &mut NopObserver,
+            None,
+        )
+        .unwrap();
+        assert_eq!(run.meta.listing, "easycrypt");
+        let names: Vec<_> = run.meta.claims.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["equal-output", "invariant"]);
+        assert!(run.meta.claims.iter().all(|c| c.dependencies.is_empty()));
+        for file in ["trace.json", "summary.txt", "index.html", "inlined.txt", "smt/base.smt2"] {
+            assert!(out.path().join(file).is_file(), "{file}");
+        }
+        assert!(run.outcome.pairs.iter().all(|p| p.verdict_of("equal-output").is_some()));
+    }
+
     #[test]
     fn smt_failures_writes_only_the_failing_joint_paths() {
         let out = tempfile::tempdir().unwrap();
@@ -1807,7 +2261,7 @@ mod tests {
             LockstepDebugOptions::default(),
             Some(out.path().to_path_buf()),
         );
-        let smt = out.path().join("smt");
+        let smt = out.path().join("lockstep/smt");
         assert!(smt.join("base.smt2").is_file());
         let present: Vec<bool> = run
             .outcome
@@ -1826,7 +2280,7 @@ mod tests {
             },
             Some(none.path().to_path_buf()),
         );
-        assert!(!none.path().join("smt").exists());
+        assert!(!none.path().join("lockstep/smt").exists());
     }
 }
 

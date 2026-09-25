@@ -19,6 +19,7 @@ use std::time::Duration;
 use crate::debug::driver::Verdict;
 use crate::debug::lockstep::{
     ChildOutcome, HeadKind, JointChild, JointNode, LockstepOutcome, NodeKind, PairRecord,
+    EQUAL_OUTPUT,
 };
 use crate::easycrypt::json::{Goal, Status};
 use crate::easycrypt::session::{Session, SessionError};
@@ -222,7 +223,7 @@ impl Part {
 
 fn view_of_verdict(verdict: &Verdict) -> DominoView {
     match verdict {
-        Verdict::Verified | Verdict::Unreachable => DominoView::Verified,
+        Verdict::Verified | Verdict::Unreachable { .. } => DominoView::Verified,
         Verdict::GoalFails { .. } => DominoView::Fails,
         Verdict::Inconclusive { .. } => DominoView::Inconclusive,
     }
@@ -244,15 +245,22 @@ pub(super) fn pair_view(pair: &PairRecord, part: &Part) -> DominoView {
             view
         }
     };
+    // the EasyCrypt claim set: `equal-output` and `invariant`, neither with a dependency
+    let claim = |name: &str| {
+        pair.verdict_of(name)
+            .expect("a lockstep run on the EasyCrypt listing checks equal-output and invariant")
+    };
     match part {
-        Part::EqualOutput => view_of_verdict(&pair.equal_output),
-        Part::Invariant => invariant(&pair.invariant),
+        Part::EqualOutput => view_of_verdict(claim(EQUAL_OUTPUT)),
+        Part::Invariant => invariant(claim("invariant")),
         Part::Relation(name) => pair
-            .relations
+            .relations()
             .iter()
             .find(|r| &r.name == name)
-            .map_or_else(|| invariant(&pair.invariant), |r| invariant(&r.verdict)),
-        Part::Whole => view_of_verdict(&pair.equal_output).worst(invariant(&pair.invariant)),
+            .map_or_else(|| invariant(claim("invariant")), |r| invariant(&r.verdict)),
+        Part::Whole => {
+            view_of_verdict(claim(EQUAL_OUTPUT)).worst(invariant(claim("invariant")))
+        }
     }
 }
 

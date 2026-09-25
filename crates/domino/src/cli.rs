@@ -78,7 +78,7 @@ pub(crate) enum Commands {
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
-#[clap(group(clap::ArgGroup::new("ec_mode").args(["check_alignment", "tactics"]).multiple(true)))]
+#[clap(group(clap::ArgGroup::new("ec_mode").args(["check_alignment", "tactics", "debug"]).multiple(true)))]
 pub(crate) struct Easycrypt {
     /// Path to the Domino project. Defaults to searching the current
     /// directory and its ancestors for an `ssp.toml`.
@@ -115,6 +115,19 @@ pub(crate) struct Easycrypt {
     /// lockstep execution, which is the debugger.
     #[clap(long)]
     pub(crate) tactics: bool,
+    /// After exporting, run lockstep execution on the EasyCrypt listing of every oracle: both
+    /// oracles advance together and each decision is resolved jointly, as an EasyCrypt proof
+    /// would. Writes `<out>/<theorem>/!debug!/<left>-<right>/<oracle>/` (a page, a trace and
+    /// the runnable queries of what failed) and exits non-zero if any joint path fails
+    /// equal-output or the invariant. EasyCrypt has no `no-abort` and no project lemmas, so
+    /// there are no claims to choose: there is no `--claim`. Needs the `cvc5-lib` build. Never
+    /// run it on 4WHS or yao: it is the debugger.
+    #[clap(long)]
+    pub(crate) debug: bool,
+    /// With `--debug`: per-query solver timeout in milliseconds (cvc5 `tlimit-per`), as for
+    /// `domino debug --timeout`. A timeout counts as `unknown`, never as verified.
+    #[clap(long, requires = "debug")]
+    pub(crate) debug_timeout: Option<u64>,
     /// With `--tactics`: seconds one EasyCrypt sentence may run before it is interrupted.
     #[clap(long, requires = "tactics", default_value_t = 60)]
     pub(crate) ec_timeout: u64,
@@ -139,12 +152,12 @@ pub(crate) struct Easycrypt {
     /// files are the same in every mode).
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
     pub(crate) progress: ProgressMode,
-    /// With `--check-alignment` or `--tactics`: only this proofstep (as printed by
+    /// With `--check-alignment`, `--tactics` or `--debug`: only this proofstep (as printed by
     /// `domino proofsteps`). Without `--tactics` the export is not affected.
     #[clap(long, requires = "ec_mode")]
     pub(crate) proofstep: Option<usize>,
-    /// With `--check-alignment` or `--tactics`: only this exported oracle; with `--tactics`
-    /// the rest keep `+ proc; inline. admit.`.
+    /// With `--check-alignment`, `--tactics` or `--debug`: only this exported oracle; with
+    /// `--tactics` the rest keep `+ proc; inline. admit.`.
     #[clap(long, requires = "ec_mode")]
     pub(crate) oracle: Option<String>,
 }
@@ -182,41 +195,48 @@ pub(crate) struct Debug {
     /// directory and its ancestors for an `ssp.toml`.
     #[clap(long)]
     pub(crate) path: Option<std::path::PathBuf>,
-    /// Name of the theorem.
+    /// Name of the theorem. Without it, every theorem is debugged.
     #[clap(long)]
-    pub(crate) proof: String,
+    pub(crate) proof: Option<String>,
     /// Index (starting at 0) of the equivalence proofstep, as printed by `domino proofsteps`.
+    /// Without it, every equivalence proofstep is debugged; reductions and conjectures are
+    /// skipped with a note. Needs `--proof`.
     #[clap(long)]
-    pub(crate) proofstep: usize,
-    /// Exported oracle name.
+    pub(crate) proofstep: Option<usize>,
+    /// Exported oracle name. Without it, every exported oracle is debugged.
     #[clap(long)]
-    pub(crate) oracle: String,
-    /// Run lockstep execution on the generated EasyCrypt code instead of the
-    /// sequential exploration: both oracles advance together and each decision is
-    /// resolved jointly, as an EasyCrypt proof would. Both claims (equal-output and
-    /// invariant) are always checked, so `--claim` is not accepted; output goes to
-    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/easycrypt/`.
+    pub(crate) oracle: Option<String>,
+    /// Claim to debug. Without it, the oracle's whole obligation set (what `domino prove`
+    /// discharges) is checked on one exploration: an all-claim run. With it, that claim's
+    /// dependencies stay in the base frame and prune, as before.
     #[clap(long)]
-    pub(crate) easycrypt: bool,
-    /// Claim to debug. Required (one claim per run) unless `--easycrypt` is given.
-    #[clap(long, required_unless_present = "easycrypt", conflicts_with = "easycrypt")]
     pub(crate) claim: Option<String>,
+    /// Advance both oracles together and resolve each decision jointly, as an
+    /// EasyCrypt proof would, instead of exploring the left oracle and then the
+    /// right one under each of its paths. Domino code either way — for the
+    /// EasyCrypt listing use `domino easycrypt --debug`.
+    #[clap(long)]
+    pub(crate) lockstep: bool,
     /// Do NOT prune unreachable LEFT branches early (default: it does). With this
-    /// set, every syntactic left path is explored. Sequential mode only.
-    #[clap(long, conflicts_with = "easycrypt")]
+    /// set, every syntactic left path is explored. Sequential strategy only.
+    #[clap(long, conflicts_with = "lockstep")]
     pub(crate) no_check_left: bool,
     /// Do NOT prune unreachable RIGHT branches early (default: it does). This only
     /// disables early branch pruning; the terminal-pair vacuity check that
     /// distinguishes `unreachable` from `verified` still runs unconditionally.
-    /// Sequential mode only.
-    #[clap(long, conflicts_with = "easycrypt")]
+    /// Sequential strategy only.
+    #[clap(long, conflicts_with = "lockstep")]
     pub(crate) no_check_right: bool,
+    /// In an all-claim run, stop checking a claim after its first `GoalFails`, for large
+    /// sweeps. Sequential strategy only.
+    #[clap(long, conflicts_with = "lockstep")]
+    pub(crate) first_failure_per_claim: bool,
     /// Per-query solver timeout in milliseconds (cvc5 `tlimit-per`). A timeout counts
     /// as `unknown` (explored, never pruned, never "verified").
     #[clap(long)]
     pub(crate) timeout: Option<u64>,
     /// Stop after this many explored paths (left paths + right paths per left
-    /// path; with `--easycrypt`, joint paths). Unlimited by default; `Ctrl-C` is
+    /// path; with `--lockstep`, joint paths). Unlimited by default; `Ctrl-C` is
     /// the interactive stop.
     #[clap(long)]
     pub(crate) max_paths: Option<usize>,
@@ -225,20 +245,21 @@ pub(crate) struct Debug {
     /// piped; `plain` and `bar` force one; `none` is silent.
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
     pub(crate) progress: ProgressMode,
-    /// Which per-path SMT files to write under `<out>/smt/`. `failures` (the
+    /// Which per-path SMT files to write under `<out>/<strategy>/smt/`. `failures` (the
     /// default) writes a self-contained, directly runnable `.smt2` for each
     /// goal-fails / inconclusive pair; `all` does it for every pair (large — one
     /// copy of the base frame per pair); `deltas` writes only `base.smt2` plus
     /// the small per-path deltas; `none` writes nothing.
     #[clap(long, value_enum, default_value_t = SmtOutArg::Failures)]
     pub(crate) smt: SmtOutArg,
-    /// Also write the raw incremental solver transcript to `transcript.smt2`
+    /// Also write the raw incremental solver transcript to `<strategy>/transcript.smt2`
     /// (large; for debugging `domino debug` itself).
     #[clap(long)]
     pub(crate) transcript: bool,
-    /// Output directory. Defaults to
-    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/` (with
-    /// `--easycrypt`: `.../<oracle>/easycrypt/`).
+    /// Output directory. Only for a run of one oracle. Defaults to
+    /// `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/`, with `!all-claims!`
+    /// in place of `<claim>` for an all-claim run. Both strategies write there, each naming its
+    /// files after itself.
     #[clap(long)]
     pub(crate) out: Option<std::path::PathBuf>,
 }

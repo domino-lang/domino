@@ -1,0 +1,13 @@
+composition GR {
+    instance p = B {
+    }
+
+    compose {
+        adversary: {
+            Branch: p,
+            AbortDiff: p,
+            AbortBoth: p,
+            Admitted: p,
+        },
+    }
+}

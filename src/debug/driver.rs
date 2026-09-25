@@ -49,8 +49,8 @@
 //!
 //! Only `unsat` ever prunes. `unknown` and timeouts are always explored.
 
-use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::cell::{Cell, RefCell};
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -58,6 +58,9 @@ use std::time::{Duration, Instant};
 
 use serde_derive::Serialize;
 
+use crate::debug::claims::{
+    aggregate, check_claim, check_claims, obligations, ClaimQuery, PairAborts,
+};
 use crate::debug::effect::PathEffect;
 use crate::debug::exec::{
     execute_streaming_with_oracle, BranchOracle, BranchQuery, ExecError, Feasibility, Side, Step,
@@ -66,6 +69,7 @@ use crate::debug::exec::{
 use crate::debug::ir::{
     count_terminals, inline_oracle, InlineError, InlinedOracle, Label, Listing, SiteInfo, SiteKind,
 };
+use crate::debug::layout::{Layout, ALL_CLAIMS_DIR, DOMINO_DEBUG_DIR};
 use crate::debug::progress::{DebugEvent, DebugObserver, SharedObserver};
 use crate::debug::render;
 use crate::debug::report;
@@ -107,6 +111,10 @@ pub struct DebugOptions {
     /// Also write the raw incremental solver transcript to `transcript.smt2`
     /// (story 11). Off by default — for debugging `domino debug` itself.
     pub transcript: bool,
+    /// All-claim runs: stop checking a claim after its first `GoalFails`, for large sweeps.
+    /// Without it a failed claim keeps being checked on later pairs — knowing *which* paths
+    /// break a claim is the product.
+    pub first_failure_per_claim: bool,
 }
 
 impl Default for DebugOptions {
@@ -118,6 +126,7 @@ impl Default for DebugOptions {
             max_paths: None,
             smt_out: SmtOut::Failures,
             transcript: false,
+            first_failure_per_claim: false,
         }
     }
 }
@@ -175,7 +184,7 @@ pub enum DebugError {
 
 /// Schema version of `trace.json` (see `docs/stories/07-…`). Bump on any
 /// breaking change to the serialised shape.
-pub const TRACE_SCHEMA: u32 = 8;
+pub const TRACE_SCHEMA: u32 = 9;
 
 /// Why exploration ended. Serialised into `trace.json` (replacing the old bare
 /// `partial: bool`); `summary.txt` prints the human-readable form.
@@ -210,13 +219,22 @@ impl StopReason {
 pub struct DebugRun {
     /// `trace.json` schema version. Always [`TRACE_SCHEMA`].
     pub schema: u32,
+    /// The strategy that produced this run: `sequential`. Named in every summary header and
+    /// in the artifact names (story 19 §4.6).
+    pub strategy: &'static str,
     pub theorem: String,
     pub proofstep: usize,
     pub left_game: String,
     pub right_game: String,
     pub oracle: String,
+    /// The claim asked about, or `!all-claims!` for an all-claim run.
     pub claim: String,
-    /// The claim is admitted — there is nothing to check.
+    /// No `--claim`: the whole obligation set of the oracle was checked on one exploration.
+    pub all_claims: bool,
+    /// The claims of the run, in the order they are checked. One entry for a single-claim
+    /// run. An admitted claim is listed and never checked.
+    pub claims: Vec<ClaimInfo>,
+    /// The claim is admitted — there is nothing to check. For an all-claim run: every claim is.
     pub admitted: bool,
     /// The output directory. Absolute — **skipped** in `trace.json` so two runs
     /// on the same project produce byte-identical output.
@@ -239,7 +257,8 @@ pub struct DebugRun {
     /// The negated claim goal — `(assert (not …))` — checked at every (left,
     /// right) terminal pair after the vacuity check. One per run: it depends on
     /// the claim and the oracle, not on the path. Empty for an admitted claim.
-    /// The viewer's `Claim assertion` section renders it (story 13).
+    /// The viewer's `Claim assertion` section renders it (story 13). For an all-claim run:
+    /// each claim's own dependencies and negated goal, under a `; claim <name>` comment.
     pub goal_smt: String,
     /// The left game instance's inlined listing (line `n` == `Label` `n`).
     pub left_listing: String,
@@ -254,6 +273,11 @@ pub struct DebugRun {
     /// reached. Rendered as top-level rows alongside `left_paths`.
     pub left_pruned_branches: Vec<PrunedBranch>,
     pub summary: Summary,
+    /// Per-claim verdict counts over every checked pair. Empty for a single-claim run, whose
+    /// counts are `summary`'s.
+    pub claim_summaries: Vec<ClaimSummary>,
+    /// Solver queries the run asked (story 19). Deterministic, so safe in `trace.json`.
+    pub queries: QueryCounts,
     /// Number of syntactic left terminals (`ir::count_terminals`) — the "of N"
     /// denominator in `summary.txt`'s left-path line. `0` for an admitted claim.
     /// Deterministic; safe in `trace.json`.
@@ -262,6 +286,40 @@ pub struct DebugRun {
     /// at the same field position so the serialised order stays predictable.
     /// `Completed` unless `--max-paths` fired or a `Ctrl-C` landed.
     pub stop_reason: StopReason,
+}
+
+/// One claim of the run's claim set.
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaimInfo {
+    pub name: String,
+    /// Its own declared dependencies (`no-abort`, project lemmas, …).
+    pub dependencies: Vec<String>,
+    pub admitted: bool,
+}
+
+/// One claim's verdicts over every pair of an all-claim run.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct ClaimSummary {
+    pub claim: String,
+    pub verified: usize,
+    /// Unreachable because the pair itself is infeasible.
+    pub unreachable_pair: usize,
+    /// Unreachable because this claim's own dependency is false on the pair.
+    pub unreachable_dependency: usize,
+    pub goal_fails: usize,
+    pub inconclusive: usize,
+    /// `--first-failure-per-claim`: pairs this claim was not checked on after it failed.
+    pub skipped: usize,
+}
+
+/// Solver queries a run asked, split by what they were for.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub struct QueryCounts {
+    /// Branch pruning, left-terminal reachability and pair vacuity: what the *exploration*
+    /// costs. An all-claim run pays it once for the whole claim set.
+    pub exploration: usize,
+    /// The claim checks at terminal pairs: these scale with the claim count.
+    pub claims: usize,
 }
 
 /// One fork the solver proved unreachable, so its subtree was never explored.
@@ -298,6 +356,7 @@ pub struct OptionsView {
     pub smt: SmtOut,
     /// Whether the monolithic `transcript.smt2` was written (story 11).
     pub transcript: bool,
+    pub first_failure_per_claim: bool,
 }
 
 impl From<&DebugOptions> for OptionsView {
@@ -309,6 +368,7 @@ impl From<&DebugOptions> for OptionsView {
             max_paths: o.max_paths,
             smt: o.smt_out,
             transcript: o.transcript,
+            first_failure_per_claim: o.first_failure_per_claim,
         }
     }
 }
@@ -397,7 +457,13 @@ pub struct RightPath {
     /// Line ranges of the right listing this path executed (story 16), same
     /// shape as [`LeftPath::lines`].
     pub lines: Vec<[usize; 2]>,
+    /// For an all-claim run, the verdict that stands for the pair: a failure if any claim
+    /// failed, `verified` if any claim verified, else `unreachable`. See
+    /// [`crate::debug::claims::aggregate`].
     pub verdict: Verdict,
+    /// What each claim said about this pair. Empty for a single-claim run.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub claims: Vec<ClaimVerdict>,
     /// The solver model, inline, for `goal-fails` / `inconclusive` pairs — so
     /// `index.html` needs no sidecar files. `None` otherwise. The same text is
     /// also written to `models/<id>.smt2` (referenced by [`Verdict`]).
@@ -426,9 +492,9 @@ pub struct TerminalView {
 pub enum Verdict {
     /// Goal check `unsat` — the claim holds on this pair.
     Verified,
-    /// Vacuity check `unsat` — the pair cannot happen. **Not** the same as
-    /// `Verified`.
-    Unreachable,
+    /// Infeasible under the assumptions in force — **not** the same as `Verified`. The
+    /// `reason` says how far the infeasibility reaches (story 19).
+    Unreachable { reason: Unreachability },
     /// Goal check `sat` — the claim fails; `model` is the written model file
     /// (relative to the output directory).
     GoalFails { model: String },
@@ -436,12 +502,30 @@ pub enum Verdict {
     Inconclusive { model: Option<String> },
 }
 
+/// The scope of an [`Verdict::Unreachable`]. Neither flavour is a failure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum Unreachability {
+    /// The pair itself cannot happen: the vacuity check was unsat.
+    PairInfeasible,
+    /// The pair happens, but this claim's premise is false on it. `dependency` names the one
+    /// that failed, e.g. `no-abort`.
+    DependencyFalse { dependency: String },
+}
+
 impl Verdict {
+    /// The pair cannot happen: [`Verdict::Unreachable`] with [`Unreachability::PairInfeasible`].
+    pub fn pair_infeasible() -> Verdict {
+        Verdict::Unreachable {
+            reason: Unreachability::PairInfeasible,
+        }
+    }
+
     /// `verified`, `unreachable`, `goal-fails` or `inconclusive`.
     pub fn slug(&self) -> &'static str {
         match self {
             Verdict::Verified => "verified",
-            Verdict::Unreachable => "unreachable",
+            Verdict::Unreachable { .. } => "unreachable",
             Verdict::GoalFails { .. } => "goal-fails",
             Verdict::Inconclusive { .. } => "inconclusive",
         }
@@ -451,6 +535,17 @@ impl Verdict {
     pub fn is_failure(&self) -> bool {
         matches!(self, Verdict::GoalFails { .. } | Verdict::Inconclusive { .. })
     }
+}
+
+/// What one claim of the oracle's obligation set said about one terminal pair.
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaimVerdict {
+    pub claim: String,
+    pub verdict: Verdict,
+    /// Sub-verdicts of `invariant`, present only when it is neither verified nor unreachable
+    /// (lockstep execution). Empty for every other claim.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub relations: Vec<crate::debug::lockstep::RelationVerdict>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
@@ -491,17 +586,24 @@ impl DebugRun {
 // Entry point
 // ---------------------------------------------------------------------------
 
-/// Run `domino debug` for one claim and return the (serialisable) run.
+/// The strategy name of [`run_debug_command`], in [`DebugRun::strategy`] and in every artifact
+/// name.
+pub const SEQUENTIAL: &str = "sequential";
+
+/// Run `domino debug` for one oracle and return the (serialisable) run: `claim_name` narrows it
+/// to one claim, whose dependencies stay in the base frame; without it the whole obligation set
+/// is checked on one exploration — an **all-claim run** (story 19).
 ///
-/// Writes `transcript.smt2`, `inlined.txt` and any model files under `out`
-/// (defaulting to `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`).
+/// Writes the sequential artifacts under `out` (defaulting to
+/// `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/`, `!all-claims!` in place of
+/// `<claim>` for an all-claim run).
 #[allow(clippy::too_many_arguments)]
 pub fn run_debug_command<P, B>(
     project: &P,
     req_proof: &str,
     req_proofstep: usize,
     oracle: &str,
-    claim_name: &str,
+    claim_name: Option<&str>,
     opts: &DebugOptions,
     backend: &B,
     out: Option<PathBuf>,
@@ -516,6 +618,7 @@ where
     // `run.elapsed` before every flush; that field is `#[serde(skip)]`, so
     // `trace.json` / `index.html` stay byte-deterministic (story 07).
     let started = Instant::now();
+    let layout = Layout::Strategy(SEQUENTIAL);
 
     let theorem = project
         .get_theorem(req_proof)
@@ -540,9 +643,9 @@ where
     // `EasyCryptTransform` (story 16) runs `easycryptify` instead of `treeify`,
     // lowering every `assert`/`abort`/early `return` into EasyCrypt's single-exit
     // shape (no `abort`, `Maybe`-typed signatures). It is what `domino easycrypt`
-    // exports. A `--easycrypt` flag on `domino inline/debug` (stories 08/09)
-    // must select it for that flag only; without the flag this stays
-    // `DebugTransform`, so a Domino listing keeps rendering `assert` as `assert`.
+    // exports and what `domino easycrypt --debug` walks; `domino debug` is the Domino
+    // listing only (story 19), so this stays `DebugTransform` and a Domino listing keeps
+    // rendering `assert` as `assert`.
     let (theorem_eq, auxs_eq) = EquivalenceTransform.transform_theorem(theorem)?;
     let mut eqctx = EquivalenceContext::new(eq, &theorem_eq, &auxs_eq);
     eqctx.load_invariants(project)?;
@@ -579,23 +682,29 @@ where
         });
     }
 
-    // Resolve the claim: the user-written proof tree for this oracle, plus the
-    // generated package/game invariant claims (same set `prove` checks).
-    let mut claims = eq.proof_tree_by_oracle_name(oracle);
-    claims.extend(eqctx.generate_game_or_package_invariant_claims());
-    let claim = claims
-        .iter()
-        .find(|claim| claim.name() == claim_name)
-        .cloned()
-        .ok_or_else(|| DebugError::ClaimNotFound {
-            claim: claim_name.to_string(),
-            available: claims.iter().map(|c| c.name().to_string()).collect(),
-        })?;
+    // Resolve the claims: the oracle's whole obligation set (the user-written proof tree plus
+    // the generated package/game invariant claims — the same set `prove` checks), narrowed to
+    // one claim when asked.
+    let all_obligations = obligations(&eqctx, eq, oracle);
+    let claims: Vec<Claim> = match claim_name {
+        Some(name) => vec![all_obligations
+            .iter()
+            .find(|claim| claim.name() == name)
+            .cloned()
+            .ok_or_else(|| DebugError::ClaimNotFound {
+                claim: name.to_string(),
+                available: all_obligations.iter().map(|c| c.name().to_string()).collect(),
+            })?],
+        None => all_obligations,
+    };
+    let all_claims = claim_name.is_none();
+    let claim_label = claim_name.unwrap_or(ALL_CLAIMS_DIR);
+    let admitted = claims.iter().all(Claim::is_admitted);
 
     observer.on_event(&DebugEvent::Started {
         oracle,
-        claim: claim_name,
-        admitted: claim.is_admitted(),
+        claim: claim_label,
+        admitted,
     });
 
     let left_inl = inline_oracle(left_inst, oracle)?;
@@ -603,14 +712,14 @@ where
 
     // Solver-free syntactic path counts — upper bounds the progress display
     // shows as `k/N` and the "of N syntactic" denominator in `summary.txt`.
-    // Skipped for an admitted claim (nothing between `Started { admitted }` and
+    // Skipped when there is nothing to check (nothing between `Started { admitted }` and
     // `Finished`).
-    let (left_syntactic, right_syntactic) = if claim.is_admitted() {
+    let (left_syntactic, right_syntactic) = if admitted {
         (0, 0)
     } else {
         (count_terminals(&left_inl), count_terminals(&right_inl))
     };
-    if !claim.is_admitted() {
+    if !admitted {
         observer.on_event(&DebugEvent::Totals {
             left_total: left_syntactic,
             right_total: right_syntactic,
@@ -630,25 +739,35 @@ where
 
     let out_dir = out.unwrap_or_else(|| {
         let mut path = project.get_root_dir();
-        path.push("_build/debug");
+        path.push(DOMINO_DEBUG_DIR);
         path.push(eq.theorem_name());
         path.push(format!("{}-{}", eq.left_name(), eq.right_name()));
         path.push(oracle);
-        path.push(claim_name);
+        path.push(claim_label);
         path
     });
     std::fs::create_dir_all(&out_dir)?;
-    std::fs::create_dir_all(out_dir.join("models"))?;
+    std::fs::create_dir_all(layout.path(&out_dir, "models"))?;
 
     let mut run = DebugRun {
         schema: TRACE_SCHEMA,
+        strategy: SEQUENTIAL,
         theorem: eq.theorem_name().to_string(),
         proofstep: req_proofstep,
         left_game: eq.left_name().to_string(),
         right_game: eq.right_name().to_string(),
         oracle: oracle.to_string(),
-        claim: claim_name.to_string(),
-        admitted: claim.is_admitted(),
+        claim: claim_label.to_string(),
+        all_claims,
+        claims: claims
+            .iter()
+            .map(|c| ClaimInfo {
+                name: c.name().to_string(),
+                dependencies: c.dependencies().to_vec(),
+                admitted: c.is_admitted(),
+            })
+            .collect(),
+        admitted,
         out_dir: out_dir.display().to_string(),
         elapsed: Duration::ZERO,
         options: OptionsView::from(opts),
@@ -661,12 +780,20 @@ where
         left_paths: Vec::new(),
         left_pruned_branches: Vec::new(),
         summary: Summary::default(),
+        claim_summaries: Vec::new(),
+        queries: QueryCounts::default(),
         left_syntactic,
         stop_reason: StopReason::Completed,
     };
 
-    if !claim.is_admitted() {
-        let base = base_frame(&eqctx, oracle, &claim);
+    if !admitted {
+        // A single claim keeps its dependencies in the base frame — lemmas help prune, and a
+        // narrowed run should get that benefit. An all-claim run asserts only what every claim
+        // shares: each claim's own dependencies wait for the terminal pair.
+        let base = match claims.as_slice() {
+            [claim] if !all_claims => base_frame(&eqctx, oracle, claim),
+            _ => shared_base_frame(&eqctx, oracle),
+        };
         run.base_frame_smt = base
             .iter()
             .map(|e| e.to_string())
@@ -677,17 +804,15 @@ where
         // monolithic `transcript.smt2` is opt-in (`--transcript`) — it doubles
         // every byte the driver sends and is only useful for debugging the
         // driver itself.
-        let smt_writer = SmtWriter::new(&out_dir, opts.smt_out, &run)?;
-        // Computed once here (story 11): the negated claim goal. `check_pair`
-        // used to re-derive it per pair; the `smt/` files embed its text.
-        let goal_negated = eqctx.emit_claim_goal_negated(&claim, oracle);
-        let goal_smt = goal_negated.to_string();
-        // Story 13: hoist the same text onto the run so `trace.json` /
-        // `index.html` show the exact assertion the solver was asked about.
-        run.goal_smt = goal_smt.clone();
+        let smt_writer = SmtWriter::new(&out_dir, layout, opts.smt_out, &run)?;
+        // Computed once here (story 11): the negated claim goals. The pair check used to
+        // re-derive them per pair; the `smt/` files embed their text.
+        let checking = Checking::new(&eqctx, &claims, oracle, all_claims, opts, layout);
+        run.goal_smt = checking.goal_text();
 
         let mut solver = if opts.transcript {
-            let transcript = std::fs::File::create(out_dir.join("transcript.smt2"))?;
+            std::fs::create_dir_all(layout.path(&out_dir, ""))?;
+            let transcript = std::fs::File::create(layout.path(&out_dir, "transcript.smt2"))?;
             backend.new_smtsolver_with_transcript(transcript)?
         } else {
             backend.new_smtsolver()?
@@ -703,10 +828,13 @@ where
         // at different (never overlapping) points of the executor's DFS — hence
         // the `RefCell`. See `SolverPruner`.
         let solver = RefCell::new(solver);
+        let counters = Counters::default();
         explore_paths(
             &solver, &left_inl, &right_inl, left_inst, right_inst, left_si, right_si, opts,
-            &out_dir, &observer, stop, &smt_writer, &goal_negated, &goal_smt, started, &mut run,
+            &out_dir, &observer, stop, &smt_writer, &checking, &counters, started, &mut run,
         )?;
+        run.queries = counters.snapshot();
+        run.claim_summaries = checking.claim_summaries(&run);
 
         solver.into_inner().close();
     }
@@ -757,13 +885,14 @@ pub(crate) fn equivalence_of<'t>(
 // Base frame
 // ---------------------------------------------------------------------------
 
-/// The declarations asserted once at solver level 0. Same order and content as
-/// `verify_fn.rs`, with `emit_constant_declarations` narrowed to `Some(oracle)`
-/// (story 04) and the claim assumptions split out and asserted positively.
-pub(crate) fn base_frame<'a>(
+/// Everything every claim of this oracle shares, asserted once at solver level 0: the same
+/// declarations, game definitions, constants, invariants and randomness machinery `prove` uses,
+/// with `emit_constant_declarations` narrowed to `Some(oracle)` (story 04), and then, positively,
+/// what no claim can do without — the randomness-mapping condition and the invariants on the old
+/// states (main, per game, per package).
+pub(crate) fn shared_base_frame<'a>(
     eqctx: &'a EquivalenceContext<'a>,
     oracle: &str,
-    claim: &Claim,
 ) -> Vec<SmtExpr> {
     let mut base = vec![SmtExpr::Comment(" domino debug — base frame ".to_string())];
     base.extend(eqctx.emit_base_declarations());
@@ -775,8 +904,271 @@ pub(crate) fn base_frame<'a>(
     base.extend(eqctx.emit_return_value_helpers(oracle));
     base.extend(eqctx.emit_randomness_mapping_condition(oracle));
     base.push(SmtExpr::Comment(" claim assumptions ".to_string()));
-    base.extend(eqctx.emit_claim_assumptions(claim, oracle));
+    base.extend(eqctx.emit_shared_assumptions(oracle));
     base
+}
+
+/// [`shared_base_frame`] plus `claim`'s own declared dependencies — a single-claim run's frame
+/// (story 04). The dependencies prune: `no-abort` makes every aborting path `unsat` at the fork.
+pub(crate) fn base_frame<'a>(
+    eqctx: &'a EquivalenceContext<'a>,
+    oracle: &str,
+    claim: &Claim,
+) -> Vec<SmtExpr> {
+    let mut base = shared_base_frame(eqctx, oracle);
+    base.extend(eqctx.emit_claim_own_assumptions(claim, oracle));
+    base
+}
+
+// ---------------------------------------------------------------------------
+// What is checked at a terminal pair
+// ---------------------------------------------------------------------------
+
+/// Solver queries, counted as they are asked. Shared by the pruners and the pair checks.
+#[derive(Default)]
+struct Counters {
+    exploration: Cell<usize>,
+    claims: Cell<usize>,
+}
+
+impl Counters {
+    fn snapshot(&self) -> QueryCounts {
+        QueryCounts {
+            exploration: self.exploration.get(),
+            claims: self.claims.get(),
+        }
+    }
+
+    fn explored(&self) {
+        self.exploration.set(self.exploration.get() + 1);
+    }
+}
+
+/// What the claims said about one terminal pair.
+struct PairCheck {
+    verdict: Verdict,
+    model_smt: Option<String>,
+    /// One per claim checked, for an all-claim run; empty for a single-claim run.
+    claims: Vec<ClaimVerdict>,
+}
+
+/// The claims of a run and how a terminal pair is checked against them.
+///
+/// **Single claim:** its dependencies are already in the base frame, so a pair costs the
+/// vacuity check and one goal query.
+///
+/// **All-claim:** the pair's path conditions and the shared assumptions are on the stack; the
+/// vacuity check is asked once, and then each claim is one `push` / `check-sat` / `pop` on top
+/// ([`check_claim`]) — differing only in its own dependencies and its negated goal.
+struct Checking {
+    /// Empty for an admitted-only run.
+    claims: Vec<ClaimQuery>,
+    /// `false`: one claim, whose dependencies are in the base frame.
+    all: bool,
+    layout: Layout,
+    first_failure_per_claim: bool,
+    /// `--first-failure-per-claim`: claims that have failed, and the pairs each was then spared.
+    failed: RefCell<BTreeSet<String>>,
+    skipped: RefCell<BTreeMap<String, usize>>,
+}
+
+impl Checking {
+    fn new(
+        eqctx: &EquivalenceContext<'_>,
+        claims: &[Claim],
+        oracle: &str,
+        all: bool,
+        opts: &DebugOptions,
+        layout: Layout,
+    ) -> Self {
+        let queries = claims
+            .iter()
+            .filter(|claim| !claim.is_admitted())
+            .map(|claim| {
+                let mut query = ClaimQuery::of(eqctx, claim, oracle);
+                if !all {
+                    // already in the base frame: asserting them again would only cost
+                    query.dependencies.clear();
+                }
+                query
+            })
+            .collect();
+        Self {
+            claims: queries,
+            all,
+            layout,
+            first_failure_per_claim: opts.first_failure_per_claim,
+            failed: RefCell::default(),
+            skipped: RefCell::default(),
+        }
+    }
+
+    /// The text `trace.json`'s `goal_smt` and the viewer's `Claim assertion` section show.
+    fn goal_text(&self) -> String {
+        match self.claims.as_slice() {
+            [only] if !self.all => only.negated.to_string(),
+            claims => claims
+                .iter()
+                .map(|claim| {
+                    let mut text = format!("; claim {}\n", claim.name);
+                    for (_, dependency) in &claim.dependencies {
+                        text.push_str(&format!("{dependency}\n"));
+                    }
+                    text.push_str(&claim.negated.to_string());
+                    text
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+        }
+    }
+
+    /// One block per claim for the `smt/` pair files: its dependencies, then its goal.
+    fn goals(&self) -> Vec<GoalBlock> {
+        self.claims
+            .iter()
+            .map(|claim| GoalBlock {
+                claim: claim.name.clone(),
+                dependencies: claim
+                    .dependencies
+                    .iter()
+                    .map(|(_, assertion)| assertion.to_string())
+                    .collect(),
+                negated: claim.negated.to_string(),
+            })
+            .collect()
+    }
+
+    /// The vacuity check, unconditional, then the claims. The stack holds the base frame and
+    /// both paths, and is as it was on return.
+    fn check_pair<S: SmtSolver>(
+        &self,
+        solver: &mut S,
+        rid: &str,
+        aborts: PairAborts,
+        out_dir: &Path,
+        counters: &Counters,
+    ) -> Result<PairCheck, DebugError> {
+        // Vacuity (overview §3) — UNCONDITIONAL as of story 08. `unsat` here means the pair
+        // cannot happen; it is **not** the same as `Verified`.
+        counters.explored();
+        if matches!(solver.check_sat()?, SmtSolverResponse::Unsat) {
+            let claims = if self.all {
+                self.claims
+                    .iter()
+                    .map(|claim| ClaimVerdict {
+                        claim: claim.name.clone(),
+                        verdict: Verdict::pair_infeasible(),
+                        relations: Vec::new(),
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+            return Ok(PairCheck {
+                verdict: Verdict::pair_infeasible(),
+                model_smt: None,
+                claims,
+            });
+        }
+
+        let mut queries = 0usize;
+        let check = if self.all {
+            let checked = check_claims(
+                solver,
+                &self.claims,
+                aborts,
+                out_dir,
+                self.layout,
+                rid,
+                &mut queries,
+                |claim| {
+                    let spared =
+                        self.first_failure_per_claim && self.failed.borrow().contains(claim);
+                    if spared {
+                        *self.skipped.borrow_mut().entry(claim.to_string()).or_default() += 1;
+                    }
+                    spared
+                },
+            )?;
+            if self.first_failure_per_claim {
+                for (claim, _) in &checked {
+                    if matches!(claim.verdict, Verdict::GoalFails { .. }) {
+                        self.failed.borrow_mut().insert(claim.claim.clone());
+                    }
+                }
+            }
+            let (verdict, model_smt) = aggregate(&checked);
+            PairCheck {
+                verdict,
+                model_smt,
+                claims: checked.into_iter().map(|(claim, _)| claim).collect(),
+            }
+        } else {
+            // Story 11: the negated goal was computed once, in `Checking::new` (its text
+            // also lands in `smt/`).
+            let [claim] = self.claims.as_slice() else {
+                unreachable!("a single-claim run checks one claim");
+            };
+            let (verdict, model_smt) = check_claim(
+                solver, claim, aborts, out_dir, self.layout, rid, &mut queries,
+            )?;
+            PairCheck {
+                verdict,
+                model_smt,
+                claims: Vec::new(),
+            }
+        };
+        counters.claims.set(counters.claims.get() + queries);
+        Ok(check)
+    }
+
+    /// Verdict counts per claim over the pairs of `run`, for an all-claim run.
+    fn claim_summaries(&self, run: &DebugRun) -> Vec<ClaimSummary> {
+        if !self.all {
+            return Vec::new();
+        }
+        let skipped = self.skipped.borrow();
+        run.claims
+            .iter()
+            .filter(|info| !info.admitted)
+            .map(|info| {
+                let mut summary = ClaimSummary {
+                    claim: info.name.clone(),
+                    skipped: skipped.get(&info.name).copied().unwrap_or(0),
+                    ..ClaimSummary::default()
+                };
+                let verdicts = run
+                    .left_paths
+                    .iter()
+                    .flat_map(|lp| &lp.right_paths)
+                    .flat_map(|rp| &rp.claims)
+                    .filter(|c| c.claim == info.name);
+                for c in verdicts {
+                    match &c.verdict {
+                        Verdict::Verified => summary.verified += 1,
+                        Verdict::Unreachable {
+                            reason: Unreachability::PairInfeasible,
+                        } => summary.unreachable_pair += 1,
+                        Verdict::Unreachable {
+                            reason: Unreachability::DependencyFalse { .. },
+                        } => summary.unreachable_dependency += 1,
+                        Verdict::GoalFails { .. } => summary.goal_fails += 1,
+                        Verdict::Inconclusive { .. } => summary.inconclusive += 1,
+                    }
+                }
+                summary
+            })
+            .collect()
+    }
+}
+
+/// One claim's part of a pair's `smt/` file.
+pub struct GoalBlock {
+    pub claim: String,
+    /// Assertions of the claim's own dependencies (empty in a single-claim run: they are in
+    /// the base frame).
+    pub dependencies: Vec<String>,
+    pub negated: String,
 }
 
 // ---------------------------------------------------------------------------
@@ -797,8 +1189,8 @@ fn explore_paths<'o, S: SmtSolver>(
     observer: &SharedObserver<'o>,
     stop: Option<&AtomicBool>,
     smt_writer: &SmtWriter,
-    goal_negated: &SmtExpr,
-    goal_smt: &str,
+    checking: &Checking,
+    counters: &Counters,
     started: Instant,
     run: &mut DebugRun,
 ) -> Result<(), DebugError> {
@@ -810,6 +1202,7 @@ fn explore_paths<'o, S: SmtSolver>(
         observer,
         Side::Left,
         stop,
+        counters,
     );
     let mut explored = 0usize;
     let mut left_counter = 0usize;
@@ -845,8 +1238,8 @@ fn explore_paths<'o, S: SmtSolver>(
             });
             match handle_left_path(
                 solver,
-                goal_negated,
-                goal_smt,
+                checking,
+                counters,
                 opts,
                 out_dir,
                 right_inl,
@@ -870,6 +1263,7 @@ fn explore_paths<'o, S: SmtSolver>(
                     }
                     run.left_paths.push(lv);
                     run.summary = summarize(&run.left_paths, &run.left_pruned_branches);
+                    run.queries = counters.snapshot();
                     observer.borrow_mut().on_event(&DebugEvent::LeftPathFinished {
                         index,
                         running: run.summary,
@@ -940,8 +1334,8 @@ fn explore_paths<'o, S: SmtSolver>(
 #[allow(clippy::too_many_arguments)]
 fn handle_left_path<'o, S: SmtSolver>(
     solver: &RefCell<S>,
-    goal_negated: &SmtExpr,
-    goal_smt: &str,
+    checking: &Checking,
+    counters: &Counters,
     opts: &DebugOptions,
     out_dir: &Path,
     right_inl: &InlinedOracle,
@@ -968,6 +1362,7 @@ fn handle_left_path<'o, S: SmtSolver>(
     // by `return_constraint` — so a left abort path is `unsat` at its *terminal*,
     // never at a *branch*.
     let reachable = if opts.check_left {
+        counters.explored();
         !matches!(solver.borrow_mut().check_sat()?, SmtSolverResponse::Unsat)
     } else {
         true
@@ -1000,6 +1395,7 @@ fn handle_left_path<'o, S: SmtSolver>(
             observer,
             Side::Right,
             stop,
+            counters,
         );
         let mut right_counter = 0usize;
         let mut fatal: Option<DebugError> = None;
@@ -1028,17 +1424,21 @@ fn handle_left_path<'o, S: SmtSolver>(
                 let rid = format!("{lid}.{}", *right_counter);
                 match handle_right_path(
                     solver,
-                    goal_negated,
+                    checking,
+                    counters,
                     out_dir,
                     &right_inl.listing,
                     &rid,
+                    lp.terminal.is_abort(),
                     rp,
                     observer,
                 ) {
                     Ok(rv) => {
                         // Story 11: `smt/<lid>/<r>.smt2` for the pairs the
                         // coverage mode wants (a no-op otherwise).
-                        if let Err(e) = smt_writer.write_pair(lid, left_view, &rv, goal_smt) {
+                        if let Err(e) =
+                            smt_writer.write_pair(lid, left_view, &rv, &checking.goals())
+                        {
                             *fatal = Some(DebugError::Io(e));
                             return ControlFlow::Break(());
                         }
@@ -1095,27 +1495,37 @@ fn handle_left_path<'o, S: SmtSolver>(
 #[allow(clippy::too_many_arguments)]
 fn handle_right_path<'o, S: SmtSolver>(
     solver: &RefCell<S>,
-    goal_negated: &SmtExpr,
+    checking: &Checking,
+    counters: &Counters,
     out_dir: &Path,
     right_listing: &Listing,
     rid: &str,
+    left_aborts: bool,
     rp: &TerminalPath,
     observer: &SharedObserver<'o>,
 ) -> Result<RightPath, DebugError> {
-    let (verdict, model_smt) = {
+    let PairCheck {
+        verdict,
+        model_smt,
+        claims,
+    } = {
         let mut s = solver.borrow_mut();
         s.push()?;
         write_path_delta(&mut *s, rp)?;
         let t0 = Instant::now();
-        let (verdict, model_smt) = check_pair(&mut *s, goal_negated, rid, out_dir)?;
+        let aborts = PairAborts {
+            left: left_aborts,
+            right: rp.terminal.is_abort(),
+        };
+        let check = checking.check_pair(&mut *s, rid, aborts, out_dir, counters)?;
         s.pop()?;
         drop(s);
         observer.borrow_mut().on_event(&DebugEvent::PairChecked {
             id: rid,
-            verdict: &verdict,
+            verdict: &check.verdict,
             elapsed: t0.elapsed(),
         });
-        (verdict, model_smt)
+        check
     };
     Ok(RightPath {
         id: rid.to_string(),
@@ -1124,43 +1534,10 @@ fn handle_right_path<'o, S: SmtSolver>(
         effect: rp.effect.clone(),
         lines: lines_view(&rp.lines),
         verdict,
+        claims,
         model_smt,
         smt: render_path_smt(rp),
     })
-}
-
-/// At a (left, right) terminal pair: **unconditional** vacuity, then the negated
-/// goal. Returns the verdict and, for `goal-fails` / `inconclusive`, the model
-/// text (also written to `models/<rid>.smt2`).
-fn check_pair<S: SmtSolver>(
-    solver: &mut S,
-    goal_negated: &SmtExpr,
-    rid: &str,
-    out_dir: &Path,
-) -> Result<(Verdict, Option<String>), DebugError> {
-    // Vacuity (overview §3) — UNCONDITIONAL as of story 08. `unsat` here means
-    // the pair cannot happen; it is **not** the same as `Verified`.
-    if matches!(solver.check_sat()?, SmtSolverResponse::Unsat) {
-        return Ok((Verdict::Unreachable, None));
-    }
-
-    solver.push()?;
-    // Story 11: `goal_negated` is `eqctx.emit_claim_goal_negated(claim, oracle)`,
-    // computed once in `run_debug_command` (its text also lands in `smt/`).
-    solver.write_smt(goal_negated.clone())?;
-    let outcome = match solver.check_sat()? {
-        SmtSolverResponse::Unsat => (Verdict::Verified, None),
-        SmtSolverResponse::Sat => {
-            let (rel, text) = write_model(solver, out_dir, rid)?;
-            (Verdict::GoalFails { model: rel }, Some(text))
-        }
-        SmtSolverResponse::Unknown => match write_model(solver, out_dir, rid) {
-            Ok((rel, text)) => (Verdict::Inconclusive { model: Some(rel) }, Some(text)),
-            Err(_) => (Verdict::Inconclusive { model: None }, None),
-        },
-    };
-    solver.pop()?;
-    Ok(outcome)
 }
 
 /// Assert only the part of `path` not already on the solver stack — the branch
@@ -1211,6 +1588,7 @@ struct SolverPruner<'s, 'o, S: SmtSolver> {
     /// boundaries. `enter` returns [`ExecError::Cancelled`] before opening its
     /// scope, so the solver stack still unwinds balanced.
     stop: Option<&'s AtomicBool>,
+    counters: &'s Counters,
     /// Per open scope: was this context a definite `Sat`? (`false` for `Unknown`,
     /// disabled, or a stashed error.)
     known_sat: Vec<bool>,
@@ -1237,6 +1615,7 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
         observer: &'s SharedObserver<'o>,
         side: Side,
         stop: Option<&'s AtomicBool>,
+        counters: &'s Counters,
     ) -> Self {
         Self {
             solver,
@@ -1246,6 +1625,7 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
             observer,
             side,
             stop,
+            counters,
             known_sat: Vec::new(),
             scope_pruned: Vec::new(),
             last_sibling_pruned: false,
@@ -1342,6 +1722,7 @@ impl<S: SmtSolver> BranchOracle for SolverPruner<'_, '_, S> {
             return Ok(Feasibility::Explore);
         }
 
+        self.counters.explored();
         let ans = self.solver.borrow_mut().check_sat();
         match ans {
             Ok(SmtSolverResponse::Unsat) => {
@@ -1374,15 +1755,16 @@ impl<S: SmtSolver> BranchOracle for SolverPruner<'_, '_, S> {
     }
 }
 
-/// Writes the current model to `models/<rid>.smt2` and returns
-/// `(relative path, model text)`.
+/// Writes the current model to `<layout>/models/<id>.smt2` and returns
+/// `(path relative to out_dir, model text)`.
 pub(crate) fn write_model<S: SmtSolver>(
     solver: &mut S,
     out_dir: &Path,
-    rid: &str,
+    layout: Layout,
+    id: &str,
 ) -> Result<(String, String), DebugError> {
     let (model, _) = solver.get_model()?;
-    let rel = format!("models/{rid}.smt2");
+    let rel = layout.rel(&format!("models/{id}.smt2"));
     std::fs::write(out_dir.join(&rel), &model)?;
     Ok((rel, model))
 }
@@ -1469,7 +1851,7 @@ fn summarize(left_paths: &[LeftPath], left_pruned_branches: &[PrunedBranch]) -> 
             summary.right_paths += 1;
             match rp.verdict {
                 Verdict::Verified => summary.verified += 1,
-                Verdict::Unreachable => summary.unreachable += 1,
+                Verdict::Unreachable { .. } => summary.unreachable += 1,
                 Verdict::GoalFails { .. } => summary.goal_fails += 1,
                 Verdict::Inconclusive { .. } => summary.inconclusive += 1,
             }
@@ -1496,6 +1878,16 @@ pub fn render_tree(run: &DebugRun) -> String {
         run.theorem, run.proofstep, run.left_game, run.right_game
     );
     let _ = writeln!(out, "oracle {}, claim {}", run.oracle, run.claim);
+    let _ = writeln!(out, "strategy {}", run.strategy);
+    let admitted: Vec<&str> = run
+        .claims
+        .iter()
+        .filter(|c| c.admitted)
+        .map(|c| c.name.as_str())
+        .collect();
+    if run.all_claims && !admitted.is_empty() {
+        let _ = writeln!(out, "admitted, not checked: {}", admitted.join(", "));
+    }
 
     if run.admitted {
         let _ = writeln!(out, "\nclaim is admitted — nothing to check.");
@@ -1534,15 +1926,40 @@ pub fn render_tree(run: &DebugRun) -> String {
                 .join("   ");
             let terminal = format!("L{} {}", rp.terminal.label, rp.terminal.line);
             let sep = if steps.is_empty() { "" } else { "   " };
+            let note = match &rp.verdict {
+                Verdict::Unreachable { reason } if rp.claims.is_empty() => format!(
+                    " ({})",
+                    describe_unreachable(reason, &lp.terminal, &rp.terminal)
+                ),
+                _ => String::new(),
+            };
             let _ = writeln!(
                 out,
-                "    #{}  {}{}{}   {}",
+                "    #{}  {}{}{}   {}{}",
                 rp.id,
                 steps,
                 sep,
                 terminal,
-                render_verdict(&rp.verdict)
+                render_verdict(&rp.verdict),
+                note
             );
+            // an all-claim run: what each claim said about the pair
+            for checked in &rp.claims {
+                let note = match &checked.verdict {
+                    Verdict::Unreachable { reason } => format!(
+                        " — {}",
+                        describe_unreachable(reason, &lp.terminal, &rp.terminal)
+                    ),
+                    _ => String::new(),
+                };
+                let _ = writeln!(
+                    out,
+                    "        {:<28} {}{}",
+                    checked.claim,
+                    render_verdict(&checked.verdict),
+                    note
+                );
+            }
         }
         if !lp.pruned_branches.is_empty() {
             let _ = writeln!(out, "\n    pruned under #{}:", lp.id);
@@ -1601,10 +2018,35 @@ pub fn render_tree(run: &DebugRun) -> String {
     out
 }
 
+/// Why a pair is unreachable, in the words of the terminals: `left aborts at L27, and this
+/// claim assumes no-abort`. Naming the abort is what keeps an all-green all-claim run from
+/// looking like a proof.
+pub(crate) fn describe_unreachable(
+    reason: &Unreachability,
+    left: &TerminalView,
+    right: &TerminalView,
+) -> String {
+    match reason {
+        Unreachability::PairInfeasible => "pair infeasible".to_string(),
+        Unreachability::DependencyFalse { dependency } => {
+            let aborts: Vec<String> = [("left", left), ("right", right)]
+                .into_iter()
+                .filter(|(_, t)| t.is_abort)
+                .map(|(side, t)| format!("{side} aborts at L{}", t.label))
+                .collect();
+            if aborts.is_empty() {
+                format!("this claim assumes {dependency}, which is false here")
+            } else {
+                format!("{}, and this claim assumes {dependency}", aborts.join(" and "))
+            }
+        }
+    }
+}
+
 fn render_verdict(verdict: &Verdict) -> String {
     match verdict {
         Verdict::Verified => "[unsat: ok]".to_string(),
-        Verdict::Unreachable => "[unsat: unreachable]".to_string(),
+        Verdict::Unreachable { .. } => "[unsat: unreachable]".to_string(),
         Verdict::GoalFails { model } => format!("[sat: GOAL FAILS]  {model}"),
         Verdict::Inconclusive { model: Some(model) } => format!("[unknown: inconclusive]  {model}"),
         Verdict::Inconclusive { model: None } => "[unknown: inconclusive]".to_string(),
@@ -1651,7 +2093,7 @@ mod tests {
             let out = tempfile::tempdir().unwrap().into_path();
             let backend = Cvc5LibBackend::new(true, opts.timeout_ms);
             run_debug_command(
-                proj, theorem, 0, oracle, claim, &opts, &backend, Some(out), observer, stop,
+                proj, theorem, 0, oracle, Some(claim), &opts, &backend, Some(out), observer, stop,
             )
             .unwrap()
         })
@@ -1821,10 +2263,10 @@ mod tests {
 
         // And it is in trace.json verbatim.
         let parsed: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
+            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("sequential_trace.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(parsed["schema"], 8);
+        assert_eq!(parsed["schema"], 9);
         assert_eq!(parsed["goal_smt"], run.goal_smt);
     }
 
@@ -1832,10 +2274,10 @@ mod tests {
     #[test]
     fn goal_smt_is_empty_for_an_admitted_claim() {
         let run = run_in_tmp(
-            "example-projects/kem-dem/kem-dem-cca-ssp",
-            "kem_dem_cca_ssp",
-            "PKDEC",
-            "lemma-kem-correctness",
+            "testdata/story19/deps",
+            "T",
+            "Admitted",
+            "skipped",
             DebugOptions::default(),
         );
         assert!(run.admitted);
@@ -1872,10 +2314,10 @@ mod tests {
         }
         assert!(returning > 0);
 
-        let trace = std::path::Path::new(&run.out_dir).join("trace.json");
+        let trace = std::path::Path::new(&run.out_dir).join("sequential_trace.json");
         let a = std::fs::read_to_string(&trace).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&a).unwrap();
-        assert_eq!(parsed["schema"], 8);
+        assert_eq!(parsed["schema"], 9);
         // effect is present in the serialised shape.
         assert!(a.contains("\"effect\""));
 
@@ -1886,9 +2328,9 @@ mod tests {
             "same-output",
             DebugOptions::default(),
         );
-        let b = std::fs::read_to_string(std::path::Path::new(&run2.out_dir).join("trace.json"))
+        let b = std::fs::read_to_string(std::path::Path::new(&run2.out_dir).join("sequential_trace.json"))
             .unwrap();
-        assert_eq!(a, b, "trace.json not byte-identical across runs");
+        assert_eq!(a, b, "sequential_trace.json not byte-identical across runs");
     }
 
     #[test]
@@ -1905,12 +2347,12 @@ mod tests {
         assert!(run.is_ok(), "{}", render_tree(&run));
         // Story 11: `transcript.smt2` is opt-in and absent by default.
         assert!(
-            !std::path::Path::new(&run.out_dir).join("transcript.smt2").exists(),
+            !std::path::Path::new(&run.out_dir).join("sequential/transcript.smt2").exists(),
             "transcript.smt2 must not be written without --transcript"
         );
         // The `smt/` tree is the default artifact: base frame + one delta per
         // explored left path.
-        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let smt = std::path::Path::new(&run.out_dir).join("sequential/smt");
         assert!(smt.join("base.smt2").exists());
         for lp in &run.left_paths {
             assert!(
@@ -1936,7 +2378,7 @@ mod tests {
             },
         );
         let transcript =
-            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("transcript.smt2"))
+            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("sequential/transcript.smt2"))
                 .unwrap();
         assert!(transcript.contains("(check-sat)"));
         assert!(transcript.contains("(push 1)") && transcript.contains("(pop 1)"));
@@ -1955,7 +2397,7 @@ mod tests {
                 ..DebugOptions::default()
             },
         );
-        assert!(!std::path::Path::new(&run.out_dir).join("smt").exists());
+        assert!(!std::path::Path::new(&run.out_dir).join("sequential/smt").exists());
     }
 
     /// Story 11 — the self-containment property. An emitted pair file's body is
@@ -1978,7 +2420,7 @@ mod tests {
                 ..DebugOptions::default()
             },
         );
-        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let smt = std::path::Path::new(&run.out_dir).join("sequential/smt");
         let base = std::fs::read_to_string(smt.join("base.smt2")).unwrap();
 
         let mut checked = 0usize;
@@ -2016,7 +2458,7 @@ mod tests {
                         assert_ne!(vac, SmtSolverResponse::Unsat, "{}", file.display());
                         assert_eq!(goal_ans, SmtSolverResponse::Unsat, "{}", file.display());
                     }
-                    Verdict::Unreachable => {
+                    Verdict::Unreachable { .. } => {
                         assert_eq!(vac, SmtSolverResponse::Unsat, "{}", file.display());
                     }
                     Verdict::GoalFails { .. } => {
@@ -2046,7 +2488,7 @@ mod tests {
                 ..DebugOptions::default()
             },
         );
-        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let smt = std::path::Path::new(&run.out_dir).join("sequential/smt");
         assert!(smt.join("base.smt2").exists());
         for lp in &run.left_paths {
             assert!(smt.join(&lp.id).join("left.smt2").exists(), "left #{}", lp.id);
@@ -2074,7 +2516,7 @@ mod tests {
             DebugOptions::default(),
         );
         assert_eq!(run.summary.goal_fails + run.summary.inconclusive, 0);
-        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let smt = std::path::Path::new(&run.out_dir).join("sequential/smt");
         for lp in &run.left_paths {
             for rp in &lp.right_paths {
                 let rtail = rp.id.rsplit('.').next().unwrap();
@@ -2104,7 +2546,7 @@ mod tests {
                 ..DebugOptions::default()
             },
         );
-        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let smt = std::path::Path::new(&run.out_dir).join("sequential/smt");
         let base = std::fs::read_to_string(smt.join("base.smt2")).unwrap();
 
         let mut checked = 0usize;
@@ -2119,7 +2561,7 @@ mod tests {
                     !pair.contains("set-logic"),
                     "deltas pair file must not carry the base frame"
                 );
-                assert!(pair.contains("cat smt/base.smt2"));
+                assert!(pair.contains("cat sequential/smt/base.smt2"));
 
                 // Reassemble base ++ left ++ pair-right and re-derive the
                 // vacuity answer (the `cat … | cvc5` recipe, in-process).
@@ -2131,7 +2573,7 @@ mod tests {
                     s.write_str("\n").unwrap();
                 }
                 let vac = s.check_sat().unwrap();
-                if let Verdict::Unreachable = rp.verdict {
+                if let Verdict::Unreachable { .. } = rp.verdict {
                     assert_eq!(vac, SmtSolverResponse::Unsat);
                 } else {
                     assert_ne!(vac, SmtSolverResponse::Unsat);
@@ -2159,7 +2601,7 @@ mod tests {
                 ..DebugOptions::default()
             },
         );
-        let smt = std::path::Path::new(&run.out_dir).join("smt");
+        let smt = std::path::Path::new(&run.out_dir).join("sequential/smt");
         let mut checked = 0usize;
         for lp in &run.left_paths {
             for rp in &lp.right_paths {
@@ -2470,14 +2912,14 @@ mod tests {
 
         // partial artifacts exist, parse, and carry the stop reason.
         let trace = std::fs::read_to_string(
-            std::path::Path::new(&run.out_dir).join("trace.json"),
+            std::path::Path::new(&run.out_dir).join("sequential_trace.json"),
         )
         .unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&trace).unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
         assert!(parsed.get("partial").is_none());
-        assert!(std::path::Path::new(&run.out_dir).join("index.html").exists());
-        let summary_txt = std::path::Path::new(&run.out_dir).join("summary.txt");
+        assert!(std::path::Path::new(&run.out_dir).join("sequential_viewer.html").exists());
+        let summary_txt = std::path::Path::new(&run.out_dir).join("sequential_summary.txt");
         assert!(summary_txt.exists());
         assert!(!std::fs::read_to_string(&summary_txt).unwrap().is_empty());
     }
@@ -2524,16 +2966,16 @@ mod tests {
         // run still produced a well-formed, flushed trace.
         assert!(obs.pairs >= 1);
         let parsed: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
+            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("sequential_trace.json")).unwrap(),
         )
         .unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
-        assert_eq!(parsed["schema"], 8);
+        assert_eq!(parsed["schema"], 9);
 
         // story 17: the summary.txt written by the same (interrupted) flush is
         // the per-left-path tree, ending with the bracketed stop line.
         let summary =
-            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("summary.txt")).unwrap();
+            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("sequential_summary.txt")).unwrap();
         assert!(!summary.is_empty());
         assert!(summary.starts_with(&render_tree(&run)), "{summary}");
         assert!(summary.starts_with("theorem "), "{summary}");
@@ -2556,3 +2998,383 @@ mod tests {
         );
     }
 }
+
+#[cfg(all(test, feature = "cvc5-lib"))]
+mod story19_tests {
+    //! Story 19 — all-claim runs. `testdata/story19/deps` is built for it: `AbortDiff` has one
+    //! side abort where the other does not, `Branch` has a project-lemma dependency only the
+    //! solver can see is false, `Admitted` has an admitted claim.
+
+    use super::*;
+    use crate::debug::progress::NopObserver;
+    use crate::project::{DirectoryFiles, DirectoryProject};
+    use crate::util::smtsolver::cvc5lib::Cvc5LibBackend;
+
+    const DEPS: &str = "testdata/story19/deps";
+
+    fn with_project<R>(dir: &str, f: impl FnOnce(&DirectoryProject) -> R) -> R {
+        let files = DirectoryFiles::load(std::path::Path::new(dir)).unwrap();
+        let proj = DirectoryProject::load(std::path::PathBuf::from(dir), &files).unwrap();
+        f(&proj)
+    }
+
+    fn run(
+        dir: &str,
+        theorem: &str,
+        step: usize,
+        oracle: &str,
+        claim: Option<&str>,
+        opts: DebugOptions,
+    ) -> DebugRun {
+        with_project(dir, |proj| {
+            let out = tempfile::tempdir().unwrap().into_path();
+            run_debug_command(
+                proj,
+                theorem,
+                step,
+                oracle,
+                claim,
+                &opts,
+                &Cvc5LibBackend::new(true, opts.timeout_ms),
+                Some(out),
+                &mut NopObserver,
+                None,
+            )
+            .unwrap()
+        })
+    }
+
+    fn all(oracle: &str) -> DebugRun {
+        run(DEPS, "T", 0, oracle, None, DebugOptions::default())
+    }
+
+    fn one(oracle: &str, claim: &str) -> DebugRun {
+        run(DEPS, "T", 0, oracle, Some(claim), DebugOptions::default())
+    }
+
+    /// Every pair's verdict for `claim`, in path order.
+    fn of<'r>(run: &'r DebugRun, claim: &str) -> Vec<&'r Verdict> {
+        run.left_paths
+            .iter()
+            .flat_map(|lp| &lp.right_paths)
+            .flat_map(|rp| &rp.claims)
+            .filter(|c| c.claim == claim)
+            .map(|c| &c.verdict)
+            .collect()
+    }
+
+    fn dependency_false(dependency: &str) -> Verdict {
+        Verdict::Unreachable {
+            reason: Unreachability::DependencyFalse {
+                dependency: dependency.to_string(),
+            },
+        }
+    }
+
+    fn same(a: &Verdict, b: &Verdict) -> bool {
+        serde_json::to_string(a).unwrap() == serde_json::to_string(b).unwrap()
+    }
+
+    #[test]
+    fn an_all_claim_run_checks_the_whole_obligation_set_in_prove_order() {
+        let run = all("Branch");
+        assert!(run.all_claims);
+        assert_eq!(run.claim, "!all-claims!");
+        let names: Vec<_> = run.claims.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["equal-aborts", "same-output", "invariant", "needs-positive"]
+        );
+        let checked: Vec<_> = run.claim_summaries.iter().map(|c| c.claim.as_str()).collect();
+        assert_eq!(checked, names);
+        assert!(run.is_ok(), "{}", render_tree(&run));
+    }
+
+    #[test]
+    fn a_pair_where_one_side_aborts_is_unreachable_by_dependency_with_no_solver_call() {
+        let run = all("AbortDiff");
+        // the left assert holds: both return; it fails: the left aborts, the right returns
+        assert_eq!(of(&run, "equal-aborts").len(), 2);
+        assert!(matches!(of(&run, "equal-aborts")[1], Verdict::GoalFails { .. }));
+        for claim in ["same-output", "invariant"] {
+            let verdicts = of(&run, claim);
+            assert!(matches!(verdicts[0], Verdict::Verified), "{claim}");
+            assert!(
+                same(verdicts[1], &dependency_false("no-abort")),
+                "{claim}: {}",
+                render_tree(&run)
+            );
+        }
+        // three claims on the pair where both return, and only `equal-aborts` — the one whose
+        // premise is true — on the pair where the left aborts: deciding `no-abort` cost nothing
+        assert_eq!(run.queries.claims, 3 + 1, "{}", render_tree(&run));
+        assert!(!run.is_ok());
+    }
+
+    #[test]
+    fn a_dependency_only_the_solver_can_see_is_false_costs_one_query_after_an_unsat_goal() {
+        let run = all("Branch");
+        let verdicts = of(&run, "needs-positive");
+        assert_eq!(verdicts.len(), 2);
+        assert!(matches!(verdicts[0], Verdict::Verified));
+        assert!(same(verdicts[1], &dependency_false("positive")), "{}", render_tree(&run));
+        // the claim checks: 3 default claims x 2 pairs, and `needs-positive` on each pair, plus
+        // the extra dependency queries for it: one on the pair where `positive` holds (asked
+        // because the goal was unsat), and on the other pair one to find it false and one to
+        // name which dependency it is
+        assert_eq!(run.queries.claims, 2 * 3 + 2 + 3, "{}", render_tree(&run));
+    }
+
+    #[test]
+    fn a_single_claim_run_keeps_its_dependencies_in_the_base_frame() {
+        let single = one("Branch", "needs-positive");
+        let everything = all("Branch");
+        assert!(single.base_frame_smt.contains("(assert (<relation-positive"));
+        assert!(!everything.base_frame_smt.contains("(assert (<relation-positive"));
+        // with its dependencies asserted up front, the path where `positive` is false is not
+        // a pair at all: it is pruned (the frame is unsat there), not reported unreachable
+        assert!(single.claim_summaries.is_empty());
+        assert_eq!(single.summary.right_paths, 1, "{}", render_tree(&single));
+        assert!(single.claims.iter().all(|c| c.name == "needs-positive"));
+        assert!(single
+            .left_paths
+            .iter()
+            .flat_map(|lp| &lp.right_paths)
+            .all(|rp| rp.claims.is_empty()));
+    }
+
+    #[test]
+    fn a_single_claim_run_is_the_all_claim_run_with_its_dependencies_moved_to_the_frame() {
+        // every verdict of `--claim C` is what the all-claim run says about C, except that a
+        // pair `C`'s dependencies make infeasible is not enumerated at all
+        for oracle in ["Branch", "AbortDiff", "AbortBoth", "Admitted"] {
+            let everything = all(oracle);
+            for info in everything.claims.iter().filter(|c| !c.admitted) {
+                let single = one(oracle, &info.name);
+                let failures_of = |run: &DebugRun| run.summary.goal_fails;
+                let all_fails = of(&everything, &info.name)
+                    .iter()
+                    .filter(|v| matches!(v, Verdict::GoalFails { .. }))
+                    .count();
+                assert_eq!(failures_of(&single), all_fails, "{oracle} {}", info.name);
+            }
+        }
+    }
+
+    #[test]
+    fn the_exploration_is_paid_once_however_many_claims_there_are() {
+        // `equal-aborts` has no dependencies, so its single-claim frame is the all-claim one:
+        // the same exploration, the same pruning, the same vacuity checks
+        for (dir, theorem, oracle) in [
+            (DEPS, "T", "Branch"),
+            (DEPS, "T", "AbortDiff"),
+            ("example-projects/kem-dem/kem-dem-cca-ssp", "kem_dem_cca_ssp", "PKDEC"),
+        ] {
+            let everything = run(dir, theorem, 0, oracle, None, DebugOptions::default());
+            let narrow = run(dir, theorem, 0, oracle, Some("equal-aborts"), DebugOptions::default());
+            assert_eq!(
+                everything.queries.exploration, narrow.queries.exploration,
+                "{oracle}: the exploration must not scale with the claim count"
+            );
+            assert!(everything.queries.claims > narrow.queries.claims, "{oracle}");
+        }
+    }
+
+    #[test]
+    fn admitted_claims_are_listed_and_never_checked() {
+        let run = all("Admitted");
+        let skipped = run.claims.iter().find(|c| c.name == "skipped").unwrap();
+        assert!(skipped.admitted);
+        assert!(of(&run, "skipped").is_empty());
+        assert!(run.claim_summaries.iter().all(|c| c.claim != "skipped"));
+        assert!(!run.admitted, "the other claims of the oracle are not");
+        assert!(render_tree(&run).contains("admitted"), "{}", render_tree(&run));
+    }
+
+    #[test]
+    fn first_failure_per_claim_stops_checking_a_claim_after_its_first_goal_fails() {
+        let dir = "testdata/lockstep/rules";
+        let everything = run(dir, "T", 0, "Split", None, DebugOptions::default());
+        let fails = |run: &DebugRun| {
+            run.claim_summaries
+                .iter()
+                .find(|c| c.claim == "same-output")
+                .unwrap()
+                .clone()
+        };
+        assert_eq!(fails(&everything).goal_fails, 2, "the two mixed combinations");
+        assert_eq!(fails(&everything).skipped, 0);
+
+        let first_only = run(
+            dir,
+            "T",
+            0,
+            "Split",
+            None,
+            DebugOptions {
+                first_failure_per_claim: true,
+                ..DebugOptions::default()
+            },
+        );
+        let f = fails(&first_only);
+        assert_eq!(f.goal_fails, 1);
+        assert!(f.skipped >= 1, "{f:?}");
+        assert!(!first_only.is_ok());
+    }
+
+    #[test]
+    fn both_strategies_write_into_one_directory_and_neither_wipes_the_other() {
+        use crate::debug::lockstep_run::{run_lockstep_domino, LockstepDebugOptions};
+        with_project(DEPS, |proj| {
+            let out = tempfile::tempdir().unwrap().into_path();
+            let seq = run_debug_command(
+                proj, "T", 0, "Branch", None, &DebugOptions::default(),
+                &Cvc5LibBackend::new(true, None), Some(out.clone()), &mut NopObserver, None,
+            )
+            .unwrap();
+            let lock = run_lockstep_domino(
+                proj, "T", 0, "Branch", None, &LockstepDebugOptions::default(),
+                &Cvc5LibBackend::new(true, None), Some(out.clone()), &mut NopObserver, None,
+            )
+            .unwrap();
+            assert_eq!(seq.out_dir, lock.meta.out_dir);
+            for file in [
+                "inlined.txt",
+                "sequential_viewer.html",
+                "sequential_trace.json",
+                "sequential_summary.txt",
+                "lockstep_viewer.html",
+                "lockstep_trace.json",
+                "lockstep_summary.txt",
+            ] {
+                assert!(out.join(file).is_file(), "{file}");
+            }
+            for dir in ["sequential/models", "lockstep/models"] {
+                assert!(out.join(dir).is_dir(), "{dir}");
+            }
+            // no file of either is called by the name both would want
+            for plain in ["index.html", "trace.json", "summary.txt", "models", "smt"] {
+                assert!(!out.join(plain).exists(), "{plain}");
+            }
+            let seq_summary = std::fs::read_to_string(out.join("sequential_summary.txt")).unwrap();
+            let lock_summary = std::fs::read_to_string(out.join("lockstep_summary.txt")).unwrap();
+            assert!(seq_summary.contains("\nstrategy sequential\n"), "{seq_summary}");
+            assert!(lock_summary.contains("\nstrategy lockstep\n"), "{lock_summary}");
+            assert!(crate::debug::report::render_summary(&seq).contains("strategy      sequential\n"));
+            assert!(crate::debug::lockstep_report::render_summary(&lock)
+                .contains("strategy      lockstep\n"));
+            // running the sequential one again leaves the lockstep files as they were
+            let before = std::fs::read(out.join("lockstep_trace.json")).unwrap();
+            run_debug_command(
+                proj, "T", 0, "Branch", None, &DebugOptions::default(),
+                &Cvc5LibBackend::new(true, None), Some(out.clone()), &mut NopObserver, None,
+            )
+            .unwrap();
+            assert_eq!(before, std::fs::read(out.join("lockstep_trace.json")).unwrap());
+        });
+    }
+
+    /// A `TheoremUI` that says nothing: `Project::prove` installs a global logger, which a
+    /// test binary can do once.
+    struct Silent;
+
+    impl crate::ui::TheoremUI for Silent {
+        fn println(&self, _: &str) -> std::io::Result<()> {
+            Ok(())
+        }
+        fn start_theorem(&mut self, _: &str, _: u64) {}
+        fn finish_theorem(&mut self, _: &str) {}
+        fn start_proofstep(&mut self, _: &str, _: &str) {}
+        fn proofstep_is_reduction(&mut self, _: &str, _: &str) {}
+        fn proofstep_set_claim_groups_count(&mut self, _: &str, _: &str, _: u64) {}
+        fn finish_proofstep(&mut self, _: &str, _: &str) {}
+        fn start_claim_group(&mut self, _: &str, _: &str, _: &str, _: u64) {}
+        fn finish_claim_group(&mut self, _: &str, _: &str, _: &str) {}
+        fn start_claim(&mut self, _: &str, _: &str, _: &str, _: &str) {}
+        fn finish_claim(&mut self, _: &str, _: &str, _: &str, _: &str) {}
+    }
+
+    /// What `domino prove --proof T --proofstep N --oracle O --claim C` concludes.
+    fn prove_says_ok(
+        proj: &DirectoryProject,
+        theorem: &str,
+        step: usize,
+        oracle: &str,
+        claim: &str,
+        backend: &Cvc5LibBackend,
+    ) -> bool {
+        use crate::gamehops::equivalence::verify_fn::EquivalenceSmtDriver;
+        let theorem = proj.get_theorem(theorem).unwrap();
+        let (transformed, auxs) = EquivalenceTransform.transform_theorem(theorem).unwrap();
+        let eq = equivalence_of(theorem, step).unwrap();
+        let mut eqctx = EquivalenceContext::new(eq, &transformed, &auxs);
+        eqctx.load_invariants(proj).unwrap();
+        let mut driver = EquivalenceSmtDriver::new(
+            &eqctx, proj, backend, false, Some(oracle), Some(claim), 1, false, false,
+        );
+        driver.verify(&mut Silent).is_ok()
+    }
+
+    /// `domino prove` decides each claim of an oracle on its own; an all-claim run must reach
+    /// the same verdict for it: `prove` succeeds exactly when no pair fails the claim.
+    #[test]
+    fn an_all_claim_run_agrees_with_prove_claim_by_claim() {
+        use crate::debug::sweep;
+        use crate::project::Project as _;
+
+        let mut compared = 0usize;
+        for (dir, theorem) in [
+            ("example-projects/hello-world", "Proof"),
+            ("example-projects/simple-KEM-example", "KEM_Proof"),
+            ("test-projects/test-splitinvoke", ""),
+            ("testdata/lockstep/rules", "T"),
+            (DEPS, "T"),
+        ] {
+            with_project(dir, |proj| {
+                let theorem = if theorem.is_empty() {
+                    proj.theorems().next().unwrap().to_string()
+                } else {
+                    theorem.to_string()
+                };
+                let plan = sweep::plan(proj, Some(&theorem), None, None).unwrap();
+                for target in &plan.targets {
+                    let out = tempfile::tempdir().unwrap().into_path();
+                    let opts = DebugOptions::default();
+                    let backend = Cvc5LibBackend::new(true, None);
+                    let run = run_debug_command(
+                        proj, &target.theorem, target.proofstep, &target.oracle, None, &opts,
+                        &backend, Some(out), &mut NopObserver, None,
+                    )
+                    .unwrap();
+                    assert_eq!(run.stop_reason, StopReason::Completed);
+                    for c in &run.claim_summaries {
+                        assert_eq!(
+                            c.inconclusive, 0,
+                            "{dir} {}: an undecided query breaks the comparison",
+                            target.oracle
+                        );
+                        let proved = prove_says_ok(
+                            proj,
+                            &target.theorem,
+                            target.proofstep,
+                            &target.oracle,
+                            &c.claim,
+                            &backend,
+                        );
+                        assert_eq!(
+                            proved,
+                            c.goal_fails == 0,
+                            "{dir} {} {}: prove says {proved}, the all-claim run found {} failing pairs",
+                            target.oracle,
+                            c.claim,
+                            c.goal_fails
+                        );
+                        compared += 1;
+                    }
+                }
+            });
+        }
+        assert!(compared >= 20, "only {compared} claims were compared");
+    }
+}
+

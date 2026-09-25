@@ -42,7 +42,6 @@ use thiserror::Error;
 use crate::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions};
 use crate::debug::progress::NopObserver;
 use crate::writers::easycrypt::progress::{ExportObserver, NopExportObserver};
-use crate::debug::smtout::SmtOut;
 use crate::project::Project;
 use crate::theorem::Theorem;
 use crate::transforms::theorem_transforms::EasyCryptTransform;
@@ -596,6 +595,15 @@ where
     Ok(tactics)
 }
 
+/// Where lockstep execution of `oracle` writes its artifacts: beside the export it describes,
+/// under the theorem it belongs to (story 19 §4.6). `domino easycrypt --debug` writes there too.
+pub fn debug_dir(theorem_out: &Path, left: &str, right: &str, oracle: &str) -> PathBuf {
+    theorem_out
+        .join("!debug!")
+        .join(format!("{left}-{right}"))
+        .join(oracle)
+}
+
 /// `Eq_*.ec` and its report as a tactics run goes (story 33): both are rewritten on every
 /// write, each atomically, so the file on disk is what has been proved so far and the report
 /// next to it describes that file. No `easycrypt compile` (ADR 0005).
@@ -699,7 +707,7 @@ where
     B: SmtSolverBackend,
 {
     live.oracle_started(oracle);
-    // lockstep execution first: its artifacts are written exactly as `domino debug --easycrypt`
+    // lockstep execution first: its artifacts are written exactly as `domino easycrypt --debug`
     // writes them, so every `S`/`J` of an admit has a page to open
     let lockstep_started = Instant::now();
     live.activity("lockstep execution");
@@ -708,14 +716,10 @@ where
         &theorem.name,
         eq.proofstep,
         oracle,
-        &LockstepDebugOptions {
-            timeout_ms: options.lockstep_timeout_ms,
-            max_paths: None,
-            smt_out: SmtOut::Failures,
-            transcript: false,
-        },
+        &LockstepDebugOptions::easycrypt(options.lockstep_timeout_ms),
         backend,
-        None,
+        // next to the export it describes: `<out>/<theorem>/!debug!/<left>-<right>/<oracle>/`
+        Some(debug_dir(proof.out_dir, &eq.left_name, &eq.right_name, oracle)),
         &mut NopObserver,
         options.stop.as_deref(),
     );

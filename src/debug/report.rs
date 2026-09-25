@@ -18,10 +18,17 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use crate::debug::driver::{self, DebugRun, StepView, StopReason, TerminalView, Verdict};
+use crate::debug::layout::Layout;
 
-/// Write `trace.json` into `out_dir`. Returns the path written.
+/// The spelling of `run`'s artifact names: prefixed with its strategy, so that both Domino
+/// strategies can write into one directory (story 19 §4.6).
+fn layout_of(run: &DebugRun) -> Layout {
+    Layout::Strategy(run.strategy)
+}
+
+/// Write the JSON trace (`<strategy>_trace.json`) into `out_dir`. Returns the path written.
 pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
-    let path = out_dir.join("trace.json");
+    let path = out_dir.join(layout_of(run).trace());
     let mut json = serde_json::to_string_pretty(run)
         .map_err(std::io::Error::other)?;
     json.push('\n');
@@ -29,7 +36,7 @@ pub fn write_trace_json(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathB
     Ok(path)
 }
 
-/// Write `trace.json`, `index.html` and `summary.txt` for the run so far.
+/// Write the trace, the viewer and the summary for the run so far.
 ///
 /// Called after every left path (story 09's incremental flush, so a `Ctrl-C` or
 /// `--max-paths` leaves a usable partial trace + viewer) and once at the end.
@@ -52,17 +59,17 @@ pub fn flush(run: &DebugRun, out_dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Write the self-contained `index.html` viewer into `out_dir`. Returns the path
+/// Write the self-contained viewer (`<strategy>_viewer.html`) into `out_dir`. Returns the path
 /// written.
 pub fn write_html(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
-    let path = out_dir.join("index.html");
+    let path = out_dir.join(layout_of(run).viewer());
     let json = serde_json::to_string(run)
         .map_err(std::io::Error::other)?;
     std::fs::write(&path, render_html(&json))?;
     Ok(path)
 }
 
-/// Write the per-left-path execution tree to `<out_dir>/summary.txt`.
+/// Write the per-left-path execution tree to `<out_dir>/<strategy>_summary.txt`.
 ///
 /// As of story 17 this file holds the **full tree** — `driver::render_tree`,
 /// every step of every left path, its right paths and their verdicts, the pruned
@@ -75,7 +82,7 @@ pub fn write_html(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
 /// an interrupted run still has the tree of the left paths it finished. It is
 /// byte-deterministic across two runs of an unchanged project (no `elapsed`).
 pub fn write_summary(run: &DebugRun, out_dir: &Path) -> std::io::Result<PathBuf> {
-    let path = out_dir.join("summary.txt");
+    let path = out_dir.join(layout_of(run).summary());
     std::fs::write(&path, render_paths_report(run))?;
     Ok(path)
 }
@@ -159,10 +166,11 @@ pub fn render_summary(run: &DebugRun) -> String {
     // ---- header block -----------------------------------------------------
     s.push_str("domino debug — summary\n");
     s.push_str("======================\n");
+    let _ = writeln!(s, "{:<14}{}", "strategy", run.strategy);
     let _ = writeln!(s, "{:<14}{}, proofstep {}", "theorem", run.theorem, run.proofstep);
     let _ = writeln!(s, "{:<14}{}  ==  {}", "games", run.left_game, run.right_game);
     let _ = writeln!(s, "{:<14}{}", "oracle", run.oracle);
-    let _ = writeln!(s, "{:<14}{}", "claim", run.claim);
+    let _ = writeln!(s, "{:<14}{}", "claim", claim_line(run));
     let _ = writeln!(
         s,
         "{:<14}check-left={} check-right={} timeout={} max-paths={} jobs=1 smt={}",
@@ -240,6 +248,7 @@ pub fn render_summary(run: &DebugRun) -> String {
     let _ = writeln!(s, "  {:<14}{}", "unreachable", sm.unreachable);
     let _ = writeln!(s, "  {:<14}{}", "GOAL FAILS", sm.goal_fails);
     let _ = writeln!(s, "  {:<14}{}", "inconclusive", sm.inconclusive);
+    write_claim_table(&mut s, run);
 
     // ---- failing / inconclusive pairs --------------------------------
     let mut goal_fails: Vec<(String, String, Option<String>)> = Vec::new();
@@ -247,11 +256,33 @@ pub fn render_summary(run: &DebugRun) -> String {
     for lp in &run.left_paths {
         for rp in &lp.right_paths {
             let chain = chain_str(&rp.steps, &rp.terminal);
+            // An all-claim run names the claims that failed on the pair; a single-claim run
+            // has one claim, already in the header.
+            let failed = |wanted: fn(&Verdict) -> bool| -> String {
+                rp.claims
+                    .iter()
+                    .filter(|c| wanted(&c.verdict))
+                    .map(|c| c.claim.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            };
             match &rp.verdict {
                 Verdict::GoalFails { model } => {
+                    let claims = failed(|v| matches!(v, Verdict::GoalFails { .. }));
+                    let chain = if claims.is_empty() {
+                        chain
+                    } else {
+                        format!("{chain}  [{claims}]")
+                    };
                     goal_fails.push((rp.id.clone(), chain, Some(model.clone())))
                 }
                 Verdict::Inconclusive { model } => {
+                    let claims = failed(|v| matches!(v, Verdict::Inconclusive { .. }));
+                    let chain = if claims.is_empty() {
+                        chain
+                    } else {
+                        format!("{chain}  [{claims}]")
+                    };
                     inconclusive.push((rp.id.clone(), chain, model.clone()))
                 }
                 _ => {}
@@ -271,21 +302,89 @@ pub fn render_summary(run: &DebugRun) -> String {
     artifact(
         "paths",
         &format!(
-            "summary.txt        (per-path tree: {} left, {} right)",
-            sm.left_paths, sm.right_paths
+            "{}        (per-path tree: {} left, {} right)",
+            layout_of(run).summary(),
+            sm.left_paths,
+            sm.right_paths
         ),
     );
-    artifact("tree", "index.html");
-    artifact("trace", "trace.json");
+    let layout = layout_of(run);
+    artifact("tree", &layout.viewer());
+    artifact("trace", &layout.trace());
     artifact("listing", "inlined.txt");
     if o.smt.as_str() != "none" {
-        artifact("smt", &format!("smt/               ({})", o.smt.as_str()));
+        artifact(
+            "smt",
+            &format!("{}/               ({})", layout.rel("smt"), o.smt.as_str()),
+        );
     }
     if o.transcript {
-        artifact("transcript", "transcript.smt2");
+        artifact("transcript", &layout.rel("transcript.smt2"));
     }
 
     s
+}
+
+/// `same-output`, or `all 5 claims of the oracle`.
+fn claim_line(run: &DebugRun) -> String {
+    if run.all_claims {
+        let checked = run.claims.iter().filter(|c| !c.admitted).count();
+        let admitted = run.claims.len() - checked;
+        if admitted == 0 {
+            format!("all {checked} claims of the oracle")
+        } else {
+            format!("all {checked} claims of the oracle ({admitted} admitted, not checked)")
+        }
+    } else {
+        run.claim.clone()
+    }
+}
+
+/// The per-claim verdict table of an all-claim run: what `prove` would say for each claim,
+/// pair by pair. An unreachable pair says why (`pair` infeasible, or the claim's own
+/// dependency `dep` false on it).
+fn write_claim_table(s: &mut String, run: &DebugRun) {
+    if run.claim_summaries.is_empty() {
+        return;
+    }
+    let width = run
+        .claim_summaries
+        .iter()
+        .map(|c| c.claim.len())
+        .max()
+        .unwrap_or(0)
+        .max(5);
+    let _ = writeln!(
+        s,
+        "\nclaims     {:<width$}  verified  unreachable (pair / dependency)  GOAL FAILS  inconclusive",
+        "claim"
+    );
+    for c in &run.claim_summaries {
+        let _ = writeln!(
+            s,
+            "           {:<width$}  {:>8}  {:>11} / {:<10}  {:>10}  {:>12}{}",
+            c.claim,
+            c.verified,
+            c.unreachable_pair,
+            c.unreachable_dependency,
+            c.goal_fails,
+            c.inconclusive,
+            if c.skipped > 0 {
+                format!("   ({} pairs not checked after its first failure)", c.skipped)
+            } else {
+                String::new()
+            },
+        );
+    }
+    for info in run.claims.iter().filter(|c| c.admitted) {
+        let _ = writeln!(s, "           {:<width$}  admitted — not checked", info.name);
+    }
+    let q = run.queries;
+    let _ = writeln!(
+        s,
+        "\nsolver queries  {} exploring, {} checking claims",
+        q.exploration, q.claims
+    );
 }
 
 /// A `goal failures` / `inconclusive` block: heading, up to 20 entries, then a
@@ -312,7 +411,7 @@ fn write_pair_block(
         }
     }
     if entries.len() > CAP {
-        let _ = writeln!(s, "  … and {} more (see index.html)", entries.len() - CAP);
+        let _ = writeln!(s, "  … and {} more (see the viewer)", entries.len() - CAP);
     }
 }
 
@@ -1327,7 +1426,7 @@ mod tests {
     fn summary_txt_of(run: &DebugRun) -> String {
         let dir = tempfile::tempdir().unwrap();
         let p = write_summary(run, dir.path()).unwrap();
-        assert_eq!(p.file_name().unwrap(), "summary.txt");
+        assert_eq!(p.file_name().unwrap(), "sequential_summary.txt");
         std::fs::read_to_string(&p).unwrap()
     }
 
@@ -1379,6 +1478,11 @@ mod tests {
 
         DebugRun {
             schema: TRACE_SCHEMA,
+            strategy: "sequential",
+            all_claims: false,
+            claims: vec![],
+            claim_summaries: vec![],
+            queries: Default::default(),
             theorem: "demo".into(),
             proofstep: 0,
             left_game: "Game_L".into(),
@@ -1395,6 +1499,7 @@ mod tests {
                 max_paths: Some(1000),
                 smt: crate::debug::smtout::SmtOut::Failures,
                 transcript: false,
+                first_failure_per_claim: false,
             },
             base_frame_smt: "(declare-const x Int)".into(),
             goal_smt: "(assert (not (= x 0)))".into(),
@@ -1442,6 +1547,7 @@ mod tests {
                         effect: Some(demo_effect()),
                         lines: vec![[1, 2]],
                         verdict: Verdict::Verified,
+                        claims: vec![],
                         model_smt: None,
                         smt: vec!["(assert true)".into()],
                     },
@@ -1458,6 +1564,7 @@ mod tests {
                         verdict: Verdict::GoalFails {
                             model: "models/1.2.smt2".into(),
                         },
+                        claims: vec![],
                         model_smt: Some("(define-fun x () Int 0)".into()),
                         smt: vec!["(assert false)".into()],
                     },
@@ -1507,7 +1614,7 @@ mod tests {
         assert!(!first.contains("absolute/path"), "out_dir must be skipped");
 
         let parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
-        assert_eq!(parsed["schema"], 8);
+        assert_eq!(parsed["schema"], 9);
         assert_eq!(parsed["options"]["max_paths"], 1000);
         assert_eq!(parsed["goal_smt"], "(assert (not (= x 0)))");
         assert_eq!(parsed["left_paths"][0]["right_paths"][1]["verdict"]["kind"], "goal-fails");
@@ -1528,7 +1635,7 @@ mod tests {
         let p = write_trace_json(&run, dir.path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(parsed["schema"], 8);
+        assert_eq!(parsed["schema"], 9);
         assert!(parsed["options"]["max_paths"].is_null());
     }
 
@@ -1596,7 +1703,7 @@ mod tests {
         // story 17: artifacts block names the out dir and points `paths` at the tree
         assert!(txt.contains("\nartifacts     /x\n"), "{txt}");
         assert!(
-            txt.contains("  paths         summary.txt        (per-path tree: 1 left, 2 right)\n"),
+            txt.contains("  paths         sequential_summary.txt        (per-path tree: 1 left, 2 right)\n"),
             "{txt}"
         );
     }

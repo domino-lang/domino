@@ -41,7 +41,8 @@ use std::path::{Path, PathBuf};
 
 use serde_derive::Serialize;
 
-use crate::debug::driver::{DebugRun, LeftPath, RightPath, Verdict};
+use crate::debug::driver::{DebugRun, GoalBlock, LeftPath, RightPath, Verdict};
+use crate::debug::layout::Layout;
 
 /// Which pairs get a self-contained `.smt2` file under `<out>/smt/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -94,6 +95,7 @@ impl SmtOut {
 
 /// Header metadata for the emitted files — a snapshot of the run's identity.
 struct Meta {
+    strategy: &'static str,
     theorem: String,
     proofstep: usize,
     left_game: String,
@@ -105,6 +107,7 @@ struct Meta {
 impl Meta {
     fn of(run: &DebugRun) -> Self {
         Self {
+            strategy: run.strategy,
             theorem: run.theorem.clone(),
             proofstep: run.proofstep,
             left_game: run.left_game.clone(),
@@ -119,6 +122,8 @@ impl Meta {
 /// run identity, and the already-rendered `base.smt2` body.
 pub struct SmtWriter {
     root: PathBuf,
+    /// `root` relative to the run's output directory: `smt`, or `sequential/smt`.
+    rel: String,
     mode: SmtOut,
     meta: Meta,
     /// The full text of `smt/base.smt2` (preamble + base frame), kept so
@@ -135,8 +140,13 @@ impl SmtWriter {
     /// `:incremental` (the file has a `push`/`pop` around the goal and two
     /// `check-sat`s) and `:produce-models` (for `(get-model)`), skipping either
     /// if the base frame already carries it.
-    pub fn new(out_dir: &Path, mode: SmtOut, run: &DebugRun) -> std::io::Result<Self> {
-        let root = out_dir.join("smt");
+    pub fn new(
+        out_dir: &Path,
+        layout: Layout,
+        mode: SmtOut,
+        run: &DebugRun,
+    ) -> std::io::Result<Self> {
+        let root = layout.path(out_dir, "smt");
         let mut preamble = String::new();
         if !run.base_frame_smt.contains(":incremental")
             && !run.base_frame_smt.contains("incremental true")
@@ -150,6 +160,7 @@ impl SmtWriter {
 
         let writer = Self {
             root,
+            rel: layout.rel("smt"),
             mode,
             meta: Meta::of(run),
             base_body,
@@ -194,7 +205,7 @@ impl SmtWriter {
         lid: &str,
         left: &LeftPath,
         right: &RightPath,
-        goal_smt: &str,
+        goals: &[GoalBlock],
     ) -> std::io::Result<()> {
         if !self.mode.covers(&right.verdict) {
             return Ok(());
@@ -216,15 +227,24 @@ impl SmtWriter {
             right.id,
             path_summary(&right.steps, &right.terminal)
         ));
-        s.push_str(&format!(
-            "; verdict recorded by `domino debug`: {}\n;\n",
-            right.verdict.slug()
-        ));
+        if right.claims.is_empty() {
+            s.push_str(&format!(
+                "; verdict recorded by `domino debug`: {}\n;\n",
+                right.verdict.slug()
+            ));
+        } else {
+            s.push_str("; verdicts recorded by `domino debug`:\n");
+            for c in &right.claims {
+                s.push_str(&format!(";   {:<30} {}\n", c.claim, c.verdict.slug()));
+            }
+            s.push_str(";\n");
+        }
         if self_contained {
             s.push_str("; run:  cvc5 --lang smt2 <this file>\n");
         } else {
+            let smt = &self.rel;
             s.push_str(&format!(
-                "; run:  cat smt/base.smt2 smt/{lid}/left.smt2 smt/{lid}/{rtail}.smt2 \
+                "; run:  cat {smt}/base.smt2 {smt}/{lid}/left.smt2 {smt}/{lid}/{rtail}.smt2 \
                  | cvc5 --lang smt2 -\n"
             ));
         }
@@ -232,10 +252,17 @@ impl SmtWriter {
             ";   first  (check-sat)  is the vacuity check   \
              — `unsat` means the pair is unreachable\n",
         );
-        s.push_str(
-            ";   second (check-sat)  is the negated goal    \
-             — `sat` means the claim FAILS on this pair\n\n",
-        );
+        if right.claims.is_empty() {
+            s.push_str(
+                ";   second (check-sat)  is the negated goal    \
+                 — `sat` means the claim FAILS on this pair\n\n",
+            );
+        } else {
+            s.push_str(
+                ";   then one (check-sat) per claim, on its own dependencies and negated goal \
+                 — `sat` means the claim FAILS on this pair\n\n",
+            );
+        }
 
         if self_contained {
             s.push_str("; ---- base frame -------------------------------------------------------\n");
@@ -264,13 +291,37 @@ impl SmtWriter {
 
         s.push_str("; ---- vacuity ----------------------------------------------------------\n");
         s.push_str("(check-sat)\n\n");
-        s.push_str("; ---- negated goal -----------------------------------------------------\n");
-        s.push_str("(push 1)\n");
-        s.push_str(goal_smt);
-        s.push('\n');
-        s.push_str("(check-sat)\n");
-        s.push_str("(get-model)\n");
-        s.push_str("(pop 1)\n");
+        if right.claims.is_empty() {
+            let goal = goals.first().map_or("", |g| g.negated.as_str());
+            s.push_str("; ---- negated goal -----------------------------------------------------\n");
+            s.push_str("(push 1)\n");
+            s.push_str(goal);
+            s.push('\n');
+            s.push_str("(check-sat)\n");
+            s.push_str("(get-model)\n");
+            s.push_str("(pop 1)\n");
+        } else {
+            for checked in &right.claims {
+                let Some(block) = goals.iter().find(|g| g.claim == checked.claim) else {
+                    continue;
+                };
+                if matches!(self.mode, SmtOut::Failures) && !checked.verdict.is_failure() {
+                    continue;
+                }
+                s.push_str(&format!(
+                    "; ---- claim {}: {} ----\n",
+                    block.claim,
+                    checked.verdict.slug()
+                ));
+                s.push_str("(push 1)\n");
+                for dependency in &block.dependencies {
+                    s.push_str(dependency);
+                    s.push('\n');
+                }
+                s.push_str(&block.negated);
+                s.push_str("\n(check-sat)\n(get-model)\n(pop 1)\n\n");
+            }
+        }
 
         std::fs::write(dir.join(format!("{rtail}.smt2")), s)
     }
@@ -278,8 +329,8 @@ impl SmtWriter {
     fn file_header(&self) -> String {
         let m = &self.meta;
         format!(
-            "; domino debug — theorem {}, proofstep {}, {} == {}\n; oracle {}, claim {}\n",
-            m.theorem, m.proofstep, m.left_game, m.right_game, m.oracle, m.claim
+            "; domino debug ({}) — theorem {}, proofstep {}, {} == {}\n; oracle {}, claim {}\n",
+            m.strategy, m.theorem, m.proofstep, m.left_game, m.right_game, m.oracle, m.claim
         )
     }
 }
