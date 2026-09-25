@@ -579,6 +579,7 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
     if e.tactics {
         use sspverif::easycrypt::tactics::{
             read_smt_hints, run_tactics_observed, EcTranscriptMode, TacticsOptions,
+            WriteGranularity,
         };
 
         let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, None);
@@ -593,6 +594,10 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             ec_transcript: match e.ec_transcript {
                 EcTranscriptArg::Capped => EcTranscriptMode::Capped,
                 EcTranscriptArg::Full => EcTranscriptMode::Full,
+            },
+            write_granularity: match e.write_granularity {
+                WriteGranularityArg::Oracle => WriteGranularity::Oracle,
+                WriteGranularityArg::Node => WriteGranularity::Node,
             },
         };
         for (name, exported) in &exports {

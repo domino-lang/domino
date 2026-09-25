@@ -27,7 +27,34 @@ installed only by `debug()` (`crates/domino/src/main.rs`), and `ctrlc` is alread
 
 ## 2. Inherited from earlier stories
 
-- **Story 33:** the seal, `--write-granularity`, `AdmitReason::Interrupted`.
+- **Story 33:** the seal, `--write-granularity`, `AdmitReason::Interrupted`. Concretely
+  (`docs/stories/easycrypt/33-…-IMPLEMENTATION-REPORT.md` has the rest):
+  - **The seal entry point is `Prover::seal(&self) -> Sealed`** (`src/easycrypt/tactics/driver.rs`).
+    It can be called at any time between two sentences, from anywhere that has the `Prover`: it
+    reads only `self.script` and `self.session.goals().len()`, and sends nothing. It returns
+    `Sealed { script, stats, mismatches }`, with one `interrupted` admit per open goal of the oracle
+    in `stats.admits`. Their label is `(* domino: N<k> open-goal; reason: interrupted; Domino: n/a *)`,
+    where `N<k>` is `Prover::node`, the innermost joint node being proved (`router` in the router
+    prelude). "Sealed `<oracle>` with N admits at node N<k>" can be read from there.
+  - **Writing goes through `Prover::checkpoint: Option<&mut dyn FnMut(Sealed)>`.** In
+    `tactics_for_oracle` (`src/easycrypt/tactics/mod.rs`) that is the `write_sealed` closure. It
+    turns a `Sealed` into the oracle's `OracleTactics` (`result_of`) and calls
+    `ProofFile::write(Some(&partial))`, which rewrites the report, then `Eq_*.ec`, each atomically,
+    with the finished oracles plus that one. The closure is installed only under
+    `--write-granularity node`, and `prove_node` calls `Prover::checkpoint()` after each node.
+    **For Ctrl-C:** install the closure in both granularities. The signal-driven stop check inside
+    the prover (after an interrupted sentence has been rolled back) calls `self.checkpoint()` once
+    and then unwinds. Everything the seal needs is already consistent at that point. A `send` that
+    ends in `Unresponsive` leaves `session.goals()` at the last answered state, and the script
+    only holds accepted sentences.
+  - A write failure in node mode is kept by the closure. Later node writes are skipped, and
+    the error ends the run after the oracle (`TacticsError::Io`). The last good write stays on
+    disk.
+  - Oracles that are finished are written by `tactics_for_equivalence` after each
+    `tactics_for_oracle`, before `live.oracle_finished`. There is also a final write after the
+    oracle loop.
+  - `easycrypt compile` is gone from the run (ADR 0005). `compile` is now a test helper in
+    `src/easycrypt/tactics/tests.rs`.
 - **Story 26:** `Session::interrupt` — SIGINT to the EasyCrypt child, after which the running
   sentence is answered `Status::Interrupted`; `INTERRUPT_GRACE` (30 s) bounds the wait for that
   answer. `Session::undo_to`.

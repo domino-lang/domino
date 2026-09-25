@@ -428,6 +428,24 @@ qed.
     }
 
     #[test]
+    fn a_sealed_oracle_counts_as_partially_proved() {
+        // what a tactics run writes mid-oracle (story 33): the walk's work, then the goals it
+        // had not got to, admitted and labelled `interrupted`
+        let text = "(* d_O *)\n+ proc; inline.\n  sp 1 1.\n  if.\n  + auto => /#.\n  \
+                    + sp 3 2.\n    admit. (* domino: N0 open-goal; reason: interrupted; Domino: n/a *)\n  \
+                    + admit. (* domino: N0 open-goal; reason: interrupted; Domino: n/a *)\n\n\
+                    (* d_P *)\n+ proc; inline. admit.\nqed.\n";
+        assert_eq!(
+            proof_progress(text),
+            OracleCounts {
+                proved: 0,
+                partial: 1,
+                total: 2
+            }
+        );
+    }
+
+    #[test]
     fn proof_progress_does_not_trip_on_empty_comments() {
         let text = "(* *)\n+ proc; inline. admit.\n(**)\n(* a *)\n+ proc. auto.\nqed.\n";
         assert_eq!(proof_progress(text).total, 1);

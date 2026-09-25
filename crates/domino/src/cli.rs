@@ -43,6 +43,16 @@ pub(crate) enum EcTranscriptArg {
     Full,
 }
 
+/// When `domino easycrypt --tactics` rewrites `Eq_*.ec` and its report (story 33).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum WriteGranularityArg {
+    /// After each oracle (the default).
+    Oracle,
+    /// After every joint node too, the oracle in flight sealed: its open goals admitted,
+    /// labelled `interrupted`.
+    Node,
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
     /// Export to LaTeX
@@ -120,6 +130,11 @@ pub(crate) struct Easycrypt {
     /// Not `--transcript`, which is the solver transcript of `domino debug`/`prove`.
     #[clap(long, value_enum, requires = "tactics", default_value_t = EcTranscriptArg::Capped)]
     pub(crate) ec_transcript: EcTranscriptArg,
+    /// With `--tactics`: when `Eq_*.ec` and its report are rewritten. The file on disk always
+    /// holds what has been proved so far: `node` also writes after every joint node, the
+    /// oracle in flight sealed (its open goals admitted, labelled `interrupted`).
+    #[clap(long, value_enum, requires = "tactics", default_value_t = WriteGranularityArg::Oracle)]
+    pub(crate) write_granularity: WriteGranularityArg,
     /// How the export reports what it is translating, on stderr (stdout and the written
     /// files are the same in every mode).
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]

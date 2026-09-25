@@ -172,7 +172,8 @@ so stopping it early costs no proved oracle.
 
 **Seal** — to close every goal an oracle still has open with `admit`, so the oracle's proof is
 complete as written even though the walk had not finished it. Sealing is what makes a stopped
-tactics run leave a usable file.
+tactics run leave a usable file. It works on a copy of the script and sends nothing to
+EasyCrypt; its admits carry the reason `interrupted`.
 
 **Partial proof** — a proof file holding proved bullets alongside the admits of a seal. It is a
 proof EasyCrypt accepts, not a draft.

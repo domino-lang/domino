@@ -47,10 +47,13 @@ pub enum AdmitReason {
     SeqPost,
     /// A goal of the router prelude (the condition, or both sides already aborted).
     Router,
+    /// A goal still open when the oracle was sealed (story 33): the walk had not got to it
+    /// when the file was written.
+    Interrupted,
 }
 
 impl AdmitReason {
-    pub const ALL: [AdmitReason; 7] = [
+    pub const ALL: [AdmitReason; 8] = [
         AdmitReason::Stuck,
         AdmitReason::DominoFails,
         AdmitReason::DominoInconclusive,
@@ -58,6 +61,7 @@ impl AdmitReason {
         AdmitReason::ProgramMismatch,
         AdmitReason::SeqPost,
         AdmitReason::Router,
+        AdmitReason::Interrupted,
     ];
 
     pub fn slug(self) -> &'static str {
@@ -69,6 +73,7 @@ impl AdmitReason {
             AdmitReason::ProgramMismatch => "program-mismatch",
             AdmitReason::SeqPost => "seq-post",
             AdmitReason::Router => "router",
+            AdmitReason::Interrupted => "interrupted",
         }
     }
 }
@@ -264,6 +269,15 @@ pub struct Timeouts {
     pub rung0: Duration,
 }
 
+/// An oracle's proof as it stands, sealed (story 33): the script with every goal still open
+/// closed by an `admit` labelled `interrupted`, the stats counting those admits, and the
+/// alignment's mismatches so far.
+pub(super) struct Sealed {
+    pub script: String,
+    pub stats: OracleStats,
+    pub mismatches: Vec<String>,
+}
+
 /// A point to return to: the session's state and the script's.
 struct Snap {
     state: u64,
@@ -293,6 +307,13 @@ pub(super) struct Prover<'a> {
     pub stats: OracleStats,
     /// The live translation page (story 28), told which node and rung the walk is at.
     pub live: Option<LiveHandle>,
+    /// Called with the sealed oracle after every joint node (`--write-granularity node`).
+    pub checkpoint: Option<&'a mut dyn FnMut(Sealed)>,
+    /// The joint node being proved, innermost (`None` in the router prelude).
+    pub node: Option<usize>,
+    /// The descriptions of the alignment's mismatches: with any, the oracle is proved by the
+    /// fallback.
+    pub mismatches: Vec<String>,
 }
 
 impl Prover<'_> {
@@ -302,6 +323,44 @@ impl Prover<'_> {
 
     pub(super) fn count(&self) -> usize {
         self.session.goals().len()
+    }
+
+    // ------------------------------------------------------------------
+    // The seal (story 33)
+    // ------------------------------------------------------------------
+
+    /// The oracle sealed where the walk stands: every goal it still has open is admitted, with
+    /// the reason `interrupted` and the joint node the walk is in. Sends nothing to EasyCrypt,
+    /// and the walk goes on from the unsealed script. Between two sentences is any time.
+    pub(super) fn seal(&self) -> Sealed {
+        let admit = Admit {
+            reason: AdmitReason::Interrupted,
+            id: self
+                .node
+                .map_or_else(|| "router".to_string(), |n| format!("N{n}")),
+            claim: "open-goal".into(),
+            domino: DominoView::NotApplicable,
+            goal: String::new(),
+        };
+        let (script, admits) = self.script.sealed(self.count(), &admit.label());
+        let mut stats = self.stats.clone();
+        stats.admits.extend(std::iter::repeat_n(admit, admits));
+        Sealed {
+            script: script.render(),
+            stats,
+            mismatches: self.mismatches.clone(),
+        }
+    }
+
+    /// Seals the oracle and hands it to the checkpoint, if there is one.
+    fn checkpoint(&mut self) {
+        if self.checkpoint.is_none() {
+            return;
+        }
+        let sealed = self.seal();
+        if let Some(checkpoint) = self.checkpoint.as_mut() {
+            checkpoint(sealed);
+        }
     }
 
     fn front(&self) -> Option<&Goal> {
@@ -378,7 +437,7 @@ impl Prover<'_> {
 
     /// Runs `f` as the block of the next subgoal: its first sentence gets the bullet.
     fn bullet<T>(&mut self, f: impl FnOnce(&mut Self) -> R<T>) -> R<T> {
-        self.script.enter_bullet();
+        self.script.enter_bullet(self.count());
         let result = f(self);
         self.script.leave_bullet();
         result
@@ -608,7 +667,12 @@ impl Prover<'_> {
             ids.extend(node.stuck.clone());
             live.node_entered(&format!("N{idx}"), node.kind.as_str(), ids, Some(idx));
         }
+        let parent = self.node.replace(idx);
         let result = self.prove_node_inner(idx);
+        self.node = parent;
+        if result.is_ok() {
+            self.checkpoint();
+        }
         if let Some(live) = &self.live {
             live.node_left();
         }
@@ -1122,10 +1186,10 @@ impl Prover<'_> {
 
     /// Proves the oracle's `equivF` goal, which is in front: `proc; inline.`, the router
     /// prelude by construction, then the joint tree from its root. `align` is given the goal
-    /// after `proc; inline.` and returns the descriptions of the alignment's mismatches; with
-    /// any, the oracle is proved by the fallback. Returns those descriptions.
-    pub(super) fn oracle(&mut self, align: impl FnOnce(&Goal) -> Vec<String>) -> R<Vec<String>> {
-        self.script.enter_bullet();
+    /// after `proc; inline.` and returns the descriptions of the alignment's mismatches
+    /// ([`Self::mismatches`]); with any, the oracle is proved by the fallback.
+    pub(super) fn oracle(&mut self, align: impl FnOnce(&Goal) -> Vec<String>) -> R<()> {
+        self.script.enter_bullet(self.count());
         if let Some(live) = &self.live {
             live.node_entered("router prelude", "router", vec![], None);
         }
@@ -1137,7 +1201,7 @@ impl Prover<'_> {
         result
     }
 
-    fn oracle_inner(&mut self, align: impl FnOnce(&Goal) -> Vec<String>) -> R<Vec<String>> {
+    fn oracle_inner(&mut self, align: impl FnOnce(&Goal) -> Vec<String>) -> R<()> {
         self.session
             .set_context(&format!("{} router prelude", self.oracle));
         if !self.send("proc; inline.")? {
@@ -1147,9 +1211,9 @@ impl Prover<'_> {
                 "proc; inline.",
                 DominoView::NotApplicable,
             )?;
-            return Ok(vec![]);
+            return Ok(());
         }
-        let mismatches = self.front().map(align).unwrap_or_default();
+        self.mismatches = self.front().map(align).unwrap_or_default();
         // the router prelude, by construction: `sp`, `if`, then the condition, the guarded body
         // (where lockstep begins) and the case where both sides already aborted
         let after_inline = self.snap();
@@ -1161,11 +1225,10 @@ impl Prover<'_> {
         if !prelude {
             self.rollback(after_inline)?;
             self.stats.fallbacks += 1;
-            self.prove_blind(0, 64)?;
-            return Ok(mismatches);
+            return self.prove_blind(0, 64);
         }
         self.bullet(|p| p.close_side_goal(0, "router-condition", true))?;
-        if mismatches.is_empty() {
+        if self.mismatches.is_empty() {
             self.bullet(|p| p.prove_node(0))?;
         } else {
             self.stats.fallbacks += 1;
@@ -1177,8 +1240,7 @@ impl Prover<'_> {
                 return Ok(());
             }
             p.close_side_goal(0, "both-aborted", true)
-        })?;
-        Ok(mismatches)
+        })
     }
 
     // ------------------------------------------------------------------

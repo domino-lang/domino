@@ -176,7 +176,6 @@ fn oracle_with(admits: Vec<Admit>) -> OracleTactics {
         lockstep_time: Duration::from_millis(100),
         easycrypt_time: Duration::from_secs(3),
         script: String::new(),
-        reverted: false,
     }
 }
 
@@ -232,6 +231,47 @@ fn the_report_counts_admits_by_reason_and_lists_the_verified_ones_with_their_goa
     );
 }
 
+#[test]
+fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
+    assert_eq!(AdmitReason::ALL.last(), Some(&AdmitReason::Interrupted));
+    assert_eq!(AdmitReason::Interrupted.slug(), "interrupted");
+    let sealed = Admit {
+        reason: AdmitReason::Interrupted,
+        id: "N3".into(),
+        claim: "open-goal".into(),
+        domino: DominoView::NotApplicable,
+        goal: String::new(),
+    };
+    assert_eq!(
+        sealed.label(),
+        "(* domino: N3 open-goal; reason: interrupted; Domino: n/a *)"
+    );
+    let o = oracle_with(vec![
+        admit(AdmitReason::Stuck, "S1"),
+        sealed.clone(),
+        sealed,
+    ]);
+    let eq = EquivalenceTactics {
+        proofstep: 0,
+        proof_file: "Eq_A_B.ec".into(),
+        left: "A".into(),
+        right: "B".into(),
+        oracles: vec![o],
+        base_case_admitted: false,
+        elapsed: Duration::from_secs(4),
+        report_file: "Eq_A_B.report.txt".into(),
+    };
+    let report = eq.render();
+    assert!(
+        report.contains("3 admits (stuck 1, interrupted 2)"),
+        "{report}"
+    );
+    assert!(
+        report.contains("admit N3 open-goal [interrupted] Domino: n/a"),
+        "{report}"
+    );
+}
+
 /// The `admit` sentences of a proof file with their labels' reasons.
 fn labelled_admits(text: &str) -> Vec<String> {
     text.lines()
@@ -262,11 +302,95 @@ mod live {
     use crate::util::smtsolver::cvc5lib::Cvc5LibBackend;
     use crate::writers::easycrypt::export::{export_theorem, write_files};
 
+    /// The most `easycrypt compile` of one written file may take.
+    const COMPILE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
+    /// `easycrypt compile -I <dir> <file>`; `Err` carries the tail of its output. Only tests
+    /// compile: a tactics run never does (ADR 0005).
+    fn compile(binary: &Path, dir: &Path, file: &str) -> Result<(), String> {
+        use std::process::Command;
+        let stderr = tempfile::tempfile().map_err(|e| e.to_string())?;
+        let mut child = Command::new(binary)
+            .args(["compile", "-I"])
+            .arg(dir)
+            .arg(file)
+            .current_dir(dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(stderr.try_clone().map_err(|e| e.to_string())?)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        let began = Instant::now();
+        let status = loop {
+            match child.try_wait().map_err(|e| e.to_string())? {
+                Some(status) => break status,
+                None if began.elapsed() > COMPILE_TIMEOUT => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("timed out after {}s", COMPILE_TIMEOUT.as_secs()));
+                }
+                None => std::thread::sleep(Duration::from_millis(200)),
+            }
+        };
+        if status.success() {
+            return Ok(());
+        }
+        use std::io::{Read, Seek};
+        let mut text = String::new();
+        let mut stderr = stderr;
+        let _ = stderr.rewind();
+        let _ = stderr.read_to_string(&mut text);
+        let tail: Vec<&str> = text.lines().rev().take(8).collect();
+        Err(tail.into_iter().rev().collect::<Vec<_>>().join("\n"))
+    }
+
     fn run(
         dir: &str,
         theorem: &str,
         options: &TacticsOptions,
     ) -> Option<(TheoremTactics, tempfile::TempDir)> {
+        run_captured(dir, theorem, options).map(|(result, out, _)| (result, out))
+    }
+
+    /// The proof file and its report as they were on disk when the run reported an event.
+    #[derive(Debug, Clone)]
+    struct Capture {
+        /// `item 2` (an oracle started), `goal N3` (a joint node's goal done), `finished`.
+        event: String,
+        ec: String,
+        report: Option<String>,
+    }
+
+    /// Reads the first equivalence's proof file and report at every tactics event: what a
+    /// reader of the files sees while the run goes on.
+    struct Capturing {
+        ec: PathBuf,
+        report: PathBuf,
+        captures: std::rc::Rc<std::cell::RefCell<Vec<Capture>>>,
+    }
+
+    impl ExportObserver for Capturing {
+        fn on_event(&mut self, event: &crate::writers::easycrypt::progress::ExportEvent<'_>) {
+            use crate::writers::easycrypt::progress::ExportEvent;
+            let event = match event {
+                ExportEvent::ItemStarted { index, .. } => format!("item {index}"),
+                ExportEvent::GoalFinished { goal, .. } => format!("goal {goal}"),
+                ExportEvent::PhaseFinished { .. } => "finished".to_string(),
+                _ => return,
+            };
+            self.captures.borrow_mut().push(Capture {
+                event,
+                ec: std::fs::read_to_string(&self.ec).unwrap(),
+                report: std::fs::read_to_string(&self.report).ok(),
+            });
+        }
+    }
+
+    /// [`run`], capturing the first equivalence's files at every event.
+    fn run_captured(
+        dir: &str,
+        theorem: &str,
+        options: &TacticsOptions,
+    ) -> Option<(TheoremTactics, tempfile::TempDir, Vec<Capture>)> {
         if !json_binary_configured() {
             eprintln!("DOMINO_EASYCRYPT not set, skipping");
             return None;
@@ -278,16 +402,28 @@ mod live {
         let exported = export_theorem(theorem, &project).unwrap();
         let out = tempfile::tempdir().unwrap();
         write_files(out.path(), &exported.files).unwrap();
-        let result = run_tactics(
+        let proof_file = &exported.equivalences[0].proof_file;
+        let captures = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let observer = Capturing {
+            ec: out.path().join(proof_file),
+            report: out
+                .path()
+                .join(proof_file.trim_end_matches(".ec").to_string() + ".report.txt"),
+            captures: captures.clone(),
+        };
+        let result = run_tactics_observed(
             theorem,
             &project,
             &exported,
             out.path(),
             &Cvc5LibBackend::new(true, None),
             options,
+            Box::new(observer),
+            &[],
         )
         .unwrap();
-        Some((result, out))
+        let captures = captures.borrow().clone();
+        Some((result, out, captures))
     }
 
     fn proof_file(result: &TheoremTactics, out: &Path) -> String {
@@ -307,7 +443,6 @@ mod live {
         assert_eq!(oracle.oracle, "UsefulOracle");
         assert!(oracle.problem.is_none());
         assert!(oracle.stats.admits.is_empty(), "{}", result.render());
-        assert!(!oracle.reverted);
         let text = proof_file(&result, out.path());
         assert!(!text.contains("admit"), "{text}");
         assert!(compile(
@@ -426,12 +561,15 @@ mod live {
             deadline: None,
             stats: OracleStats::default(),
             live: None,
+            checkpoint: None,
+            node: None,
+            mismatches: vec![],
         };
         // an alignment mismatch sends the whole oracle down the fallback
-        let mismatches = prover
+        prover
             .oracle(|_| vec!["kind-differs at top level".to_string()])
             .unwrap();
-        assert_eq!(mismatches.len(), 1);
+        assert_eq!(prover.mismatches.len(), 1);
         assert_eq!(prover.stats.fallbacks, 1);
         assert!(prover.stats.admits.is_empty(), "{:?}", prover.stats.admits);
         let script = prover.script.render();
@@ -539,5 +677,183 @@ mod live {
         // the report's counts are the labelled admits of the file
         let labelled = labelled_admits(&text);
         assert_eq!(labelled.len(), result.admit_count(), "{}", result.render());
+    }
+    // ------------------------------------------------------------------
+    // Story 33: the file on disk is what is proved
+    // ------------------------------------------------------------------
+
+    /// Two oracles, one with a `domino-fails` admit; a few seconds.
+    const TWO_ORACLES: &str = "example-projects/hello-world-oracle-rename-new";
+
+    fn walk(write_granularity: WriteGranularity) -> TacticsOptions {
+        TacticsOptions {
+            rung0: false,
+            write_granularity,
+            ..TacticsOptions::default()
+        }
+    }
+
+    const UNTOUCHED: &str = "+ proc; inline. admit.";
+
+    /// `admit.` sentences of a proof file (outside comments).
+    fn admit_sentences(text: &str) -> usize {
+        text.lines()
+            .filter(|l| {
+                let code = l.split("(*").next().unwrap_or("");
+                code.split(|c: char| c.is_whitespace() || c == ';')
+                    .any(|w| w == "admit.")
+            })
+            .count()
+    }
+
+    /// The report's total of admits, and of those labelled `interrupted`.
+    fn report_admits(report: &str) -> (usize, usize) {
+        let total_line = report
+            .lines()
+            .find(|l| l.contains(" oracles, "))
+            .expect("the report's last line");
+        let total = total_line
+            .split(", ")
+            .find_map(|part| part.strip_suffix(" admits"))
+            .expect("an admit count")
+            .parse()
+            .unwrap();
+        let interrupted = report
+            .lines()
+            .filter_map(|l| l.split("interrupted ").nth(1))
+            .filter_map(|n| n.split([',', ')']).next()?.parse::<usize>().ok())
+            .sum();
+        (total, interrupted)
+    }
+
+    fn sentences(transcript: &Path) -> Vec<String> {
+        std::fs::read_to_string(transcript)
+            .unwrap()
+            .lines()
+            .map(|line| {
+                let v: serde_json::Value = serde_json::from_str(line).unwrap();
+                v["sentence"].as_str().unwrap().to_string()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_oracle_is_on_disk_as_soon_as_it_is_proved() {
+        let Some((result, _out, captures)) =
+            run_captured(TWO_ORACLES, "Proof", &walk(WriteGranularity::Oracle))
+        else {
+            return;
+        };
+        let oracles = &result.equivalences[0].oracles;
+        assert_eq!(oracles.len(), 2);
+        let second_started = captures
+            .iter()
+            .position(|c| c.event == "item 2")
+            .expect("the second oracle started");
+        // while the first oracle runs, nothing is written: no node writes at this granularity
+        for c in &captures[..second_started] {
+            assert_eq!(c.ec.matches(UNTOUCHED).count(), 2, "{}: {}", c.event, c.ec);
+            assert!(c.report.is_none(), "{}", c.event);
+        }
+        // between the oracles: the first one's script is on disk, and its report with it
+        let between = &captures[second_started];
+        let written: Vec<&OracleTactics> = oracles
+            .iter()
+            .filter(|o| between.ec.contains(o.script.trim_end()))
+            .collect();
+        assert_eq!(written.len(), 1, "{}", between.ec);
+        assert_eq!(between.ec.matches(UNTOUCHED).count(), 1, "{}", between.ec);
+        let report = between
+            .report
+            .as_deref()
+            .expect("a report next to the file");
+        let other = oracles
+            .iter()
+            .find(|o| o.oracle != written[0].oracle)
+            .unwrap();
+        assert!(
+            report.contains(&format!("  {}: lockstep", written[0].oracle)),
+            "{report}"
+        );
+        assert!(!report.contains(&other.oracle), "{report}");
+        assert_eq!(report_admits(report).0, labelled_admits(&between.ec).len());
+        assert!(!between.ec.contains("interrupted"));
+    }
+
+    #[test]
+    fn at_node_granularity_every_write_is_a_complete_sealed_proof_and_its_report() {
+        let Some((result, out, captures)) =
+            run_captured(TWO_ORACLES, "Proof", &walk(WriteGranularity::Node))
+        else {
+            return;
+        };
+        let file = &result.equivalences[0].proof_file;
+        let mid_oracle: Vec<&Capture> = captures
+            .iter()
+            .filter(|c| c.event.starts_with("goal "))
+            .collect();
+        assert!(mid_oracle.len() >= 4, "{captures:?}");
+        let mut sealed = Vec::new();
+        for c in &mid_oracle {
+            // the full bullet structure: both oracle bullets, then `qed.`
+            let progress = crate::writers::easycrypt::overwrite::proof_progress(&c.ec);
+            assert_eq!(progress.total, 2, "{}: {}", c.event, c.ec);
+            assert!(c.ec.contains("\nqed."));
+            // every admit is labelled, but an untouched oracle's
+            let labelled = labelled_admits(&c.ec);
+            assert_eq!(
+                admit_sentences(&c.ec),
+                labelled.len() + c.ec.matches(UNTOUCHED).count(),
+                "{}: {}",
+                c.event,
+                c.ec
+            );
+            // the report next to it describes it, the interrupted admits too
+            let report = c.report.as_deref().expect("a report with every write");
+            let interrupted = labelled.iter().filter(|r| *r == "interrupted").count();
+            assert_eq!(
+                report_admits(report),
+                (labelled.len(), interrupted),
+                "{}: {report}\n{}",
+                c.event,
+                c.ec
+            );
+            if interrupted > 0 {
+                sealed.push(c.ec.clone());
+            }
+        }
+        assert!(!sealed.is_empty(), "some write sealed an oracle part way");
+        // a sealed file compiles (the test compiles, never the run: ADR 0005)
+        let binary = crate::easycrypt::session::locate_binary();
+        for text in [sealed.first().unwrap(), sealed.last().unwrap()] {
+            std::fs::write(out.path().join(file), text).unwrap();
+            if let Err(e) = compile(&binary, out.path(), file) {
+                panic!("a sealed file does not compile: {e}\n{text}");
+            }
+        }
+    }
+
+    #[test]
+    fn sealing_sends_nothing_and_the_final_file_does_not_depend_on_the_granularity() {
+        let Some((by_oracle, out_oracle)) =
+            run(TWO_ORACLES, "Proof", &walk(WriteGranularity::Oracle))
+        else {
+            return;
+        };
+        let (by_node, out_node) = run(TWO_ORACLES, "Proof", &walk(WriteGranularity::Node)).unwrap();
+        // the same sentences, in the same order: no `admit.` and no `undo` of a seal
+        assert_eq!(
+            sentences(&by_oracle.transcript),
+            sentences(&by_node.transcript)
+        );
+        let final_file = proof_file(&by_node, out_node.path());
+        assert_eq!(proof_file(&by_oracle, out_oracle.path()), final_file);
+        assert!(!final_file.contains("interrupted"), "{final_file}");
+        // nothing a run writes is left behind but in `progress/`
+        let names: Vec<String> = std::fs::read_dir(out_node.path().join("progress"))
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert!(!names.iter().any(|n| n.ends_with(".tmp")), "{names:?}");
     }
 }

@@ -9,6 +9,11 @@
 //! What could not be closed is an `admit` labelled with the claim, the invariant relation, the
 //! `J`/`S` id and what Domino itself concluded.
 //!
+//! **The file on disk is what has been proved so far** (story 33): `Eq_*.ec` and its report are
+//! rewritten together, atomically, after every oracle (or, with [`WriteGranularity::Node`],
+//! after every joint node, the oracle in flight **sealed**). Nothing compiles the written file
+//! during a run (ADR 0005): every sentence in it was accepted by the live session.
+//!
 //! - [`script`]: the accepted sentences, bullets and indentation.
 //! - [`goals`]: reading goals from the JSON.
 //! - [`driver`]: the prover.
@@ -24,7 +29,6 @@ mod script;
 use std::fmt::Write as _;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::time::{Duration, Instant};
 
 use thiserror::Error;
@@ -52,7 +56,7 @@ pub use super::transcript::{EcTranscriptMode, GOALS_PER_STEP, GOAL_TEXT_CAP};
 pub use live::{strip_timings, LiveConfig, LiveHandle};
 
 pub use driver::{Admit, AdmitReason, DominoView, OracleStats, Timeouts};
-use driver::{OracleTree, Prover};
+use driver::{OracleTree, Prover, Sealed};
 
 #[derive(Debug, Error)]
 pub enum TacticsError {
@@ -89,6 +93,19 @@ pub struct TacticsOptions {
     pub leaf_budget: Duration,
     /// What `ec-transcript.jsonl` keeps of EasyCrypt's answers (`--ec-transcript`).
     pub ec_transcript: EcTranscriptMode,
+    /// How often `Eq_*.ec` and its report are written (`--write-granularity`).
+    pub write_granularity: WriteGranularity,
+}
+
+/// When a tactics run writes `Eq_*.ec` and its report (story 33). Both are one mechanism: seal
+/// the oracle in flight, write, continue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WriteGranularity {
+    /// After each oracle (the default): nothing is open then, so the seal changes nothing.
+    Oracle,
+    /// After every joint node too, the oracle in flight sealed: to watch a long oracle's proof
+    /// accumulate.
+    Node,
 }
 
 impl Default for TacticsOptions {
@@ -102,6 +119,7 @@ impl Default for TacticsOptions {
             rung0: true,
             leaf_budget: Duration::from_secs(300),
             ec_transcript: EcTranscriptMode::Capped,
+            write_granularity: WriteGranularity::Oracle,
         }
     }
 }
@@ -165,9 +183,6 @@ pub struct OracleTactics {
     pub easycrypt_time: Duration,
     /// The bullet as written into the file.
     pub script: String,
-    /// `easycrypt compile` rejected this oracle's script though the session accepted every
-    /// sentence: the oracle was written as `admit` only. A bug to report.
-    pub reverted: bool,
 }
 
 impl OracleTactics {
@@ -183,7 +198,6 @@ impl OracleTactics {
             lockstep_time: Duration::ZERO,
             easycrypt_time: Duration::ZERO,
             script: String::new(),
-            reverted: false,
         }
     }
 
@@ -417,7 +431,23 @@ where
         }
     }
 
-    let mut results: Vec<OracleTactics> = Vec::new();
+    let report_file = file.trim_end_matches(".ec").to_string() + ".report.txt";
+    let mut proof = ProofFile {
+        source,
+        procs: &setup.oracles,
+        out_dir,
+        started,
+        tactics: EquivalenceTactics {
+            proofstep: eq.proofstep,
+            proof_file: file,
+            left: eq.left_name.clone(),
+            right: eq.right_name.clone(),
+            oracles: Vec::new(),
+            base_case_admitted,
+            elapsed: Duration::ZERO,
+            report_file,
+        },
+    };
     while let Some(goal) = session.goals().first() {
         let target = setup.oracle_of_goal(goal).filter(|o| selected(o));
         match target {
@@ -432,9 +462,11 @@ where
                     backend,
                     options,
                     live,
+                    &mut proof,
                 )?;
-                live.oracle_finished(&result);
-                results.push(result);
+                proof.tactics.oracles.push(result);
+                proof.write(None)?;
+                live.oracle_finished(proof.tactics.oracles.last().expect("just pushed"));
             }
             None => {
                 // the base case (admitted above), or an oracle that was not asked for
@@ -442,81 +474,98 @@ where
             }
         }
     }
-    let position = |name: &str| setup.oracles.iter().position(|(n, _)| n == name);
     for (name, _) in &setup.oracles {
-        if selected(name) && !results.iter().any(|r| &r.oracle == name) {
+        if selected(name) && !proof.tactics.oracles.iter().any(|r| &r.oracle == name) {
             let empty = OracleTactics::empty(
                 name,
                 "no goal for this oracle after `call (…); last first.`",
             );
             live.oracle_finished(&empty);
-            results.push(empty);
+            proof.tactics.oracles.push(empty);
         }
     }
-    results.sort_by_key(|r| position(&r.oracle));
     if session.transcript_dropped() {
         // a later record would start at an offset the live page does not know
         *transcript = None;
     }
     drop(session);
 
-    // write the file and check it with `easycrypt compile` (§3.7)
-    let text_of = |scripts: &[&OracleTactics]| {
-        let mut text = source.clone();
-        for o in scripts {
-            let proc_name = &setup
-                .oracles
+    let tactics = proof.write(None)?;
+    live.equivalence_finished(&tactics);
+    Ok(tactics)
+}
+
+/// `Eq_*.ec` and its report as a tactics run goes (story 33): both are rewritten on every
+/// write, each atomically, so the file on disk is what has been proved so far and the report
+/// next to it describes that file. No `easycrypt compile` (ADR 0005).
+struct ProofFile<'a> {
+    /// The exported file: every oracle `+ proc; inline. admit.`.
+    source: &'a str,
+    /// `(exported name, EasyCrypt's procedure name)` of every oracle, in the file's order.
+    procs: &'a [(String, String)],
+    /// The theorem's output directory: the file, the report, and `progress/` for the
+    /// temporary files.
+    out_dir: &'a Path,
+    /// When the equivalence started: the report's elapsed time.
+    started: Instant,
+    /// The equivalence so far: its finished oracles, in the order they finished.
+    tactics: EquivalenceTactics,
+}
+
+impl ProofFile<'_> {
+    /// Writes the file and its report: the finished oracles and `in_flight`, an oracle sealed
+    /// part way through. Oracles not reached keep `+ proc; inline. admit.`. Returns what was
+    /// written, the oracles in the file's order.
+    fn write(&self, in_flight: Option<&OracleTactics>) -> std::io::Result<EquivalenceTactics> {
+        let mut now = self.tactics.clone();
+        now.oracles.extend(in_flight.cloned());
+        now.oracles
+            .sort_by_key(|o| self.procs.iter().position(|(n, _)| *n == o.oracle));
+        now.elapsed = self.started.elapsed();
+        // the report first: a reader who sees the file finds a report at least as new
+        let tmp_dir = self.out_dir.join("progress");
+        write_atomically(
+            &self.out_dir.join(&now.report_file),
+            &tmp_dir,
+            &now.render(),
+        )?;
+        write_atomically(
+            &self.out_dir.join(&now.proof_file),
+            &tmp_dir,
+            &self.text(&now.oracles),
+        )?;
+        Ok(now)
+    }
+
+    /// The exported file with each oracle's script in place of its `+ proc; inline. admit.`.
+    fn text(&self, oracles: &[OracleTactics]) -> String {
+        let mut text = self.source.to_string();
+        for o in oracles.iter().filter(|o| !o.script.is_empty()) {
+            let (_, proc_name) = self
+                .procs
                 .iter()
                 .find(|(n, _)| *n == o.oracle)
-                .expect("a result names an exported oracle")
-                .1;
+                .expect("a result names an exported oracle");
             let marker = format!("(* {proc_name} *)\n+ proc; inline. admit.");
             let replacement = format!("(* {proc_name} *)\n{}", o.script.trim_end());
             text = text.replacen(&marker, &replacement, 1);
         }
         text
-    };
-    let scripted: Vec<usize> = (0..results.len())
-        .filter(|&i| !results[i].script.is_empty())
-        .collect();
-    let binary = super::session::locate_binary();
-    let file_path = out_dir.join(&file);
-    if !scripted.is_empty() {
-        live.activity(&format!("easycrypt compile {file}"));
-        let all: Vec<&OracleTactics> = scripted.iter().map(|&i| &results[i]).collect();
-        std::fs::write(&file_path, text_of(&all))?;
-        if compile(&binary, out_dir, &file).is_err() {
-            // the session accepted every sentence and the compiler does not: find which
-            // oracles are at fault, and write those as `admit` only
-            let mut keep = Vec::new();
-            for &i in &scripted {
-                std::fs::write(&file_path, text_of(&[&results[i]]))?;
-                if compile(&binary, out_dir, &file).is_ok() {
-                    keep.push(i);
-                } else {
-                    results[i].reverted = true;
-                }
-            }
-            let kept: Vec<&OracleTactics> = keep.iter().map(|&i| &results[i]).collect();
-            std::fs::write(&file_path, text_of(&kept))?;
-        }
     }
+}
 
-    live.activity("");
-    let report_file = file.trim_end_matches(".ec").to_string() + ".report.txt";
-    let tactics = EquivalenceTactics {
-        proofstep: eq.proofstep,
-        proof_file: file,
-        left: eq.left_name.clone(),
-        right: eq.right_name.clone(),
-        oracles: results,
-        base_case_admitted,
-        elapsed: started.elapsed(),
-        report_file,
-    };
-    std::fs::write(out_dir.join(&tactics.report_file), tactics.render())?;
-    live.equivalence_finished(&tactics);
-    Ok(tactics)
+/// Writes `text` to `path` through a temporary file in `tmp_dir` (on the same file system) and
+/// a rename, so a reader, or a run killed part way, never leaves a half-written file. The
+/// temporary file is synced before the rename, so a crash does not leave an empty file either.
+/// It is in `progress/`, a run artifact (story 32), so a leftover one blocks nothing.
+fn write_atomically(path: &Path, tmp_dir: &Path, text: &str) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let name = path.file_name().expect("a file path").to_string_lossy();
+    let tmp = tmp_dir.join(format!(".{name}.tmp"));
+    let mut file = File::create(&tmp)?;
+    file.write_all(text.as_bytes())?;
+    file.sync_all()?;
+    std::fs::rename(&tmp, path)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -530,6 +579,7 @@ fn tactics_for_oracle<P, B>(
     backend: &B,
     options: &TacticsOptions,
     live: &LiveHandle,
+    proof: &mut ProofFile<'_>,
 ) -> Result<OracleTactics, TacticsError>
 where
     P: Project,
@@ -586,6 +636,30 @@ where
         .collect();
     let left_ir = inline_oracle_ec(setup.left_inst, oracle)?;
     let right_ir = inline_oracle_ec(setup.right_inst, oracle)?;
+    let began = Instant::now();
+    let result_of = |sealed: Sealed| OracleTactics {
+        oracle: oracle.to_string(),
+        problem: None,
+        stats: sealed.stats,
+        alignment_mismatches: sealed.mismatches,
+        joint_paths: run.summary.joint_paths,
+        nodes: run.summary.nodes,
+        stuck_points: run.summary.stuck_points,
+        lockstep_time,
+        easycrypt_time: began.elapsed(),
+        script: sealed.script,
+    };
+    // `--write-granularity node`: seal, write, continue. A failed write stops the writes; the
+    // last good one stays on disk and the error ends the run after the oracle.
+    let mut write_failed: Option<std::io::Error> = None;
+    let mut write_sealed = |sealed: Sealed| {
+        if write_failed.is_none() {
+            let partial = result_of(sealed);
+            if let Err(e) = proof.write(Some(&partial)) {
+                write_failed = Some(e);
+            }
+        }
+    };
     let mut prover = Prover {
         session,
         script: Default::default(),
@@ -602,9 +676,14 @@ where
         },
         stats: OracleStats::default(),
         live: Some(live.clone()),
+        checkpoint: match options.write_granularity {
+            WriteGranularity::Oracle => None,
+            WriteGranularity::Node => Some(&mut write_sealed),
+        },
+        node: None,
+        mismatches: Vec::new(),
     };
-    let began = Instant::now();
-    let mismatches = prover.oracle(|goal: &Goal| {
+    prover.oracle(|goal: &Goal| {
         match super::check::align_goal(
             goal,
             (&left_ir, &setup.left_flag),
@@ -617,61 +696,13 @@ where
                 .collect(),
         }
     })?;
-    let easycrypt_time = began.elapsed();
-    let script = prover.script.render();
-    let stats = prover.stats;
-    Ok(OracleTactics {
-        oracle: oracle.to_string(),
-        problem: None,
-        stats,
-        alignment_mismatches: mismatches,
-        joint_paths: run.summary.joint_paths,
-        nodes: run.summary.nodes,
-        stuck_points: run.summary.stuck_points,
-        lockstep_time,
-        easycrypt_time,
-        script,
-        reverted: false,
-    })
-}
-
-/// The most `easycrypt compile` of one written file may take.
-const COMPILE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
-
-/// `easycrypt compile -I <dir> <file>`; `Err` carries the tail of its output.
-fn compile(binary: &Path, dir: &Path, file: &str) -> Result<(), String> {
-    let stderr = tempfile::tempfile().map_err(|e| e.to_string())?;
-    let mut child = Command::new(binary)
-        .args(["compile", "-I"])
-        .arg(dir)
-        .arg(file)
-        .current_dir(dir)
-        .stdout(std::process::Stdio::null())
-        .stderr(stderr.try_clone().map_err(|e| e.to_string())?)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    let began = Instant::now();
-    let status = loop {
-        match child.try_wait().map_err(|e| e.to_string())? {
-            Some(status) => break status,
-            None if began.elapsed() > COMPILE_TIMEOUT => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(format!("timed out after {}s", COMPILE_TIMEOUT.as_secs()));
-            }
-            None => std::thread::sleep(Duration::from_millis(200)),
-        }
-    };
-    if status.success() {
-        return Ok(());
+    // the oracle's bullet is closed: the seal is the script as it is
+    let sealed = prover.seal();
+    drop(prover);
+    if let Some(e) = write_failed {
+        return Err(e.into());
     }
-    use std::io::{Read, Seek};
-    let mut text = String::new();
-    let mut stderr = stderr;
-    let _ = stderr.rewind();
-    let _ = stderr.read_to_string(&mut text);
-    let tail: Vec<&str> = text.lines().rev().take(8).collect();
-    Err(tail.into_iter().rev().collect::<Vec<_>>().join("\n"))
+    Ok(result_of(sealed))
 }
 
 fn secs(d: Duration) -> String {
@@ -722,13 +753,6 @@ impl EquivalenceTactics {
                 secs(o.easycrypt_time),
                 o.stats.attempts_undone
             );
-            if o.reverted {
-                let _ = writeln!(
-                    out,
-                    "    BUG: `easycrypt compile` rejected this script though the session accepted \
-                     every sentence; the oracle was written as `admit` only"
-                );
-            }
             for m in &o.alignment_mismatches {
                 let _ = writeln!(out, "    alignment mismatch (fallback used): {m}");
             }
