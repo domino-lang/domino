@@ -313,6 +313,7 @@ impl From<Type> for SmtExpr {
                 (*t_idx).into(),
                 Type::maybe(*t_val).into(),
             ]),
+            TypeKind::Tuple(types) if types.is_empty() => SmtExpr::Atom("Tuple0".into()),
             TypeKind::Tuple(types) => SmtExpr::List({
                 let mut els = vec![SmtExpr::Atom(format!("Tuple{}", types.len()))];
                 for t in types {
@@ -339,6 +340,7 @@ impl From<&Type> for SmtExpr {
                 (&**t_idx).into(),
                 Type::maybe(*t_val.clone()).into(),
             ]),
+            TypeKind::Tuple(types) if types.is_empty() => SmtExpr::Atom("Tuple0".into()),
             TypeKind::Tuple(types) => SmtExpr::List({
                 let mut els = vec![SmtExpr::Atom(format!("Tuple{}", types.len()))];
                 for t in types {
