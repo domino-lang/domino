@@ -28,16 +28,19 @@ pub fn tex_write_oracle(
     comp: &Composition,
     oracle: &OracleDef,
     pkgname: &str,
-    target: &Path,
-) -> std::io::Result<String> {
-    let fname = target.join(format!(
-        "Oracle_{}_{}_in_{}{}.tex",
-        pkgname,
+    basedir: &Path,
+) -> std::io::Result<(String, String)> {
+    let dirname = format!("Package_{}", pkgname);
+    let filename = format!(
+        "Oracle_{}{}.tex",
         oracle.sig.name,
-        comp.name,
         if lossy { "_lossy" } else { "" }
-    ));
-    let mut file = File::create(fname.clone())?;
+    );
+
+    let dir = basedir.join(&dirname);
+    std::fs::create_dir_all(&dir)?;
+
+    let mut file = File::create(dir.join(&filename))?;
 
     writeln!(
         file,
@@ -53,22 +56,26 @@ pub fn tex_write_oracle(
     writer.write_codeblock(codeblock, 0)?;
 
     writeln!(file, "}}")?;
-    Ok(fname.to_str().unwrap().to_string())
+    Ok((dirname, filename))
 }
 
 pub fn tex_write_package(
     lossy: bool,
     composition: &Composition,
     package: &PackageInstance,
-    target: &Path,
-) -> std::io::Result<String> {
-    let fname = target.join(format!(
-        "Package_{}_in_{}{}.tex",
+    basedir: &Path,
+) -> std::io::Result<(String, String)> {
+    let dirname = format!("Composition_{}", composition.name);
+    let filename = format!(
+        "Package_{}{}.tex",
         package.name,
-        composition.name,
         if lossy { "_lossy" } else { "" }
-    ));
-    let mut file = File::create(fname.clone())?;
+    );
+
+    let dir = basedir.join(&dirname);
+    std::fs::create_dir_all(&dir)?;
+
+    let mut file = File::create(dir.join(&filename))?;
 
     writeln!(
         file,
@@ -77,16 +84,17 @@ pub fn tex_write_package(
     )?;
 
     for oracle in &package.pkg.oracles {
-        let oraclefname = tex_write_oracle(lossy, composition, oracle, &package.name, target)?;
-        let oraclefname = Path::new(&oraclefname)
-            .strip_prefix(fname.clone().parent().unwrap())
-            .unwrap()
-            .to_str();
-        writeln!(file, "\\input{{{}}}\\pcvspace", oraclefname.unwrap())?;
+        let (oracledirname, oraclefname) =
+            tex_write_oracle(lossy, composition, oracle, &package.name, &dir)?;
+        writeln!(
+            file,
+            "\\subimport{{{}}}{{{}}}\\pcvspace",
+            oracledirname, oraclefname
+        )?;
     }
     writeln!(file, "\\end{{pcvstack}}\\end{{pcvstack}}")?;
 
-    Ok(fname.to_str().unwrap().to_string())
+    Ok((dirname, filename))
 }
 
 fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
@@ -96,6 +104,7 @@ fn tex_write_document_header(mut file: &File) -> std::io::Result<()> {
         file,
         "\\usepackage[sets,operators,adversary,advantage,probability]{{cryptocode}}"
     )?;
+    writeln!(file, "\\usepackage{{import}}")?;
     writeln!(file, "\\usepackage{{tikz}}")?;
     writeln!(file, "\\usepackage{{amsmath}}")?;
     writeln!(file, "\\usepackage{{amsthm}}")?;
@@ -130,18 +139,22 @@ fn tex_write_composition_graph_file(
     backend: &Option<impl SmtSolverBackend>,
     composition: &Composition,
     name: &str,
-    target: &Path,
-) -> std::io::Result<String> {
-    let fname = target.join(format!("CompositionGraph_{name}.tex"));
-    let mut file = File::create(fname.clone())?;
+    basedir: &Path,
+) -> std::io::Result<(String, String)> {
+    let dirname = format!("Composition_{name}");
+    let dir = basedir.join(&dirname);
+    std::fs::create_dir_all(&dir)?;
+
+    let fname = "Graph.tex".to_string();
+    let mut file = File::create(dir.join(&fname))?;
 
     write!(
         file,
         "{}",
-        composition.tikz_graph(backend.as_ref().unwrap(), &target.join("../graph"))
+        composition.tikz_graph(backend.as_ref().unwrap(), &basedir.join("../graph"))
     )?;
 
-    Ok(fname.to_str().unwrap().to_string())
+    Ok((dirname, fname))
 }
 
 pub fn tex_write_composition(
@@ -164,26 +177,17 @@ pub fn tex_write_composition(
     writeln!(file, "\\begin{{document}}")?;
     writeln!(file, "\\maketitle")?;
 
-    let graphfname = tex_write_composition_graph_file(backend, composition, name, target)?;
-    let graphfname = Path::new(&graphfname)
-        .strip_prefix(fname.clone().parent().unwrap())
-        .unwrap()
-        .to_str();
+    let (graphdir, graphfname) =
+        tex_write_composition_graph_file(backend, composition, name, target)?;
     writeln!(file, "\\begin{{center}}")?;
-    writeln!(file, "\\input{{{}}}", graphfname.unwrap())?;
+    writeln!(file, "\\subimport{{{graphdir}}}{{{graphfname}}}")?;
     writeln!(file, "\\end{{center}}")?;
 
     writeln!(file, "\\begin{{pchstack}}")?;
     for pkg in &composition.pkgs {
-        let pkgfname = tex_write_package(lossy, composition, pkg, target)?;
-        let pkgfname = Path::new(&pkgfname)
-            .strip_prefix(fname.clone().parent().unwrap())
-            .unwrap()
-            .to_str();
-        //writeln!(file, "\\begin{{center}}")?;
-        writeln!(file, "\\input{{{}}}", pkgfname.unwrap())?;
+        let (pkgdir, pkgfname) = tex_write_package(lossy, composition, pkg, target)?;
+        writeln!(file, "\\subimport{{{}}}{{{}}}", pkgdir, pkgfname)?;
         writeln!(file, "\\pchspace")?;
-        //writeln!(file, "\\end{{center}}")?;
     }
     writeln!(file, "\\end{{pchstack}}")?;
 
@@ -218,10 +222,7 @@ pub fn tex_write_theorem(
 
     let mut fill = 0;
     for instance in &theorem.instances {
-        let graphfname = format!(
-            "CompositionGraph_{}.tex",
-            instance.game_name().replace('_', "\\_")
-        );
+        let graphdir = format!("Composition_{}", instance.game_name());
 
         writeln!(file, "\\begin{{minipage}}{{.245\\textwidth}}")?;
         writeln!(
@@ -230,7 +231,10 @@ pub fn tex_write_theorem(
             instance.name(),
             instance.name().replace('_', "\\_")
         )?;
-        writeln!(file, "\\scalebox{{0.66}}{{\\input{{{graphfname}}}}}")?;
+        writeln!(
+            file,
+            "\\scalebox{{0.66}}{{\\subimport{{{graphdir}}}{{Graph}}}}"
+        )?;
         writeln!(file, "\\end{{minipage}}")?;
         fill += 1;
         if fill == 4 {
@@ -248,25 +252,20 @@ pub fn tex_write_theorem(
         )?;
         writeln!(file, "\\label{{section:game:{}}}", instance.name())?;
 
-        let graphfname = format!(
-            "CompositionGraph_{}.tex",
-            instance.game_name().replace('_', "\\_")
-        );
+        let graphdir = format!("Composition_{}", instance.game_name());
         writeln!(file, "\\begin{{center}}")?;
-        writeln!(file, "\\input{{{graphfname}}}")?;
+        writeln!(file, "\\subimport{{{graphdir}}}{{Graph}}")?;
         writeln!(file, "\\end{{center}}")?;
 
         writeln!(file, "\\begin{{pchstack}}")?;
         for package in &instance.game().pkgs {
+            let pkgdirname = format!("Composition_{}", instance.game().name);
             let pkgfname = format!(
-                "Package_{}_in_{}{}.tex",
+                "Package_{}{}",
                 package.name.replace('_', "\\_"),
-                instance.game().name.replace('_', "\\_"),
                 if lossy { "_lossy" } else { "" }
             );
-            //writeln!(file, "\\begin{{center}}")?;
-            writeln!(file, "\\input{{{pkgfname}}}")?;
-            //writeln!(file, "\\end{{center}}")?;
+            writeln!(file, "\\subimport{{{pkgdirname}}}{{{pkgfname}}}")?;
             writeln!(file, "\\pchspace")?;
         }
         writeln!(file, "\\end{{pchstack}}")?;
