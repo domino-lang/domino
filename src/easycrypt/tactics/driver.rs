@@ -24,6 +24,7 @@ use crate::easycrypt::json::{Goal, Status};
 use crate::easycrypt::session::{Session, SessionError};
 
 use super::goals;
+use super::live::LiveHandle;
 use super::script::{Mark, Script};
 
 type R<T> = Result<T, SessionError>;
@@ -290,6 +291,8 @@ pub(super) struct Prover<'a> {
     /// When the current leaf's budget runs out.
     pub deadline: Option<std::time::Instant>,
     pub stats: OracleStats,
+    /// The live translation page (story 28), told which node and rung the walk is at.
+    pub live: Option<LiveHandle>,
 }
 
 impl Prover<'_> {
@@ -411,6 +414,9 @@ impl Prover<'_> {
             });
         }
         self.script.push("admit.", Some(label));
+        if let Some(live) = &self.live {
+            live.admitted(&admit);
+        }
         self.stats.admits.push(admit);
         Ok(())
     }
@@ -536,12 +542,24 @@ impl Prover<'_> {
     fn ladder(&mut self) -> R<bool> {
         self.reduce_to_ambient()?;
         let hints = self.hint_sentence();
-        for tail in ["smt().", hints.as_str()] {
-            if self.try_close(&[tail])? || self.try_with_premise(tail)? {
+        for (i, tail) in ["smt().", hints.as_str()].into_iter().enumerate() {
+            let hinted = if i == 0 { "" } else { " with hints" };
+            self.note_rung(&format!("ladder: {}", tail.trim_end_matches('.')));
+            if self.try_close(&[tail])? {
+                return Ok(true);
+            }
+            self.note_rung(&format!("ladder: premise unfolded, smt{hinted}"));
+            if self.try_with_premise(tail)? {
                 return Ok(true);
             }
         }
         Ok(false)
+    }
+
+    fn note_rung(&self, name: &str) {
+        if let Some(live) = &self.live {
+            live.rung(name);
+        }
     }
 
     fn hint_sentence(&self) -> String {
@@ -580,6 +598,24 @@ impl Prover<'_> {
 
     /// Proves the front goal, which is the program goal of joint node `idx`.
     pub(super) fn prove_node(&mut self, idx: usize) -> R<()> {
+        if let Some(live) = &self.live {
+            let node = self.tree.node(idx);
+            let mut ids: Vec<String> = self
+                .tree
+                .pairs_below(idx)
+                .map(|p| p.id.clone())
+                .collect();
+            ids.extend(node.stuck.clone());
+            live.node_entered(&format!("N{idx}"), node.kind.as_str(), ids, Some(idx));
+        }
+        let result = self.prove_node_inner(idx);
+        if let Some(live) = &self.live {
+            live.node_left();
+        }
+        result
+    }
+
+    fn prove_node_inner(&mut self, idx: usize) -> R<()> {
         let tree = self.tree;
         let node = tree.node(idx);
         self.session
@@ -605,6 +641,7 @@ impl Prover<'_> {
         // rung 0 (§3.3): most abort branches close in one step
         if node.kind != NodeKind::TerminalPair && self.rung0 {
             let rung0 = self.timeouts.rung0;
+            self.note_rung("0: auto => /#");
             if self.with_timeout(rung0, |p| p.try_close(&["auto => /#."]))? {
                 return Ok(());
             }
@@ -1089,7 +1126,13 @@ impl Prover<'_> {
     /// any, the oracle is proved by the fallback. Returns those descriptions.
     pub(super) fn oracle(&mut self, align: impl FnOnce(&Goal) -> Vec<String>) -> R<Vec<String>> {
         self.script.enter_bullet();
+        if let Some(live) = &self.live {
+            live.node_entered("router prelude", "router", vec![], None);
+        }
         let result = self.oracle_inner(align);
+        if let Some(live) = &self.live {
+            live.node_left();
+        }
         self.script.leave_bullet();
         result
     }

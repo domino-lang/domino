@@ -28,6 +28,15 @@
 //! Finished { files_written }
 //! ```
 //!
+//! `domino easycrypt --tactics` (story 28) then adds, per theorem, one more phase:
+//!
+//! ```text
+//! PhaseStarted{tactics} ( ItemStarted GoalFinished* )* PhaseFinished
+//! ```
+//!
+//! its items are the oracles (`Eq_A_B PKENC`), and a `GoalFinished` is one node of the joint
+//! tree whose goal was closed or admitted.
+//!
 //! `index` fields are 1-based. Every theorem is exported in memory before any file
 //! is written (a failed export must not leave a half-written tree), which is why
 //! `write` is one phase after the last theorem and its item names carry the
@@ -47,6 +56,8 @@ pub enum ExportPhase {
     Invariants,
     Proofs,
     Write,
+    /// `--tactics`: one item per oracle (story 28).
+    Tactics,
 }
 
 impl ExportPhase {
@@ -59,6 +70,7 @@ impl ExportPhase {
             Self::Invariants => "invariants",
             Self::Proofs => "proofs",
             Self::Write => "write",
+            Self::Tactics => "tactics",
         }
     }
 }
@@ -72,6 +84,8 @@ pub enum ExportEvent<'a> {
     PhaseFinished { phase: ExportPhase },
     TheoremFinished { name: &'a str },
     Finished { files_written: usize },
+    /// `--tactics`: the goal of joint node `goal` (`N7`) of `oracle` is done, closed or admitted.
+    GoalFinished { oracle: &'a str, goal: &'a str, admitted: bool },
 }
 
 pub trait ExportObserver {
@@ -83,6 +97,72 @@ pub struct NopExportObserver;
 
 impl ExportObserver for NopExportObserver {
     fn on_event(&mut self, _: &ExportEvent<'_>) {}
+}
+
+/// The export phases of each theorem, as they went by: what the live translation page (story 28)
+/// shows before the tactics start.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PhaseLog {
+    /// `(theorem, [(phase name, items)])`, in order. The `write` phase belongs to no theorem and
+    /// is under the name `""`.
+    pub theorems: Vec<(String, Vec<(&'static str, usize)>)>,
+}
+
+impl PhaseLog {
+    /// The phases the export went through for `theorem`, followed by the `write` phase.
+    pub fn phases_of(&self, theorem: &str) -> Vec<(&'static str, usize)> {
+        let of = |name: &str| {
+            self.theorems
+                .iter()
+                .find(|(t, _)| t == name)
+                .map(|(_, p)| p.clone())
+                .unwrap_or_default()
+        };
+        let mut phases = of(theorem);
+        phases.extend(of(""));
+        phases
+    }
+}
+
+/// Forwards every event to `inner` and remembers the phases in a [`PhaseLog`].
+pub struct LoggingExportObserver<'o> {
+    inner: &'o mut dyn ExportObserver,
+    log: PhaseLog,
+    current: String,
+}
+
+impl<'o> LoggingExportObserver<'o> {
+    pub fn new(inner: &'o mut dyn ExportObserver) -> Self {
+        Self { inner, log: PhaseLog::default(), current: String::new() }
+    }
+
+    pub fn into_log(self) -> PhaseLog {
+        self.log
+    }
+}
+
+impl ExportObserver for LoggingExportObserver<'_> {
+    fn on_event(&mut self, event: &ExportEvent<'_>) {
+        match event {
+            ExportEvent::TheoremStarted { name, .. } => {
+                self.current = name.to_string();
+                self.log.theorems.push((name.to_string(), Vec::new()));
+            }
+            ExportEvent::TheoremFinished { .. } => self.current.clear(),
+            ExportEvent::PhaseStarted { phase, total_items } => {
+                if self.current.is_empty()
+                    && !self.log.theorems.last().is_some_and(|(t, _)| t.is_empty())
+                {
+                    self.log.theorems.push((String::new(), Vec::new()));
+                }
+                if let Some((_, phases)) = self.log.theorems.last_mut() {
+                    phases.push((phase.name(), *total_items));
+                }
+            }
+            _ => {}
+        }
+        self.inner.on_event(event);
+    }
 }
 
 /// Emits `PhaseStarted`, and hands out `ItemStarted`/`PhaseFinished` with the
@@ -121,12 +201,12 @@ impl<'o> PhaseScope<'o> {
 pub struct PlainExportObserver {
     err: std::io::Stderr,
     theorem: Option<(String, usize, usize)>,
-    totals: [usize; 7],
+    totals: [usize; 8],
 }
 
 impl PlainExportObserver {
     pub fn new() -> Self {
-        Self { err: std::io::stderr(), theorem: None, totals: [0; 7] }
+        Self { err: std::io::stderr(), theorem: None, totals: [0; 8] }
     }
 
     fn prefix(&self, phase: ExportPhase) -> String {
@@ -168,6 +248,9 @@ impl ExportObserver for PlainExportObserver {
                 line
             }
             ExportEvent::Finished { files_written } => format!("done: {files_written} file(s) written"),
+            ExportEvent::GoalFinished { oracle, goal, admitted } => {
+                format!("  {oracle} {goal}: {}", if *admitted { "admitted" } else { "closed" })
+            }
             _ => return,
         };
         let _ = writeln!(self.err, "{line}");
@@ -227,6 +310,14 @@ impl ExportObserver for BarExportObserver {
                 }
             }
             ExportEvent::TheoremFinished { .. } => self.theorem = None,
+            ExportEvent::GoalFinished { oracle, goal, admitted } => {
+                if let Some(bar) = &self.bar {
+                    bar.set_message(format!(
+                        "{oracle} {goal} {}",
+                        if *admitted { "admitted" } else { "closed" }
+                    ));
+                }
+            }
             _ => {}
         }
     }
@@ -253,8 +344,25 @@ pub(crate) mod tests {
                 ExportEvent::PhaseFinished { phase } => format!("end {}", phase.name()),
                 ExportEvent::TheoremFinished { name } => format!("theorem-end {name}"),
                 ExportEvent::Finished { files_written } => format!("finished {files_written}"),
+                ExportEvent::GoalFinished { oracle, goal, admitted } => {
+                    format!("goal {oracle} {goal} {admitted}")
+                }
             });
         }
+    }
+
+    #[test]
+    fn logging_observer_remembers_phases_per_theorem_and_the_write_phase() {
+        let mut inner = Recorder::default();
+        let mut log = LoggingExportObserver::new(&mut inner);
+        log.on_event(&ExportEvent::TheoremStarted { name: "T", index: 1, total: 1 });
+        log.on_event(&ExportEvent::PhaseStarted { phase: ExportPhase::Types, total_items: 2 });
+        log.on_event(&ExportEvent::PhaseFinished { phase: ExportPhase::Types });
+        log.on_event(&ExportEvent::TheoremFinished { name: "T" });
+        log.on_event(&ExportEvent::PhaseStarted { phase: ExportPhase::Write, total_items: 5 });
+        let log = log.into_log();
+        assert_eq!(log.phases_of("T"), [("types", 2), ("write", 5)]);
+        assert_eq!(inner.0.len(), 5, "every event is forwarded");
     }
 
     #[test]

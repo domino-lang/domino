@@ -500,27 +500,33 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
     // to a top-level error, contradicting §4's "writes no files" bullet for
     // that exact project.
     use sspverif::writers::easycrypt::progress::{
-        BarExportObserver, ExportEvent, ExportObserver, NopExportObserver, PlainExportObserver,
+        BarExportObserver, ExportEvent, ExportObserver, LoggingExportObserver, NopExportObserver,
+        PlainExportObserver,
     };
     // Story 21: progress goes to stderr only; stdout and the written files do not depend on it.
-    let mut observer: Box<dyn ExportObserver> = match e.progress {
-        ProgressMode::None => Box::new(NopExportObserver),
-        ProgressMode::Plain => Box::new(PlainExportObserver::new()),
-        ProgressMode::Bar => Box::new(BarExportObserver::new()),
-        ProgressMode::Auto => {
-            use std::io::IsTerminal;
-            if std::io::stderr().is_terminal() {
-                Box::new(BarExportObserver::new())
-            } else {
-                Box::new(PlainExportObserver::new())
+    let make_observer = || -> Box<dyn ExportObserver> {
+        match e.progress {
+            ProgressMode::None => Box::new(NopExportObserver),
+            ProgressMode::Plain => Box::new(PlainExportObserver::new()),
+            ProgressMode::Bar => Box::new(BarExportObserver::new()),
+            ProgressMode::Auto => {
+                use std::io::IsTerminal;
+                if std::io::stderr().is_terminal() {
+                    Box::new(BarExportObserver::new())
+                } else {
+                    Box::new(PlainExportObserver::new())
+                }
             }
         }
     };
+    let mut observer = make_observer();
+    // the export phases, for the live page of `--tactics` (story 28)
+    let mut logging = LoggingExportObserver::new(observer.as_mut());
 
     let mut exports = Vec::with_capacity(theorem_names.len());
     for (i, name) in theorem_names.iter().enumerate() {
         let theorem = project.get_theorem(name).unwrap();
-        observer.on_event(&ExportEvent::TheoremStarted {
+        logging.on_event(&ExportEvent::TheoremStarted {
             name,
             index: i + 1,
             total: theorem_names.len(),
@@ -528,9 +534,9 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         let exported = sspverif::writers::easycrypt::export::export_theorem_observed(
             theorem,
             &project,
-            observer.as_mut(),
+            &mut logging,
         )?;
-        observer.on_event(&ExportEvent::TheoremFinished { name });
+        logging.on_event(&ExportEvent::TheoremFinished { name });
         exports.push((name.clone(), exported));
     }
 
@@ -541,7 +547,9 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         .zip(&theorem_outs)
         .map(|((name, exported), out)| (name.as_str(), out.as_path(), &exported.files))
         .collect();
-    sspverif::writers::easycrypt::export::write_all_observed(&outputs, observer.as_mut())?;
+    sspverif::writers::easycrypt::export::write_all_observed(&outputs, &mut logging)?;
+    #[cfg_attr(not(feature = "cvc5-lib"), allow(unused_variables))]
+    let phase_log = logging.into_log();
     drop(observer);
 
     for (i, (name, exported)) in exports.iter().enumerate() {
@@ -559,7 +567,7 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
 
     #[cfg(feature = "cvc5-lib")]
     if e.tactics {
-        use sspverif::easycrypt::tactics::{read_smt_hints, run_tactics, TacticsOptions};
+        use sspverif::easycrypt::tactics::{read_smt_hints, run_tactics_observed, TacticsOptions};
 
         let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, None);
         let options = TacticsOptions {
@@ -574,7 +582,16 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         for (name, exported) in &exports {
             let theorem = project.get_theorem(name).unwrap();
             let theorem_out = out_base.join(name);
-            let result = run_tactics(theorem, &project, exported, &theorem_out, &backend, &options)?;
+            let result = run_tactics_observed(
+                theorem,
+                &project,
+                exported,
+                &theorem_out,
+                &backend,
+                &options,
+                make_observer(),
+                &phase_log.phases_of(name),
+            )?;
             let report = result.render();
             println!();
             print!("{report}");

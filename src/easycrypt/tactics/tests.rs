@@ -425,6 +425,7 @@ mod live {
             leaf_budget: Duration::from_secs(60),
             deadline: None,
             stats: OracleStats::default(),
+            live: None,
         };
         // an alignment mismatch sends the whole oracle down the fallback
         let mismatches = prover
@@ -455,6 +456,40 @@ mod live {
         };
         let (b, out_b) = run("example-projects/hello-world", "Proof", &options).unwrap();
         assert_eq!(proof_file(&a, out_a.path()), proof_file(&b, out_b.path()));
+        // and the same final page, but for its timings (story 28)
+        let page = |out: &tempfile::TempDir| {
+            std::fs::read_to_string(out.path().join("progress/index.html")).unwrap()
+        };
+        let (page_a, page_b) = (page(&out_a), page(&out_b));
+        assert!(page_a.contains("id=\"timings\""));
+        assert_eq!(strip_timings(&page_a), strip_timings(&page_b));
+    }
+
+    #[test]
+    fn the_live_page_shows_the_oracle_its_goals_and_ends_without_a_refresh_tag() {
+        let Some((result, out)) = run(
+            "example-projects/hello-world",
+            "Proof",
+            &TacticsOptions {
+                rung0: false,
+                ..TacticsOptions::default()
+            },
+        ) else {
+            return;
+        };
+        let page = std::fs::read_to_string(out.path().join("progress/index.html")).unwrap();
+        assert!(!page.contains("http-equiv"), "the final page does not refresh");
+        assert!(page.contains("tactics (done)"));
+        assert!(page.contains("UsefulOracle") && page.contains("router prelude"));
+        // the goals of the walk, with their sentences, and the lockstep page they belong to
+        assert!(page.contains("sp 1 1."));
+        assert!(page.contains("proc; inline."));
+        assert!(page.contains("lockstep page of this oracle"));
+        assert!(page.contains("/easycrypt/index.html#n=") || page.contains("index.html#n="));
+        assert!(page.contains("0 admit(s)"), "the summary counts admits");
+        // the last step of a goal has its goal text embedded, straight from EasyCrypt
+        assert!(page.contains("Type variables"), "goal text is embedded");
+        let _ = result;
     }
 
     #[test]

@@ -82,7 +82,8 @@ pub(crate) struct Easycrypt {
     /// `easycrypt cli -json` binary), and write the accepted tactics into `Eq_*.ec`. What
     /// could not be closed stays an `admit` labelled with the claim, the id (`J`/`S`) and
     /// what Domino concluded. Writes `Eq_*.report.txt` and `progress/ec-transcript.jsonl`
-    /// next to the export. Needs the `cvc5-lib` build. Never run it on 4WHS or yao: it runs
+    /// next to the export, and a live page, `progress/index.html`, that refreshes while it
+    /// runs (open it with `file://`). Needs the `cvc5-lib` build. Never run it on 4WHS or yao: it runs
     /// lockstep execution, which is the debugger.
     #[clap(long)]
     pub(crate) tactics: bool,

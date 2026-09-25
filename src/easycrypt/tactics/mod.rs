@@ -12,11 +12,13 @@
 //! - [`script`]: the accepted sentences, bullets and indentation.
 //! - [`goals`]: reading goals from the JSON.
 //! - [`driver`]: the prover.
+//! - [`live`], `live::page`: the live translation page, `progress/index.html` (story 28).
 //!
 //! Plain `domino easycrypt` never gets here.
 
 mod driver;
 mod goals;
+mod live;
 mod script;
 
 use std::fmt::Write as _;
@@ -29,6 +31,7 @@ use thiserror::Error;
 
 use crate::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions};
 use crate::debug::progress::NopObserver;
+use crate::writers::easycrypt::progress::{ExportObserver, NopExportObserver};
 use crate::debug::smtout::SmtOut;
 use crate::project::Project;
 use crate::theorem::Theorem;
@@ -44,6 +47,8 @@ use super::check::{
 };
 use super::json::Goal;
 use super::session::{split_sentences, Session, SessionError};
+
+pub use live::{strip_timings, LiveConfig, LiveHandle, GOALS_PER_STEP, GOAL_TEXT_CAP};
 
 pub use driver::{Admit, AdmitReason, DominoView, OracleStats, Timeouts};
 use driver::{OracleTree, Prover};
@@ -228,8 +233,8 @@ impl TheoremTactics {
 }
 
 /// The whole of `--tactics` for one exported theorem, already written to `out_dir`: rewrites
-/// the selected `Eq_*.ec` files, writes their reports and the transcript, and returns what it
-/// did.
+/// the selected `Eq_*.ec` files, writes their reports, the transcript and the live page
+/// (`progress/index.html`), and returns what it did.
 pub fn run_tactics<P, B>(
     theorem: &Theorem<'_>,
     project: &P,
@@ -242,11 +247,72 @@ where
     P: Project,
     B: SmtSolverBackend,
 {
-    let started = Instant::now();
-    let (theorem_ec, _aux) = EasyCryptTransform.transform_theorem(theorem)?;
+    run_tactics_observed(
+        theorem,
+        project,
+        exported,
+        out_dir,
+        backend,
+        options,
+        Box::new(NopExportObserver),
+        &[],
+    )
+}
+
+/// [`run_tactics`], reporting the `tactics` phase to `progress` (per oracle and per goal) and
+/// listing `phases`, the export phases that ran before (name, item count), on the page.
+#[allow(clippy::too_many_arguments)]
+pub fn run_tactics_observed<P, B>(
+    theorem: &Theorem<'_>,
+    project: &P,
+    exported: &ExportedTheorem,
+    out_dir: &Path,
+    backend: &B,
+    options: &TacticsOptions,
+    progress: Box<dyn ExportObserver>,
+    phases: &[(&'static str, usize)],
+) -> Result<TheoremTactics, TacticsError>
+where
+    P: Project,
+    B: SmtSolverBackend,
+{
     let out_dir = std::fs::canonicalize(out_dir).unwrap_or_else(|_| out_dir.to_path_buf());
     let progress_dir = out_dir.join("progress");
     std::fs::create_dir_all(&progress_dir)?;
+    let live = LiveHandle::new(LiveConfig {
+        theorem: theorem.name.clone(),
+        page: Some(progress_dir.join("index.html")),
+        transcript: progress_dir.join("ec-transcript.jsonl"),
+        phases: phases.to_vec(),
+        progress,
+    });
+    let result = run_tactics_inner(
+        theorem, project, exported, &out_dir, backend, options, &live,
+    );
+    // the last write always happens: the page on disk matches the end state
+    match &result {
+        Ok(_) => live.finish(),
+        Err(e) => live.fail(&e.to_string()),
+    }
+    result
+}
+
+fn run_tactics_inner<P, B>(
+    theorem: &Theorem<'_>,
+    project: &P,
+    exported: &ExportedTheorem,
+    out_dir: &Path,
+    backend: &B,
+    options: &TacticsOptions,
+    live: &LiveHandle,
+) -> Result<TheoremTactics, TacticsError>
+where
+    P: Project,
+    B: SmtSolverBackend,
+{
+    let started = Instant::now();
+    let (theorem_ec, _aux) = EasyCryptTransform.transform_theorem(theorem)?;
+    let progress_dir = out_dir.join("progress");
     let transcript_path = progress_dir.join("ec-transcript.jsonl");
     let transcript = File::create(&transcript_path)?;
 
@@ -261,10 +327,11 @@ where
             project,
             exported,
             eq,
-            &out_dir,
+            out_dir,
             backend,
             options,
             transcript.try_clone()?,
+            live,
         )?);
     }
     Ok(TheoremTactics {
@@ -286,6 +353,7 @@ fn tactics_for_equivalence<P, B>(
     backend: &B,
     options: &TacticsOptions,
     transcript: File,
+    live: &LiveHandle,
 ) -> Result<EquivalenceTactics, TacticsError>
 where
     P: Project,
@@ -312,8 +380,17 @@ where
     // open the proof: everything up to `call (…); last first.`, then the base case
     let sentences = split_sentences(source);
     let call_prefix = sentences_until_call(&file, source)?;
+    let selected_oracles: Vec<String> = setup
+        .oracles
+        .iter()
+        .map(|(name, _)| name.clone())
+        .filter(|name| selected(name))
+        .collect();
+    live.equivalence_started(&file, eq.proofstep, &eq.left_name, &eq.right_name, &selected_oracles);
+    live.activity("starting EasyCrypt and opening the proof");
     let mut session = Session::start(out_dir)?;
     session.set_transcript_sink(Box::new(transcript), &file);
+    session.set_observer(live.session_observer());
     session.set_timeout(options.ec_timeout);
     for sentence in &call_prefix {
         ok_or_reject(session.send(sentence)?, &file, sentence)?;
@@ -340,7 +417,9 @@ where
                     &oracle,
                     backend,
                     options,
+                    live,
                 )?;
+                live.oracle_finished(&result);
                 results.push(result);
             }
             None => {
@@ -352,10 +431,12 @@ where
     let position = |name: &str| setup.oracles.iter().position(|(n, _)| n == name);
     for (name, _) in &setup.oracles {
         if selected(name) && !results.iter().any(|r| &r.oracle == name) {
-            results.push(OracleTactics::empty(
+            let empty = OracleTactics::empty(
                 name,
                 "no goal for this oracle after `call (…); last first.`",
-            ));
+            );
+            live.oracle_finished(&empty);
+            results.push(empty);
         }
     }
     results.sort_by_key(|r| position(&r.oracle));
@@ -383,6 +464,7 @@ where
     let binary = super::session::locate_binary();
     let file_path = out_dir.join(&file);
     if !scripted.is_empty() {
+        live.activity(&format!("easycrypt compile {file}"));
         let all: Vec<&OracleTactics> = scripted.iter().map(|&i| &results[i]).collect();
         std::fs::write(&file_path, text_of(&all))?;
         if compile(&binary, out_dir, &file).is_err() {
@@ -402,6 +484,7 @@ where
         }
     }
 
+    live.activity("");
     let report_file = file.trim_end_matches(".ec").to_string() + ".report.txt";
     let tactics = EquivalenceTactics {
         proofstep: eq.proofstep,
@@ -414,6 +497,7 @@ where
         report_file,
     };
     std::fs::write(out_dir.join(&tactics.report_file), tactics.render())?;
+    live.equivalence_finished(&tactics);
     Ok(tactics)
 }
 
@@ -427,15 +511,17 @@ fn tactics_for_oracle<P, B>(
     oracle: &str,
     backend: &B,
     options: &TacticsOptions,
+    live: &LiveHandle,
 ) -> Result<OracleTactics, TacticsError>
 where
     P: Project,
     B: SmtSolverBackend,
 {
-    eprintln!("tactics: oracle {oracle} of {}", eq.proof_file);
+    live.oracle_started(oracle);
     // lockstep execution first: its artifacts are written exactly as `domino debug --easycrypt`
     // writes them, so every `S`/`J` of an admit has a page to open
     let lockstep_started = Instant::now();
+    live.activity("lockstep execution");
     let run = run_lockstep_command(
         project,
         &theorem.name,
@@ -453,6 +539,10 @@ where
         None,
     );
     let lockstep_time = lockstep_started.elapsed();
+    live.activity("");
+    if let Ok(run) = &run {
+        live.lockstep_done(Path::new(&run.meta.out_dir));
+    }
     let run = match run {
         Ok(run) => run,
         Err(source) => {
@@ -493,6 +583,7 @@ where
             rung0: RUNG0_TIMEOUT.min(options.ec_timeout),
         },
         stats: OracleStats::default(),
+        live: Some(live.clone()),
     };
     let began = Instant::now();
     let mismatches = prover.oracle(|goal: &Goal| {

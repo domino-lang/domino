@@ -80,6 +80,26 @@ struct Line {
 /// deeply, and parsing is recursive.
 const READER_STACK: usize = 1 << 30;
 
+/// What [`Session::send`] tells its observer (story 28): the sentence about to run, a tick while
+/// it is still running, and its answer.
+#[derive(Debug)]
+pub enum SessionEvent<'a> {
+    Sending { sentence: &'a str },
+    /// EasyCrypt has not answered yet; sent every [`WAIT_TICK`].
+    Waiting { sentence: &'a str, elapsed: Duration },
+    /// The answer. `record_bytes` is the size of the transcript record just written, if there
+    /// is a transcript sink (the record is on disk already).
+    Answered {
+        sentence: &'a str,
+        response: &'a Response,
+        elapsed: Duration,
+        record_bytes: Option<usize>,
+    },
+}
+
+/// How often a running sentence is reported to the observer as [`SessionEvent::Waiting`].
+pub const WAIT_TICK: Duration = Duration::from_secs(1);
+
 pub struct Session {
     child: Child,
     stdin: Option<ChildStdin>,
@@ -90,6 +110,7 @@ pub struct Session {
     empty: Option<Response>,
     timeout: Duration,
     sink: Option<TranscriptSink>,
+    observer: Option<Box<dyn FnMut(&SessionEvent<'_>)>>,
 }
 
 /// Where [`Session::send`] appends every exchange, one JSON object per line: `{"file": <tag>,
@@ -168,6 +189,7 @@ impl Session {
             empty: None,
             timeout: DEFAULT_TIMEOUT,
             sink: None,
+            observer: None,
         };
         session.check_capability()?;
         Ok(session)
@@ -219,6 +241,42 @@ impl Session {
         });
     }
 
+    /// Calls `observer` before every later sentence, every [`WAIT_TICK`] while it runs, and with
+    /// its answer (the live translation page, story 28). It sees nothing it could change.
+    pub fn set_observer(&mut self, observer: Box<dyn FnMut(&SessionEvent<'_>)>) {
+        self.observer = Some(observer);
+    }
+
+    fn notify(&mut self, event: &SessionEvent<'_>) {
+        if let Some(observer) = &mut self.observer {
+            observer(event);
+        }
+    }
+
+    /// Waits for the next line, up to the timeout, reporting [`SessionEvent::Waiting`] on the way.
+    fn wait_line(
+        &mut self,
+        sentence: &str,
+        began: std::time::Instant,
+    ) -> Result<std::io::Result<Line>, RecvTimeoutError> {
+        if self.observer.is_none() {
+            return self.lines.recv_timeout(self.timeout);
+        }
+        loop {
+            let left = self.timeout.saturating_sub(began.elapsed());
+            if left.is_zero() {
+                return Err(RecvTimeoutError::Timeout);
+            }
+            match self.lines.recv_timeout(left.min(WAIT_TICK)) {
+                Err(RecvTimeoutError::Timeout) => self.notify(&SessionEvent::Waiting {
+                    sentence,
+                    elapsed: began.elapsed(),
+                }),
+                other => return other,
+            }
+        }
+    }
+
     /// A free-form note (the oracle and joint node being worked on) that goes into every later
     /// transcript record as `"ctx"`. Without a transcript sink it is ignored.
     pub fn set_context(&mut self, context: &str) {
@@ -253,8 +311,9 @@ impl Session {
     /// timeout is interrupted, and the answer is then `Status::Interrupted`.
     pub fn send(&mut self, sentence: &str) -> Result<&Response, SessionError> {
         let began = std::time::Instant::now();
+        self.notify(&SessionEvent::Sending { sentence });
         self.write_line(sentence)?;
-        let line = match self.lines.recv_timeout(self.timeout) {
+        let line = match self.wait_line(sentence, began) {
             Ok(line) => line,
             Err(RecvTimeoutError::Timeout) => {
                 self.interrupt()?;
@@ -271,6 +330,7 @@ impl Session {
             }
         };
         let line = line?;
+        let mut record_bytes = None;
         if let Some(sink) = &mut self.sink {
             let record = format!(
                 "{{\"file\":{},\"ctx\":{},\"sentence\":{},\"ms\":{},\"response\":{}}}\n",
@@ -281,6 +341,7 @@ impl Session {
                 line.raw.trim_end()
             );
             sink.writer.write_all(record.as_bytes())?;
+            record_bytes = Some(record.len());
         }
         let response = line.parsed.map_err(|source| SessionError::BadAnswer {
             sentence: sentence.to_string(),
@@ -294,6 +355,20 @@ impl Session {
             sentence: sentence.to_string(),
             response,
         });
+        if self.observer.is_some() {
+            let exchange = self.transcript.last().expect("just pushed");
+            let event = SessionEvent::Answered {
+                sentence,
+                response: &exchange.response,
+                elapsed: began.elapsed(),
+                record_bytes,
+            };
+            // `notify` borrows `self` mutably: take the observer out for the call
+            if let Some(mut observer) = self.observer.take() {
+                observer(&event);
+                self.observer = Some(observer);
+            }
+        }
         Ok(&self.transcript.last().expect("just pushed").response)
     }
 
@@ -450,6 +525,40 @@ mod tests {
             .unwrap();
         assert!(matches!(err, SessionError::Spawn { .. }), "{err}");
         assert!(err.to_string().contains(ENV_VAR));
+    }
+
+    /// A stand-in EasyCrypt that answers every line `ok` and takes 2.3 s over "slow" ones.
+    #[test]
+    fn the_observer_sees_the_sentence_ticks_while_it_runs_and_the_answer() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("fake-easycrypt");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nwhile IFS= read -r line; do\n  case \"$line\" in *slow*) sleep 2.3;; esac\n  echo '{\"version\":\"domino-json/1\",\"state\":1,\"status\":\"ok\",\"messages\":[]}'\ndone\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut session = Session::start_with(&script, dir.path()).unwrap();
+        let events = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+        let seen = events.clone();
+        session.set_observer(Box::new(move |e| {
+            seen.borrow_mut().push(match e {
+                SessionEvent::Sending { sentence } => format!("sending {sentence}"),
+                SessionEvent::Waiting { sentence, .. } => format!("waiting {sentence}"),
+                SessionEvent::Answered { sentence, record_bytes, .. } => {
+                    format!("answered {sentence} {}", record_bytes.is_some())
+                }
+            })
+        }));
+        session.send("quick.").unwrap();
+        session.send("slow.").unwrap();
+        let events = events.borrow();
+        assert_eq!(events[..2], ["sending quick.", "answered quick. false"]);
+        assert_eq!(events[2], "sending slow.");
+        let waits = events.iter().filter(|e| e.starts_with("waiting slow.")).count();
+        assert_eq!(waits, 2, "a tick each second of the 2.3 s: {events:?}");
+        assert_eq!(events.last().unwrap(), "answered slow. false");
     }
 
     fn session_in(dir: &Path) -> Option<Session> {
