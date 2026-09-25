@@ -48,6 +48,7 @@ use crate::debug::lockstep::{
     LockstepTerms, PairRecord, Pairing, RelationGoal, StuckPoint,
 };
 use crate::debug::lockstep_report::{self, LockstepSmtWriter};
+use crate::debug::lockstep_viewer;
 use crate::debug::progress::{DebugEvent, DebugObserver};
 use crate::debug::render;
 use crate::debug::smtout::SmtOut;
@@ -66,8 +67,31 @@ use crate::writers::smt::exprs::{SmtAnd, SmtAssert, SmtExpr, SmtNot};
 /// [`crate::debug::driver::TRACE_SCHEMA`].
 pub const LOCKSTEP_TRACE_SCHEMA: u32 = 9;
 
-/// How many joint paths pass between two flushes of the partial artifacts.
-const FLUSH_EVERY: usize = 8;
+/// The least time between two flushes of the partial artifacts while a run is
+/// in progress: at most two a second (story 24). The page refreshes every two
+/// seconds, and serialising a big trace is not free.
+const FLUSH_GAP: Duration = Duration::from_millis(500);
+
+/// Rate limit for the partial flushes.
+struct FlushThrottle {
+    gap: Duration,
+    last: Instant,
+}
+
+impl FlushThrottle {
+    fn new(gap: Duration, now: Instant) -> Self {
+        Self { gap, last: now }
+    }
+
+    /// Whether a flush is due at `now`; if so, it counts as done.
+    fn due(&mut self, now: Instant) -> bool {
+        if now.saturating_duration_since(self.last) < self.gap {
+            return false;
+        }
+        self.last = now;
+        true
+    }
+}
 
 /// The CLI knobs that have a meaning in lockstep mode.
 #[derive(Debug, Clone, Copy)]
@@ -166,7 +190,7 @@ pub struct VerdictCounts {
 }
 
 impl VerdictCounts {
-    fn bump(&mut self, v: &Verdict) {
+    pub(crate) fn bump(&mut self, v: &Verdict) {
         match v {
             Verdict::Verified => self.verified += 1,
             Verdict::Unreachable => self.unreachable += 1,
@@ -341,13 +365,16 @@ struct RunObserver<'a, 'o> {
     out_dir: &'a Path,
     smt: &'a LockstepSmtWriter,
     goals: Vec<(String, String)>,
-    /// Joint paths since the last flush of the partial artifacts.
-    since_flush: usize,
+    throttle: FlushThrottle,
 }
 
 impl RunObserver<'_, '_> {
-    fn flush(&self, outcome: &LockstepOutcome) -> Result<(), DebugError> {
-        lockstep_report::flush(self.meta, outcome, &summarize(outcome), self.out_dir)?;
+    /// Rewrite the artifacts of the run so far, as the live page (it
+    /// refreshes itself), if the throttle allows.
+    fn flush_if_due(&mut self, outcome: &LockstepOutcome) -> Result<(), DebugError> {
+        if self.throttle.due(Instant::now()) {
+            lockstep_report::flush(self.meta, outcome, &summarize(outcome), self.out_dir, true)?;
+        }
         Ok(())
     }
 }
@@ -358,7 +385,7 @@ impl LockstepObserver for RunObserver<'_, '_> {
             index: node,
             kind: outcome.tree.nodes[node].kind.as_str(),
         });
-        Ok(())
+        self.flush_if_due(outcome)
     }
 
     fn pair_checked(
@@ -378,12 +405,7 @@ impl LockstepObserver for RunObserver<'_, '_> {
                 invariant: &pair.invariant,
                 elapsed,
             });
-        self.since_flush += 1;
-        if self.since_flush == FLUSH_EVERY {
-            self.since_flush = 0;
-            self.flush(outcome)?;
-        }
-        Ok(())
+        self.flush_if_due(outcome)
     }
 
     fn stuck_found(&mut self, _outcome: &LockstepOutcome, stuck: &StuckPoint) {
@@ -395,6 +417,15 @@ impl LockstepObserver for RunObserver<'_, '_> {
                 label: stuck.label,
                 reason: stuck.reason.as_str(),
             });
+    }
+}
+
+/// Drop the refresh tag from the page on disk, after a run that died without
+/// its final write. Best effort: the run's own error is what gets reported.
+fn settle_page(out_dir: &Path) {
+    let path = out_dir.join("index.html");
+    if let Ok(page) = std::fs::read_to_string(&path) {
+        let _ = std::fs::write(&path, lockstep_viewer::without_refresh(&page));
     }
 }
 
@@ -641,7 +672,7 @@ where
         stuck: Vec::new(),
         stop_reason: StopReason::Completed,
     };
-    lockstep_report::flush(&meta, &empty, &summarize(&empty), &out_dir)?;
+    lockstep_report::flush(&meta, &empty, &summarize(&empty), &out_dir, true)?;
 
     let progress = RefCell::new(observer);
     let engine_opts = LockstepOptions {
@@ -655,7 +686,7 @@ where
         out_dir: &out_dir,
         smt: &smt_writer,
         goals,
-        since_flush: 0,
+        throttle: FlushThrottle::new(FLUSH_GAP, Instant::now()),
     };
     let outcome = run_lockstep(
         &mut solver,
@@ -674,14 +705,28 @@ where
         &mut run_observer,
     );
     solver.close();
-    let outcome = outcome?;
+    let outcome = match outcome {
+        Ok(outcome) => outcome,
+        Err(e) => {
+            // The run ended without a final write: the page must not keep
+            // refreshing forever.
+            settle_page(&out_dir);
+            return Err(e);
+        }
+    };
 
-    std::fs::write(
-        out_dir.join("inlined.txt"),
-        render::side_by_side(&meta.left_listing, &meta.right_listing),
-    )?;
     let summary = summarize(&outcome);
-    lockstep_report::flush(&meta, &outcome, &summary, &out_dir)?;
+    let finish = || -> std::io::Result<()> {
+        std::fs::write(
+            out_dir.join("inlined.txt"),
+            render::side_by_side(&meta.left_listing, &meta.right_listing),
+        )?;
+        lockstep_report::flush(&meta, &outcome, &summary, &out_dir, false)
+    };
+    if let Err(e) = finish() {
+        settle_page(&out_dir);
+        return Err(e.into());
+    }
 
     progress
         .borrow_mut()
@@ -1042,7 +1087,7 @@ mod tests {
                 LockstepDebugOptions::default(),
                 Some(b.path().to_path_buf()),
             );
-            for file in ["trace.json", "summary.txt"] {
+            for file in ["trace.json", "summary.txt", "index.html"] {
                 assert_eq!(
                     std::fs::read_to_string(a.path().join(file)).unwrap(),
                     std::fs::read_to_string(b.path().join(file)).unwrap(),
@@ -1338,10 +1383,135 @@ mod tests {
     fn two_runs_on_a_real_project_give_identical_traces() {
         let a = lockstep_easycrypt(KEM_DEM, "kem_dem_cca_ssp", "PKENC");
         let b = lockstep_easycrypt(KEM_DEM, "kem_dem_cca_ssp", "PKENC");
-        assert_eq!(
-            std::fs::read_to_string(Path::new(&a.meta.out_dir).join("trace.json")).unwrap(),
-            std::fs::read_to_string(Path::new(&b.meta.out_dir).join("trace.json")).unwrap(),
-        );
+        for file in ["trace.json", "index.html"] {
+            assert_eq!(
+                std::fs::read_to_string(Path::new(&a.meta.out_dir).join(file)).unwrap(),
+                std::fs::read_to_string(Path::new(&b.meta.out_dir).join(file)).unwrap(),
+                "{file}"
+            );
+        }
+    }
+
+    // -- the viewer page (story 24) ---------------------------------------------
+
+    /// The JSON of the `<script type="application/json" id=…>` block of a page.
+    fn embedded(page: &str, id: &str) -> serde_json::Value {
+        let open = format!("<script type=\"application/json\" id=\"{id}\">");
+        let start = page.find(&open).expect("block present") + open.len();
+        let end = start + page[start..].find("</script>").unwrap();
+        serde_json::from_str(&page[start..end]).unwrap()
+    }
+
+    /// Verdict-slug counts of the joint paths below `node`, computed from the
+    /// raw `trace.json` with a walk that shares nothing with the viewer's.
+    fn below(trace: &serde_json::Value, node: u64) -> Vec<&serde_json::Value> {
+        let nodes = trace["tree"]["nodes"].as_array().unwrap();
+        // Parent of every explored node.
+        let mut parent = std::collections::HashMap::new();
+        for n in nodes {
+            for c in n["children"].as_array().unwrap() {
+                if let Some(child) = c["outcome"]["node"].as_u64() {
+                    parent.insert(child, n["index"].as_u64().unwrap());
+                }
+            }
+        }
+        trace["pairs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| {
+                let mut at = p["node"].as_u64().unwrap();
+                loop {
+                    if at == node {
+                        return true;
+                    }
+                    match parent.get(&at) {
+                        Some(up) => at = *up,
+                        None => return false,
+                    }
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn each_stuck_points_rollup_matches_a_count_taken_from_trace_json() {
+        let mut checked = 0;
+        for oracle in ["StuckArg", "StuckOrder", "BadState", "Split"] {
+            let out = tempfile::tempdir().unwrap();
+            run_rules_with(oracle, LockstepDebugOptions::default(), Some(out.path().to_path_buf()));
+            let trace: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(out.path().join("trace.json")).unwrap(),
+            )
+            .unwrap();
+            let page = std::fs::read_to_string(out.path().join("index.html")).unwrap();
+            let rollups = embedded(&page, "rollups");
+            let rollups = rollups.as_array().unwrap();
+            assert_eq!(rollups.len(), trace["stuck"].as_array().unwrap().len(), "{oracle}");
+            for (stuck, rollup) in trace["stuck"].as_array().unwrap().iter().zip(rollups) {
+                let pairs = below(&trace, stuck["node"].as_u64().unwrap());
+                assert_eq!(rollup["id"], stuck["id"], "{oracle}");
+                assert_eq!(rollup["pairs"].as_u64().unwrap() as usize, pairs.len(), "{oracle}");
+                for claim in ["equal_output", "invariant"] {
+                    let count = |slug: &str| {
+                        pairs.iter().filter(|p| p[claim]["kind"] == slug).count() as u64
+                    };
+                    for (field, slug) in [
+                        ("verified", "verified"),
+                        ("unreachable", "unreachable"),
+                        ("goal_fails", "goal-fails"),
+                        ("inconclusive", "inconclusive"),
+                    ] {
+                        assert_eq!(
+                            rollup[claim][field].as_u64().unwrap(),
+                            count(slug),
+                            "{oracle} {} {claim} {field}",
+                            stuck["id"]
+                        );
+                    }
+                }
+                let failing_relations: usize = pairs
+                    .iter()
+                    .flat_map(|p| p["relations"].as_array().unwrap())
+                    .filter(|r| matches!(r["verdict"]["kind"].as_str(), Some("goal-fails" | "inconclusive")))
+                    .count();
+                let rolled: usize = rollup["relations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|r| r["failing"].as_array().unwrap().len())
+                    .sum();
+                assert_eq!(rolled, failing_relations, "{oracle}");
+                checked += 1;
+            }
+        }
+        assert!(checked >= 2, "the stuck oracles must have been exercised");
+    }
+
+    #[test]
+    fn a_finished_page_does_not_refresh_and_a_live_one_does() {
+        let run = lockstep_easycrypt(HELLO, "Proof", "UsefulOracle");
+        let out = Path::new(&run.meta.out_dir);
+        let page = std::fs::read_to_string(out.join("index.html")).unwrap();
+        assert!(!page.contains("<meta http-equiv"), "the final page has no refresh tag");
+        lockstep_report::flush(&run.meta, &run.outcome, &run.summary, out, true).unwrap();
+        let live = std::fs::read_to_string(out.join("index.html")).unwrap();
+        assert!(live.contains("<meta http-equiv=\"refresh\" content=\"2\">"));
+        settle_page(out);
+        assert_eq!(std::fs::read_to_string(out.join("index.html")).unwrap(), page);
+    }
+
+    #[test]
+    fn the_viewer_page_embeds_the_trace_and_needs_no_network() {
+        let run = lockstep_easycrypt(HELLO, "Proof", "UsefulOracle");
+        let out = Path::new(&run.meta.out_dir);
+        let page = std::fs::read_to_string(out.join("index.html")).unwrap();
+        let trace: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(out.join("trace.json")).unwrap()).unwrap();
+        assert_eq!(embedded(&page, "trace"), trace);
+        for needle in ["http://", "https://", "fetch(", "XMLHttpRequest", "localStorage"] {
+            assert!(!page.contains(needle), "{needle}");
+        }
     }
 
     // -- one-directional consistency with the sequential debugger ---------------
@@ -1657,5 +1827,22 @@ mod tests {
             Some(none.path().to_path_buf()),
         );
         assert!(!none.path().join("smt").exists());
+    }
+}
+
+#[cfg(test)]
+mod throttle_tests {
+    use super::*;
+
+    #[test]
+    fn partial_flushes_are_limited_to_two_a_second() {
+        let t0 = Instant::now();
+        let mut throttle = FlushThrottle::new(FLUSH_GAP, t0);
+        assert!(!throttle.due(t0), "the initial write just happened");
+        assert!(!throttle.due(t0 + Duration::from_millis(499)));
+        assert!(throttle.due(t0 + Duration::from_millis(500)));
+        assert!(!throttle.due(t0 + Duration::from_millis(600)), "counted from the last flush");
+        assert!(throttle.due(t0 + Duration::from_millis(1000)));
+        assert!(FLUSH_GAP >= Duration::from_millis(500));
     }
 }

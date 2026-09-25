@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+__REFRESH__<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>domino debug — joint tree</title>
+<style>
+__VIEWER_CSS__
+
+/* ---- joint-tree viewer (story 24) ---------------------------------- */
+#left { width: 46%; }
+#stuck-panel { border-bottom: 1px solid var(--border); background: var(--bg-alt); flex: none; max-height: 34%; overflow: auto; }
+#stuck-panel > summary { padding: 6px 12px; }
+.stuck-entry { padding: 6px 12px 8px; border-top: 1px dashed var(--border); cursor: pointer; }
+.stuck-entry:hover, .stuck-entry.sel { background: var(--bg-inset); }
+.stuck-entry .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font: 12px/1.4 var(--mono); }
+.stuck-entry .roll { font: 12px/1.4 var(--mono); color: var(--fg-muted); margin-top: 3px; padding-left: 2px; }
+.node > .row {
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  padding: 3px 12px; cursor: pointer; border-left: 3px solid transparent;
+}
+.row:hover { background: var(--bg-alt); }
+.row.sel { background: var(--bg-inset); border-left-color: var(--accent); }
+.row .edge { font: 12px/1.4 var(--mono); color: var(--accent); word-break: break-word; }
+.row .heads { font: 12px/1.4 var(--mono); color: var(--fg); word-break: break-word; }
+.row .arrow { color: var(--fg-muted); font: 12px var(--mono); }
+.kids { padding-left: 16px; border-left: 1px dotted var(--border); margin-left: 14px; }
+.kids.seq { padding-left: 0; border-left: none; margin-left: 0; }
+.node:not(.open) > .kids { display: none; }
+.row.plumb, .row.plumb .edge, .row.plumb .heads { opacity: .55; }
+.hide-plumb .row.plumb { display: none; }
+.row.pruned .edge { text-decoration: line-through; color: var(--fg-muted); }
+.row.notexp { color: var(--fg-muted); }
+.kind { font: 11px/1 var(--mono); padding: 3px 6px; border-radius: 4px; background: var(--bg-inset); color: var(--fg-muted); flex: none; }
+.kind.sync { background: var(--ok-bg); color: var(--ok-fg); }
+.kind.split { background: var(--amber-bg); color: var(--amber-fg); }
+.kind.stuck { background: var(--fail-bg); color: var(--fail-fg); }
+.badge.stuck { background: var(--fail-bg); color: var(--fail-fg); font-weight: 600; }
+.badge.jid { background: var(--bg-inset); color: var(--fg); font-weight: 600; }
+.rels { padding: 2px 12px 4px 44px; font: 11px/1.5 var(--mono); color: var(--fg-muted); }
+.rels .rel { display: flex; gap: 6px; align-items: baseline; }
+#detail h2 { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.vrow { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin: 4px 0; font: 12px/1.4 var(--mono); }
+.vrow .k { color: var(--fg-muted); min-width: 13ch; }
+.vrow a, .path-tbl a, .stuck-entry a { color: var(--accent); }
+.subrel { margin: 2px 0 6px 26px; }
+table.path-tbl { border-collapse: collapse; width: 100%; font: 12px var(--mono); }
+table.path-tbl th { text-align: left; color: var(--fg-muted); font-weight: 400; padding: 2px 8px 4px 0; }
+table.path-tbl td { padding: 3px 10px 3px 0; vertical-align: top; border-top: 1px dashed var(--border); }
+table.path-tbl tr.cur td { background: var(--bg-inset); }
+table.path-tbl td.i { color: var(--fg-muted); white-space: nowrap; }
+table.path-tbl .dec { color: var(--accent); }
+table.path-tbl .src { color: var(--fg-muted); display: block; white-space: pre-wrap; word-break: break-word; }
+.listing .row.head { background: var(--amber-bg); border-left-color: var(--amber-fg); }
+.legend-item.head .legend-swatch { background: var(--amber-bg); border-color: var(--amber-fg); }
+.legend-item.cut .legend-swatch { background: var(--amber-bg); border-color: var(--amber-fg); }
+.listing .row { cursor: default; padding: 0; }
+.listing .row:hover { background: inherit; }
+.answers { font: 12px/1.6 var(--mono); }
+.answers span { margin-right: 14px; white-space: nowrap; }
+.livechip { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .livechip { animation: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="h-title"></h1>
+  <div class="sub" id="h-sub"></div>
+  <div class="chips" id="h-opts"></div>
+  <div class="chips" id="h-summary"></div>
+</header>
+<main>
+  <div id="left">
+    <details id="stuck-panel">
+      <summary><span class="sec-title" id="stuck-title">Stuck points</span></summary>
+      <div id="stuck-list"></div>
+    </details>
+    <div id="filter">
+      <div class="toggles">
+        <label><input type="checkbox" id="hide-plumb"> hide plumbing nodes</label>
+      </div>
+      <div class="treetoolbar">
+        <button type="button" id="tree-collapse">Collapse all</button>
+        <button type="button" id="tree-expand">Expand all</button>
+      </div>
+    </div>
+    <div id="tree"></div>
+  </div>
+  <div id="detail"><div class="empty">Select a node or a joint path on the left.</div></div>
+</main>
+
+<script type="application/json" id="trace">__TRACE_JSON__</script>
+<script type="application/json" id="rollups">__ROLLUPS_JSON__</script>
+<script>
+"use strict";
+const T = JSON.parse(document.getElementById("trace").textContent);
+const ROLLUPS = JSON.parse(document.getElementById("rollups").textContent);
+
+const el = (tag, cls, txt) => {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (txt != null) n.textContent = txt;
+  return n;
+};
+// A clickable row the keyboard can reach too.
+const activatable = (n, fn) => {
+  n.tabIndex = 0;
+  n.setAttribute("role", "button");
+  n.onclick = fn;
+  n.onkeydown = e => { if ((e.key === "Enter" || e.key === " ") && e.target === n) { e.preventDefault(); fn(e); } };
+  return n;
+};
+__EFFECT_JS__
+// ---- the trace, indexed --------------------------------------------------
+const nodes = T.tree.nodes;
+const pairById = new Map(T.pairs.map(p => [p.id, p]));
+const rollupById = new Map(ROLLUPS.map(r => [r.id, r]));
+const stuckByNode = new Map(T.stuck.map(s => [s.node, s]));
+// node index -> { from: parent index, edge: JointChild, i: its position }
+const parentOf = new Map();
+nodes.forEach(n => n.children.forEach((c, i) => {
+  if (c.outcome.kind === "explored") parentOf.set(c.outcome.node, { from: n.index, edge: c, i });
+}));
+// A trace still being written may lack the run's end.
+const LIVE = !!document.querySelector('meta[http-equiv="refresh"]');
+const KW = { branch: "if", unwrap: "unwrap", sample: "sample", "return": "return", abort: "abort" };
+const SIDES = [["left", "L"], ["right", "R"]];
+const sitesOf = side => (side === "left" ? T.left_sites : T.right_sites) || {};
+const srcLine = (side, label) => { const s = sitesOf(side)[label]; return s ? s.line : ""; };
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const verdictKind = v => (v && v.kind) || "missing";
+const badgeClass = k => ({ "verified": "verified", "unreachable": "unreachable",
+  "goal-fails": "goalfails", "inconclusive": "inconclusive" }[k] || "inconclusive");
+const badgeText = k => ({ "verified": "verified", "unreachable": "unreachable",
+  "goal-fails": "GOAL FAILS", "inconclusive": "inconclusive" }[k] || k);
+const failing = v => verdictKind(v) === "goal-fails" || verdictKind(v) === "inconclusive";
+const isPlumb = n => !!(n.left.plumbing || n.right.plumbing);
+const kindClass = k => (k === "synchronized" || k === "sampling-synchronized") ? " sync"
+  : k === "split" ? " split" : k === "stuck" ? " stuck" : "";
+
+// The model / SMT files a link may point at are relative paths this tool wrote.
+const safeRel = p => typeof p === "string" && /^[A-Za-z0-9_.\-]+(\/[A-Za-z0-9_.\-]+)*$/.test(p) && !p.includes("..");
+const link = (href, text) => {
+  if (!safeRel(href)) return el("span", "eff-dim", text);
+  const a = el("a", null, text);
+  a.href = href;
+  return a;
+};
+const verdictChip = (name, v) => el("span", "badge " + badgeClass(verdictKind(v)), `${name}: ${badgeText(verdictKind(v))}`);
+
+// ---- header ---------------------------------------------------------------
+document.getElementById("h-title").textContent =
+  `${T.theorem} · proofstep ${T.proofstep} · ${T.left_game} == ${T.right_game}`;
+document.getElementById("h-sub").textContent =
+  `oracle ${T.oracle} · lockstep execution on the ${T.listing} listing`;
+{
+  const o = T.options, chips = document.getElementById("h-opts");
+  [["timeout", o.timeout_ms == null ? "off" : o.timeout_ms + "ms"],
+   ["max-paths", o.max_paths == null ? "unlimited" : o.max_paths],
+   ["smt", o.smt == null ? "failures" : o.smt],
+   ["transcript", o.transcript ? "on" : "off"]].forEach(([k, val]) =>
+    chips.appendChild(el("span", "chip", `${k}: ${val}`)));
+}
+{
+  const s = T.summary, sc = document.getElementById("h-summary");
+  const add = (cls, txt) => sc.appendChild(el("span", "chip " + cls, txt));
+  if (LIVE) add("amber livechip", "RUNNING — this page refreshes every 2 s");
+  add("", `${plural(s.joint_paths, "joint path")}`);
+  add("", `${s.nodes} nodes`);
+  if (s.pruned_children) add("unreach", `${s.pruned_children} children pruned`);
+  add(s.stuck_points ? "fail" : "", `${plural(s.stuck_points, "stuck point")}`);
+  [["equal-output", s.equal_output], ["invariant", s.invariant]].forEach(([name, c]) => {
+    add("ok", `${name}: ${c.verified} verified`);
+    if (c.unreachable) add("unreach", `${name}: ${c.unreachable} unreachable`);
+    if (c.goal_fails) add("fail", `${name}: ${c.goal_fails} goal fails`);
+    if (c.inconclusive) add("amber", `${name}: ${c.inconclusive} inconclusive`);
+  });
+  const sr = T.stop_reason;
+  if (sr && sr.kind !== "completed" && !LIVE) {
+    add("fail", "PARTIAL — exploration stopped early" +
+      (sr.kind === "interrupted" ? " (interrupted by Ctrl-C)" : ` (--max-paths ${sr.limit} reached)`));
+  }
+}
+
+// ---- texts ------------------------------------------------------------------
+// "L42 if → then | R57 if → then": what each side did at its decision point.
+function edgeText(parent, edge) {
+  return SIDES.filter(([s]) => edge[s]).map(([s, p]) =>
+    `${p}${edge[s].label} ${KW[parent[s].head.kind] || parent[s].head.kind} → ${edge[s].decision}`).join(" | ");
+}
+// "L43 if | R58 if": where each side stands at the node.
+const headsText = n => SIDES.map(([s, p]) => `${p}${n[s].head.label} ${KW[n[s].head.kind] || n[s].head.kind}`).join(" | ");
+
+function rollupText(r) {
+  const claim = c => {
+    let t = `verified ${c.verified}/${r.pairs}`;
+    const more = [];
+    if (c.unreachable) more.push(`${c.unreachable} unreachable`);
+    if (c.goal_fails) more.push(`${c.goal_fails} GOAL FAILS`);
+    if (c.inconclusive) more.push(`${c.inconclusive} inconclusive`);
+    return more.length ? `${t} (${more.join(", ")})` : t;
+  };
+  let t = `${plural(r.pairs, "pair")} below${LIVE ? " so far" : ""}; equal-output ${claim(r.equal_output)}; invariant ${claim(r.invariant)}`;
+  r.relations.forEach(rel => {
+    const by = kind => rel.failing.filter(f => f.verdict === kind).map(f => f.pair);
+    const parts = [];
+    if (by("goal-fails").length) parts.push(`fails on ${by("goal-fails").join(", ")}`);
+    if (by("inconclusive").length) parts.push(`inconclusive on ${by("inconclusive").join(", ")}`);
+    t += `, Domino_${rel.name} ${parts.join("; ")}`;
+  });
+  return t;
+}
+const stuckText = s =>
+  `${s.side} sampling ${s.sample} (draw ${s.draw}) at ${s.side === "left" ? "L" : "R"}${s.label} — ${s.reason}` +
+  `   [left at L${s.left_label}, right at R${s.right_label}]`;
+
+// ---- the tree (rendered lazily) ---------------------------------------------
+const tree = document.getElementById("tree");
+const nodeDom = new Map();   // node index -> .node element
+const edgeDom = new Map();   // `${node}.${child}` -> .row element of a pruned / unexplored child
+let selection = null;        // { node, child }  child != null: a pruned child of node
+
+function relationList(pair) {
+  const box = el("div", "rels");
+  pair.relations.forEach(r => {
+    const line = el("div", "rel");
+    line.appendChild(document.createTextNode(`relation Domino_${r.name}`));
+    line.appendChild(el("span", "badge " + badgeClass(verdictKind(r.verdict)), badgeText(verdictKind(r.verdict))));
+    box.appendChild(line);
+  });
+  return box;
+}
+
+function nodeEl(n) {
+  const wrap = el("div", "node");
+  const row = el("div", "row" + (isPlumb(n) ? " plumb" : ""));
+  const via = parentOf.get(n.index);
+  const twist = el("span", "twist", n.children.length ? "▸" : "");
+  row.appendChild(twist);
+  row.appendChild(el("span", "pid", "#" + n.index));
+  if (via) {
+    row.appendChild(el("span", "edge", edgeText(nodes[via.from], via.edge)));
+    row.appendChild(el("span", "arrow", "▸"));
+  }
+  row.appendChild(el("span", "heads", headsText(n)));
+  row.appendChild(el("span", "kind" + kindClass(n.kind), n.kind));
+  if (n.left.plumbing || n.right.plumbing) {
+    const chip = el("span", "kind", "plumbing");
+    chip.title = "plumbing: " + (n.left.plumbing || n.right.plumbing) + " — exists only because EasyCrypt has one exit point";
+    row.appendChild(chip);
+  }
+  if (n.stuck) row.appendChild(el("span", "badge stuck", n.stuck));
+  const pair = n.pair && pairById.get(n.pair);
+  if (pair) {
+    row.appendChild(el("span", "badge jid", pair.id));
+    row.appendChild(verdictChip("equal-output", pair.equal_output));
+    row.appendChild(verdictChip("invariant", pair.invariant));
+  }
+  activatable(row, e => {
+    if (e.target === twist && n.children.length) { toggle(wrap); return; }
+    select(n.index, null);
+  });
+  wrap.appendChild(row);
+  if (pair && pair.relations.length && failing(pair.invariant)) {
+    wrap.appendChild(relationList(pair));
+  }
+  wrap._n = n;
+  nodeDom.set(n.index, wrap);
+  return wrap;
+}
+
+function childRow(n, c, i, cls, label) {
+  const row = el("div", "row " + cls + (isPlumb(n) ? " plumb" : ""));
+  row.appendChild(el("span", "twist", ""));
+  row.appendChild(el("span", "edge", edgeText(n, c)));
+  row.appendChild(el("span", "arrow", label));
+  activatable(row, () => select(n.index, i));
+  edgeDom.set(`${n.index}.${i}`, row);
+  return row;
+}
+
+// Fill a node's children the first time it opens.
+function ensureKids(wrap) {
+  if (wrap._kids) return;
+  const n = wrap._n;
+  const kids = el("div", "kids" + (n.children.length === 1 ? " seq" : ""));
+  n.children.forEach((c, i) => {
+    if (c.outcome.kind === "explored") kids.appendChild(nodeEl(nodes[c.outcome.node]));
+    else if (c.outcome.kind === "pruned") {
+      const box = el("div", "node");
+      const row = childRow(n, c, i, "pruned", `✂ pruned (${c.outcome.answer.query}: ${c.outcome.answer.answer})`);
+      row.querySelector(".arrow").title = "the solver proved this combination infeasible";
+      box.appendChild(row);
+      kids.appendChild(box);
+    } else {
+      const box = el("div", "node");
+      box.appendChild(childRow(n, c, i, "notexp", LIVE ? "not explored yet" : "not explored (the run stopped first)"));
+      kids.appendChild(box);
+    }
+  });
+  wrap.appendChild(kids);
+  wrap._kids = kids;
+}
+function setOpen(wrap, open) {
+  if (!wrap._n.children.length) return;
+  if (open) ensureKids(wrap);
+  wrap.classList.toggle("open", open);
+  const t = wrap.querySelector(":scope > .row > .twist");
+  if (t) t.textContent = open ? "▾" : "▸";
+}
+const toggle = wrap => setOpen(wrap, !wrap.classList.contains("open"));
+
+function setAll(open) {
+  // Opening everything renders everything; that is what the button asks for.
+  const walk = wrap => {
+    setOpen(wrap, open);
+    if (open && wrap._kids) wrap._kids.querySelectorAll(":scope > .node").forEach(k => { if (k._n) walk(k); });
+  };
+  if (!tree.firstChild) return;
+  if (open) walk(tree.firstChild);
+  else tree.querySelectorAll(".node.open").forEach(w => setOpen(w, false));
+  if (!open) setOpen(tree.firstChild, true);
+}
+
+// A small tree opens fully; a big one opens along its single-child runs only.
+function initialOpen(wrap, budget) {
+  const n = wrap._n;
+  if (!n.children.length) return;
+  setOpen(wrap, true);
+  wrap._kids.querySelectorAll(":scope > .node").forEach(k => {
+    if (k._n && (nodes.length <= budget || n.children.length === 1)) initialOpen(k, budget);
+  });
+}
+
+if (nodes.length) {
+  tree.appendChild(nodeEl(nodes[0]));
+  initialOpen(tree.firstChild, 250);
+} else {
+  tree.appendChild(el("div", "empty", "No joint node yet — the run has just started."));
+}
+document.getElementById("tree-collapse").onclick = () => setAll(false);
+document.getElementById("tree-expand").onclick = () => setAll(true);
+
+// ---- stuck points panel -----------------------------------------------------
+{
+  document.getElementById("stuck-title").textContent = `Stuck points (${T.stuck.length})`;
+  document.getElementById("stuck-panel").open = T.stuck.length > 0;
+  const list = document.getElementById("stuck-list");
+  if (!T.stuck.length) list.appendChild(el("div", "empty", "none — nothing here needs an admit."));
+  T.stuck.forEach(s => {
+    const entry = el("div", "stuck-entry");
+    entry.id = "stuck-" + s.id;
+    const head = el("div", "head");
+    head.appendChild(el("span", "badge stuck", s.id));
+    head.appendChild(el("span", null, stuckText(s)));
+    entry.appendChild(head);
+    const r = rollupById.get(s.id);
+    if (r) entry.appendChild(el("div", "roll", rollupText(r)));
+    activatable(entry, () => select(s.node, null));
+    list.appendChild(entry);
+  });
+}
+
+// ---- selection + location.hash ---------------------------------------------
+// The hash is the only place a selection lives: a refresh reloads the page, and
+// the hash survives it. `n=<node>[&c=<child>]`, `plumb=hide`, `ts` / `ds` the
+// scroll offsets of the tree and the detail pane.
+const detail = document.getElementById("detail");
+function parseHash() {
+  const out = {};
+  location.hash.replace(/^#/, "").split("&").forEach(kv => {
+    const [k, v] = kv.split("=");
+    if (k && v != null) out[k] = v;
+  });
+  return out;
+}
+function writeHash(patch) {
+  const h = parseHash();
+  Object.keys(patch).forEach(k => { if (patch[k] == null) delete h[k]; else h[k] = String(patch[k]); });
+  const s = "#" + Object.entries(h).map(([k, v]) => `${k}=${v}`).join("&");
+  try { history.replaceState(null, "", s === "#" ? location.pathname + location.search : s); }
+  catch (e) { /* a browser that refuses: the selection just does not survive a refresh */ }
+}
+
+function select(nodeIdx, child, opts) {
+  const node = nodes[nodeIdx];
+  if (!node) return;
+  // Open every ancestor so the row exists.
+  const chain = [];
+  for (let i = nodeIdx; i != null; i = (parentOf.get(i) || {}).from) chain.unshift(i);
+  (child != null ? chain : chain.slice(0, -1)).forEach(i => { const w = nodeDom.get(i); if (w) setOpen(w, true); });
+  document.querySelectorAll(".row.sel, .stuck-entry.sel").forEach(r => r.classList.remove("sel"));
+  const dom = child != null ? edgeDom.get(`${nodeIdx}.${child}`) : (nodeDom.get(nodeIdx) || {}).firstChild;
+  if (dom) {
+    dom.classList.add("sel");
+    if (!(opts && opts.keepScroll)) dom.scrollIntoView({ block: "nearest" });
+  }
+  if (node.stuck) { const e = document.getElementById("stuck-" + node.stuck); if (e) e.classList.add("sel"); }
+  selection = { node: nodeIdx, child };
+  writeHash({ n: nodeIdx, c: child });
+  renderDetail(nodeIdx, child, !(opts && opts.keepScroll));
+}
+
+// ---- detail pane --------------------------------------------------------------
+function sec(title, body, open, meta) {
+  const d = el("details", "sec");
+  d.open = !!open;
+  const sum = el("summary");
+  sum.appendChild(el("span", "sec-title", title));
+  if (meta) sum.appendChild(el("span", "sec-meta", meta));
+  d.appendChild(sum);
+  const wrap = el("div", "sec-body");
+  wrap.appendChild(body);
+  d.appendChild(wrap);
+  return d;
+}
+
+function addSecToolbar() {
+  const bar = el("div", "sectoolbar");
+  [["Expand all", true], ["Collapse all", false]].forEach(([label, open]) => {
+    const b = el("button", null, label);
+    b.type = "button";
+    b.onclick = () => detail.querySelectorAll("details.sec").forEach(d => { d.open = open; });
+    bar.appendChild(b);
+  });
+  detail.appendChild(bar);
+}
+
+// The path from the root to `nodeIdx`: [{ node, edge }] where `edge` is what
+// led into the node (null for the root).
+function pathTo(nodeIdx) {
+  const path = [];
+  for (let i = nodeIdx; i != null;) {
+    const via = parentOf.get(i);
+    path.unshift({ node: nodes[i], edge: via ? via.edge : null, from: via ? nodes[via.from] : null });
+    i = via ? via.from : null;
+  }
+  return path;
+}
+
+// Lines each side executed along `path`: every node's consumed ranges and the
+// decision labels of the edges between them. For a joint path the finished
+// path's own line ranges are added, which also cover the closing lines the
+// consumed ranges leave out.
+function executed(path, side, pair) {
+  const set = new Set();
+  const add = ([a, b]) => { for (let n = a; n <= b; n++) set.add(n); };
+  path.forEach(({ node, edge }) => {
+    node[side].consumed.forEach(add);
+    if (edge && edge[side]) set.add(edge[side].label);
+  });
+  if (pair) pair[side].lines.forEach(add);
+  return set;
+}
+
+function legend() {
+  const wrap = el("div", "legend");
+  [["exec", "executed"], ["head", "decision point here"], ["ret", "return"], ["abort", "abort"],
+   ["cut", "cut (pruned)"], ["", "not executed"]].forEach(([cls, label]) => {
+    const item = el("span", "legend-item" + (cls ? " " + cls : ""));
+    item.appendChild(el("span", "legend-swatch"));
+    item.appendChild(document.createTextNode(label));
+    wrap.appendChild(item);
+  });
+  return wrap;
+}
+
+// `spec`: { exec: Set, decisions: Map(label -> text), heads: Set, terminal: {label, abort}, cuts: Set }
+function listingBlock(text, spec) {
+  const wrap = el("div", "listing");
+  const pre = el("pre");
+  pre.appendChild(wrap);
+  text.split("\n").forEach((line, i) => {
+    const n = i + 1;
+    let cls = spec.exec.has(n) ? " exec" : "";
+    if (spec.heads.has(n)) cls = " head";
+    if (spec.terminal && n === spec.terminal.label) cls = spec.terminal.abort ? " abort" : " ret";
+    if (spec.cuts.has(n)) cls = " cut";
+    const row = el("div", "row" + cls);
+    row.dataset.line = String(n);
+    row.appendChild(el("span", "n", String(n)));
+    row.appendChild(el("span", "c", line));
+    const d = spec.decisions.get(n);
+    if (d) row.appendChild(el("span", "dtag", d));
+    if (cls) pre._focus = pre._focus || row;
+    wrap.appendChild(row);
+  });
+  const box = el("div");
+  box.appendChild(legend());
+  box.appendChild(pre);
+  return box;
+}
+
+function listingSpec(path, side, pair, cutStep) {
+  const decisions = new Map();
+  path.forEach(({ edge }) => { if (edge && edge[side]) decisions.set(edge[side].label, edge[side].decision); });
+  const cur = path[path.length - 1].node;
+  const cuts = new Set();
+  if (cutStep && cutStep[side]) { cuts.add(cutStep[side].label); decisions.set(cutStep[side].label, cutStep[side].decision + " ✂"); }
+  return {
+    exec: executed(path, side, pair),
+    decisions,
+    heads: cutStep ? new Set() : new Set([cur[side].head.label]),
+    terminal: pair ? { label: pair[side].terminal.label, abort: pair[side].terminal.is_abort } : null,
+    cuts,
+  };
+}
+
+function pathTable(path, cut) {
+  const tbl = el("table", "path-tbl");
+  const head = el("tr");
+  ["node", "kind", "left", "right"].forEach(h => head.appendChild(el("th", null, h)));
+  tbl.appendChild(head);
+  path.forEach(({ node }, k) => {
+    const next = k + 1 < path.length ? path[k + 1].edge : (cut || null);
+    const tr = el("tr", k === path.length - 1 ? "cur" : "");
+    tr.appendChild(el("td", "i", "#" + node.index));
+    tr.appendChild(el("td", "i", node.kind + (isPlumb(node) ? " (plumbing)" : "")));
+    SIDES.forEach(([s, p]) => {
+      const td = el("td");
+      const line = el("div");
+      line.appendChild(document.createTextNode(`${p}${node[s].head.label} ${KW[node[s].head.kind] || node[s].head.kind}`));
+      if (next && next[s]) {
+        line.appendChild(document.createTextNode(" → "));
+        line.appendChild(el("span", "dec", next[s].decision));
+      }
+      td.appendChild(line);
+      const src = srcLine(s, node[s].head.label);
+      if (src) td.appendChild(el("span", "src", src));
+      tr.appendChild(td);
+    });
+    tbl.appendChild(tr);
+  });
+  return tbl;
+}
+
+function verdictsBlock(pair) {
+  const wrap = el("div");
+  const smtMode = T.options && T.options.smt;
+  const anyFailure = [pair.equal_output, pair.invariant].concat(pair.relations.map(r => r.verdict))
+    .some(v => v.kind === "goal-fails" || v.kind === "inconclusive");
+  const smtOnDisk = smtMode === "all" || smtMode === "deltas" || ((smtMode == null || smtMode === "failures") && anyFailure);
+  const row = (label, v, name) => {
+    const r = el("div", "vrow");
+    r.appendChild(el("span", "k", label));
+    r.appendChild(el("span", "badge " + badgeClass(verdictKind(v)), badgeText(verdictKind(v))));
+    if (v.model) r.appendChild(link(v.model, "model: " + v.model));
+    wrap.appendChild(r);
+    return r;
+  };
+  row("equal-output", pair.equal_output);
+  row("invariant", pair.invariant);
+  if (pair.relations.length && failing(pair.invariant)) {
+    wrap.appendChild(el("div", "assertion-note",
+      "the invariant is not verified; each state relation on its own:"));
+    const box = el("div", "subrel");
+    pair.relations.forEach(r => {
+      const line = el("div", "vrow");
+      line.appendChild(el("span", "k", "Domino_" + r.name));
+      line.appendChild(el("span", "badge " + badgeClass(verdictKind(r.verdict)), badgeText(verdictKind(r.verdict))));
+      if (r.verdict.model) line.appendChild(link(r.verdict.model, "model: " + r.verdict.model));
+      box.appendChild(line);
+    });
+    wrap.appendChild(box);
+  }
+  if (pair.left.terminal.is_abort || pair.right.terminal.is_abort) {
+    wrap.appendChild(el("div", "assertion-note",
+      `${pair.left.terminal.is_abort ? "left" : ""}${pair.left.terminal.is_abort && pair.right.terminal.is_abort ? " and " : ""}` +
+      `${pair.right.terminal.is_abort ? "right" : ""} aborts on this path; Domino's invariant verdict compares the states at the abort, ` +
+      "which EasyCrypt's inv does not ask for."));
+  }
+  if (smtOnDisk) {
+    const r = el("div", "vrow");
+    r.appendChild(el("span", "k", "runnable query"));
+    r.appendChild(link(`smt/${pair.id}.smt2`, `smt/${pair.id}.smt2`));
+    wrap.appendChild(r);
+  }
+  return wrap;
+}
+
+function claimBlock(pair) {
+  const wrap = el("div");
+  const goal = (title, smt) => {
+    wrap.appendChild(el("div", "path-sub", title));
+    const pre = el("pre");
+    pre.textContent = smt || "(goal not recorded)";
+    wrap.appendChild(pre);
+  };
+  wrap.appendChild(el("div", "assertion-note",
+    `checked after joint path ${pair.id} ends; each goal is asserted after the vacuity (check-sat) and must be unsat`));
+  goal("equal-output (negated)", T.goals.equal_output_smt);
+  goal("invariant (negated)", T.goals.invariant_smt);
+  T.goals.relations.forEach(r => goal("relation Domino_" + r.name + " (negated)", r.smt));
+  return wrap;
+}
+
+function effectBlock(pair) {
+  const grid = el("div", "eff-grid");
+  grid.appendChild(effectColumn(T.left_game, pair.left.effect || null, pair.left.terminal));
+  grid.appendChild(effectColumn(T.right_game, pair.right.effect || null, pair.right.terminal));
+  const wrap = el("div");
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function answersBlock(node) {
+  const box = el("div", "answers");
+  node.answers.forEach(a => box.appendChild(el("span", null, `${a.query}: ${a.answer}`)));
+  return box;
+}
+
+function renderDetail(nodeIdx, childIdx, centre) {
+  const keepScroll = detail.scrollTop;
+  detail.innerHTML = "";
+  const node = nodes[nodeIdx];
+  const cut = childIdx != null ? node.children[childIdx] : null;
+  const path = pathTo(nodeIdx);
+  const pair = node.pair && pairById.get(node.pair);
+
+  const h = el("h2");
+  if (cut) h.appendChild(document.createTextNode(`Pruned combination at node #${nodeIdx}`));
+  else if (pair) h.appendChild(document.createTextNode(`Joint path ${pair.id}`));
+  else h.appendChild(document.createTextNode(`Node #${nodeIdx} · ${node.kind}`));
+  if (node.stuck) h.appendChild(el("span", "badge stuck", node.stuck));
+  detail.appendChild(h);
+  detail.appendChild(el("div", "path-sub", cut
+    ? `${edgeText(node, cut)} — ` + (cut.outcome.kind === "pruned"
+        ? `the solver proved the combination infeasible (${cut.outcome.answer.query}: ${cut.outcome.answer.answer})`
+        : LIVE ? "not explored yet" : "not explored: the run stopped first")
+    : `node #${nodeIdx} of ${nodes.length}, ${plural(path.length - 1, "joint decision")} from the root` +
+      (pair ? "" : " — a prefix of the joint paths below it")));
+  addSecToolbar();
+
+  const s = node.stuck && T.stuck.find(x => x.id === node.stuck);
+  if (s && !cut) {
+    const body = el("div");
+    body.appendChild(el("div", "vrow", stuckText(s)));
+    const r = rollupById.get(s.id);
+    if (r) body.appendChild(el("div", "vrow", rollupText(r)));
+    body.appendChild(el("div", "assertion-note",
+      "the EasyCrypt proof must admit here; the execution went on past it with Domino's randomness semantics, so the paths below carry Domino verdicts."));
+    detail.appendChild(sec(`Stuck point ${s.id}`, body, true, s.reason));
+  }
+  if (pair && !cut) detail.appendChild(sec("Verdicts", verdictsBlock(pair), true, pair.id));
+  detail.appendChild(sec("Joint path", pathTable(path, cut), true, plural(path.length, "node")));
+  if (node.answers.length && !cut) detail.appendChild(sec("Solver answers at this node", answersBlock(node), false, `${node.answers.length} ${node.answers.length === 1 ? "query" : "queries"}`));
+  if (pair && !cut) {
+    detail.appendChild(sec("Effect — return value & new state", effectBlock(pair), false));
+    detail.appendChild(sec("Claim assertion", claimBlock(pair), false, "negated goals"));
+  }
+  [["left", T.left_listing, T.left_game], ["right", T.right_listing, T.right_game]].forEach(([side, text, game]) => {
+    const spec = listingSpec(path, side, cut ? null : pair, cut);
+    const body = listingBlock(text, spec);
+    const d = sec(`Listing — ${side} (${game})`, body, true,
+      `${text.split("\n").length} lines · ${spec.exec.size} executed`);
+    detail.appendChild(d);
+    const pre = body.querySelector("pre");
+    if (centre && pre && pre._focus) requestAnimationFrame(() => { if (d.open) pre._focus.scrollIntoView({ block: "center" }); });
+  });
+  detail.scrollTop = keepScroll;
+}
+
+// ---- plumbing toggle ------------------------------------------------------------
+const plumbBox = document.getElementById("hide-plumb");
+function applyPlumb() {
+  document.body.classList.toggle("hide-plumb", plumbBox.checked);
+  if (!plumbBox.checked) return;
+  // A hidden plumbing row cannot be reopened, so open every plumbing node:
+  // its subtree stays visible.
+  for (let again = true; again;) {
+    again = false;
+    nodeDom.forEach(w => {
+      if (w._n.children.length && !w.classList.contains("open") && isPlumb(w._n)) { setOpen(w, true); again = true; }
+    });
+  }
+}
+plumbBox.onchange = () => { applyPlumb(); writeHash({ plumb: plumbBox.checked ? "hide" : null }); };
+
+// ---- restore from the hash ---------------------------------------------------
+function restore() {
+  const h = parseHash();
+  plumbBox.checked = h.plumb === "hide";
+  applyPlumb();
+  const n = Number(h.n);
+  if (h.n != null && Number.isInteger(n) && nodes[n]) {
+    const c = h.c != null && Number.isInteger(Number(h.c)) && nodes[n].children[Number(h.c)] && nodes[n].children[Number(h.c)].outcome.kind !== "explored" ? Number(h.c) : null;
+    select(n, c, { keepScroll: true });
+  }
+  const ts = Number(h.ts), ds = Number(h.ds);
+  if (Number.isFinite(ts)) tree.scrollTop = ts;
+  if (Number.isFinite(ds)) detail.scrollTop = ds;
+}
+restore();
+window.addEventListener("hashchange", () => { const h = parseHash(); if (h.n != null && (!selection || String(selection.node) !== h.n || String(selection.child) !== String(h.c))) restore(); });
+// Scroll offsets ride in the hash too, so a refresh does not throw the reader back to the top.
+let scrollTimer = null;
+const rememberScroll = () => {
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => writeHash({ ts: Math.round(tree.scrollTop), ds: Math.round(detail.scrollTop) }), 200);
+};
+tree.addEventListener("scroll", rememberScroll);
+detail.addEventListener("scroll", rememberScroll);
+</script>
+</body>
+</html>

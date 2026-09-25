@@ -13,6 +13,7 @@ pub mod ir;
 pub mod lockstep;
 pub mod lockstep_report;
 pub mod lockstep_run;
+pub mod lockstep_viewer;
 pub mod progress;
 pub mod render;
 pub mod report;

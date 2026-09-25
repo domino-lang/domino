@@ -2,8 +2,8 @@
 
 //! The artifacts of a lockstep run (story 23): `trace.json` (schema 9),
 //! `summary.txt` (the joint tree as text, in the story-17 style), the concise
-//! stdout report, the placeholder `index.html`, and the `smt/` files of the
-//! joint paths.
+//! stdout report, the `index.html` viewer ([`crate::debug::lockstep_viewer`]), and
+//! the `smt/` files of the joint paths.
 //!
 //! Like the sequential artifacts, `trace.json` and `summary.txt` are
 //! byte-deterministic for an unchanged project: the absolute output directory
@@ -20,6 +20,7 @@ use crate::debug::exec::TerminalPath;
 use crate::debug::lockstep::{
     ChildOutcome, JointNode, JointTree, LockstepOutcome, PairRecord, SideStep, SideView, StuckPoint,
 };
+use crate::debug::lockstep_viewer;
 use crate::debug::lockstep_run::{LockstepMeta, LockstepRun, LockstepSummary};
 use crate::debug::report::format_elapsed;
 use crate::debug::smtout::SmtOut;
@@ -37,14 +38,17 @@ pub struct LockstepTrace<'a> {
     pub stop_reason: StopReason,
 }
 
-/// Write `trace.json`, `summary.txt` and the placeholder `index.html` for the
-/// run so far. Called every few joint paths, so an interrupted run leaves a
-/// usable partial trace, and once at the end.
+/// Write `trace.json`, `summary.txt` and the `index.html` viewer for the run so
+/// far. Called at most twice a second while the run is in progress (`live`), so
+/// an interrupted run leaves a usable partial trace and the page can follow the
+/// run, and once at the end (`live` false: the page then carries no refresh
+/// tag).
 pub fn flush(
     meta: &LockstepMeta,
     outcome: &LockstepOutcome,
     summary: &LockstepSummary,
     out_dir: &Path,
+    live: bool,
 ) -> std::io::Result<()> {
     let trace = LockstepTrace {
         meta,
@@ -56,20 +60,18 @@ pub fn flush(
     };
     let mut json = serde_json::to_string_pretty(&trace).map_err(std::io::Error::other)?;
     json.push('\n');
-    std::fs::write(out_dir.join("trace.json"), json)?;
+    std::fs::write(out_dir.join("trace.json"), &json)?;
     std::fs::write(
         out_dir.join("summary.txt"),
         render_tree(meta, outcome, summary),
     )?;
-    std::fs::write(out_dir.join("index.html"), PLACEHOLDER_INDEX)?;
+    let compact = serde_json::to_string(&trace).map_err(std::io::Error::other)?;
+    std::fs::write(
+        out_dir.join("index.html"),
+        lockstep_viewer::render_html(&compact, &lockstep_viewer::stuck_rollups(outcome), live),
+    )?;
     Ok(())
 }
-
-/// Story 24 builds the joint-tree viewer. Until then `index.html` only points
-/// at the text tree, so the directory layout is final.
-const PLACEHOLDER_INDEX: &str = "<!doctype html><meta charset=\"utf-8\">\
-<title>domino debug (lockstep)</title>\
-<p>The joint-tree viewer is not built yet. Read <a href=\"summary.txt\">summary.txt</a>.</p>\n";
 
 // ---------------------------------------------------------------------------
 // summary.txt
@@ -450,7 +452,7 @@ pub fn render_summary(run: &LockstepRun) -> String {
         "  {:<12}summary.txt        (joint tree: {} nodes, {} joint paths)",
         "tree", sm.nodes, sm.joint_paths
     );
-    let _ = writeln!(s, "  {:<12}index.html         (placeholder)", "viewer");
+    let _ = writeln!(s, "  {:<12}index.html         (joint-tree viewer)", "viewer");
     let _ = writeln!(s, "  {:<12}trace.json", "trace");
     let _ = writeln!(s, "  {:<12}inlined.txt", "listing");
     if o.smt.as_str() != "none" {
