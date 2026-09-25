@@ -57,6 +57,14 @@ pub struct GameFile {
 /// distinct composition (`interfaces::discover_compositions`), deterministic
 /// and in first-discovery (`theorem.instances`) order.
 pub fn compute_game_files(theorem: &Theorem<'_>) -> Result<Vec<GameFile>, EcExportError> {
+    compute_game_files_observed(theorem, &mut super::progress::NopExportObserver)
+}
+
+/// [`compute_game_files`] reporting the `games` phase (story 21).
+pub fn compute_game_files_observed(
+    theorem: &Theorem<'_>,
+    observer: &mut dyn super::progress::ExportObserver,
+) -> Result<Vec<GameFile>, EcExportError> {
     let interfaces = interfaces::build_interfaces_file(theorem)?;
 
     let discovered = package::discover_variants(theorem);
@@ -64,12 +72,19 @@ pub fn compute_game_files(theorem: &Theorem<'_>) -> Result<Vec<GameFile>, EcExpo
     let variant_name_map = package::assign_names(&discovered, &mut variant_names)?;
 
     let comps = interfaces::discover_compositions(theorem);
+    let mut scope = super::progress::PhaseScope::start(
+        observer,
+        super::progress::ExportPhase::Games,
+        comps.len(),
+    );
     let mut out = Vec::with_capacity(comps.len());
     for comp in &comps {
-        let file = render_game_file(&theorem.name, comp, &interfaces, &variant_name_map)?;
         let mangled = interfaces.comp_mangled[&comp.name].clone();
+        scope.item(&format!("Comp_{mangled}"));
+        let file = render_game_file(&theorem.name, comp, &interfaces, &variant_name_map)?;
         out.push(GameFile { name: mangled, file });
     }
+    scope.finish();
     Ok(out)
 }
 

@@ -183,7 +183,20 @@ pub struct PackageVariant {
 /// per distinct variant, deterministic and deduplicated across the whole
 /// theorem (§3.1).
 pub fn compute_package_variants(theorem: &Theorem<'_>) -> Result<Vec<PackageVariant>, EcExportError> {
+    compute_package_variants_observed(theorem, &mut super::progress::NopExportObserver)
+}
+
+/// [`compute_package_variants`] reporting the `packages` phase (story 21).
+pub fn compute_package_variants_observed(
+    theorem: &Theorem<'_>,
+    observer: &mut dyn super::progress::ExportObserver,
+) -> Result<Vec<PackageVariant>, EcExportError> {
     let discovered = discover_variants(theorem);
+    let mut scope = super::progress::PhaseScope::start(
+        observer,
+        super::progress::ExportPhase::Packages,
+        discovered.len(),
+    );
     let mut names = Names::new();
     let name_map = assign_names(&discovered, &mut names)?;
 
@@ -193,9 +206,11 @@ pub fn compute_package_variants(theorem: &Theorem<'_>) -> Result<Vec<PackageVari
             .get(key)
             .expect("every discovered key was named in assign_names")
             .clone();
+        scope.item(&format!("Pkg_{name}"));
         let file = render_variant(comp, *idx, &name, key)?;
         out.push(PackageVariant { name, file });
     }
+    scope.finish();
     Ok(out)
 }
 

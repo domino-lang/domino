@@ -30,10 +30,11 @@ use crate::transforms::theorem_transforms::EasyCryptTransform;
 use crate::transforms::TheoremTransform;
 use crate::types::Type;
 
-use super::game::compute_game_files;
+use super::game::compute_game_files_observed;
 use super::interfaces::build_interfaces_file;
-use super::package::compute_package_variants;
-use super::proof::compute_equivalence_files;
+use super::package::compute_package_variants_observed;
+use super::progress::{ExportEvent, ExportObserver, ExportPhase, NopExportObserver, PhaseScope};
+use super::proof::compute_equivalence_files_observed;
 use super::render::render_file;
 use super::types::func_op_name;
 use super::typesfile::{build_types_file, collect_bits_types, collect_fn_consts};
@@ -161,16 +162,33 @@ pub fn export_theorem(
     theorem: &Theorem<'_>,
     project: &impl Project,
 ) -> Result<ExportedTheorem, EcExportError> {
+    export_theorem_observed(theorem, project, &mut NopExportObserver)
+}
+
+/// [`export_theorem`] streaming the `transform`, `types`, `packages`, `games`,
+/// `invariants` and `proofs` phases to `observer` (story 21). The caller owns
+/// the theorem-level events (`TheoremStarted`/`TheoremFinished`) and the
+/// `write` phase. The result does not depend on the observer.
+pub fn export_theorem_observed(
+    theorem: &Theorem<'_>,
+    project: &impl Project,
+    observer: &mut dyn ExportObserver,
+) -> Result<ExportedTheorem, EcExportError> {
     let skipped = compute_skipped(theorem);
     let randomness_mapping_oracles = count_randomness_mapping_oracles(theorem);
 
+    let mut scope = PhaseScope::start(observer, ExportPhase::Transform, 1);
+    scope.item(&theorem.name);
     let (theorem, auxs) = EasyCryptTransform.transform_theorem(theorem)?;
+    scope.finish();
 
     let types: HashSet<Type> = auxs
         .iter()
         .flat_map(|(_, aux)| aux.types.iter().cloned())
         .collect();
 
+    let mut scope = PhaseScope::start(observer, ExportPhase::Types, 2);
+    scope.item("Types.ec");
     let types_file = build_types_file(&theorem, &types)?;
     let bits_type_names = collect_bits_types(&types).into_keys().collect();
     let fn_const_names = collect_fn_consts(&theorem.consts)
@@ -178,9 +196,11 @@ pub fn export_theorem(
         .map(|name| func_op_name(&name))
         .collect();
 
+    scope.item("Interfaces.ec");
     let interfaces_output = build_interfaces_file(&theorem)?;
-    let package_variants = compute_package_variants(&theorem)?;
-    let game_files = compute_game_files(&theorem)?;
+    scope.finish();
+    let package_variants = compute_package_variants_observed(&theorem, observer)?;
+    let game_files = compute_game_files_observed(&theorem, observer)?;
 
     let package_variant_names = package_variants.iter().map(|v| v.name.clone()).collect();
     let game_names = game_files.iter().map(|g| g.name.clone()).collect();
@@ -204,7 +224,7 @@ pub fn export_theorem(
         );
     }
 
-    let equivalence_files = compute_equivalence_files(&theorem, project, &interfaces_output)?;
+    let equivalence_files = compute_equivalence_files_observed(&theorem, project, &interfaces_output, observer)?;
     let mut equivalences = Vec::with_capacity(equivalence_files.len());
     for ef in &equivalence_files {
         files.insert(
@@ -253,6 +273,30 @@ pub fn write_files(out_dir: &Path, files: &BTreeMap<PathBuf, String>) -> std::io
         }
         std::fs::write(path, contents)?;
     }
+    Ok(())
+}
+
+/// Writes every theorem's files (`(name, out_dir, files)`), reporting the `write`
+/// phase and the closing `Finished` event (story 21). Same bytes as calling
+/// [`write_files`] per theorem.
+pub fn write_all_observed(
+    outputs: &[(&str, &Path, &BTreeMap<PathBuf, String>)],
+    observer: &mut dyn ExportObserver,
+) -> std::io::Result<()> {
+    let total: usize = outputs.iter().map(|(_, _, files)| files.len()).sum();
+    let mut scope = PhaseScope::start(observer, ExportPhase::Write, total);
+    for (name, out_dir, files) in outputs {
+        for (rel_path, contents) in *files {
+            scope.item(&format!("{name}/{}", rel_path.display()));
+            let path = out_dir.join(rel_path);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::write(path, contents)?;
+        }
+    }
+    scope.finish();
+    observer.on_event(&ExportEvent::Finished { files_written: total });
     Ok(())
 }
 
@@ -489,6 +533,110 @@ mod tests {
         let err = export("example-projects/yao", "Yao").unwrap_err();
         let report = format!("{:?}", miette::Report::new(err));
         assert!(!report.is_empty(), "diagnostic should render");
+    }
+
+    fn export_observed(
+        dir: &str,
+        theorem_name: &str,
+        rec: &mut super::super::progress::tests::Recorder,
+    ) -> Result<ExportedTheorem, EcExportError> {
+        let files = DirectoryFiles::load(Path::new(dir)).unwrap();
+        let project = DirectoryProject::load(PathBuf::from(dir), &files).unwrap();
+        let theorem = project.get_theorem(theorem_name).unwrap();
+        export_theorem_observed(theorem, &project, rec)
+    }
+
+    // Story 21: the event stream of one theorem, phase by phase, items numbered from 1.
+    #[test]
+    fn observer_sees_a_well_formed_event_stream() {
+        let mut rec = super::super::progress::tests::Recorder::default();
+        let exported = export_observed("example-projects/hello-world", "Proof", &mut rec).unwrap();
+        let events = &rec.0;
+
+        // Phases in order, each opened once and closed before the next opens.
+        let phases: Vec<&str> = events
+            .iter()
+            .filter_map(|e| e.strip_prefix("phase "))
+            .map(|e| e.split(' ').next().unwrap())
+            .collect();
+        assert_eq!(
+            phases,
+            ["transform", "types", "packages", "games", "invariants", "proofs"]
+        );
+        let mut open: Option<String> = None;
+        let mut next_index = 0usize;
+        let mut declared = 0usize;
+        for ev in events {
+            if let Some(rest) = ev.strip_prefix("phase ") {
+                assert!(open.is_none(), "phase opened inside another: {events:?}");
+                let mut it = rest.split(' ');
+                open = Some(it.next().unwrap().to_string());
+                declared = it.next().unwrap().parse().unwrap();
+                next_index = 1;
+            } else if let Some(rest) = ev.strip_prefix("item ") {
+                let mut it = rest.split(' ');
+                assert_eq!(Some(it.next().unwrap().to_string()), open);
+                assert_eq!(it.next().unwrap().parse::<usize>().unwrap(), next_index);
+                next_index += 1;
+            } else if let Some(name) = ev.strip_prefix("end ") {
+                assert_eq!(Some(name.to_string()), open);
+                assert_eq!(next_index - 1, declared, "{name}: item count != total_items");
+                open = None;
+            }
+        }
+        assert!(open.is_none());
+
+        // Items are the things the export produces.
+        assert!(events.contains(&"item transform 1 Proof".to_string()), "{events:?}");
+        assert!(events.contains(&"item types 1 Types.ec".to_string()));
+        assert!(events.contains(&"item types 2 Interfaces.ec".to_string()));
+        for name in &exported.package_variant_names {
+            assert!(events.iter().any(|e| e.ends_with(&format!(" Pkg_{name}"))), "{name}");
+        }
+        for name in &exported.game_names {
+            assert!(events.iter().any(|e| e.ends_with(&format!(" Comp_{name}"))), "{name}");
+        }
+        let eq = &exported.equivalences[0];
+        let stem = eq.proof_file.trim_end_matches(".ec");
+        assert!(events.contains(&format!("item invariants 1 {stem}_Invariants")), "{events:?}");
+        assert!(events.contains(&format!("item proofs 1 {stem}")), "{events:?}");
+    }
+
+    #[test]
+    fn observing_does_not_change_the_export() {
+        let mut rec = super::super::progress::tests::Recorder::default();
+        let observed = export_observed("example-projects/hello-world", "Proof", &mut rec).unwrap();
+        let plain = export("example-projects/hello-world", "Proof").unwrap();
+        assert_eq!(observed.files, plain.files);
+    }
+
+    #[test]
+    fn write_phase_names_every_file_and_ends_with_finished() {
+        let exported = export("example-projects/hello-world", "Proof").unwrap();
+        let tmp = std::env::temp_dir().join(format!("domino-ec-write-progress-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let mut rec = super::super::progress::tests::Recorder::default();
+        write_all_observed(&[("Proof", tmp.as_path(), &exported.files)], &mut rec).unwrap();
+        let n = exported.files.len();
+        assert_eq!(rec.0.first().unwrap(), &format!("phase write {n}"));
+        assert_eq!(rec.0.iter().filter(|e| e.starts_with("item write ")).count(), n);
+        assert!(rec.0.contains(&"item write 7 Proof/Interfaces.ec".to_string()), "{:?}", rec.0);
+        assert_eq!(rec.0[rec.0.len() - 2], "end write");
+        assert_eq!(rec.0.last().unwrap(), &format!("finished {n}"));
+        for (rel, contents) in &exported.files {
+            assert_eq!(&std::fs::read_to_string(tmp.join(rel)).unwrap(), contents);
+        }
+        std::fs::remove_dir_all(&tmp).unwrap();
+    }
+
+    // Story 21 §6: when the export fails, the last event is the item that failed.
+    #[test]
+    fn a_failing_export_ends_on_the_failing_item() {
+        let mut rec = super::super::progress::tests::Recorder::default();
+        assert!(export_observed("example-projects/yao", "Yao", &mut rec).is_err());
+        let last = rec.0.last().unwrap();
+        assert!(last.starts_with("item "), "last event should be an item: {:?}", rec.0);
+        assert!(!rec.0.iter().any(|e| e.starts_with("theorem-end")));
     }
 
     #[test]

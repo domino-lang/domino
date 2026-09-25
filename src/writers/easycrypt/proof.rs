@@ -78,23 +78,65 @@ pub fn compute_equivalence_files(
     project: &impl Project,
     interfaces: &InterfacesOutput,
 ) -> Result<Vec<EquivalenceFiles>, EcExportError> {
-    let mut lemma_names = Names::new();
+    compute_equivalence_files_observed(
+        theorem,
+        project,
+        interfaces,
+        &mut super::progress::NopExportObserver,
+    )
+}
 
-    let mut out = Vec::new();
-    for (proofstep, hop) in theorem.game_hops.iter().enumerate() {
-        let Some(equivalence) = hop.as_equivalence() else {
-            continue;
-        };
-        let invariants = invariant::build_invariant_file(theorem, equivalence, project)?;
+/// [`compute_equivalence_files`] reporting the `invariants` phase (every
+/// equivalence's invariant file) and then the `proofs` phase (every proof
+/// skeleton) — story 21. The output is identical to a single interleaved pass:
+/// the two builders share no state but `lemma_names`, which only the proof
+/// builder touches.
+pub fn compute_equivalence_files_observed(
+    theorem: &Theorem<'_>,
+    project: &impl Project,
+    interfaces: &InterfacesOutput,
+    observer: &mut dyn super::progress::ExportObserver,
+) -> Result<Vec<EquivalenceFiles>, EcExportError> {
+    use super::progress::{ExportPhase, PhaseScope};
+
+    let hops: Vec<(usize, &crate::gamehops::equivalence::Equivalence, String)> = theorem
+        .game_hops
+        .iter()
+        .enumerate()
+        .filter_map(|(proofstep, hop)| {
+            let eq = hop.as_equivalence()?;
+            let stem = format!(
+                "Eq_{}_{}",
+                hop.left_game_instance_name(),
+                hop.right_game_instance_name()
+            );
+            Some((proofstep, eq, stem))
+        })
+        .collect();
+
+    let mut scope = PhaseScope::start(observer, ExportPhase::Invariants, hops.len());
+    let mut invariant_files = Vec::with_capacity(hops.len());
+    for (_, equivalence, stem) in &hops {
+        scope.item(&format!("{stem}_Invariants"));
+        invariant_files.push(invariant::build_invariant_file(theorem, equivalence, project)?);
+    }
+    scope.finish();
+
+    let mut lemma_names = Names::new();
+    let mut scope = PhaseScope::start(observer, ExportPhase::Proofs, hops.len());
+    let mut out = Vec::with_capacity(hops.len());
+    for ((proofstep, equivalence, stem), invariants) in hops.iter().zip(invariant_files) {
+        scope.item(stem);
         let proof = build_equivalence_file(
             theorem,
-            proofstep,
+            *proofstep,
             equivalence,
             interfaces,
             &mut lemma_names,
         )?;
         out.push(EquivalenceFiles { invariants, proof });
     }
+    scope.finish();
     Ok(out)
 }
 

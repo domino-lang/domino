@@ -499,19 +499,56 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
     // don't) would leave the successful theorems' directories on disk next
     // to a top-level error, contradicting §4's "writes no files" bullet for
     // that exact project.
+    use sspverif::writers::easycrypt::progress::{
+        BarExportObserver, ExportEvent, ExportObserver, NopExportObserver, PlainExportObserver,
+    };
+    // Story 21: progress goes to stderr only; stdout and the written files do not depend on it.
+    let mut observer: Box<dyn ExportObserver> = match e.progress {
+        ProgressMode::None => Box::new(NopExportObserver),
+        ProgressMode::Plain => Box::new(PlainExportObserver::new()),
+        ProgressMode::Bar => Box::new(BarExportObserver::new()),
+        ProgressMode::Auto => {
+            use std::io::IsTerminal;
+            if std::io::stderr().is_terminal() {
+                Box::new(BarExportObserver::new())
+            } else {
+                Box::new(PlainExportObserver::new())
+            }
+        }
+    };
+
     let mut exports = Vec::with_capacity(theorem_names.len());
-    for name in &theorem_names {
+    for (i, name) in theorem_names.iter().enumerate() {
         let theorem = project.get_theorem(name).unwrap();
-        let exported = sspverif::writers::easycrypt::export::export_theorem(theorem, &project)?;
+        observer.on_event(&ExportEvent::TheoremStarted {
+            name,
+            index: i + 1,
+            total: theorem_names.len(),
+        });
+        let exported = sspverif::writers::easycrypt::export::export_theorem_observed(
+            theorem,
+            &project,
+            observer.as_mut(),
+        )?;
+        observer.on_event(&ExportEvent::TheoremFinished { name });
         exports.push((name.clone(), exported));
     }
+
+    let theorem_outs: Vec<std::path::PathBuf> =
+        exports.iter().map(|(name, _)| out_base.join(name)).collect();
+    let outputs: Vec<_> = exports
+        .iter()
+        .zip(&theorem_outs)
+        .map(|((name, exported), out)| (name.as_str(), out.as_path(), &exported.files))
+        .collect();
+    sspverif::writers::easycrypt::export::write_all_observed(&outputs, observer.as_mut())?;
+    drop(observer);
 
     for (i, (name, exported)) in exports.iter().enumerate() {
         if i > 0 {
             println!();
         }
         let theorem_out = out_base.join(name);
-        sspverif::writers::easycrypt::export::write_files(&theorem_out, &exported.files)?;
 
         let display_path = theorem_out
             .strip_prefix(&project_root)

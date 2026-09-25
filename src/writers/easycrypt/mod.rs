@@ -16,6 +16,7 @@ pub mod lower;
 pub mod names;
 pub mod package;
 pub mod proof;
+pub mod progress;
 pub mod render;
 pub mod types;
 pub mod typesfile;

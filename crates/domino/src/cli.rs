@@ -3,7 +3,7 @@
 use clap::Subcommand;
 use sspverif::util::smtsolver::process::SolverVariant;
 
-/// How `domino debug` renders its live exploration progress (on stderr).
+/// How `domino debug` and `domino easycrypt` render live progress (on stderr).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ProgressMode {
     /// An `indicatif` bar on a terminal, plain stderr log lines when piped.
@@ -97,6 +97,10 @@ pub(crate) struct Easycrypt {
     /// the joint tree is exercised even where one tactic closes an oracle. For testing.
     #[clap(long, requires = "tactics", hide = true)]
     pub(crate) no_rung0: bool,
+    /// How the export reports what it is translating, on stderr (stdout and the written
+    /// files are the same in every mode).
+    #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
+    pub(crate) progress: ProgressMode,
     /// With `--check-alignment` or `--tactics`: only this proofstep (as printed by
     /// `domino proofsteps`). Without `--tactics` the export is not affected.
     #[clap(long, requires = "ec_mode")]
