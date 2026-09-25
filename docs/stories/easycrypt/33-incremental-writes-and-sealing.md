@@ -43,6 +43,19 @@ run can end — Ctrl-C (story 34), a crash, a full disk, EasyCrypt dying.
   write (a full disk) no longer fails the run: `Session` drops the sink with one stderr warning and
   `SessionEvent::TranscriptDropped`, and `run_tactics` stops giving later sessions the file. Under
   `full` it fails with `SessionError::Transcript` naming the path.
+- **Story 32:** `domino easycrypt` refuses, before the EasyCrypt probe and before any export
+  work, when a `<out>/<theorem>/` it will write holds a file that is not a run artifact, or `<out>`
+  holds a file directly (`src/writers/easycrypt/overwrite.rs`, `check_export_tree`); `--force`
+  skips the check. Run artifacts are `RUN_ARTIFACT_DIRS` (`progress/`, `!debug!/`, as directories
+  directly in the theorem's directory) plus the names `*.report.txt` and `alignment.txt`. **A new
+  file this story writes about the run (not translation output) must fit those patterns**, or the
+  next run demands `--force` for it. The refusal counts proved oracles per `Eq_*.ec` with
+  `proof_progress`: a bullet is `(* <proc> *)` followed by `+ proc…`, up to the next such marker or
+  `qed.`; proved = no `admit.` outside comments, partial = holds admits but is not the bare
+  `+ proc; inline. admit.`. **A sealed oracle counts as partially proved.** If the seal changes the
+  bullet shape, keep `proof_progress` in step (its tests pin the shape). `easycrypt compile`
+  leaves `*.eco` files next to the `.ec` files; they are *not* run artifacts, so they block like
+  any other file (ADR 0005 removes the compile from tactics runs).
 - `Prover` already knows the open-goal count (`self.session.goals().len()`,
   `src/easycrypt/tactics/driver.rs`).
 

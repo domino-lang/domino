@@ -82,6 +82,12 @@ pub(crate) struct Easycrypt {
     /// Defaults to `<project>/_build/easycrypt`.
     #[clap(long)]
     pub(crate) out: Option<std::path::PathBuf>,
+    /// Overwrite what is already in `<out>/<theorem>/`. Without it the command refuses,
+    /// before any other work, if a theorem's directory holds a file other than a run
+    /// artifact (`progress/`, `!debug!/`, `*.report.txt`, `alignment.txt`) or `<out>`
+    /// itself holds a file, and lists them. Proofs a tactics run wrote are discarded.
+    #[clap(long)]
+    pub(crate) force: bool,
     /// After exporting, start EasyCrypt (`DOMINO_EASYCRYPT`, an `easycrypt cli -json`
     /// binary) and check that the decision skeleton of every oracle's program after
     /// `proc; inline.` aligns with the one the debugger's lowering has. The base case is

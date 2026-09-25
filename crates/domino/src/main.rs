@@ -115,6 +115,9 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     EcExport(#[from] sspverif::writers::easycrypt::EcExportError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    ExportTree(#[from] sspverif::writers::easycrypt::overwrite::ExportTreeError),
     // Same shape as `project::error::Error::IOError` (no diagnostic span —
     // there is none to give a bare I/O failure). The only `std::io::Error`
     // site in this binary is `write_files` in `easycrypt()` below, so the
@@ -462,14 +465,6 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root.clone(), &files)?;
 
-    if e.tactics {
-        // fail early and clearly: a solver and a `-json`-capable EasyCrypt are prerequisites
-        #[cfg(not(feature = "cvc5-lib"))]
-        return Err(TacticsNeedCvc5Lib.into());
-        #[cfg(feature = "cvc5-lib")]
-        drop(sspverif::easycrypt::session::Session::start(&std::env::temp_dir())?);
-    }
-
     let theorem_names: Vec<String> = match &e.theorem {
         Some(name) => {
             if project.get_theorem(name).is_none() {
@@ -488,6 +483,21 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         .out
         .clone()
         .unwrap_or_else(|| project_root.join("_build/easycrypt"));
+
+    // Story 32 (ADR 0004): refuse to overwrite anything but run artifacts. First, so that
+    // it fires before the EasyCrypt probe and before any export work.
+    if !e.force {
+        let names: Vec<&str> = theorem_names.iter().map(String::as_str).collect();
+        sspverif::writers::easycrypt::overwrite::check_export_tree(&out_base, &names)?;
+    }
+
+    if e.tactics {
+        // fail early and clearly: a solver and a `-json`-capable EasyCrypt are prerequisites
+        #[cfg(not(feature = "cvc5-lib"))]
+        return Err(TacticsNeedCvc5Lib.into());
+        #[cfg(feature = "cvc5-lib")]
+        drop(sspverif::easycrypt::session::Session::start(&std::env::temp_dir())?);
+    }
 
     // Build every requested theorem fully in memory first, and only start
     // writing once *all* of them succeeded. §3.2 states this per theorem
