@@ -166,9 +166,26 @@ router or package ever uses it.
 **`Domino_` operator** — an EasyCrypt operator translated from a hand-written SMT-LIB state relation
 or helper function, named after its SMT original.
 
-**Tactics run** — one translation of a theorem's equivalences into EasyCrypt proofs against a live
-EasyCrypt. Its defining property: the proof files on disk always hold what has been proved so far,
-so stopping it early costs no proved oracle.
+**Translation** — producing the export tree from a Domino theorem: the package variants, games,
+types, invariants and one proof skeleton per equivalence. Translation proves nothing and talks to
+no EasyCrypt. _Avoid_: export (as a noun for the whole command), proof translation.
+
+**Proof job** — proving one equivalence (optionally only some of its oracles) against the files
+translation left on disk. A proof job trusts that a file with the expected name is what translation
+would have written, and never rewrites a file that belongs to translation or to another
+equivalence, which is what lets several proof jobs of one theorem run at once. Two proof jobs never
+work on the same equivalence at the same time: the equivalence is the unit of parallelism.
+
+**Session record** — what a proof job leaves beside an equivalence's proof about how far proving
+got: each oracle's status and the tactics accepted at each joint node. It is what decides whether
+the next proof job on that equivalence starts fresh, **resumes** (proves only the oracles not yet
+done), or skips the equivalence as complete. An oracle is done when it ended without an
+`interrupted` admit; admits with any other reason count as done. Unlike a run artifact it is worth
+protecting, because losing it loses the ability to resume.
+
+**Tactics run** — the proving pass of one proof job against a live EasyCrypt. Its defining
+property: the proof file on disk always holds what has been proved so far, so stopping it early
+costs no proved oracle. _Avoid_: proof translation.
 
 **Seal** — to close every goal an oracle still has open with `admit`, so the oracle's proof is
 complete as written even though the walk had not finished it. Sealing is what makes a stopped
@@ -185,7 +202,6 @@ translation output it may be overwritten without asking.
 
 **EasyCrypt transcript** — the record of one tactics run's exchange with EasyCrypt: every sentence
 sent, in order, with EasyCrypt's answer and how long it took. Undone attempts and the `undo`
-sentences themselves are part of it. By default each answer's goals are **capped** to what the live
-page shows (`--ec-transcript full` keeps them verbatim); records are only ever appended, never
+sentences themselves are part of it. By default each answer is **capped** to its first goal, cut at a fixed length (`--ec-transcript full` keeps every goal verbatim); records are only ever appended, never
 compacted, because the page reads them back by byte offset. _Distinguish_: the **solver transcript** is the raw incremental
 exchange with cvc5, a debugging aid for the debugger itself.

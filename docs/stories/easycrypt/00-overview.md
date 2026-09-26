@@ -164,6 +164,13 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 32 | The export tree is never overwritten without `--force` | `32-never-overwrite-the-export-tree.md` | 05, 10 |
 | 33 | Incremental writes and sealing: the file on disk is what is proven | `33-incremental-writes-and-sealing.md` | 27, 28, 31, 32 |
 | 34 | Ctrl-C stops a tactics run and leaves a partial proof | `34-ctrl-c-stops-a-tactics-run.md` | 33 |
+| 35 | Translation and proving are separate commands | `35-translation-and-proving-are-separate-commands.md` | 32, 33, 34 |
+| 36 | Proof jobs on different equivalences run in parallel | `36-parallel-proof-jobs.md` | 35 |
+| 37 | A session record lets a proof job resume an equivalence | `37-session-record-and-resume.md` | 35, 36 |
+| 38 | `--write-granularity tactic`, and it is the default | `38-write-granularity-tactic.md` | 33, 37 |
+| 39 | Path exploration has its own progress bar | `39-path-exploration-progress-bar.md` | 35 |
+| 40 | The proving line shows oracle, `Ni/Total` and the current tactic | `40-proving-line-shows-node-and-tactic.md` | 35, 39 |
+| 41 | The EasyCrypt transcript keeps only the first goal | `41-transcript-keeps-the-first-goal.md` | 31 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
@@ -197,6 +204,13 @@ the `easycrypt compile` gate (ADR 0005) in the same story, because that gate's r
 discards proved work, which is exactly what 33 exists to prevent. 34 is last: its deliverable *is*
 33's seal, and it threads a stop flag through the `run_lockstep_command` call that
 `docs/stories/symbolic-execution/19-…` rewrites.
+
+Stories 35–41 come from the fourth design session and are about **proving several equivalences
+at once** (ADR 0006). 35 → 36 → 37 → 38 is a chain: 35 splits translation from proving and
+introduces the session record, 36 makes the run artifacts per equivalence and adds the lock, 37
+resumes from the record, 38 checkpoints after every accepted sentence. 39 and 40 are progress
+display and need only 35 (40 after 39, since both change the bar during an oracle). 41 is
+independent and cheap.
 
 ## 6. Working agreement (important)
 
