@@ -595,7 +595,7 @@ pub const SEQUENTIAL: &str = "sequential";
 /// is checked on one exploration — an **all-claim run** (story 19).
 ///
 /// Writes the sequential artifacts under `out` (defaulting to
-/// `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/`, `!all-claims!` in place of
+/// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`, `!all-claims!` in place of
 /// `<claim>` for an all-claim run).
 #[allow(clippy::too_many_arguments)]
 pub fn run_debug_command<P, B>(

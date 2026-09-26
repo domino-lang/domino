@@ -384,7 +384,7 @@ pub fn failure_table(entries: &[SweepEntry]) -> String {
     format!("failures\n{rows}")
 }
 
-/// Write `index.html` and `summary.txt` into `root` (`_build/debug/domino`), linking every run
+/// Write `index.html` and `summary.txt` into `root` (`_build/debug`), linking every run
 /// of this sweep. Returns the paths written.
 pub fn write_index(root: &Path, entries: &[SweepEntry]) -> std::io::Result<(PathBuf, PathBuf)> {
     std::fs::create_dir_all(root)?;

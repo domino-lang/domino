@@ -309,7 +309,7 @@ pub(crate) struct Debug {
     #[clap(long)]
     pub(crate) transcript: bool,
     /// Output directory. Only for a run of one oracle. Defaults to
-    /// `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/`, with `!all-claims!`
+    /// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`, with `!all-claims!`
     /// in place of `<claim>` for an all-claim run. Both strategies write there, each naming its
     /// files after itself.
     #[clap(long)]

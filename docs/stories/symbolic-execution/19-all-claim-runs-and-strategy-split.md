@@ -1,5 +1,7 @@
 # Story 19 — all-claim runs, and `domino debug` as a Domino-only command
 
+> **Superseded (path):** debug runs now go under `_build/debug/<theorem>/...` and the sweep index is `_build/debug/index.html`; the `domino/` segment below no longer exists. The EasyCrypt listing's debug files are under `_build/easycrypt/<theorem>/!debug!/`, so nothing shares `_build/debug`.
+
 **Epic:** Symbolic-Execution Proof Debugger (`domino debug`) — see `00-overview.md`.
 **Depends on:** stories 04 (assumption/goal split), 06 (sequential driver), 23 (lockstep engine).
 **Supersedes:** `00-overview.md` §3 rows *Claim scope* and *Assumptions*, and

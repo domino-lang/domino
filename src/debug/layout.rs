@@ -23,8 +23,8 @@ use std::path::{Path, PathBuf};
 /// The directory a Domino all-claim run writes to, in place of `<claim>`.
 pub const ALL_CLAIMS_DIR: &str = "!all-claims!";
 
-/// The `_build` subdirectory the Domino listing's runs go under.
-pub const DOMINO_DEBUG_DIR: &str = "_build/debug/domino";
+/// The `_build` subdirectory debug runs go under.
+pub const DOMINO_DEBUG_DIR: &str = "_build/debug";
 
 /// How the artifact names of one run are spelled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

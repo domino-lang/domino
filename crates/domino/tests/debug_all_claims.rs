@@ -45,7 +45,7 @@ fn sweep_prints_a_line_per_oracle_and_fails_on_a_failing_claim() {
         assert!(stdout.contains(oracle), "missing {oracle}:\n{stdout}");
     }
     assert!(deps_project()
-        .join("_build/debug/domino/index.html")
+        .join("_build/debug/index.html")
         .exists());
 }
 

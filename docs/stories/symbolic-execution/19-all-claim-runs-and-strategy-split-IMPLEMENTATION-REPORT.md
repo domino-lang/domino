@@ -1,5 +1,7 @@
 # Story 19 — Implementation report: all-claim runs and the strategy/listing split
 
+> **Superseded (path):** debug runs now go under `_build/debug/<theorem>/...` and the sweep index is `_build/debug/index.html`; the `domino/` segment below no longer exists. The EasyCrypt listing's debug files are under `_build/easycrypt/<theorem>/!debug!/`, so nothing shares `_build/debug`.
+
 **Status:** done, committed as `db1bbae4` ("Story 19: all-claim runs and the strategy/listing split").
 **Branch:** `amir/easycrypt-export`
 **Builds/tests:** full workspace suite green with `--features cvc5-lib` (607 lib tests); default

@@ -76,7 +76,7 @@ pub struct EcDebugNeedCvc5Lib;
 #[error("`--out` names one output directory, but this run covers {0} oracles")]
 #[diagnostic(help(
     "name one oracle with `--proof`, `--proofstep` and `--oracle`, or drop `--out` to write \
-     each run under `_build/debug/domino/`"
+     each run under `_build/debug/`"
 ))]
 pub struct OutNeedsOneOracle(pub usize);
 

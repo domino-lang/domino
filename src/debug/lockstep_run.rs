@@ -670,7 +670,7 @@ where
 /// Run lockstep execution on the **Domino** listing — `domino debug --lockstep`. The claims are
 /// the oracle's obligation set, each with its own declared dependencies, narrowed to `claim`
 /// when given. Writes the lockstep artifacts under `out` (default
-/// `_build/debug/domino/<theorem>/<left>-<right>/<oracle>/<claim>/`, `!all-claims!` in place of
+/// `_build/debug/<theorem>/<left>-<right>/<oracle>/<claim>/`, `!all-claims!` in place of
 /// `<claim>` without one).
 #[allow(clippy::too_many_arguments)]
 pub fn run_lockstep_domino<P, B>(
