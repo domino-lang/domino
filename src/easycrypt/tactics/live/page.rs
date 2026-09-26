@@ -188,6 +188,7 @@ impl Live {
                     || (oracle.summary.is_none() && oracle.started)
                     || oracle.summary.as_ref().is_some_and(|s| s.admit_total > 0);
                 let status = match (&oracle.summary, oracle.started) {
+                    (Some(s), _) if s.resumed => "resumed from session record".to_string(),
                     (Some(s), _) if s.problem.is_some() => "no tactics".to_string(),
                     (Some(s), _) if s.admit_total == 0 => "no admit".to_string(),
                     (Some(s), _) => format!("{} admit(s)", s.admit_total),
@@ -200,7 +201,7 @@ impl Live {
                     if open { " open" } else { "" },
                     esc(&oracle.name)
                 );
-                if let Some(s) = &oracle.summary {
+                if let Some(s) = oracle.summary.as_ref().filter(|s| !s.resumed) {
                     let _ = write!(
                         out,
                         " <span class=\"note\">{} goals closed, {} attempts undone, {} fallback(s), EasyCrypt <span class=\"t\" data-t=\"{key}\"></span></span>",
@@ -209,7 +210,13 @@ impl Live {
                 }
                 out.push_str("</summary>\n");
                 if let Some(s) = &oracle.summary {
-                    if let Some(problem) = &s.problem {
+                    if s.resumed {
+                        let _ = writeln!(
+                            out,
+                            "<p class=\"note\">resumed from session record: proved in an earlier session ({} joint paths), not walked again</p>",
+                            s.joint_paths
+                        );
+                    } else if let Some(problem) = &s.problem {
                         let _ = writeln!(out, "<p class=\"err\">no tactics: {}</p>", esc(problem));
                     } else {
                         let _ = writeln!(

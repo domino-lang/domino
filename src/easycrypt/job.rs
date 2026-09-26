@@ -11,7 +11,8 @@
 //!
 //! - [`create_if_absent`]: the create-if-absent helper.
 //! - [`ensure_translation_files`]: every file of the export except the `Eq_*.ec`.
-//! - [`SessionRecord`]: `Eq_<L>_<R>.session.json`, the minimal form (story 37 extends it).
+//! - [`SessionRecord`]: `Eq_<L>_<R>.session.json`: statuses, and (story 37) the scripts that
+//!   let a job resume the equivalence.
 //! - [`remove_session_records`]: what `domino easycrypt --force` does to them.
 //! - [`ProofLock`], [`progress_dir`], [`check_no_live_jobs`] (story 36): one job per equivalence.
 
@@ -101,26 +102,91 @@ pub enum OracleStatus {
     Pending,
 }
 
+/// One `admit` of a done oracle: what the report prints of it, without the goal text.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdmitRecord {
+    /// `N<k>`, `J<k>`, `S<k>` or `router`.
+    pub node: String,
+    /// The reason's slug (`stuck`, `domino-fails`, …).
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub claim: String,
+    /// Domino's own verdict's slug (`verified`, `fails`, …).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub domino: String,
+}
+
+/// What lockstep execution cost.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LockstepRecord {
+    pub joint_paths: usize,
+    pub ms: u64,
+}
+
+/// The sentences EasyCrypt accepted for one joint node, still in the script, in order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeRecord {
+    pub id: String,
+    pub tactics: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OracleRecord {
     pub name: String,
     pub status: OracleStatus,
+    /// The oracle's bullet exactly as rendered into `Eq_*.ec`: only for `done` oracles of a
+    /// version 2 record, and what resuming writes back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub admits: Vec<AdmitRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lockstep: Option<LockstepRecord>,
+    /// Not used by resuming: kept so node-level resume needs no format change.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nodes: Vec<NodeRecord>,
 }
 
-/// `Eq_<L>_<R>.session.json`, the minimal form: what skip and `--force` need.
+impl OracleRecord {
+    /// An entry with a status and nothing else.
+    pub fn new(name: &str, status: OracleStatus) -> Self {
+        OracleRecord {
+            name: name.to_string(),
+            status,
+            script: None,
+            admits: Vec::new(),
+            lockstep: None,
+            nodes: Vec::new(),
+        }
+    }
+
+    /// Done, with the script that resuming writes back.
+    pub fn is_resumable(&self) -> bool {
+        self.status == OracleStatus::Done && self.script.is_some()
+    }
+}
+
+/// `Eq_<L>_<R>.session.json`: what each oracle of one equivalence has got to, and enough of
+/// its proof to write it back without proving it again (story 37).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionRecord {
     pub version: u32,
     pub theorem: String,
     pub left: String,
     pub right: String,
+    /// The Domino version that wrote it (absent in version 1).
+    #[serde(default)]
+    pub domino: String,
+    /// When, RFC 3339 UTC (absent in version 1).
+    #[serde(default)]
+    pub updated: String,
     /// Every oracle is done.
     pub complete: bool,
     pub oracles: Vec<OracleRecord>,
 }
 
 impl SessionRecord {
-    pub const VERSION: u32 = 1;
+    pub const VERSION: u32 = 2;
 
     pub fn new(theorem: &str, left: &str, right: &str, oracles: Vec<OracleRecord>) -> Self {
         SessionRecord {
@@ -128,6 +194,8 @@ impl SessionRecord {
             theorem: theorem.to_string(),
             left: left.to_string(),
             right: right.to_string(),
+            domino: env!("CARGO_PKG_VERSION").to_string(),
+            updated: rfc3339_now(),
             complete: oracles.iter().all(|o| o.status == OracleStatus::Done),
             oracles,
         }
@@ -137,6 +205,19 @@ impl SessionRecord {
         self.oracles
             .iter()
             .filter(|o| o.status == OracleStatus::Done)
+            .count()
+    }
+
+    /// The entry for `name`.
+    pub fn oracle(&self, name: &str) -> Option<&OracleRecord> {
+        self.oracles.iter().find(|o| o.name == name)
+    }
+
+    /// Oracles that are done but have no script (a version 1 record): they cannot be resumed.
+    pub fn done_without_script(&self) -> usize {
+        self.oracles
+            .iter()
+            .filter(|o| o.status == OracleStatus::Done && o.script.is_none())
             .count()
     }
 
@@ -168,18 +249,67 @@ impl SessionRecord {
 
     /// The line printed when a proof job skips the equivalence this record describes.
     pub fn skip_line(&self, proof_file: &str) -> String {
-        let stem = proof_file.trim_end_matches(".ec");
-        let stem = stem.rsplit('/').next().unwrap_or(stem);
-        let counts = format!("{} of {} oracles", self.done(), self.oracles.len());
-        if self.complete {
-            format!("skipping {stem}: already proved ({counts}); --force re-proves it")
-        } else {
-            format!(
-                "skipping {stem}: already proved ({counts}, resuming arrives with story 37); \
-                 --force re-proves it"
-            )
-        }
+        format!(
+            "skipping {}: already proved ({} of {} oracles); --force re-proves it",
+            stem_of(proof_file),
+            self.done(),
+            self.oracles.len()
+        )
     }
+
+    /// The line printed when a proof job resumes the equivalence this record describes.
+    pub fn resume_line(&self, proof_file: &str) -> String {
+        format!(
+            "resuming {}: {} of {} oracles already proved",
+            stem_of(proof_file),
+            self.oracles.iter().filter(|o| o.is_resumable()).count(),
+            self.oracles.len()
+        )
+    }
+
+    /// The line printed when a version 1 record's done oracles cannot be resumed.
+    pub fn version_1_line(&self, proof_file: &str) -> String {
+        format!(
+            "{}: the session record has no scripts (written before story 37); its {} proved \
+             oracle(s) cannot be resumed and are proved again",
+            stem_of(proof_file),
+            self.done_without_script()
+        )
+    }
+}
+
+fn stem_of(proof_file: &str) -> &str {
+    let stem = proof_file.trim_end_matches(".ec");
+    stem.rsplit('/').next().unwrap_or(stem)
+}
+
+/// Now, as `YYYY-MM-DDTHH:MM:SSZ`.
+fn rfc3339_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    rfc3339(secs)
+}
+
+/// Unix seconds as `YYYY-MM-DDTHH:MM:SSZ` (days to civil date after Howard Hinnant).
+fn rfc3339(secs: u64) -> String {
+    let days = (secs / 86_400) as i64;
+    let rem = secs % 86_400;
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -498,44 +628,72 @@ mod tests {
 
     #[test]
     fn the_record_round_trips_and_says_what_it_holds() {
+        let mut a = OracleRecord::new("A", OracleStatus::Done);
+        a.script = Some("+ proc; inline.\n  auto.\n".into());
+        a.admits = vec![AdmitRecord {
+            node: "N7".into(),
+            reason: "stuck".into(),
+            claim: "invariant".into(),
+            domino: "verified".into(),
+        }];
+        a.lockstep = Some(LockstepRecord {
+            joint_paths: 23,
+            ms: 41200,
+        });
+        a.nodes = vec![NodeRecord {
+            id: "N0".into(),
+            tactics: vec!["proc.".into(), "inline.".into()],
+        }];
         let record = SessionRecord::new(
             "T",
             "L",
             "R",
             vec![
-                OracleRecord {
-                    name: "A".into(),
-                    status: OracleStatus::Done,
-                },
-                OracleRecord {
-                    name: "B".into(),
-                    status: OracleStatus::Interrupted,
-                },
-                OracleRecord {
-                    name: "C".into(),
-                    status: OracleStatus::Pending,
-                },
+                a,
+                OracleRecord::new("B", OracleStatus::Interrupted),
+                OracleRecord::new("C", OracleStatus::Pending),
             ],
         );
         assert!(!record.complete);
+        assert_eq!(record.version, 2);
         let parsed: SessionRecord = serde_json::from_str(&record.to_json()).unwrap();
         assert_eq!(parsed, record);
         assert!(record.to_json().contains(r#""status": "interrupted""#));
+        // only done oracles carry a script
+        assert_eq!(record.to_json().matches("\"script\"").count(), 1);
         assert_eq!(
-            record.skip_line("Eq_L_R.ec"),
-            "skipping Eq_L_R: already proved (1 of 3 oracles, resuming arrives with story 37); \
-             --force re-proves it"
+            record.resume_line("Eq_L_R.ec"),
+            "resuming Eq_L_R: 1 of 3 oracles already proved"
         );
-        let mut all = record.clone();
-        for o in &mut all.oracles {
-            o.status = OracleStatus::Done;
-        }
-        let all = SessionRecord::new("T", "L", "R", all.oracles);
+        let all: Vec<_> = record
+            .oracles
+            .iter()
+            .map(|o| OracleRecord::new(&o.name, OracleStatus::Done))
+            .collect();
+        let all = SessionRecord::new("T", "L", "R", all);
         assert!(all.complete);
         assert_eq!(
             all.skip_line("Eq_L_R.ec"),
             "skipping Eq_L_R: already proved (3 of 3 oracles); --force re-proves it"
         );
+    }
+
+    #[test]
+    fn a_version_1_record_reads_with_statuses_only() {
+        let text = r#"{"version": 1, "theorem": "T", "left": "L", "right": "R", "complete": false,
+            "oracles": [{"name": "A", "status": "done"}, {"name": "B", "status": "pending"}]}"#;
+        let record: SessionRecord = serde_json::from_str(text).unwrap();
+        assert_eq!(record.version, 1);
+        assert_eq!(record.done(), 1);
+        assert_eq!(record.done_without_script(), 1);
+        assert!(!record.oracles[0].is_resumable());
+    }
+
+    #[test]
+    fn timestamps_are_rfc_3339() {
+        assert_eq!(rfc3339(0), "1970-01-01T00:00:00Z");
+        assert_eq!(rfc3339(1_709_210_096), "2024-02-29T12:34:56Z");
+        assert_eq!(rfc3339(4_102_444_799), "2099-12-31T23:59:59Z");
     }
 
     #[test]

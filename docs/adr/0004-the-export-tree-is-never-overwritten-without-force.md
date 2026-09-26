@@ -36,7 +36,8 @@ the hazard belongs to writing, not to tactic generation.
   export tree, at which point every second run would start demanding `--force`.
 - `_build/easycrypt` is a build directory that refuses to be rebuilt in place. That is deliberate
   and it is the surprising part of this decision.
-- **Resuming is not addressed.** After a stopped tactics run the natural next command is blocked,
+- **Resuming is not addressed.** *(Superseded by ADR 0006 and story 37: a proof job resumes from
+  the equivalence's session record, and `--tactics` no longer exists.)* After a stopped tactics run the natural next command is blocked,
   and `--force` discards the **partial proof** it would otherwise pick up. The warning says so
   ("N of M oracles already proved; --force discards them"), and `--oracle` is the manual
   workaround. A real `--resume` means parsing tactic scripts back out of a `.ec` and trusting

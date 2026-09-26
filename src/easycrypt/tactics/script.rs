@@ -13,6 +13,8 @@
 //! `n` admits close `n` goals wherever they stand; the seal still places each in the bullet
 //! the walk would have given it, from the goal count recorded at each [`Script::enter_bullet`].
 
+use crate::easycrypt::job::NodeRecord;
+
 /// One accepted sentence.
 #[derive(Debug, Clone)]
 pub(super) struct Line {
@@ -23,11 +25,15 @@ pub(super) struct Line {
     pub(super) sentence: String,
     /// A `(* domino: … *)` comment, kept after the sentence.
     comment: Option<String>,
+    /// The joint node the walk was in (`N<k>`); `None` in the router prelude.
+    node: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct Script {
     lines: Vec<Line>,
+    /// The joint node new sentences belong to (see [`Line::node`]).
+    node: Option<usize>,
     depth: usize,
     /// The next sentence is the first of a new bullet block.
     pending_bullet: bool,
@@ -64,7 +70,30 @@ impl Script {
             bullet: std::mem::take(&mut self.pending_bullet),
             sentence: sentence.to_string(),
             comment,
+            node: self.node,
         });
+    }
+
+    /// The joint node the sentences pushed from now on belong to.
+    pub(super) fn set_node(&mut self, node: Option<usize>) {
+        self.node = node;
+    }
+
+    /// The sentences of the script per joint node (`N<k>`, or `router`), in the order the nodes
+    /// first appear, each node's sentences in script order (story 37's `nodes`).
+    pub(super) fn by_node(&self) -> Vec<NodeRecord> {
+        let mut nodes: Vec<NodeRecord> = Vec::new();
+        for line in &self.lines {
+            let id = line.node.map_or_else(|| "router".to_string(), |n| format!("N{n}"));
+            match nodes.iter_mut().find(|n| n.id == id) {
+                Some(node) => node.tactics.push(line.sentence.clone()),
+                None => nodes.push(NodeRecord {
+                    id,
+                    tactics: vec![line.sentence.clone()],
+                }),
+            }
+        }
+        nodes
     }
 
     pub(super) fn mark(&self) -> Mark {
@@ -170,6 +199,34 @@ impl Script {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn node(id: &str, tactics: &[&str]) -> NodeRecord {
+        NodeRecord {
+            id: id.to_string(),
+            tactics: tactics.iter().map(|t| t.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn sentences_are_grouped_by_the_node_they_were_accepted_in() {
+        let mut s = Script::default();
+        s.enter_bullet(1);
+        s.push("proc; inline.", None);
+        s.set_node(Some(0));
+        s.push("sp 1 1.", None);
+        s.set_node(Some(3));
+        s.push("auto.", None);
+        s.set_node(Some(0));
+        s.push("smt().", None);
+        assert_eq!(
+            s.by_node(),
+            vec![
+                node("router", &["proc; inline."]),
+                node("N0", &["sp 1 1.", "smt()."]),
+                node("N3", &["auto."]),
+            ]
+        );
+    }
 
     #[test]
     fn bullets_open_blocks_and_marks_roll_back() {

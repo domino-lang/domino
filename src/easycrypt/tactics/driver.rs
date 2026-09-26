@@ -26,6 +26,7 @@ use crate::easycrypt::session::{Session, SessionError};
 
 use super::goals;
 use super::live::LiveHandle;
+use crate::easycrypt::job::NodeRecord;
 use super::script::{Mark, Script};
 
 type R<T> = Result<T, SessionError>;
@@ -77,6 +78,11 @@ impl AdmitReason {
             AdmitReason::Interrupted => "interrupted",
         }
     }
+
+    /// The reason a slug names (a session record's).
+    pub fn from_slug(slug: &str) -> Option<AdmitReason> {
+        AdmitReason::ALL.into_iter().find(|r| r.slug() == slug)
+    }
 }
 
 /// What Domino itself concluded about the claim an admit stands for.
@@ -97,6 +103,18 @@ impl DominoView {
             DominoView::Inconclusive => "inconclusive",
             DominoView::NotApplicable => "n/a",
         }
+    }
+
+    /// The view a slug names (a session record's).
+    pub fn from_slug(slug: &str) -> Option<DominoView> {
+        [
+            DominoView::Verified,
+            DominoView::Fails,
+            DominoView::Inconclusive,
+            DominoView::NotApplicable,
+        ]
+        .into_iter()
+        .find(|v| v.slug() == slug)
     }
 
     fn worst(self, other: DominoView) -> DominoView {
@@ -286,6 +304,8 @@ pub(super) struct Sealed {
     pub mismatches: Vec<String>,
     /// The joint node the walk was in, as the `interrupted` admits name it: `N<k>` or `router`.
     pub node: String,
+    /// The sealed script's sentences per joint node (the session record's `nodes`).
+    pub node_scripts: Vec<NodeRecord>,
 }
 
 /// A point to return to: the session's state and the script's.
@@ -365,6 +385,7 @@ impl Prover<'_> {
         let mut stats = self.stats.clone();
         stats.admits.extend(std::iter::repeat_n(admit, admits));
         Sealed {
+            node_scripts: script.by_node(),
             script: script.render(),
             stats,
             mismatches: self.mismatches.clone(),
@@ -739,8 +760,10 @@ impl Prover<'_> {
             live.node_entered(&format!("N{idx}"), node.kind.as_str(), ids, Some(idx));
         }
         let parent = self.node.replace(idx);
+        self.script.set_node(Some(idx));
         let result = self.prove_node_inner(idx);
         self.node = parent;
+        self.script.set_node(parent);
         if result.is_ok() {
             self.checkpoint();
         }

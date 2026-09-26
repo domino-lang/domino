@@ -56,7 +56,8 @@ use super::check::{
 };
 use super::job::{
     create_if_absent, ensure_translation_files, is_proof_file, progress_dir, session_record_name,
-    LockError, OracleRecord, OracleStatus, ProofLock, SessionRecord, SessionRecordError,
+    AdmitRecord, LockError, LockstepRecord, NodeRecord, OracleRecord, OracleStatus, ProofLock,
+    SessionRecord, SessionRecordError,
 };
 use super::json::Goal;
 use super::session::{split_sentences, Session, SessionError};
@@ -244,6 +245,10 @@ pub struct OracleTactics {
     pub easycrypt_time: Duration,
     /// The bullet as written into the file.
     pub script: String,
+    /// The accepted sentences per joint node, for the session record.
+    pub node_scripts: Vec<NodeRecord>,
+    /// Not proved by this run: read back from the session record (story 37).
+    pub resumed: bool,
 }
 
 impl OracleTactics {
@@ -259,6 +264,87 @@ impl OracleTactics {
             lockstep_time: Duration::ZERO,
             easycrypt_time: Duration::ZERO,
             script: String::new(),
+            node_scripts: Vec::new(),
+            resumed: false,
+        }
+    }
+
+    /// The oracle as a session record holds it, or `None` when the record cannot be resumed
+    /// from: not done, no script, or a reason or verdict this version does not know.
+    fn from_record(record: &OracleRecord) -> Option<OracleTactics> {
+        let script = record.script.clone().filter(|_| record.is_resumable())?;
+        let admits = record
+            .admits
+            .iter()
+            .map(|a| {
+                Some(Admit {
+                    reason: AdmitReason::from_slug(&a.reason)?,
+                    id: a.node.clone(),
+                    claim: a.claim.clone(),
+                    domino: if a.domino.is_empty() {
+                        DominoView::NotApplicable
+                    } else {
+                        DominoView::from_slug(&a.domino)?
+                    },
+                    goal: String::new(),
+                })
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let lockstep = record.lockstep.unwrap_or(LockstepRecord {
+            joint_paths: 0,
+            ms: 0,
+        });
+        Some(OracleTactics {
+            oracle: record.name.clone(),
+            problem: None,
+            stats: OracleStats {
+                admits,
+                ..OracleStats::default()
+            },
+            alignment_mismatches: vec![],
+            joint_paths: lockstep.joint_paths,
+            nodes: record.nodes.len(),
+            stuck_points: 0,
+            lockstep_time: Duration::from_millis(lockstep.ms),
+            easycrypt_time: Duration::ZERO,
+            script,
+            node_scripts: record.nodes.clone(),
+            resumed: true,
+        })
+    }
+
+    /// This oracle's entry in the session record.
+    fn to_record(&self) -> OracleRecord {
+        let interrupted = self
+            .stats
+            .admits
+            .iter()
+            .any(|a| a.reason == AdmitReason::Interrupted);
+        let status = if interrupted {
+            OracleStatus::Interrupted
+        } else {
+            OracleStatus::Done
+        };
+        OracleRecord {
+            name: self.oracle.clone(),
+            status,
+            script: (status == OracleStatus::Done).then(|| self.script.clone()),
+            admits: self
+                .stats
+                .admits
+                .iter()
+                .map(|a| AdmitRecord {
+                    node: a.id.clone(),
+                    reason: a.reason.slug().to_string(),
+                    claim: a.claim.clone(),
+                    domino: a.domino.slug().to_string(),
+                })
+                .collect(),
+            lockstep: Some(LockstepRecord {
+                joint_paths: self.joint_paths,
+                ms: self.lockstep_time.as_millis() as u64,
+            }),
+            nodes: self.node_scripts.clone(),
         }
     }
 
@@ -385,11 +471,14 @@ where
         let lock = ProofLock::acquire(&dir, &stem)?;
         // story 35: an equivalence that already has a session record is skipped, before
         // anything is created or truncated (its transcript and page stay)
-        if !plan_job(eq, &out_dir, options)? {
-            drop(lock);
-            let _ = std::fs::remove_dir(&dir); // only if the skip left it empty
-            continue;
-        }
+        let prior = match plan_job(eq, &out_dir, options)? {
+            JobPlan::Prove { prior } => prior,
+            JobPlan::Skip => {
+                drop(lock);
+                let _ = std::fs::remove_dir(&dir); // only if the skip left it empty
+                continue;
+            }
+        };
         // what translation owns: created if missing, never read or rewritten (ADR 0006)
         let created = ensure_translation_files(exported, &out_dir)?;
         let transcript_path = dir.join("ec-transcript.jsonl");
@@ -410,6 +499,7 @@ where
             eq,
             &out_dir,
             &dir,
+            prior.as_ref(),
             backend,
             options,
             &mut transcript,
@@ -455,26 +545,75 @@ fn translation_line(exported: &ExportedTheorem, created: &[PathBuf]) -> String {
     }
 }
 
-/// Whether this proof job has anything to do for `eq`: no when it has a session record (the
-/// skip line goes to stderr). With `--force` (story 35 §3.2) the record is discarded and the
-/// proof file restarts from the skeleton, atomically.
+/// What a proof job does with an equivalence.
+#[derive(Debug)]
+enum JobPlan {
+    /// Nothing: the record says it is proved (the reason is on stderr).
+    Skip,
+    /// Prove what is not done. `prior` is the record whose done oracles are resumed and whose
+    /// other entries are kept (`None`: from scratch).
+    Prove { prior: Option<SessionRecord> },
+}
+
+/// Decides what this proof job does for `eq` from its session record (story 37 §3.2), before
+/// anything is created or truncated (its transcript and page stay when it skips).
+///
+/// | record | without `--force` | with `--force` |
+/// |---|---|---|
+/// | none | prove | prove |
+/// | complete | skip | from scratch |
+/// | partial | resume | from scratch |
+///
+/// With `--oracle O`: `O` done skips; with `--force`, `O` alone is re-proved and every other
+/// entry is kept.
 fn plan_job(
     eq: &EquivalenceReport,
     out_dir: &Path,
     options: &TacticsOptions,
-) -> Result<bool, TacticsError> {
+) -> Result<JobPlan, TacticsError> {
     let record_path = out_dir.join(session_record_name(&eq.proof_file));
+    let Some(mut record) = SessionRecord::read(&record_path)? else {
+        return Ok(JobPlan::Prove { prior: None });
+    };
+    let file = &eq.proof_file;
     if options.force {
-        match std::fs::remove_file(&record_path) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.into()),
+        let Some(oracle) = &options.oracle else {
+            std::fs::remove_file(&record_path)?;
+            return Ok(JobPlan::Prove { prior: None });
+        };
+        // this oracle alone is proved again: its entry goes, the others stay
+        if let Some(entry) = record.oracles.iter_mut().find(|o| &o.name == oracle) {
+            *entry = OracleRecord::new(oracle, OracleStatus::Pending);
         }
-    } else if let Some(record) = SessionRecord::read(&record_path)? {
-        eprintln!("{}", record.skip_line(&eq.proof_file));
-        return Ok(false);
+        record.complete = false;
+        return Ok(JobPlan::Prove {
+            prior: Some(record),
+        });
     }
-    Ok(true)
+    let asked_done = options
+        .oracle
+        .as_ref()
+        .map(|o| record.oracle(o).is_some_and(|e| e.status == OracleStatus::Done));
+    if record.complete && asked_done.unwrap_or(true) {
+        eprintln!("{}", record.skip_line(file));
+        return Ok(JobPlan::Skip);
+    }
+    if let Some(oracle) = &options.oracle {
+        if record.oracle(oracle).is_some_and(OracleRecord::is_resumable) {
+            eprintln!(
+                "skipping {oracle} of {}: already proved; --force re-proves it",
+                file.trim_end_matches(".ec")
+            );
+            return Ok(JobPlan::Skip);
+        }
+    }
+    if record.done_without_script() > 0 {
+        eprintln!("{}", record.version_1_line(file));
+    }
+    eprintln!("{}", record.resume_line(file));
+    Ok(JobPlan::Prove {
+        prior: Some(record),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -486,6 +625,7 @@ fn tactics_for_equivalence<P, B>(
     eq: &EquivalenceReport,
     out_dir: &Path,
     progress_dir: &Path,
+    prior: Option<&SessionRecord>,
     backend: &B,
     options: &TacticsOptions,
     transcript: &mut Option<File>,
@@ -517,7 +657,7 @@ where
     // this equivalence's own file: created from the skeleton when missing, restarted from it
     // with `--force`; otherwise the run rewrites it at its first checkpoint
     let proof_path = out_dir.join(&file);
-    if options.force {
+    if options.force && prior.is_none() {
         write_atomically(&proof_path, progress_dir, source)?;
     } else if create_if_absent(&proof_path, source)? {
         eprintln!("created {file} (missing from the translation)");
@@ -525,11 +665,18 @@ where
     // open the proof: everything up to `call (…); last first.`, then the base case
     let sentences = split_sentences(source);
     let call_prefix = sentences_until_call(&file, source)?;
+    // oracles the session record has proved: not walked, not re-sent (ADR 0006)
+    let resumed: Vec<OracleTactics> = setup
+        .oracles
+        .iter()
+        .filter_map(|(name, _)| prior?.oracle(name).and_then(OracleTactics::from_record))
+        .collect();
+    let is_resumed = |name: &str| resumed.iter().any(|r| r.oracle == name);
     let selected_oracles: Vec<String> = setup
         .oracles
         .iter()
         .map(|(name, _)| name.clone())
-        .filter(|name| selected(name))
+        .filter(|name| selected(name) || is_resumed(name))
         .collect();
     live.equivalence_started(&file, eq.proofstep, &eq.left_name, &eq.right_name, &selected_oracles);
     let report_file = file.trim_end_matches(".ec").to_string() + ".report.txt";
@@ -539,6 +686,7 @@ where
         procs: &setup.oracles,
         out_dir,
         progress_dir,
+        prior,
         started,
         tactics: EquivalenceTactics {
             transcript: transcript_path.to_path_buf(),
@@ -553,6 +701,11 @@ where
             interrupted: None,
         },
     };
+    // their scripts are in every write from the first one on, in the file's order
+    for result in &resumed {
+        live.oracle_finished(result);
+        proof.tactics.oracles.push(result.clone());
+    }
     // Ctrl-C (story 34): the equivalence ends where it stands, with what is written
     let interrupted = 'run: {
         if options.stop_requested() {
@@ -596,8 +749,13 @@ where
                 interrupted = Some(Interrupted::NoOracleInFlight);
                 break;
             }
-            let target = setup.oracle_of_goal(goal).filter(|o| selected(o));
-            match target {
+            let target = setup.oracle_of_goal(goal);
+            if target.as_deref().is_some_and(is_resumed) {
+                // proved in an earlier session, and its script is in the file already
+                session.send("admit.")?;
+                continue;
+            }
+            match target.filter(|o| selected(o)) {
                 Some(oracle) => {
                     let end = tactics_for_oracle(
                         &mut session,
@@ -673,6 +831,8 @@ struct ProofFile<'a> {
     theorem: &'a str,
     /// The exported file: every oracle `+ proc; inline. admit.`.
     source: &'a str,
+    /// The record this run resumes: its entries for oracles this run does not prove stay.
+    prior: Option<&'a SessionRecord>,
     /// `(exported name, EasyCrypt's procedure name)` of every oracle, in the file's order.
     procs: &'a [(String, String)],
     /// The theorem's output directory: the file, the report and the record.
@@ -716,20 +876,19 @@ impl ProofFile<'_> {
         Ok(now)
     }
 
-    /// The session record of `now`: every exported oracle's status, in the file's order.
+    /// The session record of `now`: every exported oracle's entry, in the file's order. An
+    /// oracle this run has not got to keeps the entry it had.
     fn record(&self, now: &EquivalenceTactics) -> SessionRecord {
         let oracles = self
             .procs
             .iter()
-            .map(|(name, _)| OracleRecord {
-                name: name.clone(),
-                status: match now.oracles.iter().find(|o| &o.oracle == name) {
-                    None => OracleStatus::Pending,
-                    Some(o) if o.stats.admits.iter().any(|a| a.reason == AdmitReason::Interrupted) => {
-                        OracleStatus::Interrupted
-                    }
-                    Some(_) => OracleStatus::Done,
-                },
+            .map(|(name, _)| match now.oracles.iter().find(|o| &o.oracle == name) {
+                Some(o) => o.to_record(),
+                None => self
+                    .prior
+                    .and_then(|p| p.oracle(name))
+                    .cloned()
+                    .unwrap_or_else(|| OracleRecord::new(name, OracleStatus::Pending)),
             })
             .collect();
         SessionRecord::new(self.theorem, &now.left, &now.right, oracles)
@@ -864,6 +1023,8 @@ where
         lockstep_time,
         easycrypt_time: began.elapsed(),
         script: sealed.script,
+        node_scripts: sealed.node_scripts,
+        resumed: false,
     };
     // `--write-granularity node`: seal, write, continue. A failed write stops the writes; the
     // last good one stays on disk and the error ends the run after the oracle.
@@ -968,6 +1129,26 @@ impl EquivalenceTactics {
             let _ = writeln!(out, "  the base case did not close and was admitted");
         }
         for o in &self.oracles {
+            if o.resumed {
+                let _ = writeln!(
+                    out,
+                    "  {}: resumed from session record (lockstep {} joint paths, {} admits)",
+                    o.oracle,
+                    o.joint_paths,
+                    o.stats.admits.len()
+                );
+                for a in &o.stats.admits {
+                    let _ = writeln!(
+                        out,
+                        "    admit {} {} [{}] Domino: {}",
+                        a.id,
+                        a.claim,
+                        a.reason.slug(),
+                        a.domino.slug()
+                    );
+                }
+                continue;
+            }
             if let Some(problem) = &o.problem {
                 let _ = writeln!(out, "  {}: no tactics ({problem})", o.oracle);
                 continue;

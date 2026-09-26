@@ -133,12 +133,15 @@ pub(crate) struct EcProve {
     /// one after another in this process; to run them at once start one process each.
     #[clap(long)]
     pub(crate) proofstep: Option<usize>,
-    /// Only this exported oracle; the rest keep `+ proc; inline. admit.`.
+    /// Only this exported oracle; the rest keep what the session record holds for them, or
+    /// `+ proc; inline. admit.`.
     #[clap(long)]
     pub(crate) oracle: Option<String>,
-    /// Discard the equivalence's session record and prove it again from the skeleton. Without
-    /// it an equivalence that has a record is skipped. Never rewrites a translation file: a
-    /// stale one is fixed by `domino easycrypt --force`.
+    /// Discard the equivalence's session record and prove it again from the skeleton (with
+    /// `--oracle O`: prove `O` again, keeping the other oracles' proofs). Without it a complete
+    /// record skips the equivalence and a partial one is resumed: the oracles it holds are not
+    /// proved again. Never rewrites a translation file: a stale one is fixed by
+    /// `domino easycrypt --force`.
     #[clap(long, short = 'f')]
     pub(crate) force: bool,
     /// Seconds one EasyCrypt sentence may run before it is interrupted.

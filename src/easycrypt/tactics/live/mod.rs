@@ -134,6 +134,8 @@ pub(super) struct OracleSummary {
     pub joint_paths: usize,
     pub nodes: usize,
     pub stuck_points: usize,
+    /// Read back from the session record, not proved by this run.
+    pub resumed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -469,6 +471,7 @@ impl LiveHandle {
             joint_paths: result.joint_paths,
             nodes: result.nodes,
             stuck_points: result.stuck_points,
+            resumed: result.resumed,
         });
         if live.cur_oracle == Some(idx) {
             live.cur_oracle = None;

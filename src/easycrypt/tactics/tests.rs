@@ -185,6 +185,8 @@ fn oracle_with(admits: Vec<Admit>) -> OracleTactics {
         lockstep_time: Duration::from_millis(100),
         easycrypt_time: Duration::from_secs(3),
         script: String::new(),
+        node_scripts: vec![],
+        resumed: false,
     }
 }
 
@@ -339,6 +341,170 @@ fn labelled_admits(text: &str) -> Vec<String> {
             Some(reason.split([';', ' ']).next().unwrap().to_string())
         })
         .collect()
+}
+
+// ----------------------------------------------------------------------
+// Story 37: what a proof job does with a session record
+// ----------------------------------------------------------------------
+
+fn eq_report() -> EquivalenceReport {
+    EquivalenceReport {
+        proofstep: 0,
+        left_name: "L".into(),
+        right_name: "R".into(),
+        invariants_file: "Invariants.ec".into(),
+        proof_file: "Eq_L_R.ec".into(),
+        oracle_count: 3,
+        admit_count: 0,
+        oracle_set_mismatch: None,
+    }
+}
+
+fn done(name: &str) -> OracleRecord {
+    let mut o = OracleRecord::new(name, OracleStatus::Done);
+    o.script = Some(format!("+ proc; inline.\n  auto. (* {name} *)\n"));
+    o
+}
+
+/// Writes a record of oracles A (done), B (interrupted), C (pending) and plans a job on it.
+fn plan_of(oracles: Vec<OracleRecord>, options: &TacticsOptions) -> (JobPlan, tempfile::TempDir) {
+    let out = tempfile::tempdir().unwrap();
+    let record = SessionRecord::new("T", "L", "R", oracles);
+    std::fs::write(out.path().join("Eq_L_R.session.json"), record.to_json()).unwrap();
+    let plan = plan_job(&eq_report(), out.path(), options).unwrap();
+    (plan, out)
+}
+
+fn partial() -> Vec<OracleRecord> {
+    vec![
+        done("A"),
+        OracleRecord::new("B", OracleStatus::Interrupted),
+        OracleRecord::new("C", OracleStatus::Pending),
+    ]
+}
+
+fn oracle_option(name: &str, force: bool) -> TacticsOptions {
+    TacticsOptions {
+        oracle: Some(name.into()),
+        force,
+        ..TacticsOptions::default()
+    }
+}
+
+fn prior(plan: JobPlan) -> Option<SessionRecord> {
+    match plan {
+        JobPlan::Prove { prior } => prior,
+        JobPlan::Skip => panic!("expected a job that proves"),
+    }
+}
+
+#[test]
+fn without_a_record_a_job_proves_everything() {
+    let out = tempfile::tempdir().unwrap();
+    let plan = plan_job(&eq_report(), out.path(), &TacticsOptions::default()).unwrap();
+    assert!(prior(plan).is_none());
+}
+
+#[test]
+fn a_partial_record_is_resumed_with_its_entries() {
+    let (plan, _out) = plan_of(partial(), &TacticsOptions::default());
+    let record = prior(plan).expect("resumed");
+    assert_eq!(record.oracles.len(), 3);
+    assert!(OracleTactics::from_record(record.oracle("A").unwrap()).unwrap().resumed);
+    assert!(OracleTactics::from_record(record.oracle("B").unwrap()).is_none());
+}
+
+#[test]
+fn a_complete_record_skips_and_force_proves_from_scratch_and_deletes_it() {
+    let all = vec![done("A"), done("B"), done("C")];
+    let (skipped, _out) = plan_of(all.clone(), &TacticsOptions::default());
+    assert!(matches!(skipped, JobPlan::Skip));
+    let forced = TacticsOptions {
+        force: true,
+        ..TacticsOptions::default()
+    };
+    let (plan, out) = plan_of(all, &forced);
+    assert!(prior(plan).is_none());
+    assert!(!out.path().join("Eq_L_R.session.json").exists());
+}
+
+#[test]
+fn force_discards_a_partial_record_too() {
+    let forced = TacticsOptions {
+        force: true,
+        ..TacticsOptions::default()
+    };
+    let (plan, _out) = plan_of(partial(), &forced);
+    assert!(prior(plan).is_none());
+}
+
+#[test]
+fn an_oracle_that_is_done_is_skipped_and_one_that_is_not_is_proved() {
+    let (skipped, _out) = plan_of(partial(), &oracle_option("A", false));
+    assert!(matches!(skipped, JobPlan::Skip));
+    let (plan, _out) = plan_of(partial(), &oracle_option("B", false));
+    let record = prior(plan).expect("the others keep their entries");
+    assert!(record.oracle("A").unwrap().is_resumable());
+    // a complete record with `--oracle O` skips as well
+    let all = vec![done("A"), done("B"), done("C")];
+    let (skipped, _out) = plan_of(all, &oracle_option("C", false));
+    assert!(matches!(skipped, JobPlan::Skip));
+}
+
+#[test]
+fn force_with_an_oracle_reproves_that_oracle_alone_and_keeps_the_rest() {
+    let all = vec![done("A"), done("B"), done("C")];
+    let (plan, out) = plan_of(all, &oracle_option("B", true));
+    let record = prior(plan).expect("kept");
+    assert_eq!(record.oracle("B").unwrap().status, OracleStatus::Pending);
+    assert!(record.oracle("A").unwrap().is_resumable());
+    assert!(record.oracle("C").unwrap().is_resumable());
+    assert!(!record.complete);
+    // the record on disk stays until the job's first checkpoint replaces it
+    assert!(out.path().join("Eq_L_R.session.json").exists());
+}
+
+#[test]
+fn a_version_1_record_cannot_be_resumed_from() {
+    let out = tempfile::tempdir().unwrap();
+    std::fs::write(
+        out.path().join("Eq_L_R.session.json"),
+        r#"{"version": 1, "theorem": "T", "left": "L", "right": "R", "complete": false,
+            "oracles": [{"name": "A", "status": "done"}, {"name": "B", "status": "pending"}]}"#,
+    )
+    .unwrap();
+    let plan = plan_job(&eq_report(), out.path(), &TacticsOptions::default()).unwrap();
+    let record = prior(plan).expect("read");
+    assert_eq!(record.version, 1);
+    assert!(OracleTactics::from_record(record.oracle("A").unwrap()).is_none());
+    // a done oracle without a script is not skipped by `--oracle` either: it is proved again
+    let plan = plan_job(&eq_report(), out.path(), &oracle_option("A", false)).unwrap();
+    assert!(prior(plan).is_some());
+}
+
+#[test]
+fn a_resumed_oracle_reads_back_its_admits_and_lockstep() {
+    let mut record = done("A");
+    record.admits = vec![AdmitRecord {
+        node: "N7".into(),
+        reason: "stuck".into(),
+        claim: "invariant".into(),
+        domino: "inconclusive".into(),
+    }];
+    record.lockstep = Some(LockstepRecord {
+        joint_paths: 23,
+        ms: 41200,
+    });
+    let o = OracleTactics::from_record(&record).unwrap();
+    assert!(o.resumed);
+    assert_eq!(o.admits_by_reason(), vec![(AdmitReason::Stuck, 1)]);
+    assert_eq!(o.joint_paths, 23);
+    assert_eq!(o.lockstep_time, Duration::from_millis(41200));
+    assert_eq!(o.to_record().admits, record.admits);
+    assert_eq!(o.to_record().script, record.script);
+    // a reason this version does not know: not resumable, so proved again
+    record.admits[0].reason = "from-the-future".into();
+    assert!(OracleTactics::from_record(&record).is_none());
 }
 
 #[test]
@@ -1084,5 +1250,197 @@ mod live {
             1,
             "{sent:?}"
         );
+    }
+
+    // ------------------------------------------------------------------
+    // Story 37: a session record lets a proof job resume an equivalence
+    // ------------------------------------------------------------------
+
+    /// Another proof job on the export in `out`, as `prove` starts one.
+    fn run_again(out: &Path, options: &TacticsOptions) -> TheoremTactics {
+        let dir = PathBuf::from(TWO_ORACLES);
+        let files = DirectoryFiles::load(&dir).unwrap();
+        let project = DirectoryProject::load(dir, &files).unwrap();
+        let theorem = project.get_theorem("Proof").unwrap();
+        let exported = export_theorem(theorem, &project).unwrap();
+        run_tactics_observed(
+            theorem,
+            &project,
+            &exported,
+            out,
+            &Cvc5LibBackend::new(true, None),
+            options,
+            &mut || Box::new(NopExportObserver),
+        )
+        .unwrap()
+    }
+
+    fn record_path(result: &TheoremTactics, out: &Path) -> PathBuf {
+        let file = &result.equivalences[0].proof_file;
+        out.join(session_record_name(file))
+    }
+
+    fn read_record(path: &Path) -> SessionRecord {
+        SessionRecord::read(path).unwrap().expect("a record")
+    }
+
+    /// The first oracle proved, the second stopped in lockstep execution, as by Ctrl-C.
+    fn stopped_after_the_first_oracle() -> Option<(TheoremTactics, tempfile::TempDir)> {
+        let (result, out, _) = run_stopped_at(
+            TWO_ORACLES,
+            "Proof",
+            &stoppable(WriteGranularity::Oracle),
+            Some("item 2"),
+        )?;
+        Some((result, out))
+    }
+
+    #[test]
+    fn a_resumed_job_does_not_walk_the_oracles_the_record_holds() {
+        let Some((first_run, out)) = stopped_after_the_first_oracle() else {
+            return;
+        };
+        let stopped = &first_run.equivalences[0];
+        let first = stopped.oracles[0].clone();
+        let path = record_path(&first_run, out.path());
+        let record = read_record(&path);
+        assert!(!record.complete);
+        assert_eq!(record.done(), 1);
+        let entry = record.oracle(&first.oracle).unwrap();
+        assert_eq!(entry.script.as_deref(), Some(first.script.as_str()));
+        assert!(!entry.nodes.is_empty());
+        assert_eq!(entry.lockstep.unwrap().joint_paths, first.joint_paths);
+        let before = proof_file(&first_run, out.path());
+
+        let result = run_again(out.path(), &walk(WriteGranularity::Oracle));
+        let eq = &result.equivalences[0];
+        assert!(eq.interrupted.is_none());
+        let [a, b] = eq.oracles.as_slice() else {
+            panic!("two oracles: {}", eq.render());
+        };
+        let (resumed, proved) = if a.oracle == first.oracle { (a, b) } else { (b, a) };
+        assert!(resumed.resumed && !proved.resumed, "{}", eq.render());
+        assert_eq!(resumed.script, first.script);
+        assert_eq!(resumed.admits_by_reason().len(), first.admits_by_reason().len());
+        // not walked: one `proc; inline.` after the call (the other oracle's), the resumed
+        // oracle's goal only got `admit.`
+        let sent = sentences(&eq.transcript);
+        let call = sent.iter().position(|s| s.starts_with("call (")).unwrap();
+        assert_eq!(
+            sent[call..].iter().filter(|s| *s == "proc; inline.").count(),
+            1,
+            "{sent:?}"
+        );
+        // the file holds the first script byte for byte, and is complete now
+        let text = proof_file(&result, out.path());
+        assert!(before.contains(first.script.trim_end()));
+        assert!(text.contains(first.script.trim_end()), "{text}");
+        assert!(text.contains(proved.script.trim_end()), "{text}");
+        assert_eq!(text.matches(UNTOUCHED).count(), 0, "{text}");
+        // the report and the page say which oracle is not this run's
+        let report = std::fs::read_to_string(out.path().join(&eq.report_file)).unwrap();
+        assert!(
+            report.contains(&format!("  {}: resumed from session record", first.oracle)),
+            "{report}"
+        );
+        assert!(!report.contains(&format!("  {}: resumed", proved.oracle)), "{report}");
+        let page = std::fs::read_to_string(page_path(&result)).unwrap();
+        assert!(page.contains("resumed from session record"));
+        // the record is complete and still holds both scripts
+        let record = read_record(&path);
+        assert!(record.complete);
+        assert!(record.oracles.iter().all(OracleRecord::is_resumable));
+        assert_eq!(
+            record.oracle(&first.oracle).unwrap().script.as_deref(),
+            Some(first.script.as_str())
+        );
+        if let Err(e) = compile(
+            &crate::easycrypt::session::locate_binary(),
+            out.path(),
+            &eq.proof_file,
+        ) {
+            panic!("the resumed proof does not compile: {e}\n{text}");
+        }
+
+        // complete: skipped, and nothing changes
+        let again = run_again(out.path(), &walk(WriteGranularity::Oracle));
+        assert!(again.equivalences.is_empty());
+        assert_eq!(proof_file(&result, out.path()), text);
+        // --oracle O --force: only O is proved again, the other comes from the record
+        let only = TacticsOptions {
+            oracle: Some(proved.oracle.clone()),
+            force: true,
+            ..walk(WriteGranularity::Oracle)
+        };
+        let again = run_again(out.path(), &only);
+        let eq = &again.equivalences[0];
+        assert_eq!(eq.oracles.len(), 2, "{}", eq.render());
+        for o in &eq.oracles {
+            assert_eq!(o.resumed, o.oracle == first.oracle, "{}", eq.render());
+        }
+        assert_eq!(proof_file(&again, out.path()), text);
+        assert!(read_record(&path).complete);
+        // --force: from scratch, nothing resumed
+        let forced = TacticsOptions {
+            force: true,
+            ..walk(WriteGranularity::Oracle)
+        };
+        let again = run_again(out.path(), &forced);
+        assert!(again.equivalences[0].oracles.iter().all(|o| !o.resumed));
+        assert_eq!(proof_file(&again, out.path()), text);
+    }
+
+    #[test]
+    fn a_file_written_without_its_record_is_proved_again_from_the_skeleton() {
+        // a kill between the file's write and the record's leaves the file ahead of the record
+        let Some((first_run, out)) = stopped_after_the_first_oracle() else {
+            return;
+        };
+        std::fs::remove_file(record_path(&first_run, out.path())).unwrap();
+        assert_eq!(proof_file(&first_run, out.path()).matches(UNTOUCHED).count(), 1);
+        let result = run_again(out.path(), &walk(WriteGranularity::Oracle));
+        let eq = &result.equivalences[0];
+        assert!(eq.oracles.iter().all(|o| !o.resumed));
+        let text = proof_file(&result, out.path());
+        assert_eq!(text.matches(UNTOUCHED).count(), 0, "{text}");
+        assert!(read_record(&record_path(&result, out.path())).complete);
+        if let Err(e) = compile(
+            &crate::easycrypt::session::locate_binary(),
+            out.path(),
+            &eq.proof_file,
+        ) {
+            panic!("the proof does not compile: {e}\n{text}");
+        }
+    }
+
+    #[test]
+    fn a_version_1_record_re_proves_its_done_oracles() {
+        let Some((first_run, out)) = stopped_after_the_first_oracle() else {
+            return;
+        };
+        let path = record_path(&first_run, out.path());
+        let record = read_record(&path);
+        let statuses: Vec<String> = record
+            .oracles
+            .iter()
+            .map(|o| format!(r#"{{"name": "{}", "status": "{:?}"}}"#, o.name, o.status).to_lowercase())
+            .collect();
+        std::fs::write(
+            &path,
+            format!(
+                r#"{{"version": 1, "theorem": "Proof", "left": "{}", "right": "{}", "complete": false, "oracles": [{}]}}"#,
+                record.left,
+                record.right,
+                statuses.join(",")
+            ),
+        )
+        .unwrap();
+        let result = run_again(out.path(), &walk(WriteGranularity::Oracle));
+        let eq = &result.equivalences[0];
+        assert_eq!(eq.oracles.len(), 2);
+        assert!(eq.oracles.iter().all(|o| !o.resumed), "{}", eq.render());
+        let record = read_record(&path);
+        assert_eq!(record.version, 2);
+        assert!(record.complete);
     }
 }
