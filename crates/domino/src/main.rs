@@ -153,6 +153,8 @@ enum Error {
     #[error(transparent)]
     EcTactics(#[from] sspverif::easycrypt::tactics::TacticsError),
     #[error(transparent)]
+    EcLock(#[from] sspverif::easycrypt::job::LockError),
+    #[error(transparent)]
     EcSession(#[from] sspverif::easycrypt::session::SessionError),
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -231,6 +233,8 @@ fn stop_on_ctrl_c(first: &'static str) -> std::sync::Arc<std::sync::atomic::Atom
             flag.store(true, Ordering::Relaxed);
             eprintln!("\n{first}");
         } else {
+            // the second Ctrl-C ends the process here, so the locks are not dropped
+            sspverif::easycrypt::job::release_all_locks();
             std::process::exit(130);
         }
     });
@@ -697,12 +701,16 @@ fn easycrypt_translate<P: project::Project>(
         sspverif::writers::easycrypt::overwrite::check_export_tree(out_base, &names)?;
     }
 
+    // Story 36 §3.3: not even `--force` replaces files under a running proof job
+    let theorem_outs: Vec<std::path::PathBuf> = theorem_names
+        .iter()
+        .map(|name| out_base.join(name))
+        .collect();
+    sspverif::easycrypt::job::check_no_live_jobs(&theorem_outs)?;
+
     let mut observer = export_observer(e.progress);
     let mut logging = LoggingExportObserver::new(observer.as_mut());
     let exports = export_in_memory(project, theorem_names, &mut logging)?;
-
-    let theorem_outs: Vec<std::path::PathBuf> =
-        exports.iter().map(|(name, _)| out_base.join(name)).collect();
     if e.force {
         // the proofs the records describe are about to be overwritten by skeletons (story 35 §3.5)
         for out in &theorem_outs {
@@ -771,7 +779,7 @@ fn easycrypt_prove<P: project::Project>(
         // The proof job needs translation's result in memory (the equivalence setup and the
         // skeleton) and writes none of it over what is there.
         let exports = export_in_memory(project, &theorem_names, &mut logging)?;
-        let phase_log = logging.into_log();
+        drop(logging);
         drop(observer);
 
         let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, None);
@@ -807,8 +815,7 @@ fn easycrypt_prove<P: project::Project>(
                 &theorem_out,
                 &backend,
                 &options,
-                export_observer(p.progress),
-                &phase_log.phases_of(name),
+                &mut || export_observer(p.progress),
             )?;
             if result.equivalences.is_empty() {
                 // every selected equivalence was skipped (their lines are on stderr)

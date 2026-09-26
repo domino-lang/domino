@@ -257,9 +257,6 @@ impl Live {
             "<header><h1>EasyCrypt translation of {}</h1>\n<div class=\"chips\">",
             esc(&self.theorem)
         );
-        for (name, items) in &self.phases {
-            let _ = write!(out, "<span class=\"done\">{} ({items})</span>", esc(name));
-        }
         let (class, label) = match &self.state {
             RunState::Running => ("active", "tactics (running)"),
             RunState::Done => ("done", "tactics (done)"),
@@ -267,6 +264,9 @@ impl Live {
             RunState::Interrupted(_) => ("active", "tactics (interrupted)"),
         };
         let _ = writeln!(out, "<span class=\"chip {class}\">{label}</span></div>");
+        if !self.translation.is_empty() {
+            let _ = writeln!(out, "<p class=\"note\">{}</p>", esc(&self.translation));
+        }
         if let RunState::Failed(message) = &self.state {
             let _ = writeln!(
                 out,

@@ -222,6 +222,7 @@ fn the_report_counts_admits_by_reason_and_lists_the_verified_ones_with_their_goa
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
         interrupted: None,
+        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
     };
     let report = eq.render();
     assert!(
@@ -271,6 +272,7 @@ fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
         interrupted: None,
+        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
     };
     let report = eq.render();
     assert!(
@@ -311,6 +313,7 @@ fn an_interrupted_report_names_what_was_sealed() {
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
         interrupted: None,
+        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
     };
     assert!(!eq.render().contains("interrupted"));
     eq.interrupted = Some(sealed("PKENC"));
@@ -323,7 +326,6 @@ fn an_interrupted_report_names_what_was_sealed() {
         theorem: "T".into(),
         equivalences: vec![eq],
         elapsed: Duration::from_secs(4),
-        transcript: PathBuf::from("t.jsonl"),
     };
     assert_eq!(theorem.interrupted(), Some(&sealed("PKENC")));
 }
@@ -478,7 +480,7 @@ mod live {
         write_files(out.path(), &exported.files).unwrap();
         let proof_file = &exported.equivalences[0].proof_file;
         let captures = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-        let observer = Capturing {
+        let mut observer: Option<Box<dyn ExportObserver>> = Some(Box::new(Capturing {
             ec: out.path().join(proof_file),
             report: out
                 .path()
@@ -488,7 +490,7 @@ mod live {
                 let stop = options.stop.clone().expect("a run to stop has a stop flag");
                 (at.to_string(), stop)
             }),
-        };
+        }));
         let result = run_tactics_observed(
             theorem,
             &project,
@@ -496,12 +498,22 @@ mod live {
             out.path(),
             &Cvc5LibBackend::new(true, None),
             options,
-            Box::new(observer),
-            &[],
+            &mut || {
+                observer
+                    .take()
+                    .unwrap_or_else(|| Box::new(NopExportObserver))
+            },
         )
         .unwrap();
         let captures = captures.borrow().clone();
         Some((result, out, captures))
+    }
+
+    /// The live page of the first equivalence: beside its transcript (story 36).
+    fn page_path(result: &TheoremTactics) -> PathBuf {
+        result.equivalences[0]
+            .transcript
+            .with_file_name("index.html")
     }
 
     fn proof_file(result: &TheoremTactics, out: &Path) -> String {
@@ -535,7 +547,7 @@ mod live {
         assert_eq!(report, result.equivalences[0].render());
         assert!(report.contains("no admit"));
         // the transcript holds every sentence with EasyCrypt's answer
-        let transcript = std::fs::read_to_string(&result.transcript).unwrap();
+        let transcript = std::fs::read_to_string(&result.equivalences[0].transcript).unwrap();
         assert!(transcript.lines().count() >= oracle.stats.closed);
         assert!(transcript.contains("\"sentence\":\"proc; inline.\""));
         // every sentence of the walk says which oracle and node it belongs to
@@ -674,10 +686,8 @@ mod live {
         let (b, out_b) = run("example-projects/hello-world", "Proof", &options).unwrap();
         assert_eq!(proof_file(&a, out_a.path()), proof_file(&b, out_b.path()));
         // and the same final page, but for its timings (story 28)
-        let page = |out: &tempfile::TempDir| {
-            std::fs::read_to_string(out.path().join("progress/index.html")).unwrap()
-        };
-        let (page_a, page_b) = (page(&out_a), page(&out_b));
+        let page = |t: &TheoremTactics| std::fs::read_to_string(page_path(t)).unwrap();
+        let (page_a, page_b) = (page(&a), page(&b));
         assert!(page_a.contains("id=\"timings\""));
         assert_eq!(strip_timings(&page_a), strip_timings(&page_b));
     }
@@ -690,29 +700,43 @@ mod live {
             ec_transcript,
             ..TacticsOptions::default()
         };
-        let Some((capped, out_capped)) = run(
+        let Some((capped, _out_capped)) = run(
             "example-projects/hello-world",
             "Proof",
             &with(EcTranscriptMode::Capped),
         ) else {
             return;
         };
-        let (full, out_full) =
-            run("example-projects/hello-world", "Proof", &with(EcTranscriptMode::Full)).unwrap();
-        let page = |out: &tempfile::TempDir| {
-            strip_timings(&std::fs::read_to_string(out.path().join("progress/index.html")).unwrap())
+        let (full, _out_full) = run(
+            "example-projects/hello-world",
+            "Proof",
+            &with(EcTranscriptMode::Full),
+        )
+        .unwrap();
+        let page =
+            |t: &TheoremTactics| strip_timings(&std::fs::read_to_string(page_path(t)).unwrap());
+        assert_eq!(page(&capped), page(&full));
+        let size = |t: &TheoremTactics| {
+            std::fs::metadata(&t.equivalences[0].transcript)
+                .unwrap()
+                .len()
         };
-        assert_eq!(page(&out_capped), page(&out_full));
-        let size = |t: &TheoremTactics| std::fs::metadata(&t.transcript).unwrap().len();
-        assert!(size(&capped) < size(&full), "{} vs {}", size(&capped), size(&full));
-        let text = std::fs::read_to_string(&capped.transcript).unwrap();
+        assert!(
+            size(&capped) < size(&full),
+            "{} vs {}",
+            size(&capped),
+            size(&full)
+        );
+        let text = std::fs::read_to_string(&capped.equivalences[0].transcript).unwrap();
         assert!(text.contains("\"goals_dropped\":"));
-        assert!(!std::fs::read_to_string(&full.transcript).unwrap().contains("\"goals_dropped\":"));
+        assert!(!std::fs::read_to_string(&full.equivalences[0].transcript)
+            .unwrap()
+            .contains("\"goals_dropped\":"));
     }
 
     #[test]
     fn the_live_page_shows_the_oracle_its_goals_and_ends_without_a_refresh_tag() {
-        let Some((result, out)) = run(
+        let Some((result, _out)) = run(
             "example-projects/hello-world",
             "Proof",
             &TacticsOptions {
@@ -722,8 +746,11 @@ mod live {
         ) else {
             return;
         };
-        let page = std::fs::read_to_string(out.path().join("progress/index.html")).unwrap();
-        assert!(!page.contains("http-equiv"), "the final page does not refresh");
+        let page = std::fs::read_to_string(page_path(&result)).unwrap();
+        assert!(
+            !page.contains("http-equiv"),
+            "the final page does not refresh"
+        );
         assert!(page.contains("tactics (done)"));
         assert!(page.contains("UsefulOracle") && page.contains("router prelude"));
         // the goals of the walk, with their sentences, and the lockstep page they belong to
@@ -922,18 +949,27 @@ mod live {
         let (by_node, out_node) = run(TWO_ORACLES, "Proof", &walk(WriteGranularity::Node)).unwrap();
         // the same sentences, in the same order: no `admit.` and no `undo` of a seal
         assert_eq!(
-            sentences(&by_oracle.transcript),
-            sentences(&by_node.transcript)
+            sentences(&by_oracle.equivalences[0].transcript),
+            sentences(&by_node.equivalences[0].transcript)
         );
         let final_file = proof_file(&by_node, out_node.path());
         assert_eq!(proof_file(&by_oracle, out_oracle.path()), final_file);
         assert!(!final_file.contains("interrupted"), "{final_file}");
-        // nothing a run writes is left behind but in `progress/`
-        let names: Vec<String> = std::fs::read_dir(out_node.path().join("progress"))
-            .unwrap()
-            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-            .collect();
-        assert!(!names.iter().any(|n| n.ends_with(".tmp")), "{names:?}");
+        // nothing a run writes is left behind but in its `progress/Eq_<L>_<R>/`, and the lock
+        // is gone (story 36)
+        let names: Vec<String> =
+            std::fs::read_dir(by_node.equivalences[0].transcript.parent().unwrap())
+                .unwrap()
+                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+                .collect();
+        assert!(
+            !names.iter().any(|n| n.ends_with(".tmp") || n == "lock"),
+            "{names:?}"
+        );
+        assert!(
+            names.contains(&"index.html".to_string())
+                && names.contains(&"ec-transcript.jsonl".to_string())
+        );
     }
 
     // ------------------------------------------------------------------
@@ -996,7 +1032,7 @@ mod live {
         );
         assert_eq!(report_admits(&report), (labelled.len(), interrupted));
         // the page says interrupted, not failed
-        let page = std::fs::read_to_string(out.path().join("progress/index.html")).unwrap();
+        let page = std::fs::read_to_string(page_path(&result)).unwrap();
         assert!(page.contains("tactics (interrupted)"));
         assert!(!page.contains("http-equiv"));
         // and the partial proof compiles
@@ -1041,7 +1077,7 @@ mod live {
             "{report}"
         );
         // nothing was sent for the stopped oracle: one `proc; inline.` after the `call`
-        let sent = sentences(&result.transcript);
+        let sent = sentences(&result.equivalences[0].transcript);
         let call = sent.iter().position(|s| s.starts_with("call (")).unwrap();
         assert_eq!(
             sent[call..].iter().filter(|s| *s == "proc; inline.").count(),

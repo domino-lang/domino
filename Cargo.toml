@@ -38,6 +38,7 @@ indicatif-log-bridge = "0.2"
 # Nice to have for further writer experiments:
 # indoc = "2.0"
 itertools = "0.10"
+libc = "0.2"
 log = "0.4.22 "
 miette = { version = "7.6.0", features = ["fancy"] }
 pest = { version = "2.7", features = ["miette-error"] }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Story 34: Ctrl-C stops a tactics run and leaves a partial proof. These run the binary and
+//! Story 34: Ctrl-C stops a tactics run and leaves a partial proof. (Story 36: and the lock of
+//! the equivalence, `progress/Eq_<L>_<R>/lock`, is gone afterwards, or refuses a second job.) These run the binary and
 //! send it `SIGINT`, with a stand-in EasyCrypt, so no real one is needed. They need the
 //! `cvc5-lib` build (lockstep execution runs for real).
 #![cfg(all(feature = "cvc5-lib", unix))]
@@ -189,7 +190,7 @@ fn ctrl_c_interrupts_the_running_sentence_seals_the_oracle_and_exits_130() {
     assert!(record.contains("\"complete\": false"), "{record}");
     assert!(record.contains("\"status\": \"interrupted\""), "{record}");
     // the page: an interrupted run, and the sentence the Ctrl-C interrupted
-    let page = std::fs::read_to_string(theorem.join("progress/index.html")).unwrap();
+    let page = std::fs::read_to_string(job_dir(&theorem).join("index.html")).unwrap();
     assert!(page.contains("tactics (interrupted)"), "{page}");
     assert!(!page.contains("tactics (failed)"));
     assert!(
@@ -197,6 +198,9 @@ fn ctrl_c_interrupts_the_running_sentence_seals_the_oracle_and_exits_130() {
         "{page}"
     );
     assert!(!page.contains("timed out"));
+    // story 36: the transcript is in the equivalence's folder, and the lock is gone
+    assert!(job_dir(&theorem).join("ec-transcript.jsonl").is_file());
+    assert!(!job_dir(&theorem).join("lock").exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -213,5 +217,117 @@ fn a_second_ctrl_c_exits_130_without_waiting_for_easycrypt() {
     let (status, took) = wait_at_most(&mut child, Duration::from_secs(10));
     assert_eq!(status.code(), Some(130));
     assert!(took < Duration::from_secs(2), "{took:?}");
+    // the second Ctrl-C exits from the signal handler, which removes the lock too
+    assert!(!job_dir(&dir.join("out/Proof")).join("lock").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `progress/Eq_<L>_<R>/` of hello-world's only equivalence.
+fn job_dir(theorem: &Path) -> PathBuf {
+    theorem.join("progress/Eq_medium_composition_small_composition")
+}
+
+/// A process that stays alive for a while, to be the holder of a lock.
+fn holder() -> Child {
+    Command::new("sleep").arg("60").spawn().unwrap()
+}
+
+/// miette wraps long messages: one line, single spaces, no margin bars.
+fn flat(text: &str) -> String {
+    text.replace('\u{2502}', " ").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn write_lock(dir: &Path, pid: u32) {
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(dir.join("lock"), format!("{{\"pid\":{pid},\"started\":1700000000}}\n")).unwrap();
+}
+
+#[test]
+fn a_second_job_on_the_same_equivalence_is_refused_until_the_first_is_killed() {
+    let dir = scratch("lock");
+    let easycrypt = stand_in(&dir, false);
+    let out = dir.join("out");
+    translate("hello-world", &out);
+    let job = job_dir(&out.join("Proof"));
+    let mut first = holder();
+    write_lock(&job, first.id());
+    let prove = |easycrypt: &Path| {
+        Command::new(env!("CARGO_BIN_EXE_domino"))
+            .args(["easycrypt", "prove", "--theorem", "Proof", "--progress", "none", "--project"])
+            .arg(workspace().join("example-projects/hello-world"))
+            .arg("--out")
+            .arg(&out)
+            .env("DOMINO_EASYCRYPT", easycrypt)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap()
+    };
+    let mut second = prove(&easycrypt);
+    let (status, _) = wait_at_most(&mut second, Duration::from_secs(60));
+    let stderr = flat(&read_pipe(second.stderr.take()));
+    assert!(!status.success(), "{stderr}");
+    assert!(
+        stderr.contains(&format!("Eq_medium_composition_small_composition is being proved by pid {}", first.id()))
+            && stderr.contains("wait for it or stop it"),
+        "{stderr}"
+    );
+    // the holder's lock is left alone, and nothing of the refused job was written
+    assert!(job.join("lock").exists());
+    assert!(!job.join("ec-transcript.jsonl").exists());
+
+    // translation is refused too, even with --force, while the lock is live
+    let translation = Command::new(env!("CARGO_BIN_EXE_domino"))
+        .args(["easycrypt", "--force", "--progress", "none", "--project"])
+        .arg(workspace().join("example-projects/hello-world"))
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    let text = flat(&String::from_utf8_lossy(&translation.stderr));
+    assert!(!translation.status.success(), "{text}");
+    assert!(text.contains("Eq_medium_composition_small_composition is being proved by pid"), "{text}");
+
+    // kill -9 the holder: its lock is stale, and a new job takes it over
+    first.kill().unwrap();
+    first.wait().unwrap();
+    let mut third = prove(&easycrypt);
+    wait_for(&dir.join("admitting"), &mut third);
+    let lock = std::fs::read_to_string(job.join("lock")).unwrap();
+    assert!(lock.contains(&format!("\"pid\":{}", third.id())), "{lock}");
+    sigint(&third);
+    let (status, _) = wait_at_most(&mut third, Duration::from_secs(10));
+    assert_eq!(status.code(), Some(130));
+    assert!(!job.join("lock").exists());
+
+    // and with the stale lock gone, translation is allowed again
+    let translation = Command::new(env!("CARGO_BIN_EXE_domino"))
+        .args(["easycrypt", "--force", "--progress", "none", "--project"])
+        .arg(workspace().join("example-projects/hello-world"))
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert!(translation.status.success(), "{}", String::from_utf8_lossy(&translation.stderr));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_failed_job_releases_its_lock() {
+    let dir = scratch("error");
+    let easycrypt = stand_in(&dir, false);
+    let out = dir.join("out");
+    translate("hello-world", &out);
+    // an oracle that does not exist is an error after the lock is taken
+    let output = Command::new(env!("CARGO_BIN_EXE_domino"))
+        .args(["easycrypt", "prove", "--theorem", "Proof", "--oracle", "NoSuchOracle", "--progress", "none", "--project"])
+        .arg(workspace().join("example-projects/hello-world"))
+        .arg("--out")
+        .arg(&out)
+        .env("DOMINO_EASYCRYPT", &easycrypt)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(!job_dir(&out.join("Proof")).join("lock").exists());
     let _ = std::fs::remove_dir_all(&dir);
 }

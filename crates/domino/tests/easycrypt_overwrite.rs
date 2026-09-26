@@ -120,8 +120,9 @@ fn run_artifacts_do_not_block_and_a_missing_or_empty_directory_passes() {
     // only what a tactics run leaves about itself
     let theorem = base.join("artifacts/Proof");
     for rel in [
-        "progress/index.html",
-        "progress/ec-transcript.jsonl",
+        "progress/Eq_a_b/index.html",
+        "progress/Eq_a_b/ec-transcript.jsonl",
+        "progress/Eq_a_b/lock",
         "!debug!/Eq_a_b/Oracle/joint.html",
         "Eq_medium_composition_small_composition.report.txt",
         "alignment.txt",

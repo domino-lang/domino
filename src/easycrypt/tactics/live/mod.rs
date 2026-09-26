@@ -10,13 +10,13 @@
 //!   `admit` it wrote.
 //!
 //! From them it keeps a small model (equivalences, oracles, the goal tree, the steps of each
-//! goal) and rewrites `progress/index.html` after every answer, at most twice a second, always
+//! goal) and rewrites `progress/Eq_<L>_<R>/index.html` after every answer, at most twice a second, always
 //! once more at the end ([`LiveHandle::finish`], [`LiveHandle::fail`]). The page is a
 //! self-contained file with a `<meta http-equiv="refresh">` while the run goes on.
 //!
 //! **What is embedded.** A step keeps its sentence, status, EasyCrypt's error text and messages
 //! (all small). The `pp` of the goals a step left is not kept: the transcript
-//! (`ec-transcript.jsonl`, one record per sentence) already holds it, and the model remembers
+//! (`ec-transcript.jsonl` beside the page, one record per sentence) already holds it, and the model remembers
 //! where each record is (byte offset and length). When the page is written, the goal text of the
 //! *shown* steps only is read back from there, once per step: the step EasyCrypt is working on
 //! (the goals it was applied to), the steps of the goal being worked on, and the last step of
@@ -194,7 +194,7 @@ pub(super) struct Live {
     pub page: Option<PathBuf>,
     pub page_dir: PathBuf,
     pub transcript: PathBuf,
-    pub phases: Vec<(&'static str, usize)>,
+    pub translation: String,
     pub started: Instant,
     pub state: RunState,
     pub steps: Vec<Step>,
@@ -223,11 +223,11 @@ pub(super) struct Live {
 /// What `run_tactics` builds a [`LiveHandle`] from.
 pub struct LiveConfig {
     pub theorem: String,
-    /// `progress/index.html`; `None` keeps the model but writes nothing (tests).
+    /// `progress/Eq_<L>_<R>/index.html`; `None` keeps the model but writes nothing (tests).
     pub page: Option<PathBuf>,
     pub transcript: PathBuf,
-    /// The export phases that ran before the tactics: name and item count.
-    pub phases: Vec<(&'static str, usize)>,
+    /// One line: which translation files were trusted and which the job created (story 36).
+    pub translation: String,
     pub progress: Box<dyn ExportObserver>,
 }
 
@@ -248,7 +248,7 @@ impl LiveHandle {
             page: config.page,
             page_dir,
             transcript: config.transcript,
-            phases: config.phases,
+            translation: config.translation,
             started: Instant::now(),
             state: RunState::Running,
             steps: Vec::new(),

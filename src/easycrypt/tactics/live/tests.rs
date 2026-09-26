@@ -32,7 +32,7 @@ impl Rig {
             theorem: "T".into(),
             page: Some(dir.path().join("index.html")),
             transcript: transcript_path,
-            phases: vec![("types", 2), ("write", 5)],
+            translation: "translation files: all 5 present, trusted as they are".to_string(),
             progress: Box::new(NopExportObserver),
         });
         live.0.borrow_mut().flush_gap = Duration::ZERO;
@@ -161,8 +161,8 @@ fn the_final_write_drops_the_refresh_tag_and_the_pending_command() {
     assert!(!page.contains("http-equiv"));
     assert!(!page.contains("waiting for EasyCrypt"));
     assert!(page.contains("tactics (done)"));
-    // the export phases that ran before are listed
-    assert!(page.contains("types (2)") && page.contains("write (5)"));
+    // the one line about the translation files replaces the export phases (story 36)
+    assert!(page.contains("translation files: all 5 present, trusted as they are"));
 }
 
 #[test]

@@ -1433,6 +1433,7 @@ dependencies = [
  "indicatif",
  "indicatif-log-bridge",
  "itertools",
+ "libc",
  "log",
  "miette",
  "mockall",

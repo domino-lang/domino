@@ -21,7 +21,7 @@
 //! - [`script`]: the accepted sentences, bullets and indentation.
 //! - [`goals`]: reading goals from the JSON.
 //! - [`driver`]: the prover.
-//! - [`live`], `live::page`: the live translation page, `progress/index.html` (story 28).
+//! - [`live`], `live::page`: the live translation page, `progress/Eq_<L>_<R>/index.html` (story 28, 36).
 //!
 //! Plain `domino easycrypt` never gets here.
 
@@ -55,8 +55,8 @@ use super::check::{
     EquivalenceSetup,
 };
 use super::job::{
-    create_if_absent, ensure_translation_files, session_record_name, OracleRecord, OracleStatus,
-    SessionRecord, SessionRecordError,
+    create_if_absent, ensure_translation_files, is_proof_file, progress_dir, session_record_name,
+    LockError, OracleRecord, OracleStatus, ProofLock, SessionRecord, SessionRecordError,
 };
 use super::json::Goal;
 use super::session::{split_sentences, Session, SessionError};
@@ -79,6 +79,8 @@ pub enum TacticsError {
     Transform(#[from] crate::transforms::theorem_transforms::EquivalenceTransformError),
     #[error(transparent)]
     Record(#[from] SessionRecordError),
+    #[error(transparent)]
+    Lock(#[from] LockError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("invalid `ssp.toml`: {0}")]
@@ -289,6 +291,8 @@ pub struct EquivalenceTactics {
     pub report_file: String,
     /// The run was stopped by Ctrl-C while on this equivalence (story 34).
     pub interrupted: Option<Interrupted>,
+    /// This job's transcript, `progress/Eq_<L>_<R>/ec-transcript.jsonl` (story 36).
+    pub transcript: PathBuf,
 }
 
 #[derive(Debug, Clone)]
@@ -296,7 +300,6 @@ pub struct TheoremTactics {
     pub theorem: String,
     pub equivalences: Vec<EquivalenceTactics>,
     pub elapsed: Duration,
-    pub transcript: PathBuf,
 }
 
 impl TheoremTactics {
@@ -319,8 +322,8 @@ impl TheoremTactics {
 }
 
 /// The whole of `prove` for one exported theorem, already written to `out_dir`: rewrites
-/// the selected `Eq_*.ec` files, writes their reports, the transcript and the live page
-/// (`progress/index.html`), and returns what it did.
+/// the selected `Eq_*.ec` files, writes their reports, and per equivalence its transcript and
+/// live page (`progress/Eq_<L>_<R>/`), and returns what it did.
 pub fn run_tactics<P, B>(
     theorem: &Theorem<'_>,
     project: &P,
@@ -340,14 +343,17 @@ where
         out_dir,
         backend,
         options,
-        Box::new(NopExportObserver),
-        &[],
+        &mut || Box::new(NopExportObserver),
     )
 }
 
-/// [`run_tactics`], reporting the `tactics` phase to `progress` (per oracle and per goal) and
-/// listing `phases`, the export phases that ran before (name, item count), on the page.
-#[allow(clippy::too_many_arguments)]
+/// [`run_tactics`], reporting the `tactics` phase to an observer per equivalence (per oracle
+/// and per goal): `progress` is called once for each equivalence that is proved.
+///
+/// Each selected equivalence is one **proof job** (story 36): it takes the lock of
+/// `progress/Eq_<L>_<R>/` first, refusing if another live process holds it, and keeps its page
+/// and transcript there, so jobs on different equivalences share nothing they write. The lock
+/// is released when the equivalence ends, however it ends.
 pub fn run_tactics_observed<P, B>(
     theorem: &Theorem<'_>,
     project: &P,
@@ -355,8 +361,7 @@ pub fn run_tactics_observed<P, B>(
     out_dir: &Path,
     backend: &B,
     options: &TacticsOptions,
-    progress: Box<dyn ExportObserver>,
-    phases: &[(&'static str, usize)],
+    progress: &mut dyn FnMut() -> Box<dyn ExportObserver>,
 ) -> Result<TheoremTactics, TacticsError>
 where
     P: Project,
@@ -364,79 +369,63 @@ where
 {
     std::fs::create_dir_all(out_dir)?;
     let out_dir = std::fs::canonicalize(out_dir).unwrap_or_else(|_| out_dir.to_path_buf());
-    // story 35: equivalences that already have a session record are skipped, before anything
-    // else is created or truncated (the transcript and the page of an earlier run stay)
-    let jobs = plan_jobs(exported, &out_dir, options)?;
-    if jobs.is_empty() {
-        return Ok(TheoremTactics {
-            theorem: theorem.name.clone(),
-            equivalences: Vec::new(),
-            elapsed: Duration::ZERO,
-            transcript: out_dir.join("progress").join("ec-transcript.jsonl"),
-        });
-    }
-    let progress_dir = out_dir.join("progress");
-    std::fs::create_dir_all(&progress_dir)?;
-    let live = LiveHandle::new(LiveConfig {
-        theorem: theorem.name.clone(),
-        page: Some(progress_dir.join("index.html")),
-        transcript: progress_dir.join("ec-transcript.jsonl"),
-        phases: phases.to_vec(),
-        progress,
-    });
-    let result = run_tactics_inner(
-        theorem, project, exported, &jobs, &out_dir, backend, options, &live,
-    );
-    // the last write always happens: the page on disk matches the end state
-    match &result {
-        Ok(tactics) => match tactics.interrupted() {
-            Some(at) => live.interrupted(&at.to_string()),
-            None => live.finish(),
-        },
-        Err(e) => live.fail(&e.to_string()),
-    }
-    result
-}
-
-fn run_tactics_inner<P, B>(
-    theorem: &Theorem<'_>,
-    project: &P,
-    exported: &ExportedTheorem,
-    jobs: &[&EquivalenceReport],
-    out_dir: &Path,
-    backend: &B,
-    options: &TacticsOptions,
-    live: &LiveHandle,
-) -> Result<TheoremTactics, TacticsError>
-where
-    P: Project,
-    B: SmtSolverBackend,
-{
     let started = Instant::now();
     let (theorem_ec, _aux) = EasyCryptTransform.transform_theorem(theorem)?;
-    let progress_dir = out_dir.join("progress");
-    let transcript_path = progress_dir.join("ec-transcript.jsonl");
-    // one file for every equivalence; `None` once a capped write failed (story 31 §3.3)
-    let mut transcript = Some(File::create(&transcript_path)?);
-
-    // what translation owns: created if missing, never read or rewritten (ADR 0006)
-    ensure_translation_files(exported, out_dir)?;
 
     let mut equivalences = Vec::new();
-    for eq in jobs.iter().copied() {
-        let tactics = tactics_for_equivalence(
+    for eq in &exported.equivalences {
+        if options.proofstep.is_some_and(|p| p != eq.proofstep) {
+            continue;
+        }
+        let stem = eq.proof_file.trim_end_matches(".ec").to_string();
+        let dir = progress_dir(&out_dir, &stem);
+        std::fs::create_dir_all(&dir)?;
+        // before anything else (story 36 §3.2): one job per equivalence, and only for as long
+        // as this equivalence takes, so a job on a later one is not blocked for the whole run
+        let lock = ProofLock::acquire(&dir, &stem)?;
+        // story 35: an equivalence that already has a session record is skipped, before
+        // anything is created or truncated (its transcript and page stay)
+        if !plan_job(eq, &out_dir, options)? {
+            drop(lock);
+            let _ = std::fs::remove_dir(&dir); // only if the skip left it empty
+            continue;
+        }
+        // what translation owns: created if missing, never read or rewritten (ADR 0006)
+        let created = ensure_translation_files(exported, &out_dir)?;
+        let transcript_path = dir.join("ec-transcript.jsonl");
+        // `None` once a capped write failed (story 31 §3.3)
+        let mut transcript = Some(File::create(&transcript_path)?);
+        let live = LiveHandle::new(LiveConfig {
+            theorem: theorem.name.clone(),
+            page: Some(dir.join("index.html")),
+            transcript: transcript_path.clone(),
+            translation: translation_line(exported, &created),
+            progress: progress(),
+        });
+        let result = tactics_for_equivalence(
             theorem,
             &theorem_ec,
             project,
             exported,
             eq,
-            out_dir,
+            &out_dir,
+            &dir,
             backend,
             options,
             &mut transcript,
             &transcript_path,
-            live,
-        )?;
+            &live,
+        );
+        // the last write always happens: the page on disk matches the end state
+        match &result {
+            Ok(tactics) => match &tactics.interrupted {
+                Some(at) => live.interrupted(&at.to_string()),
+                None => live.finish(),
+            },
+            Err(e) => live.fail(&e.to_string()),
+        }
+        drop(lock);
+        let tactics = result?;
         let interrupted = tactics.interrupted.is_some();
         equivalences.push(tactics);
         if interrupted {
@@ -447,37 +436,45 @@ where
         theorem: theorem.name.clone(),
         equivalences,
         elapsed: started.elapsed(),
-        transcript: transcript_path,
     })
 }
 
-/// The equivalences this proof job proves, in order: the selected proofsteps minus those with a
-/// session record (their skip line goes to stderr). With `--force` (story 35 §3.2) the record is
-/// discarded and the proof file restarts from the skeleton, atomically.
-fn plan_jobs<'e>(
-    exported: &'e ExportedTheorem,
+/// The one line the page shows in place of the export's phases: which translation files were
+/// trusted and which this job created.
+fn translation_line(exported: &ExportedTheorem, created: &[PathBuf]) -> String {
+    let total = exported.files.keys().filter(|p| !is_proof_file(p)).count();
+    if created.is_empty() {
+        format!("translation files: all {total} present, trusted as they are")
+    } else {
+        let names: Vec<String> = created.iter().map(|p| p.display().to_string()).collect();
+        format!(
+            "translation files: {} of {total} present, trusted as they are; created: {}",
+            total - created.len(),
+            names.join(", ")
+        )
+    }
+}
+
+/// Whether this proof job has anything to do for `eq`: no when it has a session record (the
+/// skip line goes to stderr). With `--force` (story 35 §3.2) the record is discarded and the
+/// proof file restarts from the skeleton, atomically.
+fn plan_job(
+    eq: &EquivalenceReport,
     out_dir: &Path,
     options: &TacticsOptions,
-) -> Result<Vec<&'e EquivalenceReport>, TacticsError> {
-    let mut jobs = Vec::new();
-    for eq in &exported.equivalences {
-        if options.proofstep.is_some_and(|p| p != eq.proofstep) {
-            continue;
+) -> Result<bool, TacticsError> {
+    let record_path = out_dir.join(session_record_name(&eq.proof_file));
+    if options.force {
+        match std::fs::remove_file(&record_path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
         }
-        let record_path = out_dir.join(session_record_name(&eq.proof_file));
-        if options.force {
-            match std::fs::remove_file(&record_path) {
-                Ok(()) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-                Err(e) => return Err(e.into()),
-            }
-        } else if let Some(record) = SessionRecord::read(&record_path)? {
-            eprintln!("{}", record.skip_line(&eq.proof_file));
-            continue;
-        }
-        jobs.push(eq);
+    } else if let Some(record) = SessionRecord::read(&record_path)? {
+        eprintln!("{}", record.skip_line(&eq.proof_file));
+        return Ok(false);
     }
-    Ok(jobs)
+    Ok(true)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -488,6 +485,7 @@ fn tactics_for_equivalence<P, B>(
     exported: &ExportedTheorem,
     eq: &EquivalenceReport,
     out_dir: &Path,
+    progress_dir: &Path,
     backend: &B,
     options: &TacticsOptions,
     transcript: &mut Option<File>,
@@ -520,7 +518,7 @@ where
     // with `--force`; otherwise the run rewrites it at its first checkpoint
     let proof_path = out_dir.join(&file);
     if options.force {
-        write_atomically(&proof_path, &out_dir.join("progress"), source)?;
+        write_atomically(&proof_path, progress_dir, source)?;
     } else if create_if_absent(&proof_path, source)? {
         eprintln!("created {file} (missing from the translation)");
     }
@@ -540,8 +538,10 @@ where
         source,
         procs: &setup.oracles,
         out_dir,
+        progress_dir,
         started,
         tactics: EquivalenceTactics {
+            transcript: transcript_path.to_path_buf(),
             proofstep: eq.proofstep,
             proof_file: file.clone(),
             left: eq.left_name.clone(),
@@ -675,9 +675,10 @@ struct ProofFile<'a> {
     source: &'a str,
     /// `(exported name, EasyCrypt's procedure name)` of every oracle, in the file's order.
     procs: &'a [(String, String)],
-    /// The theorem's output directory: the file, the report, and `progress/` for the
-    /// temporary files.
+    /// The theorem's output directory: the file, the report and the record.
     out_dir: &'a Path,
+    /// This equivalence's `progress/Eq_<L>_<R>/`, for the temporary files (story 36).
+    progress_dir: &'a Path,
     /// When the equivalence started: the report's elapsed time.
     started: Instant,
     /// The equivalence so far: its finished oracles, in the order they finished.
@@ -695,15 +696,11 @@ impl ProofFile<'_> {
             .sort_by_key(|o| self.procs.iter().position(|(n, _)| *n == o.oracle));
         now.elapsed = self.started.elapsed();
         // the report first: a reader who sees the file finds a report at least as new
-        let tmp_dir = self.out_dir.join("progress");
-        write_atomically(
-            &self.out_dir.join(&now.report_file),
-            &tmp_dir,
-            &now.render(),
-        )?;
+        let tmp_dir = self.progress_dir;
+        write_atomically(&self.out_dir.join(&now.report_file), tmp_dir, &now.render())?;
         write_atomically(
             &self.out_dir.join(&now.proof_file),
-            &tmp_dir,
+            tmp_dir,
             &self.text(&now.oracles),
         )?;
         // the record last (story 35 §3.4): a crash between the two leaves a record that claims
@@ -712,7 +709,7 @@ impl ProofFile<'_> {
         if record.oracles.iter().any(|o| o.status != OracleStatus::Pending) {
             write_atomically(
                 &self.out_dir.join(session_record_name(&now.proof_file)),
-                &tmp_dir,
+                tmp_dir,
                 &record.to_json(),
             )?;
         }
@@ -758,7 +755,8 @@ impl ProofFile<'_> {
 /// Writes `text` to `path` through a temporary file in `tmp_dir` (on the same file system) and
 /// a rename, so a reader, or a run killed part way, never leaves a half-written file. The
 /// temporary file is synced before the rename, so a crash does not leave an empty file either.
-/// It is in `progress/`, a run artifact (story 32), so a leftover one blocks nothing.
+/// It is in the job's own `progress/Eq_<L>_<R>/`, a run artifact (story 32), so a leftover one
+/// blocks nothing and no other job's temporary file can have the same path.
 fn write_atomically(path: &Path, tmp_dir: &Path, text: &str) -> std::io::Result<()> {
     use std::io::Write as _;
     let name = path.file_name().expect("a file path").to_string_lossy();
@@ -1040,12 +1038,10 @@ impl TheoremTactics {
         for eq in &self.equivalences {
             out.push_str(&eq.render());
         }
-        let _ = writeln!(
-            out,
-            "transcript: {} ({})",
-            self.transcript.display(),
-            secs(self.elapsed)
-        );
+        for eq in &self.equivalences {
+            let _ = writeln!(out, "transcript: {}", eq.transcript.display());
+        }
+        let _ = writeln!(out, "elapsed: {}", secs(self.elapsed));
         out
     }
 }

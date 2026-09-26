@@ -56,3 +56,9 @@ out of a `.ec`.
   record produces a file that claims proofs EasyCrypt never saw; the record is not meant to be
   edited.
 - `--tactics` is removed, not deprecated.
+- **The lock is `progress/Eq_<L>_<R>/lock`** (story 36), holding a pid and a start time, taken per
+  equivalence and released when it ends. A live pid refuses the second job; a dead one is taken
+  over. Translation refuses while any lock names a live pid, even with `--force`. The page and
+  the transcript live in the same folder, so parallel jobs share no file they write. A reused pid
+  can make a stale lock look live, and two jobs that find the same stale lock at the same instant
+  can both take it; neither is guarded against.

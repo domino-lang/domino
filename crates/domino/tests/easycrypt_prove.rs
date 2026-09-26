@@ -243,3 +243,54 @@ fn check_alignment_and_debug_are_subcommands_with_the_old_outputs() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Story 36: two `prove` processes on two equivalences of one theorem, started together, both
+/// finish; each file holds its own proof and each `progress/Eq_<L>_<R>/` its own page and
+/// transcript, and no lock is left.
+#[test]
+fn two_proof_jobs_on_different_equivalences_run_at_once() {
+    let Some(easycrypt) = easycrypt_binary() else {
+        return;
+    };
+    let project = "kem-dem/kem-dem-cpa-blended-parallel-single-challenge";
+    let theorem = "kem_dem_cpa_blended_parallel_single_challenge";
+    let out = scratch("parallel");
+    let translated = domino(project, &out, &easycrypt, &[]);
+    assert!(translated.status.success(), "{}", stderr(&translated));
+    // proofsteps 0 and 2 are `Eq_CPA_PKE_H0` and `Eq_H1_H2` (1 is a reduction)
+    let (a, b) = std::thread::scope(|s| {
+        let prove = |step: &'static str| {
+            let (out, easycrypt) = (&out, &easycrypt);
+            s.spawn(move || {
+                domino(
+                    project,
+                    out,
+                    easycrypt,
+                    &["prove", "--theorem", theorem, "--proofstep", step],
+                )
+            })
+        };
+        let (a, b) = (prove("0"), prove("2"));
+        (a.join().unwrap(), b.join().unwrap())
+    });
+    assert!(a.status.success(), "{}", stderr(&a));
+    assert!(b.status.success(), "{}", stderr(&b));
+    let dir = out.join(theorem);
+    for stem in ["Eq_CPA_PKE_H0", "Eq_H1_H2"] {
+        let proof = std::fs::read_to_string(dir.join(format!("{stem}.ec"))).unwrap();
+        assert!(proof.contains("call ("), "{stem}: {proof}");
+        assert!(dir.join(format!("{stem}.session.json")).is_file());
+        let job = dir.join("progress").join(stem);
+        assert!(job.join("index.html").is_file());
+        assert!(!job.join("lock").exists(), "{stem}: lock left behind");
+        let transcript = std::fs::read_to_string(job.join("ec-transcript.jsonl")).unwrap();
+        assert!(!transcript.is_empty());
+        for line in transcript.lines() {
+            assert!(
+                line.starts_with(&format!("{{\"file\":\"{stem}.ec\"")),
+                "{stem}: {line:.200}"
+            );
+        }
+    }
+    let _ = std::fs::remove_dir_all(&out);
+}
