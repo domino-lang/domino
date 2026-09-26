@@ -322,6 +322,7 @@ dependencies = [
  "shadow-rs",
  "sspverif",
  "thiserror",
+ "wildcard",
 ]
 
 [[package]]
@@ -1351,7 +1352,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "walkdir",
- "wildcard",
  "zip",
 ]
 
