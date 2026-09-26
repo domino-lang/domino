@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Subcommand;
-use sspverif::util::smtsolver::process::SolverVariant;
+use sspverif::{project::configuration::*, util::smtsolver::process::SolverVariant};
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
@@ -72,4 +72,14 @@ pub(crate) struct Proofsteps {
     /// directory and its ancestors for an `ssp.toml`.
     #[clap(long)]
     pub(crate) path: Option<std::path::PathBuf>,
+}
+
+impl ProveConfiguration for Prove {
+    fn transcript(&self) -> bool {
+        self.transcript
+    }
+
+    fn parallel(&self) -> usize {
+        self.parallel
+    }
 }

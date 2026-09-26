@@ -85,8 +85,7 @@ fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
     project.prove(
         ui,
         &smtsolver,
-        p.transcript,
-        p.parallel,
+        p,
         &p.proof,
         p.proofstep,
         &p.oracle,

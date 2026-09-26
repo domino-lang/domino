@@ -11,21 +11,25 @@ use crate::{
         ResolvedClaim,
     },
     package::Export,
-    project::Project,
+    project::{configuration::ProveConfiguration, Project},
     theorem::RandomnessMappingInjectivityCheck,
     ui::{ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI},
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
 
-pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
+pub(crate) struct EquivalenceSmtDriver<
+    'a,
+    Backend: SmtSolverBackend + Sync,
+    Proj: Project + Sync,
+    ProveConf: ProveConfiguration + Sync,
+> {
     eqctx: &'a EquivalenceContext<'a>,
     project: &'a Proj,
     backend: &'a Backend,
-    transcript: bool,
+    config: &'a ProveConf,
     req_oracle: Option<&'a str>,
     req_claim: Option<Wildcard<'a>>,
-    parallel: usize,
     invariant_start: bool,
     injective_randmap: bool,
 }
@@ -86,17 +90,20 @@ impl<'a> IntoIterator for SmtBuf<'a> {
     }
 }
 
-impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
-    EquivalenceSmtDriver<'a, Backend, Proj>
+impl<
+        'a,
+        Backend: SmtSolverBackend + Sync,
+        Proj: Project + Sync,
+        ProveConf: ProveConfiguration + Sync,
+    > EquivalenceSmtDriver<'a, Backend, Proj, ProveConf>
 {
     pub(crate) fn new(
         eqctx: &'a EquivalenceContext<'a>,
         project: &'a Proj,
         backend: &'a Backend,
-        transcript: bool,
+        config: &'a ProveConf,
         req_oracle: Option<&'a str>,
         req_claim: Option<&'a str>,
-        parallel: usize,
         invariant_start: bool,
         injective_randmap: bool,
     ) -> Self {
@@ -105,10 +112,9 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             eqctx,
             project,
             backend,
-            transcript,
+            config,
             req_oracle,
             req_claim,
-            parallel,
             invariant_start,
             injective_randmap,
         }
@@ -184,7 +190,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let oracle_sequence = self.oracle_sequence();
 
         let claims = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.parallel)
+            .num_threads(self.config.parallel())
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
@@ -364,7 +370,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut solver = {
-            if self.transcript {
+            if self.config.transcript() {
                 let transcript_file: std::fs::File = self
                     .project
                     .get_smt_file(

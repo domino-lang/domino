@@ -36,6 +36,7 @@ pub use zipfile::{ZipFiles, ZipProject};
 pub mod directory;
 pub use directory::{DirectoryFiles, DirectoryProject};
 
+pub mod configuration;
 pub mod error;
 
 pub trait Project {
@@ -107,8 +108,7 @@ pub trait Project {
         &self,
         ui: impl ProveUI,
         backend: &(impl SmtSolverBackend + Sync),
-        transcript: bool,
-        parallel: usize,
+        config: &(impl configuration::ProveConfiguration + Sync),
         req_theorem: &Option<String>,
         req_proofstep: Option<usize>,
         req_oracle: &Option<String>,
@@ -170,10 +170,9 @@ pub trait Project {
                             &eqctx,
                             self,
                             backend,
-                            transcript,
+                            config,
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
-                            parallel,
                             invariant_start,
                             injective_randmap,
                         );
@@ -190,10 +189,9 @@ pub trait Project {
                             &eqctx,
                             self,
                             backend,
-                            transcript,
+                            config,
                             req_oracle.as_deref(),
                             req_claim.as_deref(),
-                            parallel,
                             invariant_start,
                             injective_randmap,
                         );
