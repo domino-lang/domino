@@ -48,7 +48,15 @@ fn translate(project: &str, out: &Path) {
 fn tactics(project: &str, out: &Path, easycrypt: &Path, extra: &[&str]) -> Child {
     translate(project, out);
     Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "prove", "--theorem", "Proof", "--progress", "none", "--project"])
+        .args([
+            "easycrypt",
+            "prove",
+            "--theorem",
+            "Proof",
+            "--progress",
+            "none",
+            "--project",
+        ])
         .arg(workspace().join("example-projects").join(project))
         .arg("--out")
         .arg(out)
@@ -165,5 +173,83 @@ fn a_run_killed_mid_oracle_leaves_its_last_write_intact() {
         let name = entry.unwrap().file_name().to_string_lossy().into_owned();
         assert!(!name.ends_with(".tmp"), "{name}");
     }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Story 38: with no `--write-granularity`, the default is `tactic`. A kill leaves a file that
+/// compiles and a session record the next run resumes from.
+#[test]
+fn a_run_killed_at_the_default_granularity_leaves_a_compiling_file_and_a_record_to_resume() {
+    let Some(easycrypt) = easycrypt_binary() else {
+        eprintln!("DOMINO_EASYCRYPT not set, skipping");
+        return;
+    };
+    let dir = scratch("tactic-kill");
+    let out = dir.join("out");
+    let theorem = out.join("Proof");
+    let file = theorem.join("Eq_medium_composition_small_composition.ec");
+    let mut child = tactics(
+        "hello-world-oracle-rename-new",
+        &out,
+        &easycrypt,
+        &["--no-rung0"],
+    );
+    // the record is written right after the file: wait for both, so the kill is between writes
+    let record = theorem.join("Eq_medium_composition_small_composition.session.json");
+    let began = Instant::now();
+    loop {
+        if let Ok(text) = std::fs::read_to_string(&file) {
+            if text.contains("reason: interrupted") && record.exists() {
+                break;
+            }
+        }
+        if let Some(status) = child.try_wait().unwrap() {
+            panic!("the run ended ({status}) before any sealed write");
+        }
+        assert!(
+            began.elapsed() < Duration::from_secs(300),
+            "no sealed write"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    child.kill().unwrap();
+    child.wait().unwrap();
+
+    let compiled = Command::new(&easycrypt)
+        .args(["compile", "-I"])
+        .arg(&theorem)
+        .arg(&file)
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    assert!(record.exists(), "no session record in {theorem:?}");
+
+    // the next run resumes and finishes
+    let status = Command::new(env!("CARGO_BIN_EXE_domino"))
+        .args([
+            "easycrypt",
+            "prove",
+            "--theorem",
+            "Proof",
+            "--progress",
+            "none",
+            "--project",
+        ])
+        .arg(workspace().join("example-projects/hello-world-oracle-rename-new"))
+        .arg("--out")
+        .arg(&out)
+        .arg("--no-rung0")
+        .env("DOMINO_EASYCRYPT", &easycrypt)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .unwrap();
+    assert!(status.success());
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(!text.contains("interrupted"), "{text}");
     let _ = std::fs::remove_dir_all(&dir);
 }

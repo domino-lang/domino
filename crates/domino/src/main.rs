@@ -798,6 +798,7 @@ fn easycrypt_prove<P: project::Project>(
             write_granularity: match p.write_granularity {
                 WriteGranularityArg::Oracle => WriteGranularity::Oracle,
                 WriteGranularityArg::Node => WriteGranularity::Node,
+                WriteGranularityArg::Tactic => WriteGranularity::Tactic,
             },
             stop: Some(stop_on_ctrl_c(
                 "easycrypt: interrupt — stopping the current EasyCrypt sentence, then writing the \

@@ -339,6 +339,9 @@ pub(super) struct Prover<'a> {
     pub live: Option<LiveHandle>,
     /// Called with the sealed oracle after every joint node (`--write-granularity node`).
     pub checkpoint: Option<&'a mut dyn FnMut(Sealed)>,
+    /// Also call the checkpoint after every accepted sentence (`--write-granularity tactic`),
+    /// which makes the write after each node redundant.
+    pub per_sentence: bool,
     /// The joint node being proved, innermost (`None` in the router prelude).
     pub node: Option<usize>,
     /// The descriptions of the alignment's mismatches: with any, the oracle is proved by the
@@ -483,6 +486,9 @@ impl Prover<'_> {
             if after < before {
                 self.stats.closed += before - after;
             }
+            if self.per_sentence {
+                self.checkpoint();
+            }
         }
         Ok(ok)
     }
@@ -569,6 +575,9 @@ impl Prover<'_> {
             live.admitted(&admit);
         }
         self.stats.admits.push(admit);
+        if self.per_sentence {
+            self.checkpoint();
+        }
         Ok(())
     }
 
@@ -764,7 +773,7 @@ impl Prover<'_> {
         let result = self.prove_node_inner(idx);
         self.node = parent;
         self.script.set_node(parent);
-        if result.is_ok() {
+        if result.is_ok() && !self.per_sentence {
             self.checkpoint();
         }
         if let Some(live) = &self.live {

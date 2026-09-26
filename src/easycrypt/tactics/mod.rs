@@ -11,7 +11,8 @@
 //!
 //! **The file on disk is what has been proved so far** (story 33): `Eq_*.ec` and its report are
 //! rewritten together, atomically, after every oracle (or, with [`WriteGranularity::Node`],
-//! after every joint node, the oracle in flight **sealed**). Nothing compiles the written file
+//! after every joint node, or, with [`WriteGranularity::Tactic`], the default, after every accepted
+//! sentence, the oracle in flight **sealed**). Nothing compiles the written file
 //! during a run (ADR 0005): every sentence in it was accepted by the live session.
 //!
 //! **Ctrl-C** (story 34, [`TacticsOptions::stop`]) stops the run where it stands: the running
@@ -166,6 +167,9 @@ pub enum WriteGranularity {
     /// After every joint node too, the oracle in flight sealed: to watch a long oracle's proof
     /// accumulate.
     Node,
+    /// After every sentence EasyCrypt accepts (story 38, the default): a `kill -9` loses at most
+    /// the sentence in flight. Rejected, timed-out and interrupted sentences are never written.
+    Tactic,
 }
 
 impl Default for TacticsOptions {
@@ -179,7 +183,7 @@ impl Default for TacticsOptions {
             rung0: true,
             leaf_budget: Duration::from_secs(300),
             ec_transcript: EcTranscriptMode::Capped,
-            write_granularity: WriteGranularity::Oracle,
+            write_granularity: WriteGranularity::Tactic,
             stop: None,
             force: false,
         }
@@ -377,6 +381,8 @@ pub struct EquivalenceTactics {
     pub report_file: String,
     /// The run was stopped by Ctrl-C while on this equivalence (story 34).
     pub interrupted: Option<Interrupted>,
+    /// How many times the file was written, at the last write (story 38).
+    pub writes: usize,
     /// This job's transcript, `progress/Eq_<L>_<R>/ec-transcript.jsonl` (story 36).
     pub transcript: PathBuf,
 }
@@ -699,7 +705,9 @@ where
             elapsed: Duration::ZERO,
             report_file,
             interrupted: None,
+            writes: 0,
         },
+        writes: std::cell::Cell::new(0),
     };
     // their scripts are in every write from the first one on, in the file's order
     for result in &resumed {
@@ -843,6 +851,8 @@ struct ProofFile<'a> {
     started: Instant,
     /// The equivalence so far: its finished oracles, in the order they finished.
     tactics: EquivalenceTactics,
+    /// How many times [`Self::write`] has written (story 38).
+    writes: std::cell::Cell<usize>,
 }
 
 impl ProofFile<'_> {
@@ -855,6 +865,8 @@ impl ProofFile<'_> {
         now.oracles
             .sort_by_key(|o| self.procs.iter().position(|(n, _)| *n == o.oracle));
         now.elapsed = self.started.elapsed();
+        self.writes.set(self.writes.get() + 1);
+        now.writes = self.writes.get();
         // the report first: a reader who sees the file finds a report at least as new
         let tmp_dir = self.progress_dir;
         write_atomically(&self.out_dir.join(&now.report_file), tmp_dir, &now.render())?;
@@ -1055,8 +1067,9 @@ where
         live: Some(live.clone()),
         checkpoint: match options.write_granularity {
             WriteGranularity::Oracle => None,
-            WriteGranularity::Node => Some(&mut write_sealed),
+            WriteGranularity::Node | WriteGranularity::Tactic => Some(&mut write_sealed),
         },
+        per_sentence: options.write_granularity == WriteGranularity::Tactic,
         node: None,
         mismatches: Vec::new(),
         stopped: None,

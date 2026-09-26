@@ -46,11 +46,14 @@ pub(crate) enum EcTranscriptArg {
 /// When `domino easycrypt prove` rewrites `Eq_*.ec` and its report (story 33).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum WriteGranularityArg {
-    /// After each oracle (the default).
+    /// After each oracle.
     Oracle,
     /// After every joint node too, the oracle in flight sealed: its open goals admitted,
     /// labelled `interrupted`.
     Node,
+    /// After every sentence EasyCrypt accepts (the default): the oracle in flight sealed as for
+    /// `node`. Rejected and timed-out sentences are never written.
+    Tactic,
 }
 
 #[derive(Subcommand, Debug)]
@@ -160,9 +163,10 @@ pub(crate) struct EcProve {
     #[clap(long, value_enum, default_value_t = EcTranscriptArg::Capped)]
     pub(crate) ec_transcript: EcTranscriptArg,
     /// When `Eq_*.ec` and its report are rewritten. The file on disk always holds what has been
-    /// proved so far: `node` also writes after every joint node, the oracle in flight sealed
-    /// (its open goals admitted, labelled `interrupted`).
-    #[clap(long, value_enum, default_value_t = WriteGranularityArg::Oracle)]
+    /// proved so far: `node` also writes after every joint node, `tactic` (the default) after
+    /// every accepted sentence, the oracle in flight sealed (its open goals admitted, labelled
+    /// `interrupted`).
+    #[clap(long, value_enum, default_value_t = WriteGranularityArg::Tactic)]
     pub(crate) write_granularity: WriteGranularityArg,
     /// How the run reports what it is doing, on stderr.
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]

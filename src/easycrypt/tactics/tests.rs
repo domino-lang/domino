@@ -224,6 +224,7 @@ fn the_report_counts_admits_by_reason_and_lists_the_verified_ones_with_their_goa
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
         interrupted: None,
+        writes: 0,
         transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
     };
     let report = eq.render();
@@ -274,6 +275,7 @@ fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
         interrupted: None,
+        writes: 0,
         transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
     };
     let report = eq.render();
@@ -315,6 +317,7 @@ fn an_interrupted_report_names_what_was_sealed() {
         elapsed: Duration::from_secs(4),
         report_file: "Eq_A_B.report.txt".into(),
         interrupted: None,
+        writes: 0,
         transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
     };
     assert!(!eq.render().contains("interrupted"));
@@ -818,6 +821,7 @@ mod live {
             stats: OracleStats::default(),
             live: None,
             checkpoint: None,
+            per_sentence: false,
             node: None,
             mismatches: vec![],
             stopped: None,
@@ -1106,36 +1110,44 @@ mod live {
     }
 
     #[test]
-    fn sealing_sends_nothing_and_the_final_file_does_not_depend_on_the_granularity() {
-        let Some((by_oracle, out_oracle)) =
-            run(TWO_ORACLES, "Proof", &walk(WriteGranularity::Oracle))
+    fn at_tactic_granularity_every_accepted_sentence_is_written() {
+        let Some((result, out, captures)) =
+            run_captured(TWO_ORACLES, "Proof", &walk(WriteGranularity::Tactic))
         else {
             return;
         };
-        let (by_node, out_node) = run(TWO_ORACLES, "Proof", &walk(WriteGranularity::Node)).unwrap();
-        // the same sentences, in the same order: no `admit.` and no `undo` of a seal
-        assert_eq!(
-            sentences(&by_oracle.equivalences[0].transcript),
-            sentences(&by_node.equivalences[0].transcript)
-        );
-        let final_file = proof_file(&by_node, out_node.path());
-        assert_eq!(proof_file(&by_oracle, out_oracle.path()), final_file);
+        let by_node = run(TWO_ORACLES, "Proof", &walk(WriteGranularity::Node))
+            .unwrap()
+            .0;
+        let eq = &result.equivalences[0];
+        // the walk's sentences carry a note; the ones EasyCrypt accepted are the ones written
+        let transcript = std::fs::read_to_string(&eq.transcript).unwrap();
+        let mut walked = 0;
+        let mut rejected = 0;
+        for line in transcript.lines() {
+            let v: serde_json::Value = serde_json::from_str(line).unwrap();
+            if v["ctx"].as_str().unwrap().is_empty() {
+                continue;
+            }
+            if v["response"]["status"] == "ok" {
+                walked += 1;
+            } else {
+                rejected += 1;
+            }
+        }
+        assert!(walked >= 10, "{transcript}");
+        // one write per accepted sentence, one at the end of each oracle, one at the end
+        assert_eq!(eq.writes, walked + eq.oracles.len() + 1, "{rejected} rejected");
+        assert!(eq.writes > by_node.equivalences[0].writes);
+        // the final file is whole, and compiles
+        let final_file = proof_file(&result, out.path());
         assert!(!final_file.contains("interrupted"), "{final_file}");
-        // nothing a run writes is left behind but in its `progress/Eq_<L>_<R>/`, and the lock
-        // is gone (story 36)
-        let names: Vec<String> =
-            std::fs::read_dir(by_node.equivalences[0].transcript.parent().unwrap())
-                .unwrap()
-                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-                .collect();
-        assert!(
-            !names.iter().any(|n| n.ends_with(".tmp") || n == "lock"),
-            "{names:?}"
-        );
-        assert!(
-            names.contains(&"index.html".to_string())
-                && names.contains(&"ec-transcript.jsonl".to_string())
-        );
+        // every write in between was a whole proof too (the bullets and `qed.`)
+        for c in &captures {
+            assert!(c.ec.contains("\nqed."), "{}: {}", c.event, c.ec);
+        }
+        let binary = crate::easycrypt::session::locate_binary();
+        compile(&binary, out.path(), &eq.proof_file).expect("the file compiles");
     }
 
     // ------------------------------------------------------------------
