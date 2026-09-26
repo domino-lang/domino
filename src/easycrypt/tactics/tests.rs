@@ -597,9 +597,23 @@ mod live {
         stop_at: Option<(String, Arc<AtomicBool>)>,
     }
 
+    thread_local! {
+        /// The `NodeStarted` and `SentenceSent` events of this test's run (story 40).
+        static WALK: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+    }
+
     impl ExportObserver for Capturing {
         fn on_event(&mut self, event: &crate::writers::easycrypt::progress::ExportEvent<'_>) {
             use crate::writers::easycrypt::progress::ExportEvent;
+            match event {
+                ExportEvent::NodeStarted { node, total, .. } => {
+                    WALK.with(|w| w.borrow_mut().push(format!("node {node}/{total}")))
+                }
+                ExportEvent::SentenceSent { sentence } => {
+                    WALK.with(|w| w.borrow_mut().push(format!("sentence {sentence}")))
+                }
+                _ => {}
+            }
             let event = match event {
                 ExportEvent::ItemStarted { index, .. } => format!("item {index}"),
                 ExportEvent::GoalFinished { goal, .. } => format!("goal {goal}"),
@@ -687,6 +701,30 @@ mod live {
 
     fn proof_file(result: &TheoremTactics, out: &Path) -> String {
         std::fs::read_to_string(out.join(&result.equivalences[0].proof_file)).unwrap()
+    }
+
+    /// Story 40: the run says which node it is in before every sentence, and the transcript
+    /// holds the sentences it announced.
+    #[test]
+    fn the_walk_announces_its_node_before_every_sentence() {
+        WALK.with(|w| w.borrow_mut().clear());
+        let Some((result, _out, _)) = run_captured(
+            "example-projects/hello-world",
+            "Proof",
+            &TacticsOptions::default(),
+        ) else {
+            return;
+        };
+        let walk = WALK.with(|w| w.borrow().clone());
+        assert!(walk[0].starts_with("node router/"), "{walk:?}");
+        assert!(walk[1].starts_with("sentence proc; inline."), "{walk:?}");
+        assert!(walk.iter().any(|e| e.starts_with("node N")), "{walk:?}");
+        let total = walk[0].rsplit('/').next().unwrap();
+        assert!(walk.iter().filter(|e| e.starts_with("node")).all(|e| e.ends_with(&format!("/{total}"))));
+        let sentences = walk.iter().filter(|e| e.starts_with("sentence")).count();
+        let transcript = std::fs::read_to_string(&result.equivalences[0].transcript).unwrap();
+        assert!(sentences >= result.equivalences[0].oracles[0].stats.closed);
+        assert!(transcript.lines().count() >= 1);
     }
 
     #[test]

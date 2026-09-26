@@ -353,6 +353,22 @@ impl LiveHandle {
         live.touch(true);
     }
 
+    /// The walk of the current oracle enters joint node `node` (`N7`, `router` for the prelude)
+    /// of a tree of `total` nodes (story 40).
+    pub fn node_started(&self, node: &str, total: usize) {
+        let mut live = self.0.borrow_mut();
+        let (Some(eq), Some(o)) = (live.cur_eq, live.cur_oracle) else {
+            return;
+        };
+        let oracle = live.eqs[eq].oracles[o].name.clone();
+        live.progress.on_event(&ExportEvent::NodeStarted { oracle: &oracle, node, total });
+    }
+
+    /// The prover is about to send `sentence` (story 40).
+    pub fn sentence_sent(&self, sentence: &str) {
+        self.0.borrow_mut().progress.on_event(&ExportEvent::SentenceSent { sentence });
+    }
+
     /// Lockstep execution of `oracle` starts (story 39): the proving bar steps aside.
     pub fn lockstep_started(&self, oracle: &str) {
         self.0.borrow_mut().progress.on_event(&ExportEvent::LockstepStarted { oracle });

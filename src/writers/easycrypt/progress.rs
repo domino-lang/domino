@@ -95,6 +95,13 @@ pub enum ExportEvent<'a> {
     /// `prove`: lockstep execution of `oracle` is over. `found` is `(joint paths, stuck points)`,
     /// `None` when it failed; `stopped` when a Ctrl-C ended it early.
     LockstepFinished { oracle: &'a str, found: Option<(usize, usize)>, elapsed: Duration, stopped: bool },
+    /// `prove` (story 40): the walk of `oracle` enters joint node `node` (`N7`, or `router` for
+    /// the router prelude), of a tree of `total` joint nodes. `N7/23` names a node and says how
+    /// big the tree is; it is not a percentage. Also sent again when a subtree is done and the
+    /// walk is back in its parent.
+    NodeStarted { oracle: &'a str, node: &'a str, total: usize },
+    /// `prove` (story 40): the prover is about to send `sentence` to EasyCrypt.
+    SentenceSent { sentence: &'a str },
 }
 
 pub trait ExportObserver {
@@ -126,6 +133,27 @@ pub fn lockstep_summary_line(
     };
     let stopped = if stopped { " (stopped)" } else { "" };
     format!("  {oracle}  lockstep: {what} in {:.1}s{stopped}", elapsed.as_secs_f64())
+}
+
+/// `PKENC  N7/23  smt(dec_enc).`, the proving bar's message (story 40): the oracle, the node, and
+/// the first line of the tactic being tried. The bar cuts it to the terminal width.
+pub fn proving_message(oracle: &str, node: &str, total: usize, sentence: &str) -> String {
+    let tactic = sentence.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    format!("{oracle}  {}  {tactic}", node_label(node, total))
+}
+
+/// `N7/23`; the router prelude is just `router`.
+fn node_label(node: &str, total: usize) -> String {
+    if node == "router" {
+        node.to_string()
+    } else {
+        format!("{node}/{total}")
+    }
+}
+
+/// `  PKENC N7/23`, the plain line of a node (story 40).
+fn node_line(oracle: &str, node: &str, total: usize) -> String {
+    format!("  {oracle} {}", node_label(node, total))
 }
 
 /// The null observer: "no progress".
@@ -296,6 +324,9 @@ impl ExportObserver for PlainExportObserver {
             ExportEvent::LockstepFinished { oracle, found, elapsed, stopped } => {
                 lockstep_summary_line(oracle, *found, *elapsed, *stopped)
             }
+            ExportEvent::NodeStarted { oracle, node, total } => node_line(oracle, node, *total),
+            // sentences are in the transcript (story 40)
+            ExportEvent::SentenceSent { .. } => return,
             _ => return,
         };
         let _ = writeln!(self.err, "{line}");
@@ -312,11 +343,13 @@ pub struct BarExportObserver {
     mp: MultiProgress,
     bar: Option<ProgressBar>,
     theorem: Option<(String, usize, usize)>,
+    /// The oracle, node and tree size the proving line names (story 40).
+    at: Option<(String, String, usize)>,
 }
 
 impl BarExportObserver {
     pub fn new() -> Self {
-        Self { mp: MultiProgress::new(), bar: None, theorem: None }
+        Self { mp: MultiProgress::new(), bar: None, theorem: None, at: None }
     }
 }
 
@@ -336,9 +369,15 @@ impl ExportObserver for BarExportObserver {
             }
             ExportEvent::PhaseStarted { phase, total_items } => {
                 let bar = self.mp.add(ProgressBar::new(*total_items as u64));
+                // while proving, the message is the whole line: oracle, node, tactic (cut to
+                // the terminal's width), and the time spent on the current sentence (story 40)
+                let template = if *phase == ExportPhase::Tactics {
+                    "{prefix:<9} {bar:12.cyan/blue} {pos}/{len}  {wide_msg} {elapsed}"
+                } else {
+                    "{prefix:<11} {bar:24.cyan/blue} {pos}/{len}  {msg}"
+                };
                 bar.set_style(
-                    ProgressStyle::with_template("{prefix:<11} {bar:24.cyan/blue} {pos}/{len}  {msg}")
-                        .unwrap_or_else(|_| ProgressStyle::default_bar()),
+                    ProgressStyle::with_template(template).unwrap_or_else(|_| ProgressStyle::default_bar()),
                 );
                 bar.set_prefix(phase.name());
                 self.bar = Some(bar);
@@ -361,6 +400,19 @@ impl ExportObserver for BarExportObserver {
                         "{oracle} {goal} {}",
                         if *admitted { "admitted" } else { "closed" }
                     ));
+                }
+            }
+            ExportEvent::NodeStarted { oracle, node, total } => {
+                self.at = Some((oracle.to_string(), node.to_string(), *total));
+                if let Some(bar) = &self.bar {
+                    bar.set_message(proving_message(oracle, node, *total, ""));
+                    bar.reset_elapsed();
+                }
+            }
+            ExportEvent::SentenceSent { sentence } => {
+                if let (Some(bar), Some((oracle, node, total))) = (&self.bar, &self.at) {
+                    bar.set_message(proving_message(oracle, node, *total, sentence));
+                    bar.reset_elapsed();
                 }
             }
             // the debugger's bar has the screen while lockstep execution runs: this one steps
@@ -409,6 +461,8 @@ pub(crate) mod tests {
                 ExportEvent::GoalFinished { oracle, goal, admitted } => {
                     format!("goal {oracle} {goal} {admitted}")
                 }
+                ExportEvent::NodeStarted { oracle, node, total } => format!("node {oracle} {node}/{total}"),
+                ExportEvent::SentenceSent { sentence } => format!("sentence {sentence}"),
                 ExportEvent::LockstepStarted { oracle } => format!("lockstep {oracle}"),
                 ExportEvent::LockstepFinished { oracle, found, .. } => {
                     format!("lockstep-end {oracle} {found:?}")
@@ -442,6 +496,39 @@ pub(crate) mod tests {
             rec.0,
             ["phase games 2", "item games 1 Comp_A", "item games 2 Comp_B", "end games"]
         );
+    }
+
+    #[test]
+    fn the_proving_message_names_oracle_node_and_the_first_line_of_the_tactic() {
+        assert_eq!(
+            proving_message("PKENC", "N7", 23, "smt(dec_enc)."),
+            "PKENC  N7/23  smt(dec_enc)."
+        );
+        assert_eq!(
+            proving_message("PKENC", "N7", 23, "  seq 2 2 : (a = b /\\\n   c).\n  more\n"),
+            "PKENC  N7/23  seq 2 2 : (a = b /\\"
+        );
+        assert_eq!(proving_message("PKENC", "router", 23, "proc; inline."), "PKENC  router  proc; inline.");
+        assert_eq!(proving_message("PKENC", "N1", 3, ""), "PKENC  N1/3  ");
+    }
+
+    #[test]
+    fn the_plain_observer_has_a_line_per_node_and_none_per_sentence() {
+        assert_eq!(node_line("PKENC", "N7", 23), "  PKENC N7/23");
+        assert_eq!(node_line("PKENC", "router", 23), "  PKENC router");
+        let mut plain = PlainExportObserver::new();
+        plain.on_event(&ExportEvent::NodeStarted { oracle: "PKENC", node: "N7", total: 23 });
+        plain.on_event(&ExportEvent::SentenceSent { sentence: "auto." });
+    }
+
+    #[test]
+    fn the_bar_observer_follows_node_and_sentence_events() {
+        let mut bars = BarExportObserver::new();
+        bars.on_event(&ExportEvent::PhaseStarted { phase: ExportPhase::Tactics, total_items: 1 });
+        bars.on_event(&ExportEvent::ItemStarted { phase: ExportPhase::Tactics, name: "Eq O", index: 1 });
+        bars.on_event(&ExportEvent::NodeStarted { oracle: "O", node: "N7", total: 23 });
+        bars.on_event(&ExportEvent::SentenceSent { sentence: "smt(a).\nsecond" });
+        assert_eq!(bars.bar.as_ref().unwrap().message(), "O  N7/23  smt(a).");
     }
 
     #[test]

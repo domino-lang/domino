@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Story 39: path exploration has its own progress line. These run the binary against a real
+//! Story 39: path exploration has its own progress line. Story 40: the plain mode has a line
+//! per joint node (`  PKENC N7/23`) and none per sentence. These run the binary against a real
 //! EasyCrypt: they need the `cvc5-lib` build and `DOMINO_EASYCRYPT` (skipped without it).
 //! Stderr here is a pipe, so the bar mode draws nothing; what the bars look like on a terminal
 //! is checked by hand.
@@ -99,7 +100,17 @@ fn plain_prints_two_lockstep_lines_per_oracle_and_none_prints_none() {
     let stderr = String::from_utf8_lossy(&plain.stderr);
     assert!(!stderr.contains("debug:"), "{stderr}");
 
+    let stderr = stderr.to_string();
+    let nodes: Vec<&str> = stderr
+        .lines()
+        .filter(|l| l.split_whitespace().nth(1).is_some_and(|n| n == "router" || n.starts_with('N') && n.contains('/')))
+        .collect();
+    assert!(nodes.iter().any(|l| l.ends_with(" router")), "{stderr}");
+    assert!(nodes.iter().any(|l| l.contains(" N") && l.contains('/')), "{stderr}");
+    assert!(!stderr.contains("proc; inline."), "no sentence lines: {stderr}");
+
     let none = prove(&easycrypt, "none");
+    assert!(!String::from_utf8_lossy(&none.stderr).contains(" router"));
     assert!(lockstep_lines(&none).is_empty(), "{:#?}", lockstep_lines(&none));
 
     let bar = prove(&easycrypt, "bar");

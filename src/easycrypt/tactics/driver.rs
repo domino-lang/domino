@@ -473,6 +473,9 @@ impl Prover<'_> {
     /// refused it (or it was interrupted): the session is then where it was.
     pub(super) fn send(&mut self, sentence: &str) -> R<bool> {
         self.stop_point()?;
+        if let Some(live) = &self.live {
+            live.sentence_sent(sentence);
+        }
         let before = self.count();
         let ok = match self.session.send(sentence) {
             // the sentence a stop interrupted lost its goals: stop as if it had not been sent
@@ -767,6 +770,7 @@ impl Prover<'_> {
                 .collect();
             ids.extend(node.stuck.clone());
             live.node_entered(&format!("N{idx}"), node.kind.as_str(), ids, Some(idx));
+            live.node_started(&format!("N{idx}"), self.tree.outcome.tree.nodes.len());
         }
         let parent = self.node.replace(idx);
         self.script.set_node(Some(idx));
@@ -778,6 +782,9 @@ impl Prover<'_> {
         }
         if let Some(live) = &self.live {
             live.node_left();
+            // back in the parent, whose sentences the bar shows next
+            let parent = parent.map_or_else(|| "router".to_string(), |p| format!("N{p}"));
+            live.node_started(&parent, self.tree.outcome.tree.nodes.len());
         }
         result
     }
@@ -1295,6 +1302,7 @@ impl Prover<'_> {
         self.script.enter_bullet(self.count());
         if let Some(live) = &self.live {
             live.node_entered("router prelude", "router", vec![], None);
+            live.node_started("router", self.tree.outcome.tree.nodes.len());
         }
         let result = self.oracle_inner(align);
         if let Some(live) = &self.live {
