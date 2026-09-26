@@ -227,7 +227,9 @@ pub fn check_export_tree(out: &Path, mut theorems: &[&str]) -> Result<(), Export
         .filter(|f| {
             f.file_name()
                 .and_then(|n| n.to_str())
-                .is_some_and(|n| n.starts_with("Eq_") && n.ends_with(".ec"))
+                .is_some_and(|n| {
+                    n.starts_with("Eq_") && n.ends_with(".ec") && !n.ends_with("_Invariants.ec")
+                })
         })
         .filter_map(|f| {
             let text = std::fs::read_to_string(out.join(f)).ok()?;

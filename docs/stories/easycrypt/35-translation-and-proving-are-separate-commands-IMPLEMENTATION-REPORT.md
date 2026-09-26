@@ -11,7 +11,7 @@
   - `main.rs` is split into `easycrypt_translate`, `easycrypt_prove`, `easycrypt_check_alignment` and `easycrypt_debug`. `export_in_memory` and `export_observer` are shared.
 - **`src/easycrypt/job.rs`** (new): what a proof job may assume and touch.
   - `create_if_absent(path, text)` writes a temporary file in the same directory, `hard_link`s it to the target, then removes the temporary. `AlreadyExists` is success (`Ok(false)`). It never renames.
-  - `ensure_translation_files` creates every file of the export except `Eq_*.ec` that is missing, and prints `created X (missing from the translation)` on stderr. It never reads a file that exists.
+  - `ensure_translation_files` creates every file of the export except the `Eq_*.ec` proof files (`Eq_*_Invariants.ec` is a translation file, created when missing) that is missing, and prints `created X (missing from the translation)` on stderr. It never reads a file that exists.
   - `SessionRecord` (`Eq_<L>_<R>.session.json`, version 1) holds `theorem`, `left`, `right`, `complete` and `oracles: [{name, status}]`, with statuses `done`, `interrupted` and `pending`. It also has the skip line and `read`.
   - `remove_session_records` deletes every `*.session.json` under a directory.
 - **`tactics/mod.rs`**:

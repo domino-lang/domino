@@ -294,3 +294,33 @@ fn two_proof_jobs_on_different_equivalences_run_at_once() {
     }
     let _ = std::fs::remove_dir_all(&out);
 }
+
+#[test]
+fn a_proof_job_recreates_a_missing_invariants_file() {
+    let Some(ec) = easycrypt_binary() else {
+        eprintln!("DOMINO_EASYCRYPT not set, skipping");
+        return;
+    };
+    let dir = scratch("invariants");
+    let theorem = dir.join("Proof");
+    let out = domino("hello-world", &dir, &ec, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let invariants = format!("{EQ}_Invariants.ec");
+    let original = std::fs::read(theorem.join(&invariants)).expect("the export writes it");
+    std::fs::remove_file(theorem.join(&invariants)).unwrap();
+
+    let out = domino(
+        "hello-world",
+        &dir,
+        &ec,
+        &["prove", "--theorem", "Proof", "--proofstep", "0"],
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(
+        stderr(&out).contains(&format!("created {invariants} (missing from the translation)")),
+        "{}",
+        stderr(&out)
+    );
+    assert_eq!(std::fs::read(theorem.join(&invariants)).unwrap(), original);
+    let _ = std::fs::remove_dir_all(&dir);
+}

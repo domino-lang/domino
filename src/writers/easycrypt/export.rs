@@ -76,7 +76,7 @@ pub struct SkipNote {
 /// remaining fields are exactly the data `domino easycrypt`'s stdout report
 /// (§3.3) needs, computed once here so the report never re-derives it (and
 /// can never disagree with what was actually written).
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ExportedTheorem {
     pub files: BTreeMap<PathBuf, String>,
     pub skipped: Vec<SkipNote>,

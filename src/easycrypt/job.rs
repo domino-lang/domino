@@ -58,15 +58,16 @@ pub fn create_if_absent(path: &Path, text: &str) -> std::io::Result<bool> {
     }
 }
 
-/// Whether `rel` is one equivalence's proof file, which its own job owns.
+/// Whether `rel` is one equivalence's proof file, which its own job owns. The equivalence's
+/// `Eq_<L>_<R>_Invariants.ec` is not: it is a translation file, and is created when missing.
 pub fn is_proof_file(rel: &Path) -> bool {
-    rel.file_name()
-        .and_then(|n| n.to_str())
-        .is_some_and(|n| n.starts_with("Eq_") && n.ends_with(".ec"))
+    rel.file_name().and_then(|n| n.to_str()).is_some_and(|n| {
+        n.starts_with("Eq_") && n.ends_with(".ec") && !n.ends_with("_Invariants.ec")
+    })
 }
 
 /// Creates, in `theorem_out`, every file of `exported` that translation owns (all but the
-/// `Eq_*.ec`) and that is missing, one line on stderr each. Files that exist are not read.
+/// `Eq_*.ec` proof files) and that is missing, one line on stderr each. Files that exist are not read.
 /// Returns the relative paths created.
 pub fn ensure_translation_files(
     exported: &ExportedTheorem,
@@ -591,6 +592,32 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("domino-job-{test}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         dir
+    }
+
+    #[test]
+    fn invariants_files_are_translation_files_not_proof_files() {
+        assert!(is_proof_file(Path::new("Eq_L_R.ec")));
+        assert!(!is_proof_file(Path::new("Eq_L_R_Invariants.ec")));
+        assert!(!is_proof_file(Path::new("Types.ec")));
+    }
+
+    #[test]
+    fn ensure_translation_files_creates_a_missing_invariants_file_but_not_the_proof() {
+        let dir = scratch("invariants");
+        let mut exported = ExportedTheorem::default();
+        for f in ["Eq_L_R.ec", "Eq_L_R_Invariants.ec", "Types.ec"] {
+            exported.files.insert(PathBuf::from(f), format!("text of {f}"));
+        }
+        let created = ensure_translation_files(&exported, &dir).unwrap();
+        assert_eq!(
+            created,
+            vec![PathBuf::from("Eq_L_R_Invariants.ec"), PathBuf::from("Types.ec")]
+        );
+        assert!(!dir.join("Eq_L_R.ec").exists());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("Eq_L_R_Invariants.ec")).unwrap(),
+            "text of Eq_L_R_Invariants.ec"
+        );
     }
 
     #[test]

@@ -27,7 +27,7 @@ About 5.4x smaller than story 31's capped transcript. The page of the run has no
 
 ## Deviations and notes
 
-- **Pre-existing bug found, not fixed:** `easycrypt prove` never writes `Eq_*_Invariants.ec`, because `job::is_proof_file` matches every `Eq_*.ec`, invariants file included, so `ensure_translation_files` skips it and EasyCrypt fails with `cannot locate theory ..._Invariants` on a fresh `_build`. For the measurement I copied the file in from `domino easycrypt` (plain export). Out of this story's scope.
+- **Pre-existing bug found, not fixed:** `easycrypt prove` never writes `Eq_*_Invariants.ec`, because `job::is_proof_file` matches every `Eq_*.ec`, invariants file included, so `ensure_translation_files` skips it and EasyCrypt fails with `cannot locate theory ..._Invariants` on a fresh `_build`. For the measurement I copied the file in from `domino easycrypt` (plain export). Out of this story's scope. **Fixed afterwards:** `is_proof_file` now excludes `Eq_*_Invariants.ec`, so `prove` re-creates a missing invariants file like any other translation file.
 - The note wording is `+k goals not kept, see transcript record N` (the record pointer kept from the old note; "+1 goals" is not singularised, matching the story's literal wording).
 - The kem-dem `_build/easycrypt` directory (gitignored) was deleted and regenerated for the measurement.
 - Only PKGEN of proofstep 0 was measured, the same run as story 31, so the two figures compare directly.
