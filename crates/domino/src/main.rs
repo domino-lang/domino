@@ -231,7 +231,8 @@ fn stop_on_ctrl_c(first: &'static str) -> std::sync::Arc<std::sync::atomic::Atom
     let _ = ctrlc::try_set_handler(move || {
         if hits.fetch_add(1, Ordering::Relaxed) == 0 {
             flag.store(true, Ordering::Relaxed);
-            eprintln!("\n{first}");
+            // wipe a running progress bar for the line, so the two do not tear each other
+            sspverif::debug::progress::eprintln_above_bars(&format!("\n{first}"));
         } else {
             // the second Ctrl-C ends the process here, so the locks are not dropped
             sspverif::easycrypt::job::release_all_locks();

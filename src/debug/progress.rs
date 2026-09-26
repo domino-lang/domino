@@ -51,6 +51,7 @@
 
 use std::cell::RefCell;
 use std::io::Write as _;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -399,6 +400,21 @@ pub struct BarObserver {
     tally: Tally,
 }
 
+/// The display of the [`BarObserver`] on screen, if any (at most one at a time). A Ctrl-C handler
+/// prints its message through [`eprintln_above_bars`], which needs to reach it from another
+/// thread.
+static ACTIVE_BARS: Mutex<Option<MultiProgress>> = Mutex::new(None);
+
+/// Prints `message` to stderr without tearing the bars of a running [`BarObserver`]: they are
+/// wiped for the line and drawn again below it. Plain `eprintln!` when none is on screen.
+pub fn eprintln_above_bars(message: &str) {
+    let active = ACTIVE_BARS.lock().ok().and_then(|g| g.clone());
+    match active {
+        Some(mp) => mp.suspend(|| eprintln!("{message}")),
+        None => eprintln!("{message}"),
+    }
+}
+
 const SPINNER_LEFT: &str = "{spinner:.cyan} {msg}";
 const SPINNER_PAIRS: &str = "{spinner:.green} pairs {pos:>4}  {msg}  [{elapsed_precise}]";
 const BAR_LEFT: &str = "left   {bar:24.cyan/blue} {pos}/{len}  {msg}";
@@ -433,11 +449,25 @@ impl BarObserver {
         let logger = env_logger::Builder::from_default_env().build();
         let _ = LogWrapper::new(mp.clone(), logger).try_init();
 
+        if let Ok(mut active) = ACTIVE_BARS.lock() {
+            *active = Some(mp.clone());
+        }
+
         Self {
             mp,
             left,
             pairs,
             tally: Tally::default(),
+        }
+    }
+
+    /// Wipes both bars and stops reporting them to [`eprintln_above_bars`].
+    fn clear(&self) {
+        self.left.finish_and_clear();
+        self.pairs.finish_and_clear();
+        let _ = self.mp.clear();
+        if let Ok(mut active) = ACTIVE_BARS.lock() {
+            *active = None;
         }
     }
 
@@ -545,13 +575,16 @@ impl DebugObserver for BarObserver {
                     .mp
                     .println(format!("stuck point {id} ({side} L{label}): {reason}"));
             }
-            DebugEvent::Finished { .. } | DebugEvent::LockstepFinished { .. } => {
-                self.left.finish_and_clear();
-                self.pairs.finish_and_clear();
-                let _ = self.mp.clear();
-            }
+            DebugEvent::Finished { .. } | DebugEvent::LockstepFinished { .. } => self.clear(),
             _ => {}
         }
+    }
+}
+
+/// A run that ends early (an error before `Finished`) must not leave its bars on screen.
+impl Drop for BarObserver {
+    fn drop(&mut self) {
+        self.clear();
     }
 }
 

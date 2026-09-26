@@ -43,8 +43,11 @@
 //! theorem's directory (`Full4WHS/Comp_H5.ec`).
 
 use std::io::Write as _;
+use std::time::Duration;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+
+use crate::debug::progress::{BarObserver, DebugObserver, NopObserver};
 
 /// The phases of one export, in the order they run. `Write` runs once at the end.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,10 +89,43 @@ pub enum ExportEvent<'a> {
     Finished { files_written: usize },
     /// `prove`: the goal of joint node `goal` (`N7`) of `oracle` is done, closed or admitted.
     GoalFinished { oracle: &'a str, goal: &'a str, admitted: bool },
+    /// `prove` (story 39): lockstep execution of `oracle` starts. It is the longest silent
+    /// stretch of an oracle, so the observer makes room for the debugger's own bar.
+    LockstepStarted { oracle: &'a str },
+    /// `prove`: lockstep execution of `oracle` is over. `found` is `(joint paths, stuck points)`,
+    /// `None` when it failed; `stopped` when a Ctrl-C ended it early.
+    LockstepFinished { oracle: &'a str, found: Option<(usize, usize)>, elapsed: Duration, stopped: bool },
 }
 
 pub trait ExportObserver {
     fn on_event(&mut self, event: &ExportEvent<'_>);
+
+    /// What watches lockstep execution of one oracle (story 39): what `domino debug` would show
+    /// for the same progress mode. Nothing by default.
+    fn lockstep_observer(&mut self) -> Box<dyn DebugObserver> {
+        Box::new(NopObserver)
+    }
+}
+
+/// `  PKENC  lockstep: 23 joint paths, 1 stuck point in 41.2s`, the line printed when lockstep
+/// execution of an oracle ends (story 39).
+pub fn lockstep_summary_line(
+    oracle: &str,
+    found: Option<(usize, usize)>,
+    elapsed: Duration,
+    stopped: bool,
+) -> String {
+    let plural = |n: usize, one: &str, many: &str| format!("{n} {}", if n == 1 { one } else { many });
+    let what = match found {
+        Some((pairs, stuck)) => format!(
+            "{}, {}",
+            plural(pairs, "joint path", "joint paths"),
+            plural(stuck, "stuck point", "stuck points")
+        ),
+        None => "failed".to_string(),
+    };
+    let stopped = if stopped { " (stopped)" } else { "" };
+    format!("  {oracle}  lockstep: {what} in {:.1}s{stopped}", elapsed.as_secs_f64())
 }
 
 /// The null observer: "no progress".
@@ -162,6 +198,10 @@ impl ExportObserver for LoggingExportObserver<'_> {
             _ => {}
         }
         self.inner.on_event(event);
+    }
+
+    fn lockstep_observer(&mut self) -> Box<dyn DebugObserver> {
+        self.inner.lockstep_observer()
     }
 }
 
@@ -251,6 +291,11 @@ impl ExportObserver for PlainExportObserver {
             ExportEvent::GoalFinished { oracle, goal, admitted } => {
                 format!("  {oracle} {goal}: {}", if *admitted { "admitted" } else { "closed" })
             }
+            // no per-path lines: they would flood a log (story 39)
+            ExportEvent::LockstepStarted { oracle } => format!("  {oracle}  lockstep: started"),
+            ExportEvent::LockstepFinished { oracle, found, elapsed, stopped } => {
+                lockstep_summary_line(oracle, *found, *elapsed, *stopped)
+            }
             _ => return,
         };
         let _ = writeln!(self.err, "{line}");
@@ -318,8 +363,25 @@ impl ExportObserver for BarExportObserver {
                     ));
                 }
             }
+            // the debugger's bar has the screen while lockstep execution runs: this one steps
+            // aside, so the two never overwrite each other's lines (story 39)
+            ExportEvent::LockstepStarted { .. } => {
+                if let Some(bar) = &self.bar {
+                    self.mp.remove(bar);
+                }
+            }
+            ExportEvent::LockstepFinished { oracle, found, elapsed, stopped } => {
+                let _ = self.mp.println(lockstep_summary_line(oracle, *found, *elapsed, *stopped));
+                if let Some(bar) = self.bar.take() {
+                    self.bar = Some(self.mp.add(bar));
+                }
+            }
             _ => {}
         }
+    }
+
+    fn lockstep_observer(&mut self) -> Box<dyn DebugObserver> {
+        Box::new(BarObserver::new())
     }
 }
 
@@ -346,6 +408,10 @@ pub(crate) mod tests {
                 ExportEvent::Finished { files_written } => format!("finished {files_written}"),
                 ExportEvent::GoalFinished { oracle, goal, admitted } => {
                     format!("goal {oracle} {goal} {admitted}")
+                }
+                ExportEvent::LockstepStarted { oracle } => format!("lockstep {oracle}"),
+                ExportEvent::LockstepFinished { oracle, found, .. } => {
+                    format!("lockstep-end {oracle} {found:?}")
                 }
             });
         }
@@ -376,5 +442,59 @@ pub(crate) mod tests {
             rec.0,
             ["phase games 2", "item games 1 Comp_A", "item games 2 Comp_B", "end games"]
         );
+    }
+
+    #[test]
+    fn the_lockstep_line_reads_like_the_story() {
+        let took = Duration::from_millis(41_240);
+        assert_eq!(
+            lockstep_summary_line("PKENC", Some((23, 1)), took, false),
+            "  PKENC  lockstep: 23 joint paths, 1 stuck point in 41.2s"
+        );
+        assert_eq!(
+            lockstep_summary_line("O", Some((1, 0)), took, false),
+            "  O  lockstep: 1 joint path, 0 stuck points in 41.2s"
+        );
+        assert_eq!(
+            lockstep_summary_line("O", None, took, true),
+            "  O  lockstep: failed in 41.2s (stopped)"
+        );
+    }
+
+    #[test]
+    fn logging_observer_hands_out_the_inner_observers_lockstep_observer() {
+        struct Marks(std::rc::Rc<std::cell::Cell<usize>>);
+        impl ExportObserver for Marks {
+            fn on_event(&mut self, _: &ExportEvent<'_>) {}
+            fn lockstep_observer(&mut self) -> Box<dyn DebugObserver> {
+                self.0.set(self.0.get() + 1);
+                Box::new(NopObserver)
+            }
+        }
+        let asked = std::rc::Rc::new(std::cell::Cell::new(0));
+        let mut inner = Marks(asked.clone());
+        let mut log = LoggingExportObserver::new(&mut inner);
+        let _ = log.lockstep_observer();
+        assert_eq!(asked.get(), 1);
+    }
+
+    /// The bar observer steps aside for lockstep execution and is back after it, with its
+    /// summary line printed in between (a hidden draw target: nothing is drawn, nothing panics).
+    #[test]
+    fn the_bar_observer_survives_a_lockstep_interlude() {
+        let mut bars = BarExportObserver::new();
+        bars.on_event(&ExportEvent::PhaseStarted { phase: ExportPhase::Tactics, total_items: 2 });
+        bars.on_event(&ExportEvent::ItemStarted { phase: ExportPhase::Tactics, name: "Eq O", index: 1 });
+        for _ in 0..2 {
+            bars.on_event(&ExportEvent::LockstepStarted { oracle: "O" });
+            drop(bars.lockstep_observer());
+            bars.on_event(&ExportEvent::LockstepFinished {
+                oracle: "O",
+                found: Some((2, 0)),
+                elapsed: Duration::from_secs(1),
+                stopped: false,
+            });
+            assert!(bars.bar.is_some(), "the proving bar is back");
+        }
     }
 }

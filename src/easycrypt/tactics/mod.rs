@@ -41,7 +41,6 @@ use std::time::{Duration, Instant};
 use thiserror::Error;
 
 use crate::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions};
-use crate::debug::progress::NopObserver;
 use crate::writers::easycrypt::progress::{ExportObserver, NopExportObserver};
 use crate::project::Project;
 use crate::theorem::Theorem;
@@ -972,6 +971,8 @@ where
     // writes them, so every `S`/`J` of an admit has a page to open
     let lockstep_started = Instant::now();
     live.activity("lockstep execution");
+    live.lockstep_started(oracle);
+    let mut lockstep_observer = live.lockstep_observer();
     let run = run_lockstep_command(
         project,
         &theorem.name,
@@ -981,10 +982,18 @@ where
         backend,
         // next to the export it describes: `<out>/<theorem>/!debug!/<left>-<right>/<oracle>/`
         Some(debug_dir(proof.out_dir, &eq.left_name, &eq.right_name, oracle)),
-        &mut NopObserver,
+        lockstep_observer.as_mut(),
         options.stop.as_deref(),
     );
+    // its bars go before the summary line is printed
+    drop(lockstep_observer);
     let lockstep_time = lockstep_started.elapsed();
+    live.lockstep_finished(
+        oracle,
+        run.as_ref().ok().map(|r| (r.summary.joint_paths, r.summary.stuck_points)),
+        lockstep_time,
+        options.stop_requested(),
+    );
     live.activity("");
     if options.stop_requested() {
         // lockstep execution was stopped, or has just finished: nothing was sent

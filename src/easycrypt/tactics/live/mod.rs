@@ -48,6 +48,7 @@ use serde_derive::Deserialize;
 use crate::easycrypt::json::Status;
 use crate::easycrypt::session::SessionEvent;
 use crate::easycrypt::transcript::{GOALS_PER_STEP, GOAL_TEXT_CAP};
+use crate::debug::progress::DebugObserver;
 use crate::writers::easycrypt::progress::{ExportEvent, ExportObserver, ExportPhase};
 
 use super::driver::Admit;
@@ -350,6 +351,34 @@ impl LiveHandle {
         let mut live = self.0.borrow_mut();
         live.activity = text.to_string();
         live.touch(true);
+    }
+
+    /// Lockstep execution of `oracle` starts (story 39): the proving bar steps aside.
+    pub fn lockstep_started(&self, oracle: &str) {
+        self.0.borrow_mut().progress.on_event(&ExportEvent::LockstepStarted { oracle });
+    }
+
+    /// What watches this oracle's lockstep execution: the debugger's bar, or nothing. Give it
+    /// back (drop it) before [`Self::lockstep_finished`], so its bars are gone when the summary
+    /// line is printed.
+    pub fn lockstep_observer(&self) -> Box<dyn DebugObserver> {
+        self.0.borrow_mut().progress.lockstep_observer()
+    }
+
+    /// Lockstep execution of `oracle` ended (story 39): the summary line, and the proving bar back.
+    pub fn lockstep_finished(
+        &self,
+        oracle: &str,
+        found: Option<(usize, usize)>,
+        elapsed: Duration,
+        stopped: bool,
+    ) {
+        self.0.borrow_mut().progress.on_event(&ExportEvent::LockstepFinished {
+            oracle,
+            found,
+            elapsed,
+            stopped,
+        });
     }
 
     /// Lockstep execution of the current oracle is done; its page is in `out_dir`.
