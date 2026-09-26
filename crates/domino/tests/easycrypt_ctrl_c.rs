@@ -66,10 +66,24 @@ done
     script
 }
 
-/// `domino easycrypt --tactics` on hello-world, with `easycrypt` as its EasyCrypt.
+/// `domino easycrypt`: translation only, which `prove` runs against (story 35).
+fn translate(project: &str, out: &Path) {
+    let status = Command::new(env!("CARGO_BIN_EXE_domino"))
+        .args(["easycrypt", "--progress", "none", "--project"])
+        .arg(workspace().join("example-projects").join(project))
+        .arg("--out")
+        .arg(out)
+        .env_remove("DOMINO_EASYCRYPT")
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+/// `domino easycrypt prove` on hello-world, with `easycrypt` as its EasyCrypt.
 fn tactics(out: &Path, easycrypt: &Path) -> Child {
+    translate("hello-world", out);
     Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--tactics", "--progress", "none", "--project"])
+        .args(["easycrypt", "prove", "--theorem", "Proof", "--progress", "none", "--project"])
         .arg(workspace().join("example-projects/hello-world"))
         .arg("--out")
         .arg(out)
@@ -167,6 +181,13 @@ fn ctrl_c_interrupts_the_running_sentence_seals_the_oracle_and_exits_130() {
         "{report}"
     );
     assert!(stdout.contains(line), "{stdout}");
+    // the session record (story 35) says the oracle was sealed: a partial, not a complete proof
+    let record = std::fs::read_to_string(
+        theorem.join("Eq_medium_composition_small_composition.session.json"),
+    )
+    .unwrap();
+    assert!(record.contains("\"complete\": false"), "{record}");
+    assert!(record.contains("\"status\": \"interrupted\""), "{record}");
     // the page: an interrupted run, and the sentence the Ctrl-C interrupted
     let page = std::fs::read_to_string(theorem.join("progress/index.html")).unwrap();
     assert!(page.contains("tactics (interrupted)"), "{page}");

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! `domino easycrypt --tactics`: proofs from lockstep execution (story 27).
+//! `domino easycrypt prove`: proofs from lockstep execution (story 27).
 //!
 //! For each selected oracle of each equivalence: run lockstep execution on the oracle
 //! (`domino debug --easycrypt`'s engine, its artifacts written the same way), then walk the
@@ -54,6 +54,10 @@ use super::check::{
     describe_mismatch, equivalence_setup, ok_or_reject, sentences_until_call, CheckError,
     EquivalenceSetup,
 };
+use super::job::{
+    create_if_absent, ensure_translation_files, session_record_name, OracleRecord, OracleStatus,
+    SessionRecord, SessionRecordError,
+};
 use super::json::Goal;
 use super::session::{split_sentences, Session, SessionError};
 
@@ -73,6 +77,8 @@ pub enum TacticsError {
     Export(#[from] crate::writers::easycrypt::EcExportError),
     #[error(transparent)]
     Transform(#[from] crate::transforms::theorem_transforms::EquivalenceTransformError),
+    #[error(transparent)]
+    Record(#[from] SessionRecordError),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("invalid `ssp.toml`: {0}")]
@@ -103,6 +109,9 @@ pub struct TacticsOptions {
     /// Set by a Ctrl-C handler to stop the run (story 34). The run then stops where it stands,
     /// seals the oracle in flight and returns normally, its result [`Interrupted`].
     pub stop: Option<Arc<AtomicBool>>,
+    /// `prove --force` (story 35): discard the equivalence's session record and restart its
+    /// proof from the skeleton, instead of skipping it. Never rewrites a translation file.
+    pub force: bool,
 }
 
 impl TacticsOptions {
@@ -169,6 +178,7 @@ impl Default for TacticsOptions {
             ec_transcript: EcTranscriptMode::Capped,
             write_granularity: WriteGranularity::Oracle,
             stop: None,
+            force: false,
         }
     }
 }
@@ -308,7 +318,7 @@ impl TheoremTactics {
     }
 }
 
-/// The whole of `--tactics` for one exported theorem, already written to `out_dir`: rewrites
+/// The whole of `prove` for one exported theorem, already written to `out_dir`: rewrites
 /// the selected `Eq_*.ec` files, writes their reports, the transcript and the live page
 /// (`progress/index.html`), and returns what it did.
 pub fn run_tactics<P, B>(
@@ -352,7 +362,19 @@ where
     P: Project,
     B: SmtSolverBackend,
 {
+    std::fs::create_dir_all(out_dir)?;
     let out_dir = std::fs::canonicalize(out_dir).unwrap_or_else(|_| out_dir.to_path_buf());
+    // story 35: equivalences that already have a session record are skipped, before anything
+    // else is created or truncated (the transcript and the page of an earlier run stay)
+    let jobs = plan_jobs(exported, &out_dir, options)?;
+    if jobs.is_empty() {
+        return Ok(TheoremTactics {
+            theorem: theorem.name.clone(),
+            equivalences: Vec::new(),
+            elapsed: Duration::ZERO,
+            transcript: out_dir.join("progress").join("ec-transcript.jsonl"),
+        });
+    }
     let progress_dir = out_dir.join("progress");
     std::fs::create_dir_all(&progress_dir)?;
     let live = LiveHandle::new(LiveConfig {
@@ -363,7 +385,7 @@ where
         progress,
     });
     let result = run_tactics_inner(
-        theorem, project, exported, &out_dir, backend, options, &live,
+        theorem, project, exported, &jobs, &out_dir, backend, options, &live,
     );
     // the last write always happens: the page on disk matches the end state
     match &result {
@@ -380,6 +402,7 @@ fn run_tactics_inner<P, B>(
     theorem: &Theorem<'_>,
     project: &P,
     exported: &ExportedTheorem,
+    jobs: &[&EquivalenceReport],
     out_dir: &Path,
     backend: &B,
     options: &TacticsOptions,
@@ -396,11 +419,11 @@ where
     // one file for every equivalence; `None` once a capped write failed (story 31 §3.3)
     let mut transcript = Some(File::create(&transcript_path)?);
 
+    // what translation owns: created if missing, never read or rewritten (ADR 0006)
+    ensure_translation_files(exported, out_dir)?;
+
     let mut equivalences = Vec::new();
-    for eq in &exported.equivalences {
-        if options.proofstep.is_some_and(|p| p != eq.proofstep) {
-            continue;
-        }
+    for eq in jobs.iter().copied() {
         let tactics = tactics_for_equivalence(
             theorem,
             &theorem_ec,
@@ -426,6 +449,35 @@ where
         elapsed: started.elapsed(),
         transcript: transcript_path,
     })
+}
+
+/// The equivalences this proof job proves, in order: the selected proofsteps minus those with a
+/// session record (their skip line goes to stderr). With `--force` (story 35 §3.2) the record is
+/// discarded and the proof file restarts from the skeleton, atomically.
+fn plan_jobs<'e>(
+    exported: &'e ExportedTheorem,
+    out_dir: &Path,
+    options: &TacticsOptions,
+) -> Result<Vec<&'e EquivalenceReport>, TacticsError> {
+    let mut jobs = Vec::new();
+    for eq in &exported.equivalences {
+        if options.proofstep.is_some_and(|p| p != eq.proofstep) {
+            continue;
+        }
+        let record_path = out_dir.join(session_record_name(&eq.proof_file));
+        if options.force {
+            match std::fs::remove_file(&record_path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e.into()),
+            }
+        } else if let Some(record) = SessionRecord::read(&record_path)? {
+            eprintln!("{}", record.skip_line(&eq.proof_file));
+            continue;
+        }
+        jobs.push(eq);
+    }
+    Ok(jobs)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -464,6 +516,14 @@ where
         }
     }
 
+    // this equivalence's own file: created from the skeleton when missing, restarted from it
+    // with `--force`; otherwise the run rewrites it at its first checkpoint
+    let proof_path = out_dir.join(&file);
+    if options.force {
+        write_atomically(&proof_path, &out_dir.join("progress"), source)?;
+    } else if create_if_absent(&proof_path, source)? {
+        eprintln!("created {file} (missing from the translation)");
+    }
     // open the proof: everything up to `call (…); last first.`, then the base case
     let sentences = split_sentences(source);
     let call_prefix = sentences_until_call(&file, source)?;
@@ -476,6 +536,7 @@ where
     live.equivalence_started(&file, eq.proofstep, &eq.left_name, &eq.right_name, &selected_oracles);
     let report_file = file.trim_end_matches(".ec").to_string() + ".report.txt";
     let mut proof = ProofFile {
+        theorem: &theorem.name,
         source,
         procs: &setup.oracles,
         out_dir,
@@ -596,7 +657,7 @@ where
 }
 
 /// Where lockstep execution of `oracle` writes its artifacts: beside the export it describes,
-/// under the theorem it belongs to (story 19 §4.6). `domino easycrypt --debug` writes there too.
+/// under the theorem it belongs to (story 19 §4.6). `domino easycrypt debug` writes there too.
 pub fn debug_dir(theorem_out: &Path, left: &str, right: &str, oracle: &str) -> PathBuf {
     theorem_out
         .join("!debug!")
@@ -608,6 +669,8 @@ pub fn debug_dir(theorem_out: &Path, left: &str, right: &str, oracle: &str) -> P
 /// write, each atomically, so the file on disk is what has been proved so far and the report
 /// next to it describes that file. No `easycrypt compile` (ADR 0005).
 struct ProofFile<'a> {
+    /// The theorem's name, for the session record.
+    theorem: &'a str,
     /// The exported file: every oracle `+ proc; inline. admit.`.
     source: &'a str,
     /// `(exported name, EasyCrypt's procedure name)` of every oracle, in the file's order.
@@ -643,7 +706,36 @@ impl ProofFile<'_> {
             &tmp_dir,
             &self.text(&now.oracles),
         )?;
+        // the record last (story 35 §3.4): a crash between the two leaves a record that claims
+        // less than the file holds, which costs a re-proof and never claims a missing proof
+        let record = self.record(&now);
+        if record.oracles.iter().any(|o| o.status != OracleStatus::Pending) {
+            write_atomically(
+                &self.out_dir.join(session_record_name(&now.proof_file)),
+                &tmp_dir,
+                &record.to_json(),
+            )?;
+        }
         Ok(now)
+    }
+
+    /// The session record of `now`: every exported oracle's status, in the file's order.
+    fn record(&self, now: &EquivalenceTactics) -> SessionRecord {
+        let oracles = self
+            .procs
+            .iter()
+            .map(|(name, _)| OracleRecord {
+                name: name.clone(),
+                status: match now.oracles.iter().find(|o| &o.oracle == name) {
+                    None => OracleStatus::Pending,
+                    Some(o) if o.stats.admits.iter().any(|a| a.reason == AdmitReason::Interrupted) => {
+                        OracleStatus::Interrupted
+                    }
+                    Some(_) => OracleStatus::Done,
+                },
+            })
+            .collect();
+        SessionRecord::new(self.theorem, &now.left, &now.right, oracles)
     }
 
     /// The exported file with each oracle's script in place of its `+ proc; inline. admit.`.
@@ -707,7 +799,7 @@ where
     B: SmtSolverBackend,
 {
     live.oracle_started(oracle);
-    // lockstep execution first: its artifacts are written exactly as `domino easycrypt --debug`
+    // lockstep execution first: its artifacts are written exactly as `domino easycrypt debug`
     // writes them, so every `S`/`J` of an admit has a page to open
     let lockstep_started = Instant::now();
     live.activity("lockstep execution");

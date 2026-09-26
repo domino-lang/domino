@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! `domino easycrypt --check-alignment` (story 26 §3.4).
+//! `domino easycrypt check-alignment` (story 26 §3.4).
 //!
 //! For each equivalence of an exported theorem: open an EasyCrypt session, feed the `Eq_*.ec`
 //! file up to and including `call (…); last first.` (the base case is admitted instead of
@@ -440,7 +440,7 @@ pub(crate) fn describe_mismatch(m: &Mismatch) -> String {
 }
 
 impl TheoremAlignment {
-    /// The report `domino easycrypt --check-alignment` prints and writes to `alignment.txt`.
+    /// The report `domino easycrypt check-alignment` prints and writes to `alignment.txt`.
     pub fn render(&self) -> String {
         let mut out = String::new();
         let _ = writeln!(out, "alignment of theorem {}", self.theorem);

@@ -643,7 +643,7 @@ where
     // `EasyCryptTransform` (story 16) runs `easycryptify` instead of `treeify`,
     // lowering every `assert`/`abort`/early `return` into EasyCrypt's single-exit
     // shape (no `abort`, `Maybe`-typed signatures). It is what `domino easycrypt`
-    // exports and what `domino easycrypt --debug` walks; `domino debug` is the Domino
+    // exports and what `domino easycrypt debug` walks; `domino debug` is the Domino
     // listing only (story 19), so this stays `DebugTransform` and a Domino listing keeps
     // rendering `assert` as `assert`.
     let (theorem_eq, auxs_eq) = EquivalenceTransform.transform_theorem(theorem)?;

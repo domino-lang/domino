@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! `domino easycrypt --debug` (story 19 §4.5): lockstep execution on the EasyCrypt listing,
+//! `domino easycrypt debug` (story 19 §4.5): lockstep execution on the EasyCrypt listing,
 //! for every equivalence proofstep of an exported theorem and every exported oracle.
 //!
-//! Selection is exactly that of `--check-alignment` and `--tactics`: `--proofstep` and
+//! Selection is exactly that of `check-alignment` and `prove`: `--proofstep` and
 //! `--oracle` narrow it. Each oracle is one call of
-//! [`run_lockstep_command`], the call `--tactics` makes, with the options `--tactics` uses
+//! [`run_lockstep_command`], the call `prove` makes, with the options `prove` uses
 //! ([`LockstepDebugOptions::easycrypt`]), so the two cannot drift. **Claims have no meaning
 //! here**: EasyCrypt has no `no-abort` and no project lemmas, so the claim set is the
 //! no-dependency one and there is no `--claim`.

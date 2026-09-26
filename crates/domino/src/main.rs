@@ -46,13 +46,13 @@ pub struct Cvc5LibNotEnabled;
 pub struct DebugNotVerified;
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("`domino easycrypt --check-alignment` found {0} mismatches (see the report above)")]
+#[error("`domino easycrypt check-alignment` found {0} mismatches (see the report above)")]
 #[diagnostic(code(easycrypt::alignment_mismatch))]
 pub struct AlignmentMismatch(pub usize);
 
 #[derive(Error, Diagnostic, Debug)]
 #[error(
-    "`domino easycrypt --tactics` runs lockstep execution, which needs the native cvc5 backend \
+    "`domino easycrypt prove` runs lockstep execution, which needs the native cvc5 backend \
      behind the `cvc5-lib` cargo feature"
 )]
 #[diagnostic(help(
@@ -63,7 +63,7 @@ pub struct TacticsNeedCvc5Lib;
 
 #[derive(Error, Diagnostic, Debug)]
 #[error(
-    "`domino easycrypt --debug` runs lockstep execution, which needs the native cvc5 backend \
+    "`domino easycrypt debug` runs lockstep execution, which needs the native cvc5 backend \
      behind the `cvc5-lib` cargo feature"
 )]
 #[diagnostic(help(
@@ -85,7 +85,7 @@ pub struct OutNeedsOneOracle(pub usize);
 pub struct DebugIo(#[source] pub std::io::Error);
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("`domino easycrypt --debug` found joint paths that fail equal-output or the invariant, or stopped early")]
+#[error("`domino easycrypt debug` found joint paths that fail equal-output or the invariant, or stopped early")]
 #[diagnostic(code(easycrypt::debug_not_verified))]
 pub struct EcDebugNotVerified;
 
@@ -590,88 +590,41 @@ fn print_easycrypt_report(theorem_name: &str, exported: &ExportedTheorem, wrote_
     );
 }
 
-fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
-    let project_root = match &e.project {
-        Some(path) => path.clone(),
-        None => project::directory::find_project_root()?,
-    };
-    let files = project::DirectoryFiles::load(&project_root)?;
-    let project = project::DirectoryProject::load(project_root.clone(), &files)?;
-
-    let theorem_names: Vec<String> = match &e.theorem {
-        Some(name) => {
-            if project.get_theorem(name).is_none() {
-                return Err(TheoremNotFound(name.clone()).into());
-            }
-            vec![name.clone()]
-        }
-        None => {
-            let mut names: Vec<String> = project.theorems().map(String::from).collect();
-            names.sort();
-            names
-        }
-    };
-
-    let out_base = e
-        .out
-        .clone()
-        .unwrap_or_else(|| project_root.join("_build/easycrypt"));
-
-    // Story 32 (ADR 0004): refuse to overwrite anything but run artifacts. First, so that
-    // it fires before the EasyCrypt probe and before any export work.
-    if !e.force {
-        let names: Vec<&str> = theorem_names.iter().map(String::as_str).collect();
-        sspverif::writers::easycrypt::overwrite::check_export_tree(&out_base, &names)?;
-    }
-
-    if e.debug {
-        // fail early and clearly: lockstep execution needs a solver
-        #[cfg(not(feature = "cvc5-lib"))]
-        return Err(EcDebugNeedCvc5Lib.into());
-    }
-
-    if e.tactics {
-        // fail early and clearly: a solver and a `-json`-capable EasyCrypt are prerequisites
-        #[cfg(not(feature = "cvc5-lib"))]
-        return Err(TacticsNeedCvc5Lib.into());
-        #[cfg(feature = "cvc5-lib")]
-        drop(sspverif::easycrypt::session::Session::start(&std::env::temp_dir())?);
-    }
-
-    // Build every requested theorem fully in memory first, and only start
-    // writing once *all* of them succeeded. §3.2 states this per theorem
-    // ("a failed export must not leave a half-written tree"); extending it
-    // across the whole invocation is a deliberate choice, not an accident —
-    // without it, plain `domino easycrypt` (no `--theorem`) on a project
-    // where only *some* theorems fail (e.g. `example-projects/yao`, where
-    // `HybridSecurity`/`LayerSecurity` export cleanly but `Yao`/`Yao3Layer`
-    // don't) would leave the successful theorems' directories on disk next
-    // to a top-level error, contradicting §4's "writes no files" bullet for
-    // that exact project.
+/// The export's progress observer (story 21): stderr only; stdout and the written files do not
+/// depend on it.
+fn export_observer(
+    mode: ProgressMode,
+) -> Box<dyn sspverif::writers::easycrypt::progress::ExportObserver> {
     use sspverif::writers::easycrypt::progress::{
-        BarExportObserver, ExportEvent, ExportObserver, LoggingExportObserver, NopExportObserver,
-        PlainExportObserver,
+        BarExportObserver, NopExportObserver, PlainExportObserver,
     };
-    // Story 21: progress goes to stderr only; stdout and the written files do not depend on it.
-    let make_observer = || -> Box<dyn ExportObserver> {
-        match e.progress {
-            ProgressMode::None => Box::new(NopExportObserver),
-            ProgressMode::Plain => Box::new(PlainExportObserver::new()),
-            ProgressMode::Bar => Box::new(BarExportObserver::new()),
-            ProgressMode::Auto => {
-                use std::io::IsTerminal;
-                if std::io::stderr().is_terminal() {
-                    Box::new(BarExportObserver::new())
-                } else {
-                    Box::new(PlainExportObserver::new())
-                }
+    match mode {
+        ProgressMode::None => Box::new(NopExportObserver),
+        ProgressMode::Plain => Box::new(PlainExportObserver::new()),
+        ProgressMode::Bar => Box::new(BarExportObserver::new()),
+        ProgressMode::Auto => {
+            use std::io::IsTerminal;
+            if std::io::stderr().is_terminal() {
+                Box::new(BarExportObserver::new())
+            } else {
+                Box::new(PlainExportObserver::new())
             }
         }
-    };
-    let mut observer = make_observer();
-    // the export phases, for the live page of `--tactics` (story 28)
-    let mut logging = LoggingExportObserver::new(observer.as_mut());
+    }
+}
 
+/// Builds every theorem of `theorem_names` fully in memory. Callers write only once *all* of
+/// them succeeded: a failed export must not leave a half-written tree, and extending that across
+/// the whole invocation is deliberate. Without it, plain `domino easycrypt` (no `--theorem`) on
+/// a project where only *some* theorems fail (e.g. `example-projects/yao`, where
+/// `HybridSecurity`/`LayerSecurity` export cleanly but `Yao`/`Yao3Layer` don't) would leave the
+/// successful theorems' directories on disk next to a top-level error.
+fn export_in_memory<P: project::Project>(
+    project: &P,
+    theorem_names: &[String],
+    logging: &mut sspverif::writers::easycrypt::progress::LoggingExportObserver<'_>,
+) -> Result<Vec<(String, sspverif::writers::easycrypt::export::ExportedTheorem)>, Error> {
+    use sspverif::writers::easycrypt::progress::{ExportEvent, ExportObserver};
     let mut exports = Vec::with_capacity(theorem_names.len());
     for (i, name) in theorem_names.iter().enumerate() {
         let theorem = project.get_theorem(name).unwrap();
@@ -680,25 +633,89 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             index: i + 1,
             total: theorem_names.len(),
         });
-        let exported = sspverif::writers::easycrypt::export::export_theorem_observed(
-            theorem,
-            &project,
-            &mut logging,
-        )?;
+        let exported =
+            sspverif::writers::easycrypt::export::export_theorem_observed(theorem, project, logging)?;
         logging.on_event(&ExportEvent::TheoremFinished { name });
         exports.push((name.clone(), exported));
     }
+    Ok(exports)
+}
+
+fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
+    let project_root = match &e.project {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(project_root.clone(), &files)?;
+    let out_base = e
+        .out
+        .clone()
+        .unwrap_or_else(|| project_root.join("_build/easycrypt"));
+
+    match &e.command {
+        None => {
+            let theorem_names: Vec<String> = match &e.theorem {
+                Some(name) => vec![name.clone()],
+                None => {
+                    let mut names: Vec<String> = project.theorems().map(String::from).collect();
+                    names.sort();
+                    names
+                }
+            };
+            easycrypt_translate(e, &project, &project_root, &out_base, &theorem_names)
+        }
+        Some(EasycryptCommand::Prove(p)) => {
+            easycrypt_prove(p, &project, &project_root, &out_base)
+        }
+        Some(EasycryptCommand::CheckAlignment(c)) => {
+            easycrypt_check_alignment(c, &project, &out_base)
+        }
+        Some(EasycryptCommand::Debug(d)) => easycrypt_debug(d, &project, &out_base),
+    }
+}
+
+/// `domino easycrypt`: translation only. Runs no EasyCrypt (story 35).
+fn easycrypt_translate<P: project::Project>(
+    e: &Easycrypt,
+    project: &P,
+    project_root: &std::path::Path,
+    out_base: &std::path::Path,
+    theorem_names: &[String],
+) -> Result<(), Error> {
+    use sspverif::writers::easycrypt::progress::LoggingExportObserver;
+    for name in theorem_names {
+        if project.get_theorem(name).is_none() {
+            return Err(TheoremNotFound(name.clone()).into());
+        }
+    }
+
+    // Story 32 (ADR 0004): refuse to overwrite anything but run artifacts. First, so that
+    // it fires before any export work. A session record counts as translation output.
+    if !e.force {
+        let names: Vec<&str> = theorem_names.iter().map(String::as_str).collect();
+        sspverif::writers::easycrypt::overwrite::check_export_tree(out_base, &names)?;
+    }
+
+    let mut observer = export_observer(e.progress);
+    let mut logging = LoggingExportObserver::new(observer.as_mut());
+    let exports = export_in_memory(project, theorem_names, &mut logging)?;
 
     let theorem_outs: Vec<std::path::PathBuf> =
         exports.iter().map(|(name, _)| out_base.join(name)).collect();
+    if e.force {
+        // the proofs the records describe are about to be overwritten by skeletons (story 35 §3.5)
+        for out in &theorem_outs {
+            sspverif::easycrypt::job::remove_session_records(out)?;
+        }
+    }
     let outputs: Vec<_> = exports
         .iter()
         .zip(&theorem_outs)
         .map(|((name, exported), out)| (name.as_str(), out.as_path(), &exported.files))
         .collect();
     sspverif::writers::easycrypt::export::write_all_observed(&outputs, &mut logging)?;
-    #[cfg_attr(not(feature = "cvc5-lib"), allow(unused_variables))]
-    let phase_log = logging.into_log();
+    drop(logging);
     drop(observer);
 
     for (i, (name, exported)) in exports.iter().enumerate() {
@@ -708,33 +725,69 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         let theorem_out = out_base.join(name);
 
         let display_path = theorem_out
-            .strip_prefix(&project_root)
+            .strip_prefix(project_root)
             .map(|p| p.display().to_string())
             .unwrap_or_else(|_| theorem_out.display().to_string());
         print_easycrypt_report(name, exported, &display_path);
     }
+    Ok(())
+}
 
+/// The proof jobs' theorem: it must exist.
+fn proof_job_theorem<P: project::Project>(project: &P, name: &str) -> Result<Vec<String>, Error> {
+    if project.get_theorem(name).is_none() {
+        return Err(TheoremNotFound(name.to_string()).into());
+    }
+    Ok(vec![name.to_string()])
+}
+
+/// `domino easycrypt prove` (story 35): one proof job per selected equivalence, one after the
+/// other. Translation's files are created if missing and otherwise not touched (ADR 0006).
+fn easycrypt_prove<P: project::Project>(
+    p: &EcProve,
+    project: &P,
+    project_root: &std::path::Path,
+    out_base: &std::path::Path,
+) -> Result<(), Error> {
+    #[cfg(not(feature = "cvc5-lib"))]
+    {
+        let _ = (p, project, project_root, out_base);
+        Err(TacticsNeedCvc5Lib.into())
+    }
     #[cfg(feature = "cvc5-lib")]
-    if e.tactics {
+    {
         use sspverif::easycrypt::tactics::{
             read_smt_hints, run_tactics_observed, EcTranscriptMode, TacticsOptions,
             WriteGranularity,
         };
+        use sspverif::writers::easycrypt::progress::LoggingExportObserver;
+
+        let theorem_names = proof_job_theorem(project, &p.theorem)?;
+        // fail early and clearly: a `-json`-capable EasyCrypt is a prerequisite
+        drop(sspverif::easycrypt::session::Session::start(&std::env::temp_dir())?);
+
+        let mut observer = export_observer(p.progress);
+        let mut logging = LoggingExportObserver::new(observer.as_mut());
+        // The proof job needs translation's result in memory (the equivalence setup and the
+        // skeleton) and writes none of it over what is there.
+        let exports = export_in_memory(project, &theorem_names, &mut logging)?;
+        let phase_log = logging.into_log();
+        drop(observer);
 
         let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, None);
         let options = TacticsOptions {
-            proofstep: e.proofstep,
-            oracle: e.oracle.clone(),
-            ec_timeout: std::time::Duration::from_secs(e.ec_timeout),
-            smt_hints: read_smt_hints(&project_root)?,
+            proofstep: p.proofstep,
+            oracle: p.oracle.clone(),
+            ec_timeout: std::time::Duration::from_secs(p.ec_timeout),
+            smt_hints: read_smt_hints(project_root)?,
             lockstep_timeout_ms: None,
-            rung0: !e.no_rung0,
-            leaf_budget: std::time::Duration::from_secs(e.leaf_budget),
-            ec_transcript: match e.ec_transcript {
+            rung0: !p.no_rung0,
+            leaf_budget: std::time::Duration::from_secs(p.leaf_budget),
+            ec_transcript: match p.ec_transcript {
                 EcTranscriptArg::Capped => EcTranscriptMode::Capped,
                 EcTranscriptArg::Full => EcTranscriptMode::Full,
             },
-            write_granularity: match e.write_granularity {
+            write_granularity: match p.write_granularity {
                 WriteGranularityArg::Oracle => WriteGranularity::Oracle,
                 WriteGranularityArg::Node => WriteGranularity::Node,
             },
@@ -742,20 +795,25 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
                 "easycrypt: interrupt — stopping the current EasyCrypt sentence, then writing the \
                  partial proof (Ctrl-C again to abort now)",
             )),
+            force: p.force,
         };
         for (name, exported) in &exports {
             let theorem = project.get_theorem(name).unwrap();
             let theorem_out = out_base.join(name);
             let result = run_tactics_observed(
                 theorem,
-                &project,
+                project,
                 exported,
                 &theorem_out,
                 &backend,
                 &options,
-                make_observer(),
+                export_observer(p.progress),
                 &phase_log.phases_of(name),
             )?;
+            if result.equivalences.is_empty() {
+                // every selected equivalence was skipped (their lines are on stderr)
+                continue;
+            }
             let report = result.render();
             println!();
             print!("{report}");
@@ -766,17 +824,38 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
                 std::process::exit(130);
             }
         }
+        Ok(())
     }
+}
 
+/// `domino easycrypt debug` (story 19, 35): lockstep execution on the EasyCrypt listing. It
+/// starts no EasyCrypt and reads no file of the tree, so it writes only `!debug!/`.
+fn easycrypt_debug<P: project::Project>(
+    d: &EcDebug,
+    project: &P,
+    out_base: &std::path::Path,
+) -> Result<(), Error> {
+    #[cfg(not(feature = "cvc5-lib"))]
+    {
+        let _ = (d, project, out_base);
+        Err(EcDebugNeedCvc5Lib.into())
+    }
     #[cfg(feature = "cvc5-lib")]
-    if e.debug {
+    {
         use sspverif::easycrypt::debug::{debug_theorem, EcDebugOptions};
+        use sspverif::writers::easycrypt::progress::{LoggingExportObserver, NopExportObserver};
 
-        let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, e.debug_timeout);
+        let theorem_names = proof_job_theorem(project, &d.theorem)?;
+        let mut observer = NopExportObserver;
+        let mut logging = LoggingExportObserver::new(&mut observer);
+        let exports = export_in_memory(project, &theorem_names, &mut logging)?;
+
+        let backend =
+            sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, d.debug_timeout);
         let options = EcDebugOptions {
-            proofstep: e.proofstep,
-            oracle: e.oracle.clone(),
-            timeout_ms: e.debug_timeout,
+            proofstep: d.proofstep,
+            oracle: d.oracle.clone(),
+            timeout_ms: d.debug_timeout,
         };
         let stop = stop_on_ctrl_c(
             "easycrypt: interrupt — finishing the current solver query, then writing partial \
@@ -789,7 +868,7 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
             println!();
             let entries = debug_theorem(
                 theorem,
-                &project,
+                project,
                 exported,
                 &theorem_out,
                 &backend,
@@ -806,34 +885,45 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         if !all_ok {
             return Err(EcDebugNotVerified.into());
         }
+        Ok(())
     }
+}
 
-    if e.check_alignment {
-        let mut mismatches = 0;
-        for (name, exported) in &exports {
-            let theorem = project.get_theorem(name).unwrap();
-            let theorem_out = out_base.join(name);
-            let options = sspverif::easycrypt::check::CheckOptions {
-                proofstep: e.proofstep,
-                oracle: e.oracle.clone(),
-            };
-            let alignment = sspverif::easycrypt::check::check_alignment(
-                theorem,
-                exported,
-                &theorem_out,
-                &options,
-            )?;
-            let report = alignment.render();
-            println!();
-            print!("{report}");
-            std::fs::write(theorem_out.join("alignment.txt"), &report)?;
-            mismatches += alignment.mismatch_count();
-        }
-        if mismatches > 0 {
-            return Err(AlignmentMismatch(mismatches).into());
-        }
+/// `domino easycrypt check-alignment` (story 26, 35): a proof job, so the translation files it
+/// runs EasyCrypt against are created if missing and otherwise not touched.
+fn easycrypt_check_alignment<P: project::Project>(
+    c: &EcCheckAlignment,
+    project: &P,
+    out_base: &std::path::Path,
+) -> Result<(), Error> {
+    use sspverif::writers::easycrypt::progress::{LoggingExportObserver, NopExportObserver};
+
+    let theorem_names = proof_job_theorem(project, &c.theorem)?;
+    let mut observer = NopExportObserver;
+    let mut logging = LoggingExportObserver::new(&mut observer);
+    let exports = export_in_memory(project, &theorem_names, &mut logging)?;
+
+    let mut mismatches = 0;
+    for (name, exported) in &exports {
+        let theorem = project.get_theorem(name).unwrap();
+        let theorem_out = out_base.join(name);
+        std::fs::create_dir_all(&theorem_out)?;
+        sspverif::easycrypt::job::ensure_translation_files(exported, &theorem_out)?;
+        let options = sspverif::easycrypt::check::CheckOptions {
+            proofstep: c.proofstep,
+            oracle: c.oracle.clone(),
+        };
+        let alignment =
+            sspverif::easycrypt::check::check_alignment(theorem, exported, &theorem_out, &options)?;
+        let report = alignment.render();
+        println!();
+        print!("{report}");
+        std::fs::write(theorem_out.join("alignment.txt"), &report)?;
+        mismatches += alignment.mismatch_count();
     }
-
+    if mismatches > 0 {
+        return Err(AlignmentMismatch(mismatches).into());
+    }
     Ok(())
 }
 

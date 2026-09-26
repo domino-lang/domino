@@ -52,7 +52,7 @@ fn sweep_prints_a_line_per_oracle_and_fails_on_a_failing_claim() {
 #[test]
 fn easycrypt_debug_has_no_claim_flag() {
     let out = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--debug", "--claim", "x", "--path"])
+        .args(["easycrypt", "debug", "--theorem", "x", "--claim", "x", "--project"])
         .arg(deps_project())
         .output()
         .unwrap();

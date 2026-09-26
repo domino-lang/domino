@@ -28,7 +28,7 @@
 //! Finished { files_written }
 //! ```
 //!
-//! `domino easycrypt --tactics` (story 28) then adds, per theorem, one more phase:
+//! `domino easycrypt prove` (story 28) then adds, per theorem, one more phase:
 //!
 //! ```text
 //! PhaseStarted{tactics} ( ItemStarted GoalFinished* )* PhaseFinished
@@ -56,7 +56,7 @@ pub enum ExportPhase {
     Invariants,
     Proofs,
     Write,
-    /// `--tactics`: one item per oracle (story 28).
+    /// `prove`: one item per oracle (story 28).
     Tactics,
 }
 
@@ -84,7 +84,7 @@ pub enum ExportEvent<'a> {
     PhaseFinished { phase: ExportPhase },
     TheoremFinished { name: &'a str },
     Finished { files_written: usize },
-    /// `--tactics`: the goal of joint node `goal` (`N7`) of `oracle` is done, closed or admitted.
+    /// `prove`: the goal of joint node `goal` (`N7`) of `oracle` is done, closed or admitted.
     GoalFinished { oracle: &'a str, goal: &'a str, admitted: bool },
 }
 

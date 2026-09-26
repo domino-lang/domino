@@ -16,7 +16,7 @@
 //!
 //! The EasyCrypt listing has only one strategy, so its directory keeps the plain names
 //! (`index.html`, `trace.json`, `summary.txt`, `smt/`, `models/`): nothing to disambiguate, and
-//! `--tactics` keeps resolving `index.html` by relative href.
+//! `prove` keeps resolving `index.html` by relative href.
 
 use std::path::{Path, PathBuf};
 

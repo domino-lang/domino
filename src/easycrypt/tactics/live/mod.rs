@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! The live translation page of `domino easycrypt --tactics` (story 28).
+//! The live translation page of `domino easycrypt prove` (story 28).
 //!
-//! [`LiveHandle`] is the one observer of a `--tactics` run. It sees two streams:
+//! [`LiveHandle`] is the one observer of a `prove` run. It sees two streams:
 //!
 //! - the **session's**: every sentence about to run, a tick while it runs, its answer
 //!   ([`SessionEvent`]);

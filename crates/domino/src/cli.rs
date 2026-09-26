@@ -31,7 +31,7 @@ pub(crate) enum SmtOutArg {
     Deltas,
 }
 
-/// What `domino easycrypt --tactics` keeps of EasyCrypt's answers in
+/// What `domino easycrypt prove` keeps of EasyCrypt's answers in
 /// `progress/ec-transcript.jsonl` (story 31).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum EcTranscriptArg {
@@ -43,7 +43,7 @@ pub(crate) enum EcTranscriptArg {
     Full,
 }
 
-/// When `domino easycrypt --tactics` rewrites `Eq_*.ec` and its report (story 33).
+/// When `domino easycrypt prove` rewrites `Eq_*.ec` and its report (story 33).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum WriteGranularityArg {
     /// After each oracle (the default).
@@ -76,90 +76,135 @@ pub(crate) enum Commands {
     Easycrypt(Easycrypt),
 }
 
+/// `domino easycrypt`: **translation** (story 35, ADR 0006). Without a subcommand it exports the
+/// theorem to an EasyCrypt project and runs no EasyCrypt. The subcommands are proof jobs: they
+/// never translate, they only make sure the files translation writes are there.
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
-#[clap(group(clap::ArgGroup::new("ec_mode").args(["check_alignment", "tactics", "debug"]).multiple(true)))]
 pub(crate) struct Easycrypt {
     /// Path to the Domino project. Defaults to searching the current
     /// directory and its ancestors for an `ssp.toml`.
-    #[clap(long)]
+    #[clap(long, global = true)]
     pub(crate) project: Option<std::path::PathBuf>,
+    /// Output directory holding one subdirectory per exported theorem.
+    /// Defaults to `<project>/_build/easycrypt`.
+    #[clap(long, global = true)]
+    pub(crate) out: Option<std::path::PathBuf>,
     /// Name of the theorem to export. Without it, every theorem in the
     /// project is exported.
     #[clap(long)]
     pub(crate) theorem: Option<String>,
-    /// Output directory holding one subdirectory per exported theorem.
-    /// Defaults to `<project>/_build/easycrypt`.
-    #[clap(long)]
-    pub(crate) out: Option<std::path::PathBuf>,
     /// Overwrite what is already in `<out>/<theorem>/`. Without it the command refuses,
     /// before any other work, if a theorem's directory holds a file other than a run
     /// artifact (`progress/`, `!debug!/`, `*.report.txt`, `alignment.txt`) or `<out>`
-    /// itself holds a file, and lists them. Proofs a tactics run wrote are discarded.
+    /// itself holds a file, and lists them. Proofs written by `domino easycrypt prove` and
+    /// their session records (`*.session.json`) are discarded.
     #[clap(long)]
     pub(crate) force: bool,
-    /// After exporting, start EasyCrypt (`DOMINO_EASYCRYPT`, an `easycrypt cli -json`
-    /// binary) and check that the decision skeleton of every oracle's program after
-    /// `proc; inline.` aligns with the one the debugger's lowering has. The base case is
-    /// admitted, so no prover runs. Exits non-zero on any mismatch and writes
-    /// `<out>/<theorem>/alignment.txt`.
-    #[clap(long)]
-    pub(crate) check_alignment: bool,
-    /// After exporting, prove as much of each oracle as possible: run lockstep execution
-    /// on it, walk the joint tree alongside a live EasyCrypt (`DOMINO_EASYCRYPT`, an
-    /// `easycrypt cli -json` binary), and write the accepted tactics into `Eq_*.ec`. What
-    /// could not be closed stays an `admit` labelled with the claim, the id (`J`/`S`) and
-    /// what Domino concluded. Writes `Eq_*.report.txt` and `progress/ec-transcript.jsonl`
-    /// next to the export, and a live page, `progress/index.html`, that refreshes while it
-    /// runs (open it with `file://`). Needs the `cvc5-lib` build. Never run it on 4WHS or yao: it runs
-    /// lockstep execution, which is the debugger.
-    #[clap(long)]
-    pub(crate) tactics: bool,
-    /// After exporting, run lockstep execution on the EasyCrypt listing of every oracle: both
-    /// oracles advance together and each decision is resolved jointly, as an EasyCrypt proof
-    /// would. Writes `<out>/<theorem>/!debug!/<left>-<right>/<oracle>/` (a page, a trace and
-    /// the runnable queries of what failed) and exits non-zero if any joint path fails
-    /// equal-output or the invariant. EasyCrypt has no `no-abort` and no project lemmas, so
-    /// there are no claims to choose: there is no `--claim`. Needs the `cvc5-lib` build. Never
-    /// run it on 4WHS or yao: it is the debugger.
-    #[clap(long)]
-    pub(crate) debug: bool,
-    /// With `--debug`: per-query solver timeout in milliseconds (cvc5 `tlimit-per`), as for
-    /// `domino debug --timeout`. A timeout counts as `unknown`, never as verified.
-    #[clap(long, requires = "debug")]
-    pub(crate) debug_timeout: Option<u64>,
-    /// With `--tactics`: seconds one EasyCrypt sentence may run before it is interrupted.
-    #[clap(long, requires = "tactics", default_value_t = 60)]
-    pub(crate) ec_timeout: u64,
-    /// With `--tactics`: the seconds splitting one leaf by meaning may take before its
-    /// remaining parts are admitted (each sentence of a deep goal costs seconds).
-    #[clap(long, requires = "tactics", default_value_t = 300)]
-    pub(crate) leaf_budget: u64,
-    /// With `--tactics`: skip rung 0 (`auto => /#.` on every program goal), so the walk of
-    /// the joint tree is exercised even where one tactic closes an oracle. For testing.
-    #[clap(long, requires = "tactics", hide = true)]
-    pub(crate) no_rung0: bool,
-    /// With `--tactics`: what `progress/ec-transcript.jsonl` keeps of EasyCrypt's answers.
-    /// Not `--transcript`, which is the solver transcript of `domino debug`/`prove`.
-    #[clap(long, value_enum, requires = "tactics", default_value_t = EcTranscriptArg::Capped)]
-    pub(crate) ec_transcript: EcTranscriptArg,
-    /// With `--tactics`: when `Eq_*.ec` and its report are rewritten. The file on disk always
-    /// holds what has been proved so far: `node` also writes after every joint node, the
-    /// oracle in flight sealed (its open goals admitted, labelled `interrupted`).
-    #[clap(long, value_enum, requires = "tactics", default_value_t = WriteGranularityArg::Oracle)]
-    pub(crate) write_granularity: WriteGranularityArg,
     /// How the export reports what it is translating, on stderr (stdout and the written
     /// files are the same in every mode).
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
     pub(crate) progress: ProgressMode,
-    /// With `--check-alignment`, `--tactics` or `--debug`: only this proofstep (as printed by
-    /// `domino proofsteps`). Without `--tactics` the export is not affected.
-    #[clap(long, requires = "ec_mode")]
+    #[clap(subcommand)]
+    pub(crate) command: Option<EasycryptCommand>,
+}
+
+/// The proof jobs of `domino easycrypt`. Each needs the translation's result in memory but
+/// writes none of translation's files over what is there; a missing file is created.
+#[derive(Subcommand, Debug)]
+pub(crate) enum EasycryptCommand {
+    /// Prove as much of each oracle of an equivalence as possible against a live EasyCrypt.
+    Prove(EcProve),
+    /// Check that the decision skeleton of every oracle's program after `proc; inline.`
+    /// aligns with the one the debugger's lowering has.
+    CheckAlignment(EcCheckAlignment),
+    /// Run lockstep execution on the EasyCrypt listing of every oracle.
+    Debug(EcDebug),
+}
+
+/// `domino easycrypt prove` (stories 27, 35). Never run it on 4WHS or yao: it runs lockstep
+/// execution, which is the debugger.
+#[derive(clap::Args, Debug)]
+pub(crate) struct EcProve {
+    /// Name of the theorem to prove.
+    #[clap(long)]
+    pub(crate) theorem: String,
+    /// Only this proofstep (as printed by `domino proofsteps`). Without it the proofsteps run
+    /// one after another in this process; to run them at once start one process each.
+    #[clap(long)]
     pub(crate) proofstep: Option<usize>,
-    /// With `--check-alignment`, `--tactics` or `--debug`: only this exported oracle; with
-    /// `--tactics` the rest keep `+ proc; inline. admit.`.
-    #[clap(long, requires = "ec_mode")]
+    /// Only this exported oracle; the rest keep `+ proc; inline. admit.`.
+    #[clap(long)]
     pub(crate) oracle: Option<String>,
+    /// Discard the equivalence's session record and prove it again from the skeleton. Without
+    /// it an equivalence that has a record is skipped. Never rewrites a translation file: a
+    /// stale one is fixed by `domino easycrypt --force`.
+    #[clap(long, short = 'f')]
+    pub(crate) force: bool,
+    /// Seconds one EasyCrypt sentence may run before it is interrupted.
+    #[clap(long, default_value_t = 60)]
+    pub(crate) ec_timeout: u64,
+    /// The seconds splitting one leaf by meaning may take before its remaining parts are
+    /// admitted (each sentence of a deep goal costs seconds).
+    #[clap(long, default_value_t = 300)]
+    pub(crate) leaf_budget: u64,
+    /// Skip rung 0 (`auto => /#.` on every program goal), so the walk of the joint tree is
+    /// exercised even where one tactic closes an oracle. For testing.
+    #[clap(long, hide = true)]
+    pub(crate) no_rung0: bool,
+    /// What `progress/ec-transcript.jsonl` keeps of EasyCrypt's answers. Not `--transcript`,
+    /// which is the solver transcript of `domino debug`/`prove`.
+    #[clap(long, value_enum, default_value_t = EcTranscriptArg::Capped)]
+    pub(crate) ec_transcript: EcTranscriptArg,
+    /// When `Eq_*.ec` and its report are rewritten. The file on disk always holds what has been
+    /// proved so far: `node` also writes after every joint node, the oracle in flight sealed
+    /// (its open goals admitted, labelled `interrupted`).
+    #[clap(long, value_enum, default_value_t = WriteGranularityArg::Oracle)]
+    pub(crate) write_granularity: WriteGranularityArg,
+    /// How the run reports what it is doing, on stderr.
+    #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
+    pub(crate) progress: ProgressMode,
+}
+
+/// `domino easycrypt check-alignment`: starts EasyCrypt (`DOMINO_EASYCRYPT`, an
+/// `easycrypt cli -json` binary) on the export and compares skeletons. The base case is
+/// admitted, so no prover runs. Exits non-zero on any mismatch and writes
+/// `<out>/<theorem>/alignment.txt`.
+#[derive(clap::Args, Debug)]
+pub(crate) struct EcCheckAlignment {
+    /// Name of the theorem to check.
+    #[clap(long)]
+    pub(crate) theorem: String,
+    /// Only this proofstep (as printed by `domino proofsteps`).
+    #[clap(long)]
+    pub(crate) proofstep: Option<usize>,
+    /// Only this exported oracle.
+    #[clap(long)]
+    pub(crate) oracle: Option<String>,
+}
+
+/// `domino easycrypt debug`: lockstep execution on the EasyCrypt listing of every oracle: both
+/// oracles advance together and each decision is resolved jointly, as an EasyCrypt proof
+/// would. Writes `<out>/<theorem>/!debug!/<left>-<right>/<oracle>/` (a page, a trace and the
+/// runnable queries of what failed) and exits non-zero if any joint path fails equal-output or
+/// the invariant. EasyCrypt has no `no-abort` and no project lemmas, so there are no claims to
+/// choose: there is no `--claim`. Needs the `cvc5-lib` build. Never run it on 4WHS or yao: it
+/// is the debugger.
+#[derive(clap::Args, Debug)]
+pub(crate) struct EcDebug {
+    /// Name of the theorem to debug.
+    #[clap(long)]
+    pub(crate) theorem: String,
+    /// Only this proofstep (as printed by `domino proofsteps`).
+    #[clap(long)]
+    pub(crate) proofstep: Option<usize>,
+    /// Only this exported oracle.
+    #[clap(long)]
+    pub(crate) oracle: Option<String>,
+    /// Per-query solver timeout in milliseconds (cvc5 `tlimit-per`), as for
+    /// `domino debug --timeout`. A timeout counts as `unknown`, never as verified.
+    #[clap(long)]
+    pub(crate) debug_timeout: Option<u64>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -214,7 +259,7 @@ pub(crate) struct Debug {
     /// Advance both oracles together and resolve each decision jointly, as an
     /// EasyCrypt proof would, instead of exploring the left oracle and then the
     /// right one under each of its paths. Domino code either way — for the
-    /// EasyCrypt listing use `domino easycrypt --debug`.
+    /// EasyCrypt listing use `domino easycrypt debug`.
     #[clap(long)]
     pub(crate) lockstep: bool,
     /// Do NOT prune unreachable LEFT branches early (default: it does). With this

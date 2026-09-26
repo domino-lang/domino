@@ -197,20 +197,39 @@ fn one_dirty_theorem_directory_stops_every_theorem() {
 }
 
 #[test]
-fn the_overwrite_check_comes_before_the_easycrypt_probe() {
+fn the_old_mode_flags_are_gone_from_the_plain_command() {
+    // story 35: `--tactics`, `--check-alignment` and `--debug` are removed, not aliased
     let hello = project("hello-world");
-    let base = scratch("probe");
-    std::fs::create_dir_all(base.join("Proof")).unwrap();
-    std::fs::write(base.join("Proof/Types.ec"), "mine\n").unwrap();
+    let base = scratch("old-flags");
+    for flag in ["--tactics", "--check-alignment", "--debug"] {
+        let out = easycrypt(&hello, &base, &[flag]);
+        assert!(!out.status.success(), "{flag}");
+        assert!(stderr(&out).contains("unexpected argument"), "{flag}: {}", stderr(&out));
+    }
+    assert!(!base.exists(), "nothing was written");
+}
 
-    // no `DOMINO_EASYCRYPT` (and, without `cvc5-lib`, no `--tactics` at all)
-    let out = easycrypt(&hello, &base, &["--tactics"]);
+#[test]
+fn a_session_record_blocks_translation_and_force_deletes_it() {
+    let hello = project("hello-world");
+    let base = scratch("session-record");
+    let out = easycrypt(&hello, &base, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // a proof job's record: translation must not overwrite the proof it describes
+    let record = base.join("Proof/Eq_medium_composition_small_composition.session.json");
+    std::fs::write(&record, "{}").unwrap();
+    let out = easycrypt(&hello, &base, &[]);
     assert!(!out.status.success());
-    let err = stderr(&out);
     assert!(
-        err.contains("Proof/Types.ec") && err.contains("--force"),
-        "{err}"
+        stderr(&out).contains("Eq_medium_composition_small_composition.session.json"),
+        "{}",
+        stderr(&out)
     );
+    assert!(record.exists());
 
+    let out = easycrypt(&hello, &base, &["--force"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!record.exists(), "--force deletes the records");
     let _ = std::fs::remove_dir_all(&base);
 }

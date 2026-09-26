@@ -386,7 +386,7 @@ fn stop_line(outcome: &LockstepOutcome) -> Option<String> {
 // stdout
 // ---------------------------------------------------------------------------
 
-/// The concise report `domino debug --lockstep` and `domino easycrypt --debug` print: counts
+/// The concise report `domino debug --lockstep` and `domino easycrypt debug` print: counts
 /// of joint paths per claim and per combination of verdicts, the stuck points, the failures
 /// per state relation, and why the run stopped. The full tree is the summary file.
 pub fn render_summary(run: &LockstepRun) -> String {
@@ -396,7 +396,7 @@ pub fn render_summary(run: &LockstepRun) -> String {
     let mut s = String::new();
 
     let title = if meta.listing == "easycrypt" {
-        "domino easycrypt --debug — summary"
+        "domino easycrypt debug — summary"
     } else {
         "domino debug — summary"
     };

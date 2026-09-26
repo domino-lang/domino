@@ -31,10 +31,24 @@ fn scratch(test: &str) -> PathBuf {
     dir
 }
 
-/// `domino easycrypt --tactics` on an example project, with `easycrypt` as its EasyCrypt.
+/// `domino easycrypt`: translation only, which `prove` runs against (story 35).
+fn translate(project: &str, out: &Path) {
+    let status = Command::new(env!("CARGO_BIN_EXE_domino"))
+        .args(["easycrypt", "--progress", "none", "--project"])
+        .arg(workspace().join("example-projects").join(project))
+        .arg("--out")
+        .arg(out)
+        .env_remove("DOMINO_EASYCRYPT")
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+/// `domino easycrypt prove` on an example project, with `easycrypt` as its EasyCrypt.
 fn tactics(project: &str, out: &Path, easycrypt: &Path, extra: &[&str]) -> Child {
+    translate(project, out);
     Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--tactics", "--progress", "none", "--project"])
+        .args(["easycrypt", "prove", "--theorem", "Proof", "--progress", "none", "--project"])
         .arg(workspace().join("example-projects").join(project))
         .arg("--out")
         .arg(out)

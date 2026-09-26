@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! Lockstep execution of one oracle of an equivalence (story 23), on either listing:
-//! `domino debug --lockstep` on the Domino code, `domino easycrypt --debug` (and
-//! `--tactics`) on the EasyCrypt code.
+//! `domino debug --lockstep` on the Domino code, `domino easycrypt debug` (and
+//! `prove`) on the EasyCrypt code.
 //!
 //! [`run_lockstep_on`] sets up what the engine ([`crate::debug::lockstep`])
 //! needs and writes the artifacts ([`crate::debug::lockstep_report`]):
@@ -112,7 +112,7 @@ pub struct LockstepDebugOptions {
 
 impl LockstepDebugOptions {
     /// The options of a lockstep run on the EasyCrypt listing, as `domino easycrypt` runs it:
-    /// `--tactics` and `--debug` both take them from here, so the two cannot drift. Nothing but
+    /// `prove` and `debug` both take them from here, so the two cannot drift. Nothing but
     /// the solver timeout is up to the caller; the paths are unbounded and only failures leave
     /// `smt/` files.
     pub fn easycrypt(timeout_ms: Option<u64>) -> Self {
@@ -392,7 +392,7 @@ fn no_dependency_claim(name: &str, ty: ClaimType) -> Claim {
 pub(crate) enum ClaimSet {
     /// The EasyCrypt claim set: `equal-output` (the conjunction of the `equal-aborts` and
     /// `same-output` goals) and `invariant`, none with a dependency. EasyCrypt has neither
-    /// `no-abort` nor project lemmas, and `--tactics` is built on exactly this set.
+    /// `no-abort` nor project lemmas, and `prove` is built on exactly this set.
     NoDependencies,
     /// The oracle's obligation set, each claim with its own declared dependencies, narrowed to
     /// one claim by name.
@@ -600,8 +600,8 @@ fn settle_page(out_dir: &Path, layout: Layout) {
 }
 
 /// The code the engine walks: the Domino listing (`inline_oracle` on the `DebugTransform`
-/// game instances, `domino debug --lockstep`) or the EasyCrypt one (`domino easycrypt --debug`
-/// and `--tactics`). The engine does not care which it is.
+/// game instances, `domino debug --lockstep`) or the EasyCrypt one (`domino easycrypt debug`
+/// and `prove`). The engine does not care which it is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ListingKind {
     EasyCrypt,
@@ -617,7 +617,7 @@ impl ListingKind {
     }
 
     /// The EasyCrypt listing has one strategy, so its directory keeps the plain names
-    /// (`--tactics` resolves `index.html` by relative href). The Domino listing shares its
+    /// (`prove` resolves `index.html` by relative href). The Domino listing shares its
     /// directory with the sequential strategy, and so prefixes its own.
     fn layout(self) -> Layout {
         match self {
@@ -632,8 +632,8 @@ impl ListingKind {
 pub const LOCKSTEP: &str = "lockstep";
 
 /// Run lockstep execution on the **EasyCrypt** listing for one oracle of the equivalence at
-/// `req_proofstep` of `req_proof` — what `domino easycrypt --debug` does, and the call
-/// `--tactics` makes. The claims are the EasyCrypt claim set, with no dependencies. Writes the
+/// `req_proofstep` of `req_proof` — what `domino easycrypt debug` does, and the call
+/// `prove` makes. The claims are the EasyCrypt claim set, with no dependencies. Writes the
 /// artifacts under `out` (default
 /// `_build/easycrypt/<theorem>/!debug!/<left>-<right>/<oracle>/`).
 #[allow(clippy::too_many_arguments)]
@@ -911,7 +911,7 @@ where
     let smt_header = format!(
         "; {} — theorem {}, proofstep {}, {} == {}\n; oracle {}\n",
         match listing {
-            ListingKind::EasyCrypt => "domino easycrypt --debug",
+            ListingKind::EasyCrypt => "domino easycrypt debug",
             ListingKind::Domino => "domino debug --lockstep",
         },
         meta.theorem,
@@ -2225,7 +2225,7 @@ mod tests {
         }
     }
 
-    /// `--tactics` is frozen: the EasyCrypt listing checks the same two claims with no
+    /// `prove` is frozen: the EasyCrypt listing checks the same two claims with no
     /// dependencies as ever, into the same file names.
     #[test]
     fn the_easycrypt_listing_keeps_its_two_dependency_free_claims_and_plain_names() {
