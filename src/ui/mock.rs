@@ -1,51 +1,155 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::ui::TheoremUI;
-use mockall::mock;
+use crate::{
+    gamehops::{
+        equivalence::{error::Result, ResolvedClaim},
+        GameHop,
+    },
+    package::Export,
+    ui::{
+        LatexUI, ProofstepUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
+        ProveTheoremUI, ProveUI, UI,
+    },
+};
 
-mock! {
-    pub(crate) TestTheoremUI {}
+#[derive(Clone)]
+pub struct TestUI {}
 
-    impl TheoremUI for TestTheoremUI {
+impl TestUI {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
-        fn println(&self, line: &str) -> std::io::Result<()>;
+impl UI for TestUI {
+    type ProofstepUI = TestUI;
+    type ProveUI = TestUI;
+    type LatexUI = TestUI;
 
-        fn start_theorem(&mut self, theorem_name: &str, num_proofsteps: u64);
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 
-        fn finish_theorem(&mut self, theorem_name: &str);
+    fn proofstep_ui(&self) -> Self::ProofstepUI {
+        self.clone()
+    }
 
-        fn start_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn prove_ui(&self) -> Self::ProveUI {
+        self.clone()
+    }
 
-        fn proofstep_is_reduction(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn latex_ui(&self) -> Self::LatexUI {
+        self.clone()
+    }
+}
 
-        fn proofstep_set_claim_groups_count(&mut self, theorem_name: &str, proofstep_name: &str, num_claim_groups: u64);
+impl ProveUI for TestUI {
+    type ProveTheoremUI = TestUI;
 
-        fn finish_proofstep(&mut self, theorem_name: &str, proofstep_name: &str);
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
 
-        fn start_claim_group(
-            &mut self,
-            theorem_name: &str,
-            proofstep_name: &str,
-            oracle_name: &str,
-            num_lemmata: u64,
-        );
+    fn start(&self) {}
+    fn finish(&self) {}
 
-        fn finish_claim_group(&mut self, theorem_name: &str, proofstep_name: &str, oracle_name: &str);
+    fn start_theorem(&self, _theorem_name: &str) -> Self::ProveTheoremUI {
+        self.clone()
+    }
+}
 
-        fn start_claim(
-            &mut self,
-            theorem_name: &str,
-            proofstep_name: &str,
-            oracle_name: &str,
-            lemma_name: &str,
-        );
+impl ProveTheoremUI for TestUI {
+    type ProveGamehopUI = TestUI;
 
-        fn finish_claim(
-            &mut self,
-            theorem_name: &str,
-            proofstep_name: &str,
-            oracle_name: &str,
-            lemma_name: &str,
-        );
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn start(&mut self) {}
+    fn finish(&self) {}
+
+    fn start_gamehop(&self, _gamehop_name: &GameHop) -> Self::ProveGamehopUI {
+        self.clone()
+    }
+}
+
+impl ProveGamehopUI for TestUI {
+    type ProveOracleUI = TestUI;
+    type ProveInvariantStartUI = TestUI;
+
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn start(&mut self) {}
+    fn finish(&self) {}
+
+    fn is_reduction(&self) {}
+
+    fn start_oracle(&self, _oracle_name: &Export) -> Self::ProveOracleUI {
+        self.clone()
+    }
+    fn start_invariant_start(&self, _oracle_name: String) -> Self::ProveInvariantStartUI {
+        self.clone()
+    }
+}
+
+impl ProveOracleUI for TestUI {
+    type ProveClaimUI = TestUI;
+
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn run(self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>> {
+        fun(&self)
+    }
+
+    fn start_claim(&self, _claim: &ResolvedClaim) -> Self::ProveClaimUI {
+        self.clone()
+    }
+    fn start_injectivity(&self, _claim: &str) -> Self::ProveClaimUI {
+        self.clone()
+    }
+}
+impl ProveInvariantStartUI for TestUI {
+    type ProveClaimUI = TestUI;
+
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn run(self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>> {
+        fun(&self)
+    }
+
+    fn start_claim(&self, _claim: &str) -> Self::ProveClaimUI {
+        self.clone()
+    }
+}
+
+impl ProveClaimUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()> {
+        fun()
+    }
+}
+
+impl ProofstepUI for TestUI {
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl LatexUI for TestUI {
+    fn game_iterator<Item>(
+        &self,
+        iter: impl ExactSizeIterator<Item = Item>,
+        _caption: String,
+    ) -> impl Iterator<Item = Item> {
+        iter
     }
 }

@@ -26,7 +26,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::ui::mock::MockTestTheoremUI;
+use crate::ui::mock::TestUI;
 
 #[test]
 fn empty_param_section_is_fine() {
@@ -216,7 +216,7 @@ fn equivalence_gamehome_generates_code() {
         &eqctx, &project, &backend, false, None, None, 1, false, false,
     );
     driver
-        .verify(&mut MockTestTheoremUI::new())
+        .verify(TestUI::new())
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
 }
 
