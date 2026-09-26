@@ -37,8 +37,8 @@ run can end — Ctrl-C (story 34), a crash, a full disk, EasyCrypt dying.
   bullets and indentation from the depth.
 - **Story 28:** `LiveHandle::oracle_finished` / `equivalence_finished` / `activity`, the goal model,
   and the page's admit rows.
-- **Story 31:** `ec-transcript.jsonl` is capped by default (at most 3 goals of 12 000 characters
-  per record; `src/easycrypt/transcript.rs`), ~250 kB for kem-dem `--oracle PKGEN` against 4.06 MB
+- **Story 31:** `ec-transcript.jsonl` is capped by default (since story 41 the first goal, at most
+  2 000 characters, per record; `src/easycrypt/transcript.rs`), ~46 kB for kem-dem `--oracle PKGEN` against 4.06 MB
   in full; `--ec-transcript full` restores verbatim answers. Under `capped` a failed transcript
   write (a full disk) no longer fails the run: `Session` drops the sink with one stderr warning and
   `SessionEvent::TranscriptDropped`, and `run_tactics` stops giving later sessions the file. Under

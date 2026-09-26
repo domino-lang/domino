@@ -7,7 +7,9 @@
 //! `{"file": <tag>, "ctx": <the caller's note>, "sentence": …, "ms": …, "response": …}`.
 //! [`EcTranscriptMode::Full`] writes EasyCrypt's answer verbatim as `response`, which prints
 //! every open goal in full, 100–700 kB per record. [`EcTranscriptMode::Capped`] (the default)
-//! writes the same answer with its goals cut to what the live page embeds ([`cap_response`]).
+//! writes the same answer with its goals cut to what the live page embeds ([`cap_response`]):
+//! the first goal only, its text cut at [`GOAL_TEXT_CAP`] characters, so at most ~2 kB of goal
+//! text per record (story 41; story 31 kept 3 goals of 12 000).
 //!
 //! **The byte offsets constraint.** The live page (`tactics::live`) remembers where each record
 //! starts in the file (byte offset and length) and reads goal text back from there. Anything that
@@ -25,10 +27,10 @@ use serde_json::value::RawValue;
 ///
 /// A contract between the transcript and the page: a capped record holds exactly what the page
 /// shows, so the page renders the same from either mode. Defined here and nowhere else.
-pub const GOALS_PER_STEP: usize = 3;
+pub const GOALS_PER_STEP: usize = 1;
 /// The most characters of one goal's text kept in a capped record, and embedded in the page
 /// (see [`GOALS_PER_STEP`]).
-pub const GOAL_TEXT_CAP: usize = 12_000;
+pub const GOAL_TEXT_CAP: usize = 2_000;
 
 /// What `ec-transcript.jsonl` holds of EasyCrypt's answers (`--ec-transcript`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -73,7 +75,7 @@ pub fn record(
 /// characters, and says what was cut:
 ///
 /// ```json
-/// "proof": {"goals_dropped": 7, "goals": [{"id": 1, "text": "…", "text_dropped": 38000}, …]}
+/// "proof": {"goals_dropped": 7, "goals": [{"id": 1, "text": "…", "text_dropped": 48000}]}
 /// ```
 ///
 /// The structured goal (`hyps`, `concl`, …) is what makes an answer large, and nothing reads it
@@ -182,13 +184,14 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_capped_answer_keeps_three_goals_cut_at_the_cap_and_says_what_it_cut() {
+    fn a_capped_answer_keeps_the_first_goal_cut_at_the_cap_and_says_what_it_cut() {
         let answer = answer_with_goals(10, 50_000);
         let capped = cap_response(&answer).unwrap();
         let v: serde_json::Value = serde_json::from_str(&capped).unwrap();
         let goals = v["proof"]["goals"].as_array().unwrap();
         assert_eq!(goals.len(), GOALS_PER_STEP);
-        assert_eq!(v["proof"]["goals_dropped"], 7);
+        assert_eq!(goals.len(), 1);
+        assert_eq!(v["proof"]["goals_dropped"], 9);
         for (i, goal) in goals.iter().enumerate() {
             assert_eq!(goal["id"], i + 1);
             assert_eq!(
@@ -205,19 +208,28 @@ pub(crate) mod tests {
         }
         assert!(capped.starts_with("{\"version\":\"domino-json/1\",\"state\":7,\"status\":\"error\",\"error\":{\"loc\":{\"start\":0,\"end\":4},\"msg\":\"no\"},\"messages\":[{\"level\":\"warning\",\"text\":\"careful\"}],\"proof\":"));
         assert!(
-            capped.len() < 3 * GOAL_TEXT_CAP * 2 + 1_000,
+            capped.len() < GOAL_TEXT_CAP * 2 + 1_000,
             "{}",
             capped.len()
         );
     }
 
     #[test]
+    fn a_five_goal_answer_holds_one_goal_and_says_four_were_dropped() {
+        let v: serde_json::Value =
+            serde_json::from_str(&cap_response(&answer_with_goals(5, 10)).unwrap()).unwrap();
+        assert_eq!(v["proof"]["goals"].as_array().unwrap().len(), 1);
+        assert_eq!(v["proof"]["goals"][0]["id"], 1);
+        assert_eq!(v["proof"]["goals_dropped"], 4);
+    }
+
+    #[test]
     fn short_goals_and_answers_without_a_proof_are_kept_whole() {
-        let answer = answer_with_goals(2, 10);
+        let answer = answer_with_goals(1, 10);
         let v: serde_json::Value = serde_json::from_str(&cap_response(&answer).unwrap()).unwrap();
         assert_eq!(v["proof"]["goals_dropped"], 0);
-        assert_eq!(v["proof"]["goals"][1]["text"], "é".repeat(10));
-        assert_eq!(v["proof"]["goals"][1]["text_dropped"], 0);
+        assert_eq!(v["proof"]["goals"][0]["text"], "é".repeat(10));
+        assert_eq!(v["proof"]["goals"][0]["text_dropped"], 0);
         let no_proof = "{\"version\":\"domino-json/1\",\"state\":0,\"status\":\"ok\",\"messages\":[],\"proof\":null}";
         assert_eq!(cap_response(no_proof).unwrap(), no_proof);
         assert_eq!(cap_response("not json"), None);

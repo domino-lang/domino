@@ -320,7 +320,7 @@ fn goal_text_is_cut_and_the_cut_points_at_the_transcript() {
     );
     assert!(!page.contains(&"x".repeat(GOAL_TEXT_CAP + 1)));
     assert!(page.contains("500 more characters, see transcript record 0"));
-    assert!(page.contains("2 more goal(s), see transcript record 0"));
+    assert!(page.contains("+2 goals not kept, see transcript record 0"));
     assert!(page.len() < 100_000, "page is {} bytes", page.len());
 }
 
@@ -343,7 +343,7 @@ fn the_page_is_the_same_from_a_capped_and_a_full_transcript() {
     let (full, full_bytes) = run(EcTranscriptMode::Full);
     assert!(capped_bytes < full_bytes);
     assert!(capped.contains("500 more characters, see transcript record 1"));
-    assert!(capped.contains("2 more goal(s), see transcript record 1"));
+    assert!(capped.contains("+4 goals not kept, see transcript record 1"));
     assert_eq!(capped, full);
 }
 

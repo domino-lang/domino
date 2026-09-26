@@ -79,7 +79,7 @@ the goals of the *shown* steps are read back from there, once per step (cached),
 - the newest 12 steps of the goal being worked on;
 - the last step of every goal.
 
-Each shown step embeds at most `GOALS_PER_STEP` = 3 goals, each cut at `GOAL_TEXT_CAP` = 12000
+Each shown step embeds at most `GOALS_PER_STEP` = 3 goals (1 since story 41), each cut at `GOAL_TEXT_CAP` = 12000 (2000 since story 41)
 characters; a cut says how many characters or goals are missing and at which transcript record to
 find them. Every other step says "goal text not embedded ... record N". The final page shows only
 the last step of each goal. So the page grows with the number of goals (joint nodes), bounded by

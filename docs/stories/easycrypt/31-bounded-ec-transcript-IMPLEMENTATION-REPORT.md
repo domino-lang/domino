@@ -1,3 +1,5 @@
+> **Superseded by story 41:** the cap is now the first goal, cut at 2 000 characters (`GOALS_PER_STEP` = 1, `GOAL_TEXT_CAP` = 2 000). The figures below are story 31's own (3 goals of 12 000).
+
 # Story 31 — implementation report
 
 ## What changed

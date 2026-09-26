@@ -5,6 +5,8 @@
 **Depends on:** 27 (`--tactics`, the transcript), 28 (the live page's embedding rule).
 **Blocks:** 33 (its verification runs `--tactics` on kem-dem repeatedly).
 
+> **Superseded by story 41:** the cap is now 1 goal of 2 000 characters; the 3 x 12 000 and ~36 kB figures below are story 31's original numbers.
+
 ---
 
 ## 1. Why this story exists

@@ -519,7 +519,7 @@ impl Live {
                 if texts.total > texts.goals.len() {
                     let _ = write!(
                         out,
-                        "<div class=\"note\">{} more goal(s), see {record}</div>",
+                        "<div class=\"note\">+{} goals not kept, see {record}</div>",
                         texts.total - texts.goals.len(),
                     );
                 }
