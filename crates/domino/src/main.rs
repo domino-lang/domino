@@ -84,19 +84,7 @@ fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
         return Err(ReqOracleWithInvariantStart.into());
     }
 
-    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
-    project.prove(
-        ui,
-        &smtsolver,
-        p.transcript,
-        p.parallel,
-        &p.proof,
-        p.proofstep,
-        &p.oracle,
-        &p.claim,
-        p.invariant_start,
-        p.injective_randmap,
-    )?;
+    project.prove(ui, p)?;
     Ok(())
 }
 
