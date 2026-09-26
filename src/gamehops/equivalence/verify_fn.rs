@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use wildcard::Wildcard;
 
 use std::io::Write;
 
@@ -11,23 +10,21 @@ use crate::{
         ResolvedClaim,
     },
     package::Export,
-    project::Project,
+    project::{configuration::ProveConfiguration, Project},
     theorem::RandomnessMappingInjectivityCheck,
     ui::{ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI},
     util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
 
-pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
+pub(crate) struct EquivalenceSmtDriver<
+    'a,
+    Proj: Project + Sync,
+    ProveConf: ProveConfiguration + Sync,
+> {
     eqctx: &'a EquivalenceContext<'a>,
     project: &'a Proj,
-    backend: &'a Backend,
-    transcript: bool,
-    req_oracle: Option<&'a str>,
-    req_claim: Option<Wildcard<'a>>,
-    parallel: usize,
-    invariant_start: bool,
-    injective_randmap: bool,
+    config: &'a ProveConf,
 }
 
 enum ClaimGroup {
@@ -86,31 +83,20 @@ impl<'a> IntoIterator for SmtBuf<'a> {
     }
 }
 
-impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
-    EquivalenceSmtDriver<'a, Backend, Proj>
+impl<'a, Proj, ProveConf> EquivalenceSmtDriver<'a, Proj, ProveConf>
+where
+    Proj: Project + Sync,
+    ProveConf: ProveConfiguration + Sync,
 {
     pub(crate) fn new(
         eqctx: &'a EquivalenceContext<'a>,
         project: &'a Proj,
-        backend: &'a Backend,
-        transcript: bool,
-        req_oracle: Option<&'a str>,
-        req_claim: Option<&'a str>,
-        parallel: usize,
-        invariant_start: bool,
-        injective_randmap: bool,
+        config: &'a ProveConf,
     ) -> Self {
-        let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
         Self {
             eqctx,
             project,
-            backend,
-            transcript,
-            req_oracle,
-            req_claim,
-            parallel,
-            invariant_start,
-            injective_randmap,
+            config,
         }
     }
 
@@ -118,21 +104,8 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         self.eqctx
             .oracle_sequence()
             .into_iter()
-            .filter(|export| {
-                if let Some(name) = self.req_oracle {
-                    export.name() == name
-                } else {
-                    true
-                }
-            })
+            .filter(|export| self.config.oracle_requested(export.name()))
             .collect()
-    }
-
-    fn is_claim_requested(&self, claim_name: &str) -> bool {
-        match &self.req_claim {
-            Some(req_claim) => req_claim.is_match(claim_name.as_bytes()),
-            None => true,
-        }
     }
 
     pub(crate) fn verify(&mut self, ui: impl ProveGamehopUI) -> Result<()> {
@@ -184,7 +157,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let oracle_sequence = self.oracle_sequence();
 
         let claims = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.parallel)
+            .num_threads(self.config.parallel())
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
@@ -197,7 +170,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     })
                     .flatten();
 
-                if self.invariant_start {
+                if self.config.invariant_start_requested() {
                     return verify_invariant_start.collect();
                 }
 
@@ -214,7 +187,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .map(|(oracle, ui)| self.verify_oracle(ui, &equivalence_smt, oracle))
                     .flatten();
 
-                if self.req_oracle.is_some() || self.injective_randmap {
+                if self.config.restricted_requests() {
                     return verify_oracle_claims.collect();
                 }
 
@@ -259,7 +232,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         ui.run(|ui| {
             let checks: Vec<_> = checks
                 .iter()
-                .filter(|(claim_name, _)| self.is_claim_requested(claim_name))
+                .filter(|(claim_name, _)| self.config.claim_requested(claim_name))
                 .map(|(claim_name, assert)| {
                     let ui = ui.start_claim(claim_name);
 
@@ -320,7 +293,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut tasks: Vec<_> = RandomnessMappingInjectivityCheck::ALL
             .as_slice()
             .iter()
-            .filter(|check| self.is_claim_requested(check.name()))
+            .filter(|check| self.config.claim_requested(check.name()))
             .map(|check| {
                 let claim_name = check.name();
                 let claim_smt = check.emit_randomness_mapping_injectivity_check(oracle.name());
@@ -330,11 +303,13 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             })
             .collect();
 
-        if !self.injective_randmap {
+        if !self.config.injectivity_requested() {
             tasks.extend(
                 claims
                     .iter()
-                    .filter(|claim| !claim.is_admitted() && self.is_claim_requested(&claim.name))
+                    .filter(|claim| {
+                        !claim.is_admitted() && self.config.claim_requested(&claim.name)
+                    })
                     .map(|claim| {
                         let claim_smt =
                             vec![self.eqctx.emit_oracle_claim_assert(claim, oracle.name())];
@@ -364,7 +339,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
     ) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut solver = {
-            if self.transcript {
+            if self.config.transcript() {
                 let transcript_file: std::fs::File = self
                     .project
                     .get_smt_file(
@@ -376,9 +351,11 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     )
                     .unwrap();
 
-                self.backend.new_smtsolver_with_transcript(transcript_file)
+                self.config
+                    .solver_backend()
+                    .new_smtsolver_with_transcript(transcript_file)
             } else {
-                self.backend.new_smtsolver()
+                self.config.solver_backend().new_smtsolver()
             }
         }
         .map_err(|err| Error::prover_process_error(claim_name, &claim_group.error_name(), err))?;

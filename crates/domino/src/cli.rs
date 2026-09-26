@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use clap::Subcommand;
-use sspverif::util::smtsolver::process::SolverVariant;
+use wildcard::Wildcard;
+
+use sspverif::{project::configuration::*, util::smtsolver::process::SolverVariant};
 
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
@@ -72,4 +74,67 @@ pub(crate) struct Proofsteps {
     /// directory and its ancestors for an `ssp.toml`.
     #[clap(long)]
     pub(crate) path: Option<std::path::PathBuf>,
+}
+
+impl ProveConfiguration for Prove {
+    type SolverBackend = sspverif::util::smtsolver::process::ProcessSmtSolverBackend;
+
+    fn solver_backend(&self) -> Self::SolverBackend {
+        sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(self.smtsolver)
+    }
+
+    fn transcript(&self) -> bool {
+        self.transcript
+    }
+
+    fn parallel(&self) -> usize {
+        self.parallel
+    }
+
+    fn theorem_requested(&self, theorem: &str) -> bool {
+        self.proof
+            .as_ref()
+            .map(|name| theorem == name)
+            .unwrap_or(true)
+    }
+
+    fn gamehop_requested(&self, gamehop: usize) -> bool {
+        self.proofstep
+            .as_ref()
+            .map(|hop| *hop == gamehop)
+            .unwrap_or(true)
+    }
+
+    fn claim_requested(&self, claim: &str) -> bool {
+        let req_claim = self
+            .claim
+            .as_ref()
+            .map(|req| Wildcard::new(req.as_bytes()).unwrap());
+        match req_claim {
+            Some(req_claim) => req_claim.is_match(claim.as_bytes()),
+            None => true,
+        }
+    }
+
+    fn oracle_requested(&self, export: &str) -> bool {
+        if let Some(name) = &self.oracle {
+            export == name
+        } else {
+            true
+        }
+    }
+
+    fn restricted_requests(&self) -> bool {
+        self.injective_randmap
+            || self.invariant_start
+            || self.claim.is_some()
+            || self.oracle.is_some()
+    }
+
+    fn invariant_start_requested(&self) -> bool {
+        self.invariant_start
+    }
+    fn injectivity_requested(&self) -> bool {
+        self.injective_randmap
+    }
 }
