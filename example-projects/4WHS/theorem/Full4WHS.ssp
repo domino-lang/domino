@@ -1269,289 +1269,39 @@ theorem Full4WHS {
 
             Send1: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
              Send2: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
              Send3: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             Send4: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    same-state:                   [no-abort]
-                    relation-no-ideal-values-for-dishonest-keys: [no-abort]
-                    relation-message-implies-mac:     [no-abort]
-                    relation-three-mac-implies-first: [no-abort]
-                    relation-at-least:            [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least,same-output,same-state, 
-                                                  relation-no-ideal-values-for-dishonest-keys,relation-message-implies-mac,relation-three-mac-implies-first]
-                }
             }
             Send5: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             NewKey: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             NewSession: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             Test: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             Reveal: {
                 randomness: simple
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             SameKey: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             AtLeast: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
             AtMost: {
                 randomness: none
-
-                lemmas {
-                    equal-aborts:                 []
-                    same-output:                  [no-abort]
-                    relation-mac-implies-message: [no-abort]
-                    relation-trivial-equalities:  [no-abort]
-                    relation-no-overwriting:      [no-abort]
-                    relation-wellformedness:      [no-abort]
-                    relation-first:               [no-abort]
-                    relation-macs:                [no-abort]
-                    same-state:                   [no-abort]
-                    relation-reverse-mac:         [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness, same-state]
-                    relation-time:                [no-abort]
-                    relation-sids:                [no-abort]
-                    relation-at-least:            [no-abort]
-                    invariant:                    [no-abort,relation-mac-implies-message,relation-trivial-equalities
-                                                  ,relation-no-overwriting,relation-sids,relation-time,relation-macs
-                                                  ,relation-first,relation-wellformedness,relation-reverse-mac, relation-at-least]
-                }
             }
         }
     }

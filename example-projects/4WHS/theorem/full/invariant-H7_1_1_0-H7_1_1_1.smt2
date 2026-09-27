@@ -1,894 +1,198 @@
-(define-fun no-ideal-values-for-dishonest-keys
-    ((H (Array Int (Maybe Bool)))
-     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
-     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
-  Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-    (=> (= (select H kid) (mk-some false))
-        (and
-         (forall ((msg Bits_n) (tag Int))
-           (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                 (mk-tuple2 msg tag)))))
-         (is-mk-none (select Keys (mk-tuple5 kid U V ni nr)))
-         (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr true))))
-         (is-mk-none (select Prf (mk-tuple2 kid (mk-tuple5 U V ni nr false))))))))
+(define-state-relation relation-equalities
+    (L R)
+    (and
+        (= L.PRF.LTK R.PRF.LTK)
+        (= L.PRF.H R.PRF.H)
+        (= L.PRF.PRF R.PRF.PRF)
+        (= L.PRF.kid_ R.PRF.kid_)
+        (= L.MAC.Keys R.MAC.Keys)
+        (= L.MAC.Values R.MAC.Values)
+        (= L.Nonces.Nonces R.Nonces.Nonces)
+        (= L.KX.ctr_ R.KX.ctr_)
+        (= L.KX.RevTested R.KX.RevTested)
+        (= L.KX.Fresh R.KX.Fresh)
+        (= L.KX.RevTestEval R.KX.RevTestEval)
+        (= L.KX.First R.KX.First)
+        (= L.KX.Second R.KX.Second)
+        (= L.KX.State R.KX.State)))
 
+(define-state-relation relation-first-points-to-state
+    (L R)
+    (forall ((sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
+        (let ((first (select L.KX.First sid)))
+            (=> (not (is-mk-none first))
+                (let ((state (select L.KX.State (maybe-get first))))
+                    (and
+                        (not (is-mk-none state))
+                        (= (el11-10 (maybe-get state)) (mk-some sid))))))))
 
-(define-fun sid-matches
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool))))
-  Bool
-  (forall ((ctr1 Int) (ctr2 Int))
-    (let ((state1 (select state ctr1))
-          (state2 (select state ctr2)))
-      (=> (and (not (is-mk-none state1))
-               (not (is-mk-none state2)))
-          (let ((U1    (el11-1 (maybe-get state1)))
-                (U2    (el11-1 (maybe-get state2)))
-                (V1    (el11-3 (maybe-get state1)))
-                (V2    (el11-3 (maybe-get state2)))
-                (kid1  (el11-4 (maybe-get state1)))
-                (kid2  (el11-4 (maybe-get state2)))
-                (ni1   (el11-7 (maybe-get state1)))
-                (ni2   (el11-7 (maybe-get state2)))
-                (nr1   (el11-8 (maybe-get state1)))
-                (nr2   (el11-8 (maybe-get state2)))
-                (sid1  (el11-10 (maybe-get state1)))
-                (sid2  (el11-10 (maybe-get state2))))
+(define-state-relation relation-first-entry-after-message1
+    (L R)
+    (forall ((sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
+        (let ((first (select L.KX.First sid)))
+            (=> (not (is-mk-none first))
+                (let ((state (select L.KX.State (maybe-get first))))
+                    (=> (not (is-mk-none state))
+                        (> (el11-11 (maybe-get state)) 1)))))))
+
+(define-state-relation relation-fresh-accepted-first-has-second
+    (L R)
+    (forall ((sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
+        (let ((first (select L.KX.First sid)))
+            (=> (not (is-mk-none first))
+                (let ((state (select L.KX.State (maybe-get first))))
+                    (=> (and (not (is-mk-none state))
+                             (= (select L.KX.Fresh (maybe-get first)) (mk-some true))
+                             (= (el11-5 (maybe-get state)) (mk-some true)))
+                        (not (is-mk-none (select L.KX.Second sid)))))))))
+
+(define-state-relation relation-keys-above-counter-empty
+    (L R)
+    (forall ((kid Int))
+        (=> (> kid L.PRF.kid_)
+            (and (is-mk-none (select L.PRF.H kid))
+                 (is-mk-none (select L.PRF.LTK kid))))))
+
+(define-state-relation relation-sessions-above-counter-empty
+    (L R)
+    (forall ((ctr Int))
+        (=> (> ctr L.KX.ctr_)
             (and
-             (=> (and (not (is-mk-none sid1))
-                      (not (is-mk-none sid2))
-                      (= (mk-tuple5 kid1 U1 V1 ni1 nr1)
-                         (mk-tuple5 kid2 U2 V2 ni2 nr2)))
-                 (= sid1 sid2))
-             (=> (and (= (mk-tuple5 kid1 U1 V1 ni1 nr1)
-                         (mk-tuple5 kid2 U2 V2 ni2 nr2))
-                      (not (is-mk-none sid1)))
-                 (= (select Fresh ctr1)
-                    (select Fresh ctr2)))))))))
+                (is-mk-none (select L.KX.State ctr))
+                (is-mk-none (select L.KX.Fresh ctr))))))
 
+(define-state-relation relation-session-key-is-defined
+    (L R)
+    (forall ((ctr Int))
+        (let ((state (select L.KX.State ctr)))
+            (=> (not (is-mk-none state))
+                (not (is-mk-none (select L.PRF.H (el11-4 (maybe-get state)))))))))
 
-(define-fun sid-is-wellformed
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
-  Bool
-  (forall ((ctr Int))
-    (let ((state (select state ctr)))
-      (=> (not (is-mk-none state))
-          (let  ((U    (el11-1  (maybe-get state)))
-                 (V    (el11-3  (maybe-get state)))
-                 (kid  (el11-4  (maybe-get state)))
-                 (ni   (el11-7  (maybe-get state)))
-                 (nr   (el11-8  (maybe-get state)))
-                 (kmac (el11-9  (maybe-get state)))
-                 (sid  (el11-10 (maybe-get state))))
-            (=> (not (is-mk-none sid))
+(define-state-relation relation-session-freshness-matches-honesty
+    (L R)
+    (forall ((ctr Int))
+        (let ((state (select L.KX.State ctr)))
+            (=> (not (is-mk-none state))
+                (= (select L.KX.Fresh ctr)
+                   (select L.PRF.H (el11-4 (maybe-get state))))))))
+
+(define-state-relation relation-early-fresh-session-has-no-complete-transcript
+    (L R)
+    (forall ((ctr Int))
+        (let ((state (select L.KX.State ctr)))
+            (=> (and (not (is-mk-none state))
+                     (= (select L.KX.Fresh ctr) (mk-some true)))
+                (let ((role (el11-2 (maybe-get state)))
+                      (nr (el11-8 (maybe-get state)))
+                      (sid (el11-10 (maybe-get state)))
+                      (mess (el11-11 (maybe-get state))))
+                    (and
+                        (=> (and (not role) (< mess 2))
+                            (and (is-mk-none nr) (is-mk-none sid)))
+                        (=> (and role (= mess 0))
+                            (is-mk-none sid))))))))
+
+(define-state-relation relation-mac3-entry-authenticates-first
+    (L R)
+    (forall ((kid Int)
+             (U Int)
+             (V Int)
+             (ni Bits_n)
+             (nr Bits_n))
+        (let ((handle (mk-tuple5 kid U V ni nr))
+              (mac2 (select L.MAC.Values
+                        (mk-tuple2
+                            (mk-tuple5 kid U V ni nr)
+                            (mk-tuple2 nr 2))))
+              (mac3 (select L.MAC.Values
+                        (mk-tuple2
+                            (mk-tuple5 kid U V ni nr)
+                            (mk-tuple2 ni 3)))))
+            (=> (not (is-mk-none mac3))
                 (and
-                 (not (is-mk-none ni))
-                 (not (is-mk-none nr))
-                 (let ((kmac (ite (= (select Fresh ctr) (mk-some true))
-                                  (select Keys (mk-tuple5 kid U V
-                                                          (maybe-get ni)
-                                                          (maybe-get nr)))
-                                  kmac)))
-                   (and
-                    (not (is-mk-none kmac))
-                    (let ((tau (<<func-mac>> (maybe-get kmac) (maybe-get nr) 2)))
-                      (= (mk-tuple5 U V
-                                    (maybe-get ni)
-                                    (maybe-get nr)
-                                    tau)
-                         (maybe-get sid))))))))))))
+                    (not (is-mk-none mac2))
+                    (not (is-mk-none
+                        (select L.KX.First
+                            (mk-tuple5 U V ni nr (maybe-get mac2))))))))))
 
+(define-state-relation relation-mac4-entry-authenticates-second
+    (L R)
+    (let ((zero <0_n>))
+        (forall ((kid Int)
+                 (U Int)
+                 (V Int)
+                 (ni Bits_n)
+                 (nr Bits_n))
+            (let ((mac2 (select L.MAC.Values
+                            (mk-tuple2
+                                (mk-tuple5 kid U V ni nr)
+                                (mk-tuple2 nr 2))))
+                  (mac4 (select L.MAC.Values
+                            (mk-tuple2
+                                (mk-tuple5 kid U V ni nr)
+                                (mk-tuple2 zero 4)))))
+                (=> (not (is-mk-none mac4))
+                    (and
+                        (not (is-mk-none mac2))
+                        (not (is-mk-none
+                            (select L.KX.Second
+                                (mk-tuple5 U V ni nr (maybe-get mac2)))))))))))
 
-(define-fun no-overwriting-prf
-    ((kid Int)
-     (Prf (Array (Tuple2 Int (Tuple5 Int Int Bits_n Bits_n Bool)) (Maybe Bits_n)))
-     (H (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
-     (Ltk (Array Int (Maybe Bits_n))))
-  Bool
-  (forall ((i Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n) (msg Bits_n) (tag Int))
-    (and
-     (=> (or (> i kid) (< i 0))
-         (and
-          (is-mk-none (select H i))
-          (is-mk-none (select Ltk i))))
-     (=> (> i kid)
-         (and (is-mk-none (select Keys (mk-tuple5 i U V ni nr)))
-              (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr true))))
-              (is-mk-none (select Prf (mk-tuple2 i (mk-tuple5 U V ni nr false)))))))))
-
-
-(define-fun no-overwriting-game
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (fresh (Array Int (Maybe Bool)))
-     (ctr Int))
-  Bool
-  (forall ((i Int))
-    (=> (or (> i ctr) (< i 0))
-        (and
-         (is-mk-none (select fresh i))
-         (is-mk-none (select state i))))))
-
-
-(define-fun kmac-and-tau-are-computed-correctly
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (honesty (Array Int (Maybe Bool)))
-     (ltk (Array Int (Maybe Bits_n)))
-     (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
-  Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-    (forall ((ctr Int))
-      (let ((state (select state ctr)))
-        (=> (not (= state none))
-            (let  ((U    (el11-1  (maybe-get state)))
-                   (V    (el11-3  (maybe-get state)))
-                   (kid  (el11-4  (maybe-get state)))
-                   (ni   (el11-7  (maybe-get state)))
-                   (nr   (el11-8  (maybe-get state)))
-                   (kmac (el11-9  (maybe-get state))))
-              (and
-               (not (is-mk-none (select ltk kid)))
-               (not (is-mk-none (select honesty kid)))
-               (and
-                (=> (and (not (is-mk-none kmac))
-                         (= (select honesty kid) (mk-some false)))
-                    (and (not (is-mk-none ni))
-                         (not (is-mk-none nr))
-                         (= kmac (mk-some (<<func-prf>> (maybe-get (select ltk kid))
-                                                        (mk-tuple5 U V (maybe-get ni) (maybe-get nr) false))))))))))))))
-
-
-(define-fun time-of-acceptance
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall ((ctr Int))
-    (let ((state (select State ctr)))
-      (=> (not (is-mk-none state))
-          (let  ((u    (el11-2  (maybe-get state)))
-                 (acc  (el11-5  (maybe-get state)))
-                 (mess (el11-11 (maybe-get state))))
-            (= (not (is-mk-none acc))
-               (ite u (> mess 1) (> mess 2))))))))
-
-
-(define-fun stuff-not-initialized-early
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool)))
-     (Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n))))
-  Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-    (forall ((ctr Int))
-      (let ((state (select State ctr)))
-        (=> (not (= state none))
-            (let  ((U    (el11-1  (maybe-get state)))
-                   (u    (el11-2  (maybe-get state)))
-                   (V    (el11-3  (maybe-get state)))
-                   (kid  (el11-4  (maybe-get state)))
-                   (ni   (el11-7  (maybe-get state)))
-                   (nr   (el11-8  (maybe-get state)))
-                   (kmac (el11-9  (maybe-get state)))
-                   (sid  (el11-10 (maybe-get state)))
-                   (mess (el11-11 (maybe-get state))))
-              (and (ite u
-                        (ite (> mess 0)
-                             (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
-                                  (ite (= (select Fresh ctr) (mk-some true))
-                                       (not (is-mk-none (select Keys (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr)))))
-                                       (not (is-mk-none kmac)))
-                                  (not (is-mk-none ni))
-                                  (not (is-mk-none nr)))
-                             (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))))
-                                  (= ni nr kmac (as mk-none (Maybe Bits_n)))))
-                        (ite (= mess 0)
-                             (and (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n))))
-                                  (= ni nr kmac (as mk-none (Maybe Bits_n))))
-                             (ite (= mess 1)
-                                  (and (not (= ni (as mk-none (Maybe Bits_n))))
-                                       (= nr kmac (as mk-none (Maybe Bits_n)))
-                                       (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
-                                  (and (not (= sid (as mk-none (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)))))
-                                       (ite (= (select Fresh ctr) (mk-some true))
-                                            (not (is-mk-none (select Keys (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr)))))
-                                            (not (is-mk-none kmac)))
-                                       (not (= ni (as mk-none (Maybe Bits_n))))
-                                       (not (= nr (as mk-none (Maybe Bits_n)))))))))))))))
-
-
-(define-fun own-nonce-is-unique
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (nonces (Array Bits_n (Maybe Bool))))
-  Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-    (and
-     (forall ((ctr Int))
-       (let ((state (select state ctr)))
-         (=> (not (= state none))
-             (let  ((u    (el11-2  (maybe-get state)))
-                    (ni   (el11-7  (maybe-get state)))
-                    (nr   (el11-8  (maybe-get state))))
-               (ite u
-                    (=> (not (= nr (as mk-none (Maybe Bits_n))))
-                        (= (select nonces (maybe-get nr)) (mk-some true)))
-                    (=> (not (= ni (as mk-none (Maybe Bits_n))))
-                        (= (select nonces (maybe-get ni)) (mk-some true))))))))
-
-     (forall ((ctr1 Int)(ctr2 Int))
-       (let ((state1 (select state ctr1))
-             (state2 (select state ctr2)))
-         (=> (and (not (= none state1))
-                  (not (= none state2))
-                  (not (= ctr1 ctr2)))
-             (let ((u1    (el11-2 (maybe-get state1)))
-                   (u2    (el11-2 (maybe-get state2)))
-                   (ni1   (el11-7 (maybe-get state1)))
-                   (ni2   (el11-7 (maybe-get state2)))
-                   (nr1   (el11-8 (maybe-get state1)))
-                   (nr2   (el11-8 (maybe-get state2))))
-               (and
-                (let ((nonce1 (ite u1 nr1 ni1))
-                      (nonce2 (ite u2 nr2 ni2)))
-                  (=> (not (is-mk-none nonce1))
-                      (not (= nonce1 nonce2))))
-                (=> (and (not (is-mk-none ni1))
-                         (not (is-mk-none nr1))
-                         (= ni1 ni2)
-                         (= nr1 nr2))
-                    (not (= u1 u2)))))))))))
-
-
-(define-fun freshness-and-honesty-matches
-    ((state (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (fresh (Array Int (Maybe Bool)))
-     (honest (Array Int (Maybe Bool))))
-  Bool
-  (let ((none (as mk-none (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                          (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                          (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-    (forall ((ctr Int))
-      (let ((state_ (select state ctr)))
-        (=> (not (= state_ none))
-            (let ((kid (el11-4  (maybe-get state_))))
-              (= (select fresh ctr)
-                 (select honest kid))))))))
-
-
-(define-fun mac-table-wellformed
-    ((Keys (Array (Tuple5 Int Int Int Bits_n Bits_n) (Maybe Bits_n)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
-  Bool
-  (forall ((idx (Tuple5 Int Int Int Bits_n Bits_n))
-           (msg1 Bits_n) (msg2 Int))
-    (let ((val-idx (mk-tuple2 idx (mk-tuple2 msg1 msg2))))
-      (and (=> (is-mk-none (select Keys idx))
-               (is-mk-none (select Values val-idx)))
-
-           (=> (not (is-mk-none (select Values val-idx)))
-               (= (select Values val-idx)
-                  (mk-some (<<func-mac>> (maybe-get (select Keys idx)) ;implicitly guarded by previous clause in and
-                                         msg1 msg2))))))))
-
-
-(define-fun sessions-in-first-exist ;We later re-use this code to assert the same on second
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall ((sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
-    (=> (not (is-mk-none (select First sid)))
-        (let ((state (select State (maybe-get (select First sid)))))
-          (and (not (is-mk-none state))
-               (= (mk-some sid)
-                  (el11-10 (maybe-get state))))))))
-
-
-(define-fun honest-sid-have-tau-in-mac
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool)))
-     (Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
-  Bool
-  (forall ((ctr Int))
-    (let ((state (select State ctr)))
-      (=> (and (= (select Fresh ctr)
-                  (mk-some true))
-               (not (is-mk-none state)))
-          (let  ((U    (el11-1  (maybe-get state)))
-                 (V    (el11-3  (maybe-get state)))
-                 (kid  (el11-4  (maybe-get state)))
-                 (ni   (el11-7  (maybe-get state)))
-                 (nr   (el11-8  (maybe-get state)))
-                 (kmac (el11-9  (maybe-get state)))
-                 (sid  (el11-10 (maybe-get state))))
-            (=> (not (is-mk-none sid))
-                (and (not (is-mk-none ni))
-                     (not (is-mk-none nr))
-                     (let ((tau (el5-5 (maybe-get sid))))
-                       (= (mk-some tau)
-                          (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                    (mk-tuple2 (maybe-get nr) 2))))))))))))
-
-
-(define-fun first-set-by-initiator
-    ((State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Fresh (Array Int (Maybe Bool))))
-  Bool
-  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
-    (let ((sid (mk-tuple5 U V ni nr tau)))
-      (=> (not (is-mk-none (select First sid)))                     ; If there is an entry in First[sid]
-          (let ((ctr (maybe-get (select First sid))))
-            (and (not (is-mk-none  (select State ctr)))
-                 (let (
-                       (kid  (el11-4  (maybe-get (select State ctr))))
-                       (acc  (el11-5  (maybe-get (select State ctr))))
-                       (mess (el11-11 (maybe-get (select State ctr))))
-                       (u    (el11-2  (maybe-get (select State ctr)))))
-                   (=> (= (select Fresh ctr) (mk-some true))             ; and if this entry ctr belongs to a Fresh session
-                       (and (= u false)                                  ; then this is an initiator session
-                            (ite (= acc (mk-some true))                  ; and if the session has accepted, mess is 3 and else, it is 2.
-                                 (= mess 3)
-                                 (= mess 2)))))))))))
-
-
-(define-fun three-mac-implies-two-mac
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
-  Bool
-  (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-    (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                   (mk-tuple2 ni 3)))))
-        (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                   (mk-tuple2 nr 2))))))))
-
-
-(define-fun four-mac-implies-three-mac
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n))))
-  Bool
-  (let ((zeron <0_n>))
-    (forall ((kid Int) (U Int) (V Int) (ni Bits_n) (nr Bits_n))
-      (=> (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                     (mk-tuple2 zeron 4)))))
-          (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                                                     (mk-tuple2 ni 3)))))))))
-
-
-(define-fun initiator-accepts-with-mac-four-only
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
-     (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (let ((zeron <0_n>))
-    (forall ((ctr Int))
-      (let ((state (select State ctr)))
-        (=> (and (not (is-mk-none state))
-                 (= (mk-some true) (select Fresh ctr)))
-            (let  ((U    (el11-1  (maybe-get state)))
-                   (u    (el11-2  (maybe-get state)))
-                   (V    (el11-3  (maybe-get state)))
-                   (kid  (el11-4  (maybe-get state)))
-                   (acc  (el11-5  (maybe-get state)))
-                   (ni   (el11-7  (maybe-get state)))
-                   (nr   (el11-8  (maybe-get state))))
-              (=> (and (= u false)
-                       (= acc (mk-some true)))
-                  (and
-                   (not (is-mk-none ni))
-                   (not (is-mk-none nr))
-                   (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                              (mk-tuple2 zeron 4)))))))))))))
-
-
-(define-fun responder-accepts-with-mac-three-only
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
-     (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall ((ctr Int))
-    (let ((state (select State ctr)))
-      (=> (and (not (is-mk-none state))
-               (= (mk-some true) (select Fresh ctr)))
-          (let  ((U    (el11-1  (maybe-get state)))
-                 (u    (el11-2  (maybe-get state)))
-                 (V    (el11-3  (maybe-get state)))
-                 (kid  (el11-4  (maybe-get state)))
-                 (acc  (el11-5  (maybe-get state)))
-                 (ni   (el11-7  (maybe-get state)))
-                 (nr   (el11-8  (maybe-get state))))
-            (=> (and (= u true)
-                     (= acc (mk-some true)))
-                (and (not (is-mk-none ni))
-                     (not (is-mk-none nr))
-                     (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                                (mk-tuple2 (maybe-get ni) 3))))))))))))
-
-
-(define-fun reverse-mac-state-consistent
-    ((ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n)(msg Bits_n)(tag Int))
-    (let ((handle (mk-tuple2 (mk-tuple5 kid U V ni nr)
-                             (mk-tuple2 msg tag))))
-      (=> (not (is-mk-none (select ReverseMac handle)))
-          (let ((ctr (maybe-get (select ReverseMac handle))))
-            (let ((state (select State ctr)))
-              (and (not (is-mk-none state))
-                   (=> (not (is-mk-none state))
-                       (let  ((Up   (el11-1  (maybe-get state)))
-                              (Vp   (el11-3  (maybe-get state)))
-                              (kidp (el11-4  (maybe-get state)))
-                              (nip  (el11-7  (maybe-get state)))
-                              (nrp  (el11-8  (maybe-get state))))
-                         (and (= U Up)
-                              (= V Vp)
-                              (= kid kidp)
-                              (= (mk-some ni) nip)
-                              (= (mk-some nr) nrp)))))))))))
-
-
-(define-fun reverse-mac-matches
-    ((Values     (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
-     (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
-     (H (Array Int (Maybe Bool))))
-  Bool
-  (forall ((handle (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int))))
-    (let ((kid (el5-1 (el2-1 handle))))
-      (and
-       (=>  (is-mk-none (select H kid))
-            (and (is-mk-none (select ReverseMac handle))
-                 (is-mk-none (select Values handle))))
-       (=> (= (select H kid) (mk-some true))
-           (=  (is-mk-none (select ReverseMac handle))
-               (is-mk-none (select Values handle))))))))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Brainstorming on AtLeast
-;;
-;; For honest session U should write to one of First, Second and V should write to the other
-;; To argue, we can use MAC security to notice that order of events is correct
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Use ReverseMac:
-;;  - if ReverseMac has some entry then the session indicated
-;;    in ReverseMac has progressed enough to have generated
-;;    that message
-
-(define-state-relation relation-mac-implies-message
-    (left right)
-  (let ((zeron <0_n>))
-    (forall
-        ((kid Int)(U Int)(V Int)(ni Bits_n)(nr Bits_n))
-      (let ((handle (mk-tuple5 kid U V ni nr)))
-        (and
-         (let ((ctr (select left.KX.ReverseMac (mk-tuple2 handle (mk-tuple2 zeron 4)))))
-           (=> (not (is-mk-none ctr))
-               (let ((state (select left.KX.State (maybe-get ctr))))
-                 (and (not (is-mk-none state))
-                      (let ((u    (el11-2  (maybe-get state)))
-                            (acc  (el11-5  (maybe-get state)))
-                            (mess (el11-11 (maybe-get state))))
-                        (and u (= acc (mk-some true)) (= mess 2)))))))
-
-         (let ((ctr (select left.KX.ReverseMac (mk-tuple2 handle (mk-tuple2 ni 3)))))
-           (=> (not (is-mk-none ctr))
-               (let ((state (select left.KX.State (maybe-get ctr))))
-                 (and (not (is-mk-none state))
-                      (let ((u    (el11-2  (maybe-get state)))
-                            (acc  (el11-5  (maybe-get state)))
-                            (mess (el11-11 (maybe-get state))))
-                        (and (not u) (or (= mess 2) (= mess 3))))))))
-
-         (let ((ctr (select left.KX.ReverseMac (mk-tuple2 handle (mk-tuple2 nr 2)))))
-           (=> (not (is-mk-none ctr))
-               (let ((state (select left.KX.State (maybe-get ctr))))
-                 (and (not (is-mk-none state))
-                      (let ((u    (el11-2  (maybe-get state)))
-                            (acc  (el11-5  (maybe-get state)))
-                            (mess (el11-11 (maybe-get state))))
-                        (and u (or (= mess 1) (= mess 2)))))))))))))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Unless key corruption, if we accept the mac in Send5,
-;; then it was generated in send4:
-;; * Ideal mac verify looks up the entry in the table
-;; * Entry is only added to the table in matching send4
-;;
-(define-fun message-implies-mac
-    ((Values (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Bits_n)))
-     (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (let ((zeron <0_n>))
-    (forall
-        ((ctr Int))
-      (let ((state (select State ctr)))
-        (=> (and (not (is-mk-none state))
-                 (= (mk-some true) (select Fresh ctr)))
-            (let  ((U    (el11-1  (maybe-get state)))
-                   (u    (el11-2  (maybe-get state)))
-                   (V    (el11-3  (maybe-get state)))
-                   (kid  (el11-4  (maybe-get state)))
-                   (acc  (el11-5  (maybe-get state)))
-                   (ni   (el11-7  (maybe-get state)))
-                   (nr   (el11-8  (maybe-get state)))
-                   (mess (el11-11 (maybe-get state))))
-              (and
-               (=> (= mess 3)
-                   (and
-                    (not (is-mk-none ni))
-                    (not (is-mk-none nr))
-                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                               (mk-tuple2 zeron 4)))))))
-               (=> (and u (or (= mess 2) (= mess 3)) (= acc (mk-some true)))
-                   (and
-                    (not (is-mk-none ni))
-                    (not (is-mk-none nr))
-                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                               (mk-tuple2 (maybe-get ni) 3)))))
-                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                               (mk-tuple2 zeron 4)))))))
-               (=> (and (not u) (or (= mess 2) (= mess 3)))
-                   (and
-                    (not (is-mk-none ni))
-                    (not (is-mk-none nr))
-                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                               (mk-tuple2 (maybe-get nr) 2)))))
-                    (not (is-mk-none (select Values (mk-tuple2 (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
-                                                               (mk-tuple2 (maybe-get ni) 3))))))))))))))
-
-
-(define-fun sessions-in-first-second-sufficiently-advanced
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (let ((zeron <0_n>))
-    (forall
-        ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
-      (let ((first (select First (mk-tuple5 U V ni nr tau))))
-        (=> (not (is-mk-none first))
-            (let ((state (select State (maybe-get first))))
-              (and (not (is-mk-none state))
-                   (let  ((mess (el11-11 (maybe-get state))))
-                     (or (= mess 2)
-                         (= mess 3))))))))))
-
-
-(define-fun responder-in-first-second-always-accepted
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (let ((zeron <0_n>))
-    (forall
-        ((ctr Int))
-      (let ((state (select State ctr)))
-        (=> (and (not (is-mk-none state))
-                 (= (mk-some true) (select Fresh ctr)))
-            (let  ((u    (el11-2  (maybe-get state)))
-                   (acc  (el11-5  (maybe-get state)))
-                   (sid  (el11-10 (maybe-get state))))
-              (=> (is-mk-none sid)                  ;Chris: this is here to guard the maybe-get sid, but I am not sure whether this is right..
-                  (let ((first  (select First  (maybe-get sid)))
-                        (second (select Second (maybe-get sid))))
-                    (and (=> (and u (= first (mk-some ctr)))
-                             (= acc (mk-some true)))
-                         (=> (and u (= second (mk-some ctr)))
-                             (= acc (mk-some true))))))))))))
-
-
-(define-fun first-second-distinct
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
-    (let ((handle (mk-tuple5 U V ni nr tau)))
-      (and (=> (not (is-mk-none (select Second handle)))
-               (and (not (=          (select First handle) (select Second handle)))
-                    (not (is-mk-none (select First handle) ))
-                    (let ((state-first  (select State (maybe-get (select First handle))))
-                          (state-second (select State (maybe-get (select Second handle)))))
-                      (and (not (is-mk-none state-first))
-                           (not (is-mk-none state-second))
-                           (not (= (el11-2 (maybe-get state-first))              ; Chris: I am not sure why this is here.
-                                   (el11-2 (maybe-get state-second))))))))))))   ; Chris: Why should the states be equal?! How?
-
-
-(define-fun second-after-first
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int))))
-
-  Bool
-  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
-    (let ((handle (mk-tuple5 U V ni nr tau)))
-      (and (=> (is-mk-none (select First handle))
-               (is-mk-none (select Second handle)))))))
-
-(define-fun at-least
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool))))
-  Bool
-  (forall ((U Int) (V Int) (ni Bits_n) (nr Bits_n) (tau Bits_n))
-    (let ((handle (mk-tuple5 U V ni nr tau)))
-      (=> (and
-           (not (is-mk-none (select First handle)))
-           (let ((state (select State (maybe-get (select First handle)))))
-             (and
-              (not (is-mk-none state))
-              (let  ((acc  (el11-5  (maybe-get state)))
-                     (sid  (el11-10 (maybe-get state))))
+(define-state-relation relation-mac-values-are-correct
+    (L R)
+    (forall ((kid Int)
+             (U Int)
+             (V Int)
+             (ni Bits_n)
+             (nr Bits_n))
+        (let ((handle (mk-tuple5 kid U V ni nr))
+              (value (mk-tuple2 nr 2)))
+            (=> (not (is-mk-none (select L.MAC.Values (mk-tuple2 handle value))))
                 (and
-                 (= (mk-some true) acc)
-                 (= (mk-some true) (select Fresh (maybe-get (select First handle)))))))))
-          (not (is-mk-none (select Second handle)))))))
+                    (not (is-mk-none (select L.MAC.Keys handle)))
+                    (= (select L.MAC.Values (mk-tuple2 handle value))
+                       (mk-some (<<func-mac>> (maybe-get (select L.MAC.Keys handle)) nr 2))))))))
 
-
-(define-fun sids-unique
-    ((Fresh (Array Int (Maybe Bool)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int)))))
-  Bool
-  (forall
-      ((ctr1 Int)(ctr2 Int))
-    (let ((state1 (select State ctr1))
-          (state2 (select State ctr2)))
-      (=> (and (not (is-mk-none state1))
-               (not (is-mk-none state2))
-               (= (select Fresh ctr1) (mk-some true))
-               (= (select Fresh ctr2) (mk-some true)))
-          (let ((u1    (el11-2  (maybe-get state1)))
-                (u2    (el11-2  (maybe-get state2)))
-                (sid1  (el11-10 (maybe-get state1)))
-                (sid2  (el11-10 (maybe-get state2))))
-            (=> (and (not (= ctr1 ctr2))
-                     (not (is-mk-none sid1))
-                     (= sid1 sid2))
-                (not (= u1 u2))))))))
-
-
-(define-fun three-mac-implies-first
-    ((First (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (Second (Array (Tuple5 Int Int Bits_n Bits_n Bits_n) (Maybe Int)))
-     (ReverseMac (Array (Tuple2 (Tuple5 Int Int Int Bits_n Bits_n) (Tuple2 Bits_n Int)) (Maybe Int)))
-     (State (Array Int (Maybe (Tuple11 Int Bool Int Int (Maybe Bool) (Maybe Bits_n)
-                                       (Maybe Bits_n) (Maybe Bits_n) (Maybe Bits_n)
-                                       (Maybe (Tuple5 Int Int Bits_n Bits_n Bits_n)) Int))))
-     (Fresh (Array Int (Maybe Bool))))
-  Bool
-  (forall ((handle (Tuple5 Int Int Int Bits_n Bits_n))) ; (kid, U, V, ni, nr)
-    (and
-     (let ((handle_ (mk-tuple2 handle (mk-tuple2 (el5-4 handle) 3)))) ; ((kid, U, V, ni, nr) , (ni, 3))
-       (let ((ctr (select ReverseMac handle_)))
-         (=> (not (is-mk-none ctr))
-             (let ((state (select State (maybe-get ctr))))
-               (=> (not (is-mk-none state)) ;; should already be known
-                   (let ((sid (el11-10 (maybe-get state))))
-                     (=> (not (is-mk-none sid)) ;; same
-                         (not (is-mk-none (select First  (maybe-get sid))))
-                         ))))
-             )))
-     (let ((handle__ (mk-tuple2 handle (mk-tuple2 <0_n> 4))))
-       (let ((ctr (select ReverseMac handle__)))
-         (=> (not (is-mk-none ctr))
-             (let ((state (select State (maybe-get ctr))))
-               (=> (not (is-mk-none state)) ;; should already be known
-                   (let ((sid (el11-10 (maybe-get state))))
-                     (=> (not (is-mk-none sid)) ;; same
-                         (ite (= (mk-some true) (select Fresh (maybe-get ctr)))
-                              (and (not (is-mk-none (select First  (maybe-get sid))))
-                                   (not (is-mk-none (select Second (maybe-get sid)))))
-                              (not (is-mk-none (select First (maybe-get sid)))))))))))))))
-
-
-(define-state-relation relation-trivial-equalities
-    (left right)
-  (and (= left.Nonces         right.Nonces)
-       (= left.PRF.LTK        right.PRF.LTK)
-       (= left.PRF.H          right.PRF.H)
-       (= left.PRF.kid_       right.PRF.kid_)
-       (= left.KX.ctr_        right.KX.ctr_)
-       (= left.KX.State       right.KX.State)
-       (= left.KX.RevTested   right.KX.RevTested)
-       (= left.KX.RevTestEval right.KX.RevTestEval)
-       (= left.KX.Fresh       right.KX.Fresh)
-       (= left.MAC.Keys       right.MAC.Keys)
-       (= left.MAC.Values     right.MAC.Values)
-       (= left.KX.First       right.KX.First)
-       (= left.KX.Second      right.KX.Second)
-       (= left.KX.ReverseMac  right.KX.ReverseMac)
-       (= left.PRF.PRF        right.PRF.PRF)))
-
-
-(define-state-relation relation-no-overwriting
-    (left right)
-  (and (freshness-and-honesty-matches left.KX.State left.KX.Fresh left.PRF.H)
-       (freshness-and-honesty-matches right.KX.State right.KX.Fresh right.PRF.H)
-
-       (own-nonce-is-unique left.KX.State left.Nonces.Nonces)
-
-       (no-overwriting-prf left.PRF.kid_ left.PRF.PRF left.PRF.H left.MAC.Keys left.MAC.Values left.PRF.LTK)
-       (no-overwriting-prf right.PRF.kid_ right.PRF.PRF right.PRF.H right.MAC.Keys right.MAC.Values right.PRF.LTK)
-
-       (no-overwriting-game left.KX.State left.KX.Fresh left.KX.ctr_)
-       (no-overwriting-game right.KX.State right.KX.Fresh right.KX.ctr_)))
-
-
-(define-state-relation relation-sids
-    (left right)
-  (and (sid-is-wellformed left.KX.State left.KX.Fresh left.MAC.Keys)
-       (sid-matches left.KX.State left.KX.Fresh)
-       (sids-unique left.KX.Fresh left.KX.State)))
-
-
-(define-state-relation relation-wellformedness
-    (left right)
-  (and (kmac-and-tau-are-computed-correctly left.KX.State left.PRF.H left.PRF.LTK left.KX.Fresh left.MAC.Keys)
-       (kmac-and-tau-are-computed-correctly right.KX.State right.PRF.H right.PRF.LTK right.KX.Fresh right.MAC.Keys)))
-
-
-(define-state-relation relation-time
-    (left right)
-  (and (time-of-acceptance left.KX.State)
-       (time-of-acceptance right.KX.State)
-       (stuff-not-initialized-early left.KX.State left.KX.Fresh left.MAC.Keys)))
-
-(define-state-relation relation-at-least
-    (left right)
-  (and (at-least  left.KX.First  left.KX.Second  left.KX.State  left.KX.Fresh)
-       (at-least right.KX.First right.KX.Second right.KX.State right.KX.Fresh)))
-
-
-(define-state-relation relation-macs
-    (left right)
-  (and (mac-table-wellformed left.MAC.Keys left.MAC.Values)
-       (four-mac-implies-three-mac left.MAC.Values)
-       (three-mac-implies-two-mac left.MAC.Values)
-       (initiator-accepts-with-mac-four-only left.MAC.Values left.KX.Fresh left.KX.State)
-       (responder-accepts-with-mac-three-only left.MAC.Values left.KX.Fresh left.KX.State)
-       (honest-sid-have-tau-in-mac left.KX.State left.KX.Fresh left.MAC.Values)))
-
-
-(define-state-relation relation-first
-    (left right)
-  (and
-   (sessions-in-first-exist left.KX.First  left.KX.State)
-   (sessions-in-first-exist left.KX.Second left.KX.State)
-
-   (second-after-first left.KX.First left.KX.Second)
-   (first-second-distinct left.KX.First left.KX.Second left.KX.State)
-   (first-set-by-initiator left.KX.State left.KX.First left.KX.Fresh)
-
-   (sessions-in-first-second-sufficiently-advanced left.KX.First left.KX.Fresh left.KX.State)
-   (sessions-in-first-second-sufficiently-advanced left.KX.Second left.KX.Fresh left.KX.State)))
-
-
-(define-state-relation relation-reverse-mac
-    (left right)
-  (and (reverse-mac-matches left.MAC.Values left.KX.ReverseMac left.PRF.H)
-       (reverse-mac-state-consistent left.KX.ReverseMac left.KX.State)
-       (reverse-mac-matches right.MAC.Values right.KX.ReverseMac right.PRF.H)
-       (reverse-mac-state-consistent right.KX.ReverseMac right.KX.State)))
-
-(define-state-relation relation-no-ideal-values-for-dishonest-keys
-    (left right)
-  (and
-   (no-ideal-values-for-dishonest-keys left.PRF.H left.PRF.PRF
-                                       left.MAC.Keys left.MAC.Values)
-   (no-ideal-values-for-dishonest-keys left.PRF.H left.PRF.PRF
-                                       left.MAC.Keys left.MAC.Values)))
-
-(define-state-relation relation-message-implies-mac
-    (left right)
-  (and
-   (message-implies-mac left.MAC.Values
-                        left.KX.Fresh left.KX.State)
-   (message-implies-mac right.MAC.Values
-                        right.KX.Fresh right.KX.State)))
-
-(define-state-relation relation-three-mac-implies-first
-    (left right)
-  (and
-   (three-mac-implies-first left.KX.First left.KX.Second
-                            left.KX.ReverseMac left.KX.State left.KX.Fresh)
-   (three-mac-implies-first right.KX.First right.KX.Second
-                            right.KX.ReverseMac right.KX.State right.KX.Fresh)))
-
+(define-state-relation relation-fresh-sid-authenticated-by-mac2
+    (L R)
+    (forall ((ctr Int))
+        (let ((state (select L.KX.State ctr)))
+            (=> (and (not (is-mk-none state))
+                     (= (select L.KX.Fresh ctr) (mk-some true)))
+                (let ((U (el11-1 (maybe-get state)))
+                      (V (el11-3 (maybe-get state)))
+                      (kid (el11-4 (maybe-get state)))
+                      (ni (el11-7 (maybe-get state)))
+                      (nr (el11-8 (maybe-get state)))
+                      (sid (el11-10 (maybe-get state))))
+                    (=> (and (not (is-mk-none ni))
+                             (not (is-mk-none nr))
+                             (not (is-mk-none sid)))
+                        (let ((tau (el5-5 (maybe-get sid))))
+                            (and
+                                (= (maybe-get sid)
+                                   (mk-tuple5 U V (maybe-get ni) (maybe-get nr) tau))
+                                (= (select L.MAC.Values
+                                     (mk-tuple2
+                                        (mk-tuple5 kid U V (maybe-get ni) (maybe-get nr))
+                                        (mk-tuple2 (maybe-get nr) 2)))
+                                   (mk-some tau))))))))))
 
 (define-state-relation invariant
-    (state-H710 state-H711)
-  (and
-   (>= state-H710.KX.ctr_ 0)
-   (relation-trivial-equalities  state-H710 state-H711) ;own lemma
-   (relation-mac-implies-message state-H710 state-H711) ;own lemma
-   (relation-no-overwriting      state-H710 state-H711) ;own lemma
-   (relation-sids                state-H710 state-H711) ;own lemma
-   (relation-wellformedness      state-H710 state-H711) ;own lemma
-   (relation-time                state-H710 state-H711) ;own lemma
-   (relation-macs                state-H710 state-H711) ;own lemma
-   (relation-reverse-mac         state-H710 state-H711) ;own lemma
-   (relation-first               state-H710 state-H711) ;own lemma
-   (relation-at-least            state-H710 state-H711) ;own lemma
-   (relation-no-ideal-values-for-dishonest-keys state-H710 state-H711) ;own lemma for Send4
-   (relation-message-implies-mac state-H710 state-H711) ;own lemma for Send4
-   (relation-three-mac-implies-first state-H710 state-H711)))  ;own lemma for Send4
-
-
-(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-AtMost>
-    (state-left-old state-right-old
-                    ret-left       ret-right
-                    (ctr1 Int)
-                    (ctr2 Int)
-                    (ctr3 Int))
-  (and
-   (= state-left-old  ret-left.state)
-   (= state-right-old ret-right.state)))
-
-
-(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-Send4>
-    (state-left-old state-right-old
-                    ret-left       ret-right
-                    (ctr Int)
-                    (msg (Tuple2 Bits_n Bits_n)))
-  (and
-   (=  state-left-old.KX.ctr_         ret-left.state.KX.ctr_)
-   (= state-right-old.KX.ctr_        ret-right.state.KX.ctr_)
-   (=  state-left-old.KX.RevTested    ret-left.state.KX.RevTested)
-   (= state-right-old.KX.RevTested   ret-right.state.KX.RevTested)
-   (=  state-left-old.KX.Fresh        ret-left.state.KX.Fresh)
-   (= state-right-old.KX.Fresh       ret-right.state.KX.Fresh)
-   (=  state-left-old.KX.RevTestEval  ret-left.state.KX.RevTestEval)
-   (= state-right-old.KX.RevTestEval ret-right.state.KX.RevTestEval)))
+    (L R)
+    (and
+        (relation-equalities L R)
+        (relation-first-points-to-state L R)
+        (relation-first-entry-after-message1 L R)
+        (relation-fresh-accepted-first-has-second L R)
+        (relation-keys-above-counter-empty L R)
+        (relation-sessions-above-counter-empty L R)
+        (relation-session-key-is-defined L R)
+        (relation-session-freshness-matches-honesty L R)
+        (relation-early-fresh-session-has-no-complete-transcript L R)
+        (relation-mac3-entry-authenticates-first L R)
+        (relation-mac4-entry-authenticates-second L R)
+        (relation-mac-values-are-correct L R)
+        (relation-fresh-sid-authenticated-by-mac2 L R)
+    )
+)
