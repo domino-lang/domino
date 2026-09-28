@@ -16,7 +16,9 @@
 //! tikz output. Without a solver (or when layout fails) a simple layered
 //! fallback is drawn. Boolean package parameters are shown as a superscript on
 //! the package instance (`true` → 1, `false` → 0; hover for `name = value`),
-//! with the path's constant specialization applied.
+//! with the path's constant specialization applied. Every Boolean is coloured
+//! by where its value comes from ([`BitSource`]): fixed in the game, set by the
+//! theorem's game instance, or a proof parameter.
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -25,7 +27,7 @@ use std::path::Path;
 use crate::debug::ir::{render_expr, render_oracle_listing};
 use crate::expressions::{Expression, ExpressionKind};
 use crate::gamehops::GameHop;
-use crate::identifier::{theorem_ident::TheoremIdentifier, Identifier};
+use crate::identifier::{game_ident::GameIdentifier, theorem_ident::TheoremIdentifier, Identifier};
 use crate::package::Composition;
 use crate::packageinstance::PackageInstance;
 use crate::proof::ConstAssignment;
@@ -93,6 +95,9 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
          <span class=\"zoom\"><button id=\"zoom-out\" title=\"smaller code\">A−</button>\
          <button id=\"zoom-in\" title=\"larger code\">A+</button></span>\
          <button id=\"pp-toggle\" title=\"show / hide the package pane\">packages</button>\
+         <span class=\"legend\" title=\"colour of Boolean parameters: fixed in the game definition, \
+         set by the theorem's game instance, or a proof parameter\">bits:\
+         <b class=\"b-fixed\">fixed</b><b class=\"b-inst\">instance</b><b class=\"b-proof\">proof</b></span>\
          <span class=\"hint\"><kbd>←</kbd><kbd>→</kbd> previous / next game · click a package for its code</span>\
          </div></div>\n",
         name = esc(&theorem.name),
@@ -334,13 +339,75 @@ fn assignment_pair(a: &ConstAssignment) -> (String, String) {
     (a.original_name(), a.assigned_value())
 }
 
+/// Where a Boolean shown on the page gets its value; picks its colour.
+#[derive(Clone, Copy)]
+enum BitSource {
+    /// A literal in the game definition (`b: true` on a package instance).
+    Fixed,
+    /// A game constant the theorem's game instance sets to a literal.
+    Instance,
+    /// A theorem constant, i.e. a proof parameter.
+    Proof,
+}
+
+impl BitSource {
+    /// Of a game constant's value in a game instance.
+    fn of_game_const(expr: &Expression) -> Option<Self> {
+        match expr.kind() {
+            ExpressionKind::BooleanLiteral(_) => Some(Self::Instance),
+            _ if is_proof_param(expr) => Some(Self::Proof),
+            _ => None,
+        }
+    }
+
+    /// Of a package parameter's value in a game instance: a literal from the
+    /// game definition, or a game constant carrying the instance's value.
+    fn of_pkg_param(expr: &Expression) -> Option<Self> {
+        match expr.kind() {
+            ExpressionKind::BooleanLiteral(_) => Some(Self::Fixed),
+            ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(c))) => {
+                c.assigned_value.as_deref().and_then(Self::of_game_const)
+            }
+            _ => None,
+        }
+    }
+
+    fn class(self) -> &'static str {
+        match self {
+            Self::Fixed => "b-fixed",
+            Self::Instance => "b-inst",
+            Self::Proof => "b-proof",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Fixed => "fixed parameter",
+            Self::Instance => "instance parameter",
+            Self::Proof => "proof parameter",
+        }
+    }
+}
+
+/// `text`, escaped, in the colour of `source` (plain when unknown).
+fn bit_span(text: &str, source: Option<BitSource>, title: Option<&str>) -> String {
+    let Some(source) = source else {
+        return esc(text);
+    };
+    let title = title.map_or(String::new(), |t| format!(" title=\"{}\"", esc(t)));
+    format!(
+        "<span class=\"{}\"{title}>{}</span>",
+        source.class(),
+        esc(text)
+    )
+}
+
 /// A Boolean constant of a game instance, as the theorem instantiates it.
 struct GameBit {
     name: String,
     /// A literal, or the name of a theorem constant.
     value: String,
-    /// `value` names a theorem constant, i.e. a proof parameter.
-    is_param: bool,
+    source: Option<BitSource>,
 }
 
 /// The game instance's Boolean constants in the game's declaration order.
@@ -354,7 +421,7 @@ fn game_bits(game: &GameInstance) -> Vec<GameBit> {
             Some(GameBit {
                 name: name.clone(),
                 value: render_expr(expr),
-                is_param: is_proof_param(expr),
+                source: BitSource::of_game_const(expr),
             })
         })
         .collect()
@@ -367,7 +434,7 @@ fn is_proof_param(expr: &Expression) -> bool {
     )
 }
 
-/// `[bit1 -> true, bit2 -> b]` with the proof parameters marked.
+/// `[bit1 -> 1, bit2 -> b]`, each value coloured by its [`BitSource`].
 fn game_bits_html(bits: &[GameBit]) -> String {
     if bits.is_empty() {
         return String::new();
@@ -375,11 +442,8 @@ fn game_bits_html(bits: &[GameBit]) -> String {
     let body = bits
         .iter()
         .map(|bit| {
-            let value = if bit.is_param {
-                format!("<span class=\"param\">{}</span>", esc(&bit.value))
-            } else {
-                esc(&bit.value)
-            };
+            let title = bit.source.map(BitSource::label);
+            let value = bit_span(&bit_digit(&bit.value), bit.source, title);
             format!("{} -&gt; {value}", esc(&bit.name))
         })
         .collect::<Vec<_>>()
@@ -397,15 +461,11 @@ fn bits_caption(bits: &[GameBit], assignments: &[(String, String)]) -> String {
         .iter()
         .map(|bit| {
             let value = bit_digit(&substitute(bit.value.clone(), assignments));
-            let value = if bit.is_param {
-                format!(
-                    "<span class=\"param\" title=\"proof parameter {}\">{}</span>",
-                    esc(&bit.value),
-                    esc(&value)
-                )
-            } else {
-                esc(&value)
+            let title = match bit.source {
+                Some(BitSource::Proof) => Some(format!("proof parameter {}", bit.value)),
+                source => source.map(|s| s.label().to_string()),
             };
+            let value = bit_span(&value, bit.source, title.as_deref());
             format!("<span>{}={value}</span>", esc(&bit.name))
         })
         .collect::<Vec<_>>()
@@ -435,7 +495,7 @@ fn specialization_html(assignments: &[(String, String)]) -> String {
     }
     let body = assignments
         .iter()
-        .map(|(name, value)| format!("{} ↦ {}", esc(name), esc(value)))
+        .map(|(name, value)| format!("{} ↦ {}", esc(name), esc(&bit_digit(value))))
         .collect::<Vec<_>>()
         .join(", ");
     format!(" <span class=\"spec\">[{body}]</span>")
@@ -492,12 +552,18 @@ fn hop_kind(hop: &GameHop) -> &'static str {
     }
 }
 
-/// The Boolean parameters of a package instance, in declaration order, as
-/// `(name, value)`, with the proof path's `assignments` substituted in.
-fn bool_params(
-    pkg_inst: &PackageInstance,
-    assignments: &[(String, String)],
-) -> Vec<(String, String)> {
+/// A Boolean parameter of a package instance.
+struct PkgBit {
+    name: String,
+    /// With the proof path's assignments substituted in.
+    value: String,
+    source: Option<BitSource>,
+    /// Hover text: where the value comes from.
+    origin: String,
+}
+
+/// The Boolean parameters of a package instance, in declaration order.
+fn bool_params(pkg_inst: &PackageInstance, assignments: &[(String, String)]) -> Vec<PkgBit> {
     pkg_inst
         .pkg
         .params
@@ -505,7 +571,25 @@ fn bool_params(
         .filter(|(_, ty, _)| matches!(ty.kind(), TypeKind::Boolean))
         .filter_map(|(name, _, _)| {
             let (_, expr) = pkg_inst.params.iter().find(|(id, _)| &id.name == name)?;
-            Some((name.clone(), substitute(render_expr(expr), assignments)))
+            let rendered = render_expr(expr);
+            let source = BitSource::of_pkg_param(expr);
+            let origin = match (source, expr.kind()) {
+                (Some(BitSource::Proof), _) => format!("proof parameter {rendered}"),
+                (
+                    Some(BitSource::Instance),
+                    ExpressionKind::Identifier(Identifier::GameIdentifier(GameIdentifier::Const(
+                        c,
+                    ))),
+                ) => format!("instance parameter {}", c.name),
+                (Some(source), _) => source.label().to_string(),
+                (None, _) => String::new(),
+            };
+            Some(PkgBit {
+                name: name.clone(),
+                value: substitute(rendered, assignments),
+                source,
+                origin,
+            })
         })
         .collect()
 }
@@ -541,14 +625,20 @@ fn package_node(
 ) -> String {
     let params = bool_params(pkg_inst, assignments);
     let mut title = format!("package {}, instance {}", pkg_inst.pkg.name, pkg_inst.name);
-    for (name, value) in &params {
-        let _ = write!(title, "\n{name} = {value}");
+    for bit in &params {
+        let _ = write!(title, "\n{} = {}", bit.name, bit.value);
+        if !bit.origin.is_empty() {
+            let _ = write!(title, " ({})", bit.origin);
+        }
     }
-    let sup = params
+    let digits: Vec<(String, Option<BitSource>)> = params
         .iter()
-        .map(|(_, value)| bit_digit(value))
-        .collect::<Vec<_>>()
-        .join(",");
+        .map(|bit| (bit_digit(&bit.value), bit.source))
+        .collect();
+    let sup_len = digits
+        .iter()
+        .map(|(d, _)| d.chars().count() + 1)
+        .sum::<usize>();
 
     // Squeeze long lines into the box rather than letting them overflow.
     let fit = |chars: usize, px_per_char: f64| {
@@ -566,13 +656,18 @@ fn package_node(
     let (cx, cy) = (x + w / 2.0, y + h / 2.0);
     let name_y = if inst_line.is_some() { cy - 7.0 } else { cy };
 
-    let sup_html = if sup.is_empty() {
+    let sup_html = if digits.is_empty() {
         String::new()
     } else {
-        format!(
-            "<tspan class=\"sup\" baseline-shift=\"super\">{}</tspan>",
-            esc(&sup)
-        )
+        let body = digits
+            .iter()
+            .map(|(digit, source)| match source {
+                Some(s) => format!("<tspan class=\"{}\">{}</tspan>", s.class(), esc(digit)),
+                None => esc(digit),
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!("<tspan class=\"sup\" baseline-shift=\"super\">{body}</tspan>")
     };
     let mut node = format!(
         "<g class=\"pkgnode\" data-pkg=\"{}\" data-inst=\"{}\" data-params=\"{}\">\
@@ -584,7 +679,7 @@ fn package_node(
         esc(&pkg_inst.name),
         esc(&params_text(pkg_inst, assignments)),
         esc(&title),
-        fit(pkg_name.chars().count() + sup.chars().count(), 7.2),
+        fit(pkg_name.chars().count() + sup_len.saturating_sub(1), 7.2),
         esc(pkg_name),
     );
     if let Some(line) = inst_line {
@@ -821,11 +916,11 @@ fn esc(s: &str) -> String {
 const STYLE: &str = r#"
 :root { --bg:#ffffff; --fg:#1b1f24; --muted:#6a737d; --line:#d0d7de; --head:#f6f8fa;
         --accent:#0969da; --accent-bg:#ddf4ff; --pkg:#fff8e1; --pkgline:#8a6d00;
-        --edge:#444c56; --sup:#b3261e; --err:#b3261e; --code:12px; }
+        --edge:#444c56; --proof:#b3261e; --inst:#8250df; --err:#b3261e; --code:12px; }
 @media (prefers-color-scheme: dark) {
   :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --head:#161b22;
           --accent:#4493f8; --accent-bg:#132339; --pkg:#2d2610; --pkgline:#d4a72c;
-          --edge:#adbac7; --sup:#ff7b72; --err:#ff7b72; }
+          --edge:#adbac7; --proof:#ff7b72; --inst:#d2a8ff; --err:#ff7b72; }
 }
 html, body { height:100%; }
 body { background:var(--bg); color:var(--fg); margin:0; display:flex; flex-direction:column;
@@ -856,7 +951,7 @@ nav.path { flex:none; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:cen
 .chip.visible { background:var(--accent-bg); border-color:var(--accent); }
 .via { color:var(--muted); font-size:11px; cursor:help; }
 .via::before { content:"→ "; } .via::after { content:" →"; }
-.spec { color:var(--sup); font-size:11px; font-weight:normal; }
+.spec { color:var(--proof); font-size:11px; font-weight:normal; }
 .scroller { flex:1; min-height:0; overflow:auto; border:1px solid var(--line); scroll-snap-type:x proximity; }
 table { border-collapse:separate; border-spacing:0; }
 th, td { border-right:1px solid var(--line); border-bottom:1px solid var(--line);
@@ -876,7 +971,7 @@ body:not(.show-lossy) .lossy, body.show-lossy .full { display:none; }
 svg.diagram { display:block; }
 svg .pkgbox { fill:var(--pkg); stroke:var(--pkgline); stroke-width:1.2; }
 svg .pkg { fill:var(--fg); font:12px ui-monospace, Menlo, monospace; }
-svg .sup { fill:var(--sup); font-size:9px; }
+svg .sup { fill:var(--muted); font-size:9px; }
 svg .edge { stroke:var(--edge); stroke-width:1.2; }
 svg .head { fill:var(--edge); }
 svg .oracle { fill:var(--muted); font:10px ui-monospace, Menlo, monospace; }
@@ -885,7 +980,10 @@ svg .pkgnode { cursor:pointer; }
 svg .pkgnode:hover .pkgbox { stroke-width:2.2; }
 svg .pkgnode.selected .pkgbox { stroke:var(--accent); stroke-width:2.4; }
 .gbits { font-weight:normal; font-size:12px; }
-.param { color:var(--sup); font-weight:600; }
+.b-fixed { color:var(--muted); } svg .b-fixed { fill:var(--muted); }
+.b-inst { color:var(--inst); font-weight:600; } svg .b-inst { fill:var(--inst); }
+.b-proof { color:var(--proof); font-weight:600; } svg .b-proof { fill:var(--proof); }
+.legend b { margin-left:6px; }
 .bitscap { display:flex; flex-wrap:wrap; gap:4px 12px; margin-bottom:4px;
            font:11px ui-monospace, Menlo, monospace; color:var(--muted); }
 #pkgpane { position:fixed; top:0; right:0; bottom:0; width:var(--pane); z-index:10;
