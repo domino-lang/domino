@@ -444,7 +444,7 @@ pub(crate) fn game_is_compatible(specific: &GameInstance, general: &GameInstance
 }
 
 /// Extract the assignments where the the game is more specific than the reference.
-fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<ConstAssignment> {
+pub(crate) fn assignments(game: &GameInstance, reference: &GameInstance) -> Vec<ConstAssignment> {
     debug_assert!(game_is_compatible(game, reference));
 
     game.consts

@@ -72,6 +72,9 @@ pub(crate) struct ParseTheoremContext<'a> {
     pub assumptions: Vec<Assumption>,
     pub propositions: Vec<Proof<'a>>,
     pub game_hops: Vec<GameHop<'a>>,
+    /// Hybrid game instance name -> the name its declaration gives the loop
+    /// variable (internally `hybrid$loop`).
+    pub hybrid_loop_vars: HashMap<String, String>,
 }
 
 impl<'a> ParseContext<'a> {
@@ -98,6 +101,7 @@ impl<'a> ParseContext<'a> {
             assumptions: vec![],
             propositions: vec![],
             game_hops: vec![],
+            hybrid_loop_vars: HashMap::new(),
         }
     }
 }
@@ -504,6 +508,8 @@ fn handle_hybrid_instance_decl_one<'a>(
             related: vec![e],
         })
     })?;
+    ctx.hybrid_loop_vars
+        .insert(game_inst_name.clone(), loop_var_name.to_string());
 
     let bit_var_ast = ast.next().unwrap();
     let bit_var_span = bit_var_ast.as_span();
@@ -620,6 +626,8 @@ fn handle_hybrid_instance_decl_two<'a>(
             related: vec![e],
         })
     })?;
+    ctx.hybrid_loop_vars
+        .insert(game_inst_name.clone(), loop_var_name.to_string());
 
     let game_name_ast = ast.next().unwrap();
     let game_name_span = game_name_ast.as_span();
@@ -1006,12 +1014,16 @@ pub(crate) fn handle_hybrid<'a>(
         )
     };
 
+    // The equivalence's games exist, so the hybrid instance was declared.
+    let loop_var = ctx.hybrid_loop_vars[hybrid_name_ast.as_str()].clone();
+
     Ok(GameHop::Hybrid(Hybrid::new(
         hybrid_name_ast.into(),
         equivalence,
         reduction,
         left_reduction_name,
         right_reduction_name,
+        loop_var,
     )))
 }
 

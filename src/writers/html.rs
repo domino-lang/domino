@@ -12,6 +12,12 @@
 //! applied, in both a full and a lossy rendering the page toggles between.
 //! A theorem without propositions gets a single tab over its game hops.
 //!
+//! The proof search crosses a hybrid hop in one step, from a game matching
+//! `H[false]` to one matching `H[true]` with the loop variable left free. A
+//! tab expands that step into the loop step the hybrid proves: `H[false]`
+//! ~ `H[true]` by its reduction, and `H[true]` == `H[false]` at the loop
+//! variable plus one by its equivalence ([`hybrid_steps`]).
+//!
 //! The diagram reuses the solver-based layout the LaTeX export uses
 //! ([`GraphLayout`]), translated to inline SVG with the same geometry as the
 //! tikz output. Without a solver (or when layout fails) a simple layered
@@ -28,12 +34,15 @@ use std::path::Path;
 use crate::debug::ir::render_expr;
 use crate::debug::view::render_oracle_view;
 use crate::expressions::{Expression, ExpressionKind};
+use crate::gamehops::hybrid::Hybrid;
+use crate::gamehops::reduction::Reduction;
 use crate::gamehops::GameHop;
 use crate::identifier::{game_ident::GameIdentifier, theorem_ident::TheoremIdentifier, Identifier};
 use crate::package::Composition;
 use crate::packageinstance::PackageInstance;
 use crate::parser::ast::Identifier as _;
-use crate::proof::{game_is_compatible, ConstAssignment};
+use crate::parser::reduction::ReductionMapping;
+use crate::proof::{assignments, game_is_compatible, ConstAssignment};
 use crate::theorem::{GameInstance, Theorem};
 use crate::transforms::theorem_transforms::{EquivalenceTransformError, ViewTransform};
 use crate::transforms::TheoremTransform;
@@ -48,12 +57,164 @@ const BOX_WIDTH: f64 = 2.0;
 const COLUMN_PITCH: f64 = 3.5;
 
 /// One column of a tab: a game instance, the constants the proof path fixes
-/// for it, and the hop that led here from the previous column.
+/// for it, and how the path got here from the previous column.
 struct Step<'t> {
     game: &'t GameInstance,
     /// `(theorem-level name, assigned literal)`.
     assignments: Vec<(String, String)>,
-    via: Option<&'t GameHop<'t>>,
+    via: Option<Link<'t>>,
+    /// Set on the columns a hybrid hop on the path expands into.
+    hybrid: Option<&'t Hybrid<'t>>,
+}
+
+/// How a proof path gets from one column to the next.
+enum Link<'t> {
+    /// A game hop of the theorem.
+    Hop(&'t GameHop<'t>),
+    /// Into or out of a hybrid argument: the proof search matched `outer`, a
+    /// game on the path, with `general`, a side of the hybrid hop, where the
+    /// loop variable is `at`.
+    Match {
+        hybrid: &'t Hybrid<'t>,
+        outer: &'t GameInstance,
+        general: &'t GameInstance,
+        at: String,
+    },
+    /// A hybrid's reduction, `H[false] ~ H[true]`.
+    Reduction(&'t Hybrid<'t>),
+    /// A hybrid's equivalence, `H[true] == H[false]` one loop step on.
+    Equivalence(&'t Hybrid<'t>),
+}
+
+impl Link<'_> {
+    fn kind(&self) -> &'static str {
+        match self {
+            Link::Hop(hop) => hop_kind(hop),
+            Link::Match { .. } => "hybrid",
+            Link::Reduction(_) => "reduction",
+            Link::Equivalence(_) => "equivalence",
+        }
+    }
+
+    /// The link as text, for hover titles and the column headers.
+    fn text(&self, theorem: &Theorem) -> String {
+        match self {
+            Link::Hop(hop) => hop_text(theorem, hop),
+            Link::Match {
+                hybrid,
+                outer,
+                general,
+                at,
+            } => format!(
+                "{} is {} with {} ↦ {at}",
+                game_label(theorem, outer).text(),
+                game_label(theorem, general).name,
+                hybrid.loop_var(),
+            ),
+            Link::Reduction(hybrid) => hybrid_reduction_text(theorem, hybrid),
+            Link::Equivalence(hybrid) => hybrid_equivalence_text(theorem, hybrid),
+        }
+    }
+
+    fn reduction(&self) -> Option<&Reduction<'_>> {
+        match self {
+            Link::Hop(hop) => hop.as_reduction(),
+            Link::Reduction(hybrid) => Some(hybrid.reduction()),
+            Link::Match { .. } | Link::Equivalence(_) => None,
+        }
+    }
+}
+
+/// A game instance's name on the page. The instances a hybrid declaration
+/// generates (`H$false$`, `H$true$`, `H$false$+`) show as `H[false]` and
+/// `H[true]`, as the hybrid's reduction names them, with the loop variable's
+/// value alongside.
+struct GameLabel {
+    name: String,
+    /// `hy`, `hy + 1`.
+    at: Option<String>,
+}
+
+impl GameLabel {
+    fn text(&self) -> String {
+        match &self.at {
+            Some(at) => format!("{}({at})", self.name),
+            None => self.name.clone(),
+        }
+    }
+
+    fn html(&self) -> String {
+        match &self.at {
+            Some(at) => format!("{}<sub class=\"at\">{}</sub>", esc(&self.name), esc(at)),
+            None => esc(&self.name),
+        }
+    }
+}
+
+fn game_label(theorem: &Theorem, game: &GameInstance) -> GameLabel {
+    let Some((base, bit)) = hybrid_instance(game) else {
+        return GameLabel {
+            name: game.name().to_string(),
+            at: None,
+        };
+    };
+    GameLabel {
+        name: format!("{base}[{bit}]"),
+        at: loop_consts(game, loop_var(theorem, game))
+            .into_iter()
+            .next()
+            .map(|(_, value)| value),
+    }
+}
+
+/// `(hybrid instance name, "true" | "false")` for a game instance a hybrid
+/// instance declaration generates.
+fn hybrid_instance(game: &GameInstance) -> Option<(&str, &str)> {
+    match game.name().split('$').collect::<Vec<_>>()[..] {
+        [base, bit @ ("true" | "false"), "" | "+"] => Some((base, bit)),
+        _ => None,
+    }
+}
+
+/// The declared name of the loop variable of the hybrid `game` belongs to;
+/// the internal name when no hybrid hop is over it.
+fn loop_var<'t>(theorem: &'t Theorem, game: &GameInstance) -> &'t str {
+    let Some((base, _)) = hybrid_instance(game) else {
+        return HYBRID_LOOP;
+    };
+    theorem
+        .game_hops
+        .iter()
+        .find_map(|hop| match hop {
+            GameHop::Hybrid(hybrid) if hybrid.hybrid_name().as_str() == base => {
+                Some(hybrid.loop_var())
+            }
+            _ => None,
+        })
+        .unwrap_or(HYBRID_LOOP)
+}
+
+/// The constants of a hybrid's game instance set from the loop variable, as
+/// `(name, value)` with the loop variable named `loop_var`.
+fn loop_consts(game: &GameInstance, loop_var: &str) -> Vec<(String, String)> {
+    game.consts
+        .iter()
+        .filter(|(_, expr)| render_expr(expr).contains(HYBRID_LOOP))
+        .map(|(ident, expr)| (ident.name.clone(), loop_value(expr, loop_var)))
+        .collect()
+}
+
+/// A constant set from the loop variable: `hy`, or `hy + 1` for the next
+/// loop step's game (the parser's `1 + hybrid$loop`).
+fn loop_value(expr: &Expression, loop_var: &str) -> String {
+    if let ExpressionKind::Add(lhs, rhs) = expr.kind() {
+        if let ExpressionKind::IntegerLiteral(k) = lhs.kind() {
+            if render_expr(rhs) == HYBRID_LOOP {
+                return format!("{loop_var} + {k}");
+            }
+        }
+    }
+    name_loop_var(&render_expr(expr), loop_var)
 }
 
 /// One tab of the page.
@@ -158,7 +319,7 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
             out,
             "<li><span class=\"kind\">{}</span> <code>{}</code></li>",
             hop_kind(hop),
-            esc(&hop.to_string()),
+            esc(&hop_text(theorem, hop)),
         );
     }
     out.push_str("</ol></details>\n</header>\n");
@@ -167,26 +328,51 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
         let _ = writeln!(out, "<section class=\"tabpane\" data-tab=\"{t}\">");
 
         // The path as a clickable breadcrumb: one chip per column, the hop
-        // between neighbours in between.
+        // between neighbours in between, and the columns of an expanded
+        // hybrid hop grouped.
         out.push_str("<nav class=\"path\">");
         for (c, step) in tab.steps.iter().enumerate() {
-            if let Some(hop) = step.via {
+            match &step.via {
+                Some(link @ Link::Match { .. }) => {
+                    let _ = write!(
+                        out,
+                        "<span class=\"match\" title=\"{}\">≙</span>",
+                        esc(&link.text(theorem)),
+                    );
+                }
+                Some(link) => {
+                    let _ = write!(
+                        out,
+                        "<span class=\"via\" title=\"{}\"{}>{}</span>",
+                        esc(&link.text(theorem)),
+                        assumption_attr(link.reduction()),
+                        link.kind(),
+                    );
+                }
+                None if tab.kind == TabKind::Assumption && c > 0 => {
+                    out.push_str("<span class=\"sim\" title=\"indistinguishable\">~</span>");
+                }
+                None => {}
+            }
+            let prev_hybrid = c.checked_sub(1).and_then(|p| tab.steps[p].hybrid);
+            let next_hybrid = tab.steps.get(c + 1).and_then(|s| s.hybrid);
+            if let Some(hybrid) = step.hybrid.filter(|_| prev_hybrid.is_none()) {
                 let _ = write!(
                     out,
-                    "<span class=\"via\" title=\"{}\"{}>{}</span>",
-                    esc(&hop.to_string()),
-                    assumption_attr(hop),
-                    hop_kind(hop),
+                    "<span class=\"hybgroup\" title=\"{}\"><span class=\"hyblabel\">hybrid {}</span>",
+                    esc(&hybrid_text(theorem, hybrid)),
+                    esc(hybrid.hybrid_name().as_str()),
                 );
-            } else if tab.kind == TabKind::Assumption && c > 0 {
-                out.push_str("<span class=\"sim\" title=\"indistinguishable\">~</span>");
             }
             let _ = write!(
                 out,
                 "<button class=\"chip\" data-col=\"{c}\">{}{}</button>",
-                esc(step.game.name()),
+                game_label(theorem, step.game).html(),
                 specialization_html(&step.assignments),
             );
+            if step.hybrid.is_some() && next_hybrid.is_none() {
+                out.push_str("</span>");
+            }
         }
         out.push_str("</nav>\n");
 
@@ -195,22 +381,30 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
         out.push_str("<div class=\"scroller\"><table>\n<thead><tr><th class=\"corner\"></th>");
         let n = tab.steps.len();
         for (c, step) in tab.steps.iter().enumerate() {
-            let via = match step.via {
-                Some(hop) => format!(
+            let via = match &step.via {
+                Some(link) => format!(
                     "<div class=\"gsub\">via {} <code{}>{}</code></div>",
-                    hop_kind(hop),
-                    assumption_attr(hop),
-                    esc(&hop.to_string())
+                    link.kind(),
+                    assumption_attr(link.reduction()),
+                    esc(&link.text(theorem))
+                ),
+                None => String::new(),
+            };
+            let hybrid = match step.hybrid {
+                Some(hybrid) => format!(
+                    "<div class=\"gsub\">loop step of hybrid <code>{}</code></div>",
+                    esc(hybrid.hybrid_name().as_str())
                 ),
                 None => String::new(),
             };
             let _ = write!(
                 out,
-                "<th class=\"col\" data-col=\"{c}\"><div class=\"gname\">\
+                "<th class=\"col{}\" data-col=\"{c}\"><div class=\"gname\">\
                  <span class=\"idx\">{}/{n}</span> {}{}{}</div>\
-                 <div class=\"gsub\">game <code>{}</code></div>{via}</th>",
+                 <div class=\"gsub\">game <code>{}</code></div>{hybrid}{via}</th>",
+                if step.hybrid.is_some() { " hyb" } else { "" },
                 c + 1,
-                esc(step.game.name()),
+                game_label(theorem, step.game).html(),
                 game_bits_html(&game_bits(step.game)),
                 specialization_html(&step.assignments),
                 esc(step.game.game_name()),
@@ -218,15 +412,23 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
         }
         out.push_str("</tr>\n<tr class=\"diagrams\"><th class=\"corner\"></th>");
         for (c, step) in tab.steps.iter().enumerate() {
-            let _ = write!(out, "<td data-game=\"{}\">", esc(step.game.name()));
-            out.push_str(&bits_caption(&game_bits(step.game), &step.assignments));
-            out.push_str(&diagram_svg(
+            let label = game_label(theorem, step.game);
+            let _ = write!(out, "<td data-game=\"{}\">", esc(&label.text()));
+            let loop_var = loop_var(theorem, step.game);
+            out.push_str(&bits_caption(
+                &game_bits(step.game),
+                &loop_consts(step.game, loop_var),
+                &step.assignments,
+            ));
+            // Package parameters set from the loop variable name it.
+            let diagram = diagram_svg(
                 step.game.game(),
                 &step.assignments,
                 &outlines(theorem, tab, c),
                 backend,
                 graph_cache,
-            ));
+            );
+            out.push_str(&name_loop_var(&diagram, loop_var));
             out.push_str("</td>");
         }
         out.push_str("</tr></thead>\n<tbody>\n");
@@ -242,7 +444,8 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
                     out.push_str("<td class=\"absent\"></td>");
                     continue;
                 }
-                let l = listing(&mut listings, &theorem_dbg, step, oracle);
+                let loop_var = loop_var(theorem, step.game);
+                let l = listing(&mut listings, &theorem_dbg, step, loop_var, oracle);
                 out.push_str("<td>");
                 for (class, text) in [("full", &l.full), ("lossy", &l.lossy)] {
                     match text {
@@ -299,6 +502,7 @@ fn listing<'m>(
     cache: &'m mut HashMap<ListingKey, Listings>,
     theorem_dbg: &Theorem,
     step: &Step,
+    loop_var: &str,
     oracle: &str,
 ) -> &'m Listings {
     let game = step.game;
@@ -317,8 +521,11 @@ fn listing<'m>(
                 .iter()
                 .map(|(name, value)| (name.clone(), literal(value)))
                 .collect();
-            let render =
-                |lossy| render_oracle_view(inst, oracle, lossy, &consts).map_err(|e| e.to_string());
+            let render = |lossy| {
+                render_oracle_view(inst, oracle, lossy, &consts)
+                    .map(|text| name_loop_var(&text, loop_var))
+                    .map_err(|e| e.to_string())
+            };
             Listings {
                 full: render(false),
                 lossy: render(true),
@@ -348,6 +555,7 @@ fn tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
                 .expect("assumption games are theorem game instances"),
             assignments: Vec::new(),
             via: None,
+            hybrid: None,
         };
         Tab {
             kind: TabKind::Assumption,
@@ -361,6 +569,9 @@ fn tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
 
 /// One tab per proposition, in file order, each over the path the proof
 /// search found. Without propositions: one tab over all game hops.
+///
+/// A hybrid hop on the path is expanded into the games of one loop step (see
+/// [`hybrid_steps`]).
 fn proof_tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
     if theorem.proofs.is_empty() {
         return vec![Tab {
@@ -373,6 +584,7 @@ fn proof_tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
                     game,
                     assignments: Vec::new(),
                     via: None,
+                    hybrid: None,
                 })
                 .collect(),
         }];
@@ -382,28 +594,30 @@ fn proof_tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
         .proofs
         .iter()
         .map(|proof| {
-            let mut hops = proof.game_hops();
-            let steps = proof
-                .path()
-                .enumerate()
-                .map(|(i, (game, assignments))| Step {
-                    game: theorem
-                        .find_game_instance(game.name())
-                        .expect("the proof path only visits theorem game instances"),
-                    assignments: assignments.iter().map(assignment_pair).fold(
-                        Vec::new(),
-                        |mut acc, pair| {
-                            // Two game constants set from the same theorem
-                            // constant yield the same pair twice.
-                            if !acc.contains(&pair) {
-                                acc.push(pair);
-                            }
-                            acc
-                        },
-                    ),
-                    via: if i == 0 { None } else { hops.next() },
-                })
-                .collect();
+            let path: Vec<_> = proof.path().collect();
+            let hops: Vec<_> = proof.game_hops().collect();
+            let mut steps: Vec<Step> = Vec::new();
+            for (i, (spec, assignments)) in path.iter().enumerate() {
+                let game = theorem
+                    .find_game_instance(spec.name())
+                    .expect("the proof path only visits theorem game instances");
+                let via = match i.checked_sub(1).map(|h| hops[h]) {
+                    None => None,
+                    Some(GameHop::Hybrid(hybrid)) => {
+                        let (inner, exit) =
+                            hybrid_steps(theorem, hybrid, (path[i - 1].0, spec), game);
+                        steps.extend(inner);
+                        Some(exit)
+                    }
+                    Some(hop) => Some(Link::Hop(hop)),
+                };
+                steps.push(Step {
+                    game,
+                    assignments: dedup_pairs(assignments.iter()),
+                    via,
+                    hybrid: None,
+                });
+            }
             Tab {
                 kind: TabKind::Proposition,
                 title: proof.name().to_string(),
@@ -412,6 +626,125 @@ fn proof_tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
             }
         })
         .collect()
+}
+
+/// The `(theorem-level name, literal)` pairs of `assignments`, each once: two
+/// game constants set from the same theorem constant yield the same pair twice.
+fn dedup_pairs<'a>(
+    assignments: impl Iterator<Item = &'a ConstAssignment>,
+) -> Vec<(String, String)> {
+    let mut pairs = Vec::new();
+    for pair in assignments.map(assignment_pair) {
+        if !pairs.contains(&pair) {
+            pairs.push(pair);
+        }
+    }
+    pairs
+}
+
+/// The columns a hybrid hop on a proof path expands into, and the link from
+/// the last of them to the path's next game.
+///
+/// The proof search crosses `hybrid` from `prev` (a specialization of one of
+/// `H[false]`, `H[true]`, the hop's sides) to `next` (one of the other side),
+/// leaving the loop variable free. One step of the loop is what the hybrid
+/// proves: `H[false] ~ H[true]` by its reduction and `H[true] == H[false]` at
+/// the loop variable plus one by its equivalence. The columns are those three
+/// games, in path direction, specialized with `prev`'s constants as the proof
+/// search specializes the far side of a hop.
+fn hybrid_steps<'t>(
+    theorem: &'t Theorem<'t>,
+    hybrid: &'t Hybrid<'t>,
+    (prev, next): (&GameInstance, &GameInstance),
+    next_game: &'t GameInstance,
+) -> (Vec<Step<'t>>, Link<'t>) {
+    let inst = |name: &str| {
+        theorem
+            .find_game_instance(name)
+            .expect("a hybrid instance declaration adds the hybrid's game instances")
+    };
+    let real = inst(hybrid.left_name());
+    let ideal = inst(hybrid.right_name());
+    let real_next = inst(hybrid.equivalence().right_name());
+
+    let forward = game_is_compatible(prev, real);
+    let (entry, exit) = if forward {
+        (real, ideal)
+    } else {
+        (ideal, real)
+    };
+    let assignments = dedup_pairs(
+        assignments(prev, entry)
+            .iter()
+            .filter(|a| a.original_name() != HYBRID_LOOP),
+    );
+    let prev_game = theorem
+        .find_game_instance(prev.name())
+        .expect("the proof path only visits theorem game instances");
+    let entry_link = Link::Match {
+        hybrid,
+        outer: prev_game,
+        general: entry,
+        at: loop_at(prev, entry, hybrid.loop_var()),
+    };
+    let exit_link = Link::Match {
+        hybrid,
+        outer: next_game,
+        general: exit,
+        at: loop_at(next, exit, hybrid.loop_var()),
+    };
+
+    let columns = if forward {
+        [
+            (real, entry_link),
+            (ideal, Link::Reduction(hybrid)),
+            (real_next, Link::Equivalence(hybrid)),
+        ]
+    } else {
+        [
+            (real_next, entry_link),
+            (ideal, Link::Equivalence(hybrid)),
+            (real, Link::Reduction(hybrid)),
+        ]
+    };
+    let steps = columns
+        .into_iter()
+        .map(|(game, via)| Step {
+            game,
+            assignments: assignments.clone(),
+            via: Some(via),
+            hybrid: Some(hybrid),
+        })
+        .collect();
+    (steps, exit_link)
+}
+
+/// The internal name of every hybrid's loop variable.
+const HYBRID_LOOP: &str = "hybrid$loop";
+
+/// The loop variable's value at which `general` (a hybrid's game) matches
+/// `game`: `game`'s value for the constant `general` sets to the loop
+/// variable.
+fn loop_at(game: &GameInstance, general: &GameInstance, loop_var: &str) -> String {
+    general
+        .consts
+        .iter()
+        .find(|(_, expr)| render_expr(expr) == HYBRID_LOOP)
+        .and_then(|(ident, _)| game.consts.iter().find(|(id, _)| id.name == ident.name))
+        .map_or_else(
+            || loop_var.to_string(),
+            |(_, expr)| name_loop_var(&render_expr(expr), loop_var),
+        )
+}
+
+/// `text` with the internal loop variable named as its declaration does, and
+/// the next loop step's `(1 + hybrid$loop)` as `(hy + 1)`.
+fn name_loop_var(text: &str, loop_var: &str) -> String {
+    text.replace(
+        &format!("(1 + {HYBRID_LOOP})"),
+        &format!("({loop_var} + 1)"),
+    )
+    .replace(HYBRID_LOOP, loop_var)
 }
 
 fn assignment_pair(a: &ConstAssignment) -> (String, String) {
@@ -531,11 +864,23 @@ fn game_bits_html(bits: &[GameBit]) -> String {
 }
 
 /// `bit1=1 bit2=0` above the diagram; proof parameters resolved through the
-/// path's `assignments` where it fixes them.
-fn bits_caption(bits: &[GameBit], assignments: &[(String, String)]) -> String {
-    if bits.is_empty() {
+/// path's `assignments` where it fixes them. A hybrid's game adds the
+/// constants set from the loop variable (`h=hy + 1`).
+fn bits_caption(
+    bits: &[GameBit],
+    loop_consts: &[(String, String)],
+    assignments: &[(String, String)],
+) -> String {
+    if bits.is_empty() && loop_consts.is_empty() {
         return String::new();
     }
+    let loop_consts = loop_consts.iter().map(|(name, value)| {
+        format!(
+            "<span title=\"set from the hybrid's loop variable\">{}=<span class=\"b-loop\">{}</span></span>",
+            esc(name),
+            esc(value)
+        )
+    });
     let body = bits
         .iter()
         .map(|bit| {
@@ -547,6 +892,7 @@ fn bits_caption(bits: &[GameBit], assignments: &[(String, String)]) -> String {
             let value = bit_span(&value, bit.source, title.as_deref());
             format!("<span>{}={value}</span>", esc(&bit.name))
         })
+        .chain(loop_consts)
         .collect::<Vec<_>>()
         .join(" ");
     format!("<div class=\"bitscap\">{body}</div>")
@@ -624,11 +970,53 @@ fn exports(comp: &Composition, oracle: &str) -> bool {
 
 /// ` data-assumption="…"` on a reduction's label, so a click opens the
 /// assumption's tab.
-fn assumption_attr(hop: &GameHop) -> String {
-    match hop {
-        GameHop::Reduction(red) => format!(" data-assumption=\"{}\"", esc(red.assumption_name())),
-        _ => String::new(),
+fn assumption_attr(reduction: Option<&Reduction>) -> String {
+    match reduction {
+        Some(red) => format!(" data-assumption=\"{}\"", esc(red.assumption_name())),
+        None => String::new(),
     }
+}
+
+/// A game hop as text. A hybrid shows both of its steps: the `Display` of a
+/// hybrid hop is only its equivalence, in internal instance names.
+fn hop_text(theorem: &Theorem, hop: &GameHop) -> String {
+    match hop {
+        GameHop::Hybrid(hybrid) => hybrid_text(theorem, hybrid),
+        hop => hop.to_string(),
+    }
+}
+
+/// `H[false](i) ~= H[true](i) (A), H[true](i) == H[false](i + 1)`.
+fn hybrid_text(theorem: &Theorem, hybrid: &Hybrid) -> String {
+    format!(
+        "{}, {}",
+        hybrid_reduction_text(theorem, hybrid),
+        hybrid_equivalence_text(theorem, hybrid)
+    )
+}
+
+fn hybrid_reduction_text(theorem: &Theorem, hybrid: &Hybrid) -> String {
+    format!(
+        "{} ~= {} ({})",
+        hybrid_game_text(theorem, hybrid.left_name()),
+        hybrid_game_text(theorem, hybrid.right_name()),
+        hybrid.reduction().assumption_name()
+    )
+}
+
+fn hybrid_equivalence_text(theorem: &Theorem, hybrid: &Hybrid) -> String {
+    let equivalence = hybrid.equivalence();
+    format!(
+        "{} == {}",
+        hybrid_game_text(theorem, equivalence.left_name()),
+        hybrid_game_text(theorem, equivalence.right_name())
+    )
+}
+
+fn hybrid_game_text(theorem: &Theorem, name: &str) -> String {
+    theorem
+        .find_game_instance(name)
+        .map_or_else(|| name.to_string(), |game| game_label(theorem, game).text())
 }
 
 /// The assumption packages to frame in column `c` of `tab`: those of the
@@ -640,27 +1028,38 @@ fn assumption_attr(hop: &GameHop) -> String {
 /// lands on `H_b_1` with `b = false`, and when the theorem declares an
 /// identical instance (say `H_0_1`) the proof search uses that one instead.
 /// So a path column matches a mapping whose game it is, or specializes.
+/// The columns of an expanded hybrid are the games its reduction maps.
 fn outlines(theorem: &Theorem, tab: &Tab, c: usize) -> Vec<Outline> {
-    let hops: Vec<&GameHop> = match tab.kind {
+    let reductions: Vec<&Reduction> = match tab.kind {
         TabKind::Assumption => return Vec::new(),
-        TabKind::AllHops => theorem.game_hops.iter().collect(),
-        TabKind::Proposition => [tab.steps[c].via, tab.steps.get(c + 1).and_then(|s| s.via)]
+        TabKind::AllHops => theorem
+            .game_hops
+            .iter()
+            .filter_map(|hop| match hop {
+                GameHop::Hybrid(hybrid) => Some(hybrid.reduction()),
+                hop => hop.as_reduction(),
+            })
+            .collect(),
+        TabKind::Proposition => [tab.steps.get(c), tab.steps.get(c + 1)]
             .into_iter()
             .flatten()
+            .filter_map(|step| step.via.as_ref()?.reduction())
             .collect(),
     };
-    let game = tab.steps[c].game;
+    let step = &tab.steps[c];
+    let game = step.game;
     let maps_game = |mapped: &str| {
         mapped == game.name()
             || tab.kind == TabKind::Proposition
+                && step.hybrid.is_none()
                 && theorem
                     .find_game_instance(mapped)
                     .is_some_and(|mapped| game_is_compatible(game, mapped))
     };
     let mut outlines: Vec<Outline> = Vec::new();
-    for red in hops.into_iter().filter_map(GameHop::as_reduction) {
+    for red in reductions {
         for mapping in [red.left(), red.right()] {
-            if !maps_game(mapping.construction_game_instance_name().as_str()) {
+            if !maps_game(&mapped_game(mapping)) {
                 continue;
             }
             let name = red.assumption_name();
@@ -683,6 +1082,16 @@ fn outlines(theorem: &Theorem, tab: &Tab, c: usize) -> Vec<Outline> {
         }
     }
     outlines
+}
+
+/// The name of the game instance a reduction mapping maps. A hybrid's
+/// reduction writes `H[false]` for the instance `H$false$`.
+fn mapped_game(mapping: &ReductionMapping) -> String {
+    let name = mapping.construction_game_instance_name().as_str();
+    match name.strip_suffix(']').and_then(|name| name.split_once('[')) {
+        Some((base, bit)) => format!("{}${}$", base.trim(), bit.trim()),
+        None => name.to_string(),
+    }
 }
 
 fn hop_kind(hop: &GameHop) -> &'static str {
@@ -1163,11 +1572,12 @@ const STYLE: &str = r#"
 :root { --bg:#ffffff; --fg:#1b1f24; --muted:#6a737d; --line:#d0d7de; --head:#f6f8fa;
         --accent:#0969da; --accent-bg:#ddf4ff; --pkg:#fff8e1; --pkgline:#8a6d00;
         --edge:#444c56; --proof:#b3261e; --inst:#8250df; --err:#b3261e; --assm:#cf222e;
-        --code:12px; }
+        --hyb:#1a7f37; --hyb-bg:#f0fbf3; --code:12px; }
 @media (prefers-color-scheme: dark) {
   :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --head:#161b22;
           --accent:#4493f8; --accent-bg:#132339; --pkg:#2d2610; --pkgline:#d4a72c;
-          --edge:#adbac7; --proof:#ff7b72; --inst:#d2a8ff; --err:#ff7b72; --assm:#f85149; }
+          --edge:#adbac7; --proof:#ff7b72; --inst:#d2a8ff; --err:#ff7b72; --assm:#f85149;
+          --hyb:#3fb950; --hyb-bg:#0f2417; }
 }
 html, body { height:100%; }
 body { background:var(--bg); color:var(--fg); margin:0; display:flex; flex-direction:column;
@@ -1205,6 +1615,14 @@ nav.path { flex:none; display:flex; flex-wrap:wrap; gap:4px 6px; align-items:cen
 .via { color:var(--muted); font-size:11px; cursor:help; }
 .via::before { content:"→ "; } .via::after { content:" →"; }
 .spec { color:var(--proof); font-size:11px; font-weight:normal; }
+.match { color:var(--hyb); font-weight:600; cursor:help; }
+.hybgroup { display:inline-flex; flex-wrap:wrap; gap:4px 6px; align-items:center;
+            border:1px dashed var(--hyb); border-radius:8px; padding:2px 6px; }
+.hyblabel { color:var(--hyb); font-size:11px; }
+sub.at, .b-loop { color:var(--hyb); font-weight:normal; }
+sub.at { font-size:10px; margin-left:1px; }
+th.col.hyb { box-shadow:inset 0 3px 0 var(--hyb); }
+thead tr:first-child th.col.hyb { background:var(--hyb-bg); }
 .scroller { flex:1; min-height:0; overflow:auto; border:1px solid var(--line); scroll-snap-type:x proximity; }
 table { border-collapse:separate; border-spacing:0; }
 th, td { border-right:1px solid var(--line); border-bottom:1px solid var(--line);

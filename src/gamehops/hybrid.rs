@@ -8,10 +8,11 @@ use crate::parser::ast::GameInstanceName;
 pub struct Hybrid<'a> {
     hybrid_game: GameInstanceName<'a>,
     equivalence: Equivalence,
-    #[allow(unused)]
     reduction: Reduction<'a>,
     left_name: String,
     right_name: String,
+    /// The loop variable's name in the hybrid instance declaration.
+    loop_var: String,
 }
 
 impl<'a> Hybrid<'a> {
@@ -21,6 +22,7 @@ impl<'a> Hybrid<'a> {
         reduction: Reduction<'a>,
         left_name: String,
         right_name: String,
+        loop_var: String,
     ) -> Self {
         Self {
             hybrid_game,
@@ -28,6 +30,7 @@ impl<'a> Hybrid<'a> {
             reduction,
             left_name,
             right_name,
+            loop_var,
         }
     }
     pub(crate) fn hybrid_name(&self) -> &GameInstanceName<'a> {
@@ -35,6 +38,12 @@ impl<'a> Hybrid<'a> {
     }
     pub(crate) fn equivalence(&self) -> &Equivalence {
         &self.equivalence
+    }
+    pub(crate) fn reduction(&self) -> &Reduction<'a> {
+        &self.reduction
+    }
+    pub(crate) fn loop_var(&self) -> &str {
+        &self.loop_var
     }
     pub(crate) fn left_name(&self) -> &str {
         &self.left_name
