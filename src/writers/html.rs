@@ -30,6 +30,7 @@ use crate::gamehops::GameHop;
 use crate::identifier::{game_ident::GameIdentifier, theorem_ident::TheoremIdentifier, Identifier};
 use crate::package::Composition;
 use crate::packageinstance::PackageInstance;
+use crate::parser::ast::Identifier as _;
 use crate::proof::ConstAssignment;
 use crate::theorem::{GameInstance, Theorem};
 use crate::transforms::theorem_transforms::{EquivalenceTransformError, ViewTransform};
@@ -55,9 +56,31 @@ struct Step<'t> {
 
 /// One tab of the page.
 struct Tab<'t> {
+    kind: TabKind,
     title: String,
     subtitle: String,
     steps: Vec<Step<'t>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TabKind {
+    /// The path of one proposition.
+    Proposition,
+    /// Every game over all hops, for a theorem without propositions.
+    AllHops,
+    /// The two games of one assumption, side by side.
+    Assumption,
+}
+
+/// A dashed frame around the packages of a game instance that a reduction
+/// maps to its assumption's packages.
+#[derive(PartialEq)]
+struct Outline {
+    assumption: String,
+    /// Hover text: the assumption's games.
+    title: String,
+    /// Package instance names in the game.
+    pkgs: Vec<String>,
 }
 
 /// Both renderings of one inlined oracle, or why it could not be inlined.
@@ -98,17 +121,29 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
          <span class=\"legend\" title=\"colour of Boolean parameters: fixed in the game definition, \
          set by the theorem's game instance, or a proof parameter\">bits:\
          <b class=\"b-fixed\">fixed</b><b class=\"b-inst\">instance</b><b class=\"b-proof\">proof</b></span>\
-         <span class=\"hint\"><kbd>←</kbd><kbd>→</kbd> previous / next game · click a package for its code</span>\
+         <span class=\"hint\"><kbd>←</kbd><kbd>→</kbd> previous / next game · click a package for its code · <span class=\"assm-key\">- - -</span> assumption packages</span>\
          </div></div>\n",
         name = esc(&theorem.name),
         body_class = if lossy { "show-lossy" } else { "" },
     );
 
     let _ = write!(out, "<nav class=\"tabs\">");
+    let mut in_assumptions = false;
     for (t, tab) in tabs.iter().enumerate() {
+        let assumption = tab.kind == TabKind::Assumption;
+        if assumption && !in_assumptions {
+            in_assumptions = true;
+            out.push_str("<span class=\"tabgroup\">assumptions</span>");
+        }
         let _ = write!(
             out,
-            "<button class=\"tab\" data-tab=\"{t}\"><b>{}</b> <span>{}</span></button>",
+            "<button class=\"tab{}\" data-tab=\"{t}\"{}><b>{}</b> <span>{}</span></button>",
+            if assumption { " assm" } else { "" },
+            if assumption {
+                format!(" data-assumption=\"{}\"", esc(&tab.title))
+            } else {
+                String::new()
+            },
             esc(&tab.title),
             esc(&tab.subtitle),
         );
@@ -136,10 +171,13 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
             if let Some(hop) = step.via {
                 let _ = write!(
                     out,
-                    "<span class=\"via\" title=\"{}\">{}</span>",
+                    "<span class=\"via\" title=\"{}\"{}>{}</span>",
                     esc(&hop.to_string()),
+                    assumption_attr(hop),
                     hop_kind(hop),
                 );
+            } else if tab.kind == TabKind::Assumption && c > 0 {
+                out.push_str("<span class=\"sim\" title=\"indistinguishable\">~</span>");
             }
             let _ = write!(
                 out,
@@ -157,8 +195,9 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
         for (c, step) in tab.steps.iter().enumerate() {
             let via = match step.via {
                 Some(hop) => format!(
-                    "<div class=\"gsub\">via {} <code>{}</code></div>",
+                    "<div class=\"gsub\">via {} <code{}>{}</code></div>",
                     hop_kind(hop),
+                    assumption_attr(hop),
                     esc(&hop.to_string())
                 ),
                 None => String::new(),
@@ -176,12 +215,13 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
             );
         }
         out.push_str("</tr>\n<tr class=\"diagrams\"><th class=\"corner\"></th>");
-        for step in &tab.steps {
+        for (c, step) in tab.steps.iter().enumerate() {
             let _ = write!(out, "<td data-game=\"{}\">", esc(step.game.name()));
             out.push_str(&bits_caption(&game_bits(step.game), &step.assignments));
             out.push_str(&diagram_svg(
                 step.game.game(),
                 &step.assignments,
+                &outlines(theorem, tab, c),
                 backend,
                 graph_cache,
             ));
@@ -282,11 +322,33 @@ fn strip_header(text: String) -> String {
     }
 }
 
+/// The proof tabs, then one tab per assumption.
+fn tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
+    let mut tabs = proof_tabs(theorem);
+    tabs.extend(theorem.assumptions.iter().map(|assumption| {
+        let step = |name: &str| Step {
+            game: theorem
+                .find_game_instance(name)
+                .expect("assumption games are theorem game instances"),
+            assignments: Vec::new(),
+            via: None,
+        };
+        Tab {
+            kind: TabKind::Assumption,
+            title: assumption.name.clone(),
+            subtitle: format!("{} ~ {}", assumption.left_name, assumption.right_name),
+            steps: vec![step(&assumption.left_name), step(&assumption.right_name)],
+        }
+    }));
+    tabs
+}
+
 /// One tab per proposition, in file order, each over the path the proof
 /// search found. Without propositions: one tab over all game hops.
-fn tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
+fn proof_tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
     if theorem.proofs.is_empty() {
         return vec![Tab {
+            kind: TabKind::AllHops,
             title: "game hops".to_string(),
             subtitle: "(no propositions)".to_string(),
             steps: games_in_hop_order(theorem)
@@ -327,6 +389,7 @@ fn tabs<'t>(theorem: &'t Theorem<'t>) -> Vec<Tab<'t>> {
                 })
                 .collect();
             Tab {
+                kind: TabKind::Proposition,
                 title: proof.name().to_string(),
                 subtitle: format!("{} ~ {}", proof.left_name(), proof.right_name()),
                 steps,
@@ -543,6 +606,56 @@ fn exports(comp: &Composition, oracle: &str) -> bool {
     comp.exports.iter().any(|e| e.name() == oracle)
 }
 
+/// ` data-assumption="…"` on a reduction's label, so a click opens the
+/// assumption's tab.
+fn assumption_attr(hop: &GameHop) -> String {
+    match hop {
+        GameHop::Reduction(red) => format!(" data-assumption=\"{}\"", esc(red.assumption_name())),
+        _ => String::new(),
+    }
+}
+
+/// The assumption packages to frame in column `c` of `tab`: those of the
+/// reductions into and out of that column. For the all-hops tab, which has
+/// no path, those of every reduction the game takes part in.
+fn outlines(theorem: &Theorem, tab: &Tab, c: usize) -> Vec<Outline> {
+    let hops: Vec<&GameHop> = match tab.kind {
+        TabKind::Assumption => return Vec::new(),
+        TabKind::AllHops => theorem.game_hops.iter().collect(),
+        TabKind::Proposition => [tab.steps[c].via, tab.steps.get(c + 1).and_then(|s| s.via)]
+            .into_iter()
+            .flatten()
+            .collect(),
+    };
+    let game = tab.steps[c].game.name();
+    let mut outlines: Vec<Outline> = Vec::new();
+    for red in hops.into_iter().filter_map(GameHop::as_reduction) {
+        for mapping in [red.left(), red.right()] {
+            if mapping.construction_game_instance_name().as_str() != game {
+                continue;
+            }
+            let name = red.assumption_name();
+            let title = match theorem.assumptions.iter().find(|a| a.name == name) {
+                Some(a) => format!("assumption {name}: {} ~ {}", a.left_name, a.right_name),
+                None => format!("assumption {name}"),
+            };
+            let outline = Outline {
+                assumption: name.to_string(),
+                title,
+                pkgs: mapping
+                    .entries()
+                    .iter()
+                    .map(|entry| entry.construction().as_str().to_string())
+                    .collect(),
+            };
+            if !outlines.contains(&outline) {
+                outlines.push(outline);
+            }
+        }
+    }
+    outlines
+}
+
 fn hop_kind(hop: &GameHop) -> &'static str {
     match hop {
         GameHop::Conjecture(_) => "conjecture",
@@ -705,12 +818,18 @@ struct Geometry {
 fn diagram_svg<B: SmtSolverBackend>(
     comp: &Composition,
     assignments: &[(String, String)],
+    outlines: &[Outline],
     backend: Option<&B>,
     cache: &Path,
 ) -> String {
     let geo = backend
         .and_then(|b| solver_geometry(comp, b, cache))
         .unwrap_or_else(|| fallback_geometry(comp));
+    let frames: Vec<Frame> = outlines
+        .iter()
+        .enumerate()
+        .filter_map(|(k, outline)| frame(comp, &geo, outline, k))
+        .collect();
 
     // Bounds in tikz units; arrow labels stack above their arrow.
     let mut min_x = f64::MAX;
@@ -728,6 +847,14 @@ fn diagram_svg<B: SmtSolverBackend>(
         max_x = max_x.max(*x1);
         min_y = min_y.min(*y);
         max_y = max_y.max(y + 0.35 * labels.len() as f64);
+    }
+    for frame in &frames {
+        for &(x0, x1, y0, y1) in &frame.rects {
+            min_x = min_x.min(x0);
+            max_x = max_x.max(x1);
+            min_y = min_y.min(y0 - FRAME_LABEL);
+            max_y = max_y.max(y1);
+        }
     }
     if min_x > max_x {
         return "<div class=\"absent\">empty composition</div>".to_string();
@@ -768,6 +895,37 @@ fn diagram_svg<B: SmtSolverBackend>(
             );
         }
     }
+    for frame in &frames {
+        let _ = write!(
+            svg,
+            "<g class=\"assm\" data-assumption=\"{}\"><title>{}</title>",
+            esc(&frame.outline.assumption),
+            esc(&frame.outline.title),
+        );
+        for &(x0, x1, y0, y1) in &frame.rects {
+            let _ = write!(
+                svg,
+                "<rect x=\"{:.1}\" y=\"{:.1}\" width=\"{:.1}\" height=\"{:.1}\" rx=\"5\"/>",
+                px(x0),
+                py(y1),
+                (x1 - x0) * SCALE,
+                (y1 - y0) * SCALE,
+            );
+        }
+        // The label sits under the lowest rectangle, left-aligned.
+        let &(x0, _, y0, _) = frame
+            .rects
+            .iter()
+            .min_by(|a, b| a.2.total_cmp(&b.2))
+            .expect("a frame has a rectangle");
+        let _ = write!(
+            svg,
+            "<text x=\"{:.1}\" y=\"{:.1}\" dominant-baseline=\"hanging\">{}</text></g>",
+            px(x0) + 2.0,
+            py(y0) + 3.0,
+            esc(&frame.outline.assumption),
+        );
+    }
     for (i, &(x, bottom, top)) in geo.boxes.iter().enumerate() {
         svg.push_str(&package_node(
             &comp.pkgs[i],
@@ -777,6 +935,65 @@ fn diagram_svg<B: SmtSolverBackend>(
     }
     svg.push_str("</svg>");
     svg
+}
+
+/// Room under a frame for its label, in tikz units.
+const FRAME_LABEL: f64 = 0.3;
+
+/// An [`Outline`] placed on a diagram: `(x0, x1, bottom, top)` rectangles in
+/// tikz units — one around all its packages, or one per package when that
+/// would also enclose a package the assumption does not cover.
+struct Frame<'o> {
+    outline: &'o Outline,
+    rects: Vec<(f64, f64, f64, f64)>,
+}
+
+/// Places `outline` (the `k`-th in the column; later ones are drawn wider so
+/// nested frames stay apart). `None` when none of its packages is drawn.
+fn frame<'o>(
+    comp: &Composition,
+    geo: &Geometry,
+    outline: &'o Outline,
+    k: usize,
+) -> Option<Frame<'o>> {
+    let pad = 0.15 + 0.15 * k as f64;
+    let inside: Vec<bool> = comp
+        .pkgs
+        .iter()
+        .map(|pkg| outline.pkgs.contains(&pkg.name))
+        .collect();
+    let rect = |&(x, bottom, top): &(f64, f64, f64)| {
+        (x - pad, x + BOX_WIDTH + pad, bottom - pad, top + pad)
+    };
+    let mut members = geo
+        .boxes
+        .iter()
+        .zip(&inside)
+        .filter(|(_, &i)| i)
+        .map(|(b, _)| rect(b));
+    let first = members.next()?;
+    let hull = members.fold(first, |(a0, a1, a2, a3), (b0, b1, b2, b3)| {
+        (a0.min(b0), a1.max(b1), a2.min(b2), a3.max(b3))
+    });
+    let (x0, x1, y0, y1) = hull;
+    let intrudes = geo
+        .boxes
+        .iter()
+        .zip(&inside)
+        .any(|(&(x, bottom, top), &i)| {
+            !i && x < x1 && x + BOX_WIDTH > x0 && bottom < y1 && top > y0
+        });
+    let rects = if intrudes {
+        geo.boxes
+            .iter()
+            .zip(&inside)
+            .filter(|(_, &i)| i)
+            .map(|(b, _)| rect(b))
+            .collect()
+    } else {
+        vec![hull]
+    };
+    Some(Frame { outline, rects })
 }
 
 /// The same geometry `tikzgraph.rs::smt_composition_graph` draws.
@@ -916,11 +1133,12 @@ fn esc(s: &str) -> String {
 const STYLE: &str = r#"
 :root { --bg:#ffffff; --fg:#1b1f24; --muted:#6a737d; --line:#d0d7de; --head:#f6f8fa;
         --accent:#0969da; --accent-bg:#ddf4ff; --pkg:#fff8e1; --pkgline:#8a6d00;
-        --edge:#444c56; --proof:#b3261e; --inst:#8250df; --err:#b3261e; --code:12px; }
+        --edge:#444c56; --proof:#b3261e; --inst:#8250df; --err:#b3261e; --assm:#cf222e;
+        --code:12px; }
 @media (prefers-color-scheme: dark) {
   :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --line:#30363d; --head:#161b22;
           --accent:#4493f8; --accent-bg:#132339; --pkg:#2d2610; --pkgline:#d4a72c;
-          --edge:#adbac7; --proof:#ff7b72; --inst:#d2a8ff; --err:#ff7b72; }
+          --edge:#adbac7; --proof:#ff7b72; --inst:#d2a8ff; --err:#ff7b72; --assm:#f85149; }
 }
 html, body { height:100%; }
 body { background:var(--bg); color:var(--fg); margin:0; display:flex; flex-direction:column;
@@ -939,6 +1157,12 @@ kbd { border:1px solid var(--line); border-radius:4px; padding:0 4px; font-size:
 .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 6px; }
 .tab span { color:var(--muted); font-size:12px; }
 .tab.active { background:var(--accent-bg); border-color:var(--accent); }
+.tabgroup { align-self:center; margin-left:10px; padding-left:12px; border-left:1px solid var(--line);
+            color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.tab.assm b { color:var(--assm); }
+[data-assumption]:not(.tab) { cursor:pointer; }
+code[data-assumption]:hover, .via[data-assumption]:hover { text-decoration:underline; }
+.sim { color:var(--muted); font-size:13px; }
 details.hops { color:var(--muted); font-size:13px; margin-bottom:4px; }
 details.hops summary { cursor:pointer; }
 details.hops ol { margin:4px 0; padding-left:28px; }
@@ -979,11 +1203,15 @@ svg .inst { fill:var(--muted); font:10px ui-monospace, Menlo, monospace; }
 svg .pkgnode { cursor:pointer; }
 svg .pkgnode:hover .pkgbox { stroke-width:2.2; }
 svg .pkgnode.selected .pkgbox { stroke:var(--accent); stroke-width:2.4; }
+svg .assm rect { fill:none; stroke:var(--assm); stroke-width:1.4; stroke-dasharray:6 4; pointer-events:none; }
+svg .assm text { fill:var(--assm); font:10px ui-monospace, Menlo, monospace; }
+svg .assm:hover text { text-decoration:underline; }
 .gbits { font-weight:normal; font-size:12px; }
 .b-fixed { color:var(--muted); } svg .b-fixed { fill:var(--muted); }
 .b-inst { color:var(--inst); font-weight:600; } svg .b-inst { fill:var(--inst); }
 .b-proof { color:var(--proof); font-weight:600; } svg .b-proof { fill:var(--proof); }
 .legend b { margin-left:6px; }
+.assm-key { color:var(--assm); font-weight:600; }
 .bitscap { display:flex; flex-wrap:wrap; gap:4px 12px; margin-bottom:4px;
            font:11px ui-monospace, Menlo, monospace; color:var(--muted); }
 #pkgpane { position:fixed; top:0; right:0; bottom:0; width:var(--pane); z-index:10;
@@ -1051,8 +1279,13 @@ const SCRIPT: &str = r#"
   ppane.querySelector('.pp-title').textContent = 'packages';
   ppane.querySelector('.pp-sub').textContent = 'click a package in a diagram';
   document.addEventListener('click', e => {
-    const node = e.target.closest && e.target.closest('.pkgnode');
-    if (node) openPkg(node);
+    if (!e.target.closest) return;
+    const node = e.target.closest('.pkgnode');
+    if (node) { openPkg(node); return; }
+    // A reduction's label or frame opens its assumption's tab.
+    const ref = e.target.closest('[data-assumption]:not(.tab)');
+    const tab = ref && tabs.find(b => b.dataset.assumption === ref.dataset.assumption);
+    if (tab) showTab(tab.dataset.tab);
   });
   document.getElementById('pp-close').addEventListener('click', () => setPane(false));
   document.getElementById('pp-toggle').addEventListener('click',
