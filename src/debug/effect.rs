@@ -283,7 +283,9 @@ impl<'a> Renderer<'a> {
                         if items.len() == 2 {
                             let arg = self.resolve(&items[1]).clone();
                             if let SmtExpr::List(t) = &arg {
-                                if let Some(n) = t.first().and_then(atom).and_then(parse_tuple_arity) {
+                                if let Some(n) =
+                                    t.first().and_then(atom).and_then(parse_tuple_arity)
+                                {
                                     if n + 1 == t.len() && i >= 1 && i <= n {
                                         let elem = t[i].clone();
                                         self.count(&elem);
@@ -395,7 +397,11 @@ impl<'a> Renderer<'a> {
                 let def = self.def_map.get(a).unwrap().clone();
                 // A bare sample draw is always named.
                 if let SmtExpr::List(items) = &def {
-                    if items.first().and_then(atom).is_some_and(|h| h.starts_with("__sample-rand-")) {
+                    if items
+                        .first()
+                        .and_then(atom)
+                        .is_some_and(|h| h.starts_with("__sample-rand-"))
+                    {
                         if let Some(name) = self.sample_binding(Some(a), items) {
                             self.where_of.insert(a.clone(), name.clone());
                             return name;
@@ -469,13 +475,11 @@ impl<'a> Renderer<'a> {
             "=" if items.len() == 3 => format!("{} == {}", arg(self, 1), arg(self, 2)),
             "and" | "or" if items.len() >= 2 => {
                 let op = if head == "and" { " && " } else { " || " };
-                let parts: Vec<String> =
-                    items[1..].iter().map(|x| self.render_inner(x)).collect();
+                let parts: Vec<String> = items[1..].iter().map(|x| self.render_inner(x)).collect();
                 format!("({})", parts.join(op))
             }
             "+" | "-" | "*" if items.len() >= 3 => {
-                let parts: Vec<String> =
-                    items[1..].iter().map(|x| self.render_inner(x)).collect();
+                let parts: Vec<String> = items[1..].iter().map(|x| self.render_inner(x)).collect();
                 parts.join(&format!(" {head} "))
             }
             "ite" if items.len() == 4 => format!(
@@ -658,7 +662,14 @@ mod tests {
                     unchanged: vec![],
                 }],
             );
-            e.state.into_iter().next().unwrap().changed.into_iter().next().unwrap()
+            e.state
+                .into_iter()
+                .next()
+                .unwrap()
+                .changed
+                .into_iter()
+                .next()
+                .unwrap()
         }
     }
 
@@ -670,7 +681,12 @@ mod tests {
             .root("<v!left!2!v>", "ctxt")
             .def(
                 "<v!left!3!f>",
-                l(vec![a("store"), a("<v!left!0!f>"), a("<v!left!1!k>"), l(vec![a("mk-some"), a("<v!left!2!v>")])]),
+                l(vec![
+                    a("store"),
+                    a("<v!left!0!f>"),
+                    a("<v!left!1!k>"),
+                    l(vec![a("mk-some"), a("<v!left!2!v>")]),
+                ]),
             );
         let fe = f.field("<v!left!3!f>");
         assert_eq!(fe.value, "old.P.f[old.P.ctr -> ctxt]");
@@ -687,11 +703,21 @@ mod tests {
         f.root("<v!left!0!f>", "old.P.f").root("<v!left!1!k>", "k");
         f.def(
             "<v!left!2!f>",
-            l(vec![a("store"), a("<v!left!0!f>"), a("<v!left!1!k>"), l(vec![a("mk-some"), a("1")])]),
+            l(vec![
+                a("store"),
+                a("<v!left!0!f>"),
+                a("<v!left!1!k>"),
+                l(vec![a("mk-some"), a("1")]),
+            ]),
         );
         f.def(
             "<v!left!3!f>",
-            l(vec![a("store"), a("<v!left!2!f>"), a("<v!left!1!k>"), l(vec![a("mk-some"), a("2")])]),
+            l(vec![
+                a("store"),
+                a("<v!left!2!f>"),
+                a("<v!left!1!k>"),
+                l(vec![a("mk-some"), a("2")]),
+            ]),
         );
         let fe = f.field("<v!left!3!f>");
         assert_eq!(fe.value, "old.P.f[k -> 1, k -> 2]");
@@ -701,10 +727,18 @@ mod tests {
     fn store_on_empty_base() {
         let mut f = Fix::new();
         f.root("<v!left!1!k>", "k");
-        let empty = l(vec![l(vec![a("as"), a("const"), a("(Array Int (Maybe Int))")]), a("mk-none")]);
+        let empty = l(vec![
+            l(vec![a("as"), a("const"), a("(Array Int (Maybe Int))")]),
+            a("mk-none"),
+        ]);
         f.def(
             "<v!left!2!f>",
-            l(vec![a("store"), empty, a("<v!left!1!k>"), l(vec![a("mk-some"), a("7")])]),
+            l(vec![
+                a("store"),
+                empty,
+                a("<v!left!1!k>"),
+                l(vec![a("mk-some"), a("7")]),
+            ]),
         );
         assert_eq!(f.field("<v!left!2!f>").value, "{}[k -> 7]");
     }
@@ -715,7 +749,12 @@ mod tests {
         f.root("<v!left!0!f>", "old.P.f").root("<v!left!1!k>", "k");
         f.def(
             "<v!left!2!f>",
-            l(vec![a("store"), a("<v!left!0!f>"), a("<v!left!1!k>"), l(vec![a("as"), a("mk-none"), a("(Maybe Int)")])]),
+            l(vec![
+                a("store"),
+                a("<v!left!0!f>"),
+                a("<v!left!1!k>"),
+                l(vec![a("as"), a("mk-none"), a("(Maybe Int)")]),
+            ]),
         );
         assert_eq!(f.field("<v!left!2!f>").value, "old.P.f[k -> None]");
     }
@@ -723,10 +762,17 @@ mod tests {
     #[test]
     fn el_of_tuple_reduces() {
         let mut f = Fix::new();
-        f.root("<v!r!0!a>", "aa").root("<v!r!1!b>", "bb").root("<v!r!2!c>", "cc");
+        f.root("<v!r!0!a>", "aa")
+            .root("<v!r!1!b>", "bb")
+            .root("<v!r!2!c>", "cc");
         f.def(
             "<v!r!3!ret>",
-            l(vec![a("mk-tuple3"), a("<v!r!0!a>"), a("<v!r!1!b>"), a("<v!r!2!c>")]),
+            l(vec![
+                a("mk-tuple3"),
+                a("<v!r!0!a>"),
+                a("<v!r!1!b>"),
+                a("<v!r!2!c>"),
+            ]),
         );
         f.def("<v!r!4!x>", l(vec![a("el3-2"), a("<v!r!3!ret>")]));
         let e = f.build(Some(a("<v!r!4!x>")), vec![]);
@@ -741,9 +787,15 @@ mod tests {
         f.root("<v!l!0!pk>", "old.P.pk").root("<v!l!1!r>", "r");
         f.def(
             "<v!l!2!x>",
-            l(vec![a("el2-1"), l(vec![a("<<func-encaps>>"), a("<v!l!0!pk>"), a("<v!l!1!r>")])]),
+            l(vec![
+                a("el2-1"),
+                l(vec![a("<<func-encaps>>"), a("<v!l!0!pk>"), a("<v!l!1!r>")]),
+            ]),
         );
-        assert_eq!(f.build(Some(a("<v!l!2!x>")), vec![]).returns.unwrap(), "encaps(old.P.pk, r).1");
+        assert_eq!(
+            f.build(Some(a("<v!l!2!x>")), vec![]).returns.unwrap(),
+            "encaps(old.P.pk, r).1"
+        );
     }
 
     #[test]
@@ -751,7 +803,10 @@ mod tests {
         let mut f = Fix::new();
         f.root("<v!l!0!sk>", "old.P.sk");
         f.def("<v!l!1!u>", l(vec![a("maybe-get"), a("<v!l!0!sk>")]));
-        assert_eq!(f.build(Some(a("<v!l!1!u>")), vec![]).returns.unwrap(), "unwrap(old.P.sk)");
+        assert_eq!(
+            f.build(Some(a("<v!l!1!u>")), vec![]).returns.unwrap(),
+            "unwrap(old.P.sk)"
+        );
     }
 
     #[test]
@@ -770,14 +825,23 @@ mod tests {
             "<v!l!0!rand>",
             l(vec![
                 a("__sample-rand-GI-Bits_256"),
-                l(vec![a("sample-id"), a("\"I\""), a("\"O\""), a("\"encaps_rand\"")]),
+                l(vec![
+                    a("sample-id"),
+                    a("\"I\""),
+                    a("\"O\""),
+                    a("\"encaps_rand\""),
+                ]),
                 a("0"),
             ]),
         );
         let e = super::build(EffectInput {
             returns: Some(a("<v!l!0!rand>")),
             pkgs: vec![],
-            rand: vec![RandEffect { point: "I.O.encaps_rand".into(), ty: "Bits(256)".into(), draws: 1 }],
+            rand: vec![RandEffect {
+                point: "I.O.encaps_rand".into(),
+                ty: "Bits(256)".into(),
+                draws: 1,
+            }],
             def_map: &f.def,
             roots: &f.roots,
         });
@@ -795,9 +859,18 @@ mod tests {
         f.root("<v!l!1!b>", "bbbbbbbbbbbb"); // 12
         f.def("<v!l!2!x>", a("<v!l!0!a>"));
         f.def("<v!l!3!y>", a("<v!l!1!b>"));
-        f.def("<v!l!4!p>", l(vec![a("mk-tuple2"), a("<v!l!2!x>"), a("<v!l!2!x>")]));
-        f.def("<v!l!5!q>", l(vec![a("mk-tuple2"), a("<v!l!3!y>"), a("<v!l!3!y>")]));
-        let e = f.build(Some(l(vec![a("mk-tuple2"), a("<v!l!4!p>"), a("<v!l!5!q>")])), vec![]);
+        f.def(
+            "<v!l!4!p>",
+            l(vec![a("mk-tuple2"), a("<v!l!2!x>"), a("<v!l!2!x>")]),
+        );
+        f.def(
+            "<v!l!5!q>",
+            l(vec![a("mk-tuple2"), a("<v!l!3!y>"), a("<v!l!3!y>")]),
+        );
+        let e = f.build(
+            Some(l(vec![a("mk-tuple2"), a("<v!l!4!p>"), a("<v!l!5!q>")])),
+            vec![],
+        );
         // x used twice, 13 chars → hoisted; y used twice, 12 chars → inline.
         assert!(e.wheres.iter().any(|w| w.value == "aaaaaaaaaaaaa"));
         assert!(e.wheres.iter().all(|w| w.value != "bbbbbbbbbbbb"));
@@ -807,12 +880,28 @@ mod tests {
     fn name_collision_disambiguated() {
         let mut f = Fix::new();
         // two distinct SSA names with the same basename `t`, both long, both used twice
-        f.root("<v!l!0!p>", "old.P.pp").root("<v!l!1!q>", "old.P.qq");
-        f.def("<v!l!2!t>", l(vec![a("<<func-f>>"), a("<v!l!0!p>"), a("<v!l!0!p>")]));
-        f.def("<v!l!3!t>", l(vec![a("<<func-g>>"), a("<v!l!1!q>"), a("<v!l!1!q>")]));
-        f.def("<v!l!4!u>", l(vec![a("mk-tuple2"), a("<v!l!2!t>"), a("<v!l!2!t>")]));
-        f.def("<v!l!5!w>", l(vec![a("mk-tuple2"), a("<v!l!3!t>"), a("<v!l!3!t>")]));
-        let e = f.build(Some(l(vec![a("mk-tuple2"), a("<v!l!4!u>"), a("<v!l!5!w>")])), vec![]);
+        f.root("<v!l!0!p>", "old.P.pp")
+            .root("<v!l!1!q>", "old.P.qq");
+        f.def(
+            "<v!l!2!t>",
+            l(vec![a("<<func-f>>"), a("<v!l!0!p>"), a("<v!l!0!p>")]),
+        );
+        f.def(
+            "<v!l!3!t>",
+            l(vec![a("<<func-g>>"), a("<v!l!1!q>"), a("<v!l!1!q>")]),
+        );
+        f.def(
+            "<v!l!4!u>",
+            l(vec![a("mk-tuple2"), a("<v!l!2!t>"), a("<v!l!2!t>")]),
+        );
+        f.def(
+            "<v!l!5!w>",
+            l(vec![a("mk-tuple2"), a("<v!l!3!t>"), a("<v!l!3!t>")]),
+        );
+        let e = f.build(
+            Some(l(vec![a("mk-tuple2"), a("<v!l!4!u>"), a("<v!l!5!w>")])),
+            vec![],
+        );
         let names: Vec<_> = e.wheres.iter().map(|w| w.name.clone()).collect();
         assert!(names.contains(&"t".to_string()));
         assert!(names.contains(&"t#2".to_string()));
@@ -837,8 +926,14 @@ mod tests {
     fn unknown_head_degrades() {
         let mut f = Fix::new();
         f.root("<v!l!0!x>", "x");
-        f.def("<v!l!1!y>", l(vec![a("<weird-new-op>"), a("<v!l!0!x>"), a("3")]));
-        assert_eq!(f.build(Some(a("<v!l!1!y>")), vec![]).returns.unwrap(), "weird-new-op(x, 3)");
+        f.def(
+            "<v!l!1!y>",
+            l(vec![a("<weird-new-op>"), a("<v!l!0!x>"), a("3")]),
+        );
+        assert_eq!(
+            f.build(Some(a("<v!l!1!y>")), vec![]).returns.unwrap(),
+            "weird-new-op(x, 3)"
+        );
     }
 
     #[test]

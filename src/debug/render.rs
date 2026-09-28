@@ -227,11 +227,7 @@ mod tests {
             ));
 
             // Body rows start after the header block and its blank separator.
-            let body: Vec<&str> = out
-                .lines()
-                .skip_while(|l| !l.is_empty())
-                .skip(1)
-                .collect();
+            let body: Vec<&str> = out.lines().skip_while(|l| !l.is_empty()).skip(1).collect();
 
             // Re-derive the left listing's sites and check that printed left line
             // `n` really is `Label == n`.

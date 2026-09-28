@@ -108,7 +108,10 @@ pub enum DebugEvent<'a> {
     LeftPathFinished { index: usize, running: Summary },
 
     /// Exploration stopped — naturally, by `--max-paths`, or by `Ctrl-C`.
-    Finished { summary: Summary, stop_reason: StopReason },
+    Finished {
+        summary: Summary,
+        stop_reason: StopReason,
+    },
 }
 
 /// Consumes [`DebugEvent`]s. Implementations must tolerate unknown future
@@ -426,8 +429,7 @@ impl DebugObserver for BarObserver {
                 self.pairs.set_message(self.tally.render());
             }
             DebugEvent::LeftPathStarted { index, id } => {
-                self.left
-                    .set_position((*index as u64).saturating_sub(1));
+                self.left.set_position((*index as u64).saturating_sub(1));
                 self.left.set_message(format!("#{id}"));
                 self.pairs.set_position(0);
                 self.pairs.set_message(self.tally.render());

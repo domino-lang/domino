@@ -697,8 +697,22 @@ where
         // the `RefCell`. See `SolverPruner`.
         let solver = RefCell::new(solver);
         explore_paths(
-            &solver, &left_inl, &right_inl, left_inst, right_inst, left_si, right_si, opts,
-            &out_dir, &observer, stop, &smt_writer, &goal_negated, &goal_smt, started, &mut run,
+            &solver,
+            &left_inl,
+            &right_inl,
+            left_inst,
+            right_inst,
+            left_si,
+            right_si,
+            opts,
+            &out_dir,
+            &observer,
+            stop,
+            &smt_writer,
+            &goal_negated,
+            &goal_smt,
+            started,
+            &mut run,
         )?;
 
         solver.into_inner().close();
@@ -726,11 +740,7 @@ where
 /// The declarations asserted once at solver level 0. Same order and content as
 /// `verify_fn.rs`, with `emit_constant_declarations` narrowed to `Some(oracle)`
 /// (story 04) and the claim assumptions split out and asserted positively.
-fn base_frame<'a>(
-    eqctx: &'a EquivalenceContext<'a>,
-    oracle: &str,
-    claim: &Claim,
-) -> Vec<SmtExpr> {
+fn base_frame<'a>(eqctx: &'a EquivalenceContext<'a>, oracle: &str, claim: &Claim) -> Vec<SmtExpr> {
     let mut base = vec![SmtExpr::Comment(" domino debug — base frame ".to_string())];
     base.extend(eqctx.emit_base_declarations());
     base.extend(eqctx.emit_theorem_paramfuncs());
@@ -805,10 +815,9 @@ fn explore_paths<'o, S: SmtSolver>(
             }
             let index = *left_counter;
             let lid = format!("{index}");
-            observer.borrow_mut().on_event(&DebugEvent::LeftPathStarted {
-                index,
-                id: &lid,
-            });
+            observer
+                .borrow_mut()
+                .on_event(&DebugEvent::LeftPathStarted { index, id: &lid });
             match handle_left_path(
                 solver,
                 goal_negated,
@@ -836,10 +845,12 @@ fn explore_paths<'o, S: SmtSolver>(
                     }
                     run.left_paths.push(lv);
                     run.summary = summarize(&run.left_paths, &run.left_pruned_branches);
-                    observer.borrow_mut().on_event(&DebugEvent::LeftPathFinished {
-                        index,
-                        running: run.summary,
-                    });
+                    observer
+                        .borrow_mut()
+                        .on_event(&DebugEvent::LeftPathFinished {
+                            index,
+                            running: run.summary,
+                        });
                     run.elapsed = started.elapsed();
                     if let Err(e) = report::flush(run, out_dir) {
                         *fatal = Some(DebugError::Io(e));
@@ -1132,10 +1143,7 @@ fn check_pair<S: SmtSolver>(
 /// Assert only the part of `path` not already on the solver stack — the branch
 /// prefix a [`SolverPruner`] already asserted incrementally. `reported_*` are `0`
 /// when no pruner was active on that side, so this then asserts the whole path.
-fn write_path_delta<S: SmtSolver>(
-    solver: &mut S,
-    path: &TerminalPath,
-) -> Result<(), DebugError> {
+fn write_path_delta<S: SmtSolver>(solver: &mut S, path: &TerminalPath) -> Result<(), DebugError> {
     for entry in &path.decls[path.reported_decls..] {
         solver.write_smt(entry.clone())?;
     }
@@ -1253,11 +1261,13 @@ impl<'s, 'o, S: SmtSolver> SolverPruner<'s, 'o, S> {
             .map(|s| s.line.clone())
             .unwrap_or_default();
         let id = format!("{}p{}", self.id_prefix, self.n_pruned);
-        self.observer.borrow_mut().on_event(&DebugEvent::BranchPruned {
-            side: self.side,
-            id: &id,
-            label: query.label,
-        });
+        self.observer
+            .borrow_mut()
+            .on_event(&DebugEvent::BranchPruned {
+                side: self.side,
+                id: &id,
+                label: query.label,
+            });
         let mut visited = query.visited.to_vec();
         self.pruned.push(PrunedBranch {
             id,
@@ -1479,11 +1489,7 @@ pub fn render_tree(run: &DebugRun) -> String {
         for step in &lp.steps {
             let _ = writeln!(out, "  L{} {}  -> {}", step.label, step.line, step.decision);
         }
-        let _ = writeln!(
-            out,
-            "  L{} {}",
-            lp.terminal.label, lp.terminal.line
-        );
+        let _ = writeln!(out, "  L{} {}", lp.terminal.label, lp.terminal.line);
 
         if !lp.reachable {
             let _ = writeln!(out, "  [unsat: left path unreachable — pruned]");
@@ -1581,9 +1587,9 @@ fn render_verdict(verdict: &Verdict) -> String {
 mod tests {
     use super::*;
     use crate::debug::progress::{DebugEvent, NopObserver};
-    use std::fmt::Write as _;
     use crate::project::{DirectoryFiles, DirectoryProject};
     use crate::util::smtsolver::cvc5lib::Cvc5LibBackend;
+    use std::fmt::Write as _;
     use std::sync::atomic::AtomicBool;
 
     fn with_project<R>(dir: &str, f: impl FnOnce(&DirectoryProject) -> R) -> R {
@@ -1617,7 +1623,16 @@ mod tests {
             let out = tempfile::tempdir().unwrap().into_path();
             let backend = Cvc5LibBackend::new(true, opts.timeout_ms);
             run_debug_command(
-                proj, theorem, 0, oracle, claim, &opts, &backend, Some(out), observer, stop,
+                proj,
+                theorem,
+                0,
+                oracle,
+                claim,
+                &opts,
+                &backend,
+                Some(out),
+                observer,
+                stop,
             )
             .unwrap()
         })
@@ -1787,7 +1802,8 @@ mod tests {
 
         // And it is in trace.json verbatim.
         let parsed: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
+            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json"))
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(parsed["schema"], 8);
@@ -1871,7 +1887,9 @@ mod tests {
         assert!(run.is_ok(), "{}", render_tree(&run));
         // Story 11: `transcript.smt2` is opt-in and absent by default.
         assert!(
-            !std::path::Path::new(&run.out_dir).join("transcript.smt2").exists(),
+            !std::path::Path::new(&run.out_dir)
+                .join("transcript.smt2")
+                .exists(),
             "transcript.smt2 must not be written without --transcript"
         );
         // The `smt/` tree is the default artifact: base frame + one delta per
@@ -2015,7 +2033,11 @@ mod tests {
         let smt = std::path::Path::new(&run.out_dir).join("smt");
         assert!(smt.join("base.smt2").exists());
         for lp in &run.left_paths {
-            assert!(smt.join(&lp.id).join("left.smt2").exists(), "left #{}", lp.id);
+            assert!(
+                smt.join(&lp.id).join("left.smt2").exists(),
+                "left #{}",
+                lp.id
+            );
             for rp in &lp.right_paths {
                 let rtail = rp.id.rsplit('.').next().unwrap();
                 assert!(
@@ -2079,8 +2101,8 @@ mod tests {
             assert!(!left.contains("set-logic"), "left.smt2 is always a delta");
             for rp in &lp.right_paths {
                 let rtail = rp.id.rsplit('.').next().unwrap();
-                let pair =
-                    std::fs::read_to_string(smt.join(&lp.id).join(format!("{rtail}.smt2"))).unwrap();
+                let pair = std::fs::read_to_string(smt.join(&lp.id).join(format!("{rtail}.smt2")))
+                    .unwrap();
                 assert!(
                     !pair.contains("set-logic"),
                     "deltas pair file must not carry the base frame"
@@ -2435,14 +2457,14 @@ mod tests {
         assert_eq!(obs.events.last().map(String::as_str), Some("Finished"));
 
         // partial artifacts exist, parse, and carry the stop reason.
-        let trace = std::fs::read_to_string(
-            std::path::Path::new(&run.out_dir).join("trace.json"),
-        )
-        .unwrap();
+        let trace =
+            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&trace).unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
         assert!(parsed.get("partial").is_none());
-        assert!(std::path::Path::new(&run.out_dir).join("index.html").exists());
+        assert!(std::path::Path::new(&run.out_dir)
+            .join("index.html")
+            .exists());
         let summary_txt = std::path::Path::new(&run.out_dir).join("summary.txt");
         assert!(summary_txt.exists());
         assert!(!std::fs::read_to_string(&summary_txt).unwrap().is_empty());
@@ -2490,7 +2512,8 @@ mod tests {
         // run still produced a well-formed, flushed trace.
         assert!(obs.pairs >= 1);
         let parsed: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json")).unwrap(),
+            &std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("trace.json"))
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(parsed["stop_reason"]["kind"], "interrupted");
@@ -2499,25 +2522,27 @@ mod tests {
         // story 17: the summary.txt written by the same (interrupted) flush is
         // the per-left-path tree, ending with the bracketed stop line.
         let summary =
-            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("summary.txt")).unwrap();
+            std::fs::read_to_string(std::path::Path::new(&run.out_dir).join("summary.txt"))
+                .unwrap();
         assert!(!summary.is_empty());
         assert!(summary.starts_with(&render_tree(&run)), "{summary}");
         assert!(summary.starts_with("theorem "), "{summary}");
         assert!(
-            summary
-                .trim_end()
-                .ends_with(&format!(
-                    "[STOPPED EARLY (interrupted by Ctrl-C) — {} of {} left paths explored]",
-                    run.left_paths.len(),
-                    run.left_syntactic
-                )),
+            summary.trim_end().ends_with(&format!(
+                "[STOPPED EARLY (interrupted by Ctrl-C) — {} of {} left paths explored]",
+                run.left_paths.len(),
+                run.left_syntactic
+            )),
             "{summary}"
         );
         // one tree block per explored left path; verdict counts from render_tree
         let sm = &run.summary;
         assert_eq!(summary.matches("left path #").count(), run.left_paths.len());
         assert!(
-            summary.contains(&format!("{} verified, {} unreachable", sm.verified, sm.unreachable)),
+            summary.contains(&format!(
+                "{} verified, {} unreachable",
+                sm.verified, sm.unreachable
+            )),
             "{summary}"
         );
     }

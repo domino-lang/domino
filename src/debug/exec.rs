@@ -453,7 +453,9 @@ fn collect_referenced_pkg_consts(block: &InlBlock, out: &mut BTreeSet<(String, S
                 }
                 collect_referenced_pkg_consts(body, out);
             }
-            InlStmt::Sample { .. } | InlStmt::Return { value: None, .. } | InlStmt::Abort { .. } => {}
+            InlStmt::Sample { .. }
+            | InlStmt::Return { value: None, .. }
+            | InlStmt::Abort { .. } => {}
         }
     }
 }
@@ -538,8 +540,7 @@ impl<'a> Executor<'a> {
         let old_state_const = octx
             .oracle_arg_game_state_pattern()
             .old_global_const_name(game_inst.name());
-        let return_const_name =
-            format!("<return-{}-{}>", game_inst.name(), inlined.oracle_name);
+        let return_const_name = format!("<return-{}-{}>", game_inst.name(), inlined.oracle_name);
 
         let mut wanted = BTreeSet::new();
         wanted.insert(inlined.entry_pkg_inst.clone());
@@ -744,11 +745,7 @@ impl<'a> Executor<'a> {
                             0,
                             st_none,
                             |exec, _oracle, st| {
-                                exec.emit_terminal(
-                                    st,
-                                    Terminal::Abort { label: label_v },
-                                    on_path,
-                                )
+                                exec.emit_terminal(st, Terminal::Abort { label: label_v }, on_path)
                             },
                         )?
                         .is_break()
@@ -801,9 +798,7 @@ impl<'a> Executor<'a> {
                         label: label_v,
                         decision: d_then,
                     });
-                    st_then
-                        .constraints
-                        .push(SmtAssert(cond_smt.clone()).into());
+                    st_then.constraints.push(SmtAssert(cond_smt.clone()).into());
                     frames_then.push(Cursor {
                         block: then,
                         ip: 0,
@@ -844,19 +839,12 @@ impl<'a> Executor<'a> {
                         kind: FrameKind::Sub,
                     });
                     let else_lines = *else_lines;
-                    return self.descend(
-                        oracle,
-                        label_v,
-                        d_else,
-                        1,
-                        st,
-                        |exec, oracle, mut st| {
-                            if let Some((_, close)) = else_lines {
-                                st.visited.push(close);
-                            }
-                            exec.walk(oracle, frames, st, on_path)
-                        },
-                    );
+                    return self.descend(oracle, label_v, d_else, 1, st, |exec, oracle, mut st| {
+                        if let Some((_, close)) = else_lines {
+                            st.visited.push(close);
+                        }
+                        exec.walk(oracle, frames, st, on_path)
+                    });
                 }
 
                 InlStmt::Call {
@@ -1071,12 +1059,7 @@ impl<'a> Executor<'a> {
             let pkg_state_term = reconstruct_pkg_state(&pctx, &st);
             let next = self
                 .gctx
-                .smt_update_gamestate_pkgstate(
-                    game_state,
-                    self.sample_info,
-                    &name,
-                    pkg_state_term,
-                )
+                .smt_update_gamestate_pkgstate(game_state, self.sample_info, &name, pkg_state_term)
                 .expect("package instance exists");
             game_state = rebind_gs(self, &mut st, next);
         }
@@ -1084,9 +1067,9 @@ impl<'a> Executor<'a> {
         // 4. build the return / abort term and the constraint that fills
         //    `<return-{GI}-{O}>`.
         let return_term = match &terminal {
-            Terminal::Return {
-                value: Some(e), ..
-            } => self.octx.smt_construct_return(game_state, to_smt(&st, e)),
+            Terminal::Return { value: Some(e), .. } => {
+                self.octx.smt_construct_return(game_state, to_smt(&st, e))
+            }
             Terminal::Return { value: None, .. } => {
                 self.octx.smt_construct_return(game_state, "mk-empty")
             }
@@ -1182,10 +1165,7 @@ impl<'a> Executor<'a> {
             .map(|(sample_id, draws)| {
                 let pos = &self.sample_info.positions[sample_id];
                 RandEffect {
-                    point: format!(
-                        "{}.{}.{}",
-                        pos.inst_name, pos.oracle_name, pos.sample_name
-                    ),
+                    point: format!("{}.{}.{}", pos.inst_name, pos.oracle_name, pos.sample_name),
                     ty: pos.ty.to_string(),
                     draws,
                 }
@@ -1388,20 +1368,15 @@ mod tests {
     where
         F: FnOnce(&crate::theorem::Theorem, &[(String, GameInstAux)]),
     {
-        let files =
-            crate::project::DirectoryFiles::load(std::path::Path::new(dir)).unwrap();
+        let files = crate::project::DirectoryFiles::load(std::path::Path::new(dir)).unwrap();
         let project =
-            crate::project::DirectoryProject::load(std::path::PathBuf::from(dir), &files)
-                .unwrap();
+            crate::project::DirectoryProject::load(std::path::PathBuf::from(dir), &files).unwrap();
         let theorem = project.get_theorem(theorem_name).unwrap();
         let (theorem, auxs) = DebugTransform.transform_theorem(theorem).unwrap();
         f(&theorem, &auxs);
     }
 
-    fn sample_info_for<'a>(
-        auxs: &'a [(String, GameInstAux)],
-        game_inst: &str,
-    ) -> &'a SampleInfo {
+    fn sample_info_for<'a>(auxs: &'a [(String, GameInstAux)], game_inst: &str) -> &'a SampleInfo {
         &auxs
             .iter()
             .find(|(n, _)| n == game_inst)
@@ -1410,12 +1385,7 @@ mod tests {
             .sample_info
     }
 
-    fn run(
-        dir: &str,
-        theorem: &str,
-        game_inst: &str,
-        oracle: &str,
-    ) -> Vec<TerminalPath> {
+    fn run(dir: &str, theorem: &str, game_inst: &str, oracle: &str) -> Vec<TerminalPath> {
         let mut result = None;
         with_debug(dir, theorem, |th, auxs| {
             let gi = th.find_game_instance(game_inst).unwrap();
@@ -1527,7 +1497,10 @@ mod tests {
         assert_eq!(ranges(&mut vec![]), Vec::<(Label, Label)>::new());
         assert_eq!(ranges(&mut vec![5]), vec![(5, 5)]);
         assert_eq!(ranges(&mut vec![3, 4, 5]), vec![(3, 5)]);
-        assert_eq!(ranges(&mut vec![1, 3, 4, 7, 8]), vec![(1, 1), (3, 4), (7, 8)]);
+        assert_eq!(
+            ranges(&mut vec![1, 3, 4, 7, 8]),
+            vec![(1, 1), (3, 4), (7, 8)]
+        );
         assert_eq!(ranges(&mut vec![5, 1, 3]), vec![(1, 1), (3, 3), (5, 5)]);
         assert_eq!(ranges(&mut vec![3, 3, 3, 4]), vec![(3, 4)]);
     }
@@ -1666,18 +1639,19 @@ UsefulOracle() -> (Integer, Bits(n)) {
 
         // a1-fail -> abort ; a1-hold,a2-fail -> abort ; hold,hold,unwrap-none ->
         // abort ; hold,hold,some,if-then -> return ; hold,hold,some,if-else -> return
-        assert_eq!(paths.len(), 5, "{:#?}", paths.iter().map(|p| &p.steps).collect::<Vec<_>>());
+        assert_eq!(
+            paths.len(),
+            5,
+            "{:#?}",
+            paths.iter().map(|p| &p.steps).collect::<Vec<_>>()
+        );
         let aborts = paths.iter().filter(|p| p.terminal.is_abort()).count();
         assert_eq!(aborts, 3);
 
         // the unwrap-none path aborts at the unwrap's own label.
         let unwrap_none = paths
             .iter()
-            .find(|p| {
-                p.steps
-                    .iter()
-                    .any(|s| s.decision == Decision::UnwrapNone)
-            })
+            .find(|p| p.steps.iter().any(|s| s.decision == Decision::UnwrapNone))
             .expect("one path takes the unwrap-none branch");
         assert!(unwrap_none.terminal.is_abort());
         let none_step = unwrap_none
@@ -1727,8 +1701,7 @@ UsefulOracle() -> (Integer, Bits(n)) {
                 "KEM_Proof",
                 |th, auxs| {
                     let gi = th.find_game_instance("Prot").unwrap();
-                    let inl =
-                        crate::debug::ir::inline_oracle(gi, "TestSender").unwrap();
+                    let inl = crate::debug::ir::inline_oracle(gi, "TestSender").unwrap();
                     let si = sample_info_for(auxs, "Prot");
                     out = execute(&inl, gi, si, Side::Left, Some(2));
                 },
@@ -1854,7 +1827,10 @@ UsefulOracle() -> (Integer, Bits(n)) {
         assert_eq!(paths.len(), 1);
         let p = &paths[0];
         let render = |v: &[SmtExpr]| {
-            v.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n")
+            v.iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<_>>()
+                .join("\n")
         };
         let actual = format!(
             "; decls\n{}\n; constraints\n{}\n; return\n{}\n",
@@ -1862,8 +1838,7 @@ UsefulOracle() -> (Integer, Bits(n)) {
             render(&p.constraints),
             p.return_constraint,
         );
-        let golden_path =
-            std::path::Path::new("testdata/story05/hello_world_medium.smt2");
+        let golden_path = std::path::Path::new("testdata/story05/hello_world_medium.smt2");
         if !golden_path.exists() {
             std::fs::create_dir_all(golden_path.parent().unwrap()).unwrap();
             std::fs::write(golden_path, &actual).unwrap();
@@ -1993,12 +1968,16 @@ UsefulOracle() -> (Integer, Bits(n)) {
     fn golden_simple_kem_run_right_partner() {
         // the right game instance's `Run` — the partner of left #2 (`#2.1`).
         let mut result = None;
-        with_debug("example-projects/simple-KEM-example", "KEM_Proof", |th, auxs| {
-            let gi = th.find_game_instance("H1_kem_correctness_real").unwrap();
-            let inl = crate::debug::ir::inline_oracle(gi, "Run").unwrap();
-            let si = sample_info_for(auxs, "H1_kem_correctness_real");
-            result = Some(execute(&inl, gi, si, Side::Right, None).unwrap());
-        });
+        with_debug(
+            "example-projects/simple-KEM-example",
+            "KEM_Proof",
+            |th, auxs| {
+                let gi = th.find_game_instance("H1_kem_correctness_real").unwrap();
+                let inl = crate::debug::ir::inline_oracle(gi, "Run").unwrap();
+                let si = sample_info_for(auxs, "H1_kem_correctness_real");
+                result = Some(execute(&inl, gi, si, Side::Right, None).unwrap());
+            },
+        );
         let paths = result.unwrap();
         // the partner of left #2: the `Corr_KEM.sk == None` branch is *not*
         // taken, so `Corr_KEM` is wholly unchanged.
@@ -2031,7 +2010,14 @@ UsefulOracle() -> (Integer, Bits(n)) {
             panic!("wrote missing golden {golden:?} — re-run the test");
         }
         assert_eq!(actual, std::fs::read_to_string(golden).unwrap());
-        for bad in ["<v!right!", "pkg-state", "store ", "mk-some", "mk-tuple", "el3-"] {
+        for bad in [
+            "<v!right!",
+            "pkg-state",
+            "store ",
+            "mk-some",
+            "mk-tuple",
+            "el3-",
+        ] {
             assert!(!actual.contains(bad), "leaked {bad:?}:\n{actual}");
         }
     }
@@ -2075,7 +2061,12 @@ UsefulOracle() -> (Integer, Bits(n)) {
         let baseline = run(KEM, "KEM_Proof", "Prot", "TestSender");
         let mut br = MockOracle::default();
         let with = run_with_oracle(
-            KEM, "KEM_Proof", "Prot", "TestSender", None, &mut br,
+            KEM,
+            "KEM_Proof",
+            "Prot",
+            "TestSender",
+            None,
+            &mut br,
             |_| ControlFlow::Continue(()),
         )
         .unwrap();
@@ -2102,7 +2093,12 @@ UsefulOracle() -> (Integer, Bits(n)) {
             ..MockOracle::default()
         };
         let got = run_with_oracle(
-            KEM, "KEM_Proof", "Prot", "TestSender", None, &mut br,
+            KEM,
+            "KEM_Proof",
+            "Prot",
+            "TestSender",
+            None,
+            &mut br,
             |_| ControlFlow::Continue(()),
         )
         .unwrap();
@@ -2124,7 +2120,12 @@ UsefulOracle() -> (Integer, Bits(n)) {
         let mut br = MockOracle::default();
         let mut seen = 0usize;
         let got = run_with_oracle(
-            KEM, "KEM_Proof", "Prot", "TestSender", None, &mut br,
+            KEM,
+            "KEM_Proof",
+            "Prot",
+            "TestSender",
+            None,
+            &mut br,
             |_| {
                 seen += 1;
                 ControlFlow::Break(())
@@ -2140,7 +2141,12 @@ UsefulOracle() -> (Integer, Bits(n)) {
     fn leave_balances_enter_on_max_paths() {
         let mut br = MockOracle::default();
         let err = run_with_oracle(
-            KEM, "KEM_Proof", "Prot", "TestSender", Some(2), &mut br,
+            KEM,
+            "KEM_Proof",
+            "Prot",
+            "TestSender",
+            Some(2),
+            &mut br,
             |_| ControlFlow::Continue(()),
         )
         .unwrap_err();

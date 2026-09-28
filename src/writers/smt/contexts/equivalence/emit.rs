@@ -1642,8 +1642,7 @@ mod story04_tests {
     }
 
     fn with_eqctx(f: impl FnOnce(&EquivalenceContext<'_>)) {
-        let files =
-            crate::project::DirectoryFiles::load(std::path::Path::new(PROJECT)).unwrap();
+        let files = crate::project::DirectoryFiles::load(std::path::Path::new(PROJECT)).unwrap();
         let project =
             crate::project::DirectoryProject::load(std::path::PathBuf::from(PROJECT), &files)
                 .unwrap();
@@ -1708,11 +1707,8 @@ mod story04_tests {
             let claim = mixed_claim();
             let (deps, goal) = eqctx.claim_assumptions_and_goal(&claim, ORACLE);
 
-            let recombined: SmtExpr = SmtAssert(SmtNot(SmtImplies(
-                SmtAnd(deps.clone()),
-                goal.clone(),
-            )))
-            .into();
+            let recombined: SmtExpr =
+                SmtAssert(SmtNot(SmtImplies(SmtAnd(deps.clone()), goal.clone()))).into();
             assert_eq!(
                 recombined.to_string(),
                 eqctx.emit_oracle_claim_assert(&claim, ORACLE).to_string(),

@@ -49,6 +49,36 @@ pub(crate) enum Commands {
 
     /// Inline the code of an oracle for both sides of an equivalence proofstep, side by side.
     Inline(Inline),
+
+    /// Export one HTML page per theorem: every game instance's composition
+    /// diagram and inlined oracles, one column per game in hop order.
+    Html(Html),
+}
+
+#[derive(clap::Args, Debug)]
+#[clap(author, version, about, long_about = None)]
+pub(crate) struct Html {
+    /// Path to the Domino project. Defaults to searching the current
+    /// directory and its ancestors for an `ssp.toml`.
+    #[clap(long)]
+    pub(crate) path: Option<std::path::PathBuf>,
+    /// Only export this theorem (default: all theorems).
+    #[clap(long)]
+    pub(crate) proof: Option<String>,
+    /// Solver for the composition-diagram layout (as `domino latex`). Without
+    /// one, a simple solver-free layout is drawn.
+    #[clap(short, long, default_value = "z3")]
+    pub(crate) smtsolver: SolverVariant,
+    /// Use the solver-free diagram layout.
+    #[clap(long)]
+    pub(crate) no_solver: bool,
+    /// Open the pages showing the lossy listings (`Some(x)` as `x`, `None` as
+    /// `⊥`, ...). Both renderings are always included; the page toggles them.
+    #[clap(long)]
+    pub(crate) lossy: bool,
+    /// Output directory. Defaults to `_build/html/`.
+    #[clap(long)]
+    pub(crate) out: Option<std::path::PathBuf>,
 }
 
 #[derive(clap::Args, Debug)]

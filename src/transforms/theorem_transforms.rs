@@ -49,7 +49,7 @@ impl super::TheoremTransform for EquivalenceTransform {
         let results = theorem
             .instances
             .iter()
-            .map(|game_inst| transform_game_inst_common(game_inst, true));
+            .map(|game_inst| transform_game_inst_common(game_inst, PipelineOptions::EQUIVALENCE));
         let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
         let theorem = theorem.with_new_instances(instances);
 
@@ -85,7 +85,7 @@ impl super::TheoremTransform for DebugTransform {
         let results = theorem
             .instances
             .iter()
-            .map(|game_inst| transform_game_inst_common(game_inst, false));
+            .map(|game_inst| transform_game_inst_common(game_inst, PipelineOptions::DEBUG));
         let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
         let theorem = theorem.with_new_instances(instances);
 
@@ -93,12 +93,70 @@ impl super::TheoremTransform for DebugTransform {
     }
 }
 
-/// Shared pipeline for [`EquivalenceTransform`] (`run_treeify = true`) and
-/// [`DebugTransform`] (`run_treeify = false`). The two must never drift, so the
-/// only difference between them lives here.
+/// Like [`DebugTransform`], but for read-only views of a theorem (`domino html`)
+/// that never emit a randomness mapping and so don't need
+/// [`GameInstAux::max_offsets`].
+///
+/// Such views render *every* game instance of a theorem, including ones that
+/// only appear in reduction hops and whose sampling loops have symbolic bounds
+/// (e.g. `for j: 1 <= j <= w` in the Yao example). `loopunroll` cannot unroll
+/// those, so `sample_max_counter_extractor` would reject the whole theorem.
+/// Here that is not an error: the affected instance just gets empty
+/// `max_offsets`, and [`crate::debug::ir::render_oracle_listing`] prints the
+/// loop as-is.
+pub struct ViewTransform;
+
+impl super::TheoremTransform for ViewTransform {
+    type Err = EquivalenceTransformError;
+
+    type Aux = Vec<(String, GameInstAux)>;
+
+    fn transform_theorem<'a>(
+        &self,
+        theorem: &'a crate::theorem::Theorem<'a>,
+    ) -> Result<(crate::theorem::Theorem<'a>, Self::Aux), Self::Err> {
+        let results = theorem
+            .instances
+            .iter()
+            .map(|game_inst| transform_game_inst_common(game_inst, PipelineOptions::VIEW));
+        let (instances, auxs) = itertools::process_results(results, |res| res.unzip())?;
+        let theorem = theorem.with_new_instances(instances);
+
+        Ok((theorem, auxs))
+    }
+}
+
+/// The knobs on which [`EquivalenceTransform`], [`DebugTransform`] and
+/// [`ViewTransform`] differ; everything else in the pipeline is shared.
+#[derive(Clone, Copy)]
+struct PipelineOptions {
+    run_treeify: bool,
+    /// Fail on a sampling loop `loopunroll` could not unroll. When `false`, the
+    /// instance gets empty `max_offsets` instead.
+    require_max_offsets: bool,
+}
+
+impl PipelineOptions {
+    const EQUIVALENCE: Self = Self {
+        run_treeify: true,
+        require_max_offsets: true,
+    };
+    const DEBUG: Self = Self {
+        run_treeify: false,
+        require_max_offsets: true,
+    };
+    const VIEW: Self = Self {
+        run_treeify: false,
+        require_max_offsets: false,
+    };
+}
+
+/// Shared pipeline for [`EquivalenceTransform`], [`DebugTransform`] and
+/// [`ViewTransform`]. They must never drift, so the only differences between
+/// them live here, selected by `opts`.
 fn transform_game_inst_common(
     game_inst: &GameInstance,
-    run_treeify: bool,
+    opts: PipelineOptions,
 ) -> Result<(GameInstance, (String, GameInstAux)), EquivalenceTransformError> {
     let comp = game_inst.game();
 
@@ -140,11 +198,17 @@ fn transform_game_inst_common(
         .transform()
         .expect("unroll transformation failed unexpectedly");
     let (comp, max_offsets) =
-        sample_max_counter_extractor::Transformation(&comp, &sample_info.positions).transform()?;
+        match sample_max_counter_extractor::Transformation(&comp, &sample_info.positions)
+            .transform()
+        {
+            Ok(result) => result,
+            Err(_) if !opts.require_max_offsets => (comp, Default::default()),
+            Err(err) => return Err(err.into()),
+        };
     let (comp, _) = returnify::TransformNg
         .transform_game(&comp)
         .expect("returnify transformation failed unexpectedly");
-    let comp = if run_treeify {
+    let comp = if opts.run_treeify {
         treeify::Transformation(&comp)
             .transform()
             .expect("treeify transformation failed unexpectedly")

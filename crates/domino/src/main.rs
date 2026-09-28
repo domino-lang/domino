@@ -83,6 +83,11 @@ enum Error {
     #[error(transparent)]
     #[diagnostic(transparent)]
     InlineRender(#[from] sspverif::debug::render::RenderError),
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Transform(#[from] sspverif::transforms::theorem_transforms::EquivalenceTransformError),
+    #[error("could not write {0}: {1}")]
+    Io(std::path::PathBuf, std::io::Error),
     #[cfg(feature = "cvc5-lib")]
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -258,6 +263,43 @@ fn inline(i: &Inline) -> Result<(), Error> {
     Ok(())
 }
 
+fn html(h: &Html) -> Result<(), Error> {
+    let project_root = match &h.path {
+        Some(path) => path.clone(),
+        None => project::directory::find_project_root()?,
+    };
+    let files = project::DirectoryFiles::load(&project_root)?;
+    let project = project::DirectoryProject::load(project_root.clone(), &files)?;
+
+    let names: Vec<String> = match &h.proof {
+        Some(name) => {
+            project
+                .get_theorem(name)
+                .ok_or_else(|| TheoremNotFound(name.clone()))?;
+            vec![name.clone()]
+        }
+        None => project.theorems().map(String::from).collect(),
+    };
+
+    let out_dir = h
+        .out
+        .clone()
+        .unwrap_or_else(|| project_root.join("_build/html"));
+    std::fs::create_dir_all(&out_dir).map_err(|e| Error::Io(out_dir.clone(), e))?;
+    let cache = project_root.join("_build/graph");
+    let backend = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(h.smtsolver);
+    let backend = (!h.no_solver).then_some(&backend);
+
+    for name in names {
+        let theorem = project.get_theorem(&name).expect("listed theorem exists");
+        let page = sspverif::writers::html::render_theorem_html(theorem, backend, &cache, h.lossy)?;
+        let file = out_dir.join(format!("{name}.html"));
+        std::fs::write(&file, page).map_err(|e| Error::Io(file.clone(), e))?;
+        println!("{}", file.display());
+    }
+    Ok(())
+}
+
 fn latex(l: &Latex) -> Result<(), Error> {
     let project_root = l
         .path
@@ -302,6 +344,7 @@ fn main() -> miette::Result<()> {
         Commands::Format(f) => format(f),
         Commands::Debug(d) => debug(d),
         Commands::Inline(i) => inline(i),
+        Commands::Html(h) => html(h),
     };
 
     result.map_err(miette::Report::new)

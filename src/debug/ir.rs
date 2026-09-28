@@ -234,6 +234,16 @@ pub enum InlineError {
          `resolveoracles` should have filled this in before `inline_oracle` runs"
     )]
     UnresolvedEdge { oracle: String, pkg_inst: String },
+
+    /// Only reachable on the output of
+    /// [`crate::transforms::theorem_transforms::ViewTransform`], which lets
+    /// loops with symbolic bounds through; the IR has no loop construct. Views
+    /// use [`render_oracle_listing`], which prints the loop instead.
+    #[error(
+        "cannot inline oracle `{oracle}` of package instance `{pkg_inst}`: it contains a \
+         `for` loop with non-literal bounds, which `loopunroll` could not unroll"
+    )]
+    NonUnrolledLoop { oracle: String, pkg_inst: String },
 }
 
 /// Inline `oracle_name` (an *exported* name) of `game_inst`, which must already
@@ -242,6 +252,44 @@ pub enum InlineError {
 pub fn inline_oracle(
     game_inst: &GameInstance,
     oracle_name: &str,
+) -> Result<InlinedOracle, InlineError> {
+    inline_oracle_rendered(game_inst, oracle_name, false)
+}
+
+/// Like [`inline_oracle`], but `lossy = true` renders the listing the way the
+/// lossy LaTeX export does: `Some(x)` / `unwrap(x)` print as `x`, `None` as `⊥`,
+/// `EmptyTable` without its type, `not (a == b)` as `a != b`. Only the text
+/// changes; the IR and the line labels are identical to the non-lossy listing.
+pub fn inline_oracle_rendered(
+    game_inst: &GameInstance,
+    oracle_name: &str,
+    lossy: bool,
+) -> Result<InlinedOracle, InlineError> {
+    inline_oracle_impl(game_inst, oracle_name, lossy, false)
+}
+
+/// The listing of [`inline_oracle_rendered`], for read-only views (`domino
+/// html`) of games that may still contain loops with symbolic bounds (see
+/// [`crate::transforms::theorem_transforms::ViewTransform`]).
+///
+/// Such a loop is printed as a `for` block around its inlined body instead of
+/// failing with [`InlineError::NonUnrolledLoop`]. The IR has no loop construct,
+/// so only the listing is returned: there is nothing to execute.
+pub fn render_oracle_listing(
+    game_inst: &GameInstance,
+    oracle_name: &str,
+    lossy: bool,
+) -> Result<Listing, InlineError> {
+    inline_oracle_impl(game_inst, oracle_name, lossy, true).map(|inl| inl.listing)
+}
+
+/// `render_loops`: see [`Inliner::render_loops`]. Must be `false` whenever the
+/// returned IR is used.
+fn inline_oracle_impl(
+    game_inst: &GameInstance,
+    oracle_name: &str,
+    lossy: bool,
+    render_loops: bool,
 ) -> Result<InlinedOracle, InlineError> {
     let comp = game_inst.game();
 
@@ -267,11 +315,12 @@ pub fn inline_oracle(
 
     let mut inliner = Inliner {
         comp,
-        game_inst_name: game_inst.name().to_string(),
         next_frame_id: 0,
         text: String::new(),
         line: 0,
         sites: BTreeMap::new(),
+        lossy,
+        render_loops,
     };
 
     let entry_frame = Frame {
@@ -372,14 +421,27 @@ impl Frame {
 
 struct Inliner<'c> {
     comp: &'c crate::package::Composition,
-    game_inst_name: String,
     next_frame_id: usize,
     text: String,
     line: Label,
     sites: BTreeMap<Label, SiteInfo>,
+    /// See [`inline_oracle_rendered`].
+    lossy: bool,
+    /// Print a loop `loopunroll` left in place as a `for` block around its
+    /// body, splicing the body's IR into the enclosing block as if it ran
+    /// once. That IR is wrong, so this is only for [`render_oracle_listing`].
+    render_loops: bool,
 }
 
 impl<'c> Inliner<'c> {
+    fn expr(&self, e: &Expression) -> String {
+        render_expr_with(e, self.lossy)
+    }
+
+    fn pattern(&self, p: &Pattern) -> String {
+        render_pattern(p, self.lossy)
+    }
+
     fn alloc_frame(&mut self) -> usize {
         let id = self.next_frame_id;
         self.next_frame_id += 1;
@@ -430,7 +492,20 @@ impl<'c> Inliner<'c> {
     ) -> Result<InlBlock, InlineError> {
         let mut stmts = Vec::with_capacity(block.0.len());
         for stmt in &block.0 {
-            stmts.push(self.render_stmt(stmt, frame, depth, indent)?);
+            match stmt {
+                Statement::For(var, lower, upper, body, _) if self.render_loops => {
+                    let var = ident_repr(var);
+                    let header = format!(
+                        "for {var}: {} <= {var} <= {} {{",
+                        self.expr(lower),
+                        self.expr(upper)
+                    );
+                    self.emit(indent, &header);
+                    stmts.extend(self.render_block(body, frame, depth, indent + 1)?.0);
+                    self.emit(indent, "}");
+                }
+                _ => stmts.push(self.render_stmt(stmt, frame, depth, indent)?),
+            }
         }
         Ok(InlBlock(stmts))
     }
@@ -453,12 +528,12 @@ impl<'c> Inliner<'c> {
                 let value_ir = value.as_ref().map(|e| rewrite_expr(e, frame));
                 let content = match &frame.ret {
                     Ret::Top => match value {
-                        Some(e) => format!("return {};", render_expr(e)),
+                        Some(e) => format!("return {};", self.expr(e)),
                         None => "return;".to_string(),
                     },
                     Ret::Inlined { bind_text, from } => match value {
                         Some(e) => {
-                            format!("{bind_text} <- {};  // return from {from}", render_expr(e))
+                            format!("{bind_text} <- {};  // return from {from}", self.expr(e))
                         }
                         None => format!("{bind_text} <- ();  // return from {from}"),
                     },
@@ -500,7 +575,7 @@ impl<'c> Inliner<'c> {
                     };
                     let content = format!(
                         "{} <-$ {}{name_part};",
-                        render_pattern(pattern),
+                        self.pattern(pattern),
                         render_type(ty),
                     );
                     let label = self.emit(indent, &content);
@@ -518,11 +593,11 @@ impl<'c> Inliner<'c> {
                 AssignmentRhs::Expression(e) => {
                     let target = self.place_from_pattern(pattern, frame);
                     if let ExpressionKind::Unwrap(inner) = e.kind() {
-                        let content = format!(
-                            "{} <- unwrap({});",
-                            render_pattern(pattern),
-                            render_expr(inner),
-                        );
+                        let content = if self.lossy {
+                            format!("{} <- {};", self.pattern(pattern), self.expr(inner))
+                        } else {
+                            format!("{} <- unwrap({});", self.pattern(pattern), self.expr(inner),)
+                        };
                         let label = self.emit(indent, &content);
                         self.record_site(label, SiteKind::Unwrap, &content, *span, frame, depth);
                         Ok(InlStmt::Unwrap {
@@ -531,7 +606,7 @@ impl<'c> Inliner<'c> {
                             inner: rewrite_expr(inner, frame),
                         })
                     } else {
-                        let content = format!("{} <- {};", render_pattern(pattern), render_expr(e));
+                        let content = format!("{} <- {};", self.pattern(pattern), self.expr(e));
                         let label = self.emit(indent, &content);
                         self.record_site(label, SiteKind::Assign, &content, *span, frame, depth);
                         Ok(InlStmt::Assign {
@@ -567,7 +642,7 @@ impl<'c> Inliner<'c> {
                 let cond_ir = rewrite_expr(&ite.cond, frame);
 
                 if is_assert {
-                    let content = format!("assert ({});", render_expr(&ite.cond));
+                    let content = format!("assert ({});", self.expr(&ite.cond));
                     let label = self.emit(indent, &content);
                     self.record_site(
                         label,
@@ -589,7 +664,7 @@ impl<'c> Inliner<'c> {
                         else_lines: None,
                     })
                 } else {
-                    let content = format!("if ({}) {{", render_expr(&ite.cond));
+                    let content = format!("if ({}) {{", self.expr(&ite.cond));
                     let label = self.emit(indent, &content);
                     self.record_site(
                         label,
@@ -623,12 +698,12 @@ impl<'c> Inliner<'c> {
                 }
             }
 
-            Statement::For(_, _, _, _, _) => unreachable!(
-                "a `for` statement survived into the debug IR — `loopunroll` runs before \
-                 `inline_oracle` and must have eliminated it. \
-                 game instance: {}, package instance: {}, oracle: {}",
-                self.game_inst_name, frame.pkg_inst_name, frame.oracle_name,
-            ),
+            // `loopunroll` eliminates every loop with literal bounds, so this is
+            // a loop with symbolic bounds (e.g. `1 <= j <= w`).
+            Statement::For(_, _, _, _, _) => Err(InlineError::NonUnrolledLoop {
+                oracle: frame.oracle_name.clone(),
+                pkg_inst: frame.pkg_inst_name.clone(),
+            }),
         }
     }
 
@@ -677,13 +752,17 @@ impl<'c> Inliner<'c> {
                     !matches!(p, Pattern::Tuple(_)),
                     "`deconstructinvoke` guarantees an invoke's bind is never a tuple pattern",
                 );
-                render_pattern(p)
+                self.pattern(p)
             }
         };
         let bind = bind_pattern.map(|p| self.place_from_pattern(p, caller));
 
         let from = format!("{}.{}", target_pkg_inst.name, target_sig.name);
-        let args_txt = args.iter().map(render_expr).collect::<Vec<_>>().join(", ");
+        let args_txt = args
+            .iter()
+            .map(|a| self.expr(a))
+            .collect::<Vec<_>>()
+            .join(", ");
         let content = match bind_pattern {
             Some(_) => format!("{bind_text} <- invoke {oracle_name}({args_txt})      // {from}"),
             None => format!("invoke {oracle_name}({args_txt})      // {from}"),
@@ -708,7 +787,7 @@ impl<'c> Inliner<'c> {
         for ((param_name, param_ty), arg_expr) in target_sig.args.iter().zip(args) {
             let arg_label = self.emit(
                 indent + 1,
-                &format!("{param_name} <- {};", render_expr(arg_expr)),
+                &format!("{param_name} <- {};", self.expr(arg_expr)),
             );
             arg_lines = Some(match arg_lines {
                 None => (arg_label, arg_label),
@@ -830,10 +909,12 @@ fn render_signature(sig: &crate::package::OracleSig) -> String {
     format!("{}({args}) -> {}", sig.name, render_type(&sig.ty))
 }
 
-fn render_pattern(pattern: &Pattern) -> String {
+fn render_pattern(pattern: &Pattern, lossy: bool) -> String {
     match pattern {
         Pattern::Ident(id) => ident_repr(id),
-        Pattern::Table { ident, index } => format!("{}[{}]", ident_repr(ident), render_expr(index)),
+        Pattern::Table { ident, index } => {
+            format!("{}[{}]", ident_repr(ident), render_expr_with(index, lossy))
+        }
         Pattern::Tuple(ids) => format!(
             "({})",
             ids.iter().map(ident_repr).collect::<Vec<_>>().join(", ")
@@ -841,13 +922,44 @@ fn render_pattern(pattern: &Pattern) -> String {
     }
 }
 
-fn render_expr(expr: &Expression) -> String {
+pub(crate) fn render_expr(expr: &Expression) -> String {
+    render_expr_with(expr, false)
+}
+
+/// See [`inline_oracle_rendered`] for what `lossy` drops.
+pub(crate) fn render_expr_with(expr: &Expression, lossy: bool) -> String {
     // Follow package/game constants down to a literal or a theorem constant.
     let expr = resolve_const(expr);
 
     let joined = |exprs: &[Expression], sep: &str| {
-        exprs.iter().map(render_expr).collect::<Vec<_>>().join(sep)
+        exprs
+            .iter()
+            .map(|e| render_expr_with(e, lossy))
+            .collect::<Vec<_>>()
+            .join(sep)
     };
+
+    if lossy {
+        match expr.kind() {
+            ExpressionKind::Some(e) | ExpressionKind::Unwrap(e) => {
+                return render_expr_with(e, lossy)
+            }
+            ExpressionKind::None(_) => return "\u{22a5}".to_string(),
+            ExpressionKind::EmptyTable(_) => return "EmptyTable".to_string(),
+            ExpressionKind::Not(e) => {
+                if let ExpressionKind::Equals(exprs) = e.kind() {
+                    if exprs.len() == 2 {
+                        return format!(
+                            "({} != {})",
+                            render_expr_with(&exprs[0], lossy),
+                            render_expr_with(&exprs[1], lossy)
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 
     match expr.kind() {
         ExpressionKind::Bot => "\u{22a5}".to_string(),
@@ -859,7 +971,7 @@ fn render_expr(expr: &Expression) -> String {
         ExpressionKind::Identifier(ident) => ident_repr(ident),
         ExpressionKind::EmptyTable(ty) => format!("EmptyTable({})", render_type(ty)),
         ExpressionKind::TableAccess(ident, index) => {
-            format!("{}[{}]", ident_repr(ident), render_expr(index))
+            format!("{}[{}]", ident_repr(ident), render_expr_with(index, lossy))
         }
         ExpressionKind::Tuple(exprs) => format!("({})", joined(exprs, ", ")),
         ExpressionKind::List(exprs) => format!("[{}]", joined(exprs, ", ")),
@@ -869,29 +981,69 @@ fn render_expr(expr: &Expression) -> String {
             format!("{}({})", ident_repr(ident), joined(args, ", "))
         }
         ExpressionKind::None(_) => "None".to_string(),
-        ExpressionKind::Some(e) => format!("Some({})", render_expr(e)),
-        ExpressionKind::Unwrap(e) => format!("Unwrap({})", render_expr(e)),
-        ExpressionKind::Not(e) => format!("not ({})", render_expr(e)),
-        ExpressionKind::Neg(e) => format!("-({})", render_expr(e)),
-        ExpressionKind::Inv(e) => format!("(1 / {})", render_expr(e)),
-        ExpressionKind::Sum(e) => format!("sum({})", render_expr(e)),
-        ExpressionKind::Prod(e) => format!("prod({})", render_expr(e)),
-        ExpressionKind::Any(e) => format!("any({})", render_expr(e)),
-        ExpressionKind::All(e) => format!("all({})", render_expr(e)),
-        ExpressionKind::Union(e) => format!("union({})", render_expr(e)),
-        ExpressionKind::Cut(e) => format!("cut({})", render_expr(e)),
-        ExpressionKind::SetDiff(e) => format!("setdiff({})", render_expr(e)),
-        ExpressionKind::Add(l, r) => format!("({} + {})", render_expr(l), render_expr(r)),
-        ExpressionKind::Sub(l, r) => format!("({} - {})", render_expr(l), render_expr(r)),
-        ExpressionKind::Mul(l, r) => format!("({} * {})", render_expr(l), render_expr(r)),
-        ExpressionKind::Div(l, r) => format!("({} / {})", render_expr(l), render_expr(r)),
-        ExpressionKind::Pow(l, r) => format!("({} ^ {})", render_expr(l), render_expr(r)),
-        ExpressionKind::Mod(l, r) => format!("({} % {})", render_expr(l), render_expr(r)),
-        ExpressionKind::LessThen(l, r) => format!("({} < {})", render_expr(l), render_expr(r)),
-        ExpressionKind::GreaterThen(l, r) => format!("({} > {})", render_expr(l), render_expr(r)),
-        ExpressionKind::LessThenEq(l, r) => format!("({} <= {})", render_expr(l), render_expr(r)),
+        ExpressionKind::Some(e) => format!("Some({})", render_expr_with(e, lossy)),
+        ExpressionKind::Unwrap(e) => format!("Unwrap({})", render_expr_with(e, lossy)),
+        ExpressionKind::Not(e) => format!("not ({})", render_expr_with(e, lossy)),
+        ExpressionKind::Neg(e) => format!("-({})", render_expr_with(e, lossy)),
+        ExpressionKind::Inv(e) => format!("(1 / {})", render_expr_with(e, lossy)),
+        ExpressionKind::Sum(e) => format!("sum({})", render_expr_with(e, lossy)),
+        ExpressionKind::Prod(e) => format!("prod({})", render_expr_with(e, lossy)),
+        ExpressionKind::Any(e) => format!("any({})", render_expr_with(e, lossy)),
+        ExpressionKind::All(e) => format!("all({})", render_expr_with(e, lossy)),
+        ExpressionKind::Union(e) => format!("union({})", render_expr_with(e, lossy)),
+        ExpressionKind::Cut(e) => format!("cut({})", render_expr_with(e, lossy)),
+        ExpressionKind::SetDiff(e) => format!("setdiff({})", render_expr_with(e, lossy)),
+        ExpressionKind::Add(l, r) => format!(
+            "({} + {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::Sub(l, r) => format!(
+            "({} - {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::Mul(l, r) => format!(
+            "({} * {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::Div(l, r) => format!(
+            "({} / {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::Pow(l, r) => format!(
+            "({} ^ {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::Mod(l, r) => format!(
+            "({} % {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::LessThen(l, r) => format!(
+            "({} < {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::GreaterThen(l, r) => format!(
+            "({} > {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
+        ExpressionKind::LessThenEq(l, r) => format!(
+            "({} <= {})",
+            render_expr_with(l, lossy),
+            render_expr_with(r, lossy)
+        ),
         ExpressionKind::GreaterThenEq(l, r) => {
-            format!("({} >= {})", render_expr(l), render_expr(r))
+            format!(
+                "({} >= {})",
+                render_expr_with(l, lossy),
+                render_expr_with(r, lossy)
+            )
         }
         ExpressionKind::Equals(exprs) => format!("({})", joined(exprs, " == ")),
         ExpressionKind::And(exprs) => format!("({})", joined(exprs, " and ")),
