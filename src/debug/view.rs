@@ -588,7 +588,8 @@ impl View<'_> {
     }
 
     /// `tail`: `block` ends the frame, so a `return` in it is the last thing
-    /// the frame runs.
+    /// the frame runs. Code after a statement that always exits is dead and
+    /// is not printed; that statement ends the block instead.
     fn block(
         &mut self,
         block: &[Statement],
@@ -597,9 +598,29 @@ impl View<'_> {
         tail: bool,
     ) -> Result<(), InlineError> {
         for (i, stmt) in block.iter().enumerate() {
-            self.stmt(stmt, frame, indent, tail && i + 1 == block.len())?;
+            let exits = self.exits(std::slice::from_ref(stmt), frame);
+            self.stmt(stmt, frame, indent, tail && (exits || i + 1 == block.len()))?;
+            if exits {
+                break;
+            }
         }
         Ok(())
+    }
+
+    /// Every path through `block` returns or aborts, counting only the
+    /// branches that run once the proof path's constants are substituted.
+    fn exits(&self, block: &[Statement], frame: &Frame) -> bool {
+        block.iter().any(|stmt| match stmt {
+            Statement::Return(..) | Statement::Abort(_) => true,
+            Statement::IfThenElse(ite) => match as_bool(&self.expr(&ite.cond, frame)) {
+                Some(true) => self.exits(&ite.then_block.0, frame),
+                Some(false) => self.exits(&ite.else_block.0, frame),
+                None => {
+                    self.exits(&ite.then_block.0, frame) && self.exits(&ite.else_block.0, frame)
+                }
+            },
+            _ => false,
+        })
     }
 
     fn stmt(
@@ -969,5 +990,24 @@ PKDEC(c_: (Bits(kctl), Bits(dctl))) -> Maybe(Bits(ptl)) {
 }
 ";
         assert_eq!(text, expected);
+    }
+
+    /// `Prf.Eval` returns early when `(H[kid] == Some(false)) or not b`. With
+    /// `b: false` the return always runs: the code after it is dead and is
+    /// dropped, and no `goto` is needed. With `b: true` the return is early.
+    #[test]
+    fn return_under_a_resolved_branch_ends_the_callee() {
+        let dir = "example-projects/4WHS";
+        let resolved = view(dir, "Simple4WHS", "Hybrid2", "Send2", &[]);
+        assert!(resolved.contains("kmac <- prf(k, x);"), "{resolved}");
+        assert!(!resolved.contains("goto"), "{resolved}");
+        assert!(!resolved.contains("Prf.PRF"), "{resolved}");
+
+        let early = view(dir, "Simple4WHS", "Hybrid3", "Send2", &[]);
+        assert!(
+            early.contains("goto end_Prf_Eval;  // returns from Prf.Eval"),
+            "{early}"
+        );
+        assert!(early.contains("\n        end_Prf_Eval:\n"), "{early}");
     }
 }
