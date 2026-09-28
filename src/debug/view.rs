@@ -10,10 +10,9 @@
 //! - **No `invoke`.** A call becomes a `// inlined Instance.Oracle` comment
 //!   followed by the callee's body, indented one level; the callee's
 //!   `return e` becomes `<bind> <- e`. `returnify` only guarantees a return at
-//!   the end of every path, so a callee that returns early from an `if` is
-//!   first rewritten to move the rest of its body into the other branch
-//!   (`normalize`), which keeps that return the last statement the callee
-//!   runs.
+//!   the end of every path, so a return the callee can run before its last
+//!   statement is followed by `goto end_Instance_Oracle;`, a jump to a label
+//!   printed right after the inlined body.
 //! - **Scoping.** A callee's locals (arguments, body locals, loop variables)
 //!   are renamed (`r` → `r_2`) when an enclosing frame already uses the name,
 //!   so reading the flattened code never mixes up the caller's and the
@@ -34,6 +33,7 @@
 //! oracle edges). Loops `loopunroll` could not unroll are printed as `for`
 //! blocks.
 
+use std::cell::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 
@@ -41,7 +41,7 @@ use crate::{
     expressions::{Expression, ExpressionKind},
     identifier::{pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier, Identifier},
     package::{Composition, Edge, OracleDef, PackageInstance},
-    statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement},
+    statement::{Assignment, AssignmentRhs, InvokeOracle, Pattern, Statement},
     theorem::GameInstance,
 };
 
@@ -76,6 +76,7 @@ pub fn render_oracle_view(
         comp,
         consts,
         lossy,
+        labels: HashSet::new(),
         text: String::new(),
     };
     let frame = Frame::new(
@@ -119,6 +120,8 @@ struct Frame {
     scope: HashSet<String>,
     ret: Ret,
     depth: usize,
+    /// The label after the inlined body, set by the first early return.
+    end: OnceCell<String>,
 }
 
 /// What `return` means in a frame.
@@ -132,8 +135,7 @@ enum Ret {
 impl Frame {
     /// `outer` is the enclosing frames' scope; `aliases` the parameters the
     /// caller substitutes; `fixed` the locals that take a caller's name (see
-    /// [`return_names`]). `body` is the (normalized) code that will be
-    /// rendered.
+    /// [`return_names`]). `body` is the code that will be rendered.
     #[allow(clippy::too_many_arguments)]
     fn new(
         inst: &PackageInstance,
@@ -179,6 +181,7 @@ impl Frame {
             scope,
             ret,
             depth,
+            end: OnceCell::new(),
         }
     }
 
@@ -402,63 +405,6 @@ fn assigned_locals(block: &[Statement]) -> HashSet<String> {
     out
 }
 
-/// Rewrites `if c { … return x; } rest` into `if c { … return x; } else { rest }`
-/// (and symmetrically), so that every `return` of an inlined callee is the last
-/// statement it runs and can be printed as a plain assignment. Moves code, never
-/// copies it: only done when the branch returns or aborts on every path.
-fn normalize(block: &[Statement]) -> Vec<Statement> {
-    let mut out = Vec::with_capacity(block.len());
-    for (i, stmt) in block.iter().enumerate() {
-        let Statement::IfThenElse(ite) = stmt else {
-            out.push(stmt.clone());
-            continue;
-        };
-        let rest = &block[i + 1..];
-        let mut ite = ite.clone();
-        let moved = !rest.is_empty()
-            && if exits_by_return(&ite.then_block.0) {
-                ite.else_block.0.extend_from_slice(rest);
-                true
-            } else if exits_by_return(&ite.else_block.0) {
-                ite.then_block.0.extend_from_slice(rest);
-                true
-            } else {
-                false
-            };
-        ite.then_block = CodeBlock(normalize(&ite.then_block.0));
-        ite.else_block = CodeBlock(normalize(&ite.else_block.0));
-        out.push(Statement::IfThenElse(ite));
-        if moved {
-            break;
-        }
-    }
-    out
-}
-
-/// Every path through `block` ends in `return` or `abort`, and some in `return`.
-fn exits_by_return(block: &[Statement]) -> bool {
-    fn terminates(block: &[Statement]) -> bool {
-        match block.last() {
-            Some(Statement::Return(..) | Statement::Abort(_)) => true,
-            Some(Statement::IfThenElse(ite)) => {
-                terminates(&ite.then_block.0) && terminates(&ite.else_block.0)
-            }
-            _ => false,
-        }
-    }
-    fn has_return(block: &[Statement]) -> bool {
-        block.iter().any(|stmt| match stmt {
-            Statement::Return(..) => true,
-            Statement::IfThenElse(ite) => {
-                has_return(&ite.then_block.0) || has_return(&ite.else_block.0)
-            }
-            Statement::For(_, _, _, body, _) => has_return(&body.0),
-            _ => false,
-        })
-    }
-    terminates(block) && has_return(block)
-}
-
 fn as_bool(e: &Expression) -> Option<bool> {
     match e.kind() {
         ExpressionKind::BooleanLiteral(b) => Some(b == "true"),
@@ -566,6 +512,8 @@ struct View<'a> {
     comp: &'a Composition,
     consts: &'a [(String, Expression)],
     lossy: bool,
+    /// Every `goto` label handed out so far.
+    labels: HashSet<String>,
     text: String,
 }
 
@@ -575,6 +523,22 @@ impl View<'_> {
             self.text.push_str("    ");
         }
         let _ = writeln!(self.text, "{line}");
+    }
+
+    /// A fresh label for the end of `frame`: `end_Instance_Oracle`, or
+    /// `end_Instance_Oracle_2`, … when the oracle is inlined more than once.
+    fn end_label(&mut self, frame: &Frame) -> String {
+        let base: String = format!("end_{}", frame.name)
+            .chars()
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+        let label = if self.labels.contains(&base) {
+            fresh_name(&base, &self.labels)
+        } else {
+            base
+        };
+        self.labels.insert(label.clone());
+        label
     }
 
     /// `e` in `frame`'s names, with constants resolved, the proof path's
@@ -663,16 +627,14 @@ impl View<'_> {
                     }
                     (Ret::Bind(_), _) => None,
                 };
-                // Only reachable when `normalize` could not move the rest of the
-                // callee into the other branch.
-                let note = match frame.ret {
-                    Ret::Bind(_) if !tail => Some(format!("// returns from {}", frame.name)),
-                    _ => None,
-                };
-                match (line, note) {
-                    (Some(line), Some(note)) => self.emit(indent, &format!("{line}  {note}")),
-                    (Some(line), None) | (None, Some(line)) => self.emit(indent, &line),
-                    (None, None) => {}
+                if let Some(line) = line {
+                    self.emit(indent, &line);
+                }
+                // An early return of an inlined callee jumps past the rest of it.
+                if matches!(frame.ret, Ret::Bind(_)) && !tail {
+                    let label = frame.end.get_or_init(|| self.end_label(frame));
+                    let line = format!("goto {label};  // returns from {}", frame.name);
+                    self.emit(indent, &line);
                 }
             }
 
@@ -795,8 +757,8 @@ impl View<'_> {
             });
         }
 
-        let body = normalize(&odef.code.0);
-        let assigned = assigned_locals(&body);
+        let body = &odef.code.0;
+        let assigned = assigned_locals(body);
         let mut aliases = HashMap::new();
         let mut bindings = Vec::new();
         for ((param, _), arg) in sig.args.iter().zip(args) {
@@ -808,13 +770,13 @@ impl View<'_> {
             }
         }
         let fixed = bind.map_or_else(HashMap::new, |bind| {
-            return_names(&body, odef, bind, caller, &aliases)
+            return_names(body, odef, bind, caller, &aliases)
         });
         let bind = bind.map(|p| self.pattern(p, caller));
         let callee = Frame::new(
             inst,
             odef,
-            &body,
+            body,
             &caller.scope,
             aliases,
             fixed,
@@ -829,7 +791,11 @@ impl View<'_> {
                 self.emit(indent + 1, &format!("{param} <- {arg};"));
             }
         }
-        self.block(&body, &callee, indent + 1, true)
+        self.block(body, &callee, indent + 1, true)?;
+        if let Some(label) = callee.end.get() {
+            self.emit(indent, &format!("{label}:"));
+        }
+        Ok(())
     }
 }
 
@@ -968,53 +934,40 @@ PKENC(m0: Bits(ptl), m1: Bits(ptl)) -> (Bits(kctl), Bits(dctl)) {
         assert!(!text.contains("invoke"), "{text}");
     }
 
-    fn local(name: &str) -> Expression {
-        Identifier::Generated(name.to_string(), crate::types::Type::integer()).into()
-    }
+    const KEM_DEM_BLENDED: &str = "example-projects/kem-dem/kem-dem-cca-blended-parallel";
 
-    fn assign(name: &str, value: i64) -> Statement {
-        Statement::Assignment(
-            Assignment {
-                pattern: Pattern::Ident(local(name).into_identifier().unwrap()),
-                rhs: AssignmentRhs::Expression(Expression::integer(value)),
-            },
-            (0..1).into(),
-        )
-    }
-
-    fn ite(cond: &str, then: Vec<Statement>, els: Vec<Statement>) -> Statement {
-        Statement::IfThenElse(crate::statement::IfThenElse {
-            cond: local(cond),
-            then_block: CodeBlock(then),
-            else_block: CodeBlock(els),
-            then_span: (0..1).into(),
-            else_span: (0..1).into(),
-            full_span: (0..1).into(),
-        })
-    }
-
-    fn ret(name: &str) -> Statement {
-        Statement::Return(Some(local(name)), (0..1).into())
-    }
-
-    /// `if c { return x } y <- 1; return y` moves the rest into the `else`.
+    /// `Scheme_KEMDEM.DEC` returns early when decapsulation fails: the return
+    /// jumps to a label after the inlined body instead of falling through.
     #[test]
-    fn normalize_moves_the_rest_after_an_early_return() {
-        let code = vec![ite("c", vec![ret("x")], vec![]), assign("y", 1), ret("y")];
-        let expected = vec![ite("c", vec![ret("x")], vec![assign("y", 1), ret("y")])];
-        assert_eq!(normalize(&code), expected);
-    }
-
-    /// An `assert` (`if c {} else { abort }`) and a branch that only
-    /// sometimes returns are left alone.
-    #[test]
-    fn normalize_leaves_asserts_and_partial_returns() {
-        let abort = Statement::Abort((0..1).into());
-        let code = vec![
-            ite("c", vec![], vec![abort]),
-            ite("d", vec![ite("e", vec![ret("x")], vec![])], vec![]),
-            ret("y"),
-        ];
-        assert_eq!(normalize(&code), code);
+    fn early_return_jumps_past_the_callee() {
+        let text = view(
+            KEM_DEM_BLENDED,
+            "kem_dem_cca_blended_parallel",
+            "CCA_PKE_0",
+            "PKDEC",
+            &[],
+        );
+        let expected = "\
+PKDEC(c_: (Bits(kctl), Bits(dctl))) -> Maybe(Bits(ptl)) {
+    assert (not ((CCA_PKE.sk == None)));
+    assert (not ((c_ == Unwrap(CCA_PKE.c))));
+    // inlined Scheme_KEMDEM.DEC
+        sk <- Unwrap(CCA_PKE.sk);
+        (c_kem, c_dem) <- c_;
+        // inlined Scheme_KEM.KEM_DECAPS
+            (Scheme_KEM.st, k) <- kem_decaps(Scheme_KEM.st, sk, c_kem);
+        if (k == None) {
+            m <- None;
+            goto end_Scheme_KEMDEM_DEC;  // returns from Scheme_KEMDEM.DEC
+        }
+        // inlined Scheme_DEM.DEM_DEC
+            k_2 <- Unwrap(k);
+            m_2 <- dem_dec(k_2, c_dem);
+        m <- Some(m_2);
+    end_Scheme_KEMDEM_DEC:
+    return m;
+}
+";
+        assert_eq!(text, expected);
     }
 }
