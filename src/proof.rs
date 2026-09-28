@@ -362,7 +362,7 @@ fn game_is_equivalent(lhs: &GameInstance, rhs: &GameInstance) -> bool {
 }
 
 /// Check that the left game instance is a more specialized version of the right game instance.
-fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
+pub(crate) fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
     if specific.game.name != general.game.name {
         return false;
     }

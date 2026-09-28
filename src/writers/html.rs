@@ -33,7 +33,7 @@ use crate::identifier::{game_ident::GameIdentifier, theorem_ident::TheoremIdenti
 use crate::package::Composition;
 use crate::packageinstance::PackageInstance;
 use crate::parser::ast::Identifier as _;
-use crate::proof::ConstAssignment;
+use crate::proof::{game_is_compatible, ConstAssignment};
 use crate::theorem::{GameInstance, Theorem};
 use crate::transforms::theorem_transforms::{EquivalenceTransformError, ViewTransform};
 use crate::transforms::TheoremTransform;
@@ -634,6 +634,12 @@ fn assumption_attr(hop: &GameHop) -> String {
 /// The assumption packages to frame in column `c` of `tab`: those of the
 /// reductions into and out of that column. For the all-hops tab, which has
 /// no path, those of every reduction the game takes part in.
+///
+/// On a proposition's path, a column can be a *specialization* of the game a
+/// reduction maps: crossing `reduction H_b_0 H_b_1` from `H_b_0 [b ↦ false]`
+/// lands on `H_b_1` with `b = false`, and when the theorem declares an
+/// identical instance (say `H_0_1`) the proof search uses that one instead.
+/// So a path column matches a mapping whose game it is, or specializes.
 fn outlines(theorem: &Theorem, tab: &Tab, c: usize) -> Vec<Outline> {
     let hops: Vec<&GameHop> = match tab.kind {
         TabKind::Assumption => return Vec::new(),
@@ -643,11 +649,18 @@ fn outlines(theorem: &Theorem, tab: &Tab, c: usize) -> Vec<Outline> {
             .flatten()
             .collect(),
     };
-    let game = tab.steps[c].game.name();
+    let game = tab.steps[c].game;
+    let maps_game = |mapped: &str| {
+        mapped == game.name()
+            || tab.kind == TabKind::Proposition
+                && theorem
+                    .find_game_instance(mapped)
+                    .is_some_and(|mapped| game_is_compatible(game, mapped))
+    };
     let mut outlines: Vec<Outline> = Vec::new();
     for red in hops.into_iter().filter_map(GameHop::as_reduction) {
         for mapping in [red.left(), red.right()] {
-            if mapping.construction_game_instance_name().as_str() != game {
+            if !maps_game(mapping.construction_game_instance_name().as_str()) {
                 continue;
             }
             let name = red.assumption_name();
