@@ -238,7 +238,7 @@ pub enum InlineError {
     /// Only reachable on the output of
     /// [`crate::transforms::theorem_transforms::ViewTransform`], which lets
     /// loops with symbolic bounds through; the IR has no loop construct. Views
-    /// use [`render_oracle_listing`], which prints the loop instead.
+    /// use [`super::view::render_oracle_view`], which prints the loop instead.
     #[error(
         "cannot inline oracle `{oracle}` of package instance `{pkg_inst}`: it contains a \
          `for` loop with non-literal bounds, which `loopunroll` could not unroll"
@@ -265,31 +265,13 @@ pub fn inline_oracle_rendered(
     oracle_name: &str,
     lossy: bool,
 ) -> Result<InlinedOracle, InlineError> {
-    inline_oracle_impl(game_inst, oracle_name, lossy, false)
+    inline_oracle_impl(game_inst, oracle_name, lossy)
 }
 
-/// The listing of [`inline_oracle_rendered`], for read-only views (`domino
-/// html`) of games that may still contain loops with symbolic bounds (see
-/// [`crate::transforms::theorem_transforms::ViewTransform`]).
-///
-/// Such a loop is printed as a `for` block around its inlined body instead of
-/// failing with [`InlineError::NonUnrolledLoop`]. The IR has no loop construct,
-/// so only the listing is returned: there is nothing to execute.
-pub fn render_oracle_listing(
-    game_inst: &GameInstance,
-    oracle_name: &str,
-    lossy: bool,
-) -> Result<Listing, InlineError> {
-    inline_oracle_impl(game_inst, oracle_name, lossy, true).map(|inl| inl.listing)
-}
-
-/// `render_loops`: see [`Inliner::render_loops`]. Must be `false` whenever the
-/// returned IR is used.
 fn inline_oracle_impl(
     game_inst: &GameInstance,
     oracle_name: &str,
     lossy: bool,
-    render_loops: bool,
 ) -> Result<InlinedOracle, InlineError> {
     let comp = game_inst.game();
 
@@ -320,7 +302,6 @@ fn inline_oracle_impl(
         line: 0,
         sites: BTreeMap::new(),
         lossy,
-        render_loops,
     };
 
     let entry_frame = Frame {
@@ -427,10 +408,6 @@ struct Inliner<'c> {
     sites: BTreeMap<Label, SiteInfo>,
     /// See [`inline_oracle_rendered`].
     lossy: bool,
-    /// Print a loop `loopunroll` left in place as a `for` block around its
-    /// body, splicing the body's IR into the enclosing block as if it ran
-    /// once. That IR is wrong, so this is only for [`render_oracle_listing`].
-    render_loops: bool,
 }
 
 impl<'c> Inliner<'c> {
@@ -490,23 +467,11 @@ impl<'c> Inliner<'c> {
         depth: usize,
         indent: usize,
     ) -> Result<InlBlock, InlineError> {
-        let mut stmts = Vec::with_capacity(block.0.len());
-        for stmt in &block.0 {
-            match stmt {
-                Statement::For(var, lower, upper, body, _) if self.render_loops => {
-                    let var = ident_repr(var);
-                    let header = format!(
-                        "for {var}: {} <= {var} <= {} {{",
-                        self.expr(lower),
-                        self.expr(upper)
-                    );
-                    self.emit(indent, &header);
-                    stmts.extend(self.render_block(body, frame, depth, indent + 1)?.0);
-                    self.emit(indent, "}");
-                }
-                _ => stmts.push(self.render_stmt(stmt, frame, depth, indent)?),
-            }
-        }
+        let stmts = block
+            .0
+            .iter()
+            .map(|stmt| self.render_stmt(stmt, frame, depth, indent))
+            .collect::<Result<_, _>>()?;
         Ok(InlBlock(stmts))
     }
 
@@ -899,7 +864,7 @@ fn rewrite_ident(id: &Identifier, frame: &Frame) -> Identifier {
 // down to a literal or a theorem constant.
 //
 
-fn render_signature(sig: &crate::package::OracleSig) -> String {
+pub(super) fn render_signature(sig: &crate::package::OracleSig) -> String {
     let args = sig
         .args
         .iter()
@@ -909,7 +874,7 @@ fn render_signature(sig: &crate::package::OracleSig) -> String {
     format!("{}({args}) -> {}", sig.name, render_type(&sig.ty))
 }
 
-fn render_pattern(pattern: &Pattern, lossy: bool) -> String {
+pub(super) fn render_pattern(pattern: &Pattern, lossy: bool) -> String {
     match pattern {
         Pattern::Ident(id) => ident_repr(id),
         Pattern::Table { ident, index } => {
@@ -1052,7 +1017,7 @@ pub(crate) fn render_expr_with(expr: &Expression, lossy: bool) -> String {
     }
 }
 
-fn render_type(ty: &Type) -> String {
+pub(super) fn render_type(ty: &Type) -> String {
     match ty.kind() {
         TypeKind::Boolean => "Bool".to_string(),
         TypeKind::Bits(cs) => format!("Bits({})", render_countspec(cs)),
@@ -1098,7 +1063,7 @@ fn render_bare_ident(ident: &Identifier) -> String {
 /// Follows the chain of const-identifier assignments down to either a non-const
 /// expression (usually a literal) or an identifier with no further assignment (a
 /// theorem constant).
-fn resolve_const(expr: &Expression) -> &Expression {
+pub(super) fn resolve_const(expr: &Expression) -> &Expression {
     match expr.kind() {
         ExpressionKind::Identifier(Identifier::PackageIdentifier(PackageIdentifier::Const(c))) => {
             match &c.game_assignment {

@@ -102,8 +102,12 @@ impl super::TheoremTransform for DebugTransform {
 /// (e.g. `for j: 1 <= j <= w` in the Yao example). `loopunroll` cannot unroll
 /// those, so `sample_max_counter_extractor` would reject the whole theorem.
 /// Here that is not an error: the affected instance just gets empty
-/// `max_offsets`, and [`crate::debug::ir::render_oracle_listing`] prints the
+/// `max_offsets`, and [`crate::debug::view::render_oracle_view`] prints the
 /// loop as-is.
+///
+/// It also skips `deconstructinvoke` and `unwrapify`: they only split
+/// statements into `invoke-result-N` / `unwrap-N` temporaries for the SMT
+/// encoding and the debugger's IR, which a reader is better off without.
 pub struct ViewTransform;
 
 impl super::TheoremTransform for ViewTransform {
@@ -134,20 +138,25 @@ struct PipelineOptions {
     /// Fail on a sampling loop `loopunroll` could not unroll. When `false`, the
     /// instance gets empty `max_offsets` instead.
     require_max_offsets: bool,
+    /// Run `deconstructinvoke` and `unwrapify`.
+    split_temporaries: bool,
 }
 
 impl PipelineOptions {
     const EQUIVALENCE: Self = Self {
         run_treeify: true,
         require_max_offsets: true,
+        split_temporaries: true,
     };
     const DEBUG: Self = Self {
         run_treeify: false,
         require_max_offsets: true,
+        split_temporaries: true,
     };
     const VIEW: Self = Self {
         run_treeify: false,
         require_max_offsets: false,
+        split_temporaries: false,
     };
 }
 
@@ -177,12 +186,17 @@ fn transform_game_inst_common(
      * has to stay before loop unrolling because it is also used by the latex
      * export, which must not unroll loops.
      */
-    let (comp, _) = deconstructinvoke::Transformation(&comp)
-        .transform()
-        .expect("splitinvoke failed unexpectedly");
-    let (comp, _) = unwrapify::Transformation(&comp)
-        .transform()
-        .expect("unwrapify transformation failed unexpectedly");
+    let comp = if opts.split_temporaries {
+        let (comp, _) = deconstructinvoke::Transformation(&comp)
+            .transform()
+            .expect("splitinvoke failed unexpectedly");
+        unwrapify::Transformation(&comp)
+            .transform()
+            .expect("unwrapify transformation failed unexpectedly")
+            .0
+    } else {
+        comp
+    };
     let (comp, _) = resolveoracles::Transformation(&comp)
         .transform()
         .unwrap_or_else(|ResolutionError(failed_oracle_stmts)| {

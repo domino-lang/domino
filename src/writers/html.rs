@@ -7,8 +7,9 @@
 //! left game to its right game (in path order, with the hop between each pair
 //! of neighbours), and one row per exported oracle. The header cell of each
 //! column is the game's composition diagram; every other cell is the oracle
-//! fully inlined across package boundaries — the same listing `domino inline`
-//! prints, in both a full and a lossy rendering the page toggles between.
+//! fully inlined across package boundaries as readable code
+//! ([`render_oracle_view`]), with the column's constant specialization
+//! applied, in both a full and a lossy rendering the page toggles between.
 //! A theorem without propositions gets a single tab over its game hops.
 //!
 //! The diagram reuses the solver-based layout the LaTeX export uses
@@ -24,7 +25,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 use std::path::Path;
 
-use crate::debug::ir::{render_expr, render_oracle_listing};
+use crate::debug::ir::render_expr;
+use crate::debug::view::render_oracle_view;
 use crate::expressions::{Expression, ExpressionKind};
 use crate::gamehops::GameHop;
 use crate::identifier::{game_ident::GameIdentifier, theorem_ident::TheoremIdentifier, Identifier};
@@ -103,7 +105,7 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
     let (theorem_dbg, _aux) = ViewTransform.transform_theorem(theorem)?;
     let tabs = tabs(theorem);
 
-    let mut listings: HashMap<(String, String), Listings> = HashMap::new();
+    let mut listings: HashMap<ListingKey, Listings> = HashMap::new();
     let mut out = String::new();
     let _ = write!(
         out,
@@ -240,7 +242,7 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
                     out.push_str("<td class=\"absent\"></td>");
                     continue;
                 }
-                let l = listing(&mut listings, &theorem_dbg, step.game, oracle);
+                let l = listing(&mut listings, &theorem_dbg, step, oracle);
                 out.push_str("<td>");
                 for (class, text) in [("full", &l.full), ("lossy", &l.lossy)] {
                     match text {
@@ -287,25 +289,36 @@ pub fn render_theorem_html<B: SmtSolverBackend>(
     Ok(out)
 }
 
-/// Both renderings of `oracle` inlined in `game`, computed once per
-/// `(game, oracle)` — a game can appear on several propositions' paths.
+/// `(game instance, oracle, the path's constant assignments)`.
+type ListingKey = (String, String, Vec<(String, String)>);
+
+/// Both renderings of `oracle` inlined in `step`'s game with its constant
+/// assignments applied, computed once per key — a game can appear on several
+/// propositions' paths.
 fn listing<'m>(
-    cache: &'m mut HashMap<(String, String), Listings>,
+    cache: &'m mut HashMap<ListingKey, Listings>,
     theorem_dbg: &Theorem,
-    game: &GameInstance,
+    step: &Step,
     oracle: &str,
 ) -> &'m Listings {
+    let game = step.game;
     cache
-        .entry((game.name().to_string(), oracle.to_string()))
+        .entry((
+            game.name().to_string(),
+            oracle.to_string(),
+            step.assignments.clone(),
+        ))
         .or_insert_with(|| {
             let inst = theorem_dbg
                 .find_game_instance(game.name())
                 .expect("transformed theorem keeps every game instance");
-            let render = |lossy| {
-                render_oracle_listing(inst, oracle, lossy)
-                    .map(|listing| strip_header(listing.text))
-                    .map_err(|e| e.to_string())
-            };
+            let consts: Vec<(String, Expression)> = step
+                .assignments
+                .iter()
+                .map(|(name, value)| (name.clone(), literal(value)))
+                .collect();
+            let render =
+                |lossy| render_oracle_view(inst, oracle, lossy, &consts).map_err(|e| e.to_string());
             Listings {
                 full: render(false),
                 lossy: render(true),
@@ -313,12 +326,15 @@ fn listing<'m>(
         })
 }
 
-/// Drops the listing's `// game instance: ...` header line; the column
-/// header already says all of it.
-fn strip_header(text: String) -> String {
-    match text.split_once('\n') {
-        Some((first, rest)) if first.starts_with("// game instance:") => rest.to_string(),
-        _ => text,
+/// The literal [`ConstAssignment::assigned_value`] printed.
+fn literal(value: &str) -> Expression {
+    match value {
+        "true" => Expression::boolean(true),
+        "false" => Expression::boolean(false),
+        int => Expression::integer(
+            int.parse()
+                .expect("`ConstAssignment` only assigns Boolean and integer literals"),
+        ),
     }
 }
 
