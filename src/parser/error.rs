@@ -720,6 +720,31 @@ pub struct AssumptionExportsNotSufficientError {
     pub oracle_name: String,
 }
 
+#[derive(Debug, Diagnostic, Error, Clone)]
+#[error("The construction game exports oracle `{oracle_name}` of package instance `{construction_pkg_inst_name}` to the adversary, but the assumption game doesn't export it for the mapped package instance `{assumption_pkg_inst_name}`")]
+#[diagnostic(code(
+    domino::code::theorem::reduction::mapping::assumption_adversary_exports_insufficient
+))]
+pub struct AssumptionAdversaryExportsNotSufficientError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label(
+        "in the assumption game, access to the `{oracle_name}` is not exported for this package instance"
+    )]
+    pub assumption_at: SourceSpan,
+
+    #[label(
+        "but in the construction game, the adversary can call oracle `{oracle_name}` on this package instance"
+    )]
+    pub construction_at: SourceSpan,
+
+    pub assumption_pkg_inst_name: String,
+    pub construction_pkg_inst_name: String,
+
+    pub oracle_name: String,
+}
+
 #[derive(Error, Diagnostic, Debug)]
 #[error("package instance {pkg_inst_name} of package type {pkg_name} imports oracle {oracle_name}, but no such edge exists in composition")]
 #[diagnostic(code(domino::code::game::missing_edge))]

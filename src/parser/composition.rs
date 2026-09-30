@@ -4,10 +4,10 @@ use super::{
     common::*,
     error::{
         DuplicateEdgeDefinitionError, DuplicateExportError,
-        DuplicatePackageParameterDefinitionError, MissingEdgeForImportedOracleError,
-        MissingPackageParameterDefinitionError, NoSuchPackageParameterError,
-        OracleSigMismatchError, UndefinedOracleError, UndefinedPackageError,
-        UndefinedPackageInstanceError, UnusedEdgeError,
+        DuplicatePackageParameterDefinitionError, IdentifierAlreadyDeclaredError,
+        MissingEdgeForImportedOracleError, MissingPackageParameterDefinitionError,
+        NoSuchPackageParameterError, OracleSigMismatchError, UndefinedOracleError,
+        UndefinedPackageError, UndefinedPackageInstanceError, UnusedEdgeError,
     },
     package::ParsePackageError,
     ParseContext, Rule,
@@ -205,6 +205,10 @@ pub enum ParseGameError {
     #[diagnostic[transparent]]
     #[error[transparent]]
     ConnectedOraclesDontMatch(#[from] OracleSigMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    IdentifierAlreadyDeclared(#[from] IdentifierAlreadyDeclaredError),
 }
 
 pub(crate) fn handle_composition(
@@ -234,6 +238,7 @@ pub(crate) fn handle_comp_spec_list<'a>(
     for comp_spec in ast.into_inner() {
         match comp_spec.as_rule() {
             Rule::const_decl => {
+                let name_span = comp_spec.clone().into_inner().next().unwrap().as_span();
                 let (name, ty) = handle_const_decl(&ctx.parse_ctx(), comp_spec)?;
                 ctx.add_const(name.clone(), ty.clone());
                 ctx.declare(
@@ -251,7 +256,11 @@ pub(crate) fn handle_comp_spec_list<'a>(
                         .into(),
                     ),
                 )
-                .unwrap();
+                .map_err(|_| IdentifierAlreadyDeclaredError {
+                    source_code: ctx.named_source(),
+                    at: (name_span.start()..name_span.end()).into(),
+                    ident_name: name.clone(),
+                })?;
             }
             Rule::invariant_spec => ctx.invariants.append(
                 &mut comp_spec
@@ -670,8 +679,13 @@ pub(crate) fn handle_instance_decl<'a>(
             pkg_name: pkg_name.to_string(),
         }))?;
 
+    let pkg_inst_name_span = pkg_inst_name_ast.as_span();
     ctx.declare(pkg_inst_name, Declaration::PackageInstance)
-        .unwrap();
+        .map_err(|_| IdentifierAlreadyDeclaredError {
+            source_code: ctx.named_source(),
+            at: (pkg_inst_name_span.start()..pkg_inst_name_span.end()).into(),
+            ident_name: pkg_inst_name.to_string(),
+        })?;
 
     let instance_assign_ast = inner.next().unwrap();
     let (mut param_list, type_list) =

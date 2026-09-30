@@ -1,0 +1,20 @@
+package Enc {
+    params {
+        n: Integer,
+        m: Integer,
+        enc: fn Bits(n), Bits(n), Bits(n) -> Bits(m),
+    }
+
+    state {
+    }
+
+    import oracles {
+        Get(h: Bits(n)) -> Bits(n), 
+    }
+
+    oracle Enc(h: Bits(n), msg: Bits(n)) -> Bits(m) {
+        k <- invoke Get(h);   
+        r <-$ Bits(n);
+        return enc(k,msg,r);
+    }
+}

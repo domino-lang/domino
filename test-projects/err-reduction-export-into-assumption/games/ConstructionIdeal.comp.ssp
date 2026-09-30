@@ -1,0 +1,50 @@
+composition ConstructionIdeal {
+    const n: Integer;
+    const m: Integer;
+    const prf: fn Bits(n), Bits(n) -> Bits(n);
+    const enc: fn Bits(n), Bits(n), Bits(n) -> Bits(m);
+    
+    instance Prf = PRF {
+        params {
+            n:   n,
+            prf: prf,
+        }
+    }
+    
+    instance key = KeyIdeal {
+        params {
+            n: n,
+        }
+    }
+
+    instance key2 = KeyReal {
+        params {
+            n: n,
+        }
+    }
+    
+    instance Enc = Enc {
+        params {
+            n:   n,
+            m:   m,
+            enc: enc,
+        }
+    }
+    
+    /* Get of the mapped key package is exported directly to the adversary,
+     * even though the assumption does not export it. The reduction must be
+     * rejected. */
+    compose {
+        adversary: {
+            Eval: Prf,
+            Enc:  Enc,
+            Get:  key,
+        },
+        Prf: {
+            Set: key,
+        },
+        Enc: {
+            Get: key2,
+        }
+    }
+}
