@@ -61,13 +61,6 @@ impl Relation<'_> {
         })
     }
 
-    pub(crate) fn build_left_no_abort(&self) -> impl Into<SmtExpr> {
-        self.define_fun(self.left_no_abort_body())
-    }
-
-    pub(crate) fn build_right_no_abort(&self) -> impl Into<SmtExpr> {
-        self.define_fun(self.right_no_abort_body())
-    }
     pub(crate) fn build_no_abort(&self) -> SmtDefineFun<SmtAnd> {
         self.define_fun(SmtAnd(vec![
             self.left_no_abort_body().into(),
