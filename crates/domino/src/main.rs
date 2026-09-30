@@ -11,10 +11,13 @@ use thiserror::Error;
 shadow!(build);
 
 use sspverif::project::{self, Project};
-use sspverif::ui::{indicatif::IndicatifUI, LatexUI, ProofstepUI, ProveUI, UI};
+use sspverif::ui::{LatexUI, ProofstepUI, ProveUI, UI};
 
 mod cli;
+mod ui;
+
 use crate::cli::*;
+use crate::ui::*;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, long_version = build::CLAP_LONG_VERSION, about, long_about = None)]
