@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::sync::{Arc, Mutex};
+
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
@@ -19,6 +21,7 @@ use sspverif::{
 #[derive(Clone)]
 pub struct IndicatifUI {
     multi_progress: MultiProgress,
+    known_progress: Arc<Mutex<Vec<ProgressBar>>>,
 }
 
 impl IndicatifUI {
@@ -28,11 +31,19 @@ impl IndicatifUI {
         LogWrapper::new(multi_progress.clone(), logger)
             .try_init()
             .unwrap();
-        Self { multi_progress }
+        Self {
+            multi_progress,
+            known_progress: Arc::default(),
+        }
     }
 
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
-        self.multi_progress.insert_before(before, progress)
+        let progress = self.multi_progress.insert_before(before, progress);
+
+        // we need to keep references to all progress bars as else a
+        // println() will remove finished progress bars
+        self.known_progress.lock().unwrap().push(progress.clone());
+        progress
     }
 }
 
@@ -199,9 +210,13 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
     }
 
     fn is_reduction(&self) {
+        if let Some(progress) = &self.theorem_ui.progress {
+            progress.inc(1);
+        }
         if let Some(progress) = &self.progress {
             progress.set_length(1);
             progress.inc(1);
+            progress.finish();
         }
         self.tick()
     }
