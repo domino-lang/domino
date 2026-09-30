@@ -75,7 +75,7 @@ pub struct ResolvedClaim {
 }
 
 impl ResolvedClaim {
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 

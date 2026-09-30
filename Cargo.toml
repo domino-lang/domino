@@ -32,8 +32,6 @@ zipfile = ["dep:zip"]
 
 [dependencies]
 env_logger = "0.11"
-indicatif = "0.18"
-indicatif-log-bridge = "0.2"
 # Nice to have for further writer experiments:
 # indoc = "2.0"
 itertools = "0.10"

@@ -8,8 +8,6 @@ use crate::{
     package::Export,
 };
 
-pub mod indicatif;
-
 #[cfg(test)]
 pub(crate) mod mock;
 
