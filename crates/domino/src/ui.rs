@@ -3,12 +3,12 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
-use super::{
+use sspverif::ui::{
     LatexUI, ProofstepUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
     ProveTheoremUI, ProveUI, UI,
 };
 
-use crate::{
+use sspverif::{
     gamehops::{
         equivalence::{error::Result, ResolvedClaim},
         GameHop,
