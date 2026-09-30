@@ -34,7 +34,7 @@ zipfile = ["dep:zip"]
 env_logger = "0.11"
 # Nice to have for further writer experiments:
 # indoc = "2.0"
-itertools = "0.10"
+itertools = "0.15"
 log = "0.4.22 "
 miette = { version = "7.6.0", features = ["fancy"] }
 pest = { version = "2.7", features = ["miette-error"] }
@@ -44,7 +44,7 @@ serde = "1.0.137"
 serde_derive = "1.0.137"
 sspverif-smtlib = { workspace = true }
 tempfile = "3"
-thiserror = "1.0.61"
+thiserror = "2"
 walkdir = "2"
 
 # Feature: zipfile
@@ -53,6 +53,6 @@ zip = { version = "8", features = [
 ], default-features = false, optional = true }
 
 # Feature: process solver
-subprocess = { version = "0.2", optional = true }
-expectrl = { version = "0.8.0", optional = true }
+subprocess = { version = "1", optional = true }
+expectrl = { version = "0.9", optional = true }
 clap = { version = "4.0", features = ["derive"], optional = true }
