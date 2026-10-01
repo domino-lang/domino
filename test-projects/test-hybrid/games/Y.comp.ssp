@@ -1,0 +1,13 @@
+composition Y {
+  const b: Bool;
+  
+  instance y = Y {
+    params {b:b}
+  }
+
+  compose {
+    adversary: {
+      Eval: y,
+    }
+  }
+}

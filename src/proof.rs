@@ -246,12 +246,16 @@ fn specialize<'a>(
             .consts
             .into_iter()
             .map(|(var, val)| {
-                if let ExpressionKind::Identifier(_) = val.kind() {
+                if let ExpressionKind::Identifier(ident) = val.kind() {
                     if let Some(assignment) = match_assignments
                         .iter()
                         .find(|assign| assign.original_value == val)
                     {
-                        (var, assignment.assigned_value.clone())
+                        if ident.ident() == "hybrid$loop" {
+                            (var, val)
+                        } else {
+                            (var, assignment.assigned_value.clone())
+                        }
                     } else {
                         (var, val)
                     }
@@ -372,9 +376,12 @@ fn game_is_compatible(specific: &GameInstance, general: &GameInstance) -> bool {
                 }
             })
             .unwrap();
-        if matches!(val.kind(), ExpressionKind::Identifier(_)) {
-            if let ExpressionKind::Identifier(ident) = other_val.kind() {
+        if let ExpressionKind::Identifier(ident) = val.kind() {
+            if let ExpressionKind::Identifier(other_ident) = other_val.kind() {
                 if ident.ident() == "hybrid$loop" {
+                    return true;
+                };
+                if other_ident.ident() == "hybrid$loop" {
                     return true;
                 };
             }
