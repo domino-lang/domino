@@ -4,9 +4,9 @@ use crate::{
     parser::{
         composition::ParseGameError,
         error::{
-            DuplicateEdgeDefinitionError, MissingEdgeForImportedOracleError,
-            MissingPackageParameterDefinitionError, TypeMismatchError, UndefinedOracleError,
-            UnusedEdgeError,
+            DuplicateEdgeDefinitionError, IdentifierAlreadyDeclaredError,
+            MissingEdgeForImportedOracleError, MissingPackageParameterDefinitionError,
+            TypeMismatchError, UndefinedOracleError, UnusedEdgeError,
         },
         package::ParseExpressionError,
         tests::{games, packages},
@@ -200,6 +200,76 @@ fn oracle_imported_but_not_exported() {
         ),
         "got instead:\n{err:?}",
         //err = err,
+        err = miette::Report::new(err)
+    );
+
+    let report = miette::Report::new(err);
+    println!("{report:?}");
+}
+
+#[test]
+fn pkg_instance_name_clashes_with_const() {
+    let pkgs = packages::parse_files(&["PRF.pkg.ssp"]);
+    let code = r#"composition Clash {
+    const n: Integer;
+    const prf: fn Bits(n), Bits(n) -> Bits(n);
+
+    instance prf = PRF {
+        params {
+            n:   n,
+            prf: prf,
+        }
+    }
+
+    compose {
+        adversary: {
+            Eval: prf,
+        },
+    }
+}"#;
+    let err = games::parse_fails(code, "clash.comp.ssp", &pkgs);
+
+    assert!(
+        matches!(
+            &err,
+            ParseGameError::IdentifierAlreadyDeclared(IdentifierAlreadyDeclaredError {
+                source_code,
+                at,
+                ident_name,
+            }) if ident_name == "prf"
+                && &source_code.inner()[at.offset()..(at.offset()+at.len())] == "prf"
+                && at.offset() == code.find("instance prf").unwrap() + "instance ".len()
+        ),
+        "got instead:\n{err:?}",
+        err = miette::Report::new(err)
+    );
+
+    let report = miette::Report::new(err);
+    println!("{report:?}");
+}
+
+#[test]
+fn duplicate_const_decl() {
+    let pkgs = packages::parse_files(&["PRF.pkg.ssp"]);
+    let code = r#"composition Clash {
+    const n: Integer;
+    const n: Integer;
+
+    compose {
+    }
+}"#;
+    let err = games::parse_fails(code, "clash.comp.ssp", &pkgs);
+
+    assert!(
+        matches!(
+            &err,
+            ParseGameError::IdentifierAlreadyDeclared(IdentifierAlreadyDeclaredError {
+                at,
+                ident_name,
+                ..
+            }) if ident_name == "n" && at.offset() == code.rfind("const n").unwrap() + "const ".len()
+        ),
+        "got instead:\n{err:?}",
         err = miette::Report::new(err)
     );
 

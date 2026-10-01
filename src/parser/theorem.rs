@@ -42,8 +42,8 @@ use super::{
     ast::GameInstanceName,
     common::{self, HandleTypeError},
     error::{
-        AssumptionExportsNotSufficientError, AssumptionMappingMissesPackageInstanceError,
-        AssumptionMappingParameterMismatchError,
+        AssumptionAdversaryExportsNotSufficientError, AssumptionExportsNotSufficientError,
+        AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
         AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameInstanceDefinitionError,
         DuplicateGameParameterDefinitionError, InvalidGameInstanceInReductionError,
         MissingGameParameterDefinitionError, NoSuchGameParameterError, ParserScopeError,
@@ -262,6 +262,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     AssumptionExportsNotSufficient(#[from] AssumptionExportsNotSufficientError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionAdversaryExportsNotSufficient(#[from] AssumptionAdversaryExportsNotSufficientError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]

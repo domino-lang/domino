@@ -1,0 +1,28 @@
+composition AssumptionReal {
+    const n: Integer;
+    const prf: fn Bits(n), Bits(n) -> Bits(n);
+    
+    instance Prf = PRF {
+        params {
+            n:   n,
+            prf: prf,
+        }
+    }
+    
+    instance key = KeyReal {
+        params {
+            n: n,
+        }
+    }
+    
+    /* Get is deliberately not exported: the assumption does not give the
+     * adversary access to the key. */
+    compose {
+        adversary: {
+            Eval: Prf,
+        },
+        Prf: {
+            Set: key,
+        },
+    }
+}

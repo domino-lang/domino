@@ -30,7 +30,8 @@ use crate::{
 use super::{
     ast::{Identifier as _, *},
     error::{
-        AssumptionExportsNotSufficientError, AssumptionMappingContainsDifferentPackagesError,
+        AssumptionAdversaryExportsNotSufficientError, AssumptionExportsNotSufficientError,
+        AssumptionMappingContainsDifferentPackagesError,
         AssumptionMappingDuplicatePackageInstanceError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
         ReductionContainsDifferentPackagesError, ReductionInconsistentAssumptionBoundaryError,
@@ -825,6 +826,50 @@ fn handle_mapspec_assumption<'a>(
                 PackageInstanceDiff::DifferentParams(_vec) => todo!(),
                 PackageInstanceDiff::Same => {}
             }
+        }
+    }
+
+    // cross-cut exports: check that all oracles the construction game exports to the adversary
+    // directly from the assumption subgraph are also exported by the assumption game
+    for constr_export in &construction_game_inst.game().exports {
+        let Some((_, assump_dst)) = pkg_offset_mapping
+            .iter()
+            .find(|(constr, _)| *constr == constr_export.to())
+        else {
+            // the export goes into the reduction part, so the adversary of the assumption does
+            // not need access to it
+            continue;
+        };
+
+        // this lookup is by comparing the oracle name, not the export alias
+        let assump_has_export = assumption_game_inst.game().exports.iter().any(|export| {
+            export.to() == *assump_dst && export.sig().name == constr_export.sig().name
+        });
+
+        if !assump_has_export {
+            let assumption_dst_name = &assumption_game_inst.game().pkgs[*assump_dst].name;
+            let (assumption_ast, construction_ast) = mappings
+                .iter()
+                .find(|pair| pair.0.as_str() == assumption_dst_name)
+                .unwrap();
+
+            let assumption_span = assumption_ast.as_span();
+            let assumption_at = (assumption_span.start()..assumption_span.end()).into();
+
+            let construction_span = construction_ast.as_span();
+            let construction_at = (construction_span.start()..construction_span.end()).into();
+
+            return Err(AssumptionAdversaryExportsNotSufficientError {
+                source_code: ctx.named_source(),
+                assumption_at,
+                construction_at,
+                assumption_pkg_inst_name: assumption_dst_name.clone(),
+                construction_pkg_inst_name: construction_game_inst.game().pkgs[constr_export.to()]
+                    .name
+                    .clone(),
+                oracle_name: constr_export.sig().name.clone(),
+            }
+            .into());
         }
     }
 
