@@ -162,7 +162,7 @@ pub struct MissingReturnError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
 
-    #[label("this identifier here")]
+    #[label("this oracle here")]
     pub at: SourceSpan,
 
     pub oracle_name: String,
