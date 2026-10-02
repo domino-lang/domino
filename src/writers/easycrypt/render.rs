@@ -6,12 +6,12 @@
 //! text (there is no `panic!`/`todo!` here), and rendering the same AST twice
 //! is byte-identical — nothing here iterates a `HashMap`.
 //!
-//! Parenthesisation follows a precedence table (loosest first): `=>` (right
-//! associative) `<` `\/` `<` `/\` `<` `=` `<>` `<` `<` `<=` `>` `>=` `<` `+`
-//! `-` `<` `*` `%/` `%%` `<` `^^` `<` unary `!` `-` `<` application `<`
-//! projection/`.[ ]`. This is the story's "minimum viable" table with one
-//! correction: `^^` moves above `*`/`%/`/`%%` to match `ecParser.mly`'s
-//! `%left`/`%right` declarations (see [`binop_info`]).
+//! Parenthesisation follows a precedence table (loosest first): `=>` `<`
+//! `\/` `<` `/\` (all three right associative) `<` `=` `<>` `<` `<` `<=` `>`
+//! `>=` `<` `+` `-` `<` `*` `%/` `%%` `<` `^^` `<` unary `!` `-` `<`
+//! application `<` projection/`.[ ]`. This is the story's "minimum viable"
+//! table with one correction: `^^` moves above `*`/`%/`/`%%` to match
+//! `ecParser.mly`'s `%left`/`%right` declarations (see [`binop_info`]).
 
 use super::ast::*;
 
@@ -130,7 +130,9 @@ fn render_op_def(name: &str, args: &[(String, EcType)], ret: Option<&EcType>, bo
     if let Some(ty) = ret {
         out.push_str(&format!(" : {}", render_type(ty)));
     }
-    out.push_str(&format!(" = {}.", render_expr(body)));
+    // Story 43 §3.2: the body starts on the next line, indented two spaces.
+    let col = INDENT.len();
+    out.push_str(&format!(" =\n{}{}.", indent(1), render_expr_block(body, col)));
     out
 }
 
@@ -433,7 +435,33 @@ fn render_proof_line(line: &ProofLine) -> String {
             }
         }
         ProofLine::ByequivPrecondition { conjuncts } => render_byequiv_precondition(conjuncts),
+        ProofLine::InvariantCall { inv } => render_invariant_call(inv),
     }
+}
+
+/// `call (: inv <left> <right>); last first.` (story 43 §3.3): the
+/// invariant's arguments each start a line two spaces further in than its
+/// name, and each is laid out by [`render_record_block`], so a record literal
+/// puts one field per line.
+fn render_invariant_call(inv: &EcExpr) -> String {
+    const OPEN: &str = "call (: ";
+    let text = match inv {
+        EcExpr::App { head, args } if !args.is_empty() => {
+            let arg_col = OPEN.len() + INDENT.len();
+            let mut out = head.clone();
+            for arg in args {
+                let rendered = if prec(arg) < ATOM_PREC {
+                    format!("({})", render_expr(arg))
+                } else {
+                    render_record_block(arg, arg_col)
+                };
+                out.push_str(&format!("\n{}{rendered}", " ".repeat(arg_col)));
+            }
+            out
+        }
+        _ => render_expr(inv),
+    };
+    format!("{OPEN}{text}); last first.")
 }
 
 /// Renders the `byequiv` induction-start precondition (story 13 §3.2): one
@@ -486,6 +514,117 @@ fn render_type_atom(t: &EcType) -> String {
 /// statement right-hand sides, formulas, and other true top-level positions).
 pub fn render_expr(e: &EcExpr) -> String {
     render_operand(e, 0)
+}
+
+/// Render an `op` body laid out one fact per line (story 43 §3.2). `col` is
+/// the column `e`'s first character lands in: the returned text's first line
+/// carries no indentation of its own, and every later line is indented to an
+/// absolute column, at least `col`.
+///
+/// The layout is structural; there is no column limit:
+/// - a *chain*, a maximal run of one of `/\`, `\/`, `=>` as the term nests,
+///   puts every operator first on its own line, the first operand padded to
+///   line up with the others;
+/// - an operand that needs parentheses is laid out as its own block inside
+///   them (parentheses are exactly where [`render_expr`] puts them);
+/// - a quantifier's or `let`'s body goes on the next line, two spaces
+///   further in than the quantifier or `let`;
+/// - everything else is [`render_expr`]'s single line, however long.
+pub fn render_expr_block(e: &EcExpr, col: usize) -> String {
+    match e {
+        EcExpr::Binop {
+            op: op @ (EcBinop::And | EcBinop::Or | EcBinop::Implies),
+            ..
+        } => render_chain_block(*op, e, col),
+        EcExpr::Quant {
+            kind,
+            binders,
+            body,
+        } => format!(
+            "{}{},{}",
+            quant_keyword(*kind),
+            render_quant_binders(binders),
+            render_body_on_next_line(body, col)
+        ),
+        EcExpr::Let { name, value, body } => format!(
+            "let {name} = {} in{}",
+            render_expr(value),
+            render_body_on_next_line(body, col)
+        ),
+        _ => render_expr(e),
+    }
+}
+
+/// A quantifier's or `let`'s body: a new line, two spaces further in than
+/// `col`, then the body laid out from there.
+fn render_body_on_next_line(body: &EcExpr, col: usize) -> String {
+    let body_col = col + INDENT.len();
+    format!("\n{}{}", " ".repeat(body_col), render_expr_block(body, body_col))
+}
+
+/// Render a record literal for the invariant `call` (story 43 §3.3): `{| f
+/// = v;`, then one field per line aligned under the first field, and ` |}`
+/// after the last. A field value that is itself a record literal is laid
+/// out the same way from the column it starts in, so its fields line up
+/// under its own first field. `col` is as for [`render_expr_block`];
+/// anything but a non-empty literal is [`render_expr`]'s single line.
+pub fn render_record_block(e: &EcExpr, col: usize) -> String {
+    let EcExpr::RecordLit { fields } = e else {
+        return render_expr(e);
+    };
+    if fields.is_empty() {
+        return render_expr(e);
+    }
+    const OPEN: &str = "{| ";
+    let field_col = col + OPEN.len();
+    let rendered: Vec<String> = fields
+        .iter()
+        .map(|(f, v)| {
+            let prefix = format!("{f} = ");
+            format!("{prefix}{}", render_record_block(v, field_col + prefix.len()))
+        })
+        .collect();
+    format!(
+        "{OPEN}{} |}}",
+        rendered.join(&format!(";\n{}", " ".repeat(field_col)))
+    )
+}
+
+/// [`render_expr_block`] for a position that requires at least `min_prec`,
+/// wrapping the block in parentheses exactly where [`render_operand`] would.
+fn render_operand_block(e: &EcExpr, min_prec: i8, col: usize) -> String {
+    if prec(e) < min_prec {
+        format!("({})", render_expr_block(e, col + 1))
+    } else {
+        render_expr_block(e, col)
+    }
+}
+
+/// A chain of `op` rooted at `e`, for the right-associative `/\`, `\/` and
+/// `=>` only: `a op (b op c)` is one chain of three operands, `(a op b) op
+/// c` a chain of two whose first operand is a parenthesised chain of its own.
+fn render_chain_block(op: EcBinop, e: &EcExpr, col: usize) -> String {
+    let (sym, level, _right_assoc) = binop_info(op);
+    let mut operands: Vec<(&EcExpr, i8)> = Vec::new();
+    let mut rest = e;
+    while let EcExpr::Binop { op: o, lhs, rhs } = rest {
+        if *o != op {
+            break;
+        }
+        operands.push((lhs, level + 1));
+        rest = rhs;
+    }
+    operands.push((rest, level));
+
+    let operand_col = col + sym.len() + 1;
+    let mut out = " ".repeat(sym.len() + 1);
+    for (i, (operand, min_prec)) in operands.into_iter().enumerate() {
+        if i > 0 {
+            out.push_str(&format!("\n{}{sym} ", " ".repeat(col)));
+        }
+        out.push_str(&render_operand_block(operand, min_prec, operand_col));
+    }
+    out
 }
 
 /// The precedence class of `e`'s outermost syntactic form, loosest at `0`
@@ -543,11 +682,16 @@ fn render_operand(e: &EcExpr, min_prec: i8) -> String {
 /// to two `int`s, from `b ^^ a`). `Xor` is placed above `Mul`/`Div`/`Mod`
 /// here accordingly; every other row matches the story's table and its six
 /// required precedence tests.
+///
+/// `=>`, `\/` and `/\` are right-associative, as `ecParser.mly`'s
+/// `%right IMPL`, `%right ORA OR` and `%right ANDA AND` declare (story 43
+/// §3.1): `a /\ b /\ c` is `a /\ (b /\ c)`, and a left-nested chain keeps
+/// its parentheses.
 fn binop_info(op: EcBinop) -> (&'static str, i8, bool) {
     match op {
         EcBinop::Implies => ("=>", 0, true),
-        EcBinop::Or => ("\\/", 1, false),
-        EcBinop::And => ("/\\", 2, false),
+        EcBinop::Or => ("\\/", 1, true),
+        EcBinop::And => ("/\\", 2, true),
         EcBinop::Eq => ("=", 3, false),
         EcBinop::Ne => ("<>", 3, false),
         EcBinop::Lt => ("<", 4, false),
@@ -561,6 +705,21 @@ fn binop_info(op: EcBinop) -> (&'static str, i8, bool) {
         EcBinop::Mod => ("%%", 6, false),
         EcBinop::Xor => ("^^", 7, false),
     }
+}
+
+fn quant_keyword(kind: Quantifier) -> &'static str {
+    match kind {
+        Quantifier::Forall => "forall",
+        Quantifier::Exists => "exists",
+    }
+}
+
+/// ` (x : t) (y : u)`, with the leading space.
+fn render_quant_binders(binders: &[(String, EcType)]) -> String {
+    binders
+        .iter()
+        .map(|(n, ty)| format!(" ({n} : {})", render_type(ty)))
+        .collect()
 }
 
 fn render_expr_inner(e: &EcExpr) -> String {
@@ -674,20 +833,12 @@ fn render_expr_inner(e: &EcExpr) -> String {
             kind,
             binders,
             body,
-        } => {
-            let keyword = match kind {
-                Quantifier::Forall => "forall",
-                Quantifier::Exists => "exists",
-            };
-            let rendered_binders: String = binders
-                .iter()
-                .map(|(n, ty)| format!(" ({n} : {})", render_type(ty)))
-                .collect();
-            format!(
-                "{keyword}{rendered_binders}, {}",
-                render_expr(body)
-            )
-        }
+        } => format!(
+            "{}{}, {}",
+            quant_keyword(*kind),
+            render_quant_binders(binders),
+            render_expr(body)
+        ),
         EcExpr::Pr {
             module,
             proc,

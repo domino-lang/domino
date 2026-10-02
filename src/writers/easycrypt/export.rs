@@ -358,7 +358,7 @@ mod tests {
         let invariants = &exported.files[Path::new(&eq.invariants_file)];
         assert!(
             invariants.contains(
-                "op Domino_invariant (l : medium_composition_state) (r : small_composition_state) : bool = l.`l_pkg_rand_ctr = r.`r_pkg_rand_ctr."
+                "op Domino_invariant (l : medium_composition_state) (r : small_composition_state) : bool =\n  l.`l_pkg_rand_ctr = r.`r_pkg_rand_ctr."
             ),
             "{invariants}"
         );

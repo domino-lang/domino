@@ -19,55 +19,88 @@ op dbits : bits_n distr.
 
 op kitchen_fun_ty : (int -> int) -> int.
 
-op idfun_helper (x : int) : int = x.
+op idfun_helper (x : int) : int =
+  x.
 
-op mk_rec (a : int) (b : bool) : rec_t = {| fld_a = a; fld_b = b |}.
+op mk_rec (a : int) (b : bool) : rec_t =
+  {| fld_a = a; fld_b = b |}.
 
-op kitchen_tuple_and_proj (s : (int * int)) : int = s.`1 + s.`2.
+op kitchen_tuple_and_proj (s : (int * int)) : int =
+  s.`1 + s.`2.
 
-op kitchen_field (r : rec_t) : int = r.`fld_a.
+op kitchen_field (r : rec_t) : int =
+  r.`fld_a.
 
-op kitchen_option (x : int option) : int = oget x.
+op kitchen_option (x : int option) : int =
+  oget x.
 
-op kitchen_some : int option = Some 3.
+op kitchen_some : int option =
+  Some 3.
 
-op kitchen_none : int option = None.
+op kitchen_none : int option =
+  None.
 
-op kitchen_map_get (m : (int, bool) fmap) (k : int) : bool option = m.[k].
+op kitchen_map_get (m : (int, bool) fmap) (k : int) : bool option =
+  m.[k].
 
-op kitchen_map_set (m : (int, bool) fmap) (k : int) (v : bool) : (int, bool) fmap = m.[k <- v].
+op kitchen_map_set (m : (int, bool) fmap) (k : int) (v : bool) : (int, bool) fmap =
+  m.[k <- v].
 
-op kitchen_map_rem (m : (int, bool) fmap) (k : int) : (int, bool) fmap = rem m k.
+op kitchen_map_rem (m : (int, bool) fmap) (k : int) : (int, bool) fmap =
+  rem m k.
 
-op kitchen_map_empty : (int, bool) fmap = empty.
+op kitchen_map_empty : (int, bool) fmap =
+  empty.
 
-op kitchen_app (x : int) : int = idfun_helper x.
+op kitchen_app (x : int) : int =
+  idfun_helper x.
 
-op kitchen_neg_lit : int = idfun_helper (-1).
+op kitchen_neg_lit : int =
+  idfun_helper (-1).
 
-op kitchen_unop (b : bool) : bool = !b.
+op kitchen_unop (b : bool) : bool =
+  !b.
 
-op kitchen_neg (x : int) : int = -x.
+op kitchen_neg (x : int) : int =
+  -x.
 
-op kitchen_bool_lit : bool = true.
+op kitchen_bool_lit : bool =
+  true.
 
-op kitchen_unit : unit = tt.
+op kitchen_unit : unit =
+  tt.
 
-op (>) (x : int) (y : int) : bool = y < x.
+op (>) (x : int) (y : int) : bool =
+  y < x.
 
-op (>=) (x : int) (y : int) : bool = y <= x.
+op (>=) (x : int) (y : int) : bool =
+  y <= x.
 
-op kitchen_cmp (a : int) (b : int) : bool = a = b /\ a <> b \/ (a < b) ^^ (a <= b) => a > b \/ a >= b.
+op kitchen_cmp (a : int) (b : int) : bool =
+           a = b
+        /\ a <> b
+     \/ (a < b) ^^ (a <= b)
+  =>    a > b
+     \/ a >= b.
 
-op kitchen_arith (a : int) (b : int) : int = a + b - a * (b %/ (b + 1)) %% 2.
+op kitchen_arith (a : int) (b : int) : int =
+  a + b - a * (b %/ (b + 1)) %% 2.
 
-op kitchen_if (b : bool) (x : int) (y : int) : int = if b then x else y.
+op kitchen_if (b : bool) (x : int) (y : int) : int =
+  if b then x else y.
 
-op kitchen_let (x : int) : int = let y = x + 1 in y * y.
+op kitchen_let (x : int) : int =
+  let y = x + 1 in
+    y * y.
 
-op kitchen_quant : bool = forall (x : int), exists (y : int), x = y \/ x <> y.
+op kitchen_quant : bool =
+  forall (x : int),
+    exists (y : int),
+         x = y
+      \/ x <> y.
 
-op kitchen_qualified : int = Base.dummy.
+op kitchen_qualified : int =
+  Base.dummy.
 
 axiom top_axiom : zero_n = zero_n.
 

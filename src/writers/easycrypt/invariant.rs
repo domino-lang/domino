@@ -514,16 +514,10 @@ fn eq_expr(lhs: EcExpr, rhs: EcExpr) -> EcExpr {
     }
 }
 
+/// One flat, right-nested `/\` chain ([`EcExpr::right_chain`]), and `true`
+/// for no conjuncts. Conjuncts keep their order.
 fn fold_and(exprs: Vec<EcExpr>) -> EcExpr {
-    let mut it = exprs.into_iter();
-    let Some(first) = it.next() else {
-        return EcExpr::Bool(true);
-    };
-    it.fold(first, |acc, e| EcExpr::Binop {
-        op: EcBinop::And,
-        lhs: Box::new(acc),
-        rhs: Box::new(e),
-    })
+    EcExpr::right_chain(EcBinop::And, exprs).unwrap_or(EcExpr::Bool(true))
 }
 
 // --- `params_inv` (§3.3) ----------------------------------------------
@@ -1149,13 +1143,7 @@ impl<'a> TCtx<'a> {
         for item in rest {
             exprs.push(self.translate(item, locals)?.0);
         }
-        let mut it = exprs.into_iter();
-        let first = it.next().expect("checked non-empty above");
-        let folded = it.fold(first, |acc, e| EcExpr::Binop {
-            op,
-            lhs: Box::new(acc),
-            rhs: Box::new(e),
-        });
+        let folded = EcExpr::right_chain(op, exprs).expect("checked non-empty above");
         Ok((folded, EcType::Bool))
     }
 
@@ -1912,6 +1900,30 @@ mod tests {
         assert_eq!(translate_body("(or true false)"), "true \\/ false");
         assert_eq!(translate_body("(not true)"), "!true");
         assert_eq!(translate_body("(=> true false)"), "true => false");
+    }
+
+    #[test]
+    fn n_ary_connectives_nest_to_the_right_and_render_flat() {
+        // Story 43 §3.1: EasyCrypt's `/\`, `\/` and `=>` are right-associative,
+        // and SMT-LIB's n-ary `=>` is `:right-assoc` too.
+        assert_eq!(translate_body("(and true false true)"), "true /\\ false /\\ true");
+        assert_eq!(translate_body("(or true false true)"), "true \\/ false \\/ true");
+        assert_eq!(translate_body("(=> true false true)"), "true => false => true");
+        assert_eq!(translate_body("(= 1 2 3 4)"), "1 = 2 /\\ 2 = 3 /\\ 3 = 4");
+    }
+
+    #[test]
+    fn a_conjunction_inside_a_conjunction_is_spliced_into_one_chain() {
+        // `/\` and `\/` are associative, so a nested chain joins its parent:
+        // the same term EasyCrypt read before story 43, without parentheses.
+        // `=>` is not associative and keeps its nesting.
+        assert_eq!(
+            translate_body("(and (and true false) (= 1 2 3) true)"),
+            "true /\\ false /\\ 1 = 2 /\\ 2 = 3 /\\ true"
+        );
+        assert_eq!(translate_body("(or (or true false) true)"), "true \\/ false \\/ true");
+        assert_eq!(translate_body("(=> (=> true false) true)"), "(true => false) => true");
+        assert_eq!(translate_body("(and (or true false) true)"), "(true \\/ false) /\\ true");
     }
 
     #[test]

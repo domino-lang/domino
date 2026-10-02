@@ -213,11 +213,11 @@ pub fn translate_expr(
             span,
             resolve_identifier,
         )?)),
-        ExpressionKind::And(exprs) => Ok(fold_left(
+        ExpressionKind::And(exprs) => Ok(fold_right(
             EcBinop::And,
             translate_all(exprs, span, resolve_identifier)?,
         )),
-        ExpressionKind::Or(exprs) => Ok(fold_left(
+        ExpressionKind::Or(exprs) => Ok(fold_right(
             EcBinop::Or,
             translate_all(exprs, span, resolve_identifier)?,
         )),
@@ -310,8 +310,9 @@ fn translate_all(
         .collect()
 }
 
-/// Left-fold `exprs` into one `op`-chain: `[a, b, c]` -> `(a op b) op c`.
-/// Domino's grammar never produces an empty `And`/`Or`/`Xor`/`Equals`.
+/// Left-fold `exprs` into one `op`-chain: `[a, b, c]` -> `(a op b) op c`,
+/// for the left-associative `^^`. Domino's grammar never produces an empty
+/// `Xor`.
 fn fold_left(op: EcBinop, mut exprs: Vec<EcExpr>) -> EcExpr {
     assert!(!exprs.is_empty(), "Domino never produces an empty n-ary boolean expression");
     let first = exprs.remove(0);
@@ -320,6 +321,13 @@ fn fold_left(op: EcBinop, mut exprs: Vec<EcExpr>) -> EcExpr {
         lhs: Box::new(acc),
         rhs: Box::new(e),
     })
+}
+
+/// One right-nested `op` chain ([`EcExpr::right_chain`]), for the
+/// right-associative `/\` and `\/` (story 43 §3.1). Domino's grammar never
+/// produces an empty `And`/`Or`/`Equals`.
+fn fold_right(op: EcBinop, exprs: Vec<EcExpr>) -> EcExpr {
+    EcExpr::right_chain(op, exprs).expect("Domino never produces an empty n-ary boolean expression")
 }
 
 /// `Equals([a, b])` -> `a = b`; `Equals([a, b, c, …])` -> adjacent-pairs
@@ -335,7 +343,7 @@ fn equals_adjacent_pairs(exprs: Vec<EcExpr>) -> EcExpr {
             rhs: Box::new(w[1].clone()),
         })
         .collect();
-    fold_left(EcBinop::And, pairs)
+    fold_right(EcBinop::And, pairs)
 }
 
 #[cfg(test)]
@@ -793,7 +801,9 @@ mod tests {
     }
 
     #[test]
-    fn expr_and_left_fold() {
+    fn expr_and_right_fold() {
+        // Story 43 §3.1: EasyCrypt's `/\\` is right-associative, so the chain
+        // nests to the right and renders without parentheses.
         let e = Expression::from_kind(ExpressionKind::And(vec![
             Expression::boolean(true),
             Expression::boolean(false),
@@ -803,18 +813,20 @@ mod tests {
             translate_expr(&e, span(), &mut no_resolver).unwrap(),
             EcExpr::Binop {
                 op: EcBinop::And,
-                lhs: Box::new(EcExpr::Binop {
+                lhs: Box::new(EcExpr::Bool(true)),
+                rhs: Box::new(EcExpr::Binop {
                     op: EcBinop::And,
-                    lhs: Box::new(EcExpr::Bool(true)),
-                    rhs: Box::new(EcExpr::Bool(false)),
+                    lhs: Box::new(EcExpr::Bool(false)),
+                    rhs: Box::new(EcExpr::Bool(true)),
                 }),
-                rhs: Box::new(EcExpr::Bool(true)),
             }
         );
     }
 
     #[test]
-    fn expr_or_left_fold() {
+    fn expr_or_right_fold() {
+        // Story 43 §3.1: EasyCrypt's `\\/` is right-associative, so the chain
+        // nests to the right and renders without parentheses.
         let e = Expression::from_kind(ExpressionKind::Or(vec![
             Expression::boolean(true),
             Expression::boolean(false),
@@ -824,12 +836,12 @@ mod tests {
             translate_expr(&e, span(), &mut no_resolver).unwrap(),
             EcExpr::Binop {
                 op: EcBinop::Or,
-                lhs: Box::new(EcExpr::Binop {
+                lhs: Box::new(EcExpr::Bool(true)),
+                rhs: Box::new(EcExpr::Binop {
                     op: EcBinop::Or,
-                    lhs: Box::new(EcExpr::Bool(true)),
-                    rhs: Box::new(EcExpr::Bool(false)),
+                    lhs: Box::new(EcExpr::Bool(false)),
+                    rhs: Box::new(EcExpr::Bool(true)),
                 }),
-                rhs: Box::new(EcExpr::Bool(true)),
             }
         );
     }
@@ -901,28 +913,28 @@ mod tests {
         else {
             panic!("expected a top-level And");
         };
-        // (1=2 /\ 2=3) /\ 3=4
+        // 1=2 /\ (2=3 /\ 3=4)
         assert_eq!(
-            *rhs,
+            *lhs,
             EcExpr::Binop {
                 op: EcBinop::Eq,
-                lhs: Box::new(EcExpr::Int(3)),
-                rhs: Box::new(EcExpr::Int(4)),
+                lhs: Box::new(EcExpr::Int(1)),
+                rhs: Box::new(EcExpr::Int(2)),
             }
         );
         assert_eq!(
-            *lhs,
+            *rhs,
             EcExpr::Binop {
                 op: EcBinop::And,
                 lhs: Box::new(EcExpr::Binop {
                     op: EcBinop::Eq,
-                    lhs: Box::new(EcExpr::Int(1)),
-                    rhs: Box::new(EcExpr::Int(2)),
+                    lhs: Box::new(EcExpr::Int(2)),
+                    rhs: Box::new(EcExpr::Int(3)),
                 }),
                 rhs: Box::new(EcExpr::Binop {
                     op: EcBinop::Eq,
-                    lhs: Box::new(EcExpr::Int(2)),
-                    rhs: Box::new(EcExpr::Int(3)),
+                    lhs: Box::new(EcExpr::Int(3)),
+                    rhs: Box::new(EcExpr::Int(4)),
                 }),
             }
         );

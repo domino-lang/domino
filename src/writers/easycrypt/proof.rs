@@ -34,7 +34,6 @@ use super::interfaces::{self, InterfacesOutput};
 use super::invariant::{self, InvariantError, InvariantFile};
 use super::names::{NameKind, Names};
 use super::package;
-use super::render::render_expr;
 use super::types::translate_type;
 use super::EcExportError;
 
@@ -523,7 +522,7 @@ fn build_equivalence_file(
     let mut proof = vec![
         ProofLine::ByequivPrecondition { conjuncts: precondition },
         plain_line("proc; inline."),
-        plain_line(format!("call (: {}); last first.", render_expr(&inv_app))),
+        ProofLine::InvariantCall { inv: inv_app },
         blank_line(),
         // Story 19: one line. `t1; t2` runs `t2` on every goal `t1` leaves and
         // on none when `t1` closes the base case, so the `smt` can never fall
@@ -668,7 +667,7 @@ mod tests {
     use crate::transforms::TheoremTransform;
 
     use super::super::interfaces::build_interfaces_file;
-    use super::super::render::render_file;
+    use super::super::render::{render_expr, render_file};
     use super::*;
 
     fn load(dir: &str, theorem_name: &str) -> Vec<EquivalenceFiles> {
@@ -717,7 +716,7 @@ mod tests {
                 ProofLine::Tactic { text, .. } => text
                     .strip_prefix("(* ")
                     .and_then(|s| s.strip_suffix(" *)")),
-                ProofLine::ByequivPrecondition { .. } => None,
+                ProofLine::ByequivPrecondition { .. } | ProofLine::InvariantCall { .. } => None,
             })
             .collect();
         assert_eq!(
@@ -946,6 +945,27 @@ mod tests {
                 f.proof.file_name
             );
         }
+    }
+
+    #[test]
+    fn the_invariant_call_puts_each_record_on_its_own_line_and_one_field_per_line() {
+        // Story 43 §3.3.
+        let files = load("example-projects/hello-world", "Proof");
+        let rendered = render_file(&files[0].proof.file);
+        let expected = concat!(
+            "call (: inv\n",
+            "          {| l_pkg_rand_ctr = Comp_MediumComposition.Pkg_Inst_Rand.ctr{1};\n",
+            "             l_pkg_fwd_ctr = Comp_MediumComposition.Pkg_Inst_Fwd.ctr{1};\n",
+            "             l_abort_flag = Comp_MediumComposition.Game_MediumComposition.abort_flag{1} |}\n",
+            "          {| r_pkg_rand_ctr = Comp_SmallComposition.Pkg_Inst_Rand.ctr{2};\n",
+            "             r_abort_flag = Comp_SmallComposition.Game_SmallComposition.abort_flag{2} |}); last first.\n",
+        );
+        assert!(rendered.contains(expected), "{rendered}");
+        // the readers of the skeleton still find it as one sentence
+        let sentences = crate::easycrypt::session::split_sentences(&rendered);
+        assert!(sentences
+            .iter()
+            .any(|s| s.starts_with("call") && s.ends_with("last first.") && s.contains("r_abort_flag")));
     }
 
     #[test]

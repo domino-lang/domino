@@ -105,6 +105,25 @@ containing `false = true`, which could never be proved even though Domino proves
   names a record field.
 - **Story 43:** the block renderer for `op` bodies and record literals. Use it for every new item.
   Its implementation report says how to render a record literal nested in a field.
+  Concretely (from story 43's implementation):
+  - `render.rs::render_expr_block(e: &EcExpr, col: usize) -> String`. `render_op_def` already sends
+    **every** `EcItem::OpDef` body through it, so a new `op` needs no layout code at all.
+  - The `call` is the structured `ProofLine::InvariantCall { inv }` (`ast.rs`), built in
+    `proof.rs` as `EcExpr::App { head: "inv", args: [left_lit, right_lit] }`. It is laid out by
+    `render.rs::render_invariant_call`, which renders each argument with
+    `render_record_block(e, col)`. For §3.5, make an `EcExpr::RecordLit` the *value* of the
+    `l_pkg_<Inst>` field. The renderer starts it right after `l_pkg_KX = ` and lines its fields up
+    under its own first field. Nothing in `proof.rs` formats text. The unit test
+    `a_record_literal_puts_one_field_per_line_and_a_nested_one_under_its_field`
+    (`src/writers/easycrypt/tests.rs`) shows the exact layout. A record literal inside an `op` body
+    stays on one line.
+  - `/\` and `\/` are right-associative. Build every `/\`/`\/`/`=>` chain with
+    `EcExpr::right_chain(op, operands)` (`ast.rs`). `fold_and` in `invariant.rs` already does.
+    `right_chain` splices a nested `/\`/`\/` chain into its parent, so a whole-package equality
+    among other conjuncts prints flat.
+  - `testdata/easycrypt/story06/4WHS/Eq_Hybrid0_Hybrid1_Invariants.ec` is in story 43's layout.
+    No golden contains `call (: inv`; the call's layout is pinned by `proof.rs`'s test
+    `the_invariant_call_puts_each_record_on_its_own_line_and_one_field_per_line` (hello-world).
 - **ADR 0006:** translating with `--force` deletes every session record, so a proof job after
   re-translation never resumes against the old invariant.
 

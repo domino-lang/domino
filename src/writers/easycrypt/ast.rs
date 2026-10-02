@@ -248,6 +248,41 @@ pub enum EcBinop {
     Mod,
 }
 
+impl EcExpr {
+    /// `[a, b, c]` -> `a op (b op c)`; `None` for no operands. Right-nested
+    /// because EasyCrypt's `/\`, `\/` and `=>` are right-associative (story
+    /// 43 §3.1), so the chain renders without parentheses; it is also how
+    /// SMT-LIB reads an n-ary `=>`. For the associative `/\` and `\/`, an
+    /// operand that is itself an `op` chain is spliced in, so the whole
+    /// conjunction is one flat chain, its operands in their given order.
+    pub fn right_chain(op: EcBinop, operands: Vec<EcExpr>) -> Option<EcExpr> {
+        let mut flat = Vec::with_capacity(operands.len());
+        for e in operands {
+            if matches!(op, EcBinop::And | EcBinop::Or) {
+                push_chain_operands(op, e, &mut flat);
+            } else {
+                flat.push(e);
+            }
+        }
+        flat.into_iter().rev().reduce(|acc, e| EcExpr::Binop {
+            op,
+            lhs: Box::new(e),
+            rhs: Box::new(acc),
+        })
+    }
+}
+
+/// The operands of the `op` chain `e`, left to right, however it nests.
+fn push_chain_operands(op: EcBinop, e: EcExpr, out: &mut Vec<EcExpr>) {
+    match e {
+        EcExpr::Binop { op: o, lhs, rhs } if o == op => {
+            push_chain_operands(op, *lhs, out);
+            push_chain_operands(op, *rhs, out);
+        }
+        e => out.push(e),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Quantifier {
     Forall,
@@ -299,8 +334,9 @@ pub enum LemmaBinder {
     Typed { name: String, ty: EcType },
 }
 
-/// One line (or, for [`ProofLine::ByequivPrecondition`], one structured
-/// multi-line tactic) of a lemma's proof script.
+/// One line (or, for [`ProofLine::ByequivPrecondition`] and
+/// [`ProofLine::InvariantCall`], one structured multi-line tactic) of a
+/// lemma's proof script.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProofLine {
     /// `bullet` is `+`/`-`/`*` nesting depth handling; `text` is one raw
@@ -320,4 +356,10 @@ pub enum ProofLine {
     /// `byequiv\n  (: <c0>\n     /\ <c1>\n     ...\n     ==> _) => //.`
     /// ([`super::render::render_proof_line`]).
     ByequivPrecondition { conjuncts: Vec<EcExpr> },
+    /// The invariant `call` (story 07): `call (: <inv>); last first.`, with
+    /// `inv` the invariant applied to one game-state record literal per
+    /// side. Kept structured so the renderer lays it out (story 43 §3.3):
+    /// each argument on its own line, one record field per line
+    /// ([`super::render::render_proof_line`]).
+    InvariantCall { inv: EcExpr },
 }

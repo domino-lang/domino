@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::ast::*;
-use super::render::{render_expr, render_file, render_type};
+use super::render::{render_expr, render_expr_block, render_file, render_record_block, render_type};
 
 fn var(name: &str) -> EcExpr {
     EcExpr::Var(name.to_string())
@@ -96,6 +96,252 @@ fn precedence_implies_is_right_associative() {
         binop(EcBinop::Implies, var("b"), var("c")),
     );
     assert_eq!(render_expr(&e), "a => b => c");
+}
+
+// --- Story 43 §3.1: `/\` and `\/` are right-associative --------------------
+//
+// `ecParser.mly` declares `%right ANDA AND` and `%right ORA OR`, so
+// EasyCrypt reads `a /\ b /\ c` as `a /\ (b /\ c)`.
+
+#[test]
+fn a_right_nested_conjunction_renders_flat() {
+    let e = binop(EcBinop::And, var("a"), binop(EcBinop::And, var("b"), var("c")));
+    assert_eq!(render_expr(&e), "a /\\ b /\\ c");
+}
+
+#[test]
+fn a_left_nested_conjunction_keeps_its_parentheses() {
+    let e = binop(EcBinop::And, binop(EcBinop::And, var("a"), var("b")), var("c"));
+    assert_eq!(render_expr(&e), "(a /\\ b) /\\ c");
+}
+
+#[test]
+fn a_right_nested_disjunction_renders_flat() {
+    let e = binop(EcBinop::Or, var("a"), binop(EcBinop::Or, var("b"), var("c")));
+    assert_eq!(render_expr(&e), "a \\/ b \\/ c");
+}
+
+#[test]
+fn a_left_nested_disjunction_keeps_its_parentheses() {
+    let e = binop(EcBinop::Or, binop(EcBinop::Or, var("a"), var("b")), var("c"));
+    assert_eq!(render_expr(&e), "(a \\/ b) \\/ c");
+}
+
+#[test]
+fn a_left_nested_implication_keeps_its_parentheses() {
+    let e = binop(EcBinop::Implies, binop(EcBinop::Implies, var("a"), var("b")), var("c"));
+    assert_eq!(render_expr(&e), "(a => b) => c");
+}
+
+// --- Story 43 §3.2: operator bodies are laid out one fact per line --------
+
+fn field(expr: &str, name: &str) -> EcExpr {
+    EcExpr::Field {
+        expr: Box::new(var(expr)),
+        field: name.to_string(),
+    }
+}
+
+fn app(head: &str, args: Vec<EcExpr>) -> EcExpr {
+    EcExpr::App {
+        head: head.to_string(),
+        args,
+    }
+}
+
+fn op_def(name: &str, args: &[(&str, &str)], body: EcExpr) -> String {
+    let file = EcFile {
+        header: vec![],
+        requires: vec![],
+        items: vec![EcItem::OpDef {
+            name: name.to_string(),
+            args: args
+                .iter()
+                .map(|(n, ty)| (n.to_string(), EcType::Named(ty.to_string())))
+                .collect(),
+            ret: Some(EcType::Bool),
+            body,
+        }],
+    };
+    render_file(&file)
+}
+
+#[test]
+fn an_op_body_chain_puts_every_operator_first_on_its_own_line() {
+    // The story's own example: `inv` of `H1_1 ~ H2_0`, whose last conjunct
+    // is itself a `=>` chain and so becomes a parenthesised block.
+    let body = binop(
+        EcBinop::And,
+        app("params_inv", vec![var("l"), var("r")]),
+        binop(
+            EcBinop::And,
+            binop(EcBinop::Eq, field("l", "l_abort_flag"), field("r", "r_abort_flag")),
+            binop(
+                EcBinop::Implies,
+                EcExpr::Unop {
+                    op: EcUnop::Not,
+                    arg: Box::new(field("l", "l_abort_flag")),
+                },
+                app("Domino_invariant", vec![var("l"), var("r")]),
+            ),
+        ),
+    );
+    assert_eq!(
+        op_def("inv", &[("l", "H1_1_state"), ("r", "H2_0_state")], body),
+        concat!(
+            "op inv (l : H1_1_state) (r : H2_0_state) : bool =\n",
+            "     params_inv l r\n",
+            "  /\\ l.`l_abort_flag = r.`r_abort_flag\n",
+            "  /\\ (   !l.`l_abort_flag\n",
+            "      => Domino_invariant l r).\n",
+        )
+    );
+}
+
+#[test]
+fn a_chain_nested_in_a_chain_is_its_own_aligned_block() {
+    // `a /\ (b \/ c \/ d) /\ e`, then `(a /\ b) /\ c`: a left-nested chain is
+    // a parenthesised operand of the outer one, never flattened into it.
+    let disjunction = binop(EcBinop::Or, var("b"), binop(EcBinop::Or, var("c"), var("d")));
+    let body = binop(
+        EcBinop::And,
+        var("a"),
+        binop(EcBinop::And, disjunction, var("e")),
+    );
+    assert_eq!(
+        render_expr_block(&body, 2),
+        concat!(
+            "   a\n",
+            "  /\\ (   b\n",
+            "      \\/ c\n",
+            "      \\/ d)\n",
+            "  /\\ e",
+        )
+    );
+
+    let left_nested = binop(EcBinop::And, binop(EcBinop::And, var("a"), var("b")), var("c"));
+    assert_eq!(
+        render_expr_block(&left_nested, 0),
+        concat!(
+            "   (   a\n",
+            "    /\\ b)\n",
+            "/\\ c",
+        )
+    );
+}
+
+#[test]
+fn a_forall_body_goes_on_the_next_line_two_spaces_in() {
+    let body = EcExpr::Quant {
+        kind: Quantifier::Forall,
+        binders: vec![("k".to_string(), EcType::Int)],
+        body: Box::new(binop(
+            EcBinop::Implies,
+            binop(EcBinop::Eq, var("k"), int(0)),
+            binop(EcBinop::Eq, var("x"), var("y")),
+        )),
+    };
+    assert_eq!(
+        op_def("p", &[], body),
+        concat!(
+            "op p : bool =\n",
+            "  forall (k : int),\n",
+            "       k = 0\n",
+            "    => x = y.\n",
+        )
+    );
+}
+
+#[test]
+fn a_let_body_goes_on_the_next_line_two_spaces_in() {
+    let body = EcExpr::Let {
+        name: "x".to_string(),
+        value: Box::new(binop(EcBinop::Add, var("a"), int(1))),
+        body: Box::new(EcExpr::Let {
+            name: "y".to_string(),
+            value: Box::new(var("x")),
+            body: Box::new(binop(
+                EcBinop::And,
+                binop(EcBinop::Lt, int(0), var("x")),
+                binop(EcBinop::Lt, int(0), var("y")),
+            )),
+        }),
+    };
+    assert_eq!(
+        op_def("p", &[], body),
+        concat!(
+            "op p : bool =\n",
+            "  let x = a + 1 in\n",
+            "    let y = x in\n",
+            "         0 < x\n",
+            "      /\\ 0 < y.\n",
+        )
+    );
+}
+
+fn record(fields: Vec<(&str, EcExpr)>) -> EcExpr {
+    EcExpr::RecordLit {
+        fields: fields.into_iter().map(|(f, v)| (f.to_string(), v)).collect(),
+    }
+}
+
+fn mem_read(path: &[&str], mem: u8) -> EcExpr {
+    EcExpr::Qualified {
+        path: path.iter().map(|p| p.to_string()).collect(),
+        mem: Some(mem),
+    }
+}
+
+#[test]
+fn a_record_literal_puts_one_field_per_line_and_a_nested_one_under_its_field() {
+    // Story 42 nests a package-state literal in a field of the game-state
+    // literal; its fields line up under its own first field.
+    let lit = record(vec![
+        (
+            "l_pkg_KX",
+            record(vec![
+                ("KX_d_LTK", mem_read(&["Comp_H1", "Pkg_Inst_KX", "d_LTK"], 1)),
+                ("KX_d_State", mem_read(&["Comp_H1", "Pkg_Inst_KX", "d_State"], 1)),
+            ]),
+        ),
+        ("l_pkg_KX_b", mem_read(&["Comp_H1", "Pkg_Inst_KX", "b"], 1)),
+        ("l_abort_flag", mem_read(&["Comp_H1", "Game_H1", "abort_flag"], 1)),
+    ]);
+    assert_eq!(
+        render_record_block(&lit, 10),
+        concat!(
+            "{| l_pkg_KX = {| KX_d_LTK = Comp_H1.Pkg_Inst_KX.d_LTK{1};\n",
+            "                           KX_d_State = Comp_H1.Pkg_Inst_KX.d_State{1} |};\n",
+            "             l_pkg_KX_b = Comp_H1.Pkg_Inst_KX.b{1};\n",
+            "             l_abort_flag = Comp_H1.Game_H1.abort_flag{1} |}",
+        )
+    );
+    // A one-field literal is already one fact.
+    assert_eq!(
+        render_record_block(&record(vec![("a", int(1))]), 4),
+        "{| a = 1 |}"
+    );
+}
+
+#[test]
+fn a_record_literal_in_an_op_body_stays_on_one_line() {
+    // §3.2: only chains, quantifiers and `let`s are laid out in an `op`; the
+    // record block is for the invariant `call` (§3.3).
+    let lit = record(vec![("a", var("x")), ("b", var("y"))]);
+    assert_eq!(render_expr_block(&lit, 2), "{| a = x; b = y |}");
+}
+
+#[test]
+fn a_long_atom_stays_on_one_line() {
+    let long = (0..40).map(|i| format!("arg{i}")).collect::<Vec<_>>();
+    let application = app("f", long.iter().map(|a| var(a)).collect());
+    let equality = binop(EcBinop::Eq, application.clone(), var("y"));
+    assert_eq!(
+        op_def("p", &[], equality.clone()),
+        format!("op p : bool =\n  {}.\n", render_expr(&equality))
+    );
+    assert!(render_expr_block(&application, 2).len() > 200);
+    assert!(!render_expr_block(&application, 2).contains('\n'));
 }
 
 // --- Negative-literal edge case -------------------------------------------
