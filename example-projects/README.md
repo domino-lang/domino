@@ -1,5 +1,5 @@
 # Example projects
-This directory contains working and well-maintained examples of Domino features 
+This directory contains representative examples of Domino features 
 and proof formalizations.
 
 ## 4WHS
