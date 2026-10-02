@@ -41,6 +41,14 @@ impl<'a> GameHop<'a> {
         matches!(self, Self::Equivalence(..))
     }
 
+    pub fn as_conjecture(&self) -> Option<&Conjecture<'a>> {
+        if let Self::Conjecture(v) = self {
+            Some(v)
+        } else {
+            None
+        }
+    }
+
     pub fn as_reduction(&self) -> Option<&Reduction<'a>> {
         if let Self::Reduction(v) = self {
             Some(v)
