@@ -7,7 +7,7 @@ use crate::{
     package::{Export, OracleSig},
     project::Project,
     theorem::{Claim, RandomnessType},
-    writers::smt::contexts::EquivalenceContext,
+    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
 
 use error::{Error, ExportSignatureMismatch, Result};
@@ -390,6 +390,55 @@ impl<'a> EquivalenceContext<'a> {
             })
             .collect();
         self.append_claims(claims);
+    }
+
+    fn generate_game_or_package_invariant_claims(&self) -> Vec<ResolvedClaim> {
+        fn new_claim(ty: ClaimType, name: String) -> Option<ResolvedClaim> {
+            Some(ResolvedClaim {
+                admitted: false,
+                dependencies: vec![ResolvedDependency {
+                    name: "no-abort".to_string(),
+                    ty: ClaimType::Lemma,
+                }],
+                ty,
+                name,
+            })
+        }
+
+        self.left_invariants()
+            .iter()
+            .filter_map(|stmt| match stmt.kind {
+                SmtStatementKind::PackageInvariant { .. } => {
+                    new_claim(ClaimType::LeftPackageInvariant, stmt.kind.name())
+                }
+                SmtStatementKind::GameInvariant { .. } => {
+                    new_claim(ClaimType::LeftGameInvariant, stmt.kind.name())
+                }
+                _ => None,
+            })
+            .chain(
+                self.right_invariants()
+                    .iter()
+                    .filter_map(|stmt| match stmt.kind {
+                        SmtStatementKind::PackageInvariant { .. } => {
+                            new_claim(ClaimType::RightPackageInvariant, stmt.kind.name())
+                        }
+                        SmtStatementKind::GameInvariant { .. } => {
+                            new_claim(ClaimType::RightGameInvariant, stmt.kind.name())
+                        }
+                        _ => None,
+                    }),
+            )
+            .collect()
+    }
+    fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
+        self.generate_game_or_package_invariant_claims()
+            .iter()
+            .map(|claim| {
+                let smt = self.emit_game_or_package_invariant_start_assert(claim);
+                (claim.name().to_string(), smt)
+            })
+            .collect()
     }
 }
 
