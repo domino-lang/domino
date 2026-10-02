@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           choco install texlive || choco install texlive
-          C:/texlive/*/bin/windows/tlmgr.bat install cryptocode mathtools xcolor pgf xargs xkeyval forloop pbox varwidth environ bigfoot environ trimspaces
+          C:/texlive/*/bin/windows/tlmgr.bat install cryptocode mathtools xcolor pgf xargs xkeyval forloop pbox varwidth environ bigfoot environ trimspaces import
           echo C:/texlive/*/bin/windows >> $GITHUB_PATH
 
       - name: Build Domino
