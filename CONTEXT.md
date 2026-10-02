@@ -15,6 +15,10 @@ signatures and oracle definitions. A package is a *template*; it is never used d
 under an instance name. By the time a proof runs, an instance's code has been rewritten so that
 every parameter and type is substituted: an instance is *monomorphic*.
 
+**Package state** — the state fields of a package instance, and nothing else: an instance's
+parameters are bound once and are not part of its state. Two instances have *equal state* when
+their state fields are equal; their parameters are not compared.
+
 **Composition** (also **game**) — a set of package instances plus the call graph wiring them
 together, and the list of oracles it exports to the adversary. The call graph is **acyclic**, and an
 oracle cannot call another oracle of its own package, so a call can never re-enter the package it
@@ -168,7 +172,12 @@ or helper function, named after its SMT original.
 
 **Translation** — producing the export tree from a Domino theorem: the package variants, games,
 types, invariants and one proof skeleton per equivalence. Translation proves nothing and talks to
-no EasyCrypt. _Avoid_: export (as a noun for the whole command), proof translation.
+no EasyCrypt. It is what the `export` subcommand does: "export" names the command, never the
+concept. _Avoid_: export (as a noun for the concept), proof translation.
+
+**Stage** — one command-level step of an EasyCrypt command: translation, lockstep execution,
+proving, report. A stage is not an export **phase**, which is a step *inside* translation.
+_Avoid_: phase (for a stage).
 
 **Proof job** — proving one equivalence (optionally only some of its oracles) against the files
 translation left on disk. A proof job trusts that a file with the expected name is what translation
@@ -183,6 +192,25 @@ done), or skips the equivalence as complete. An oracle is done when it ended wit
 `interrupted` admit; admits with any other reason count as done. Unlike a run artifact it is worth
 protecting, because losing it loses the ability to resume.
 
+**Saved joint tree** — the joint tree lockstep execution built for one oracle, kept beside the
+session record together with a **fingerprint** of everything lockstep execution read to build it.
+It is what lets a later proof job resume that oracle without running lockstep execution again, so
+the debugger never has to be deterministic. A fingerprint that no longer matches the project means
+the tree is *stale*: it is still used, with a warning, because the EasyCrypt files on disk are as
+old as it is.
+
+**Closed node** — a joint node whose goal an earlier proof job finished, its whole subtree
+included, without an `interrupted` admit. Admits with any other reason do not reopen it.
+_Distinguish_: the **in-flight node** is the innermost node the earlier job was in when it
+stopped; its **ancestors** are neither closed nor in flight.
+
+**Resume mode** — how a proof job picks up an oracle that an earlier job left `interrupted`.
+**restart** proves it again from scratch, lockstep execution included. **trust** and **replay**
+walk the saved joint tree again: each closed node is skipped (under **trust** its goal is closed
+with `admit` in the live session; under **replay** its recorded script is sent to EasyCrypt
+again) and its recorded script goes into the file. The in-flight node is proved from its start.
+Oracles already done are never re-proved, whatever the mode.
+
 **Tactics run** — the proving pass of one proof job against a live EasyCrypt. Its defining
 property: the proof file on disk always holds what has been proved so far, so stopping it early
 costs no proved oracle. _Avoid_: proof translation.
@@ -194,6 +222,18 @@ EasyCrypt; its admits carry the reason `interrupted`.
 
 **Partial proof** — a proof file holding proved bullets alongside the admits of a seal. It is a
 proof EasyCrypt accepts, not a draft.
+
+**Interrupt** — Domino telling EasyCrypt to abandon the sentence it is running, because the
+sentence ran past its time or the run was asked to stop. An interrupt is **honored** when that
+sentence ends `interrupted`; it is **swallowed** when EasyCrypt carries on with the sentence as if
+nothing had arrived; it is **unanswered** when no answer to the sentence comes back in time at all.
+An interrupt that lands after the sentence has finished, or between two sentences, changes nothing
+and is not answered: every sentence has exactly one answer.
+
+**Respawn** — replacing, in the middle of a proof job, an EasyCrypt that left an interrupt
+unanswered with a fresh one opened at the same proof. The oracle in flight is sealed; oracles
+already finished are admitted in the fresh EasyCrypt, not proved again; the job carries on with the
+next oracle. _Avoid_: restart (a resume mode, which re-proves an oracle in a *later* proof job).
 
 **Run artifact** — a file a tactics run writes *about itself* rather than as translation output:
 the live page, the EasyCrypt transcript, the per-equivalence report, the alignment report, the

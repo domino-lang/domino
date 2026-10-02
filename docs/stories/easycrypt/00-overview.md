@@ -171,6 +171,10 @@ files, or read out of this repository's source. §8 lists the evidence.
 | 39 | Path exploration has its own progress bar | `39-path-exploration-progress-bar.md` | 35 |
 | 40 | The proving line shows oracle, `Ni/Total` and the current tactic | `40-proving-line-shows-node-and-tactic.md` | 35, 39 |
 | 41 | The EasyCrypt transcript keeps only the first goal | `41-transcript-keeps-the-first-goal.md` | 31 |
+| 42 | `params_inv` states every package parameter, and package state excludes parameters | `42-params-inv-states-every-parameter.md` | 06, 07, 43 |
+| 43 | Invariant operators and the invariant `call` are laid out one fact per line | `43-readable-invariant-operators.md` | 06, 07 |
+| 44 | `easycrypt debug` shows its stages and progress | `44-easycrypt-debug-shows-stages-and-progress.md` | 35, 39 |
+| 45 | Translation is `domino easycrypt export` | `45-translation-is-the-export-subcommand.md` | 35 |
 
 Stories 01–05 are a walking skeleton: after 05 the 4WHS packages and games compile under
 `easycrypt compile`. 06 may be done in parallel with 05. 08 may be done in parallel with 06/07.
@@ -211,6 +215,18 @@ introduces the session record, 36 makes the run artifacts per equivalence and ad
 resumes from the record, 38 checkpoints after every accepted sentence. 39 and 40 are progress
 display and need only 35 (40 after 39, since both change the bar during an oracle). 41 is
 independent and cheap.
+
+Stories 42–43 come from the fifth design session (Full4WHS `H1_1 ~ H2_0` left admits that Domino
+proves, because `params_inv` never mentioned a package present on one side only; ADR 0007). **Do
+43 before 42**, despite the numbers. 43 changes only layout and fixes the associativity of
+`/\`/`\/` in the renderer, so that 42's new invariant shape, golden file and diff are readable
+when reviewed.
+
+Stories 44–45 come from the sixth design session and are about the **shape of the CLI**. 44 gives
+`easycrypt debug` the bars `domino debug` has, and makes `debug` and `prove` announce their stages,
+including what `prove` writes to the export tree. 45 makes translation the `export` subcommand and
+leaves nothing but subcommands on `domino easycrypt`. They are independent and can be done in
+either order.
 
 ## 6. Working agreement (important)
 
