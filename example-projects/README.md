@@ -23,5 +23,5 @@ writing invariants and randomness mappings, hybrid arguments and oracle
 renaming in the compositions.
 
 ## simple-KEM-example
-This is a basic example demonstrating CPA security of a simple KEM-based protocol.
+This is a basic example of reducing the passive security of a key exchange protocol to the IND-CPA security of the KEM and the correctness of the KEM. It's a minimal example showcasing why one needs to use correctness of the KEM in the protocol security proof.
 
