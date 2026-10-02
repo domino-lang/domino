@@ -696,78 +696,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {
-        let left_gctx = self.left_game_inst_ctx();
-        let left_octx = left_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
-        let left_pctx = left_octx.pkg_inst_ctx();
-
-        let right_gctx = self.right_game_inst_ctx();
-        let right_octx = right_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
-        let right_pctx = right_octx.pkg_inst_ctx();
-
-        let left_return_value = left_octx.return_value_const_pattern(oracle_name);
-        let right_return_value = right_octx.return_value_const_pattern(oracle_name);
-
-        let left_is_abort = ReturnIsAbortConst {
-            game_inst_name: left_gctx.game_inst().name(),
-            pkg_inst_name: left_pctx.pkg_inst_name(),
-            oracle_name,
-            ty: left_octx.oracle_return_type(),
-        };
-
-        let right_is_abort = ReturnIsAbortConst {
-            game_inst_name: right_gctx.game_inst().name(),
-            pkg_inst_name: right_pctx.pkg_inst_name(),
-            oracle_name,
-            ty: right_octx.oracle_return_type(),
-        };
-
-        let consts: [(_, SmtExpr); 3] = [
-            (
-                "<equal-aborts>",
-                SmtEq2 {
-                    lhs: left_is_abort.value(left_return_value.name()),
-                    rhs: right_is_abort.value(right_return_value.name()),
-                }
-                .into(),
-            ),
-            (
-                "<no-aborts>",
-                SmtAnd(vec![
-                    SmtNot(left_is_abort.value(left_return_value.name())).into(),
-                    SmtNot(right_is_abort.value(right_return_value.name())).into(),
-                ])
-                .into(),
-            ),
-            (
-                "<same-outputs>",
-                SmtEq2 {
-                    lhs: left_return_value.name(),
-                    rhs: right_return_value.name(),
-                }
-                .into(),
-            ),
-        ];
-
-        consts
-            .into_iter()
-            .flat_map(|(name, value)| {
-                let declare = declare_const(name, Sort::Bool);
-                let constrain = SmtAssert(SmtEq2 {
-                    lhs: name,
-                    rhs: value,
-                });
-
-                [declare, constrain.into()]
-            })
-            .chain(std::iter::once(
-                self.relation_definition_equal_aborts(oracle_name).into(),
-            ))
-            .chain(std::iter::once(
-                self.relation_definition_left_no_abort(oracle_name).into(),
-            ))
-            .chain(std::iter::once(
-                self.relation_definition_right_no_abort(oracle_name).into(),
-            ))
+        std::iter::once(self.relation_definition_equal_aborts(oracle_name).into())
             .chain(std::iter::once(
                 self.relation_definition_no_abort(oracle_name).into(),
             ))
@@ -775,8 +704,6 @@ impl<'a> EquivalenceContext<'a> {
                 self.relation_definition_same_output(oracle_name).into(),
             ))
             .collect()
-
-        // out
     }
 
     pub(crate) fn emit_constant_declarations(&self) -> Vec<SmtExpr> {
