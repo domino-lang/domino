@@ -6,6 +6,7 @@ use crate::{
         GameHop,
     },
     package::Export,
+    theorem::Theorem,
 };
 
 #[cfg(test)]
@@ -40,7 +41,8 @@ pub trait ProveTheoremUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn start(&mut self);
-    fn finish(&self);
+    fn skip(&self);
+    fn finish(&self, theorem: &Theorem);
 
     fn start_gamehop(&self, gamehop: &GameHop) -> Self::ProveGamehopUI;
 }
