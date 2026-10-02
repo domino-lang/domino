@@ -867,7 +867,7 @@
    (relation-three-mac-implies-first state-H710 state-H711)))  ;own lemma for Send4
 
 
-(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-AtMost>
+(define-lemma same-state AtMost
     (state-left-old state-right-old
                     ret-left       ret-right
                     (ctr1 Int)
@@ -878,7 +878,7 @@
    (= state-right-old ret-right.state)))
 
 
-(define-lemma <relation-same-state-H7_1_1_0-H7_1_1_1-Send4>
+(define-lemma same-state Send4
     (state-left-old state-right-old
                     ret-left       ret-right
                     (ctr Int)
