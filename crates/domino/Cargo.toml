@@ -7,8 +7,11 @@ readme = { workspace = true }
 [dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
-miette = { version = "7.6.0", features = ["fancy"] }
+console = "0.16"
 env_logger = "0.11"
+indicatif = "0.18"
+indicatif-log-bridge = "0.2"
+miette = { version = "7.6.0", features = ["fancy"] }
 shadow-rs = { version = "1.7", default-features = false }
 thiserror = "1.0.61"
 
