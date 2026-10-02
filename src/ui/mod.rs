@@ -12,13 +12,13 @@ use crate::{
 pub(crate) mod mock;
 
 pub trait UI {
-    type ProofstepUI: ProofstepUI;
+    type GamehopUI: GamehopUI;
     type ProveUI: ProveUI;
     type LatexUI: LatexUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
-    fn proofstep_ui(&self) -> Self::ProofstepUI;
+    fn gamehop_ui(&self) -> Self::GamehopUI;
     fn prove_ui(&self) -> Self::ProveUI;
     fn latex_ui(&self) -> Self::LatexUI;
 }
@@ -87,7 +87,7 @@ pub trait ProveClaimUI: Send + Sync {
     fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()>;
 }
 
-pub trait ProofstepUI {
+pub trait GamehopUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 }
 
