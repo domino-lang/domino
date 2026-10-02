@@ -60,15 +60,15 @@ impl<'a> Reduction<'a> {
         }
     }
 
-    pub(crate) fn left(&self) -> &ReductionMapping<'a> {
+    pub fn left(&self) -> &ReductionMapping<'a> {
         &self.left
     }
 
-    pub(crate) fn right(&self) -> &ReductionMapping<'a> {
+    pub fn right(&self) -> &ReductionMapping<'a> {
         &self.right
     }
 
-    pub(crate) fn assumption_name(&self) -> &str {
+    pub fn assumption_name(&self) -> &str {
         &self.assumption_name
     }
 }
