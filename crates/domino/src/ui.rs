@@ -178,6 +178,7 @@ impl ProveTheoremUI for IndicatifProveTheoremUI {
             theorem_ui: self.clone(),
             name: format!("{gamehop}"),
             progress: None,
+            children: Arc::default(),
         }
     }
 }
@@ -187,10 +188,12 @@ pub struct IndicatifProveGamehopUI {
     theorem_ui: IndicatifProveTheoremUI,
     name: String,
     progress: Option<ProgressBar>,
+    children: Arc<Mutex<Vec<ProgressBar>>>,
 }
 
 impl IndicatifProveGamehopUI {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
+        self.children.lock().unwrap().push(progress.clone());
         self.theorem_ui.insert_before(before, progress)
     }
     fn tick(&self) {
@@ -223,7 +226,7 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
 
     fn start(&mut self) {
         if let Some(progress) = &self.theorem_ui.progress {
-            let new_progress = self.insert_before(progress, ProgressBar::new(0));
+            let new_progress = self.theorem_ui.insert_before(progress, ProgressBar::new(0));
             new_progress.set_style(indicatif_style::proofstep_bar());
             new_progress.set_message(self.name.clone());
             self.progress = Some(new_progress);
@@ -237,6 +240,9 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
         }
         self.tick();
         if let Some(progress) = &self.progress {
+            for child in self.children.lock().unwrap().iter() {
+                child.finish_and_clear();
+            }
             progress.finish();
         }
     }
@@ -299,9 +305,6 @@ impl IndicatifProveOracleUI {
             progress.inc(1);
         }
         self.tick();
-        if let Some(progress) = &self.progress {
-            progress.finish();
-        }
     }
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.proofstep_ui.println(line)
