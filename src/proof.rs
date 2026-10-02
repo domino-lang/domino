@@ -4,9 +4,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
-    gamehops::equivalence::Equivalence,
-    gamehops::reduction::Reduction,
-    gamehops::GameHop,
+    gamehops::{conjecture::Conjecture, equivalence::Equivalence, reduction::Reduction, GameHop},
     identifier::game_ident::GameConstIdentifier,
     theorem::GameInstance,
 };
@@ -172,6 +170,10 @@ impl<'a> Proof<'a> {
 
     pub fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
         self.game_hops().filter_map(GameHop::as_equivalence)
+    }
+
+    pub fn conjectures(&self) -> impl Iterator<Item = &Conjecture<'_>> {
+        self.game_hops().filter_map(GameHop::as_conjecture)
     }
 
     pub fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {
