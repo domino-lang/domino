@@ -39,7 +39,7 @@ pub(crate) struct Latex {
     pub(crate) path: Option<std::path::PathBuf>,
 }
 
-#[derive(clap::Args, Debug)]
+#[derive(clap::Args, Debug, Clone)]
 #[clap(author, version, about, long_about = None)]
 pub(crate) struct Prove<'a> {
     /// Path to the Domino project. Defaults to searching the current
