@@ -312,7 +312,7 @@
        (honest-kmac left.KX.State left.PRF.PRF left.KX.Fresh left.PRF.H)))
 
 
-(define-lemma <relation-aux-H6_1_0-H6_1_1-AtLeast>
+(define-lemma aux AtLeast
     (H610-old H611-old H610-return H611-return
      (sid (Tuple5 Int Int Bits_n Bits_n Bits_n)))
   (and (= H610-return.state.KX H610-old.KX)
