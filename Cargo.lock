@@ -325,6 +325,7 @@ dependencies = [
  "env_logger",
  "indicatif",
  "indicatif-log-bridge",
+ "itertools",
  "miette",
  "shadow-rs",
  "sspverif",

@@ -6,9 +6,10 @@ use crate::{
         GameHop,
     },
     package::Export,
+    theorem::Theorem,
     ui::{
         GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
-        ProveTheoremUI, ProveUI, UI,
+        ProveTheoremUI, ProveUI,
     },
 };
 
@@ -18,28 +19,6 @@ pub struct TestUI {}
 impl TestUI {
     pub fn new() -> Self {
         Self {}
-    }
-}
-
-impl UI for TestUI {
-    type GamehopUI = TestUI;
-    type ProveUI = TestUI;
-    type LatexUI = TestUI;
-
-    fn println(&self, _line: &str) -> std::io::Result<()> {
-        Ok(())
-    }
-
-    fn gamehop_ui(&self) -> Self::GamehopUI {
-        self.clone()
-    }
-
-    fn prove_ui(&self) -> Self::ProveUI {
-        self.clone()
-    }
-
-    fn latex_ui(&self) -> Self::LatexUI {
-        self.clone()
     }
 }
 
@@ -66,7 +45,8 @@ impl ProveTheoremUI for TestUI {
     }
 
     fn start(&mut self) {}
-    fn finish(&self) {}
+    fn finish(&self, _theorem: &Theorem) {}
+    fn skip(&self) {}
 
     fn start_gamehop(&self, _gamehop_name: &GameHop) -> Self::ProveGamehopUI {
         self.clone()
