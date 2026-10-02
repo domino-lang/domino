@@ -11,3 +11,5 @@ kem-dem/kem-dem-cpa-blended-parallel-single-challenge
 # the helloworld projects
 hello-world
 hello-world-oracle-rename
+hello-world-oracle-rename-new
+hello-world-hybrid
