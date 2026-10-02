@@ -394,6 +394,15 @@ impl IndicatifProveClaimUI {
         }
     }
     fn failure(&self) {
+        self.oracle_ui
+            .println(&format!(
+                "{} {} {} failed",
+                console::style("✘").bold().red(),
+                self.oracle_ui.name,
+                self.name
+            ))
+            .unwrap();
+
         if let Some(progress) = &self.oracle_ui.progress {
             progress.inc(1);
             progress.set_message(self.oracle_ui.name.to_string());
