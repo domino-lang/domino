@@ -2360,3 +2360,21 @@ wait $ec
         assert!(read_record(&record_path(&result, out.path())).complete);
     }
 }
+
+#[test]
+fn the_translation_files_line_names_few_files_and_counts_many() {
+    let names = |n: usize| (0..n).map(|i| format!("F{i}.ec")).collect::<Vec<_>>();
+    assert_eq!(
+        translation_files_line("Eq_A_B", &[]),
+        "easycrypt prove: Eq_A_B — translation files already on disk"
+    );
+    assert_eq!(
+        translation_files_line("Eq_A_B", &names(2)),
+        "easycrypt prove: Eq_A_B — wrote missing translation files: F0.ec, F1.ec"
+    );
+    assert!(translation_files_line("Eq_A_B", &names(5)).ends_with("F3.ec, F4.ec"));
+    assert_eq!(
+        translation_files_line("Eq_A_B", &names(6)),
+        "easycrypt prove: Eq_A_B — wrote 6 missing translation files"
+    );
+}

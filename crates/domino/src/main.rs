@@ -242,15 +242,42 @@ fn stop_on_ctrl_c(first: &'static str) -> std::sync::Arc<std::sync::atomic::Atom
     stop
 }
 
+/// The observer of one `domino debug` run (one oracle): a bar on a terminal, a line per pair when
+/// piped. `domino easycrypt debug` makes its observers the same way.
 #[cfg(feature = "cvc5-lib")]
-fn debug(d: &Debug) -> Result<(), Error> {
+fn debug_observer(mode: ProgressMode) -> Box<dyn sspverif::debug::progress::DebugObserver> {
     use std::io::IsTerminal;
 
+    use sspverif::debug::progress::{BarObserver, NopObserver, PlainObserver};
+    match mode {
+        ProgressMode::None => Box::new(NopObserver),
+        ProgressMode::Plain => Box::new(PlainObserver::new()),
+        ProgressMode::Bar => Box::new(BarObserver::new()),
+        ProgressMode::Auto => {
+            if std::io::stderr().is_terminal() {
+                Box::new(BarObserver::new())
+            } else {
+                Box::new(PlainObserver::new())
+            }
+        }
+    }
+}
+
+/// A stage message of `easycrypt prove` or `easycrypt debug` (story 44): on stderr, above any bar
+/// on screen, and nothing under `--progress none`.
+#[cfg(feature = "cvc5-lib")]
+fn stage_line(mode: ProgressMode, line: &str) {
+    if mode != ProgressMode::None {
+        sspverif::debug::progress::eprintln_above_bars(line);
+    }
+}
+
+#[cfg(feature = "cvc5-lib")]
+fn debug(d: &Debug) -> Result<(), Error> {
     use sspverif::debug::driver::{run_debug_command, DebugError, DebugOptions};
     use sspverif::debug::layout::DOMINO_DEBUG_DIR;
     use sspverif::debug::lockstep_report::render_summary as render_lockstep_summary;
     use sspverif::debug::lockstep_run::{run_lockstep_domino, LockstepDebugOptions};
-    use sspverif::debug::progress::{BarObserver, DebugObserver, NopObserver, PlainObserver};
     use sspverif::debug::smtout::SmtOut;
     use sspverif::debug::sweep::{self, SweepEntry};
 
@@ -312,20 +339,7 @@ fn debug(d: &Debug) -> Result<(), Error> {
 
     let backend = sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, d.timeout);
 
-    let make_observer = || -> Box<dyn DebugObserver> {
-        match d.progress {
-            ProgressMode::None => Box::new(NopObserver),
-            ProgressMode::Plain => Box::new(PlainObserver::new()),
-            ProgressMode::Bar => Box::new(BarObserver::new()),
-            ProgressMode::Auto => {
-                if std::io::stderr().is_terminal() {
-                    Box::new(BarObserver::new())
-                } else {
-                    Box::new(PlainObserver::new())
-                }
-            }
-        }
-    };
+    let make_observer = || debug_observer(d.progress);
 
     // Best-effort Ctrl-C handling. The first press sets a flag the driver checks
     // at every fork (inside branch-pruning sweeps too) and at every pair
@@ -775,6 +789,9 @@ fn easycrypt_prove<P: project::Project>(
         // fail early and clearly: a `-json`-capable EasyCrypt is a prerequisite
         drop(sspverif::easycrypt::session::Session::start(&std::env::temp_dir())?);
 
+        for name in &theorem_names {
+            stage_line(p.progress, &format!("easycrypt prove: translating {name} in memory"));
+        }
         let mut observer = export_observer(p.progress);
         let mut logging = LoggingExportObserver::new(observer.as_mut());
         // The proof job needs translation's result in memory (the equivalence setup and the
@@ -806,6 +823,7 @@ fn easycrypt_prove<P: project::Project>(
                  partial proof (Ctrl-C again to abort now)",
             )),
             force: p.force,
+            announce_stages: p.progress != ProgressMode::None,
             resume: match p.resume {
                 ResumeArg::Trust => ResumeMode::Trust,
                 ResumeArg::Replay => ResumeMode::Replay,
@@ -850,6 +868,12 @@ fn easycrypt_prove<P: project::Project>(
     }
 }
 
+/// `1 oracle`, `7 oracles`.
+#[cfg(feature = "cvc5-lib")]
+fn count(n: usize, noun: &str) -> String {
+    format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
+}
+
 /// `domino easycrypt debug` (story 19, 35): lockstep execution on the EasyCrypt listing. It
 /// starts no EasyCrypt and reads no file of the tree, so it writes only `!debug!/`.
 fn easycrypt_debug<P: project::Project>(
@@ -864,13 +888,24 @@ fn easycrypt_debug<P: project::Project>(
     }
     #[cfg(feature = "cvc5-lib")]
     {
-        use sspverif::easycrypt::debug::{debug_theorem, EcDebugOptions};
-        use sspverif::writers::easycrypt::progress::{LoggingExportObserver, NopExportObserver};
+        use sspverif::easycrypt::debug::{debug_theorem, plan_debug, EcDebugOptions};
+        use sspverif::writers::easycrypt::progress::LoggingExportObserver;
 
         let theorem_names = proof_job_theorem(project, &d.theorem)?;
-        let mut observer = NopExportObserver;
-        let mut logging = LoggingExportObserver::new(&mut observer);
+        for name in &theorem_names {
+            stage_line(
+                d.progress,
+                &format!(
+                    "easycrypt debug: translating {name} in memory (the export tree is not read or \
+                     written)"
+                ),
+            );
+        }
+        let mut observer = export_observer(d.progress);
+        let mut logging = LoggingExportObserver::new(observer.as_mut());
         let exports = export_in_memory(project, &theorem_names, &mut logging)?;
+        drop(logging);
+        drop(observer);
 
         let backend =
             sspverif::util::smtsolver::cvc5lib::Cvc5LibBackend::new(true, d.debug_timeout);
@@ -887,6 +922,16 @@ fn easycrypt_debug<P: project::Project>(
         for (name, exported) in &exports {
             let theorem = project.get_theorem(name).unwrap();
             let theorem_out = out_base.join(name);
+            let plan = plan_debug(theorem, exported, &options)?;
+            stage_line(
+                d.progress,
+                &format!(
+                    "easycrypt debug: lockstep execution on {} of {} → {}",
+                    count(plan.oracles, "oracle"),
+                    count(plan.equivalences, "equivalence"),
+                    theorem_out.join("!debug!").display()
+                ),
+            );
             println!();
             let entries = debug_theorem(
                 theorem,
@@ -896,6 +941,7 @@ fn easycrypt_debug<P: project::Project>(
                 &backend,
                 &options,
                 Some(&stop),
+                &mut || debug_observer(d.progress),
                 &mut |entry| println!("{}", entry.one_line()),
             )?;
             let table = sspverif::debug::sweep::failure_table(&entries);

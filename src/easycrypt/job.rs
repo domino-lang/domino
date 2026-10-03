@@ -71,8 +71,8 @@ pub fn is_proof_file(rel: &Path) -> bool {
 }
 
 /// Creates, in `theorem_out`, every file of `exported` that translation owns (all but the
-/// `Eq_*.ec` proof files) and that is missing, one line on stderr each. Files that exist are not read.
-/// Returns the relative paths created.
+/// `Eq_*.ec` proof files) and that is missing. Files that exist are not read. Says nothing:
+/// the caller reports the paths it gets back (story 44).
 pub fn ensure_translation_files(
     exported: &ExportedTheorem,
     theorem_out: &Path,
@@ -83,7 +83,6 @@ pub fn ensure_translation_files(
             continue;
         }
         if create_if_absent(&theorem_out.join(rel), text)? {
-            eprintln!("created {} (missing from the translation)", rel.display());
             created.push(rel.clone());
         }
     }

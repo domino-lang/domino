@@ -17,6 +17,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Duration;
 
 use crate::debug::driver::Verdict;
+use crate::debug::progress::eprintln_above_bars;
 use crate::debug::lockstep::{
     ChildOutcome, HeadKind, JointChild, JointNode, LockstepOutcome, NodeKind, PairRecord,
     EQUAL_OUTPUT,
@@ -974,10 +975,10 @@ impl Prover<'_> {
             .map(Admit::from_record)
             .collect::<Option<Vec<_>>>()
         else {
-            eprintln!(
+            eprintln_above_bars(&format!(
                 "warning: N{idx} of {} has an admit this Domino does not know; it is proved again",
                 self.oracle
-            );
+            ));
             reached(self);
             return Ok(false);
         };
@@ -1041,18 +1042,18 @@ impl Prover<'_> {
             }
             // interrupted by a stop request, not rejected
             self.stop_point()?;
-            eprintln!(
+            eprintln_above_bars(&format!(
                 "warning: replaying N{idx} of {}: EasyCrypt rejected `{}`; N{idx} is proved again",
                 self.oracle, line.sentence
-            );
+            ));
             return self.undo_replay(state);
         }
         if self.count() + 1 != before {
-            eprintln!(
+            eprintln_above_bars(&format!(
                 "warning: replaying N{idx} of {}: its script did not close its goal; N{idx} is \
                  proved again",
                 self.oracle
-            );
+            ));
             return self.undo_replay(state);
         }
         Ok(true)

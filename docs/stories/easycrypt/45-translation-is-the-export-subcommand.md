@@ -34,6 +34,16 @@ the flag is silently ignored, because only translation reads it.
   - `crates/domino/tests/easycrypt_overwrite.rs` gained
     `a_saved_joint_tree_blocks_translation_and_force_deletes_it`, which calls the bare
     `easycrypt` like its neighbours.
+- **Story 44:**
+  - `EcDebug` now has its own `--progress` (same help as `EcProve`'s), and `prove`/`debug` print
+    stage lines through `stage_line` in `main.rs` (nothing under `--progress none`). The parent's
+    `--progress` is still read only by `easycrypt_translate`.
+  - `crates/domino/tests/easycrypt_prove.rs`'s `domino(…)` helper appends `--progress none` to
+    every subcommand except `check-alignment` and `debug`, unless the args already carry
+    `--progress`; and it calls the bare `easycrypt` form for translation (`&[]` args), where the
+    parent's `--progress none` is what it appends. That spelling is the one that stops parsing.
+  - The new `crates/domino/tests/easycrypt_stage_messages.rs` calls `domino easycrypt <sub> …
+    --project … --out …` and passes `--progress` explicitly in each call.
 
 ## 3. Work to do
 

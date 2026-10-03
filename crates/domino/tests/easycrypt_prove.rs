@@ -34,6 +34,7 @@ fn domino(project: &str, out: &Path, easycrypt: &Path, args: &[&str]) -> Output 
     // only translation and `prove` report progress
     let progress: &[&str] = match args.first() {
         Some(&"check-alignment" | &"debug") => &[],
+        _ if args.contains(&"--progress") => &[],
         _ => &["--progress", "none"],
     };
     Command::new(env!("CARGO_BIN_EXE_domino"))
@@ -126,10 +127,14 @@ fn a_proof_job_touches_only_its_own_files_skips_a_done_equivalence_and_recreates
     std::fs::remove_file(theorem.join("Types.ec")).unwrap();
     let mut forced = prove.to_vec();
     forced.push("-f");
+    forced.extend(["--progress", "plain"]);
     let out = domino("hello-world", &dir, &ec, &forced);
     assert!(out.status.success(), "{}", stderr(&out));
+    // `-f` restarts the proof file from the skeleton: that is not a missing file, so not listed
     assert!(
-        stderr(&out).contains("created Types.ec (missing from the translation)"),
+        stderr(&out)
+            .lines()
+            .any(|l| l == format!("easycrypt prove: {EQ} — wrote missing translation files: Types.ec")),
         "{}",
         stderr(&out)
     );
@@ -313,11 +318,13 @@ fn a_proof_job_recreates_a_missing_invariants_file() {
         "hello-world",
         &dir,
         &ec,
-        &["prove", "--theorem", "Proof", "--proofstep", "0"],
+        &["prove", "--theorem", "Proof", "--proofstep", "0", "--progress", "plain"],
     );
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(
-        stderr(&out).contains(&format!("created {invariants} (missing from the translation)")),
+        stderr(&out).contains(&format!(
+            "easycrypt prove: {EQ} — wrote missing translation files: {invariants}"
+        )),
         "{}",
         stderr(&out)
     );

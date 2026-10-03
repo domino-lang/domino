@@ -231,6 +231,9 @@ pub(crate) struct EcDebug {
     /// `domino debug --timeout`. A timeout counts as `unknown`, never as verified.
     #[clap(long)]
     pub(crate) debug_timeout: Option<u64>,
+    /// How the run reports what it is doing, on stderr.
+    #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
+    pub(crate) progress: ProgressMode,
 }
 
 #[derive(clap::Args, Debug)]

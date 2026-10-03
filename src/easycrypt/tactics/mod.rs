@@ -57,6 +57,7 @@ use crate::debug::lockstep::LockstepOutcome;
 use crate::debug::lockstep_fingerprint::{describe_part, Fingerprint};
 use crate::gamehops::equivalence::smtrewrite::without_custom_smt_warning;
 use crate::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions, LockstepSummary};
+use crate::debug::progress::eprintln_above_bars;
 use crate::writers::easycrypt::progress::{ExportObserver, NopExportObserver};
 use crate::project::Project;
 use crate::theorem::Theorem;
@@ -133,6 +134,9 @@ pub struct TacticsOptions {
     pub force: bool,
     /// `prove --resume`: how an oracle the session record holds as `interrupted` is resumed.
     pub resume: ResumeMode,
+    /// Whether the run says, on stderr, which translation files it wrote for each equivalence it
+    /// proves (story 44). Off for `--progress none`, and in library use.
+    pub announce_stages: bool,
 }
 
 /// How a proof job resumes an oracle the session record holds as `interrupted` (`--resume`,
@@ -299,6 +303,7 @@ impl Default for TacticsOptions {
             stop: None,
             force: false,
             resume: ResumeMode::Trust,
+            announce_stages: false,
         }
     }
 }
@@ -640,6 +645,7 @@ where
             eq,
             &out_dir,
             &dir,
+            &created,
             prior.as_ref(),
             backend,
             options,
@@ -689,6 +695,28 @@ fn translation_line(exported: &ExportedTheorem, created: &[PathBuf]) -> String {
         )
     }
 }
+
+/// The stage line of an equivalence that is proved: what this process wrote of the translation
+/// (the shared files it found missing and the equivalence's own `Eq_*.ec`), named when there are
+/// fewer than [`NAMED_FILES_LIMIT`] and counted otherwise.
+fn translation_files_line(stem: &str, wrote: &[String]) -> String {
+    if wrote.is_empty() {
+        format!("easycrypt prove: {stem} — translation files already on disk")
+    } else if wrote.len() < NAMED_FILES_LIMIT {
+        format!(
+            "easycrypt prove: {stem} — wrote missing translation files: {}",
+            wrote.join(", ")
+        )
+    } else {
+        format!(
+            "easycrypt prove: {stem} — wrote {} missing translation files",
+            wrote.len()
+        )
+    }
+}
+
+/// A stage line names the files it wrote when fewer than this many.
+const NAMED_FILES_LIMIT: usize = 6;
 
 /// What a proof job does with an equivalence.
 #[derive(Debug)]
@@ -770,6 +798,7 @@ fn tactics_for_equivalence<P, B>(
     eq: &EquivalenceReport,
     out_dir: &Path,
     progress_dir: &Path,
+    created: &[PathBuf],
     prior: Option<&SessionRecord>,
     backend: &B,
     options: &TacticsOptions,
@@ -803,10 +832,18 @@ where
     // this equivalence's own file: created from the skeleton when missing, restarted from it
     // with `--force`; otherwise the run rewrites it at its first checkpoint
     let proof_path = out_dir.join(&file);
-    if options.force && prior.is_none() {
+    let wrote_proof = if options.force && prior.is_none() {
         write_atomically(&proof_path, progress_dir, source)?;
-    } else if create_if_absent(&proof_path, source)? {
-        eprintln!("created {file} (missing from the translation)");
+        false // restarted from the skeleton, which is not a missing file
+    } else {
+        create_if_absent(&proof_path, source)?
+    };
+    if options.announce_stages {
+        let mut wrote: Vec<String> = created.iter().map(|p| p.display().to_string()).collect();
+        if wrote_proof {
+            wrote.push(file.clone());
+        }
+        eprintln_above_bars(&translation_files_line(file.trim_end_matches(".ec"), &wrote));
     }
     // open the proof: everything up to `call (…); last first.`, then the base case
     let sentences = split_sentences(source);
@@ -1014,7 +1051,7 @@ impl SessionSetup<'_> {
         session.set_observer(Box::new(move |event| {
             if let SessionEvent::Answered { response, .. } = event {
                 if let Some(warning) = swallow.see(response) {
-                    crate::debug::progress::eprintln_above_bars(&format!("warning: {warning}"));
+                    eprintln_above_bars(&format!("warning: {warning}"));
                 }
             }
             page(event);
@@ -1344,7 +1381,7 @@ fn resuming<P: Project>(
         return None;
     }
     let restart = |why: &str| {
-        eprintln!("warning: {why}; {oracle} is proved again from the start");
+        eprintln_above_bars(&format!("warning: {why}; {oracle} is proved again from the start"));
     };
     if prior.version < 3 {
         restart(&format!(
@@ -1392,11 +1429,11 @@ fn resuming<P: Project>(
     };
     if !stale.is_empty() {
         let what: Vec<&str> = stale.iter().map(|p| describe_part(p)).collect();
-        eprintln!(
+        eprintln_above_bars(&format!(
             "warning: the saved joint tree of {oracle} predates changes to {}; the EasyCrypt \
              files may be stale too. Export with --force to start over.",
             what.join(", ")
-        );
+        ));
     }
     let lockstep_time = Duration::from_millis(entry.lockstep.map_or(0, |l| l.ms));
     Some(Resuming {
@@ -1513,10 +1550,10 @@ fn save_tree<P: Project>(
     let fingerprint = match fingerprint {
         Ok(fingerprint) => fingerprint,
         Err(e) => {
-            eprintln!(
+            eprintln_above_bars(&format!(
                 "warning: the joint tree of {oracle} is not saved, its fingerprint failed: {e}; \
                  an interrupted {oracle} will be proved again from the start"
-            );
+            ));
             return match std::fs::remove_file(&path) {
                 Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
                 _ => Ok(None),
