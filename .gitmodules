@@ -1,0 +1,4 @@
+[submodule "easycrypt"]
+	path = easycrypt
+	url = git@github.com:tornado80/easycrypt.git
+	branch = amir/domino-easycrypt-integration
