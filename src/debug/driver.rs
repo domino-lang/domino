@@ -56,7 +56,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::debug::claims::{
     aggregate, check_claim, check_claims, obligations, ClaimQuery, PairAborts,
@@ -188,7 +188,7 @@ pub const TRACE_SCHEMA: u32 = 9;
 
 /// Why exploration ended. Serialised into `trace.json` (replacing the old bare
 /// `partial: bool`); `summary.txt` prints the human-readable form.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum StopReason {
     /// Every path the pruner did not cut was explored.
@@ -471,7 +471,7 @@ pub struct RightPath {
     pub smt: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepView {
     pub label: usize,
     pub line: String,
@@ -480,14 +480,14 @@ pub struct StepView {
     pub decision: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalView {
     pub label: usize,
     pub line: String,
     pub is_abort: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Verdict {
     /// Goal check `unsat` — the claim holds on this pair.
@@ -503,7 +503,7 @@ pub enum Verdict {
 }
 
 /// The scope of an [`Verdict::Unreachable`]. Neither flavour is a failure.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Unreachability {
     /// The pair itself cannot happen: the vacuity check was unsat.
@@ -538,13 +538,13 @@ impl Verdict {
 }
 
 /// What one claim of the oracle's obligation set said about one terminal pair.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClaimVerdict {
     pub claim: String,
     pub verdict: Verdict,
     /// Sub-verdicts of `invariant`, present only when it is neither verified nor unreachable
     /// (lockstep execution). Empty for every other claim.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub relations: Vec<crate::debug::lockstep::RelationVerdict>,
 }
 

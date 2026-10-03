@@ -56,6 +56,20 @@ pub(crate) enum WriteGranularityArg {
     Tactic,
 }
 
+/// How `domino easycrypt prove` resumes an oracle the session record holds as `interrupted`
+/// (ADR 0008).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ResumeArg {
+    /// Walk the saved joint tree; each node the earlier job closed is closed with `admit.` and
+    /// its recorded proof goes into the file unchecked (the default).
+    Trust,
+    /// As `trust`, but EasyCrypt checks each closed node's recorded proof again; a node whose
+    /// proof is rejected is proved again.
+    Replay,
+    /// Prove the oracle from scratch, lockstep execution included.
+    Restart,
+}
+
 #[derive(Subcommand, Debug)]
 pub(crate) enum Commands {
     /// Export to LaTeX
@@ -100,8 +114,8 @@ pub(crate) struct Easycrypt {
     /// Overwrite what is already in `<out>/<theorem>/`. Without it the command refuses,
     /// before any other work, if a theorem's directory holds a file other than a run
     /// artifact (`progress/`, `!debug!/`, `*.report.txt`, `alignment.txt`) or `<out>`
-    /// itself holds a file, and lists them. Proofs written by `domino easycrypt prove` and
-    /// their session records (`*.session.json`) are discarded.
+    /// itself holds a file, and lists them. Proofs written by `domino easycrypt prove`, their
+    /// session records (`*.session.json`) and saved joint trees (`*.tree.json`) are discarded.
     #[clap(long)]
     pub(crate) force: bool,
     /// How the export reports what it is translating, on stderr (stdout and the written
@@ -144,9 +158,14 @@ pub(crate) struct EcProve {
     /// `--oracle O`: prove `O` again, keeping the other oracles' proofs). Without it a complete
     /// record skips the equivalence and a partial one is resumed: the oracles it holds are not
     /// proved again. Never rewrites a translation file: a stale one is fixed by
-    /// `domino easycrypt --force`.
+    /// `domino easycrypt --force`. Overrides `--resume`.
     #[clap(long, short = 'f')]
     pub(crate) force: bool,
+    /// How an oracle the session record holds as `interrupted` is resumed: on its saved joint
+    /// tree, keeping the nodes the earlier job closed (`trust`, `replay`), or from scratch
+    /// (`restart`). Oracles the record holds as done are never proved again.
+    #[clap(long, value_enum, default_value_t = ResumeArg::Trust)]
+    pub(crate) resume: ResumeArg,
     /// Seconds one EasyCrypt sentence may run before it is interrupted.
     #[clap(long, default_value_t = 60)]
     pub(crate) ec_timeout: u64,

@@ -13,7 +13,7 @@
 //! only. Counts for `sp k l` and the names of sampled variables are read from the JSON of the
 //! goal in front, and subgoals are told apart by kind, never by position in a list.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Duration;
 
 use crate::debug::driver::Verdict;
@@ -26,8 +26,9 @@ use crate::easycrypt::session::{Session, SessionError};
 
 use super::goals;
 use super::live::LiveHandle;
-use crate::easycrypt::job::NodeRecord;
+use super::ResumeMode;
 use super::script::{Mark, Script};
+use crate::easycrypt::job::{AdmitRecord, ClosedNode};
 
 type R<T> = Result<T, SessionError>;
 
@@ -153,6 +154,32 @@ impl Admit {
             self.domino.slug()
         )
     }
+
+    /// The admit as the session record holds it, without the goal.
+    pub fn to_record(&self) -> AdmitRecord {
+        AdmitRecord {
+            node: self.id.clone(),
+            reason: self.reason.slug().to_string(),
+            claim: self.claim.clone(),
+            domino: self.domino.slug().to_string(),
+        }
+    }
+
+    /// An admit of the session record, or `None` for a reason or a verdict this version does
+    /// not know.
+    pub fn from_record(record: &AdmitRecord) -> Option<Admit> {
+        Some(Admit {
+            reason: AdmitReason::from_slug(&record.reason)?,
+            id: record.node.clone(),
+            claim: record.claim.clone(),
+            domino: if record.domino.is_empty() {
+                DominoView::NotApplicable
+            } else {
+                DominoView::from_slug(&record.domino)?
+            },
+            goal: String::new(),
+        })
+    }
 }
 
 /// What happened while proving one oracle.
@@ -206,6 +233,21 @@ impl<'a> OracleTree<'a> {
 
     fn node(&self, idx: usize) -> &'a JointNode {
         &self.outcome.tree.nodes[idx]
+    }
+
+    /// The nodes above `idx`, its parent first.
+    fn ancestors(&self, idx: usize) -> Vec<usize> {
+        let nodes = &self.outcome.tree.nodes;
+        let parent = |child: usize| {
+            // pre-order arena: a parent always has a smaller index than its child
+            (0..child).rev().find(|&p| {
+                nodes[p]
+                    .children
+                    .iter()
+                    .any(|c| matches!(c.outcome, ChildOutcome::Explored { node } if node == child))
+            })
+        };
+        std::iter::successors(parent(idx), |&p| parent(p)).collect()
     }
 
     fn pairs_below(&self, idx: usize) -> impl Iterator<Item = &'a PairRecord> + '_ {
@@ -304,8 +346,63 @@ pub(super) struct Sealed {
     pub mismatches: Vec<String>,
     /// The joint node the walk was in, as the `interrupted` admits name it: `N<k>` or `router`.
     pub node: String,
-    /// The sealed script's sentences per joint node (the session record's `nodes`).
-    pub node_scripts: Vec<NodeRecord>,
+    /// The outermost closed nodes (the session record's `closed`).
+    pub closed: Vec<ClosedNode>,
+    /// Resuming: how many closed nodes of the session record were kept so far.
+    pub kept: usize,
+}
+
+/// Resuming an interrupted oracle on its saved joint tree (ADR 0008): which nodes the earlier
+/// job closed, and where it stood.
+pub(super) struct Resume {
+    /// `trust` or `replay` (`restart` does not resume).
+    pub mode: ResumeMode,
+    /// The session record's closed nodes, by node index.
+    pub closed: BTreeMap<usize, ClosedNode>,
+    /// The ancestors of the in-flight node: the earlier job got past their rung 0.
+    pub skip_rung0: HashSet<usize>,
+    /// The closed nodes the walk has kept or proved again so far, in order; an undone attempt
+    /// takes back what it reached. A closed node not reached is kept by a seal.
+    pub reached: Vec<usize>,
+    /// How many closed nodes were kept.
+    pub kept: usize,
+    /// While a closed node's script is replayed: the goals open before it. The replayed
+    /// sentences are not in the script, so a seal in the middle seals this many goals.
+    pub replaying: Option<usize>,
+}
+
+impl Resume {
+    /// `closed` and `in_flight` (`N<k>` or `router`) as the session record names them.
+    ///
+    /// Panics on a node id that is not in the tree: the record and the tree were written by the
+    /// same job.
+    pub(super) fn new(
+        tree: &OracleTree<'_>,
+        mode: ResumeMode,
+        closed: Vec<ClosedNode>,
+        in_flight: &str,
+    ) -> Resume {
+        let total = tree.outcome.tree.nodes.len();
+        let index = |id: &str| {
+            id.strip_prefix('N')
+                .and_then(|k| k.parse::<usize>().ok())
+                .filter(|&k| k < total)
+                .unwrap_or_else(|| panic!("node {id} of the session record is not in the saved tree"))
+        };
+        let skip_rung0 = if in_flight == "router" {
+            HashSet::new()
+        } else {
+            tree.ancestors(index(in_flight)).into_iter().collect()
+        };
+        Resume {
+            mode,
+            closed: closed.into_iter().map(|c| (index(&c.id), c)).collect(),
+            skip_rung0,
+            reached: Vec::new(),
+            kept: 0,
+            replaying: None,
+        }
+    }
 }
 
 /// A point to return to: the session's state and the script's.
@@ -313,6 +410,10 @@ struct Snap {
     state: u64,
     script: Mark,
     closed: usize,
+    /// How many closed nodes of the session record had been reached ([`Resume::reached`]), and
+    /// how many of them kept.
+    reached: usize,
+    kept: usize,
 }
 
 pub(super) struct Prover<'a> {
@@ -351,6 +452,8 @@ pub(super) struct Prover<'a> {
     /// (Ctrl-C, story 34), or when EasyCrypt left an interrupt unanswered; the walk then unwinds
     /// with [`SessionError::Stopped`] or [`SessionError::Unresponsive`].
     pub stopped: Option<Sealed>,
+    /// Set when the oracle is resumed from the session record's closed nodes.
+    pub resume: Option<Resume>,
 }
 
 impl Prover<'_> {
@@ -388,8 +491,20 @@ impl Prover<'_> {
         let node = admit.id.clone();
         let mut stats = self.stats.clone();
         stats.admits.extend(std::iter::repeat_n(admit, admits));
+        let mut closed = script.closed_nodes();
+        // closed nodes of the earlier job the resumed walk has not reached yet stay closed
+        if let Some(resume) = &self.resume {
+            closed.extend(
+                resume
+                    .closed
+                    .iter()
+                    .filter(|(idx, _)| !resume.reached.contains(idx))
+                    .map(|(_, c)| c.clone()),
+            );
+        }
         Sealed {
-            node_scripts: script.by_node(),
+            closed,
+            kept: self.resume.as_ref().map_or(0, |r| r.kept),
             script: script.render(),
             stats,
             mismatches: self.mismatches.clone(),
@@ -416,6 +531,11 @@ impl Prover<'_> {
     /// Seals the oracle with `open` goals open, unless it is sealed already, and returns
     /// [`SessionError::Stopped`].
     fn stop_with(&mut self, open: usize) -> SessionError {
+        let open = self
+            .resume
+            .as_ref()
+            .and_then(|r| r.replaying)
+            .unwrap_or(open);
         if self.stopped.is_none() {
             self.stopped = Some(self.seal_with(open));
         }
@@ -463,6 +583,8 @@ impl Prover<'_> {
             state: self.state(),
             script: self.script.mark(),
             closed: self.stats.closed,
+            reached: self.resume.as_ref().map_or(0, |r| r.reached.len()),
+            kept: self.resume.as_ref().map_or(0, |r| r.kept),
         }
     }
 
@@ -474,6 +596,10 @@ impl Prover<'_> {
         }
         self.script.rollback(snap.script);
         self.stats.closed = snap.closed;
+        if let Some(resume) = self.resume.as_mut() {
+            resume.reached.truncate(snap.reached);
+            resume.kept = snap.kept;
+        }
         self.stats.attempts_undone += 1;
         Ok(())
     }
@@ -503,6 +629,22 @@ impl Prover<'_> {
             }
         }
         Ok(ok)
+    }
+
+    /// Sends `sentence` without writing it into the script, the live line showing `shown`:
+    /// whether EasyCrypt accepted it. A stop and an unanswered interrupt seal and unwind as in
+    /// [`Self::send`].
+    fn send_unscripted(&mut self, sentence: &str, shown: &str) -> R<bool> {
+        self.stop_point()?;
+        if let Some(live) = &self.live {
+            live.sentence_sent(shown);
+        }
+        let before = self.count();
+        match self.session.send(sentence) {
+            Ok(response) if response.goals_lost() => Err(self.stop_with(before)),
+            Ok(response) => Ok(response.status == Status::Ok),
+            Err(e) => Err(self.session_failed(e)),
+        }
     }
 
     /// Sends the sentences in order and keeps them if all are accepted and `want` holds at the
@@ -782,10 +924,21 @@ impl Prover<'_> {
             live.node_started(&format!("N{idx}"), self.tree.outcome.tree.nodes.len());
         }
         let parent = self.node.replace(idx);
-        self.script.set_node(Some(idx));
-        let result = self.prove_node_inner(idx);
+        let start = self.script.node_start(idx);
+        let admits_before = self.stats.admits.len();
+        let result = match self.keep_node(idx) {
+            Ok(true) => Ok(()),
+            Ok(false) => self.prove_node_inner(idx),
+            Err(e) => Err(e),
+        };
         self.node = parent;
-        self.script.set_node(parent);
+        if result.is_ok() {
+            let admits = self.stats.admits[admits_before..]
+                .iter()
+                .map(Admit::to_record)
+                .collect();
+            self.script.close_node(start, admits);
+        }
         if result.is_ok() && !self.per_sentence {
             self.checkpoint();
         }
@@ -796,6 +949,123 @@ impl Prover<'_> {
             live.node_started(&parent, self.tree.outcome.tree.nodes.len());
         }
         result
+    }
+
+    /// A node the session record holds as closed (resuming): its goal is closed without being
+    /// proved again, by `admit.` (`trust`) or by sending its recorded script again (`replay`), and
+    /// the recorded script goes into the file. `false`: the node is not closed in the record, or
+    /// a replayed sentence was rejected and everything was undone; it is proved live.
+    fn keep_node(&mut self, idx: usize) -> R<bool> {
+        let Some(resume) = self.resume.as_ref() else {
+            return Ok(false);
+        };
+        let Some(closed) = resume.closed.get(&idx).cloned() else {
+            return Ok(false);
+        };
+        let mode = resume.mode;
+        let reached = |p: &mut Self| {
+            if let Some(resume) = p.resume.as_mut() {
+                resume.reached.push(idx);
+            }
+        };
+        let Some(admits) = closed
+            .admits
+            .iter()
+            .map(Admit::from_record)
+            .collect::<Option<Vec<_>>>()
+        else {
+            eprintln!(
+                "warning: N{idx} of {} has an admit this Domino does not know; it is proved again",
+                self.oracle
+            );
+            reached(self);
+            return Ok(false);
+        };
+        let kind = self.tree.node(idx).kind.as_str();
+        self.session
+            .set_context(&format!("{} N{idx} {kind} ({})", self.oracle, mode.slug()));
+        // a stop before the node is kept or proved again leaves it closed, for the seal
+        let kept = match mode {
+            ResumeMode::Replay => self.replay(idx, &closed)?,
+            ResumeMode::Trust => {
+                if !self.send_unscripted("admit.", "kept")? {
+                    // interrupted by a stop request
+                    self.stop_point()?;
+                    // `admit.` closes any goal: a refusal means there is none, and the walk is lost
+                    return Err(SessionError::Refused {
+                        sentence: "admit.".into(),
+                        msg: format!("no goal for kept node N{idx}"),
+                    });
+                }
+                true
+            }
+            ResumeMode::Restart => unreachable!("restart does not resume"),
+        };
+        reached(self);
+        if !kept {
+            return Ok(false);
+        }
+        self.script.push_closed(idx, &closed);
+        self.stats.admits.extend(admits);
+        if let Some(resume) = self.resume.as_mut() {
+            resume.kept += 1;
+        }
+        if let Some(live) = &self.live {
+            live.node_kept();
+        }
+        if self.per_sentence {
+            self.checkpoint();
+        }
+        Ok(true)
+    }
+
+    /// Sends node `idx`'s recorded script again: whether EasyCrypt accepted every sentence and
+    /// the node's goal is closed. Otherwise it is all undone.
+    fn replay(&mut self, idx: usize, closed: &ClosedNode) -> R<bool> {
+        let before = self.count();
+        if let Some(resume) = self.resume.as_mut() {
+            resume.replaying = Some(before);
+        }
+        let replayed = self.replay_sentences(idx, closed, before);
+        if let Some(resume) = self.resume.as_mut() {
+            resume.replaying = None;
+        }
+        replayed
+    }
+
+    fn replay_sentences(&mut self, idx: usize, closed: &ClosedNode, before: usize) -> R<bool> {
+        let state = self.state();
+        for line in &closed.script {
+            if self.send_unscripted(&line.sentence, &line.sentence)? {
+                continue;
+            }
+            // interrupted by a stop request, not rejected
+            self.stop_point()?;
+            eprintln!(
+                "warning: replaying N{idx} of {}: EasyCrypt rejected `{}`; N{idx} is proved again",
+                self.oracle, line.sentence
+            );
+            return self.undo_replay(state);
+        }
+        if self.count() + 1 != before {
+            eprintln!(
+                "warning: replaying N{idx} of {}: its script did not close its goal; N{idx} is \
+                 proved again",
+                self.oracle
+            );
+            return self.undo_replay(state);
+        }
+        Ok(true)
+    }
+
+    fn undo_replay(&mut self, state: u64) -> R<bool> {
+        if self.state() != state {
+            if let Err(e) = self.session.undo_to(state) {
+                return Err(self.session_failed(e));
+            }
+        }
+        self.stats.attempts_undone += 1;
+        Ok(false)
     }
 
     fn prove_node_inner(&mut self, idx: usize) -> R<()> {
@@ -821,8 +1091,13 @@ impl Prover<'_> {
             }
         }
 
-        // rung 0 (§3.3): most abort branches close in one step
-        if node.kind != NodeKind::TerminalPair && self.rung0 {
+        // rung 0 (§3.3): most abort branches close in one step. Resuming, the in-flight node's
+        // ancestors skip it: the earlier job got past it into a child.
+        let resumed_past = self
+            .resume
+            .as_ref()
+            .is_some_and(|r| r.skip_rung0.contains(&idx));
+        if node.kind != NodeKind::TerminalPair && self.rung0 && !resumed_past {
             let rung0 = self.timeouts.rung0;
             self.note_rung("0: auto => /#");
             if self.with_timeout(rung0, |p| p.try_close(&["auto => /#."]))? {

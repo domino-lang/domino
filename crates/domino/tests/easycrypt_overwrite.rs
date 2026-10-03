@@ -234,3 +234,28 @@ fn a_session_record_blocks_translation_and_force_deletes_it() {
     assert!(!record.exists(), "--force deletes the records");
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// Resuming an oracle (ADR 0008): its saved joint tree is protected like the session record.
+#[test]
+fn a_saved_joint_tree_blocks_translation_and_force_deletes_it() {
+    let hello = project("hello-world");
+    let base = scratch("saved-tree");
+    let out = easycrypt(&hello, &base, &[]);
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    let tree = base.join("Proof/Eq_medium_composition_small_composition.UsefulOracle.tree.json");
+    std::fs::write(&tree, "{}").unwrap();
+    let out = easycrypt(&hello, &base, &[]);
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("Eq_medium_composition_small_composition.UsefulOracle.tree.json"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(tree.exists());
+
+    let out = easycrypt(&hello, &base, &["--force"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(!tree.exists(), "--force deletes the saved trees");
+    let _ = std::fs::remove_dir_all(&base);
+}

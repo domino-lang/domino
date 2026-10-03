@@ -23,6 +23,20 @@ pub struct CustomSmtWarning {
     pub expr: SmtExpr,
 }
 
+thread_local! {
+    /// Set while [`without_custom_smt_warning`] runs.
+    static QUIET: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `f` without the custom-SMT warning: for loading invariant files again whose first load
+/// has warned already (the fingerprint of a saved joint tree, ADR 0008).
+pub fn without_custom_smt_warning<T>(f: impl FnOnce() -> T) -> T {
+    let before = QUIET.with(|q| q.replace(true));
+    let out = f();
+    QUIET.with(|q| q.set(before));
+    out
+}
+
 #[derive(Debug, Copy, Clone)]
 pub enum SmtStatementKind {
     StateRelation,
@@ -52,12 +66,14 @@ pub struct SmtStmt {
  */
 impl From<SmtExpr> for SmtStmt {
     fn from(value: SmtExpr) -> Self {
-        eprintln!(
-            "{:?}",
-            miette::Report::new(CustomSmtWarning {
-                expr: value.clone()
-            })
-        );
+        if !QUIET.with(|q| q.get()) {
+            eprintln!(
+                "{:?}",
+                miette::Report::new(CustomSmtWarning {
+                    expr: value.clone()
+                })
+            );
+        }
 
         SmtStmt {
             sort: SmtStatementKind::Other,

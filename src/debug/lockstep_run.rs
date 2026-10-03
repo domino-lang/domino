@@ -39,7 +39,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::debug::claims::{obligations, ClaimQuery};
 use crate::debug::driver::{
@@ -222,7 +222,7 @@ pub struct LockstepMeta {
     pub right_syntactic: u64,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VerdictCounts {
     pub verified: usize,
     /// Unreachable for either reason.
@@ -251,7 +251,7 @@ impl VerdictCounts {
 }
 
 /// One claim's verdict counts over the joint paths.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ClaimCounts {
     pub claim: String,
     #[serde(flatten)]
@@ -260,13 +260,30 @@ pub struct ClaimCounts {
 
 /// How many joint paths got this combination of verdicts, one per claim in
 /// [`LockstepSummary::claims`]' order.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerdictCombo {
-    pub verdicts: Vec<&'static str>,
+    #[serde(deserialize_with = "verdict_slugs")]
+    pub verdicts: Vec<crate::debug::lockstep::StaticStr>,
     pub count: usize,
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+/// A combination's slugs back as the static strings [`VerdictCombo::verdicts`] holds.
+fn verdict_slugs<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<&'static str>, D::Error> {
+    let slugs = <Vec<String> as serde::Deserialize>::deserialize(d)?;
+    slugs
+        .iter()
+        .map(|slug| {
+            RANKED
+                .iter()
+                .chain(&["not-checked"])
+                .find(|r| **r == slug)
+                .copied()
+                .ok_or_else(|| serde::de::Error::unknown_variant(slug, &RANKED))
+        })
+        .collect()
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct LockstepSummary {
     pub joint_paths: usize,
     pub nodes: usize,

@@ -715,7 +715,7 @@ fn easycrypt_translate<P: project::Project>(
     if e.force {
         // the proofs the records describe are about to be overwritten by skeletons (story 35 §3.5)
         for out in &theorem_outs {
-            sspverif::easycrypt::job::remove_session_records(out)?;
+            sspverif::easycrypt::job::remove_records_and_trees(out)?;
         }
     }
     let outputs: Vec<_> = exports
@@ -766,7 +766,7 @@ fn easycrypt_prove<P: project::Project>(
     #[cfg(feature = "cvc5-lib")]
     {
         use sspverif::easycrypt::tactics::{
-            read_smt_hints, run_tactics_observed, EcTranscriptMode, TacticsOptions,
+            read_smt_hints, run_tactics_observed, EcTranscriptMode, ResumeMode, TacticsOptions,
             WriteGranularity,
         };
         use sspverif::writers::easycrypt::progress::LoggingExportObserver;
@@ -806,6 +806,11 @@ fn easycrypt_prove<P: project::Project>(
                  partial proof (Ctrl-C again to abort now)",
             )),
             force: p.force,
+            resume: match p.resume {
+                ResumeArg::Trust => ResumeMode::Trust,
+                ResumeArg::Replay => ResumeMode::Replay,
+                ResumeArg::Restart => ResumeMode::Restart,
+            },
         };
         let mut ended_early = false;
         for (name, exported) in &exports {

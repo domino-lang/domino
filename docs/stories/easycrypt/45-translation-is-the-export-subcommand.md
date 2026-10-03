@@ -24,6 +24,16 @@ the flag is silently ignored, because only translation reads it.
 - **Story 32 / ADR 0004:** translation refuses to overwrite anything but run artifacts without
   `--force`.
 - **Story 21:** translation's `--progress`.
+- **`resume-an-oracle-from-its-saved-joint-tree` (ADR 0008):**
+  - translation's `--force` also deletes the saved joint trees (`*.tree.json`) through
+    `job::remove_records_and_trees`, and its help (`Easycrypt.force`) says so; that help moves to
+    `EcExport` unchanged;
+  - `EcProve` has `--resume trust|replay|restart` (`ResumeArg`), and `EcProve --force`'s help
+    ends "Overrides `--resume`." next to the "fixed by `domino easycrypt --force`" pointer to
+    update;
+  - `crates/domino/tests/easycrypt_overwrite.rs` gained
+    `a_saved_joint_tree_blocks_translation_and_force_deletes_it`, which calls the bare
+    `easycrypt` like its neighbours.
 
 ## 3. Work to do
 

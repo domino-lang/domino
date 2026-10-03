@@ -27,6 +27,11 @@
 //! ([`EquivalenceTactics::ended_early`]). An answer that shows EasyCrypt *swallowed* an interrupt
 //! is warned about once per run ([`SwallowWatch`]).
 //!
+//! **Resuming an interrupted oracle** (ADR 0008, [`ResumeMode`]): lockstep execution's joint tree
+//! is saved beside the session record (`Eq_<L>_<R>.<oracle>.tree.json`) before the oracle's first
+//! sentence. An oracle the record holds as `interrupted` is walked again on that saved tree, its
+//! closed nodes kept, instead of being proved from scratch.
+//!
 //! - [`script`]: the accepted sentences, bullets and indentation.
 //! - [`goals`]: reading goals from the JSON.
 //! - [`driver`]: the prover.
@@ -48,7 +53,10 @@ use std::time::{Duration, Instant};
 
 use thiserror::Error;
 
-use crate::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions};
+use crate::debug::lockstep::LockstepOutcome;
+use crate::debug::lockstep_fingerprint::{describe_part, Fingerprint};
+use crate::gamehops::equivalence::smtrewrite::without_custom_smt_warning;
+use crate::debug::lockstep_run::{run_lockstep_command, LockstepDebugOptions, LockstepSummary};
 use crate::writers::easycrypt::progress::{ExportObserver, NopExportObserver};
 use crate::project::Project;
 use crate::theorem::Theorem;
@@ -63,9 +71,9 @@ use super::check::{
     EquivalenceSetup,
 };
 use super::job::{
-    create_if_absent, ensure_translation_files, is_proof_file, progress_dir, session_record_name,
-    AdmitRecord, LockError, LockstepRecord, NodeRecord, OracleRecord, OracleStatus, ProofLock,
-    SessionRecord, SessionRecordError,
+    create_if_absent, ensure_translation_files, is_proof_file, progress_dir, saved_tree_name,
+    session_record_name, ClosedNode, LockError, LockstepRecord, OracleRecord, OracleStatus,
+    ProofLock, SavedTree, SessionRecord, SessionRecordError,
 };
 use super::json::Goal;
 use super::session::{split_sentences, Session, SessionError, SessionEvent, JSON_BRANCH};
@@ -74,7 +82,7 @@ pub use super::transcript::{EcTranscriptMode, GOALS_PER_STEP, GOAL_TEXT_CAP};
 pub use live::{strip_timings, LiveConfig, LiveHandle};
 
 pub use driver::{Admit, AdmitReason, DominoView, OracleStats, Timeouts};
-use driver::{OracleTree, Prover, Sealed};
+use driver::{OracleTree, Prover, Resume, Sealed};
 
 #[derive(Debug, Error)]
 pub enum TacticsError {
@@ -123,6 +131,34 @@ pub struct TacticsOptions {
     /// `prove --force` (story 35): discard the equivalence's session record and restart its
     /// proof from the skeleton, instead of skipping it. Never rewrites a translation file.
     pub force: bool,
+    /// `prove --resume`: how an oracle the session record holds as `interrupted` is resumed.
+    pub resume: ResumeMode,
+}
+
+/// How a proof job resumes an oracle the session record holds as `interrupted` (`--resume`,
+/// ADR 0008). Done oracles are resumed as story 37 resumes them under every mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ResumeMode {
+    /// Walk the saved joint tree; each closed node's goal is closed with `admit.` and its recorded
+    /// script goes into the file, not checked again.
+    #[default]
+    Trust,
+    /// As `trust`, but each closed node's recorded script is sent again; a rejected sentence
+    /// makes the node be proved live.
+    Replay,
+    /// Prove the oracle from scratch, lockstep execution included.
+    Restart,
+}
+
+impl ResumeMode {
+    /// The mode as `--resume` spells it, and as the report and the page show it.
+    pub fn slug(self) -> &'static str {
+        match self {
+            ResumeMode::Trust => "trust",
+            ResumeMode::Replay => "replay",
+            ResumeMode::Restart => "restart",
+        }
+    }
 }
 
 impl TacticsOptions {
@@ -262,6 +298,7 @@ impl Default for TacticsOptions {
             write_granularity: WriteGranularity::Tactic,
             stop: None,
             force: false,
+            resume: ResumeMode::Trust,
         }
     }
 }
@@ -325,10 +362,28 @@ pub struct OracleTactics {
     pub easycrypt_time: Duration,
     /// The bullet as written into the file.
     pub script: String,
-    /// The accepted sentences per joint node, for the session record.
-    pub node_scripts: Vec<NodeRecord>,
+    /// The outermost closed nodes, for the session record of an interrupted oracle.
+    pub closed: Vec<ClosedNode>,
+    /// The [`SavedTree::id`] of the joint tree `closed` was proved on, when one was saved.
+    pub tree_id: Option<String>,
     /// Not proved by this run: read back from the session record (story 37).
     pub resumed: bool,
+    /// Walked again from the session record's closed nodes on the saved joint tree.
+    pub resumed_at: Option<ResumedAt>,
+}
+
+/// Where an interrupted oracle was resumed, and with what (ADR 0008).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResumedAt {
+    /// The in-flight node of the earlier job: `N<k>` or `router`.
+    pub node: String,
+    /// Closed nodes kept from the session record.
+    pub kept: usize,
+    /// How they were kept.
+    pub mode: ResumeMode,
+    /// What changed in the project since the tree was saved (fingerprint parts); empty when
+    /// nothing did.
+    pub stale: Vec<&'static str>,
 }
 
 impl OracleTactics {
@@ -344,8 +399,10 @@ impl OracleTactics {
             lockstep_time: Duration::ZERO,
             easycrypt_time: Duration::ZERO,
             script: String::new(),
-            node_scripts: Vec::new(),
+            closed: Vec::new(),
+            tree_id: None,
             resumed: false,
+            resumed_at: None,
         }
     }
 
@@ -356,19 +413,7 @@ impl OracleTactics {
         let admits = record
             .admits
             .iter()
-            .map(|a| {
-                Some(Admit {
-                    reason: AdmitReason::from_slug(&a.reason)?,
-                    id: a.node.clone(),
-                    claim: a.claim.clone(),
-                    domino: if a.domino.is_empty() {
-                        DominoView::NotApplicable
-                    } else {
-                        DominoView::from_slug(&a.domino)?
-                    },
-                    goal: String::new(),
-                })
-            })
+            .map(Admit::from_record)
             .collect::<Option<Vec<_>>>()?;
         let lockstep = record.lockstep.unwrap_or(LockstepRecord {
             joint_paths: 0,
@@ -383,13 +428,15 @@ impl OracleTactics {
             },
             alignment_mismatches: vec![],
             joint_paths: lockstep.joint_paths,
-            nodes: record.nodes.len(),
+            nodes: 0,
             stuck_points: 0,
             lockstep_time: Duration::from_millis(lockstep.ms),
             easycrypt_time: Duration::ZERO,
             script,
-            node_scripts: record.nodes.clone(),
+            closed: Vec::new(),
+            tree_id: None,
             resumed: true,
+            resumed_at: None,
         })
     }
 
@@ -409,22 +456,17 @@ impl OracleTactics {
             name: self.oracle.clone(),
             status,
             script: (status == OracleStatus::Done).then(|| self.script.clone()),
-            admits: self
-                .stats
-                .admits
-                .iter()
-                .map(|a| AdmitRecord {
-                    node: a.id.clone(),
-                    reason: a.reason.slug().to_string(),
-                    claim: a.claim.clone(),
-                    domino: a.domino.slug().to_string(),
-                })
-                .collect(),
+            admits: self.stats.admits.iter().map(Admit::to_record).collect(),
             lockstep: Some(LockstepRecord {
                 joint_paths: self.joint_paths,
                 ms: self.lockstep_time.as_millis() as u64,
             }),
-            nodes: self.node_scripts.clone(),
+            closed: if status == OracleStatus::Interrupted {
+                self.closed.clone()
+            } else {
+                Vec::new()
+            },
+            tree_id: self.tree_id.clone().filter(|_| status == OracleStatus::Interrupted),
         }
     }
 
@@ -1248,26 +1290,151 @@ enum OracleEnd {
     },
 }
 
+/// The joint tree one oracle's walk follows: lockstep execution's, fresh or saved.
+struct WalkedTree {
+    outcome: LockstepOutcome,
+    summary: LockstepSummary,
+    /// The names of the loaded state relations (`Domino_<name>` is unfolded).
+    relations: Vec<String>,
+    /// What lockstep execution took (in the earlier job, for a saved tree).
+    lockstep_time: Duration,
+    /// Its [`SavedTree::id`]; `None` when it could not be saved.
+    id: Option<String>,
+}
+
+/// What resuming an interrupted oracle starts from, besides its saved tree.
+struct ResumeFrom {
+    closed: Vec<ClosedNode>,
+    /// The earlier job's in-flight node: `N<k>` or `router`.
+    in_flight: String,
+    mode: ResumeMode,
+    /// What changed since the tree was saved ([`ResumedAt::stale`]).
+    stale: Vec<&'static str>,
+}
+
+struct Resuming {
+    tree: WalkedTree,
+    from: ResumeFrom,
+}
+
+/// How [`lockstep`] ended.
+enum Lockstep {
+    /// With a joint tree to walk, saved beside the session record.
+    Walk(WalkedTree),
+    /// Without: the oracle ends here.
+    Ended(OracleEnd),
+}
+
+/// The saved joint tree and closed nodes to resume `oracle` from, when the session record holds
+/// it as `interrupted` and `--resume` is not `restart` (ADR 0008). `None`, with a warning when
+/// the oracle cannot be resumed, means it is proved from scratch.
+fn resuming<P: Project>(
+    project: &P,
+    theorem: &Theorem<'_>,
+    eq: &EquivalenceReport,
+    oracle: &str,
+    proof: &ProofFile<'_>,
+    options: &TacticsOptions,
+) -> Option<Resuming> {
+    let prior = proof.prior?;
+    let entry = prior
+        .oracle(oracle)
+        .filter(|e| e.status == OracleStatus::Interrupted)?;
+    if options.resume == ResumeMode::Restart {
+        return None;
+    }
+    let restart = |why: &str| {
+        eprintln!("warning: {why}; {oracle} is proved again from the start");
+    };
+    if prior.version < 3 {
+        restart(&format!(
+            "the session record of {} has no closed nodes (version {})",
+            eq.proof_file.trim_end_matches(".ec"),
+            prior.version
+        ));
+        return None;
+    }
+    let path = proof.out_dir.join(saved_tree_name(&eq.proof_file, oracle));
+    let saved = match SavedTree::read(&path) {
+        Ok(Some(saved)) if saved.oracle == oracle => saved,
+        Ok(Some(saved)) => {
+            restart(&format!("{} holds the tree of {}", path.display(), saved.oracle));
+            return None;
+        }
+        Ok(None) => {
+            restart(&format!("{oracle} has no saved joint tree"));
+            return None;
+        }
+        Err(e) => {
+            restart(&e.to_string());
+            return None;
+        }
+    };
+    // a later lockstep execution (`--resume restart`, or a fallback) rewrites the tree before
+    // the record: a job killed in between leaves closed nodes proved on another tree
+    if entry.tree_id.as_deref() != Some(saved.id.as_str()) {
+        restart(&format!(
+            "the saved joint tree of {oracle} is not the one its closed nodes were proved on"
+        ));
+        return None;
+    }
+    let stale = match Fingerprint::of(project, theorem, eq.proofstep, oracle) {
+        Ok(now) if now.hex == saved.fingerprint => Vec::new(),
+        Ok(now) => {
+            let changed = now.changed_from(&saved.fingerprint_parts);
+            if changed.is_empty() {
+                vec!["the project"]
+            } else {
+                changed
+            }
+        }
+        Err(_) => vec!["the project"],
+    };
+    if !stale.is_empty() {
+        let what: Vec<&str> = stale.iter().map(|p| describe_part(p)).collect();
+        eprintln!(
+            "warning: the saved joint tree of {oracle} predates changes to {}; the EasyCrypt \
+             files may be stale too. Export with --force to start over.",
+            what.join(", ")
+        );
+    }
+    let lockstep_time = Duration::from_millis(entry.lockstep.map_or(0, |l| l.ms));
+    Some(Resuming {
+        from: ResumeFrom {
+            closed: entry.closed.clone(),
+            in_flight: entry.in_flight().unwrap_or("router").to_string(),
+            mode: options.resume,
+            stale,
+        },
+        tree: WalkedTree {
+            outcome: saved.outcome,
+            summary: saved.summary,
+            relations: saved.relations,
+            lockstep_time,
+            id: Some(saved.id),
+        },
+    })
+}
+
+/// Lockstep execution of `oracle`, its joint tree saved beside the session record before the
+/// first sentence is sent. Its artifacts are written exactly as `domino easycrypt debug` writes
+/// them, so every `S`/`J` of an admit has a page to open.
 #[allow(clippy::too_many_arguments)]
-fn tactics_for_oracle<P, B>(
+fn lockstep<P, B>(
     session: &mut Session,
     project: &P,
     theorem: &Theorem<'_>,
     eq: &EquivalenceReport,
-    setup: &EquivalenceSetup<'_>,
     oracle: &str,
     backend: &B,
     options: &TacticsOptions,
     live: &LiveHandle,
-    proof: &mut ProofFile<'_>,
-) -> Result<OracleEnd, TacticsError>
+    proof: &ProofFile<'_>,
+) -> Result<Lockstep, TacticsError>
 where
     P: Project,
     B: SmtSolverBackend,
 {
-    live.oracle_started(oracle);
-    // lockstep execution first: its artifacts are written exactly as `domino easycrypt debug`
-    // writes them, so every `S`/`J` of an admit has a page to open
     let lockstep_started = Instant::now();
     live.activity("lockstep execution");
     live.lockstep_started(oracle);
@@ -1296,12 +1463,12 @@ where
     live.activity("");
     if options.stop_requested() {
         // lockstep execution was stopped, or has just finished: nothing was sent
-        return Ok(OracleEnd::Stopped {
+        return Ok(Lockstep::Ended(OracleEnd::Stopped {
             sealed: None,
             at: Interrupted::Lockstep {
                 oracle: oracle.to_string(),
             },
-        });
+        }));
     }
     if let Ok(run) = &run {
         live.lockstep_done(Path::new(&run.meta.out_dir));
@@ -1313,38 +1480,135 @@ where
             let mut result =
                 OracleTactics::empty(oracle, &format!("lockstep execution failed: {source}"));
             result.lockstep_time = lockstep_time;
-            return Ok(OracleEnd::Done(result));
+            return Ok(Lockstep::Ended(OracleEnd::Done(result)));
         }
     };
+    let mut tree = WalkedTree {
+        outcome: run.outcome,
+        summary: run.summary,
+        relations: run.meta.goals.relations.iter().map(|r| r.name.clone()).collect(),
+        lockstep_time,
+        id: None,
+    };
+    tree.id = save_tree(project, theorem, eq, oracle, proof, &tree)?;
+    Ok(Lockstep::Walk(tree))
+}
 
-    let tree = OracleTree::new(&run.outcome);
+/// Writes `Eq_<L>_<R>.<oracle>.tree.json`, atomically, replacing any earlier one, and returns
+/// its [`SavedTree::id`]. Without a fingerprint there is no tree to trust later: an earlier one
+/// is removed, with a warning, and there is no id.
+fn save_tree<P: Project>(
+    project: &P,
+    theorem: &Theorem<'_>,
+    eq: &EquivalenceReport,
+    oracle: &str,
+    proof: &ProofFile<'_>,
+    tree: &WalkedTree,
+) -> std::io::Result<Option<String>> {
+    let path = proof.out_dir.join(saved_tree_name(&eq.proof_file, oracle));
+    // lockstep execution has just loaded the invariant files, and warned
+    let fingerprint = without_custom_smt_warning(|| {
+        Fingerprint::of(project, theorem, eq.proofstep, oracle)
+    });
+    let fingerprint = match fingerprint {
+        Ok(fingerprint) => fingerprint,
+        Err(e) => {
+            eprintln!(
+                "warning: the joint tree of {oracle} is not saved, its fingerprint failed: {e}; \
+                 an interrupted {oracle} will be proved again from the start"
+            );
+            return match std::fs::remove_file(&path) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+                _ => Ok(None),
+            };
+        }
+    };
+    // `SavedTree` owns what it holds; the walk keeps its own copy
+    let saved = SavedTree {
+        version: SavedTree::VERSION,
+        oracle: oracle.to_string(),
+        id: SavedTree::new_id(),
+        domino: env!("CARGO_PKG_VERSION").to_string(),
+        fingerprint: fingerprint.hex,
+        fingerprint_parts: fingerprint.parts,
+        outcome: tree.outcome.clone(),
+        summary: tree.summary.clone(),
+        relations: tree.relations.clone(),
+    };
+    write_atomically(&path, proof.progress_dir, &saved.to_json())?;
+    Ok(Some(saved.id))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn tactics_for_oracle<P, B>(
+    session: &mut Session,
+    project: &P,
+    theorem: &Theorem<'_>,
+    eq: &EquivalenceReport,
+    setup: &EquivalenceSetup<'_>,
+    oracle: &str,
+    backend: &B,
+    options: &TacticsOptions,
+    live: &LiveHandle,
+    proof: &mut ProofFile<'_>,
+) -> Result<OracleEnd, TacticsError>
+where
+    P: Project,
+    B: SmtSolverBackend,
+{
+    live.oracle_started(oracle);
+    // an interrupted oracle of the session record: its saved joint tree, no lockstep execution
+    let (walked, resume_from) = match resuming(project, theorem, eq, oracle, proof, options) {
+        Some(Resuming { tree, from }) => {
+            live.oracle_resumed(&from.in_flight, from.mode.slug());
+            let dir = debug_dir(proof.out_dir, &eq.left_name, &eq.right_name, oracle);
+            if dir.join("index.html").exists() {
+                live.lockstep_done(&dir);
+            }
+            (tree, Some(from))
+        }
+        None => match lockstep(session, project, theorem, eq, oracle, backend, options, live, proof)? {
+            Lockstep::Walk(tree) => (tree, None),
+            Lockstep::Ended(end) => return Ok(end),
+        },
+    };
+    let lockstep_time = walked.lockstep_time;
+
+    let tree = OracleTree::new(&walked.outcome);
+    let resume = resume_from.as_ref().map(|from| {
+        Resume::new(&tree, from.mode, from.closed.clone(), &from.in_flight)
+    });
     // the operators `inv` unfolds to, by name (`writers::easycrypt::invariant`)
     let unfold_ops: Vec<String> = ["inv".to_string(), "params_inv".to_string()]
         .into_iter()
-        .chain(
-            run.meta
-                .goals
-                .relations
-                .iter()
-                .map(|r| format!("Domino_{}", r.name)),
-        )
+        .chain(walked.relations.iter().map(|r| format!("Domino_{r}")))
         .collect();
     let left_ir = inline_oracle_ec(setup.left_inst, oracle)?;
     let right_ir = inline_oracle_ec(setup.right_inst, oracle)?;
     let began = Instant::now();
+    let resumed_at = |kept: usize| {
+        resume_from.as_ref().map(|from| ResumedAt {
+            node: from.in_flight.clone(),
+            kept,
+            mode: from.mode,
+            stale: from.stale.clone(),
+        })
+    };
     let result_of = |sealed: Sealed| OracleTactics {
         oracle: oracle.to_string(),
         problem: None,
         stats: sealed.stats,
         alignment_mismatches: sealed.mismatches,
-        joint_paths: run.summary.joint_paths,
-        nodes: run.summary.nodes,
-        stuck_points: run.summary.stuck_points,
+        joint_paths: walked.summary.joint_paths,
+        nodes: walked.summary.nodes,
+        stuck_points: walked.summary.stuck_points,
         lockstep_time,
         easycrypt_time: began.elapsed(),
         script: sealed.script,
-        node_scripts: sealed.node_scripts,
+        closed: sealed.closed,
+        tree_id: walked.id.clone(),
         resumed: false,
+        resumed_at: resumed_at(sealed.kept),
     };
     // `--write-granularity node`: seal, write, continue. A failed write stops the writes; the
     // last good one stays on disk and the error ends the run after the oracle.
@@ -1381,6 +1645,7 @@ where
         node: None,
         mismatches: Vec::new(),
         stopped: None,
+        resume,
     };
     let proved = prover.oracle(|goal: &Goal| {
         match super::check::align_goal(
@@ -1496,6 +1761,21 @@ impl EquivalenceTactics {
             if let Some(problem) = &o.problem {
                 let _ = writeln!(out, "  {}: no tactics ({problem})", o.oracle);
                 continue;
+            }
+            if let Some(at) = &o.resumed_at {
+                let _ = write!(
+                    out,
+                    "  {}: resumed at {} ({} closed node{} kept, {})",
+                    o.oracle,
+                    at.node,
+                    at.kept,
+                    if at.kept == 1 { "" } else { "s" },
+                    at.mode.slug()
+                );
+                if !at.stale.is_empty() {
+                    let _ = write!(out, "; saved joint tree is stale ({})", at.stale.join(", "));
+                }
+                out.push('\n');
             }
             let _ = writeln!(
                 out,

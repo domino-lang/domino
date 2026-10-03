@@ -4,6 +4,7 @@ use super::driver::{pair_view, Part};
 use super::*;
 use crate::debug::driver::{ClaimVerdict, TerminalView, Verdict};
 use crate::debug::lockstep::{PairRecord, PairSide, RelationVerdict, EQUAL_OUTPUT};
+use crate::easycrypt::job::AdmitRecord;
 
 fn pair_view_for_tests(p: &PairRecord, part: &Part) -> &'static str {
     pair_view(p, part).slug()
@@ -185,8 +186,10 @@ fn oracle_with(admits: Vec<Admit>) -> OracleTactics {
         lockstep_time: Duration::from_millis(100),
         easycrypt_time: Duration::from_secs(3),
         script: String::new(),
-        node_scripts: vec![],
+        closed: vec![],
+        tree_id: None,
         resumed: false,
+        resumed_at: None,
     }
 }
 
@@ -279,6 +282,37 @@ fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
     );
     assert!(
         report.contains("admit N3 open-goal [interrupted] Domino: n/a"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_resumed_oracle_reports_where_it_resumed_and_what_it_kept() {
+    let mut o = oracle_with(vec![admit(AdmitReason::Stuck, "S1")]);
+    o.oracle = "PKENC".into();
+    o.resumed_at = Some(ResumedAt {
+        node: "N7".into(),
+        kept: 12,
+        mode: ResumeMode::Trust,
+        stale: vec![],
+    });
+    let report = equivalence_with(vec![o.clone()]).render();
+    assert!(
+        report.contains("  PKENC: resumed at N7 (12 closed nodes kept, trust)\n  PKENC: lockstep 2 joint paths"),
+        "{report}"
+    );
+    assert!(!report.contains("stale"), "{report}");
+    o.resumed_at = Some(ResumedAt {
+        node: "N7".into(),
+        kept: 1,
+        mode: ResumeMode::Replay,
+        stale: vec!["code", "invariants"],
+    });
+    let report = equivalence_with(vec![o]).render();
+    assert!(
+        report.contains(
+            "  PKENC: resumed at N7 (1 closed node kept, replay); saved joint tree is stale (code, invariants)\n"
+        ),
         "{report}"
     );
 }
@@ -953,6 +987,7 @@ mod live {
             node: None,
             mismatches: vec![],
             stopped: None,
+            resume: None,
         };
         // an alignment mismatch sends the whole oracle down the fallback
         prover
@@ -1398,7 +1433,23 @@ mod live {
 
     /// Another proof job on the export in `out`, as `prove` starts one.
     fn run_again(out: &Path, options: &TacticsOptions) -> TheoremTactics {
-        let dir = PathBuf::from(TWO_ORACLES);
+        run_again_on(TWO_ORACLES, out, options)
+    }
+
+    /// Another proof job on the export of `project` (theorem `Proof`) in `out`.
+    fn run_again_on(project: &str, out: &Path, options: &TacticsOptions) -> TheoremTactics {
+        run_again_stopped(project, out, options, None)
+    }
+
+    /// [`run_again_on`], asked to stop where `stop` says.
+    fn run_again_stopped(
+        project: &str,
+        out: &Path,
+        options: &TacticsOptions,
+        stop: Option<StopIn>,
+    ) -> TheoremTactics {
+        let mut watching = Some(Watching { stop });
+        let dir = PathBuf::from(project);
         let files = DirectoryFiles::load(&dir).unwrap();
         let project = DirectoryProject::load(dir, &files).unwrap();
         let theorem = project.get_theorem("Proof").unwrap();
@@ -1410,9 +1461,47 @@ mod live {
             out,
             &Cvc5LibBackend::new(true, None),
             options,
-            &mut || Box::new(NopExportObserver),
+            &mut || Box::new(watching.take().unwrap_or(Watching { stop: None })),
         )
         .unwrap()
+    }
+
+    /// Records the walk's nodes and sentences, and lockstep execution, in [`WALK`], and sets the
+    /// stop flag where `stop` says.
+    struct Watching {
+        stop: Option<StopIn>,
+    }
+
+    /// The `nth` sentence sent after node `node` is entered sets `flag`, as a Ctrl-C would: that
+    /// sentence runs to its end, and the walk stops before the next one.
+    struct StopIn {
+        node: &'static str,
+        nth: usize,
+        flag: Arc<AtomicBool>,
+        sent: Option<usize>,
+    }
+
+    impl ExportObserver for Watching {
+        fn on_event(&mut self, event: &crate::writers::easycrypt::progress::ExportEvent<'_>) {
+            use crate::writers::easycrypt::progress::ExportEvent;
+            let line = match event {
+                ExportEvent::NodeStarted { node, total, .. } => format!("node {node}/{total}"),
+                ExportEvent::SentenceSent { sentence } => format!("sentence {sentence}"),
+                ExportEvent::LockstepStarted { oracle } => format!("lockstep {oracle}"),
+                _ => return,
+            };
+            if let Some(stop) = &mut self.stop {
+                if line.starts_with(&format!("node {}/", stop.node)) {
+                    stop.sent = Some(0);
+                } else if let (true, Some(sent)) = (line.starts_with("sentence "), &mut stop.sent) {
+                    *sent += 1;
+                    if *sent == stop.nth {
+                        stop.flag.store(true, Ordering::Relaxed);
+                    }
+                }
+            }
+            WALK.with(|w| w.borrow_mut().push(line));
+        }
     }
 
     fn record_path(result: &TheoremTactics, out: &Path) -> PathBuf {
@@ -1448,7 +1537,8 @@ mod live {
         assert_eq!(record.done(), 1);
         let entry = record.oracle(&first.oracle).unwrap();
         assert_eq!(entry.script.as_deref(), Some(first.script.as_str()));
-        assert!(!entry.nodes.is_empty());
+        // a done oracle keeps its script, not its closed nodes
+        assert!(entry.closed.is_empty());
         assert_eq!(entry.lockstep.unwrap().joint_paths, first.joint_paths);
         let before = proof_file(&first_run, out.path());
 
@@ -1580,7 +1670,7 @@ mod live {
         assert_eq!(eq.oracles.len(), 2);
         assert!(eq.oracles.iter().all(|o| !o.resumed), "{}", eq.render());
         let record = read_record(&path);
-        assert_eq!(record.version, 2);
+        assert_eq!(record.version, SessionRecord::VERSION);
         assert!(record.complete);
     }
 
@@ -1858,5 +1948,415 @@ wait $ec
         );
         let page = std::fs::read_to_string(page_path(&result)).unwrap();
         assert!(page.contains("tactics (interrupted)"));
+    }
+
+    // ------------------------------------------------------------------
+    // Resume an oracle from its saved joint tree (ADR 0008)
+    // ------------------------------------------------------------------
+
+    /// One oracle whose joint tree branches: `N0` (`if`) with `N1` → `N2` (a sampling, then a
+    /// leaf) under `then` and `N3` → `N4` under `else`.
+    const TWO_BRANCHES: &str = "testdata/easycrypt/resume/two-branches";
+
+    /// The oracle of [`TWO_BRANCHES`] stopped once its `then` branch has closed, at `tactic`
+    /// granularity, rung 0 off: in flight at `N3`, below `N0`, with `N1` closed.
+    fn stopped_mid_oracle() -> Option<(TheoremTactics, tempfile::TempDir)> {
+        let (result, out, _) = run_stopped_at(
+            TWO_BRANCHES,
+            "Proof",
+            &stoppable(WriteGranularity::Tactic),
+            Some("goal N1"),
+        )?;
+        Some((result, out))
+    }
+
+    /// A copy of the export directory `from`, so two jobs can resume the same record.
+    fn copy_export(from: &Path) -> tempfile::TempDir {
+        fn copy(from: &Path, to: &Path) {
+            std::fs::create_dir_all(to).unwrap();
+            for entry in std::fs::read_dir(from).unwrap() {
+                let entry = entry.unwrap();
+                let target = to.join(entry.file_name());
+                if entry.file_type().unwrap().is_dir() {
+                    copy(&entry.path(), &target);
+                } else {
+                    std::fs::copy(entry.path(), target).unwrap();
+                }
+            }
+        }
+        let to = tempfile::tempdir().unwrap();
+        copy(from, to.path());
+        to
+    }
+
+    fn walk_events() -> Vec<String> {
+        WALK.with(|w| std::mem::take(&mut *w.borrow_mut()))
+    }
+
+    /// The lines of `text` that are `closed`'s script, as written there: found by their
+    /// sentences and comments, whatever their indentation.
+    fn block_of(text: &str, closed: &ClosedNode) -> Option<String> {
+        let want: Vec<String> = closed
+            .script
+            .iter()
+            .map(|l| match &l.comment {
+                Some(c) => format!("{} {c}", l.sentence),
+                None => l.sentence.clone(),
+            })
+            .collect();
+        let lines: Vec<&str> = text.lines().collect();
+        let bare = |l: &str| l.trim_start().trim_start_matches("+ ").to_string();
+        (0..lines.len().saturating_sub(want.len() - 1))
+            .find(|&i| (0..want.len()).all(|k| bare(lines[i + k]) == want[k]))
+            .map(|i| lines[i..i + want.len()].join("\n"))
+    }
+
+    #[test]
+    fn a_resumed_oracle_keeps_its_closed_nodes_under_trust_and_replay_alike() {
+        let Some((first_run, out)) = stopped_mid_oracle() else {
+            return;
+        };
+        let stopped = &first_run.equivalences[0];
+        let Some(Interrupted::Sealed { oracle, node, .. }) = &stopped.interrupted else {
+            panic!("sealed in the walk: {}", stopped.render());
+        };
+        let record = read_record(&record_path(&first_run, out.path()));
+        let entry = record.oracle(oracle).unwrap();
+        assert_eq!(entry.status, OracleStatus::Interrupted);
+        assert_eq!(entry.in_flight(), Some(node.as_str()));
+        assert!(!entry.closed.is_empty(), "{record:?}");
+        let tree = out
+            .path()
+            .join(saved_tree_name(&stopped.proof_file, oracle));
+        assert!(SavedTree::read(&tree).unwrap().is_some());
+        let checkpoint = proof_file(&first_run, out.path());
+        let blocks: Vec<String> = entry
+            .closed
+            .iter()
+            .map(|c| block_of(&checkpoint, c).unwrap_or_else(|| panic!("{c:?} in\n{checkpoint}")))
+            .collect();
+        let closed: Vec<&str> = entry.closed.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!((node.as_str(), closed), ("N3", vec!["N1"]), "{record:?}");
+
+        let replay_out = copy_export(out.path());
+        walk_events();
+        // trust, rung 0 on: the in-flight node's ancestors skip it
+        let trust = run_again_on(
+            TWO_BRANCHES,
+            out.path(),
+            &TacticsOptions {
+                write_granularity: WriteGranularity::Tactic,
+                ..TacticsOptions::default()
+            },
+        );
+        let events = walk_events();
+        let first_after = |node: &str| {
+            let at = events.iter().position(|e| e.starts_with(&format!("node {node}/")))?;
+            events[at..].iter().find(|e| e.starts_with("sentence ")).cloned()
+        };
+        // N0, above the in-flight node, starts with its structural step; N3 from rung 0
+        assert_eq!(first_after("N0").as_deref(), Some("sentence sp 2 2."), "{events:#?}");
+        assert_eq!(first_after("N1").as_deref(), Some("sentence kept"), "{events:#?}");
+        assert_eq!(first_after("N3").as_deref(), Some("sentence auto => /#."), "{events:#?}");
+        let eq = &trust.equivalences[0];
+        assert!(eq.interrupted.is_none(), "{}", eq.render());
+        let resumed = eq.oracles.iter().find(|o| &o.oracle == oracle).unwrap();
+        assert_eq!(
+            resumed.resumed_at,
+            Some(ResumedAt {
+                node: node.clone(),
+                kept: entry.closed.len(),
+                mode: ResumeMode::Trust,
+                stale: vec![],
+            }),
+            "{}",
+            eq.render()
+        );
+        // no lockstep execution for it; one `admit.` per closed node
+        assert!(!events.contains(&format!("lockstep {oracle}")), "{events:?}");
+        assert_eq!(
+            events.iter().filter(|e| *e == "sentence kept").count(),
+            entry.closed.len()
+        );
+        // the transcript says which node each `admit.` keeps
+        let transcript = std::fs::read_to_string(&trust.equivalences[0].transcript).unwrap();
+        let kept_in: Vec<String> = transcript
+            .lines()
+            .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+            .filter(|r| r["ctx"].as_str().is_some_and(|c| c.ends_with("(trust)")))
+            .map(|r| format!("{} {}", r["ctx"].as_str().unwrap(), r["sentence"].as_str().unwrap()))
+            .collect();
+        assert_eq!(kept_in.len(), entry.closed.len(), "{kept_in:?}");
+        assert!(kept_in[0].starts_with("Branch N1 ") && kept_in[0].ends_with(" admit."), "{kept_in:?}");
+        let text = proof_file(&trust, out.path());
+        for block in &blocks {
+            assert!(text.contains(block.as_str()), "{block}\nnot in\n{text}");
+        }
+        let report = std::fs::read_to_string(out.path().join(&eq.report_file)).unwrap();
+        assert!(
+            report.contains(&format!(
+                "{oracle}: resumed at {node} ({} closed node",
+                entry.closed.len()
+            )),
+            "{report}"
+        );
+
+        let page = std::fs::read_to_string(page_path(&trust)).unwrap();
+        assert!(page.contains("resumed at N3 (trust)"), "{page}");
+        assert!(page.contains("kept from session record"), "{page}");
+
+        // replay: the closed nodes' sentences are sent again, and the file is the same
+        let replayed = run_again_on(
+            TWO_BRANCHES,
+            replay_out.path(),
+            &TacticsOptions {
+                write_granularity: WriteGranularity::Tactic,
+                resume: ResumeMode::Replay,
+                ..TacticsOptions::default()
+            },
+        );
+        let events = walk_events();
+        assert!(!events.contains(&"sentence kept".to_string()), "{events:?}");
+        // N1's recorded sentences, sent again right after it is entered
+        let n1 = events.iter().position(|e| e == "node N1/5").unwrap();
+        let recorded: Vec<String> = entry.closed[0]
+            .script
+            .iter()
+            .map(|l| format!("sentence {}", l.sentence))
+            .collect();
+        assert_eq!(
+            events[n1 + 1..n1 + 1 + recorded.len()],
+            recorded[..],
+            "{events:#?}"
+        );
+        assert_eq!(
+            replayed.equivalences[0].oracles.iter().find(|o| &o.oracle == oracle).unwrap().resumed_at.as_ref().map(|r| r.kept),
+            Some(entry.closed.len())
+        );
+        assert_eq!(proof_file(&replayed, replay_out.path()), text);
+        if let Err(e) = compile(
+            &crate::easycrypt::session::locate_binary(),
+            out.path(),
+            &eq.proof_file,
+        ) {
+            panic!("the resumed proof does not compile: {e}\n{text}");
+        }
+    }
+
+    #[test]
+    fn a_stop_while_a_closed_node_is_replayed_keeps_it_closed_and_seals_its_goal() {
+        let Some((first_run, out)) = stopped_mid_oracle() else {
+            return;
+        };
+        let file = first_run.equivalences[0].proof_file.clone();
+        let record = out.path().join(session_record_name(&file));
+        // N1's script as two sentences, the first of which closes its goal: a stop between them
+        // finds one goal fewer in the session than the script, which has neither, accounts for
+        edit_json(&record, |r| {
+            r["oracles"][0]["closed"][0]["script"] =
+                serde_json::json!([{"depth": 0, "sentence": "admit."}, {"depth": 0, "sentence": "idtac."}]);
+        });
+        let n1 = read_record(&record).oracles[0].closed[0].clone();
+        assert_eq!(n1.id, "N1");
+        let flag = Arc::new(AtomicBool::new(false));
+        let stopped = run_again_stopped(
+            TWO_BRANCHES,
+            out.path(),
+            &TacticsOptions {
+                stop: Some(flag.clone()),
+                ..resume_with(ResumeMode::Replay)
+            },
+            Some(StopIn {
+                node: "N1",
+                nth: 1,
+                flag,
+                sent: None,
+            }),
+        );
+        let eq = &stopped.equivalences[0];
+        assert!(
+            matches!(&eq.interrupted, Some(Interrupted::Sealed { node, .. }) if node == "N1"),
+            "{}",
+            eq.render()
+        );
+        // N1 is still closed, as recorded, and the checkpoint admits its goal
+        let entry = read_record(&record).oracles[0].clone();
+        assert_eq!(entry.status, OracleStatus::Interrupted);
+        assert_eq!(entry.closed, vec![n1]);
+        assert_eq!(entry.in_flight(), Some("N1"));
+        let text = proof_file(&stopped, out.path());
+        if let Err(e) = compile(&crate::easycrypt::session::locate_binary(), out.path(), &file) {
+            panic!("the checkpoint does not compile: {e}\n{text}");
+        }
+        // and the next job keeps it
+        let resumed = run_again_on(TWO_BRANCHES, out.path(), &resume_with(ResumeMode::Trust));
+        assert_eq!(the_oracle(&resumed).resumed_at.as_ref().map(|r| r.kept), Some(1));
+        assert!(read_record(&record).complete);
+    }
+
+    /// Rewrites the JSON file at `path` with `edit`.
+    fn edit_json(path: &Path, edit: impl FnOnce(&mut serde_json::Value)) {
+        let mut value: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        edit(&mut value);
+        std::fs::write(path, value.to_string()).unwrap();
+    }
+
+    fn resume_with(mode: ResumeMode) -> TacticsOptions {
+        TacticsOptions {
+            write_granularity: WriteGranularity::Tactic,
+            resume: mode,
+            ..TacticsOptions::default()
+        }
+    }
+
+    fn the_oracle(result: &TheoremTactics) -> &OracleTactics {
+        &result.equivalences[0].oracles[0]
+    }
+
+    #[test]
+    fn restart_runs_lockstep_execution_again_and_rewrites_the_tree() {
+        let Some((first_run, out)) = stopped_mid_oracle() else {
+            return;
+        };
+        let tree = out
+            .path()
+            .join(saved_tree_name(&first_run.equivalences[0].proof_file, "Branch"));
+        let saved = SavedTree::read(&tree).unwrap().unwrap().fingerprint;
+        edit_json(&tree, |t| t["fingerprint"] = "from another project".into());
+        walk_events();
+        let result = run_again_on(TWO_BRANCHES, out.path(), &resume_with(ResumeMode::Restart));
+        let events = walk_events();
+        assert!(events.contains(&"lockstep Branch".to_string()), "{events:?}");
+        assert!(!events.contains(&"sentence kept".to_string()), "{events:?}");
+        assert_eq!(the_oracle(&result).resumed_at, None);
+        assert_eq!(SavedTree::read(&tree).unwrap().unwrap().fingerprint, saved);
+        assert!(read_record(&record_path(&result, out.path())).complete);
+    }
+
+    #[test]
+    fn an_oracle_without_its_tree_or_from_a_version_2_record_is_proved_from_the_start() {
+        let Some((first_run, out)) = stopped_mid_oracle() else {
+            return;
+        };
+        let other = copy_export(out.path());
+        let third = copy_export(out.path());
+        // no tree file
+        let file = &first_run.equivalences[0].proof_file;
+        std::fs::remove_file(out.path().join(saved_tree_name(file, "Branch"))).unwrap();
+        walk_events();
+        let result = run_again_on(TWO_BRANCHES, out.path(), &resume_with(ResumeMode::Trust));
+        assert!(walk_events().contains(&"lockstep Branch".to_string()));
+        assert_eq!(the_oracle(&result).resumed_at, None);
+        assert!(out.path().join(saved_tree_name(file, "Branch")).exists());
+        // a version 2 record has no closed nodes
+        edit_json(&other.path().join(session_record_name(file)), |r| {
+            r["version"] = 2.into();
+            for o in r["oracles"].as_array_mut().unwrap() {
+                o.as_object_mut().unwrap().remove("closed");
+            }
+        });
+        let result = run_again_on(TWO_BRANCHES, other.path(), &resume_with(ResumeMode::Trust));
+        assert!(walk_events().contains(&"lockstep Branch".to_string()));
+        assert_eq!(the_oracle(&result).resumed_at, None);
+        let record = read_record(&record_path(&result, other.path()));
+        assert_eq!(record.version, SessionRecord::VERSION);
+        assert!(record.complete);
+        // a tree written by a later lockstep execution than the closed nodes were proved on (a
+        // job killed between writing the tree and the record)
+        let record = third.path().join(session_record_name(file));
+        let saved = SavedTree::read(&third.path().join(saved_tree_name(file, "Branch")))
+            .unwrap()
+            .expect("a tree");
+        assert_eq!(read_record(&record).oracles[0].tree_id.as_ref(), Some(&saved.id));
+        edit_json(&record, |r| r["oracles"][0]["tree_id"] = "another".into());
+        let result = run_again_on(TWO_BRANCHES, third.path(), &resume_with(ResumeMode::Trust));
+        assert!(walk_events().contains(&"lockstep Branch".to_string()));
+        assert_eq!(the_oracle(&result).resumed_at, None);
+    }
+
+    #[test]
+    fn a_stale_tree_is_walked_and_said_to_be_stale() {
+        let Some((first_run, out)) = stopped_mid_oracle() else {
+            return;
+        };
+        let tree = out
+            .path()
+            .join(saved_tree_name(&first_run.equivalences[0].proof_file, "Branch"));
+        // as if the oracle's code had changed since the tree was saved
+        edit_json(&tree, |t| {
+            t["fingerprint"] = "0".into();
+            t["fingerprint_parts"]["code"] = "0".into();
+        });
+        walk_events();
+        let result = run_again_on(TWO_BRANCHES, out.path(), &resume_with(ResumeMode::Trust));
+        assert!(!walk_events().contains(&"lockstep Branch".to_string()));
+        let at = the_oracle(&result).resumed_at.clone().expect("resumed");
+        assert_eq!((at.kept, at.stale), (1, vec!["code"]));
+        let report = result.equivalences[0].render();
+        assert!(
+            report.contains("Branch: resumed at N3 (1 closed node kept, trust); saved joint tree is stale (code)"),
+            "{report}"
+        );
+    }
+
+    #[test]
+    fn a_closed_node_whose_replay_is_rejected_is_proved_again() {
+        let Some((first_run, out)) = stopped_mid_oracle() else {
+            return;
+        };
+        let file = &first_run.equivalences[0].proof_file;
+        edit_json(&out.path().join(session_record_name(file)), |r| {
+            r["oracles"][0]["closed"][0]["script"][0]["sentence"] = "sp 9 9.".into();
+        });
+        walk_events();
+        let result = run_again_on(TWO_BRANCHES, out.path(), &resume_with(ResumeMode::Replay));
+        let events = walk_events();
+        let n1 = events.iter().position(|e| e == "node N1/5").unwrap();
+        // rejected at once, undone, and N1 proved from its first rung
+        assert_eq!(
+            events[n1 + 1..n1 + 3],
+            ["sentence sp 9 9.", "sentence auto => /#."],
+            "{events:#?}"
+        );
+        let eq = &result.equivalences[0];
+        assert!(eq.interrupted.is_none(), "{}", eq.render());
+        assert_eq!(the_oracle(&result).resumed_at.as_ref().map(|r| r.kept), Some(0));
+        let text = proof_file(&result, out.path());
+        assert!(!text.contains("sp 9 9."), "{text}");
+        assert!(labelled_admits(&text).iter().all(|r| r != "interrupted"), "{text}");
+        if let Err(e) = compile(
+            &crate::easycrypt::session::locate_binary(),
+            out.path(),
+            &eq.proof_file,
+        ) {
+            panic!("the resumed proof does not compile: {e}\n{text}");
+        }
+    }
+
+    #[test]
+    fn an_oracle_sealed_by_an_unanswered_interrupt_is_resumed_by_the_next_job() {
+        // the second oracle's first sentence at N0 goes unanswered: sealed, left behind
+        let Some((first_run, out, _)) = run_unanswered(&[2], None) else {
+            return;
+        };
+        let record = read_record(&record_path(&first_run, out.path()));
+        let entry = record.oracle("Second").unwrap();
+        assert_eq!((entry.status, entry.in_flight()), (OracleStatus::Interrupted, Some("N0")));
+        walk_events();
+        let result = run_again_on(FOUR_ORACLES, out.path(), &resume_with(ResumeMode::Trust));
+        let events = walk_events();
+        // the done oracles are resumed as story 37 resumes them, the sealed one on its tree
+        assert!(!events.iter().any(|e| e.starts_with("lockstep ")), "{events:?}");
+        let eq = &result.equivalences[0];
+        let second = eq.oracles.iter().find(|o| o.oracle == "Second").unwrap();
+        assert_eq!(
+            second.resumed_at.as_ref().map(|r| (r.node.as_str(), r.kept)),
+            Some(("N0", 0)),
+            "{}",
+            eq.render()
+        );
+        assert_eq!(interrupted_admits(second), 0, "{}", eq.render());
+        assert!(read_record(&record_path(&result, out.path())).complete);
     }
 }

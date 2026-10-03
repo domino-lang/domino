@@ -12,8 +12,10 @@
 //! - [`create_if_absent`]: the create-if-absent helper.
 //! - [`ensure_translation_files`]: every file of the export except the `Eq_*.ec`.
 //! - [`SessionRecord`]: `Eq_<L>_<R>.session.json`: statuses, and (story 37) the scripts that
-//!   let a job resume the equivalence.
-//! - [`remove_session_records`]: what `domino easycrypt --force` does to them.
+//!   let a job resume the equivalence; (version 3) the closed nodes of interrupted oracles.
+//! - [`SavedTree`]: `Eq_<L>_<R>.<oracle>.tree.json`, the joint tree an interrupted oracle is
+//!   resumed on (ADR 0008).
+//! - [`remove_records_and_trees`]: what `domino easycrypt --force` does to both.
 //! - [`ProofLock`], [`progress_dir`], [`check_no_live_jobs`] (story 36): one job per equivalence.
 
 use std::io::Write as _;
@@ -22,6 +24,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_derive::{Deserialize, Serialize};
 
+use crate::debug::lockstep::LockstepOutcome;
+use crate::debug::lockstep_run::LockstepSummary;
 use crate::writers::easycrypt::export::ExportedTheorem;
 
 /// Creates `path` holding `text`, unless it already exists. Returns whether this call created
@@ -91,6 +95,12 @@ pub fn session_record_name(proof_file: &str) -> String {
     format!("{}.session.json", proof_file.trim_end_matches(".ec"))
 }
 
+/// The saved joint tree's name for one oracle of a proof file: `Eq_L_R.ec` and `PKENC` give
+/// `Eq_L_R.PKENC.tree.json`.
+pub fn saved_tree_name(proof_file: &str, oracle: &str) -> String {
+    format!("{}.{oracle}.tree.json", proof_file.trim_end_matches(".ec"))
+}
+
 /// How far proving one oracle got.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -124,11 +134,29 @@ pub struct LockstepRecord {
     pub ms: u64,
 }
 
-/// The sentences EasyCrypt accepted for one joint node, still in the script, in order.
+/// One line of a closed node's script, as [`crate::easycrypt::tactics`] renders it: its depth is
+/// relative to the node's first line, so it can be written back at any depth.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NodeRecord {
+pub struct ScriptLine {
+    pub depth: usize,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bullet: bool,
+    pub sentence: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
+}
+
+/// A **closed node** of an interrupted oracle (story "resume an oracle from its saved joint
+/// tree"): its proof was accepted and holds no `interrupted` admit. Only outermost ones are
+/// recorded; a closed node's descendants are in its script.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClosedNode {
+    /// `N<k>`.
     pub id: String,
-    pub tactics: Vec<String>,
+    pub script: Vec<ScriptLine>,
+    /// The admits inside the script, which the resumed oracle reports as its own.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub admits: Vec<AdmitRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -136,16 +164,21 @@ pub struct OracleRecord {
     pub name: String,
     pub status: OracleStatus,
     /// The oracle's bullet exactly as rendered into `Eq_*.ec`: only for `done` oracles of a
-    /// version 2 record, and what resuming writes back.
+    /// version 2 record or later, and what resuming writes back.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub script: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub admits: Vec<AdmitRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lockstep: Option<LockstepRecord>,
-    /// Not used by resuming: kept so node-level resume needs no format change.
+    /// Version 3, `interrupted` oracles only: the outermost closed nodes, which resuming keeps.
+    /// (Version 2's `nodes` field is ignored when read.)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub nodes: Vec<NodeRecord>,
+    pub closed: Vec<ClosedNode>,
+    /// Version 3, `interrupted` oracles only: the [`SavedTree::id`] of the tree `closed` was
+    /// proved on. Resuming walks only that tree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tree_id: Option<String>,
 }
 
 impl OracleRecord {
@@ -157,13 +190,23 @@ impl OracleRecord {
             script: None,
             admits: Vec::new(),
             lockstep: None,
-            nodes: Vec::new(),
+            closed: Vec::new(),
+            tree_id: None,
         }
     }
 
     /// Done, with the script that resuming writes back.
     pub fn is_resumable(&self) -> bool {
         self.status == OracleStatus::Done && self.script.is_some()
+    }
+
+    /// The node an interrupted oracle was proving when it stopped (`N<k>` or `router`): the
+    /// node of its `interrupted` admit.
+    pub fn in_flight(&self) -> Option<&str> {
+        self.admits
+            .iter()
+            .find(|a| a.reason == "interrupted")
+            .map(|a| a.node.as_str())
     }
 }
 
@@ -187,7 +230,7 @@ pub struct SessionRecord {
 }
 
 impl SessionRecord {
-    pub const VERSION: u32 = 2;
+    pub const VERSION: u32 = 3;
 
     pub fn new(theorem: &str, left: &str, right: &str, oracles: Vec<OracleRecord>) -> Self {
         SessionRecord {
@@ -323,9 +366,10 @@ pub enum SessionRecordError {
     Read { path: PathBuf, message: String },
 }
 
-/// Deletes every `*.session.json` under `theorem_out` (translation with `--force`: the proofs
-/// they describe are overwritten by skeletons). Returns how many were deleted.
-pub fn remove_session_records(theorem_out: &Path) -> std::io::Result<usize> {
+/// Deletes every `*.session.json` and `*.tree.json` under `theorem_out` (translation with
+/// `--force`: the proofs they describe are overwritten by skeletons). Returns how many were
+/// deleted.
+pub fn remove_records_and_trees(theorem_out: &Path) -> std::io::Result<usize> {
     let mut removed = 0;
     let mut stack = vec![theorem_out.to_path_buf()];
     while let Some(dir) = stack.pop() {
@@ -342,7 +386,7 @@ pub fn remove_session_records(theorem_out: &Path) -> std::io::Result<usize> {
             } else if path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .is_some_and(|n| n.ends_with(".session.json"))
+                .is_some_and(|n| n.ends_with(".session.json") || n.ends_with(".tree.json"))
             {
                 std::fs::remove_file(&path)?;
                 removed += 1;
@@ -350,6 +394,89 @@ pub fn remove_session_records(theorem_out: &Path) -> std::io::Result<usize> {
         }
     }
     Ok(removed)
+}
+
+/// `Eq_<L>_<R>.<oracle>.tree.json` (ADR 0008): the joint tree lockstep execution built for one
+/// oracle, saved before the oracle's first sentence is sent, so that resuming the oracle walks
+/// the very tree its closed nodes were proved against.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SavedTree {
+    pub version: u32,
+    pub oracle: String,
+    /// New with every tree written: the session record names the tree its closed nodes were
+    /// proved on, so a tree written by a later lockstep execution is never paired with them.
+    #[serde(default)]
+    pub id: String,
+    /// The Domino version that wrote it (not part of the fingerprint).
+    pub domino: String,
+    /// Hex of the hash of everything the tree was built from (see
+    /// [`crate::debug::lockstep_fingerprint`]).
+    pub fingerprint: String,
+    /// The same, one hash per part (`code`, `constants`, `randomness`, `invariants`), so a stale
+    /// tree can say what changed.
+    #[serde(default)]
+    pub fingerprint_parts: std::collections::BTreeMap<String, String>,
+    pub outcome: LockstepOutcome,
+    pub summary: LockstepSummary,
+    /// The names of the loaded state relations: the walk unfolds `Domino_<name>`.
+    #[serde(default)]
+    pub relations: Vec<String>,
+}
+
+impl SavedTree {
+    pub const VERSION: u32 = 1;
+
+    /// A fresh [`SavedTree::id`]: the time and the process, unique to every tree written.
+    pub fn new_id() -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        format!("{nanos:x}-{:x}", std::process::id())
+    }
+
+    /// The tree as its file holds it: compact, one line.
+    pub fn to_json(&self) -> String {
+        let mut text = serde_json::to_string(self).expect("a tree serializes");
+        text.push('\n');
+        text
+    }
+
+    /// The tree at `path`: `Ok(None)` when there is none, an error when it cannot be read, does
+    /// not parse, or has a version this Domino does not know.
+    pub fn read(path: &Path) -> Result<Option<SavedTree>, SavedTreeError> {
+        let error = |message: String| SavedTreeError {
+            path: path.to_path_buf(),
+            message,
+        };
+        let text = match std::fs::read_to_string(path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(error(e.to_string())),
+        };
+        #[derive(Deserialize)]
+        struct Version {
+            version: u32,
+        }
+        let version = serde_json::from_str::<Version>(&text)
+            .map_err(|e| error(e.to_string()))?
+            .version;
+        if version != Self::VERSION {
+            return Err(error(format!(
+                "version {version}, but this Domino reads version {}",
+                Self::VERSION
+            )));
+        }
+        serde_json::from_str(&text)
+            .map(Some)
+            .map_err(|e| error(e.to_string()))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("cannot read the saved joint tree {}: {message}", path.display())]
+pub struct SavedTreeError {
+    pub path: PathBuf,
+    pub message: String,
 }
 
 // ----------------------------------------------------------------------------------------
@@ -667,10 +794,6 @@ mod tests {
             joint_paths: 23,
             ms: 41200,
         });
-        a.nodes = vec![NodeRecord {
-            id: "N0".into(),
-            tactics: vec!["proc.".into(), "inline.".into()],
-        }];
         let record = SessionRecord::new(
             "T",
             "L",
@@ -682,7 +805,7 @@ mod tests {
             ],
         );
         assert!(!record.complete);
-        assert_eq!(record.version, 2);
+        assert_eq!(record.version, 3);
         let parsed: SessionRecord = serde_json::from_str(&record.to_json()).unwrap();
         assert_eq!(parsed, record);
         assert!(record.to_json().contains(r#""status": "interrupted""#));
@@ -705,6 +828,164 @@ mod tests {
         );
     }
 
+    fn line(depth: usize, bullet: bool, sentence: &str) -> ScriptLine {
+        ScriptLine {
+            depth,
+            bullet,
+            sentence: sentence.into(),
+            comment: None,
+        }
+    }
+
+    #[test]
+    fn an_interrupted_oracle_keeps_its_closed_nodes_and_names_its_in_flight_node() {
+        let mut b = OracleRecord::new("B", OracleStatus::Interrupted);
+        b.admits = vec![
+            AdmitRecord {
+                node: "J2".into(),
+                reason: "stuck".into(),
+                claim: "stuck/partner-not-at-head".into(),
+                domino: "verified".into(),
+            },
+            AdmitRecord {
+                node: "N7".into(),
+                reason: "interrupted".into(),
+                claim: "open-goal".into(),
+                domino: "n/a".into(),
+            },
+        ];
+        b.closed = vec![ClosedNode {
+            id: "N3".into(),
+            script: vec![
+                line(0, true, "if."),
+                line(1, true, "auto => /#."),
+                ScriptLine {
+                    comment: Some("(* domino: J2 stuck *)".into()),
+                    ..line(1, true, "admit.")
+                },
+            ],
+            admits: vec![b.admits[0].clone()],
+        }];
+        b.tree_id = Some("18a-2f".into());
+        let record = SessionRecord::new("T", "L", "R", vec![b]);
+        assert_eq!(record.version, 3);
+        let json = record.to_json();
+        assert_eq!(serde_json::from_str::<SessionRecord>(&json).unwrap(), record);
+        // an interrupted oracle has no script, only its closed nodes
+        assert!(!json.contains("\"script\": \""), "{json}");
+        assert_eq!(record.oracles[0].in_flight(), Some("N7"));
+        assert_eq!(OracleRecord::new("C", OracleStatus::Pending).in_flight(), None);
+    }
+
+    #[test]
+    fn a_version_2_record_reads_without_closed_nodes() {
+        let text = r#"{"version": 2, "theorem": "T", "left": "L", "right": "R", "complete": false,
+            "domino": "0.1.0", "updated": "2026-01-01T00:00:00Z",
+            "oracles": [{"name": "A", "status": "interrupted",
+              "admits": [{"node": "N4", "reason": "interrupted"}],
+              "nodes": [{"id": "N0", "tactics": ["sp 1 1."]}]}]}"#;
+        let record: SessionRecord = serde_json::from_str(text).unwrap();
+        assert_eq!(record.version, 2);
+        assert!(record.oracles[0].closed.is_empty());
+        assert_eq!(record.oracles[0].in_flight(), Some("N4"));
+    }
+
+    /// The smallest joint tree with every kind of thing in it: a stuck point, a pruned child, a
+    /// terminal pair with a failed relation, and a node that was not explored.
+    const OUTCOME: &str = r#"{
+      "tree": {"nodes": [
+        {"index": 0, "kind": "split",
+         "left": {"head": {"kind": "branch", "label": 3}, "consumed": [[1, 2]], "plumbing": "done-guard"},
+         "right": {"head": {"kind": "branch", "label": 4}, "consumed": [], "plumbing": null},
+         "answers": [{"query": "left-then-possible", "answer": "sat"}],
+         "children": [
+           {"left": {"label": 3, "decision": "then"}, "right": null, "outcome": {"kind": "explored", "node": 1}},
+           {"left": {"label": 3, "decision": "else"}, "right": null,
+            "outcome": {"kind": "pruned", "answer": {"query": "q", "answer": "unsat"}}},
+           {"left": null, "right": null, "outcome": {"kind": "not-explored"}}
+         ],
+         "pair": null, "stuck": "S1"},
+        {"index": 1, "kind": "terminal-pair",
+         "left": {"head": {"kind": "return", "label": 9}, "consumed": [], "plumbing": null},
+         "right": {"head": {"kind": "abort", "label": 7}, "consumed": [], "plumbing": null},
+         "answers": [], "children": [], "pair": "J1", "stuck": null}
+      ]},
+      "pairs": [{"id": "J1", "node": 1,
+        "left": {"steps": [{"label": 3, "line": "if x", "decision": "then"}],
+                 "terminal": {"label": 9, "line": "return x", "is_abort": false},
+                 "lines": [[1, 9]],
+                 "effect": {"returns": "x", "state": [{"pkg_inst": "P",
+                   "changed": [{"field": "T", "value": "T[k -> v]", "table": {"base": "T", "entries": [{"key": "k", "value": "v"}]}}],
+                   "unchanged": ["c"]}],
+                   "rand": [{"point": "P.o.r", "ty": "Bits(256)", "draws": 1}],
+                   "wheres": [{"name": "w", "value": "f(x)"}], "truncated": false}},
+        "right": {"steps": [], "terminal": {"label": 7, "line": "abort", "is_abort": true}, "lines": [], "effect": null},
+        "claims": [
+          {"claim": "equal-output", "verdict": {"kind": "verified"}},
+          {"claim": "invariant", "verdict": {"kind": "goal-fails", "model": "models/J1.smt2"},
+           "relations": [{"name": "rel", "verdict": {"kind": "inconclusive", "model": null}},
+                         {"name": "other", "verdict": {"kind": "unreachable", "reason": {"kind": "dependency-false", "dependency": "no-abort"}}}]}
+        ]}],
+      "stuck": [{"id": "S1", "node": 0, "side": "right", "label": 4, "left_label": 3, "right_label": 4,
+                 "sample": "P.o.r", "draw": 0, "reason": "pairing-sat-not-valid"}],
+      "stop_reason": {"kind": "completed"}
+    }"#;
+
+    const SUMMARY: &str = r#"{"joint_paths": 1, "nodes": 2, "pruned_children": 1,
+      "node_kinds": {"split": 1, "terminal-pair": 1},
+      "claims": [{"claim": "equal-output", "verified": 1, "unreachable": 0, "unreachable_dependency": 0, "goal_fails": 0, "inconclusive": 0}],
+      "verdict_combos": [{"verdicts": ["verified", "goal-fails", "not-checked"], "count": 1}],
+      "relation_failures": {"rel": 1}, "stuck_points": 1}"#;
+
+    fn saved_tree() -> SavedTree {
+        SavedTree {
+            version: SavedTree::VERSION,
+            oracle: "PKENC".into(),
+            id: SavedTree::new_id(),
+            domino: "0.1.0".into(),
+            fingerprint: "00ff".into(),
+            fingerprint_parts: [("code".to_string(), "0f".to_string())].into(),
+            outcome: serde_json::from_str(OUTCOME).unwrap(),
+            summary: serde_json::from_str(SUMMARY).unwrap(),
+            relations: vec!["rel".into()],
+        }
+    }
+
+    #[test]
+    fn a_saved_joint_tree_reads_back_as_it_was_written() {
+        let dir = scratch("tree");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(saved_tree_name("Eq_L_R.ec", "PKENC"));
+        assert!(path.ends_with("Eq_L_R.PKENC.tree.json"));
+        assert!(matches!(SavedTree::read(&path), Ok(None)));
+        let tree = saved_tree();
+        std::fs::write(&path, tree.to_json()).unwrap();
+        let read = SavedTree::read(&path).unwrap().expect("a tree");
+        // every field survives: the outcome and the summary as their JSON
+        let value = |t: &SavedTree| serde_json::to_value(t).unwrap();
+        assert_eq!(value(&read), value(&tree));
+        assert_eq!(
+            serde_json::to_value(&read.outcome).unwrap(),
+            serde_json::from_str::<serde_json::Value>(OUTCOME).unwrap()
+        );
+        assert_eq!(read.outcome.stuck[0].side, "right");
+        assert_eq!(read.summary.verdict_combos[0].verdicts[2], "not-checked");
+    }
+
+    #[test]
+    fn a_tree_of_an_unknown_version_or_unreadable_is_an_error_not_a_tree() {
+        let dir = scratch("tree-bad");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Eq_L_R.A.tree.json");
+        let mut newer = serde_json::to_value(saved_tree()).unwrap();
+        newer["version"] = 2.into();
+        std::fs::write(&path, newer.to_string()).unwrap();
+        let err = SavedTree::read(&path).unwrap_err().to_string();
+        assert!(err.contains("version 2"), "{err}");
+        std::fs::write(&path, "{ not json").unwrap();
+        assert!(SavedTree::read(&path).is_err());
+    }
+
     #[test]
     fn a_version_1_record_reads_with_statuses_only() {
         let text = r#"{"version": 1, "theorem": "T", "left": "L", "right": "R", "complete": false,
@@ -724,20 +1005,22 @@ mod tests {
     }
 
     #[test]
-    fn removing_records_deletes_every_session_json_under_the_directory_and_nothing_else() {
+    fn removing_records_deletes_every_session_json_and_tree_json_under_the_directory_and_nothing_else() {
         let dir = scratch("remove");
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         for f in [
             "Eq_A_B.session.json",
+            "Eq_A_B.PKENC.tree.json",
             "sub/Eq_C_D.session.json",
             "Eq_A_B.ec",
         ] {
             std::fs::write(dir.join(f), "x").unwrap();
         }
-        assert_eq!(remove_session_records(&dir).unwrap(), 2);
+        assert_eq!(remove_records_and_trees(&dir).unwrap(), 3);
         assert!(dir.join("Eq_A_B.ec").exists());
         assert!(!dir.join("Eq_A_B.session.json").exists());
-        assert_eq!(remove_session_records(&dir.join("missing")).unwrap(), 0);
+        assert!(!dir.join("Eq_A_B.PKENC.tree.json").exists());
+        assert_eq!(remove_records_and_trees(&dir.join("missing")).unwrap(), 0);
     }
 
     /// A pid that certainly belongs to no process: a child that has been waited for.

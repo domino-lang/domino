@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::writers::smt::exprs::SmtExpr;
 
@@ -46,7 +46,7 @@ const MAX_DEPTH: usize = 400;
 ///
 /// Every string in here is a *rendering* — human-facing, deliberately lossy (see
 /// the module docs). The authoritative encoding is the path's SMT.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathEffect {
     /// The rendered return value. `None` for `return` with no value (rendered as
     /// `()` by the viewer) — this whole struct is `None` for an abort.
@@ -61,7 +61,7 @@ pub struct PathEffect {
     pub truncated: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PkgEffect {
     pub pkg_inst: String,
     /// Fields whose final SSA constant differs from the seeded one, in package
@@ -71,7 +71,7 @@ pub struct PkgEffect {
     pub unchanged: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldEffect {
     pub field: String,
     /// The flat rendering, e.g. `old.Prot.SENTCTXT[old.Prot.ctr -> ctxt]`.
@@ -81,19 +81,19 @@ pub struct FieldEffect {
     pub table: Option<TableUpdate>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableUpdate {
     pub base: String,
     pub entries: Vec<Entry>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Entry {
     pub key: String,
     pub value: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RandEffect {
     /// `Prot.Run.encaps_rand`
     pub point: String,
@@ -103,7 +103,7 @@ pub struct RandEffect {
     pub draws: usize,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Binding {
     pub name: String,
     pub value: String,

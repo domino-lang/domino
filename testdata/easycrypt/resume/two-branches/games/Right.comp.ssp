@@ -1,0 +1,15 @@
+composition Right {
+    const n: Integer;
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+    }
+
+    compose {
+        adversary: {
+            Branch: Branch of rand,
+        },
+    }
+}

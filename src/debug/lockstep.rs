@@ -62,7 +62,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use serde_derive::Serialize;
+use serde_derive::{Deserialize, Serialize};
 
 use crate::debug::claims::{check_claim, ClaimQuery, PairAborts};
 use crate::debug::driver::{
@@ -179,7 +179,7 @@ pub trait LockstepObserver {
 // Outputs (serialised into trace.json, schema 9)
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockstepOutcome {
     pub tree: JointTree,
     /// The joint paths, `J1`, `J2`, … in depth-first order.
@@ -190,12 +190,12 @@ pub struct LockstepOutcome {
 }
 
 /// The joint tree as an arena in depth-first pre-order; node 0 is the root.
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct JointTree {
     pub nodes: Vec<JointNode>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JointNode {
     pub index: usize,
     pub kind: NodeKind,
@@ -211,7 +211,7 @@ pub struct JointNode {
     pub stuck: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum NodeKind {
     /// A side's branch was decided by the assumptions and the path condition;
@@ -251,7 +251,7 @@ impl NodeKind {
 }
 
 /// Where one side stood at a node.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SideView {
     pub head: HeadView,
     /// The listing lines this side consumed on the way here, since the last
@@ -262,14 +262,14 @@ pub struct SideView {
     pub plumbing: Option<PlumbingKind>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HeadView {
     pub kind: HeadKind,
     /// The label of the decision point in the side's listing.
     pub label: usize,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum HeadKind {
     Branch,
@@ -279,7 +279,7 @@ pub enum HeadKind {
     Abort,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PlumbingKind {
     DoneGuard,
@@ -295,7 +295,7 @@ impl From<Plumbing> for PlumbingKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JointChild {
     /// What the left side did to get into the child; `None` if it waited.
     pub left: Option<SideStep>,
@@ -303,7 +303,7 @@ pub struct JointChild {
     pub outcome: ChildOutcome,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SideStep {
     pub label: usize,
     /// A branch decision (`then`, `else`, `assert-holds`, …) or `draw` for a
@@ -311,7 +311,7 @@ pub struct SideStep {
     pub decision: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum ChildOutcome {
     /// Explored: the node's index in [`JointTree::nodes`].
@@ -322,7 +322,7 @@ pub enum ChildOutcome {
     NotExplored,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Answer {
     Sat,
@@ -340,7 +340,7 @@ impl From<SmtSolverResponse> for Answer {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolverAnswer {
     /// What was asked, e.g. `left-then-possible`: satisfiability of
     /// `A ∧ pc ∧ <the named condition>`.
@@ -348,13 +348,14 @@ pub struct SolverAnswer {
     pub answer: Answer,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StuckPoint {
     pub id: String,
     /// The node the point sits at.
     pub node: usize,
     /// `left` or `right`: the side whose sampling is stuck.
-    pub side: &'static str,
+    #[serde(deserialize_with = "side_of")]
+    pub side: StaticStr,
     /// The stuck sampling's label in its side's listing.
     pub label: usize,
     /// Both sides' decision-point labels at the point.
@@ -367,7 +368,22 @@ pub struct StuckPoint {
     pub reason: StuckReason,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// `&'static str` under a name serde's derive cannot see a lifetime in: deserializing it borrows
+/// nothing (see [`side_of`]), but a visible `'static` would make the derived impl demand
+/// `'de: 'static`.
+pub(crate) type StaticStr = &'static str;
+
+/// `"left"` or `"right"` back as the static string [`StuckPoint::side`] holds.
+fn side_of<'de, D: serde::Deserializer<'de>>(d: D) -> Result<&'static str, D::Error> {
+    let side = <String as serde::Deserialize>::deserialize(d)?;
+    match side.as_str() {
+        "left" => Ok("left"),
+        "right" => Ok("right"),
+        other => Err(serde::de::Error::unknown_variant(other, &["left", "right"])),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum StuckReason {
     /// The mapping pairs the sampling with another one for certain, but that
@@ -394,7 +410,7 @@ impl StuckReason {
 }
 
 /// One joint path and what the checks said about it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PairRecord {
     /// `J<n>`.
     pub id: String,
@@ -437,7 +453,7 @@ impl PairRecord {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PairSide {
     pub steps: Vec<StepView>,
     pub terminal: TerminalView,
@@ -447,7 +463,7 @@ pub struct PairSide {
     pub effect: Option<PathEffect>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelationVerdict {
     pub name: String,
     pub verdict: Verdict,

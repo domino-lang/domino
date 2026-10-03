@@ -122,6 +122,8 @@ pub(super) struct NodeRec {
     pub rungs: Vec<String>,
     pub admits: Vec<AdmitRec>,
     pub done: bool,
+    /// Closed by an earlier job and kept from the session record, not proved by this run.
+    pub kept: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -152,6 +154,8 @@ pub(super) struct OracleRec {
     pub started: bool,
     /// EasyCrypt left an interrupt unanswered while on this oracle, as the report says it.
     pub unanswered: Option<String>,
+    /// Resumed from the session record's closed nodes: `resumed at N7 (trust)`.
+    pub resumed_at: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -314,6 +318,7 @@ impl LiveHandle {
                     summary: None,
                     started: false,
                     unanswered: None,
+                    resumed_at: None,
                 })
                 .collect(),
             setup_steps: 0,
@@ -442,6 +447,7 @@ impl LiveHandle {
             rungs: Vec::new(),
             admits: Vec::new(),
             done: false,
+            kept: false,
         });
         let idx = oracle.nodes.len() - 1;
         match parent {
@@ -449,6 +455,25 @@ impl LiveHandle {
             None => oracle.roots.push(idx),
         }
         live.node_stack.push(idx);
+        live.touch(false);
+    }
+
+    /// The current oracle is resumed from the session record, at node `at` (`N7`, `router`),
+    /// in `mode` (`trust`, `replay`).
+    pub fn oracle_resumed(&self, at: &str, mode: &str) {
+        let mut live = self.0.borrow_mut();
+        if let (Some(eq), Some(o)) = (live.cur_eq, live.cur_oracle) {
+            live.eqs[eq].oracles[o].resumed_at = Some(format!("resumed at {at} ({mode})"));
+        }
+        live.touch(true);
+    }
+
+    /// The current node is closed from the session record, not proved by this run.
+    pub fn node_kept(&self) {
+        let mut live = self.0.borrow_mut();
+        if let Some(node) = live.current_node_mut() {
+            node.kept = true;
+        }
         live.touch(false);
     }
 

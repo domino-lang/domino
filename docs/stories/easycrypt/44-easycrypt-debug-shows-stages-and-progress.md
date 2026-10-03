@@ -43,6 +43,14 @@ creation in `src/easycrypt/tactics/mod.rs`).
 - **Story 39:** `eprintln_above_bars`, and the Ctrl-C handler already prints through it.
 - **Story 36:** parallel proof jobs. `create_if_absent` already tolerates two jobs creating the same
   translation file.
+- **`resume-an-oracle-from-its-saved-joint-tree` (ADR 0008):** `tactics_for_oracle` now starts
+  with `resuming(…)`. An oracle the session record holds as `interrupted` is walked on its saved
+  joint tree **without lockstep execution** (no `LockstepStarted`/`LockstepFinished` events, no
+  lockstep bar); `LiveHandle::oracle_resumed` marks it on the page instead. Lockstep execution moved
+  into `lockstep(…)`, which also writes `Eq_<L>_<R>.<oracle>.tree.json` (`save_tree`). The resume
+  warnings (no tree, version 2 record, stale tree, a replayed sentence rejected, a tree not saved)
+  are plain `eprintln!`s in `resuming`/`save_tree` (`tactics/mod.rs`) and `keep_node`/`replay`
+  (`tactics/driver.rs`), not routed above the bars: candidates for this story's stage messages.
 
 ## 3. Work to do
 

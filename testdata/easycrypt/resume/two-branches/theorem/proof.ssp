@@ -1,0 +1,29 @@
+theorem Proof {
+    const n: Integer;
+
+    instance left = Left {
+        params {
+            n: n,
+        }
+    }
+
+    instance right = Right {
+        params {
+            n: n,
+        }
+    }
+
+    gamehops {
+        equivalence left right {
+            invariant: [ ./theorem/invariant.smt2]
+            Branch: {
+                randomness: simple
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+}

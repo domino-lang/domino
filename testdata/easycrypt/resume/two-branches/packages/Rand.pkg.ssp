@@ -1,0 +1,20 @@
+package Rand {
+    params {
+        n: Integer,
+    }
+
+    state {
+        ctr: Integer,
+    }
+
+    oracle Branch(x: Integer) -> (Integer, Bits(n))  {
+        if (x == 1) {
+            ctr <- (ctr + 1);
+            r <-$ Bits(n);
+            return (ctr, r);
+        }
+        ctr <- (ctr + 2);
+        s <-$ Bits(n);
+        return (ctr, s);
+    }
+}

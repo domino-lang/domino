@@ -13,7 +13,7 @@
 //! `n` admits close `n` goals wherever they stand; the seal still places each in the bullet
 //! the walk would have given it, from the goal count recorded at each [`Script::enter_bullet`].
 
-use crate::easycrypt::job::NodeRecord;
+use crate::easycrypt::job::{AdmitRecord, ClosedNode, ScriptLine};
 
 /// One accepted sentence.
 #[derive(Debug, Clone)]
@@ -25,21 +25,37 @@ pub(super) struct Line {
     pub(super) sentence: String,
     /// A `(* domino: … *)` comment, kept after the sentence.
     comment: Option<String>,
-    /// The joint node the walk was in (`N<k>`); `None` in the router prelude.
-    node: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub(super) struct Script {
     lines: Vec<Line>,
-    /// The joint node new sentences belong to (see [`Line::node`]).
-    node: Option<usize>,
     depth: usize,
     /// The next sentence is the first of a new bullet block.
     pending_bullet: bool,
     /// For each open block, outermost first: how many goals were open (in the whole session)
     /// when it was entered, its own in front. Always `depth` long.
     open_at_entry: Vec<usize>,
+    /// The joint nodes closed so far, in the order they closed (inner before outer).
+    closed: Vec<Closed>,
+}
+
+/// Where a joint node's sentences start: [`Script::node_start`].
+#[derive(Debug, Clone, Copy)]
+pub(super) struct NodeStart {
+    node: usize,
+    at: usize,
+    depth: usize,
+}
+
+/// A closed node: its sentences are `lines[start..end]`, the first at `depth`.
+#[derive(Debug, Clone)]
+struct Closed {
+    node: usize,
+    start: usize,
+    end: usize,
+    depth: usize,
+    admits: Vec<AdmitRecord>,
 }
 
 /// A point to return to.
@@ -70,30 +86,79 @@ impl Script {
             bullet: std::mem::take(&mut self.pending_bullet),
             sentence: sentence.to_string(),
             comment,
-            node: self.node,
         });
     }
 
-    /// The joint node the sentences pushed from now on belong to.
-    pub(super) fn set_node(&mut self, node: Option<usize>) {
-        self.node = node;
+    /// Where joint node `node`'s sentences start: the walk is about to prove it.
+    pub(super) fn node_start(&self, node: usize) -> NodeStart {
+        NodeStart {
+            node,
+            at: self.lines.len(),
+            depth: self.depth,
+        }
     }
 
-    /// The sentences of the script per joint node (`N<k>`, or `router`), in the order the nodes
-    /// first appear, each node's sentences in script order (story 37's `nodes`).
-    pub(super) fn by_node(&self) -> Vec<NodeRecord> {
-        let mut nodes: Vec<NodeRecord> = Vec::new();
-        for line in &self.lines {
-            let id = line.node.map_or_else(|| "router".to_string(), |n| format!("N{n}"));
-            match nodes.iter_mut().find(|n| n.id == id) {
-                Some(node) => node.tactics.push(line.sentence.clone()),
-                None => nodes.push(NodeRecord {
-                    id,
-                    tactics: vec![line.sentence.clone()],
-                }),
-            }
+    /// The node started at `start` is closed: every sentence since is its proof, holding
+    /// `admits` and no `interrupted` one.
+    pub(super) fn close_node(&mut self, start: NodeStart, admits: Vec<AdmitRecord>) {
+        self.closed.push(Closed {
+            node: start.node,
+            start: start.at,
+            end: self.lines.len(),
+            depth: start.depth,
+            admits,
+        });
+    }
+
+    /// Writes back a closed node of the session record as the proof of node `node`, at the
+    /// depth the walk reached it: its first line takes the pending bullet. It is closed again.
+    pub(super) fn push_closed(&mut self, node: usize, closed: &ClosedNode) {
+        let start = self.node_start(node);
+        for (i, line) in closed.script.iter().enumerate() {
+            let bullet = if i == 0 {
+                std::mem::take(&mut self.pending_bullet)
+            } else {
+                line.bullet
+            };
+            self.lines.push(Line {
+                depth: self.depth + line.depth,
+                bullet,
+                sentence: line.sentence.clone(),
+                comment: line.comment.clone(),
+            });
         }
-        nodes
+        self.close_node(start, closed.admits.clone());
+    }
+
+    /// The outermost closed nodes, in script order, as the session record keeps them.
+    pub(super) fn closed_nodes(&self) -> Vec<ClosedNode> {
+        let mut outermost: Vec<&Closed> = Vec::new();
+        let mut by_start: Vec<&Closed> = self.closed.iter().collect();
+        // at one start, the outer node is the one that ends last
+        by_start.sort_by_key(|c| (c.start, std::cmp::Reverse(c.end)));
+        for c in by_start {
+            if outermost.last().is_some_and(|o| c.end <= o.end) {
+                continue;
+            }
+            outermost.push(c);
+        }
+        outermost
+            .into_iter()
+            .filter(|c| c.end > c.start)
+            .map(|c| ClosedNode {
+                id: format!("N{}", c.node),
+                script: self.lines[c.start..c.end]
+                    .iter()
+                    .map(|l| ScriptLine {
+                        depth: l.depth - c.depth,
+                        bullet: l.bullet,
+                        sentence: l.sentence.clone(),
+                        comment: l.comment.clone(),
+                    })
+                    .collect(),
+                admits: c.admits.clone(),
+            })
+            .collect()
     }
 
     pub(super) fn mark(&self) -> Mark {
@@ -106,6 +171,7 @@ impl Script {
     pub(super) fn rollback(&mut self, mark: Mark) {
         self.lines.truncate(mark.len);
         self.pending_bullet = mark.pending_bullet;
+        self.closed.retain(|c| c.end <= mark.len);
     }
 
     /// The seal: a copy whose every goal of the oracle still open (of the `open` goals open
@@ -200,32 +266,102 @@ impl Script {
 mod tests {
     use super::*;
 
-    fn node(id: &str, tactics: &[&str]) -> NodeRecord {
-        NodeRecord {
-            id: id.to_string(),
-            tactics: tactics.iter().map(|t| t.to_string()).collect(),
+    fn admit(node: &str) -> AdmitRecord {
+        AdmitRecord {
+            node: node.to_string(),
+            reason: "stuck".to_string(),
+            claim: String::new(),
+            domino: String::new(),
         }
     }
 
-    #[test]
-    fn sentences_are_grouped_by_the_node_they_were_accepted_in() {
+    fn line(depth: usize, bullet: bool, sentence: &str) -> ScriptLine {
+        ScriptLine {
+            depth,
+            bullet,
+            sentence: sentence.to_string(),
+            comment: None,
+        }
+    }
+
+    /// The oracle's bullet, the router prelude, and the walk in N0's bullet: N0 splits, N1
+    /// closes and N2 holds an admit. `rollback_n2` undoes N2's first attempt.
+    fn walked(rollback_n2: bool) -> Script {
         let mut s = Script::default();
         s.enter_bullet(1);
         s.push("proc; inline.", None);
-        s.set_node(Some(0));
-        s.push("sp 1 1.", None);
-        s.set_node(Some(3));
-        s.push("auto.", None);
-        s.set_node(Some(0));
-        s.push("smt().", None);
+        s.push("if.", None);
+        s.enter_bullet(2);
+        let n0 = s.node_start(0);
+        s.push("if.", None);
+        s.enter_bullet(3);
+        let n1 = s.node_start(1);
+        s.push("auto => /#.", None);
+        s.close_node(n1, vec![]);
+        s.leave_bullet();
+        s.enter_bullet(2);
+        if rollback_n2 {
+            let mark = s.mark();
+            let n2 = s.node_start(2);
+            s.push("sp 1 1.", None);
+            s.close_node(n2, vec![]);
+            s.rollback(mark);
+        }
+        let n2 = s.node_start(2);
+        s.push("admit.", Some("(* domino: J2 stuck *)".into()));
+        s.close_node(n2, vec![admit("J2")]);
+        s.leave_bullet();
+        s.close_node(n0, vec![admit("J2")]);
+        s.leave_bullet();
+        s
+    }
+
+    #[test]
+    fn a_closed_node_is_kept_with_depths_relative_to_its_first_line_and_only_outermost() {
+        let s = walked(false);
+        let closed = s.closed_nodes();
+        assert_eq!(closed.len(), 1, "N1 and N2 are inside N0: {closed:?}");
+        assert_eq!(closed[0].id, "N0");
         assert_eq!(
-            s.by_node(),
+            closed[0].script,
             vec![
-                node("router", &["proc; inline."]),
-                node("N0", &["sp 1 1.", "smt()."]),
-                node("N3", &["auto."]),
+                line(0, true, "if."),
+                line(1, true, "auto => /#."),
+                ScriptLine {
+                    comment: Some("(* domino: J2 stuck *)".into()),
+                    ..line(1, true, "admit.")
+                },
             ]
         );
+        assert_eq!(closed[0].admits, vec![admit("J2")]);
+    }
+
+    #[test]
+    fn a_node_closed_inside_an_undone_attempt_is_not_kept() {
+        let mut s = walked(true);
+        assert_eq!(s.closed_nodes().len(), 1);
+        assert!(!format!("{:?}", s.closed_nodes()).contains("sp 1 1."));
+        // undoing past N0's start forgets N0 too
+        s.rollback(Mark {
+            len: 2,
+            pending_bullet: false,
+        });
+        assert!(s.closed_nodes().is_empty());
+    }
+
+    #[test]
+    fn a_kept_node_is_written_back_at_the_depth_it_is_reached_and_kept_again() {
+        let original = walked(false);
+        let kept = original.closed_nodes().remove(0);
+        let mut s = Script::default();
+        s.enter_bullet(1);
+        s.push("proc; inline.", None);
+        s.push("if.", None);
+        s.enter_bullet(2);
+        s.push_closed(0, &kept);
+        s.leave_bullet();
+        assert_eq!(s.render(), original.render());
+        assert_eq!(s.closed_nodes(), vec![kept]);
     }
 
     #[test]

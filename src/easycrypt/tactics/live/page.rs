@@ -201,6 +201,9 @@ impl Live {
                     if open { " open" } else { "" },
                     esc(&oracle.name)
                 );
+                if let Some(at) = &oracle.resumed_at {
+                    let _ = write!(out, " <span class=\"chip\">{}</span>", esc(at));
+                }
                 if let Some(s) = oracle.summary.as_ref().filter(|s| !s.resumed) {
                     let _ = write!(
                         out,
@@ -406,7 +409,9 @@ impl Live {
         let key = format!("n{e}_{o}_{n}");
         let current =
             self.cur_eq == Some(e) && self.cur_oracle == Some(o) && self.node_stack.contains(&n);
-        let (state_class, state) = if !node.admits.is_empty() {
+        let (state_class, state) = if node.kept {
+            ("st-closed", "kept from session record")
+        } else if !node.admits.is_empty() {
             ("st-admitted", "admitted")
         } else if node.done {
             ("st-closed", "closed")
