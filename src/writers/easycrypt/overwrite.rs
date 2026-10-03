@@ -118,7 +118,7 @@ pub fn proof_progress(text: &str) -> OracleCounts {
 /// The export would write where files other than run artifacts already are.
 #[derive(Debug, Error)]
 #[error(
-    "{} existing file(s) under {} are not run artifacts, so `domino easycrypt` wrote nothing:\n{}",
+    "{} existing file(s) under {} are not run artifacts, so `domino easycrypt export` wrote nothing:\n{}",
     files.len(),
     out.display(),
     files.iter().map(|f| format!("  {}", f.display())).collect::<Vec<_>>().join("\n")

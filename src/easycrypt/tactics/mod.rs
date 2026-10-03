@@ -37,7 +37,7 @@
 //! - [`driver`]: the prover.
 //! - [`live`], `live::page`: the live translation page, `progress/Eq_<L>_<R>/index.html` (story 28, 36).
 //!
-//! Plain `domino easycrypt` never gets here.
+//! `domino easycrypt export` never gets here.
 
 mod driver;
 mod goals;

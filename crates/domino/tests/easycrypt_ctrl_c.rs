@@ -67,10 +67,10 @@ done
     script
 }
 
-/// `domino easycrypt`: translation only, which `prove` runs against (story 35).
+/// `domino easycrypt export`: translation only, which `prove` runs against (story 35).
 fn translate(project: &str, out: &Path) {
     let status = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--progress", "none", "--project"])
+        .args(["easycrypt", "export", "--progress", "none", "--project"])
         .arg(workspace().join("example-projects").join(project))
         .arg("--out")
         .arg(out)
@@ -278,7 +278,7 @@ fn a_second_job_on_the_same_equivalence_is_refused_until_the_first_is_killed() {
 
     // translation is refused too, even with --force, while the lock is live
     let translation = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--force", "--progress", "none", "--project"])
+        .args(["easycrypt", "export", "--force", "--progress", "none", "--project"])
         .arg(workspace().join("example-projects/hello-world"))
         .arg("--out")
         .arg(&out)
@@ -302,7 +302,7 @@ fn a_second_job_on_the_same_equivalence_is_refused_until_the_first_is_killed() {
 
     // and with the stale lock gone, translation is allowed again
     let translation = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--force", "--progress", "none", "--project"])
+        .args(["easycrypt", "export", "--force", "--progress", "none", "--project"])
         .arg(workspace().join("example-projects/hello-world"))
         .arg("--out")
         .arg(&out)

@@ -111,7 +111,7 @@ pub struct LockstepDebugOptions {
 }
 
 impl LockstepDebugOptions {
-    /// The options of a lockstep run on the EasyCrypt listing, as `domino easycrypt` runs it:
+    /// The options of a lockstep run on the EasyCrypt listing, as `domino easycrypt debug` runs it:
     /// `prove` and `debug` both take them from here, so the two cannot drift. Nothing but
     /// the solver timeout is up to the caller; the paths are unbounded and only failures leave
     /// `smt/` files.
@@ -752,7 +752,7 @@ where
     let eq = equivalence_of(theorem, req_proofstep)?;
 
     // The same three transforms of the theorem as the sequential debugger, plus
-    // the one `domino easycrypt` exports: the base frame comes from the
+    // the one `domino easycrypt export` exports: the base frame comes from the
     // treeified pipeline, the executed game instances from `DebugTransform`, and
     // the listing lowered from `EasyCryptTransform`.
     let (theorem_eq, auxs_eq) = EquivalenceTransform.transform_theorem(theorem)?;

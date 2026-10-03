@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Progress reporting for `domino easycrypt` (story 21).
+//! Progress reporting for `domino easycrypt export` (story 21).
 //!
 //! [`export_theorem_observed`](super::export::export_theorem_observed) and
 //! [`write_files_observed`](super::export::write_files_observed) stream

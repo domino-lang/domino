@@ -117,7 +117,7 @@ impl super::TheoremTransform for DebugTransform {
 }
 
 /// Like [`EquivalenceTransform`], but prepares game instances for the
-/// EasyCrypt exporter (`domino easycrypt`) — and, once stories 08/09 add the
+/// EasyCrypt exporter (`domino easycrypt export`) — and, once stories 08/09 add the
 /// flag, for `domino inline/debug --easycrypt`
 /// (`docs/stories/easycrypt/16-easycryptify.md`).
 ///

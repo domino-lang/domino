@@ -47,7 +47,7 @@ pub(crate) mod test_support {
     }
 
     /// Like [`assert_compiles`], but with one `-I <dir>` per entry in
-    /// `dirs`. Since story 10 flattened `domino easycrypt`'s own output (no
+    /// `dirs`. Since story 10 flattened `domino easycrypt export`'s own output (no
     /// `packages/`/`games/` subdirectories any more — every real export
     /// compiles with a single `-I .`), this is only needed by a test that
     /// deliberately spreads its fixture across two *unrelated* directories

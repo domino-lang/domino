@@ -3,7 +3,7 @@
 use clap::Subcommand;
 use sspverif::util::smtsolver::process::SolverVariant;
 
-/// How `domino debug` and `domino easycrypt` render live progress (on stderr).
+/// How `domino debug` and `domino easycrypt` (`export`, `prove`, `debug`) render live progress (on stderr).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ProgressMode {
     /// An `indicatif` bar on a terminal, plain stderr log lines when piped.
@@ -93,11 +93,12 @@ pub(crate) enum Commands {
     Easycrypt(Easycrypt),
 }
 
-/// `domino easycrypt`: **translation** (story 35, ADR 0006). Without a subcommand it exports the
-/// theorem to an EasyCrypt project and runs no EasyCrypt. The subcommands are proof jobs: they
+/// `domino easycrypt`: the EasyCrypt export. `export` is **translation** (story 35, ADR 0006): it
+/// writes an EasyCrypt project and runs no EasyCrypt. The other subcommands are proof jobs: they
 /// never translate, they only make sure the files translation writes are there.
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
+#[clap(subcommand_required = true, arg_required_else_help = true)]
 pub(crate) struct Easycrypt {
     /// Path to the Domino project. Defaults to searching the current
     /// directory and its ancestors for an `ssp.toml`.
@@ -107,6 +108,13 @@ pub(crate) struct Easycrypt {
     /// Defaults to `<project>/_build/easycrypt`.
     #[clap(long, global = true)]
     pub(crate) out: Option<std::path::PathBuf>,
+    #[clap(subcommand)]
+    pub(crate) command: EasycryptCommand,
+}
+
+/// `domino easycrypt export` (stories 35, 45): translation only. Runs no EasyCrypt.
+#[derive(clap::Args, Debug)]
+pub(crate) struct EcExport {
     /// Name of the theorem to export. Without it, every theorem in the
     /// project is exported.
     #[clap(long)]
@@ -122,21 +130,22 @@ pub(crate) struct Easycrypt {
     /// files are the same in every mode).
     #[clap(long, value_enum, default_value_t = ProgressMode::Auto)]
     pub(crate) progress: ProgressMode,
-    #[clap(subcommand)]
-    pub(crate) command: Option<EasycryptCommand>,
 }
 
-/// The proof jobs of `domino easycrypt`. Each needs the translation's result in memory but
-/// writes none of translation's files over what is there; a missing file is created.
+/// The subcommands of `domino easycrypt`: `export` is translation; the rest are proof jobs. A
+/// proof job needs the translation's result in memory but writes none of translation's files over
+/// what is there; a missing file is created.
 #[derive(Subcommand, Debug)]
 pub(crate) enum EasycryptCommand {
+    /// Translate a theorem to an EasyCrypt project; runs no EasyCrypt.
+    Export(EcExport),
     /// Prove as much of each oracle of an equivalence as possible against a live EasyCrypt.
     Prove(EcProve),
+    /// Run lockstep execution on the EasyCrypt listing of every oracle.
+    Debug(EcDebug),
     /// Check that the decision skeleton of every oracle's program after `proc; inline.`
     /// aligns with the one the debugger's lowering has.
     CheckAlignment(EcCheckAlignment),
-    /// Run lockstep execution on the EasyCrypt listing of every oracle.
-    Debug(EcDebug),
 }
 
 /// `domino easycrypt prove` (stories 27, 35). Never run it on 4WHS or yao: it runs lockstep
@@ -158,7 +167,7 @@ pub(crate) struct EcProve {
     /// `--oracle O`: prove `O` again, keeping the other oracles' proofs). Without it a complete
     /// record skips the equivalence and a partial one is resumed: the oracles it holds are not
     /// proved again. Never rewrites a translation file: a stale one is fixed by
-    /// `domino easycrypt --force`. Overrides `--resume`.
+    /// `domino easycrypt export --force`. Overrides `--resume`.
     #[clap(long, short = 'f')]
     pub(crate) force: bool,
     /// How an oracle the session record holds as `interrupted` is resumed: on its saved joint
@@ -256,7 +265,7 @@ pub(crate) struct Inline {
     /// Print without line numbers (useful for diffing two runs).
     #[clap(long)]
     pub(crate) no_line_numbers: bool,
-    /// Show the generated EasyCrypt code (as `domino easycrypt` exports it)
+    /// Show the generated EasyCrypt code (as `domino easycrypt export` exports it)
     /// instead of the Domino code, on both sides.
     #[clap(long)]
     pub(crate) easycrypt: bool,

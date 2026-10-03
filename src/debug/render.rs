@@ -166,7 +166,7 @@ pub fn render_side_by_side(
 /// `domino inline --easycrypt` (story 08 of the EasyCrypt epic): like
 /// [`render_side_by_side`], but both sides are the **EasyCrypt** listings —
 /// the theorem goes through [`EasyCryptTransform`], the pipeline
-/// `domino easycrypt` exports, and each side is lowered by
+/// `domino easycrypt export` exports, and each side is lowered by
 /// [`crate::writers::easycrypt::lower::inline_oracle_ec`].
 pub fn render_side_by_side_easycrypt(
     theorem: &Theorem,

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Story 21: `domino easycrypt --progress <mode>` changes stderr only.
+//! Story 21: `domino easycrypt export --progress <mode>` changes stderr only.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use std::process::Command;
 fn run(mode: &str, out: &Path) -> (String, String) {
     let project = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../example-projects/hello-world");
     let output = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--project"])
+        .args(["easycrypt", "export", "--project"])
         .arg(&project)
         .arg("--out")
         .arg(out)

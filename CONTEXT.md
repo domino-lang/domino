@@ -67,7 +67,7 @@ execution*. Independent of the **listing** it walks them on.
 
 **Listing** — the code the debugger executes and labels: the Domino code, or the EasyCrypt code the
 export produces. `domino debug` walks the Domino listing; the EasyCrypt listing is reached through
-`domino easycrypt`.
+`domino easycrypt export`.
 
 **Sequential exploration** — the strategy that takes every path of the left oracle, then, under
 each, every path of the right oracle.

@@ -29,9 +29,9 @@ fn scratch(test: &str) -> PathBuf {
     dir
 }
 
-/// `domino easycrypt <args>` on an example project, writing under `out`.
+/// `domino easycrypt <args>`; `args` start with the subcommand.
 fn domino(project: &str, out: &Path, easycrypt: &Path, args: &[&str]) -> Output {
-    // only translation and `prove` report progress
+    // only `export` and `prove` report progress
     let progress: &[&str] = match args.first() {
         Some(&"check-alignment" | &"debug") => &[],
         _ if args.contains(&"--progress") => &[],
@@ -86,7 +86,7 @@ fn a_proof_job_touches_only_its_own_files_skips_a_done_equivalence_and_recreates
     };
     let dir = scratch("job");
     let theorem = dir.join("Proof");
-    let out = domino("hello-world", &dir, &ec, &[]);
+    let out = domino("hello-world", &dir, &ec, &["export"]);
     assert!(out.status.success(), "{}", stderr(&out));
     let prove = ["prove", "--theorem", "Proof", "--proofstep", "0"];
 
@@ -164,7 +164,7 @@ fn a_proof_job_never_creates_another_equivalences_file() {
     };
     let dir = scratch("other");
     let theorem = dir.join("KEM_Proof");
-    let out = domino("simple-KEM-example", &dir, &ec, &[]);
+    let out = domino("simple-KEM-example", &dir, &ec, &["export"]);
     assert!(out.status.success(), "{}", stderr(&out));
     let (mine, other) = (
         theorem.join("Eq_Prot_H1_kem_correctness_real.ec"),
@@ -206,7 +206,7 @@ fn check_alignment_and_debug_are_subcommands_with_the_old_outputs() {
         return;
     };
     let dir = scratch("modes");
-    let out = domino("hello-world", &dir, &ec, &[]);
+    let out = domino("hello-world", &dir, &ec, &["export"]);
     assert!(out.status.success(), "{}", stderr(&out));
     let theorem = dir.join("Proof");
     let eq = theorem.join(format!("{EQ}.ec"));
@@ -260,7 +260,7 @@ fn two_proof_jobs_on_different_equivalences_run_at_once() {
     let project = "kem-dem/kem-dem-cpa-blended-parallel-single-challenge";
     let theorem = "kem_dem_cpa_blended_parallel_single_challenge";
     let out = scratch("parallel");
-    let translated = domino(project, &out, &easycrypt, &[]);
+    let translated = domino(project, &out, &easycrypt, &["export"]);
     assert!(translated.status.success(), "{}", stderr(&translated));
     // proofsteps 0 and 2 are `Eq_CPA_PKE_H0` and `Eq_H1_H2` (1 is a reduction)
     let (a, b) = std::thread::scope(|s| {
@@ -308,7 +308,7 @@ fn a_proof_job_recreates_a_missing_invariants_file() {
     };
     let dir = scratch("invariants");
     let theorem = dir.join("Proof");
-    let out = domino("hello-world", &dir, &ec, &[]);
+    let out = domino("hello-world", &dir, &ec, &["export"]);
     assert!(out.status.success(), "{}", stderr(&out));
     let invariants = format!("{EQ}_Invariants.ec");
     let original = std::fs::read(theorem.join(&invariants)).expect("the export writes it");

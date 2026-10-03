@@ -31,10 +31,10 @@ fn scratch(test: &str) -> PathBuf {
     dir
 }
 
-/// `domino easycrypt`: translation only, which `prove` runs against (story 35).
+/// `domino easycrypt export`: translation only, which `prove` runs against (story 35).
 fn translate(project: &str, out: &Path) {
     let status = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--progress", "none", "--project"])
+        .args(["easycrypt", "export", "--progress", "none", "--project"])
         .arg(workspace().join("example-projects").join(project))
         .arg("--out")
         .arg(out)

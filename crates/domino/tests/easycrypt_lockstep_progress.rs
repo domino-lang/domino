@@ -35,7 +35,7 @@ fn prove(easycrypt: &Path, mode: &str) -> Output {
     std::fs::create_dir_all(&out).unwrap();
     let project = workspace().join(PROJECT);
     let translated = Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--progress", "none", "--project"])
+        .args(["easycrypt", "export", "--progress", "none", "--project"])
         .arg(&project)
         .arg("--out")
         .arg(&out)

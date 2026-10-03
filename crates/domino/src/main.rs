@@ -480,7 +480,7 @@ fn inline(i: &Inline) -> Result<(), Error> {
     Ok(())
 }
 
-/// `domino easycrypt`'s stdout report (§3.3 of the story): one block per
+/// `domino easycrypt export`'s stdout report (§3.3 of the story): one block per
 /// exported theorem, fixed-width labels so the fields line up.
 fn print_easycrypt_report(theorem_name: &str, exported: &ExportedTheorem, wrote_path: &str) {
     fn types_line(exported: &ExportedTheorem) -> String {
@@ -634,7 +634,7 @@ fn export_observer(
 
 /// Builds every theorem of `theorem_names` fully in memory. Callers write only once *all* of
 /// them succeeded: a failed export must not leave a half-written tree, and extending that across
-/// the whole invocation is deliberate. Without it, plain `domino easycrypt` (no `--theorem`) on
+/// the whole invocation is deliberate. Without it, `domino easycrypt export` (no `--theorem`) on
 /// a project where only *some* theorems fail (e.g. `example-projects/yao`, where
 /// `HybridSecurity`/`LayerSecurity` export cleanly but `Yao`/`Yao3Layer` don't) would leave the
 /// successful theorems' directories on disk next to a top-level error.
@@ -673,8 +673,8 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
         .unwrap_or_else(|| project_root.join("_build/easycrypt"));
 
     match &e.command {
-        None => {
-            let theorem_names: Vec<String> = match &e.theorem {
+        EasycryptCommand::Export(export) => {
+            let theorem_names: Vec<String> = match &export.theorem {
                 Some(name) => vec![name.clone()],
                 None => {
                     let mut names: Vec<String> = project.theorems().map(String::from).collect();
@@ -682,21 +682,21 @@ fn easycrypt(e: &Easycrypt) -> Result<(), Error> {
                     names
                 }
             };
-            easycrypt_translate(e, &project, &project_root, &out_base, &theorem_names)
+            easycrypt_translate(export, &project, &project_root, &out_base, &theorem_names)
         }
-        Some(EasycryptCommand::Prove(p)) => {
+        EasycryptCommand::Prove(p) => {
             easycrypt_prove(p, &project, &project_root, &out_base)
         }
-        Some(EasycryptCommand::CheckAlignment(c)) => {
+        EasycryptCommand::CheckAlignment(c) => {
             easycrypt_check_alignment(c, &project, &out_base)
         }
-        Some(EasycryptCommand::Debug(d)) => easycrypt_debug(d, &project, &out_base),
+        EasycryptCommand::Debug(d) => easycrypt_debug(d, &project, &out_base),
     }
 }
 
-/// `domino easycrypt`: translation only. Runs no EasyCrypt (story 35).
+/// `domino easycrypt export`: translation only. Runs no EasyCrypt (story 35).
 fn easycrypt_translate<P: project::Project>(
-    e: &Easycrypt,
+    export: &EcExport,
     project: &P,
     project_root: &std::path::Path,
     out_base: &std::path::Path,
@@ -711,7 +711,7 @@ fn easycrypt_translate<P: project::Project>(
 
     // Story 32 (ADR 0004): refuse to overwrite anything but run artifacts. First, so that
     // it fires before any export work. A session record counts as translation output.
-    if !e.force {
+    if !export.force {
         let names: Vec<&str> = theorem_names.iter().map(String::as_str).collect();
         sspverif::writers::easycrypt::overwrite::check_export_tree(out_base, &names)?;
     }
@@ -723,10 +723,10 @@ fn easycrypt_translate<P: project::Project>(
         .collect();
     sspverif::easycrypt::job::check_no_live_jobs(&theorem_outs)?;
 
-    let mut observer = export_observer(e.progress);
+    let mut observer = export_observer(export.progress);
     let mut logging = LoggingExportObserver::new(observer.as_mut());
     let exports = export_in_memory(project, theorem_names, &mut logging)?;
-    if e.force {
+    if export.force {
         // the proofs the records describe are about to be overwritten by skeletons (story 35 §3.5)
         for out in &theorem_outs {
             sspverif::easycrypt::job::remove_records_and_trees(out)?;

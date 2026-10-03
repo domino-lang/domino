@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! Story 32: `domino easycrypt` never overwrites the export tree without `--force`
+//! Story 32: `domino easycrypt export` never overwrites the export tree without `--force`
 //! (ADR 0004).
 
 use std::collections::BTreeMap;
@@ -22,7 +22,7 @@ fn scratch(test: &str) -> PathBuf {
 
 fn easycrypt(project: &Path, out: &Path, extra: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_domino"))
-        .args(["easycrypt", "--progress", "none", "--project"])
+        .args(["easycrypt", "export", "--progress", "none", "--project"])
         .arg(project)
         .arg("--out")
         .arg(out)
@@ -258,4 +258,55 @@ fn a_saved_joint_tree_blocks_translation_and_force_deletes_it() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(!tree.exists(), "--force deletes the saved trees");
     let _ = std::fs::remove_dir_all(&base);
+}
+
+fn domino_args(args: &[&str]) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_domino"))
+        .arg("easycrypt")
+        .args(args)
+        .env_remove("DOMINO_EASYCRYPT")
+        .output()
+        .unwrap()
+}
+
+#[test]
+fn bare_easycrypt_prints_the_help_and_fails_and_lists_the_subcommands_in_order() {
+    // story 45: translation is `export`; the bare command is not an alias for it
+    let out = domino_args(&[]);
+    assert!(!out.status.success());
+    let text = format!("{}{}", stderr(&out), String::from_utf8_lossy(&out.stdout));
+    let at = |name: &str| {
+        text.find(&format!("\n  {name} "))
+            .unwrap_or_else(|| panic!("no `{name}` in the help:\n{text}"))
+    };
+    assert!(at("export") < at("prove"));
+    assert!(at("prove") < at("debug"));
+    assert!(at("debug") < at("check-alignment"));
+}
+
+#[test]
+fn translation_flags_are_export_only_and_project_and_out_are_global() {
+    let hello = project("hello-world");
+    let base = scratch("parent-flags");
+    for args in [
+        &["--force", "export"][..],
+        &["--progress", "plain", "debug", "--theorem", "Proof"],
+        &["--theorem", "Proof", "prove"],
+    ] {
+        let out = domino_args(args);
+        assert!(!out.status.success(), "{args:?}");
+        assert!(stderr(&out).contains("unexpected argument"), "{args:?}: {}", stderr(&out));
+    }
+    // `--project` and `--out` work on either side of the subcommand
+    let out = domino_args(&[
+        "--project",
+        hello.to_str().unwrap(),
+        "export",
+        "--progress",
+        "none",
+        "--out",
+        base.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(base.join("Proof/Types.ec").exists());
 }
