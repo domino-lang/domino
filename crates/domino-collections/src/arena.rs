@@ -123,6 +123,50 @@ impl<T> Slice<T> {
     pub fn refs(self) -> impl Iterator<Item = Ref<T>> {
         (self.0..(self.0 + self.1)).map(|i| Ref(i, PhantomData))
     }
+
+    pub fn try_into_const<const LEN: usize>(self) -> Result<ConstSlice<T, LEN>, usize> {
+        self.try_into()
+    }
+
+    pub fn try_into_array<const LEN: usize>(self) -> Result<[Ref<T>; LEN], usize> {
+        self.try_into_const().map(ConstSlice::to_array)
+    }
+}
+
+/// A reference to an arenas slice of type `T` and length `LEN`.
+///
+/// Similar to [`Slice`] (and can be built from it), but the length is hardcoded.
+pub struct ConstSlice<T, const LEN: usize>(u32, PhantomData<fn() -> T>);
+
+impl<T, const LEN: usize> TryFrom<Slice<T>> for ConstSlice<T, LEN> {
+    type Error = usize;
+
+    fn try_from(slice: Slice<T>) -> Result<Self, Self::Error> {
+        let len = slice.len();
+        if len == LEN {
+            Ok(ConstSlice(slice.0, PhantomData))
+        } else {
+            Err(len)
+        }
+    }
+}
+
+impl<T, const LEN: usize> ConstSlice<T, LEN> {
+    pub fn len(self) -> usize {
+        LEN
+    }
+
+    pub fn is_empty(self) -> bool {
+        LEN == 0
+    }
+
+    pub fn refs(self) -> impl Iterator<Item = Ref<T>> {
+        (self.0..(self.0 + LEN as u32)).map(|i| Ref(i, PhantomData))
+    }
+
+    pub fn to_array(self) -> [Ref<T>; LEN] {
+        core::array::from_fn(|i| Ref(self.0 + i as u32, PhantomData))
+    }
 }
 
 impl<T> Arena<T> {
