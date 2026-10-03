@@ -233,6 +233,9 @@ impl Live {
                         );
                     }
                 }
+                if let Some(unanswered) = &oracle.unanswered {
+                    let _ = writeln!(out, "<p class=\"err\">{}</p>", esc(unanswered));
+                }
                 if let Some(href) = &oracle.lockstep_href {
                     let _ = writeln!(
                         out,
@@ -269,6 +272,7 @@ impl Live {
             RunState::Done => ("done", "tactics (done)"),
             RunState::Failed(_) => ("active", "tactics (failed)"),
             RunState::Interrupted(_) => ("active", "tactics (interrupted)"),
+            RunState::EndedEarly(_) => ("active", "tactics (ended early)"),
         };
         let _ = writeln!(out, "<span class=\"chip {class}\">{label}</span></div>");
         if !self.translation.is_empty() {
@@ -286,6 +290,13 @@ impl Live {
                 out,
                 "<div class=\"banner\">interrupted (Ctrl-C): {}</div>",
                 esc(sealed)
+            );
+        }
+        if let RunState::EndedEarly(why) = &self.state {
+            let _ = writeln!(
+                out,
+                "<div class=\"banner failed\">the proof job ended early: {}</div>",
+                esc(why)
             );
         }
         if running {
@@ -473,9 +484,13 @@ impl Live {
             Some(span) => format!("transcript record {}", span.line),
             None => "no transcript record".to_string(),
         };
+        let interrupts = match step.interrupts {
+            0 => String::new(),
+            n => format!(", {n} interrupt(s) to stop it"),
+        };
         let _ = write!(
             out,
-            "<div class=\"note\">{record} ({} goal(s) left, EasyCrypt depth {})</div>",
+            "<div class=\"note\">{record} ({} goal(s) left, EasyCrypt depth {}{interrupts})</div>",
             step.goals_left, step.state
         );
         if let Some(error) = &step.error {

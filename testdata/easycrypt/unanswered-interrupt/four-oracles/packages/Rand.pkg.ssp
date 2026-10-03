@@ -1,0 +1,15 @@
+package Rand {
+    params {
+        n: Integer,
+    }
+
+    state {
+        ctr: Integer,
+    }
+
+    oracle UsefulOracle(dummy: Integer) -> (Integer, Bits(n))  {
+        ctr  <- (ctr + 1);
+        rand <-$ Bits(n);
+        return (ctr, rand);
+    }
+}

@@ -19,6 +19,14 @@
 //! EasyCrypt sentence is interrupted, lockstep execution stops at its next node, the oracle in
 //! flight is sealed and written, and the result says so ([`Interrupted`]).
 //!
+//! **An unanswered interrupt** (`SessionError::Unresponsive`: EasyCrypt did not answer the
+//! interrupts [`Session::send`] kept sending) seals the oracle in flight like a Ctrl-C, but the
+//! job goes on: the stuck EasyCrypt is replaced by a fresh one opened at the same proof (a
+//! **respawn**, [`respawn`]), the oracles already in the file are admitted there, and the walk
+//! carries on with the next oracle. After [`MAX_RESPAWNS`] respawns the next one ends the job
+//! ([`EquivalenceTactics::ended_early`]). An answer that shows EasyCrypt *swallowed* an interrupt
+//! is warned about once per run ([`SwallowWatch`]).
+//!
 //! - [`script`]: the accepted sentences, bullets and indentation.
 //! - [`goals`]: reading goals from the JSON.
 //! - [`driver`]: the prover.
@@ -60,7 +68,7 @@ use super::job::{
     SessionRecord, SessionRecordError,
 };
 use super::json::Goal;
-use super::session::{split_sentences, Session, SessionError};
+use super::session::{split_sentences, Session, SessionError, SessionEvent, JSON_BRANCH};
 
 pub use super::transcript::{EcTranscriptMode, GOALS_PER_STEP, GOAL_TEXT_CAP};
 pub use live::{strip_timings, LiveConfig, LiveHandle};
@@ -123,8 +131,9 @@ impl TacticsOptions {
     }
 }
 
-/// Where a Ctrl-C stopped a tactics run (story 34). Oracles finished before keep their scripts,
-/// oracles not reached keep `+ proc; inline. admit.`.
+/// Where a Ctrl-C stopped a tactics run (story 34), or where a job ended early
+/// ([`EquivalenceTactics::ended_early`]). Oracles finished before keep their scripts, oracles not
+/// reached keep `+ proc; inline. admit.`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Interrupted {
     /// While the proof was being opened, or between two oracles.
@@ -154,6 +163,74 @@ impl std::fmt::Display for Interrupted {
                 node,
             } => write!(f, "sealed {oracle} with {admits} admits at node {node}"),
         }
+    }
+}
+
+/// The most times one proof job replaces an EasyCrypt that left an interrupt unanswered (a
+/// **respawn**). The next unanswered interrupt ends the job, as a Ctrl-C would.
+const MAX_RESPAWNS: usize = 2;
+
+/// EasyCrypt left an interrupt unanswered while an oracle was proved: the oracle was sealed where
+/// the walk stood, and EasyCrypt was respawned (or the job ended there).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unanswered {
+    pub oracle: String,
+    /// The joint node the walk was in, as the oracle's `interrupted` admits name it.
+    pub node: String,
+    /// How many `SIGINT`s went unanswered, and over how long.
+    pub signals: usize,
+    pub waited: Duration,
+    /// How long starting a fresh EasyCrypt and opening the proof again took. `None`: there was
+    /// no respawn, the job ended here ([`EquivalenceTactics::ended_early`]).
+    pub respawn: Option<Duration>,
+}
+
+impl std::fmt::Display for Unanswered {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "EasyCrypt left an interrupt unanswered at {} ({} signals over {} s); oracle sealed, ",
+            self.node,
+            self.signals,
+            self.waited.as_secs()
+        )?;
+        match self.respawn {
+            Some(took) => write!(f, "EasyCrypt respawned (proof opened again in {})", secs(took)),
+            None => write!(f, "EasyCrypt not respawned"),
+        }
+    }
+}
+
+/// The warning for an answer that shows EasyCrypt swallowed an interrupt, given at most once per
+/// run ([`SwallowWatch`]). `head` is the start of the message that shows it.
+fn swallow_warning(head: &str) -> String {
+    format!(
+        "EasyCrypt swallowed an interrupt (`{head}`). Rebuild it from branch \
+         `{JSON_BRANCH}` (story `easycrypt-never-swallows-an-interrupt`); until then, \
+         interrupted attempts can run far past their time and proof jobs may need respawns."
+    )
+}
+
+/// Looks at every answer of a run for an interrupt EasyCrypt swallowed
+/// ([`Response::swallowed_interrupt`](super::json::Response::swallowed_interrupt)) and warns on
+/// stderr the first time. The answer itself is left as it is: `ok` and `error` are truthful about
+/// EasyCrypt's state.
+#[derive(Clone, Default)]
+struct SwallowWatch(std::rc::Rc<std::cell::RefCell<Option<String>>>);
+
+impl SwallowWatch {
+    /// The warning, the first time an answer shows a swallowed interrupt; `None` after that.
+    fn see(&self, response: &super::json::Response) -> Option<String> {
+        if self.0.borrow().is_some() {
+            return None;
+        }
+        let warning = swallow_warning(&response.swallowed_interrupt()?);
+        *self.0.borrow_mut() = Some(warning.clone());
+        Some(warning)
+    }
+
+    fn warning(&self) -> Option<String> {
+        self.0.borrow().clone()
     }
 }
 
@@ -378,8 +455,15 @@ pub struct EquivalenceTactics {
     pub elapsed: Duration,
     /// The written report, `Eq_<L>_<R>.report.txt` in the theorem's output directory.
     pub report_file: String,
-    /// The run was stopped by Ctrl-C while on this equivalence (story 34).
+    /// The run was stopped by Ctrl-C while on this equivalence (story 34), or the job ended
+    /// early ([`Self::ended_early`]): where.
     pub interrupted: Option<Interrupted>,
+    /// Why the job ended before its last oracle although nobody pressed Ctrl-C: EasyCrypt left
+    /// more interrupts unanswered than a job respawns it for, or a respawn failed.
+    /// [`Self::interrupted`] says where.
+    pub ended_early: Option<String>,
+    /// Every interrupt EasyCrypt left unanswered in this job, in order.
+    pub unanswered: Vec<Unanswered>,
     /// How many times the file was written, at the last write (story 38).
     pub writes: usize,
     /// This job's transcript, `progress/Eq_<L>_<R>/ec-transcript.jsonl` (story 36).
@@ -391,6 +475,8 @@ pub struct TheoremTactics {
     pub theorem: String,
     pub equivalences: Vec<EquivalenceTactics>,
     pub elapsed: Duration,
+    /// The warning given when an answer showed EasyCrypt swallowed an interrupt (once per run).
+    pub swallowed_interrupt: Option<String>,
 }
 
 impl TheoremTactics {
@@ -408,7 +494,14 @@ impl TheoremTactics {
     pub fn interrupted(&self) -> Option<&Interrupted> {
         self.equivalences
             .iter()
+            .filter(|e| e.ended_early.is_none())
             .find_map(|e| e.interrupted.as_ref())
+    }
+
+    /// Whether a proof job ended before its last oracle without a Ctrl-C
+    /// ([`EquivalenceTactics::ended_early`]).
+    pub fn ended_early(&self) -> bool {
+        self.equivalences.iter().any(|e| e.ended_early.is_some())
     }
 }
 
@@ -462,6 +555,7 @@ where
     let out_dir = std::fs::canonicalize(out_dir).unwrap_or_else(|_| out_dir.to_path_buf());
     let started = Instant::now();
     let (theorem_ec, _aux) = EasyCryptTransform.transform_theorem(theorem)?;
+    let swallow = SwallowWatch::default();
 
     let mut equivalences = Vec::new();
     for eq in &exported.equivalences {
@@ -510,18 +604,21 @@ where
             &mut transcript,
             &transcript_path,
             &live,
+            &swallow,
         );
         // the last write always happens: the page on disk matches the end state
         match &result {
-            Ok(tactics) => match &tactics.interrupted {
-                Some(at) => live.interrupted(&at.to_string()),
-                None => live.finish(),
+            Ok(tactics) => match (&tactics.interrupted, &tactics.ended_early) {
+                (Some(at), Some(why)) => live.ended_early(&format!("{at}: {why}")),
+                (Some(at), None) => live.interrupted(&at.to_string()),
+                (None, _) => live.finish(),
             },
             Err(e) => live.fail(&e.to_string()),
         }
         drop(lock);
         let tactics = result?;
-        let interrupted = tactics.interrupted.is_some();
+        // a job that ended early is not a stop: the next equivalence is a job of its own
+        let interrupted = tactics.interrupted.is_some() && tactics.ended_early.is_none();
         equivalences.push(tactics);
         if interrupted {
             break;
@@ -531,6 +628,7 @@ where
         theorem: theorem.name.clone(),
         equivalences,
         elapsed: started.elapsed(),
+        swallowed_interrupt: swallow.warning(),
     })
 }
 
@@ -636,6 +734,7 @@ fn tactics_for_equivalence<P, B>(
     transcript: &mut Option<File>,
     transcript_path: &Path,
     live: &LiveHandle,
+    swallow: &SwallowWatch,
 ) -> Result<EquivalenceTactics, TacticsError>
 where
     P: Project,
@@ -704,6 +803,8 @@ where
             elapsed: Duration::ZERO,
             report_file,
             interrupted: None,
+            ended_early: None,
+            unanswered: Vec::new(),
             writes: 0,
         },
         writes: std::cell::Cell::new(0),
@@ -713,40 +814,26 @@ where
         live.oracle_finished(result);
         proof.tactics.oracles.push(result.clone());
     }
+    let base = sentences.get(call_prefix.len()).map(String::as_str);
+    let job = SessionSetup {
+        out_dir,
+        transcript_path,
+        options,
+        file: &file,
+        live,
+        swallow,
+    };
     // Ctrl-C (story 34): the equivalence ends where it stands, with what is written
     let interrupted = 'run: {
         if options.stop_requested() {
             break 'run Some(Interrupted::NoOracleInFlight);
         }
         live.activity("starting EasyCrypt and opening the proof");
-        let mut session = Session::start(out_dir)?;
-        if let Some(transcript) = transcript {
-            session.set_transcript_sink(
-                Box::new(transcript.try_clone()?),
-                transcript_path,
-                options.ec_transcript,
-                &file,
-            );
-        }
-        session.set_observer(live.session_observer());
-        session.set_timeout(options.ec_timeout);
-        if let Some(stop) = &options.stop {
-            session.set_stop(stop.clone());
-        }
-        for sentence in &call_prefix {
-            let response = session.send(sentence)?;
-            if options.stop_requested() {
-                break 'run Some(Interrupted::NoOracleInFlight);
-            }
-            ok_or_reject(response, &file, sentence)?;
-        }
-        if let Some(base) = sentences.get(call_prefix.len()) {
-            if session.send(base)?.status != super::json::Status::Ok {
-                if options.stop_requested() {
-                    break 'run Some(Interrupted::NoOracleInFlight);
-                }
-                proof.tactics.base_case_admitted = true;
-                session.send("admit.")?;
+        let mut session = job.start(transcript.as_ref(), None)?;
+        match open_proof(&mut session, &call_prefix, base, false, &file, options)? {
+            Opened::Stopped => break 'run Some(Interrupted::NoOracleInFlight),
+            Opened::Open { base_case_admitted } => {
+                proof.tactics.base_case_admitted = base_case_admitted;
             }
         }
 
@@ -757,8 +844,10 @@ where
                 break;
             }
             let target = setup.oracle_of_goal(goal);
-            if target.as_deref().is_some_and(is_resumed) {
-                // proved in an earlier session, and its script is in the file already
+            let in_file = |name: &str| proof.tactics.oracles.iter().any(|o| o.oracle == name);
+            if target.as_deref().is_some_and(in_file) {
+                // proved in an earlier session or before a respawn, and its script is in the
+                // file already
                 session.send("admit.")?;
                 continue;
             }
@@ -776,10 +865,16 @@ where
                         live,
                         &mut proof,
                     )?;
-                    let (result, stopped) = match end {
-                        OracleEnd::Done(result) => (Some(result), None),
-                        OracleEnd::Stopped { sealed, at } => (sealed, Some(at)),
+                    let (result, stopped, unanswered) = match end {
+                        OracleEnd::Done(result) => (Some(result), None, None),
+                        OracleEnd::Stopped { sealed, at } => (sealed, Some(at), None),
+                        OracleEnd::Unanswered { sealed, unanswered } => {
+                            (Some(sealed), None, Some(unanswered))
+                        }
                     };
+                    if let Some(u) = &unanswered {
+                        proof.tactics.unanswered.push(u.clone());
+                    }
                     if let Some(result) = result {
                         proof.tactics.oracles.push(result);
                         proof.write(None)?;
@@ -788,6 +883,25 @@ where
                     if stopped.is_some() {
                         interrupted = stopped;
                         break;
+                    }
+                    if unanswered.is_some() {
+                        // the oracle is sealed and written; the session is lost
+                        if session.transcript_dropped() {
+                            *transcript = None;
+                        }
+                        let respawned = respawn(
+                            session,
+                            &job,
+                            transcript.as_ref(),
+                            &call_prefix,
+                            base,
+                            &mut proof.tactics,
+                        );
+                        match respawned {
+                            Ok(fresh) => session = fresh,
+                            // the job ends here, its transcript checked above
+                            Err(at) => break 'run Some(at),
+                        }
                     }
                 }
                 None => {
@@ -819,6 +933,185 @@ where
     let tactics = proof.write(None)?;
     live.equivalence_finished(&tactics);
     Ok(tactics)
+}
+
+/// What every EasyCrypt of a proof job is started with: the first one and each respawn.
+struct SessionSetup<'a> {
+    /// The theorem's output directory: EasyCrypt's working directory and `-I`.
+    out_dir: &'a Path,
+    transcript_path: &'a Path,
+    options: &'a TacticsOptions,
+    /// The proof file, the tag of every transcript record.
+    file: &'a str,
+    live: &'a LiveHandle,
+    swallow: &'a SwallowWatch,
+}
+
+impl SessionSetup<'_> {
+    /// A fresh EasyCrypt for the job. Its records are appended to the job's transcript
+    /// (`transcript`; `None`: dropped after a failed write), tagged with the proof file and, for
+    /// the `n`th respawn, `(respawn n)`. Its answers go to the live page and are watched for a
+    /// swallowed interrupt. The per-sentence timeout and the stop flag are set.
+    fn start(&self, transcript: Option<&File>, respawn: Option<usize>) -> Result<Session, TacticsError> {
+        let mut session = spawn_easycrypt(self.out_dir)?;
+        if let Some(transcript) = transcript {
+            let tag = match respawn {
+                None => self.file.to_string(),
+                Some(n) => format!("{} (respawn {n})", self.file),
+            };
+            // a clone shares the file's offset: the records of every session follow each other
+            session.set_transcript_sink(
+                Box::new(transcript.try_clone()?),
+                self.transcript_path,
+                self.options.ec_transcript,
+                &tag,
+            );
+        }
+        let mut page = self.live.session_observer();
+        let swallow = self.swallow.clone();
+        session.set_observer(Box::new(move |event| {
+            if let SessionEvent::Answered { response, .. } = event {
+                if let Some(warning) = swallow.see(response) {
+                    crate::debug::progress::eprintln_above_bars(&format!("warning: {warning}"));
+                }
+            }
+            page(event);
+        }));
+        session.set_timeout(self.options.ec_timeout);
+        if let Some(stop) = &self.options.stop {
+            session.set_stop(stop.clone());
+        }
+        Ok(session)
+    }
+}
+
+/// [`Session::start`]; in a test that set [`tests::TEST_EASYCRYPT`], that EasyCrypt with its
+/// interrupt timing.
+fn spawn_easycrypt(dir: &Path) -> Result<Session, SessionError> {
+    #[cfg(test)]
+    if let Some(fake) = tests::TEST_EASYCRYPT.with(|t| t.borrow().clone()) {
+        let mut session = Session::start_with(&fake.binary, dir)?;
+        session.set_interrupt_timing(fake.grace, fake.resend);
+        return Ok(session);
+    }
+    Session::start(dir)
+}
+
+/// How opening the proof ended.
+enum Opened {
+    /// The oracles' goals are in front. `base_case_admitted`: the base case did not close.
+    Open { base_case_admitted: bool },
+    /// The run was asked to stop (Ctrl-C) on the way.
+    Stopped,
+}
+
+/// Opens the proof in a fresh session: every sentence up to `call (…); last first.`, then the
+/// base case `base`. `admitted`: an earlier session of the job admitted the base case, so it is
+/// admitted again without being tried.
+fn open_proof(
+    session: &mut Session,
+    call_prefix: &[String],
+    base: Option<&str>,
+    admitted: bool,
+    file: &str,
+    options: &TacticsOptions,
+) -> Result<Opened, TacticsError> {
+    for sentence in call_prefix {
+        let response = session.send(sentence)?;
+        if options.stop_requested() {
+            return Ok(Opened::Stopped);
+        }
+        ok_or_reject(response, file, sentence)?;
+    }
+    let Some(base) = base else {
+        return Ok(Opened::Open {
+            base_case_admitted: false,
+        });
+    };
+    if !admitted && session.send(base)?.status == super::json::Status::Ok {
+        return Ok(Opened::Open {
+            base_case_admitted: false,
+        });
+    }
+    if options.stop_requested() {
+        return Ok(Opened::Stopped);
+    }
+    session.send("admit.")?;
+    Ok(Opened::Open {
+        base_case_admitted: true,
+    })
+}
+
+/// Replaces `old`, the EasyCrypt that left the interrupt of `tactics.unanswered`'s last entry
+/// unanswered, with a fresh one opened at the same proof (a **respawn**). The oracle in flight
+/// is sealed and in `tactics.oracles` already; the goal loop closes it, and every oracle before
+/// it, with `admit.`.
+///
+/// `Err` is where the job ends instead: after [`MAX_RESPAWNS`] respawns, or when the respawn
+/// fails, with the sealed oracle and [`EquivalenceTactics::ended_early`]; on a Ctrl-C, as a
+/// Ctrl-C.
+fn respawn(
+    old: Session,
+    job: &SessionSetup<'_>,
+    transcript: Option<&File>,
+    call_prefix: &[String],
+    base: Option<&str>,
+    tactics: &mut EquivalenceTactics,
+) -> Result<Session, Interrupted> {
+    // `Drop` kills the child without waiting on it: it may be stuck in a prover
+    drop(old);
+    let respawns = tactics.unanswered.len() - 1;
+    let last = tactics.unanswered.last().expect("an unanswered interrupt").clone();
+    let sealed = Interrupted::Sealed {
+        admits: tactics
+            .oracles
+            .iter()
+            .filter(|o| o.oracle == last.oracle)
+            .flat_map(|o| o.stats.admits.iter())
+            .filter(|a| a.reason == AdmitReason::Interrupted)
+            .count(),
+        oracle: last.oracle.clone(),
+        node: last.node.clone(),
+    };
+    let fresh = 'fresh: {
+        if respawns == MAX_RESPAWNS {
+            tactics.ended_early = Some(format!(
+                "EasyCrypt left {} interrupts unanswered, and a proof job respawns it at most \
+                 {MAX_RESPAWNS} times",
+                respawns + 1
+            ));
+            break 'fresh Err(sealed);
+        }
+        if job.options.stop_requested() {
+            break 'fresh Err(Interrupted::NoOracleInFlight);
+        }
+        let began = Instant::now();
+        job.live
+            .activity("respawning EasyCrypt and opening the proof again");
+        let opened = job.start(transcript, Some(respawns + 1)).and_then(|mut session| {
+            let admitted = tactics.base_case_admitted;
+            let opened = open_proof(&mut session, call_prefix, base, admitted, job.file, job.options)?;
+            Ok((session, opened))
+        });
+        match opened {
+            Ok((session, Opened::Open { base_case_admitted })) => {
+                tactics.base_case_admitted |= base_case_admitted;
+                if let Some(u) = tactics.unanswered.last_mut() {
+                    u.respawn = Some(began.elapsed());
+                }
+                Ok(session)
+            }
+            Ok((_, Opened::Stopped)) => Err(Interrupted::NoOracleInFlight),
+            Err(_) if job.options.stop_requested() => Err(Interrupted::NoOracleInFlight),
+            Err(e) => {
+                tactics.ended_early = Some(format!("respawning EasyCrypt failed: {e}"));
+                Err(sealed)
+            }
+        }
+    };
+    job.live
+        .unanswered(tactics.unanswered.last().expect("an unanswered interrupt"));
+    fresh
 }
 
 /// Where lockstep execution of `oracle` writes its artifacts: beside the export it describes,
@@ -946,6 +1239,12 @@ enum OracleEnd {
     Stopped {
         sealed: Option<OracleTactics>,
         at: Interrupted,
+    },
+    /// EasyCrypt left an interrupt unanswered: the oracle is `sealed` where the walk stood, and
+    /// the session cannot be used any more.
+    Unanswered {
+        sealed: OracleTactics,
+        unanswered: Unanswered,
     },
 }
 
@@ -1096,14 +1395,31 @@ where
                 .collect(),
         }
     });
-    let stopped = match proved {
-        Ok(()) => None,
-        Err(SessionError::Stopped) => Some(
-            prover
-                .stopped
-                .take()
-                .expect("the walk seals the oracle before it stops"),
+    let (stopped, unanswered) = match proved {
+        Ok(()) => (None, None),
+        Err(SessionError::Stopped) => (
+            Some(
+                prover
+                    .stopped
+                    .take()
+                    .expect("the walk seals the oracle before it stops"),
+            ),
+            None,
         ),
+        // the walk sealed the oracle where it stood (`Prover::session_failed`)
+        Err(SessionError::Unresponsive {
+            signals, waited, ..
+        }) if prover.stopped.is_some() => {
+            let sealed = prover.stopped.take().expect("checked by the guard");
+            let unanswered = Unanswered {
+                oracle: oracle.to_string(),
+                node: sealed.node.clone(),
+                signals,
+                waited,
+                respawn: None,
+            };
+            (Some(sealed), Some(unanswered))
+        }
         Err(e) => return Err(e.into()),
     };
     let stopped_at = stopped.as_ref().map(|sealed| sealed.node.clone());
@@ -1118,6 +1434,12 @@ where
     let Some(node) = stopped_at else {
         return Ok(OracleEnd::Done(result));
     };
+    if let Some(unanswered) = unanswered {
+        return Ok(OracleEnd::Unanswered {
+            sealed: result,
+            unanswered,
+        });
+    }
     let at = Interrupted::Sealed {
         oracle: oracle.to_string(),
         admits: result
@@ -1219,9 +1541,18 @@ impl EquivalenceTactics {
                     let _ = writeln!(out, "      goal: {goal}");
                 }
             }
+            for u in self.unanswered.iter().filter(|u| u.oracle == o.oracle) {
+                let _ = writeln!(out, "    {u}");
+            }
         }
-        if let Some(at) = &self.interrupted {
-            let _ = writeln!(out, "interrupted: {at}");
+        match (&self.interrupted, &self.ended_early) {
+            (Some(at), Some(why)) => {
+                let _ = writeln!(out, "ended early: {at}: {why}");
+            }
+            (Some(at), None) => {
+                let _ = writeln!(out, "interrupted: {at}");
+            }
+            (None, _) => {}
         }
         let closed: usize = self.oracles.iter().map(|o| o.stats.closed).sum();
         let admits: usize = self.oracles.iter().map(|o| o.stats.admits.len()).sum();
@@ -1243,6 +1574,9 @@ impl TheoremTactics {
         }
         for eq in &self.equivalences {
             let _ = writeln!(out, "transcript: {}", eq.transcript.display());
+        }
+        if let Some(warning) = &self.swallowed_interrupt {
+            let _ = writeln!(out, "warning: {warning}");
         }
         let _ = writeln!(out, "elapsed: {}", secs(self.elapsed));
         out

@@ -94,6 +94,8 @@ pub(super) struct Step {
     pub error: Option<String>,
     pub messages: Vec<String>,
     pub ms: u64,
+    /// How many interrupts it took to stop (0: it was not interrupted, or needed none).
+    pub interrupts: usize,
     /// The depth the session was at after this sentence.
     pub state: u64,
     pub goals_left: usize,
@@ -148,6 +150,8 @@ pub(super) struct OracleRec {
     pub lockstep_href: Option<String>,
     pub summary: Option<OracleSummary>,
     pub started: bool,
+    /// EasyCrypt left an interrupt unanswered while on this oracle, as the report says it.
+    pub unanswered: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -179,6 +183,9 @@ pub(super) enum RunState {
     Failed(String),
     /// Stopped by Ctrl-C (story 34): what was sealed, as the report says it.
     Interrupted(String),
+    /// The job ended before its last oracle without a Ctrl-C: where and why, as the report says
+    /// it.
+    EndedEarly(String),
 }
 
 /// The goal text embedded for one step.
@@ -306,6 +313,7 @@ impl LiveHandle {
                     lockstep_href: None,
                     summary: None,
                     started: false,
+                    unanswered: None,
                 })
                 .collect(),
             setup_steps: 0,
@@ -558,6 +566,30 @@ impl LiveHandle {
         live.touch(true);
     }
 
+    /// EasyCrypt left an interrupt unanswered while on `u.oracle`, which was sealed, and the
+    /// session was replaced (or the job ends). The steps of the old session cannot be undone
+    /// any more: an `undo` of the fresh one counts its own depths.
+    pub fn unanswered(&self, u: &super::Unanswered) {
+        let mut live = self.0.borrow_mut();
+        let Some(eq) = live.cur_eq else { return };
+        if let Some(oracle) = live.eqs[eq].oracles.iter_mut().find(|o| o.name == u.oracle) {
+            oracle.unanswered = Some(u.to_string());
+        }
+        live.live_steps.clear();
+        live.pending = None;
+        live.touch(true);
+    }
+
+    /// The job ended before its last oracle without a Ctrl-C (`why`: where and why, as the
+    /// report says it): not [`Self::fail`], since what it proved is written. The page stays as
+    /// it is, without the refresh tag.
+    pub fn ended_early(&self, why: &str) {
+        let mut live = self.0.borrow_mut();
+        live.state = RunState::EndedEarly(why.to_string());
+        live.pending = None;
+        live.touch(true);
+    }
+
     /// The run was stopped by Ctrl-C (story 34): nothing went wrong, so not [`Self::fail`]. The
     /// page stays as it is, without the refresh tag, and says what was sealed (`sealed`, as the
     /// report says it).
@@ -593,6 +625,7 @@ impl Live {
                 elapsed,
                 record_bytes,
                 stopped,
+                interrupts,
             } => {
                 self.pending = None;
                 let record = record_bytes.map(|len| RecordSpan {
@@ -624,6 +657,7 @@ impl Live {
                         .map(|m| cap(&format!("{}: {}", m.level, m.text), MESSAGE_CAP))
                         .collect(),
                     ms: elapsed.as_millis() as u64,
+                    interrupts: *interrupts,
                     state: response.state,
                     goals_left: response.proof.as_ref().map_or(0, |p| p.goals.len()),
                 };

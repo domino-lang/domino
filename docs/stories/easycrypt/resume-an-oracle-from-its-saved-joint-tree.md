@@ -68,6 +68,24 @@ The design session settled these points:
     (`driver.rs:895`), inside the bullets the parent opened.
 - **ADR 0004/0006:** the session record is protected. `export --force` deletes records. `prove`
   never translates.
+- **`tactics-run-survives-an-unanswered-interrupt` (landed first, so this story makes its sealed
+  oracle resumable):**
+  - An unanswered interrupt (`SessionError::Unresponsive { sentence, signals, waited }`, no stop
+    requested) makes `Prover::session_failed` seal the oracle like a stop (`Prover::stopped`) and
+    unwind with the `Unresponsive` error itself; `tactics_for_oracle` turns that into
+    `OracleEnd::Unanswered { sealed, unanswered: Unanswered { oracle, node, signals, waited,
+    respawn } }`. `node` is the in-flight node, as for a Ctrl-C seal. Its admits carry
+    `interrupted`, so `to_record` gives the oracle status `interrupted` with **no `script`** —
+    exactly the case this story resumes.
+  - `tactics_for_equivalence` then respawns EasyCrypt (`respawn`, `SessionSetup::start`,
+    `open_proof`, at most `MAX_RESPAWNS` = 2 per job) and closes **every oracle already in
+    `proof.tactics.oracles`** with `admit.` in the fresh session (the old `is_resumed` check became
+    `in_file`). The sealed oracle is not walked again within the job; resuming it is the next proof
+    job's work, i.e. this story's resume modes. If this story resumes a sealed oracle *within* a
+    job, it must keep that rule (or replace it) for respawns.
+  - One job's transcript can hold several EasyCrypt sessions: records of the `n`th respawn are
+    tagged `"<file> (respawn n)"`, and EasyCrypt's `state` numbers restart in each.
+    `LiveHandle::unanswered` clears the page's undo bookkeeping (`live_steps`) at a respawn.
 
 ## 3. Work to do
 

@@ -237,6 +237,11 @@ unanswered with a fresh one opened at the same proof. The oracle in flight is se
 already finished are admitted in the fresh EasyCrypt, not proved again; the job carries on with the
 next oracle. _Avoid_: restart (a resume mode, which re-proves an oracle in a *later* proof job).
 
+**Ended early** — a proof job that stopped before its last oracle for a reason other than a
+Ctrl-C: its respawns ran out, or a respawn failed. It leaves its file and record as a Ctrl-C would
+(the oracle in flight sealed, the rest `pending`), but the cause is shown as its own, and the run
+goes on with the next proof job. _Avoid_: interrupted (that is a Ctrl-C).
+
 **Run artifact** — a file a tactics run writes *about itself* rather than as translation output:
 the live page, the EasyCrypt transcript, the per-equivalence report, the alignment report, the
 debug output of lockstep execution. Regenerated every run and never hand-edited, so unlike

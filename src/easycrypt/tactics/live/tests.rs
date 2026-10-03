@@ -105,7 +105,7 @@ impl Rig {
             goal_json.join(",")
         );
         let record_bytes = self.mode.map(|mode| {
-            let record = record(mode, "f", "", sentence, ms.into(), &response);
+            let record = record(mode, "f", "", sentence, ms.into(), 0, &response);
             self.transcript.write_all(record.as_bytes()).unwrap();
             record.len()
         });
@@ -116,6 +116,7 @@ impl Rig {
             elapsed: Duration::from_millis(ms),
             record_bytes,
             stopped,
+            interrupts: 0,
         });
     }
 

@@ -4,7 +4,8 @@
 //! bounded by story 31).
 //!
 //! One record per sentence sent, one JSON object per line:
-//! `{"file": <tag>, "ctx": <the caller's note>, "sentence": …, "ms": …, "response": …}`.
+//! `{"file": <tag>, "ctx": <the caller's note>, "sentence": …, "ms": …, "response": …}`, with
+//! `"interrupts": <n>` before `response` when the sentence took `n` > 0 interrupts to stop.
 //! [`EcTranscriptMode::Full`] writes EasyCrypt's answer verbatim as `response`, which prints
 //! every open goal in full, 100–700 kB per record. [`EcTranscriptMode::Capped`] (the default)
 //! writes the same answer with its goals cut to what the live page embeds ([`cap_response`]):
@@ -50,6 +51,7 @@ pub fn record(
     context: &str,
     sentence: &str,
     ms: u128,
+    interrupts: usize,
     answer: &str,
 ) -> String {
     let answer = answer.trim_end();
@@ -57,8 +59,13 @@ pub fn record(
         EcTranscriptMode::Full => None,
         EcTranscriptMode::Capped => cap_response(answer),
     };
+    // how hard the sentence was to stop: only on a sentence that was interrupted
+    let interrupts = match interrupts {
+        0 => String::new(),
+        n => format!("\"interrupts\":{n},"),
+    };
     format!(
-        "{{\"file\":{},\"ctx\":{},\"sentence\":{},\"ms\":{ms},\"response\":{}}}\n",
+        "{{\"file\":{},\"ctx\":{},\"sentence\":{},\"ms\":{ms},{interrupts}\"response\":{}}}\n",
         serde_json::Value::from(tag),
         serde_json::Value::from(context),
         serde_json::Value::from(sentence),
@@ -245,6 +252,7 @@ pub(crate) mod tests {
             "O N0",
             "split.",
             12,
+            0,
             &answer,
         );
         assert_eq!(
@@ -260,7 +268,7 @@ pub(crate) mod tests {
     fn a_capped_record_of_a_real_answer_holds_its_goal_texts() {
         let answer =
             std::fs::read_to_string("testdata/easycrypt/story31/answer-two-goals.json").unwrap();
-        let record = record(EcTranscriptMode::Capped, "Eq.ec", "", "split.", 12, &answer);
+        let record = record(EcTranscriptMode::Capped, "Eq.ec", "", "split.", 12, 0, &answer);
         assert!(record.ends_with("}\n") && record.lines().count() == 1);
         let v: serde_json::Value = serde_json::from_str(&record).unwrap();
         let full: serde_json::Value = serde_json::from_str(&answer).unwrap();

@@ -1,0 +1,18 @@
+composition Left {
+    const n: Integer;
+
+    instance rand = Rand {
+        params {
+            n:   n,
+        }
+    }
+
+    compose {
+        adversary: {
+            First:  UsefulOracle of rand,
+            Second: UsefulOracle of rand,
+            Third:  UsefulOracle of rand,
+            Fourth: UsefulOracle of rand,
+        },
+    }
+}

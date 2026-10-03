@@ -30,14 +30,20 @@ use super::transcript::{self, EcTranscriptMode};
 pub const ENV_VAR: &str = "DOMINO_EASYCRYPT";
 
 /// The EasyCrypt clone branch that adds `cli -json` (story 25).
-const JSON_BRANCH: &str = "amir/domino-easycrypt-integration";
+pub(crate) const JSON_BRANCH: &str = "amir/domino-easycrypt-integration";
 
 /// How long a sentence may run before it is interrupted, unless [`Session::set_timeout`] says
 /// otherwise.
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
 
-/// How long the answer to a `SIGINT` may take.
+/// How long the answer to an interrupt may take, from the first `SIGINT`: then the sentence is
+/// [`SessionError::Unresponsive`].
 const INTERRUPT_GRACE: Duration = Duration::from_secs(30);
+
+/// How often the `SIGINT` is sent again while its answer has not come: up to six signals within
+/// [`INTERRUPT_GRACE`]. A signal that lands after the sentence finished, or between sentences,
+/// is never answered (**Interrupt** in `CONTEXT.md`), so a second one never makes a second line.
+const INTERRUPT_RESEND: Duration = Duration::from_secs(5);
 
 /// How long reading the goals again may take ([`Session::send`] on an answer that lost them).
 const REREAD_TIMEOUT: Duration = Duration::from_secs(120);
@@ -66,8 +72,14 @@ pub enum SessionError {
     },
     #[error("EasyCrypt refused `{sentence}`, which the prover relies on: {msg}")]
     Refused { sentence: String, msg: String },
-    #[error("EasyCrypt did not answer `{sentence}` after being interrupted")]
-    Unresponsive { sentence: String },
+    /// No answer came to `signals` interrupts sent over `waited`: the sentence is still running,
+    /// and the session cannot be used any more.
+    #[error("EasyCrypt did not answer `{sentence}` after being interrupted ({signals} signals over {} s)", waited.as_secs())]
+    Unresponsive {
+        sentence: String,
+        signals: usize,
+        waited: Duration,
+    },
     #[error("EasyCrypt could not print the goals after `{sentence}`")]
     GoalsLost { sentence: String },
     /// The run was asked to stop (Ctrl-C, story 34). Not EasyCrypt's doing: the prover returns
@@ -117,6 +129,8 @@ pub enum SessionEvent<'a> {
         elapsed: Duration,
         record_bytes: Option<usize>,
         stopped: bool,
+        /// How many interrupts were sent before the answer came (0: none was needed).
+        interrupts: usize,
     },
     /// Writing the transcript failed under [`EcTranscriptMode::Capped`]: no record is written
     /// from this sentence on (story 31 §3.3). Sent once, before that sentence's `Answered`.
@@ -141,6 +155,9 @@ pub struct Session {
     observer: Option<Box<dyn FnMut(&SessionEvent<'_>)>>,
     /// Set when the run is asked to stop (Ctrl-C): see [`Session::set_stop`].
     stop: Option<Arc<AtomicBool>>,
+    /// [`INTERRUPT_GRACE`] and [`INTERRUPT_RESEND`], shorter in tests.
+    interrupt_grace: Duration,
+    interrupt_resend: Duration,
 }
 
 /// How waiting for an answer ended.
@@ -239,6 +256,8 @@ impl Session {
             sink_dropped: false,
             observer: None,
             stop: None,
+            interrupt_grace: INTERRUPT_GRACE,
+            interrupt_resend: INTERRUPT_RESEND,
         };
         session.check_capability()?;
         Ok(session)
@@ -277,6 +296,14 @@ impl Session {
     /// How long a sentence may run before it is interrupted (and answered `interrupted`).
     pub fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = timeout;
+    }
+
+    /// How long an interrupt may go unanswered, and how often it is sent again meanwhile
+    /// ([`INTERRUPT_GRACE`], [`INTERRUPT_RESEND`]): shorter, for tests.
+    #[cfg(test)]
+    pub(crate) fn set_interrupt_timing(&mut self, grace: Duration, resend: Duration) {
+        self.interrupt_grace = grace;
+        self.interrupt_resend = resend;
     }
 
     /// Appends every later exchange to `writer` as one JSON line (`{"file": tag, "ctx": …,
@@ -417,17 +444,12 @@ impl Session {
         let stoppable = stoppable && !self.stop_requested();
         self.notify(&SessionEvent::Sending { sentence });
         self.write_line(sentence)?;
-        let (line, timed_out) = match self.wait_line(sentence, began, stoppable) {
-            Wait::Line(line) => (line, false),
+        let (line, timed_out, interrupts) = match self.wait_line(sentence, began, stoppable) {
+            Wait::Line(line) => (line, false, 0),
             Wait::TimedOut | Wait::Stopped => {
                 let timed_out = !self.stop_requested();
-                self.interrupt()?;
-                let line = self.lines.recv_timeout(INTERRUPT_GRACE).map_err(|_| {
-                    SessionError::Unresponsive {
-                        sentence: sentence.to_string(),
-                    }
-                })?;
-                (line, timed_out)
+                let (line, interrupts) = self.interrupt_until_answered(sentence)?;
+                (line, timed_out, interrupts)
             }
             Wait::Closed => {
                 return Err(SessionError::Closed {
@@ -436,7 +458,7 @@ impl Session {
             }
         };
         let line = line?;
-        let record_bytes = self.write_record(sentence, began.elapsed(), &line.raw)?;
+        let record_bytes = self.write_record(sentence, began.elapsed(), interrupts, &line.raw)?;
         let mut response = line.parsed.map_err(|source| SessionError::BadAnswer {
             sentence: sentence.to_string(),
             source,
@@ -465,6 +487,7 @@ impl Session {
                 elapsed: began.elapsed(),
                 record_bytes,
                 stopped,
+                interrupts,
             };
             // `notify` borrows `self` mutably: take the observer out for the call
             if let Some(mut observer) = self.observer.take() {
@@ -473,6 +496,37 @@ impl Session {
             }
         }
         Ok(&self.transcript.last().expect("just pushed").response)
+    }
+
+    /// Interrupts the running sentence and waits for its answer, sending the interrupt again
+    /// every [`INTERRUPT_RESEND`] until the answer comes or [`INTERRUPT_GRACE`] has passed since
+    /// the first: the answer and how many signals it took, else
+    /// [`SessionError::Unresponsive`].
+    fn interrupt_until_answered(
+        &mut self,
+        sentence: &str,
+    ) -> Result<(std::io::Result<Line>, usize), SessionError> {
+        let began = Instant::now();
+        let deadline = began + self.interrupt_grace;
+        let mut signals = 0;
+        loop {
+            self.interrupt()?;
+            signals += 1;
+            let now = Instant::now();
+            let until = (now + self.interrupt_resend).min(deadline);
+            match self.lines.recv_timeout(until.saturating_duration_since(now)) {
+                Ok(line) => return Ok((line, signals)),
+                Err(RecvTimeoutError::Timeout) if Instant::now() < deadline => {}
+                // an EasyCrypt that died on the interrupt did not answer it either
+                Err(_) => {
+                    return Err(SessionError::Unresponsive {
+                        sentence: sentence.to_string(),
+                        signals,
+                        waited: began.elapsed(),
+                    })
+                }
+            }
+        }
     }
 
     /// The goals as they are now, read with [`PROBE_SENTENCE`] (which changes no state), for an
@@ -499,6 +553,7 @@ impl Session {
         &mut self,
         sentence: &str,
         elapsed: Duration,
+        interrupts: usize,
         answer: &str,
     ) -> Result<Option<usize>, SessionError> {
         let Some(sink) = &mut self.sink else {
@@ -510,6 +565,7 @@ impl Session {
             &sink.context,
             sentence,
             elapsed.as_millis(),
+            interrupts,
             answer,
         );
         let Err(source) = sink.writer.write_all(record.as_bytes()) else {
@@ -542,8 +598,9 @@ impl Session {
         self.exchange(&format!("undo {state}."), false)
     }
 
-    /// Sends `SIGINT` to the process: the running sentence is answered `interrupted` and the
+    /// Sends one `SIGINT` to the process: the running sentence is answered `interrupted` and the
     /// session goes on. One that arrives while EasyCrypt is idle is not answered at all.
+    /// [`Session::send`] sends it, and sends it again, by itself.
     pub fn interrupt(&self) -> std::io::Result<()> {
         Command::new("kill")
             .arg("-INT")
@@ -848,6 +905,122 @@ done
         assert_eq!((r.status, r.state), (Status::Ok, 2));
         assert_eq!(session.goals().len(), 2);
         assert_eq!(session.transcript().len(), 1, "the re-read is not an exchange");
+    }
+
+    // ------------------------------------------------------------------
+    // An unanswered interrupt (story tactics-run-survives-an-unanswered-interrupt)
+    // ------------------------------------------------------------------
+
+    /// A stand-in EasyCrypt for interrupts. Every line is answered at once with `state` = its
+    /// line number (the startup probe is line 1), except `slow.`, which runs `slow` (a shell fragment that counts `SIGINT`s
+    /// in `k` and ends by answering through `ans <status>`, or never). Between sentences an
+    /// interrupt is ignored, as the **Interrupt** rule says.
+    fn interrupt_fake(dir: &Path, slow: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let script = dir.join("fake-easycrypt");
+        std::fs::write(
+            &script,
+            format!(
+                r#"#!/bin/sh
+trap '' INT
+n=0
+ans() {{ echo "{{\"version\":\"domino-json/1\",\"state\":$n,\"status\":\"$1\",\"messages\":[]}}"; }}
+while IFS= read -r line; do
+  n=$((n+1))
+  case "$line" in
+    slow.) k=0; trap 'k=$((k+1))' INT
+{slow}
+      trap '' INT;;
+    *) ans ok;;
+  esac
+done
+"#
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    /// A session of `script` that times a sentence out after 200 ms and re-sends the interrupt
+    /// every 200 ms for 1.1 s (six signals), its transcript in the returned sink.
+    fn interrupt_session(script: &Path, dir: &Path) -> (Session, TestSink) {
+        let mut session = Session::start_with(script, dir).unwrap();
+        session.set_timeout(Duration::from_millis(200));
+        session.set_interrupt_timing(Duration::from_millis(1_100), Duration::from_millis(200));
+        let sink = TestSink::new(usize::MAX);
+        session.set_transcript_sink(
+            Box::new(sink.clone()),
+            Path::new("/out/progress/ec-transcript.jsonl"),
+            EcTranscriptMode::Capped,
+            "Eq.ec",
+        );
+        (session, sink)
+    }
+
+    fn records(sink: &TestSink) -> Vec<serde_json::Value> {
+        sink.text()
+            .lines()
+            .map(|l| serde_json::from_str(l).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn the_interrupt_is_sent_again_until_it_is_answered() {
+        let dir = tempfile::tempdir().unwrap();
+        // ignores the first two signals and answers the third
+        let script = interrupt_fake(
+            dir.path(),
+            "      while [ $k -lt 3 ]; do sleep 0.02; done; ans interrupted",
+        );
+        let (mut session, sink) = interrupt_session(&script, dir.path());
+        assert_eq!(session.send("quick.").unwrap().status, Status::Ok);
+        assert_eq!(session.send("slow.").unwrap().status, Status::Interrupted);
+        let records = records(&sink);
+        assert_eq!(records.len(), 2);
+        assert!(records[0].get("interrupts").is_none(), "{:?}", records[0]);
+        assert_eq!(records[1]["interrupts"], 3, "{:?}", records[1]);
+        // and the session goes on
+        assert_eq!(session.send("quick.").unwrap().state, 4);
+    }
+
+    #[test]
+    fn an_interrupt_never_answered_is_unresponsive_after_six_signals() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = interrupt_fake(dir.path(), "      while :; do sleep 0.02; done");
+        let (mut session, sink) = interrupt_session(&script, dir.path());
+        let began = Instant::now();
+        let err = session.send("slow.").err().unwrap();
+        let waited = began.elapsed();
+        let SessionError::Unresponsive { signals, .. } = &err else {
+            panic!("{err}");
+        };
+        assert_eq!(*signals, 6, "{err}");
+        // the timeout, then the grace
+        assert!(waited >= Duration::from_millis(1_300), "{waited:?}");
+        assert!(waited < Duration::from_millis(2_500), "{waited:?}");
+        assert!(err.to_string().contains("6 signals"), "{err}");
+        assert!(sink.text().is_empty(), "no answer, no record");
+    }
+
+    #[test]
+    fn an_answer_that_crosses_the_first_interrupt_is_the_only_one() {
+        let dir = tempfile::tempdir().unwrap();
+        // the sentence finishes just as the first signal arrives: its answer is `ok`, and the
+        // signal is not answered
+        let script = interrupt_fake(
+            dir.path(),
+            "      while [ $k -lt 1 ]; do sleep 0.02; done; ans ok",
+        );
+        let (mut session, sink) = interrupt_session(&script, dir.path());
+        let r = session.send("slow.").unwrap();
+        assert_eq!((r.status, r.state), (Status::Ok, 2));
+        // the next sentence gets its own answer, not a second one to `slow.`
+        let r = session.send("quick.").unwrap();
+        assert_eq!((r.status, r.state), (Status::Ok, 3));
+        let r = session.send("quick.").unwrap();
+        assert_eq!((r.status, r.state), (Status::Ok, 4));
+        assert_eq!(records(&sink)[0]["interrupts"], 1);
     }
 
     /// A stand-in EasyCrypt that answers every line with the contents of `answer`.

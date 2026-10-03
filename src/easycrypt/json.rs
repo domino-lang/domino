@@ -42,6 +42,22 @@ impl Response {
                 .iter()
                 .any(|m| m.text.starts_with("cannot serialize the goals"))
     }
+
+    /// The head of the message that shows EasyCrypt swallowed an interrupt: a prover dropped
+    /// with `error when starting …` because of `Sys.Break`, the sentence carrying on as if no
+    /// interrupt had come (story `easycrypt-never-swallows-an-interrupt`). The status is still
+    /// truthful. `cannot serialize the goals: …Sys.Break` is not a swallow ([`Self::goals_lost`]).
+    pub fn swallowed_interrupt(&self) -> Option<String> {
+        /// Enough of the message to recognise it in a one-line warning.
+        const HEAD_CHARS: usize = 160;
+        let text = &self
+            .messages
+            .iter()
+            .find(|m| m.text.contains("error when starting") && m.text.contains("Sys.Break"))?
+            .text;
+        let line = text.lines().next().unwrap_or_default();
+        Some(line.chars().take(HEAD_CHARS).collect())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

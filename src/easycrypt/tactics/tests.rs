@@ -190,6 +190,24 @@ fn oracle_with(admits: Vec<Admit>) -> OracleTactics {
     }
 }
 
+fn equivalence_with(oracles: Vec<OracleTactics>) -> EquivalenceTactics {
+    EquivalenceTactics {
+        proofstep: 0,
+        proof_file: "Eq_A_B.ec".into(),
+        left: "A".into(),
+        right: "B".into(),
+        oracles,
+        base_case_admitted: false,
+        elapsed: Duration::from_secs(4),
+        report_file: "Eq_A_B.report.txt".into(),
+        interrupted: None,
+        ended_early: None,
+        unanswered: vec![],
+        writes: 0,
+        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
+    }
+}
+
 fn admit(reason: AdmitReason, id: &str) -> Admit {
     Admit {
         reason,
@@ -214,19 +232,7 @@ fn the_report_counts_admits_by_reason_and_lists_the_verified_ones_with_their_goa
             (AdmitReason::DominoVerifiedEcFailed, 2)
         ]
     );
-    let eq = EquivalenceTactics {
-        proofstep: 0,
-        proof_file: "Eq_A_B.ec".into(),
-        left: "A".into(),
-        right: "B".into(),
-        oracles: vec![o],
-        base_case_admitted: false,
-        elapsed: Duration::from_secs(4),
-        report_file: "Eq_A_B.report.txt".into(),
-        interrupted: None,
-        writes: 0,
-        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
-    };
+    let eq = equivalence_with(vec![o]);
     let report = eq.render();
     assert!(
         report.contains("3 admits (stuck 1, domino-verified-ec-failed 2)"),
@@ -265,19 +271,7 @@ fn the_admits_of_a_seal_have_their_own_reason_in_the_report() {
         sealed.clone(),
         sealed,
     ]);
-    let eq = EquivalenceTactics {
-        proofstep: 0,
-        proof_file: "Eq_A_B.ec".into(),
-        left: "A".into(),
-        right: "B".into(),
-        oracles: vec![o],
-        base_case_admitted: false,
-        elapsed: Duration::from_secs(4),
-        report_file: "Eq_A_B.report.txt".into(),
-        interrupted: None,
-        writes: 0,
-        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
-    };
+    let eq = equivalence_with(vec![o]);
     let report = eq.render();
     assert!(
         report.contains("3 admits (stuck 1, interrupted 2)"),
@@ -307,19 +301,7 @@ fn an_interrupted_report_names_what_was_sealed() {
         .to_string(),
         "during lockstep execution of PKDEC, nothing sealed"
     );
-    let mut eq = EquivalenceTactics {
-        proofstep: 0,
-        proof_file: "Eq_A_B.ec".into(),
-        left: "A".into(),
-        right: "B".into(),
-        oracles: vec![oracle_with(vec![])],
-        base_case_admitted: false,
-        elapsed: Duration::from_secs(4),
-        report_file: "Eq_A_B.report.txt".into(),
-        interrupted: None,
-        writes: 0,
-        transcript: PathBuf::from("progress/Eq_A_B/ec-transcript.jsonl"),
-    };
+    let mut eq = equivalence_with(vec![oracle_with(vec![])]);
     assert!(!eq.render().contains("interrupted"));
     eq.interrupted = Some(sealed("PKENC"));
     let report = eq.render();
@@ -331,6 +313,7 @@ fn an_interrupted_report_names_what_was_sealed() {
         theorem: "T".into(),
         equivalences: vec![eq],
         elapsed: Duration::from_secs(4),
+        swallowed_interrupt: None,
     };
     assert_eq!(theorem.interrupted(), Some(&sealed("PKENC")));
 }
@@ -516,6 +499,113 @@ fn labels_are_read_back_from_the_file() {
                   admit. (* domino: N4 program; reason: program-mismatch; Domino: inconclusive *)\n\
                 + proc; inline. admit.\n";
     assert_eq!(labelled_admits(text), vec!["stuck", "program-mismatch"]);
+}
+
+/// The EasyCrypt a test's proof jobs start instead of [`crate::easycrypt::session::locate_binary`]'s,
+/// with its interrupt timing (story tactics-run-survives-an-unanswered-interrupt).
+#[derive(Clone)]
+pub(super) struct FakeEasyCrypt {
+    pub binary: PathBuf,
+    pub grace: Duration,
+    pub resend: Duration,
+}
+
+thread_local! {
+    /// Set by a test, read by `spawn_easycrypt` on the same thread (a run is single-threaded).
+    pub(super) static TEST_EASYCRYPT: std::cell::RefCell<Option<FakeEasyCrypt>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn answer_with(messages: &[&str]) -> crate::easycrypt::json::Response {
+    let messages: Vec<String> = messages
+        .iter()
+        .map(|m| format!(r#"{{"level":"warning","text":{}}}"#, serde_json::Value::from(*m)))
+        .collect();
+    crate::easycrypt::json::parse_response(&format!(
+        r#"{{"version":"domino-json/1","state":3,"status":"error","messages":[{}]}}"#,
+        messages.join(",")
+    ))
+    .unwrap()
+}
+
+#[test]
+fn a_swallowed_interrupt_is_warned_about_once_per_run() {
+    let swallowed = answer_with(&[
+        "error when starting `Z3': Failure in transformation eliminate_builtin anomaly: Stdlib.Sys.Break",
+    ]);
+    let watch = SwallowWatch::default();
+    // not a swallow: the goal re-read handles it
+    assert_eq!(watch.see(&answer_with(&["cannot serialize the goals: Stdlib.Sys.Break"])), None);
+    assert_eq!(watch.see(&answer_with(&["error when starting `Z3': not found"])), None);
+    assert_eq!(watch.warning(), None);
+    let warning = watch.see(&swallowed).expect("the first swallow is warned about");
+    assert!(
+        warning.starts_with(
+            "EasyCrypt swallowed an interrupt (`error when starting `Z3': Failure in transformation \
+             eliminate_builtin anomaly: Stdlib.Sys.Break`). Rebuild it from branch \
+             `amir/domino-easycrypt-integration` (story `easycrypt-never-swallows-an-interrupt`)"
+        ),
+        "{warning}"
+    );
+    assert_eq!(watch.see(&swallowed), None, "once per run");
+    assert_eq!(watch.clone().see(&swallowed), None, "the run shares one watch");
+    assert_eq!(watch.warning(), Some(warning.clone()));
+    // the answer is left as it is
+    assert_eq!(swallowed.status, crate::easycrypt::json::Status::Error);
+    // and the run's summary says it
+    let run = TheoremTactics {
+        theorem: "T".into(),
+        equivalences: vec![],
+        elapsed: Duration::ZERO,
+        swallowed_interrupt: watch.warning(),
+    };
+    assert!(run.render().contains(&format!("warning: {warning}\n")), "{}", run.render());
+}
+
+#[test]
+fn an_unanswered_interrupt_is_its_own_line_in_the_report() {
+    let mut eq = equivalence_with(vec![oracle_with(vec![admit(AdmitReason::Interrupted, "N38")])]);
+    let u = Unanswered {
+        oracle: "O".into(),
+        node: "N38".into(),
+        signals: 6,
+        waited: Duration::from_millis(30_200),
+        respawn: Some(Duration::from_millis(3_400)),
+    };
+    eq.unanswered = vec![u.clone()];
+    let report = eq.render();
+    assert!(
+        report.contains(
+            "\n    EasyCrypt left an interrupt unanswered at N38 (6 signals over 30 s); oracle \
+             sealed, EasyCrypt respawned (proof opened again in 3.4s)\n"
+        ),
+        "{report}"
+    );
+    assert!(!report.contains("interrupted:"), "not a Ctrl-C: {report}");
+    // the third one ends the job, which says why, and is not a Ctrl-C
+    eq.unanswered = vec![u.clone(), u.clone(), Unanswered { respawn: None, ..u }];
+    eq.interrupted = Some(Interrupted::Sealed {
+        oracle: "O".into(),
+        admits: 1,
+        node: "N38".into(),
+    });
+    eq.ended_early = Some("EasyCrypt left 3 interrupts unanswered".into());
+    let report = eq.render();
+    assert!(report.contains("oracle sealed, EasyCrypt not respawned\n"), "{report}");
+    assert!(
+        report.contains(
+            "ended early: sealed O with 1 admits at node N38: EasyCrypt left 3 interrupts unanswered\n"
+        ),
+        "{report}"
+    );
+    let run = TheoremTactics {
+        theorem: "T".into(),
+        equivalences: vec![eq],
+        elapsed: Duration::ZERO,
+        swallowed_interrupt: None,
+    };
+    assert_eq!(run.interrupted(), None, "no Ctrl-C");
+    assert!(run.ended_early());
 }
 
 #[cfg(feature = "cvc5-lib")]
@@ -1492,5 +1582,281 @@ mod live {
         let record = read_record(&path);
         assert_eq!(record.version, 2);
         assert!(record.complete);
+    }
+
+    // ------------------------------------------------------------------
+    // A tactics run survives an unanswered interrupt
+    // ------------------------------------------------------------------
+
+    const FOUR_ORACLES: &str = "testdata/easycrypt/unanswered-interrupt/four-oracles";
+
+    /// The real EasyCrypt behind a filter that leaves the first sentence at joint node N0 (the
+    /// 4th after `proc; inline.`) of the oracles walked `hang`th unanswered, whatever interrupt
+    /// comes: it is not passed on, and no answer is written. Oracles are counted over the whole
+    /// run, respawns included (in `dir`). Every other sentence and interrupt is passed on.
+    fn unanswering_easycrypt(dir: &Path, hang: &[usize]) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let real = crate::easycrypt::session::locate_binary();
+        let walked = dir.join("walked");
+        std::fs::write(&walked, "0").unwrap();
+        let hang: Vec<String> = hang.iter().map(usize::to_string).collect();
+        let script = dir.join("unanswering-easycrypt");
+        std::fs::write(
+            &script,
+            format!(
+                r#"#!/bin/sh
+fifo="$(mktemp -u)"
+mkfifo "$fifo"
+'{real}' "$@" < "$fifo" &
+ec=$!
+exec 3> "$fifo"
+rm -f "$fifo"
+trap 'kill -INT $ec 2>/dev/null' INT
+opened=0
+after=-1
+while :; do
+  if IFS= read -r line; then :; else
+    [ $? -gt 128 ] && continue
+    break
+  fi
+  [ $after -ge 0 ] && after=$((after+1))
+  case "$line" in "call ("*) opened=1;; esac
+  if [ $opened = 1 ] && [ "$line" = "proc; inline." ]; then
+    n=$(($(cat '{walked}')+1))
+    echo $n > '{walked}'
+    case " {hang} " in *" $n "*) after=0;; *) after=-1;; esac
+  fi
+  if [ $after -eq 4 ]; then
+    trap '' INT
+    while :; do sleep 1; done
+  fi
+  printf '%s\n' "$line" >&3
+done
+exec 3>&-
+wait $ec
+"#,
+                real = real.display(),
+                walked = walked.display(),
+                hang = hang.join(" ")
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    /// [`run_stopped_at`] on [`FOUR_ORACLES`] with [`unanswering_easycrypt`]`(hang)`. A sentence
+    /// times out after 10 s: the project's take well under one, but the opening `require import`
+    /// can take several under a loaded full suite. An interrupt goes unanswered after six signals
+    /// over 1.5 s.
+    fn run_unanswered(
+        hang: &[usize],
+        stop_at: Option<&str>,
+    ) -> Option<(TheoremTactics, tempfile::TempDir, Vec<Capture>)> {
+        if !json_binary_configured() {
+            eprintln!("DOMINO_EASYCRYPT not set, skipping");
+            return None;
+        }
+        let fake = tempfile::tempdir().unwrap();
+        TEST_EASYCRYPT.with(|t| {
+            *t.borrow_mut() = Some(FakeEasyCrypt {
+                binary: unanswering_easycrypt(fake.path(), hang),
+                grace: Duration::from_millis(1_500),
+                resend: Duration::from_millis(250),
+            })
+        });
+        let options = TacticsOptions {
+            ec_timeout: Duration::from_secs(10),
+            stop: Some(Arc::new(AtomicBool::new(false))),
+            ..TacticsOptions::default()
+        };
+        let result = run_stopped_at(FOUR_ORACLES, "Proof", &options, stop_at);
+        TEST_EASYCRYPT.with(|t| t.borrow_mut().take());
+        result
+    }
+
+    fn interrupted_admits(o: &OracleTactics) -> usize {
+        o.stats
+            .admits
+            .iter()
+            .filter(|a| a.reason == AdmitReason::Interrupted)
+            .count()
+    }
+
+    fn statuses(record: &SessionRecord) -> Vec<(String, OracleStatus)> {
+        record
+            .oracles
+            .iter()
+            .map(|o| (o.name.clone(), o.status))
+            .collect()
+    }
+
+    fn status_list(list: &[(&str, OracleStatus)]) -> Vec<(String, OracleStatus)> {
+        list.iter().map(|(n, s)| (n.to_string(), *s)).collect()
+    }
+
+    /// The transcript's records as `(file tag, sentence)`.
+    fn tagged_sentences(transcript: &Path) -> Vec<(String, String)> {
+        std::fs::read_to_string(transcript)
+            .unwrap()
+            .lines()
+            .map(|line| {
+                let v: serde_json::Value = serde_json::from_str(line).unwrap();
+                (
+                    v["file"].as_str().unwrap().to_string(),
+                    v["sentence"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn an_unanswered_interrupt_seals_the_oracle_and_a_respawned_easycrypt_proves_the_rest() {
+        // the second oracle's first sentence at N0 goes unanswered
+        let Some((result, out, _)) = run_unanswered(&[2], None) else {
+            return;
+        };
+        let eq = &result.equivalences[0];
+        assert_eq!(eq.interrupted, None, "the job finishes: {}", eq.render());
+        assert_eq!(eq.ended_early, None);
+        let names: Vec<&str> = eq.oracles.iter().map(|o| o.oracle.as_str()).collect();
+        assert_eq!(names, ["First", "Second", "Third", "Fourth"]);
+        assert_eq!(eq.oracles[0].stats.admits.len(), 0, "{}", eq.render());
+        assert!(interrupted_admits(&eq.oracles[1]) > 0, "{}", eq.render());
+        assert_eq!(eq.oracles[1].stats.admits.len(), interrupted_admits(&eq.oracles[1]));
+        for o in &eq.oracles[2..] {
+            assert_eq!(o.stats.admits.len(), 0, "proved after the respawn: {}", eq.render());
+            assert!(o.stats.closed > 0);
+        }
+        // the unanswered interrupt, and the respawn
+        let [u] = eq.unanswered.as_slice() else {
+            panic!("one unanswered interrupt: {}", eq.render());
+        };
+        assert_eq!((u.oracle.as_str(), u.node.as_str(), u.signals), ("Second", "N0", 6));
+        assert!(u.respawn.is_some());
+        let report = std::fs::read_to_string(out.path().join(&eq.report_file)).unwrap();
+        assert!(
+            report.contains(
+                "    EasyCrypt left an interrupt unanswered at N0 (6 signals over 1 s); oracle \
+                 sealed, EasyCrypt respawned (proof opened again in "
+            ),
+            "{report}"
+        );
+        assert!(!report.contains("interrupted:"), "not a Ctrl-C: {report}");
+        let page = std::fs::read_to_string(page_path(&result)).unwrap();
+        assert!(page.contains("EasyCrypt left an interrupt unanswered at N0"), "{page}");
+        assert!(page.contains("tactics (done)"));
+        // the record: the sealed oracle is not done, so the next job resumes it
+        let record = read_record(&record_path(&result, out.path()));
+        assert!(!record.complete);
+        use OracleStatus::{Done, Interrupted as Sealed};
+        assert_eq!(
+            statuses(&record),
+            status_list(&[("First", Done), ("Second", Sealed), ("Third", Done), ("Fourth", Done)])
+        );
+        // the transcript: the fresh EasyCrypt opens the proof again and admits the oracles in
+        // the file, then proves the rest; its records follow the first one's in the same file
+        let sent = tagged_sentences(&eq.transcript);
+        let fresh: Vec<&str> = sent
+            .iter()
+            .filter(|(tag, _)| tag == &format!("{} (respawn 1)", eq.proof_file))
+            .map(|(_, s)| s.as_str())
+            .collect();
+        let call = fresh.iter().position(|s| s.starts_with("call (")).unwrap();
+        assert!(fresh[call + 1].starts_with("auto => />; smt("), "the base case: {fresh:?}");
+        assert_eq!(fresh[call + 2..call + 4], ["admit.", "admit."], "{fresh:?}");
+        assert_eq!(fresh[call + 4], "proc; inline.");
+        // after the `call`: the two oracles walked
+        assert_eq!(fresh[call..].iter().filter(|s| **s == "proc; inline.").count(), 2);
+        let first_fresh = sent.iter().position(|(tag, _)| tag.contains("respawn")).unwrap();
+        assert!(sent[first_fresh..].iter().all(|(tag, _)| tag.contains("respawn 1")));
+        // the partial proof compiles (the test compiles, never the run: ADR 0005)
+        let text = proof_file(&result, out.path());
+        assert_eq!(text.matches(UNTOUCHED).count(), 0, "{text}");
+        if let Err(e) = compile(
+            &crate::easycrypt::session::locate_binary(),
+            out.path(),
+            &eq.proof_file,
+        ) {
+            panic!("the proof does not compile: {e}\n{text}");
+        }
+    }
+
+    #[test]
+    fn the_third_unanswered_interrupt_ends_the_job_and_leaves_the_rest_pending() {
+        // every oracle walked is left unanswered at N0
+        let Some((result, out, _)) = run_unanswered(&[1, 2, 3, 4], None) else {
+            return;
+        };
+        let eq = &result.equivalences[0];
+        let names: Vec<&str> = eq.oracles.iter().map(|o| o.oracle.as_str()).collect();
+        assert_eq!(names, ["First", "Second", "Third"], "{}", eq.render());
+        assert!(eq.oracles.iter().all(|o| interrupted_admits(o) > 0));
+        let respawned: Vec<bool> = eq.unanswered.iter().map(|u| u.respawn.is_some()).collect();
+        assert_eq!(respawned, [true, true, false]);
+        let Some(Interrupted::Sealed { oracle, node, .. }) = &eq.interrupted else {
+            panic!("sealed: {:?}", eq.interrupted);
+        };
+        assert_eq!((oracle.as_str(), node.as_str()), ("Third", "N0"));
+        let why = eq.ended_early.as_deref().expect("why the job ended");
+        assert!(why.contains("3 interrupts unanswered"), "{why}");
+        // not a Ctrl-C: the run is not interrupted
+        assert_eq!(result.interrupted(), None);
+        assert!(result.ended_early());
+        let report = std::fs::read_to_string(out.path().join(&eq.report_file)).unwrap();
+        assert!(
+            report.contains("\nended early: sealed Third with "),
+            "{report}"
+        );
+        assert!(report.contains(why), "{report}");
+        let page = std::fs::read_to_string(page_path(&result)).unwrap();
+        assert!(page.contains("tactics (ended early)"), "{page}");
+        assert!(!page.contains("Ctrl-C"));
+        let record = read_record(&record_path(&result, out.path()));
+        use OracleStatus::{Interrupted as Sealed, Pending};
+        assert_eq!(
+            statuses(&record),
+            status_list(&[
+                ("First", Sealed),
+                ("Second", Sealed),
+                ("Third", Sealed),
+                ("Fourth", Pending)
+            ])
+        );
+        let text = proof_file(&result, out.path());
+        assert_eq!(text.matches(UNTOUCHED).count(), 1, "{text}");
+    }
+
+    #[test]
+    fn a_ctrl_c_while_respawning_stops_the_job_as_a_ctrl_c() {
+        // the first goal left is the walk unwinding from the unanswered sentence at N0 of the
+        // first oracle: the stop comes after the seal, before the fresh EasyCrypt
+        let Some((result, out, _)) = run_unanswered(&[1], Some("goal N0")) else {
+            return;
+        };
+        let eq = &result.equivalences[0];
+        assert_eq!(eq.interrupted, Some(Interrupted::NoOracleInFlight), "{}", eq.render());
+        assert_eq!(eq.ended_early, None);
+        assert_eq!(result.interrupted(), Some(&Interrupted::NoOracleInFlight));
+        let [first] = eq.oracles.as_slice() else {
+            panic!("one oracle sealed: {}", eq.render());
+        };
+        assert!(interrupted_admits(first) > 0);
+        // nothing of a fresh EasyCrypt was sent
+        let sent = tagged_sentences(&eq.transcript);
+        assert!(sent.iter().all(|(tag, _)| !tag.contains("respawn")), "{sent:?}");
+        let record = read_record(&record_path(&result, out.path()));
+        use OracleStatus::{Interrupted as Sealed, Pending};
+        assert_eq!(
+            statuses(&record),
+            status_list(&[
+                ("First", Sealed),
+                ("Second", Pending),
+                ("Third", Pending),
+                ("Fourth", Pending)
+            ])
+        );
+        let page = std::fs::read_to_string(page_path(&result)).unwrap();
+        assert!(page.contains("tactics (interrupted)"));
     }
 }

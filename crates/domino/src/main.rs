@@ -807,6 +807,7 @@ fn easycrypt_prove<P: project::Project>(
             )),
             force: p.force,
         };
+        let mut ended_early = false;
         for (name, exported) in &exports {
             let theorem = project.get_theorem(name).unwrap();
             let theorem_out = out_base.join(name);
@@ -832,6 +833,13 @@ fn easycrypt_prove<P: project::Project>(
                 let _ = std::io::stdout().flush();
                 std::process::exit(130);
             }
+            ended_early |= result.ended_early();
+        }
+        if ended_early {
+            // a job gave up on its oracles (its report says why): not a Ctrl-C, not a success
+            use std::io::Write as _;
+            let _ = std::io::stdout().flush();
+            std::process::exit(1);
         }
         Ok(())
     }

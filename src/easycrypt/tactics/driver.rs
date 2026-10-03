@@ -348,7 +348,8 @@ pub(super) struct Prover<'a> {
     /// fallback.
     pub mismatches: Vec<String>,
     /// The oracle sealed where the walk stood when it saw that the run was asked to stop
-    /// (Ctrl-C, story 34); the walk then unwinds with [`SessionError::Stopped`].
+    /// (Ctrl-C, story 34), or when EasyCrypt left an interrupt unanswered; the walk then unwinds
+    /// with [`SessionError::Stopped`] or [`SessionError::Unresponsive`].
     pub stopped: Option<Sealed>,
 }
 
@@ -421,12 +422,20 @@ impl Prover<'_> {
         SessionError::Stopped
     }
 
-    /// `e`, unless the run was asked to stop: EasyCrypt not answering the interrupt then is a
-    /// stop like any other, with what has been proved so far.
+    /// `e`, unless EasyCrypt left an interrupt unanswered ([`SessionError::Unresponsive`]).
+    /// When the run was asked to stop, that is a stop like any other, with what has been proved
+    /// so far. Otherwise the oracle is sealed where the walk stands ([`Self::stopped`]), as a
+    /// stop would seal it, and `e` unwinds the walk: the caller respawns EasyCrypt. The seal is
+    /// consistent: the goals are those of the last answer, and the script holds only accepted
+    /// sentences.
     fn session_failed(&mut self, e: SessionError) -> SessionError {
-        if matches!(e, SessionError::Unresponsive { .. }) && self.session.stop_requested() {
+        if !matches!(e, SessionError::Unresponsive { .. }) {
+            return e;
+        }
+        if self.session.stop_requested() {
             return self.stop_point().expect_err("a stop was requested");
         }
+        let _ = self.stop_with(self.count());
         e
     }
 
