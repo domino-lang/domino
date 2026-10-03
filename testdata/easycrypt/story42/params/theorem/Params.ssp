@@ -1,0 +1,46 @@
+theorem Params {
+    const x: Bool;
+    const y: Bool;
+    const z: Bool;
+    const w: Bool;
+
+    instance L = Left {
+        params {
+            x: x,
+            y: y,
+            z: z,
+        }
+    }
+
+    instance R = Right {
+        params {
+            x: x,
+            y: y,
+            w: w,
+        }
+    }
+
+    gamehops {
+        equivalence L R {
+            invariant: [ ./theorem/invariant.smt2 ]
+            Get: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Peek: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+}

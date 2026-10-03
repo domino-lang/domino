@@ -1,0 +1,31 @@
+theorem ParamsWidths {
+    const narrow: Integer;
+    const wide: Integer;
+
+    instance N = Narrow {
+        params {
+            m: narrow,
+        }
+    }
+
+    instance W = Wide {
+        params {
+            m: wide,
+        }
+    }
+
+    gamehops {
+        equivalence N W {
+            invariant: [ ./theorem/invariant-trivial.smt2 ]
+            Get: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+}

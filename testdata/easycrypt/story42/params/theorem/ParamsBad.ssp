@@ -1,0 +1,46 @@
+theorem ParamsBad {
+    const x: Bool;
+    const y: Bool;
+    const z: Bool;
+    const w: Bool;
+
+    instance L_bad = Left {
+        params {
+            x: x,
+            y: y,
+            z: z,
+        }
+    }
+
+    instance R_bad = Right {
+        params {
+            x: x,
+            y: y,
+            w: w,
+        }
+    }
+
+    gamehops {
+        equivalence L_bad R_bad {
+            invariant: [ ./theorem/invariant-different-packages.smt2 ]
+            Get: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+            Peek: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+}

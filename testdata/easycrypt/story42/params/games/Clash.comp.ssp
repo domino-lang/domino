@@ -1,0 +1,25 @@
+composition Clash {
+    const c: Bool;
+
+    instance T_b1 = Ctr {
+        params {
+            b: c,
+        }
+    }
+
+    instance T = Twin {
+        params {
+            b1: c,
+            b2: c,
+        }
+    }
+
+    compose {
+        adversary: {
+            Peek: T,
+        },
+        T: {
+            Get: T_b1,
+        },
+    }
+}

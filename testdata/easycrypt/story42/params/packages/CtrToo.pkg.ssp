@@ -1,0 +1,16 @@
+package CtrToo {
+    params {
+        flag: Bool,
+    }
+
+    state {
+        ctr: Integer,
+    }
+
+    oracle Get() -> Integer {
+        if flag {
+            ctr <- (ctr + 1);
+        }
+        return ctr;
+    }
+}

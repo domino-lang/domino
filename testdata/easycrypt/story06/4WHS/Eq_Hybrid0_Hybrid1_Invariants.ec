@@ -2,36 +2,44 @@
 
 require import AllCore Distr FMap Int IntDiv Types.
 
+type KX_pkgstate = {
+  KX_d_LTK : (int, bits_n) fmap;
+  KX_d_H : (int, bool) fmap;
+  KX_ctr_ : int;
+  KX_kid_ : int;
+  KX_d_RevTested : ((int * int * bits_n * bits_n * bits_n), bool) fmap;
+  KX_d_Fresh : (int, bool) fmap;
+  KX_d_First : ((int * int * bits_n * bits_n * bits_n), int) fmap;
+  KX_d_Second : ((int * int * bits_n * bits_n * bits_n), int) fmap;
+  KX_d_State : (int, (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) fmap
+}.
+
+type KX_NoKeys_pkgstate = {
+  KX_NoKeys_d_LTK : (int, bits_n) fmap;
+  KX_NoKeys_d_H : (int, bool) fmap;
+  KX_NoKeys_ctr_ : int;
+  KX_NoKeys_kid_ : int;
+  KX_NoKeys_d_RevTested : ((int * int * bits_n * bits_n * bits_n), bool) fmap;
+  KX_NoKeys_d_Fresh : (int, bool) fmap;
+  KX_NoKeys_d_State : (int, (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) fmap
+}.
+
 type Hybrid0_state = {
-  l_pkg_KX_d_LTK : (int, bits_n) fmap;
-  l_pkg_KX_d_H : (int, bool) fmap;
-  l_pkg_KX_ctr_ : int;
-  l_pkg_KX_kid_ : int;
-  l_pkg_KX_d_RevTested : ((int * int * bits_n * bits_n * bits_n), bool) fmap;
-  l_pkg_KX_d_Fresh : (int, bool) fmap;
-  l_pkg_KX_d_First : ((int * int * bits_n * bits_n * bits_n), int) fmap;
-  l_pkg_KX_d_Second : ((int * int * bits_n * bits_n * bits_n), int) fmap;
-  l_pkg_KX_d_State : (int, (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) fmap;
+  l_pkg_KX : KX_pkgstate;
   l_pkg_KX_b : bool;
   l_abort_flag : bool
 }.
 
 type Hybrid1_state = {
-  r_pkg_KX_d_LTK : (int, bits_n) fmap;
-  r_pkg_KX_d_H : (int, bool) fmap;
-  r_pkg_KX_ctr_ : int;
-  r_pkg_KX_kid_ : int;
-  r_pkg_KX_d_RevTested : ((int * int * bits_n * bits_n * bits_n), bool) fmap;
-  r_pkg_KX_d_Fresh : (int, bool) fmap;
-  r_pkg_KX_d_State : (int, (int * bool * int * bits_n * bool option * bits_n option * bits_n option * bits_n option * (int * int * bits_n * bits_n * bits_n) option * int)) fmap;
+  r_pkg_KX : KX_NoKeys_pkgstate;
   r_pkg_KX_b : bool;
   r_abort_flag : bool
 }.
 
 op Domino_state_eq (l : Hybrid0_state) (r : Hybrid1_state) : bool =
   forall (ctr : int),
-       (l.`l_pkg_KX_d_State.[ctr] = None) = (r.`r_pkg_KX_d_State.[ctr] = None)
-    /\ (let state = l.`l_pkg_KX_d_State.[ctr] in
+       (l.`l_pkg_KX.`KX_d_State.[ctr] = None) = (r.`r_pkg_KX.`KX_NoKeys_d_State.[ctr] = None)
+    /\ (let state = l.`l_pkg_KX.`KX_d_State.[ctr] in
              !(state = None)
           => let d_U = (oget state).`1 in
                let u = (oget state).`2 in
@@ -44,11 +52,11 @@ op Domino_state_eq (l : Hybrid0_state) (r : Hybrid1_state) : bool =
                              let kmac = (oget state).`9 in
                                let sid = (oget state).`10 in
                                  let mess = (oget state).`11 in
-                                   r.`r_pkg_KX_d_State.[ctr] = Some (d_U, u, d_V, ltk, acc, ni, nr, kmac, sid, mess)).
+                                   r.`r_pkg_KX.`KX_NoKeys_d_State.[ctr] = Some (d_U, u, d_V, ltk, acc, ni, nr, kmac, sid, mess)).
 
 op Domino_keys_computed_correctly (l : Hybrid0_state) (r : Hybrid1_state) : bool =
   forall (ctr : int),
-    let state = l.`l_pkg_KX_d_State.[ctr] in
+    let state = l.`l_pkg_KX.`KX_d_State.[ctr] in
          !(state = None)
       => let d_U = (oget state).`1 in
            let u = (oget state).`2 in
@@ -65,7 +73,7 @@ op Domino_keys_computed_correctly (l : Hybrid0_state) (r : Hybrid1_state) : bool
 
 op Domino_time_of_acceptance (l : Hybrid0_state) (r : Hybrid1_state) : bool =
   forall (ctr : int),
-    let state = l.`l_pkg_KX_d_State.[ctr] in
+    let state = l.`l_pkg_KX.`KX_d_State.[ctr] in
          !(state = None)
       => let u = (oget state).`2 in
            let acc = (oget state).`5 in
@@ -75,7 +83,7 @@ op Domino_time_of_acceptance (l : Hybrid0_state) (r : Hybrid1_state) : bool =
 
 op Domino_time_of_nonces (l : Hybrid0_state) (r : Hybrid1_state) : bool =
   forall (ctr : int),
-    let state = l.`l_pkg_KX_d_State.[ctr] in
+    let state = l.`l_pkg_KX.`KX_d_State.[ctr] in
          !(state = None)
       => let u = (oget state).`2 in
            let ni = (oget state).`7 in
@@ -91,7 +99,7 @@ op Domino_time_of_nonces (l : Hybrid0_state) (r : Hybrid1_state) : bool =
 
 op Domino_time_of_sid (l : Hybrid0_state) (r : Hybrid1_state) : bool =
   forall (ctr : int),
-    let state = l.`l_pkg_KX_d_State.[ctr] in
+    let state = l.`l_pkg_KX.`KX_d_State.[ctr] in
          !(state = None)
       => let u = (oget state).`2 in
            let sid = (oget state).`10 in
@@ -103,12 +111,12 @@ op Domino_time_of_sid (l : Hybrid0_state) (r : Hybrid1_state) : bool =
                => !(sid = None).
 
 op Domino_invariant (l : Hybrid0_state) (r : Hybrid1_state) : bool =
-     l.`l_pkg_KX_kid_ = r.`r_pkg_KX_kid_
-  /\ l.`l_pkg_KX_ctr_ = r.`r_pkg_KX_ctr_
-  /\ l.`l_pkg_KX_d_LTK = r.`r_pkg_KX_d_LTK
-  /\ l.`l_pkg_KX_d_H = r.`r_pkg_KX_d_H
-  /\ l.`l_pkg_KX_d_Fresh = r.`r_pkg_KX_d_Fresh
-  /\ l.`l_pkg_KX_d_RevTested = r.`r_pkg_KX_d_RevTested
+     l.`l_pkg_KX.`KX_kid_ = r.`r_pkg_KX.`KX_NoKeys_kid_
+  /\ l.`l_pkg_KX.`KX_ctr_ = r.`r_pkg_KX.`KX_NoKeys_ctr_
+  /\ l.`l_pkg_KX.`KX_d_LTK = r.`r_pkg_KX.`KX_NoKeys_d_LTK
+  /\ l.`l_pkg_KX.`KX_d_H = r.`r_pkg_KX.`KX_NoKeys_d_H
+  /\ l.`l_pkg_KX.`KX_d_Fresh = r.`r_pkg_KX.`KX_NoKeys_d_Fresh
+  /\ l.`l_pkg_KX.`KX_d_RevTested = r.`r_pkg_KX.`KX_NoKeys_d_RevTested
   /\ Domino_state_eq l r
   /\ Domino_keys_computed_correctly l r
   /\ Domino_time_of_nonces l r

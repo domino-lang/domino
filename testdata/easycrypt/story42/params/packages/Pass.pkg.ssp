@@ -1,0 +1,17 @@
+package Pass {
+    params {
+        b: Bool,
+    }
+
+    import oracles {
+        Get() -> Integer,
+    }
+
+    oracle Get() -> Integer {
+        x <- invoke Get();
+        if b {
+            return x;
+        }
+        return 0;
+    }
+}

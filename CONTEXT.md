@@ -163,8 +163,10 @@ runs the adversary against it. One per composition; the constants are its `run` 
 **Game interface** — the EasyCrypt module type listing the oracles a router exposes to the
 adversary. Compositions exporting the same signatures share one.
 
-**Game-state record** — a flat record type collecting one game instance's package state fields plus
-its abort flag. It exists solely so that invariant operators take a single argument per side; no
+**Game-state record** — a record type for one game instance: one field per package instance with
+state, holding that package's state record (`<Pkg>_pkgstate`, shared by every instance of the
+package), then one field per package parameter that becomes a module variable, then its abort flag
+(ADR 0007). It exists solely so that invariant operators take a single argument per side; no
 router or package ever uses it.
 
 **`Domino_` operator** — an EasyCrypt operator translated from a hand-written SMT-LIB state relation

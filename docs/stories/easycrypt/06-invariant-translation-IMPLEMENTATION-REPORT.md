@@ -236,6 +236,8 @@ walking an existing chain to completion):
   contribute nothing (no fact can be stated about a free theorem constant beyond what's given) — not
   hit by either target equivalence, but a deliberate, non-panicking `continue`, not an unreachable.
 
+> **2026-10-03:** Superseded by story 42: instances are no longer paired by name; see 42 §1.3.
+
 ## 8. Skipped forms
 
 `define-lemma`, `define-game-invariant`, `define-package-invariant` (grammar-level alternatives to
@@ -328,6 +330,7 @@ print anything itself, matching its own scope (no `domino easycrypt` wiring, see
   key is (§7 of that report) — a future project whose two sides give the "same" package instance
   different names would silently get no `params_inv` fact for it instead of a wrong one (safe, but
   incomplete).
+  > **2026-10-03:** Superseded by story 42: instances are no longer paired by name; see 42 §1.3.
 - `OpRegistry`'s collision detection is scoped to one `build_invariant_file` call (i.e., one
   equivalence's own invariant + randomness files together), not across different equivalences in the
   same theorem — correct, since each equivalence gets its own `Eq_*_Invariants.ec` file/namespace.

@@ -1,0 +1,15 @@
+composition Narrow {
+    const m: Integer;
+
+    instance K = Key {
+        params {
+            n: m,
+        }
+    }
+
+    compose {
+        adversary: {
+            Get: K,
+        },
+    }
+}

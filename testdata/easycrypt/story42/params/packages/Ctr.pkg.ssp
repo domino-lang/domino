@@ -1,0 +1,16 @@
+package Ctr {
+    params {
+        b: Bool,
+    }
+
+    state {
+        ctr: Integer,
+    }
+
+    oracle Get() -> Integer {
+        if b {
+            ctr <- (ctr + 1);
+        }
+        return ctr;
+    }
+}

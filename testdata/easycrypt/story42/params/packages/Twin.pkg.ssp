@@ -1,0 +1,22 @@
+package Twin {
+    params {
+        b1: Bool,
+        b2: Bool,
+    }
+
+    state {
+        n: Integer,
+    }
+
+    import oracles {
+        Get() -> Integer,
+    }
+
+    oracle Peek() -> Integer {
+        x <- invoke Get();
+        if (b1 and b2) {
+            n <- (n + x);
+        }
+        return n;
+    }
+}

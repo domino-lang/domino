@@ -197,41 +197,51 @@ fn restrictions_for(layout: &CompLayout) -> Vec<String> {
     out
 }
 
-/// Builds one side's flat game-state record literal at the `call` site:
-/// one field per `(instance, state field)` in `ordered_pkgs_idx()` order,
-/// then one per qualifying package parameter
-/// ([`package::param_needs_var`]), then `abort_flag` — the exact same
-/// order, namespacing (`{field_ns_prefix}pkg_<instance>_<mangled field>` /
-/// `{field_ns_prefix}abort_flag`) and per-instance-fresh [`Names`] mangling
-/// `invariant.rs::build_side_record` uses for the record *type*, re-derived
-/// independently here rather than shared (`06-invariant-translation-
-/// IMPLEMENTATION-REPORT.md` §10: "story 07 builds it inline at the call
-/// site ... without needing story 06's own internal lookup map"). Each
-/// field's *value* is a memory-tagged module-state read
-/// (`Comp_Hybrid0.Pkg_Inst_KX.d_LTK{1}`), not a record projection — the two
-/// translators only share the naming rule, not the expression shape.
+/// Builds one side's game-state record literal at the `call` site, in the
+/// shape `invariant.rs::build_side_record` gives the record *type*
+/// (story 42 §3.2, ADR 0007): one field `{field_ns_prefix}pkg_<Inst>` per
+/// instance with state, holding a nested `<Pkg>_pkgstate` literal, then one
+/// field per qualifying package parameter ([`package::param_needs_var`]),
+/// both in `ordered_pkgs_idx()` order, then `abort_flag`. Field names come
+/// from `invariant.rs`'s naming helpers, and state fields and parameters
+/// are mangled through one per-instance [`Names`], as there. Each leaf
+/// *value* is a memory-tagged module-state read
+/// (`Comp_Hybrid0.Pkg_Inst_KX.d_LTK{1}`), not a record projection.
 fn build_side_record_lit(
     comp: &Composition,
     layout: &CompLayout,
     field_ns_prefix: &str,
     mem: u8,
 ) -> Result<EcExpr, EcExportError> {
-    let mut fields: Vec<(String, EcExpr)> = Vec::new();
+    let mut instance_fields: Vec<(String, EcExpr)> = Vec::new();
+    let mut param_fields: Vec<(String, EcExpr)> = Vec::new();
 
     for &idx in &comp.ordered_pkgs_idx() {
         let inst = &comp.pkgs[idx];
+        let package = inst.pkg.name.as_str();
         let mut names = Names::new();
-        let base_path = vec![
-            layout.comp_theory.clone(),
-            format!("Pkg_Inst_{}", layout.inst_mangled[idx]),
-        ];
+        let module_var = |mangled: String| {
+            let path = vec![
+                layout.comp_theory.clone(),
+                format!("Pkg_Inst_{}", layout.inst_mangled[idx]),
+                mangled,
+            ];
+            EcExpr::Qualified { path, mem: Some(mem) }
+        };
 
+        let mut state_fields = Vec::with_capacity(inst.pkg.state.len());
         for (name, _ty, _span) in &inst.pkg.state {
             let mangled = names.mangle(NameKind::Var, name)?;
-            let final_name = format!("{field_ns_prefix}pkg_{}_{mangled}", inst.name());
-            let mut path = base_path.clone();
-            path.push(mangled);
-            fields.push((final_name, EcExpr::Qualified { path, mem: Some(mem) }));
+            state_fields.push((
+                invariant::pkg_state_field_name(package, &mangled),
+                module_var(mangled),
+            ));
+        }
+        if !state_fields.is_empty() {
+            instance_fields.push((
+                invariant::instance_field_name(field_ns_prefix, inst.name()),
+                EcExpr::RecordLit { fields: state_fields },
+            ));
         }
 
         for (name, ty, _span) in &inst.pkg.params {
@@ -239,15 +249,17 @@ fn build_side_record_lit(
                 continue;
             }
             let mangled = names.mangle(NameKind::Var, name)?;
-            let final_name = format!("{field_ns_prefix}pkg_{}_{mangled}", inst.name());
-            let mut path = base_path.clone();
-            path.push(mangled);
-            fields.push((final_name, EcExpr::Qualified { path, mem: Some(mem) }));
+            param_fields.push((
+                invariant::param_field_name(field_ns_prefix, inst.name(), &mangled),
+                module_var(mangled),
+            ));
         }
     }
 
+    let mut fields = instance_fields;
+    fields.extend(param_fields);
     fields.push((
-        format!("{field_ns_prefix}abort_flag"),
+        invariant::abort_field_name(field_ns_prefix),
         EcExpr::Qualified {
             path: vec![
                 layout.comp_theory.clone(),
@@ -954,10 +966,10 @@ mod tests {
         let rendered = render_file(&files[0].proof.file);
         let expected = concat!(
             "call (: inv\n",
-            "          {| l_pkg_rand_ctr = Comp_MediumComposition.Pkg_Inst_Rand.ctr{1};\n",
-            "             l_pkg_fwd_ctr = Comp_MediumComposition.Pkg_Inst_Fwd.ctr{1};\n",
+            "          {| l_pkg_rand = {| Rand_ctr = Comp_MediumComposition.Pkg_Inst_Rand.ctr{1} |};\n",
+            "             l_pkg_fwd = {| Fwd_ctr = Comp_MediumComposition.Pkg_Inst_Fwd.ctr{1} |};\n",
             "             l_abort_flag = Comp_MediumComposition.Game_MediumComposition.abort_flag{1} |}\n",
-            "          {| r_pkg_rand_ctr = Comp_SmallComposition.Pkg_Inst_Rand.ctr{2};\n",
+            "          {| r_pkg_rand = {| Rand_ctr = Comp_SmallComposition.Pkg_Inst_Rand.ctr{2} |};\n",
             "             r_abort_flag = Comp_SmallComposition.Game_SmallComposition.abort_flag{2} |}); last first.\n",
         );
         assert!(rendered.contains(expected), "{rendered}");
@@ -966,6 +978,26 @@ mod tests {
         assert!(sentences
             .iter()
             .any(|s| s.starts_with("call") && s.ends_with("last first.") && s.contains("r_abort_flag")));
+    }
+
+    #[test]
+    fn the_invariant_call_nests_one_package_record_per_instance_with_state_then_the_parameters() {
+        // Story 42 §3.5, on `testdata/easycrypt/story42/params`.
+        let files = load("testdata/easycrypt/story42/params", "Params");
+        let rendered = render_file(&files[0].proof.file);
+        let expected = concat!(
+            "call (: inv\n",
+            "          {| l_pkg_Store = {| Ctr_ctr = Comp_Left.Pkg_Inst_Store.ctr{1} |};\n",
+            "             l_pkg_OnlyL = {| Ctr_ctr = Comp_Left.Pkg_Inst_OnlyL.ctr{1} |};\n",
+            "             l_pkg_T = {| Twin_n = Comp_Left.Pkg_Inst_T.n{1} |};\n",
+            "             l_pkg_Store_b = Comp_Left.Pkg_Inst_Store.b{1};\n",
+            "             l_pkg_OnlyL_b = Comp_Left.Pkg_Inst_OnlyL.b{1};\n",
+            "             l_pkg_Front_b = Comp_Left.Pkg_Inst_Front.b{1};\n",
+            "             l_pkg_T_b1 = Comp_Left.Pkg_Inst_T.b1{1};\n",
+            "             l_pkg_T_b2 = Comp_Left.Pkg_Inst_T.b2{1};\n",
+            "             l_abort_flag = Comp_Left.Game_Left.abort_flag{1} |}\n",
+        );
+        assert!(rendered.contains(expected), "{rendered}");
     }
 
     #[test]

@@ -3,9 +3,11 @@
 //! Building `Eq_<Left>_<Right>_Invariants.ec`
 //! (`docs/stories/easycrypt/06-invariant-translation.md`): translating an
 //! equivalence's hand-written SMT-LIB invariant (`Equivalence::invariants()`)
-//! into a pair of flat game-state records plus a closed set of EasyCrypt
-//! operators, one per `define-fun`/`define-state-relation` in the source
-//! file(s), folded into `op inv`.
+//! into one state record type per package, a pair of game-state records that
+//! nest them (`docs/adr/0007-invariant-game-state-nests-package-state-records.md`,
+//! story 42), plus a closed set of EasyCrypt operators, one per
+//! `define-fun`/`define-state-relation` in the source file(s), folded into
+//! `op inv`.
 //!
 //! The SMT-LIB text is parsed with the existing `src/util/smtparser`
 //! (`smt.pest`) grammar via its `SmtParser` trait; this module supplies its
@@ -13,7 +15,7 @@
 //! `Expr`/`Stmt`, and does the real translation eagerly inside the trait's
 //! `handle_definefun`/`handle_define_state_relation` overrides.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use miette::{Diagnostic, SourceSpan};
 use thiserror::Error;
@@ -81,6 +83,47 @@ pub enum InvariantError {
     #[error("game instance `{name}` not found for this equivalence")]
     MissingGameInstance { name: String },
 
+    /// Two instances of one package in one equivalence whose state fields
+    /// translate to different types (different widths), so they cannot
+    /// share `<Pkg>_pkgstate` (ADR 0007).
+    #[error(
+        "package `{package}` is instantiated with different state field types in one equivalence, so its instances cannot share one `{package}_pkgstate` record type"
+    )]
+    PackageStateMismatch { package: String },
+
+    /// A whole-package equality (`(= left.KX right.KX)`) between instances
+    /// of different packages. In Domino the `=` would be ill-sorted.
+    #[error(
+        "whole-package equality in invariant file `{file}` compares instance `{left_instance}` of package `{left_package}` with instance `{right_instance}` of package `{right_package}`"
+    )]
+    PackageMismatch {
+        file: String,
+        left_instance: String,
+        left_package: String,
+        right_instance: String,
+        right_package: String,
+    },
+
+    /// A parameter binding that is neither a literal nor, through the
+    /// composition's constants, a theorem constant, so `params_inv` cannot
+    /// state it.
+    #[error(
+        "parameter `{param}` of package instance `{instance}` in game instance `{game}` is bound to neither a literal nor a theorem constant"
+    )]
+    UnresolvedParam {
+        game: String,
+        instance: String,
+        param: String,
+    },
+
+    /// Two fields of the record types declared in one invariant file with
+    /// one name. Record fields are global in EasyCrypt, and the field names
+    /// join package, instance and parameter names with `_`, so for example
+    /// instance `T_b1` and parameter `b1` of instance `T` would both give
+    /// `l_pkg_T_b1` (story 42 §3.1: a collision is a hard error).
+    #[error("two fields of the invariant file's record types are both named `{field}`")]
+    FieldCollision { field: String },
+
     #[error(transparent)]
     Name(#[from] NameError),
 }
@@ -112,9 +155,10 @@ impl std::fmt::Display for Sexp {
     }
 }
 
-/// One translated invariant file's output: the two flat game-state
-/// records, one `op` per translated `define-fun`/`define-state-relation`
-/// (in file order), `params_inv`, and the assembled `inv`.
+/// One translated invariant file's output: the `<Pkg>_pkgstate` record
+/// types, the two game-state records, one `op` per translated
+/// `define-fun`/`define-state-relation` (in file order), `params_inv`, and
+/// the assembled `inv`.
 pub struct InvariantFile {
     pub file_name: String,
     pub file: EcFile,
@@ -158,9 +202,26 @@ pub fn build_invariant_file(
     // uniformly rather than only "when both sides share a composition" —
     // see the story's own §3.1 note and this story's implementation
     // report for the full argument.
-    let mut lookup: HashMap<String, (EcExpr, EcType)> = HashMap::new();
-    let left_side = build_side_record(left_game_inst, "left", "l", "l_", &mut lookup)?;
-    let right_side = build_side_record(right_game_inst, "right", "r", "r_", &mut lookup)?;
+    let mut lookup = StateLookup::default();
+    let mut pkg_state_types = Vec::new();
+    let left_side = build_side_record(
+        left_game_inst,
+        "left",
+        "l",
+        "l_",
+        &mut lookup,
+        &mut pkg_state_types,
+    )?;
+    let right_side = build_side_record(
+        right_game_inst,
+        "right",
+        "r",
+        "r_",
+        &mut lookup,
+        &mut pkg_state_types,
+    )?;
+
+    check_unique_fields(&pkg_state_types, &left_side, &right_side)?;
 
     let left_record_ty = EcType::Named(left_side.record_type_name.clone());
     let right_record_ty = EcType::Named(right_side.record_type_name.clone());
@@ -188,18 +249,23 @@ pub fn build_invariant_file(
         state.parse_stmts(&contents)?;
     }
 
-    let params_inv_expr = build_params_inv(left_game_inst, right_game_inst, &lookup);
+    let params_inv_expr = build_params_inv(&left_side, &right_side)?;
 
-    let mut items = vec![
-        EcItem::Record {
-            name: left_side.record_type_name.clone(),
-            fields: left_side.fields.clone(),
-        },
-        EcItem::Record {
-            name: right_side.record_type_name.clone(),
-            fields: right_side.fields.clone(),
-        },
-    ];
+    let mut items: Vec<EcItem> = pkg_state_types
+        .into_iter()
+        .map(|t| EcItem::Record {
+            name: t.name,
+            fields: t.fields,
+        })
+        .collect();
+    items.push(EcItem::Record {
+        name: left_side.record_type_name.clone(),
+        fields: left_side.fields.clone(),
+    });
+    items.push(EcItem::Record {
+        name: right_side.record_type_name.clone(),
+        fields: right_side.fields.clone(),
+    });
     items.extend(state.items);
 
     items.push(EcItem::OpDef {
@@ -298,94 +364,232 @@ impl From<crate::util::smtparser::Error> for InvariantError {
     }
 }
 
-// --- the game-state records (§3.1) -----------------------------------
+// --- the record types (story 06 §3.1, story 42 §3.1–§3.2) ---------------
 
-struct SideRecord {
+/// The record type holding one package's state fields:
+/// `<Pkg>_pkgstate`. Shared by every instance of the package on either
+/// side of the equivalence, and declared only in the invariant file.
+pub(super) fn pkg_state_type_name(package: &str) -> String {
+    format!("{package}_pkgstate")
+}
+
+/// A field of [`pkg_state_type_name`]: `<Pkg>_<mangled state field>`.
+/// Record fields are global in EasyCrypt, and two packages may both have a
+/// `State`, hence the package prefix.
+pub(super) fn pkg_state_field_name(package: &str, mangled_field: &str) -> String {
+    format!("{package}_{mangled_field}")
+}
+
+/// The game-record field holding one instance's package record:
+/// `{l_|r_}pkg_<Inst>`.
+pub(super) fn instance_field_name(field_ns_prefix: &str, instance: &str) -> String {
+    format!("{field_ns_prefix}pkg_{instance}")
+}
+
+/// The game-record field holding the game's abort flag: `{l_|r_}abort_flag`.
+pub(super) fn abort_field_name(field_ns_prefix: &str) -> String {
+    format!("{field_ns_prefix}abort_flag")
+}
+
+/// The game-record field holding one parameter that becomes a module
+/// variable ([`package::param_needs_var`]): `{l_|r_}pkg_<Inst>_<mangled param>`.
+pub(super) fn param_field_name(field_ns_prefix: &str, instance: &str, mangled_param: &str) -> String {
+    format!("{field_ns_prefix}pkg_{instance}_{mangled_param}")
+}
+
+/// One `<Pkg>_pkgstate` record type.
+#[derive(Debug, Clone, PartialEq)]
+struct PkgStateType {
+    package: String,
+    name: String,
+    fields: Vec<(String, EcType)>,
+}
+
+/// What a `.smt2` dotted atom can resolve to, for both sides.
+#[derive(Default)]
+struct StateLookup {
+    /// `{left|right}.<Inst>.<raw state field or parameter>` -> the
+    /// projection that reads it (``l.`l_pkg_KX.`KX_d_State``,
+    /// ``l.`l_pkg_KX_b``) and its type.
+    fields: HashMap<String, (EcExpr, EcType)>,
+    /// `{left|right}.<Inst>` -> that instance, for a whole-package equality.
+    instances: HashMap<String, InstanceEntry>,
+}
+
+struct InstanceEntry {
+    instance: String,
+    package: String,
+    /// ``l.`l_pkg_<Inst>``, or `None` for an instance without state.
+    state: Option<EcExpr>,
+}
+
+/// One parameter field of a game record, with what the instance binds it to.
+struct ParamField<'a> {
+    instance: String,
+    param: String,
+    field: EcExpr,
+    binding: Option<&'a Expression>,
+}
+
+struct SideRecord<'a> {
+    game_name: String,
     record_type_name: String,
     fields: Vec<(String, EcType)>,
+    /// Every parameter field, in record order (§3.4).
+    param_fields: Vec<ParamField<'a>>,
     abort_field: String,
 }
 
-/// Mangles one `(instance, raw field/param name)` pair into its final record
-/// field, pushing it onto `fields` and indexing it into `combined_lookup` —
-/// shared by [`build_side_record`]'s state-field and param-field loops,
-/// which otherwise differ only in *which* list of `(String, Type,
-/// SourceSpan)` they walk and the [`package::param_needs_var`] filter the
-/// caller already applied before calling this.
-#[allow(clippy::too_many_arguments)]
-fn add_side_field(
-    inst: &PackageInstance,
-    name: &str,
-    ty: &Type,
-    span: SourceSpan,
-    binder: &str,
-    op_param: &str,
-    field_ns_prefix: &str,
-    names: &mut Names,
-    fields: &mut Vec<(String, EcType)>,
-    combined_lookup: &mut HashMap<String, (EcExpr, EcType)>,
-) -> Result<(), EcExportError> {
-    let mangled = names.mangle(NameKind::Var, name)?;
-    let ec_ty = translate_type(ty, span)?;
-    let final_name = format!("{field_ns_prefix}pkg_{}_{mangled}", inst.name());
-    fields.push((final_name.clone(), ec_ty.clone()));
-    let ec_expr = EcExpr::Field {
-        expr: Box::new(EcExpr::Var(op_param.to_string())),
-        field: final_name,
-    };
-    combined_lookup.insert(format!("{binder}.{}.{name}", inst.name()), (ec_expr, ec_ty));
-    Ok(())
+/// Adds `package`'s record type to `types`, or checks that the one already
+/// there (from another instance of the package) has the same fields.
+fn register_pkg_state_type(
+    types: &mut Vec<PkgStateType>,
+    package: &str,
+    fields: Vec<(String, EcType)>,
+) -> Result<(), InvariantError> {
+    match types.iter().find(|t| t.package == package) {
+        Some(existing) if existing.fields == fields => Ok(()),
+        Some(_) => Err(InvariantError::PackageStateMismatch {
+            package: package.to_string(),
+        }),
+        None => {
+            types.push(PkgStateType {
+                package: package.to_string(),
+                name: pkg_state_type_name(package),
+                fields,
+            });
+            Ok(())
+        }
+    }
 }
 
-/// One flat record for `game_inst`'s side of the equivalence: one field per
-/// `(instance, state field)` in `ordered_pkgs_idx()` order, then one field
-/// per qualifying package parameter ([`package::param_needs_var`] — the
-/// same rule that gives that parameter a persistent module `var` in
-/// story 03/04's own package rendering), then `abort_flag`. Every field
-/// name is namespaced `{field_ns_prefix}pkg_{instance}_{mangled field}`
-/// (or `{field_ns_prefix}abort_flag`); `combined_lookup` is populated with
-/// `{binder}.{instance}.{raw field/param name}` -> the field's already-
-/// built `EcExpr::Field`/`EcType`, both for resolving a `.smt2` dotted
-/// atom (`left.KX.State`) and for `params_inv`'s own lookups (§3.3).
-fn build_side_record(
-    game_inst: &GameInstance,
+/// The record for `game_inst`'s side of the equivalence (story 42 §3.2):
+/// one field `{field_ns_prefix}pkg_<Inst> : <Pkg>_pkgstate` per instance
+/// with state, then one field per parameter that becomes a module variable
+/// ([`package::param_needs_var`]), both in `ordered_pkgs_idx()` order, then
+/// `abort_flag`. Each package with state gets its `<Pkg>_pkgstate` type in
+/// `pkg_state_types`. State fields and parameters are mangled per instance
+/// through one [`Names`], as the package's own module variables are.
+///
+/// `lookup` gets `{binder}.<Inst>.<raw name>` for every state field and
+/// parameter, and `{binder}.<Inst>` for every instance.
+fn build_side_record<'a>(
+    game_inst: &'a GameInstance,
     binder: &str,
     op_param: &str,
     field_ns_prefix: &str,
-    combined_lookup: &mut HashMap<String, (EcExpr, EcType)>,
-) -> Result<SideRecord, EcExportError> {
-    let mut fields = Vec::new();
+    lookup: &mut StateLookup,
+    pkg_state_types: &mut Vec<PkgStateType>,
+) -> Result<SideRecord<'a>, EcExportError> {
+    let mut instance_fields = Vec::new();
+    let mut param_decls = Vec::new();
+    let mut param_fields = Vec::new();
 
     for &idx in &game_inst.game().ordered_pkgs_idx() {
         let inst: &PackageInstance = &game_inst.game().pkgs[idx];
+        let package = inst.pkg.name.as_str();
         let mut names = Names::new();
 
+        let mut state_fields = Vec::with_capacity(inst.pkg.state.len());
         for (name, ty, span) in &inst.pkg.state {
-            add_side_field(
-                inst, name, ty, *span, binder, op_param, field_ns_prefix, &mut names,
-                &mut fields, combined_lookup,
-            )?;
+            let mangled = names.mangle(NameKind::Var, name)?;
+            let ec_ty = translate_type(ty, *span)?;
+            state_fields.push((name, pkg_state_field_name(package, &mangled), ec_ty));
         }
+
+        let state = if state_fields.is_empty() {
+            None
+        } else {
+            let inst_field = instance_field_name(field_ns_prefix, inst.name());
+            let inst_expr = field_expr(op_param, &inst_field);
+            for (raw, field, ty) in &state_fields {
+                let projection = EcExpr::Field {
+                    expr: Box::new(inst_expr.clone()),
+                    field: field.clone(),
+                };
+                lookup.fields.insert(
+                    format!("{binder}.{}.{raw}", inst.name()),
+                    (projection, ty.clone()),
+                );
+            }
+            register_pkg_state_type(
+                pkg_state_types,
+                package,
+                state_fields
+                    .into_iter()
+                    .map(|(_, field, ty)| (field, ty))
+                    .collect(),
+            )?;
+            instance_fields.push((inst_field, EcType::Named(pkg_state_type_name(package))));
+            Some(inst_expr)
+        };
+        lookup.instances.insert(
+            format!("{binder}.{}", inst.name()),
+            InstanceEntry {
+                instance: inst.name().to_string(),
+                package: package.to_string(),
+                state,
+            },
+        );
 
         for (name, ty, span) in &inst.pkg.params {
             if !package::param_needs_var(&inst.pkg, name, ty) {
                 continue;
             }
-            add_side_field(
-                inst, name, ty, *span, binder, op_param, field_ns_prefix, &mut names,
-                &mut fields, combined_lookup,
-            )?;
+            let mangled = names.mangle(NameKind::Var, name)?;
+            let ec_ty = translate_type(ty, *span)?;
+            let field = param_field_name(field_ns_prefix, inst.name(), &mangled);
+            let projection = field_expr(op_param, &field);
+            lookup.fields.insert(
+                format!("{binder}.{}.{name}", inst.name()),
+                (projection.clone(), ec_ty.clone()),
+            );
+            param_decls.push((field, ec_ty));
+            param_fields.push(ParamField {
+                instance: inst.name().to_string(),
+                param: name.clone(),
+                field: projection,
+                binding: param_assignment(inst, name),
+            });
         }
     }
 
-    let abort_field = format!("{field_ns_prefix}abort_flag");
+    let abort_field = abort_field_name(field_ns_prefix);
+    let mut fields = instance_fields;
+    fields.extend(param_decls);
     fields.push((abort_field.clone(), EcType::Bool));
 
     Ok(SideRecord {
+        game_name: game_inst.name().to_string(),
         record_type_name: format!("{}_state", game_inst.name()),
         fields,
+        param_fields,
         abort_field,
     })
+}
+
+/// Checks that no two fields of the file's record types (every
+/// `<Pkg>_pkgstate`, then both game records) share a name, as EasyCrypt
+/// record fields are global.
+fn check_unique_fields(
+    pkg_state_types: &[PkgStateType],
+    left: &SideRecord<'_>,
+    right: &SideRecord<'_>,
+) -> Result<(), InvariantError> {
+    let mut seen = HashSet::new();
+    let all_fields = pkg_state_types
+        .iter()
+        .flat_map(|t| &t.fields)
+        .chain(&left.fields)
+        .chain(&right.fields);
+    for (field, _) in all_fields {
+        if !seen.insert(field.as_str()) {
+            return Err(InvariantError::FieldCollision {
+                field: field.clone(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Mangles a newly-introduced local binder (a quantifier binder, a `let`
@@ -568,78 +772,43 @@ fn literal_expr(text: &str) -> EcExpr {
     }
 }
 
-/// §3.3: relates the idealization bits and value-integer parameters of
-/// every package instance present (by raw name) on both sides. Instance
-/// correspondence is by matching raw `PackageInstance` name across the two
-/// sides' compositions — correct for every target project, where an
-/// equivalence's two sides always reuse the same instance names (whether
-/// or not they share a composition).
-fn build_params_inv(
-    left_game_inst: &GameInstance,
-    right_game_inst: &GameInstance,
-    lookup: &HashMap<String, (EcExpr, EcType)>,
-) -> EcExpr {
+/// Story 42 §3.4: states every parameter field of both game records by what
+/// it is bound to, never by instance or parameter name. Fields are taken in
+/// record order, the left record's first. A field bound to a literal is
+/// pinned to it. Each field bound to a theorem constant after the first one
+/// is equated with the previous field bound to that constant, on either
+/// side. The only field bound to a constant contributes nothing, since it
+/// holds for every value of the constant. A binding that resolves to
+/// neither is a hard [`InvariantError::UnresolvedParam`].
+fn build_params_inv(left: &SideRecord, right: &SideRecord) -> Result<EcExpr, InvariantError> {
     let mut conjuncts = Vec::new();
+    let mut last_bound_to: HashMap<String, &EcExpr> = HashMap::new();
 
-    for left_inst in &left_game_inst.game().pkgs {
-        let Some(right_inst) = right_game_inst
-            .game()
-            .pkgs
-            .iter()
-            .find(|r| r.name == left_inst.name)
-        else {
-            continue;
-        };
-
-        for (pname, pty, _) in &left_inst.pkg.params {
-            if !package::param_needs_var(&left_inst.pkg, pname, pty) {
-                continue;
+    let sides = [left, right];
+    let fields = sides
+        .iter()
+        .flat_map(|side| side.param_fields.iter().map(move |f| (side, f)));
+    for (side, param) in fields {
+        let value = param.binding.and_then(resolve_expr_value).ok_or_else(|| {
+            InvariantError::UnresolvedParam {
+                game: side.game_name.clone(),
+                instance: param.instance.clone(),
+                param: param.param.clone(),
             }
-            let Some((_, rty, _)) = right_inst.pkg.params.iter().find(|(n, _, _)| n == pname)
-            else {
-                continue;
-            };
-            if !package::param_needs_var(&right_inst.pkg, pname, rty) {
-                continue;
+        })?;
+        match value {
+            ParamValue::Literal(lit) => {
+                conjuncts.push(eq_expr(param.field.clone(), literal_expr(&lit)));
             }
-
-            let Some(left_expr) = param_assignment(left_inst, pname) else {
-                continue;
-            };
-            let Some(right_expr) = param_assignment(right_inst, pname) else {
-                continue;
-            };
-
-            let Some((left_field, _)) =
-                lookup.get(&format!("left.{}.{pname}", left_inst.name()))
-            else {
-                continue;
-            };
-            let Some((right_field, _)) =
-                lookup.get(&format!("right.{}.{pname}", right_inst.name()))
-            else {
-                continue;
-            };
-
-            match (resolve_expr_value(left_expr), resolve_expr_value(right_expr)) {
-                (Some(ParamValue::TheoremConst(a)), Some(ParamValue::TheoremConst(b)))
-                    if a == b =>
-                {
-                    conjuncts.push(eq_expr(left_field.clone(), right_field.clone()));
-                }
-                (left_val, right_val) => {
-                    if let Some(ParamValue::Literal(lit)) = left_val {
-                        conjuncts.push(eq_expr(left_field.clone(), literal_expr(&lit)));
-                    }
-                    if let Some(ParamValue::Literal(lit)) = right_val {
-                        conjuncts.push(eq_expr(right_field.clone(), literal_expr(&lit)));
-                    }
+            ParamValue::TheoremConst(name) => {
+                if let Some(previous) = last_bound_to.insert(name, &param.field) {
+                    conjuncts.push(eq_expr(previous.clone(), param.field.clone()));
                 }
             }
         }
     }
 
-    fold_and(conjuncts)
+    Ok(fold_and(conjuncts))
 }
 
 // --- the SMT-definition-name -> `Domino_<name>` op registry -----------
@@ -863,7 +1032,7 @@ fn strip_maybe_and_translate(s: &Sexp, file: &str) -> Result<EcType, InvariantEr
 /// names colliding after mangling is `local_names`' own hard error).
 struct TCtx<'a> {
     file: String,
-    lookup: &'a HashMap<String, (EcExpr, EcType)>,
+    lookup: &'a StateLookup,
     left_record_ty: EcType,
     right_record_ty: EcType,
     theorem_consts: &'a [(String, Type)],
@@ -923,7 +1092,7 @@ impl<'a> TCtx<'a> {
                     _ => None,
                 };
                 if let Some(prefix) = prefix {
-                    if let Some((expr, ty)) = self.lookup.get(&format!("{prefix}.{rest}")) {
+                    if let Some((expr, ty)) = self.lookup.fields.get(&format!("{prefix}.{rest}")) {
                         return Ok((expr.clone(), ty.clone()));
                     }
                 }
@@ -935,7 +1104,7 @@ impl<'a> TCtx<'a> {
         if a == "right" {
             return Ok((EcExpr::Var("r".to_string()), self.right_record_ty.clone()));
         }
-        if let Some((expr, ty)) = self.lookup.get(a) {
+        if let Some((expr, ty)) = self.lookup.fields.get(a) {
             return Ok((expr.clone(), ty.clone()));
         }
         if a == "true" {
@@ -1168,22 +1337,18 @@ impl<'a> TCtx<'a> {
 
     /// Recognises an atom of the form `<binder>.<instance>` — exactly one
     /// `.`, no field segment — whose binder resolves through `locals` to
-    /// this definition's own left/right record parameter: an SMT atom
-    /// naming an entire package instance's state, not one field of it.
-    /// `Full4WHS`'s invariants do this for real (`(= state-left.KX
-    /// state-right.KX)`), comparing a whole package instance's state in
-    /// one `=` rather than field-by-field — `self.lookup` only ever holds
-    /// per-`(instance, field)` entries (`build_side_record`/
-    /// `add_side_field`), so there is no single value this atom could
-    /// resolve to on its own; [`Self::translate_eq_n`] special-cases the
-    /// two-argument `=` form instead, expanding it into a conjunction over
-    /// every field both sides share (see
-    /// [`Self::translate_instance_equality`]).
+    /// this definition's own left/right record parameter, and whose
+    /// instance exists on that side: an SMT atom naming an entire package
+    /// instance's state, not one field of it. `Full4WHS`'s invariants do
+    /// this for real (`(= state-left.KX state-right.KX)`).
+    /// [`Self::translate_eq_n`] special-cases the two-argument `=` of two
+    /// such atoms (see [`Self::translate_instance_equality`]); anywhere else
+    /// the atom stays unrecognised.
     ///
-    /// Returns `("left"|"right", instance_name)`. Never confused with a
-    /// genuine field access (`left.KX.State`, three segments): `instance`
+    /// Returns the instance's [`StateLookup::instances`] entry. Never confused with a
+    /// field access (`left.KX.State`, three segments): `instance`
     /// containing a further `.` short-circuits this to `None` immediately.
-    fn resolve_instance_atom<'b>(&self, a: &'b str, locals: &Locals) -> Option<(&'static str, &'b str)> {
+    fn resolve_instance_atom(&self, a: &str, locals: &Locals) -> Option<&InstanceEntry> {
         let (head, instance) = a.split_once('.')?;
         if instance.contains('.') {
             return None;
@@ -1194,68 +1359,44 @@ impl<'a> TCtx<'a> {
             "r" => "right",
             _ => return None,
         };
-        // Not a whole-instance reference if `a` itself is already a known
-        // field (shouldn't happen — field keys always have a third
-        // segment — but guards against a pathological instance name
-        // containing no further structure) or if this instance has no
-        // known fields at all (an unrelated/unknown atom, left to the
-        // normal `unrecognised` error path).
-        if self.lookup.contains_key(&format!("{prefix}.{instance}")) {
-            return None;
-        }
-        let field_prefix = format!("{prefix}.{instance}.");
-        if !self.lookup.keys().any(|k| k.starts_with(&field_prefix)) {
-            return None;
-        }
-        Some((prefix, instance))
+        self.lookup.instances.get(&format!("{prefix}.{instance}"))
     }
 
-    /// Expands a whole-package-state equality (`(= state-left.KX
-    /// state-right.KX)`) into a conjunction of per-field equalities, one
-    /// per raw field/param name present in `self.lookup` under *both*
-    /// `{left_prefix}.{left_instance}.` and `{right_prefix}.{right_instance}.`
-    /// (sorted for determinism — matches this story's implementation
-    /// report §9 sketch). A field present on only one side is silently
-    /// skipped, mirroring [`build_params_inv`]'s own asymmetric-field
-    /// tolerance rather than erroring.
+    /// A whole-package-state equality (`(= state-left.KX state-right.KX)`,
+    /// story 42 §3.3). A package's state is its state fields only
+    /// (`CONTEXT.md`, *Package state*), so parameters never take part:
+    ///
+    /// - two instances of one package with state: one equality of their
+    ///   `<Pkg>_pkgstate` records, ``l.`l_pkg_KX = r.`r_pkg_KX``;
+    /// - two instances of one package without state: `true`;
+    /// - instances of different packages: a hard
+    ///   [`InvariantError::PackageMismatch`]. In Domino the `=` would be
+    ///   ill-sorted.
     fn translate_instance_equality(
         &self,
-        left_prefix: &str,
-        left_instance: &str,
-        right_prefix: &str,
-        right_instance: &str,
-        whole: &Sexp,
+        left: &InstanceEntry,
+        right: &InstanceEntry,
     ) -> Result<(EcExpr, EcType), InvariantError> {
-        let left_field_prefix = format!("{left_prefix}.{left_instance}.");
-        let right_field_prefix = format!("{right_prefix}.{right_instance}.");
-
-        let mut left_fields: Vec<&str> = self
-            .lookup
-            .keys()
-            .filter_map(|k| k.strip_prefix(left_field_prefix.as_str()))
-            .collect();
-        left_fields.sort_unstable();
-
-        let mut conjuncts = Vec::new();
-        for field in left_fields {
-            let right_key = format!("{right_field_prefix}{field}");
-            let Some((right_expr, _)) = self.lookup.get(&right_key) else {
-                continue;
-            };
-            let (left_expr, _) = self
-                .lookup
-                .get(&format!("{left_field_prefix}{field}"))
-                .expect("just collected this key from self.lookup itself");
-            conjuncts.push(eq_expr(left_expr.clone(), right_expr.clone()));
+        if left.package != right.package {
+            return Err(InvariantError::PackageMismatch {
+                file: self.file.clone(),
+                left_instance: left.instance.clone(),
+                left_package: left.package.clone(),
+                right_instance: right.instance.clone(),
+                right_package: right.package.clone(),
+            });
         }
-
-        if conjuncts.is_empty() {
-            return Err(self.unsupported(format!(
-                "whole-package-state equality `{whole}` between `{left_instance}` and `{right_instance}` has no fields in common"
-            )));
-        }
-
-        Ok((fold_and(conjuncts), EcType::Bool))
+        // One package has one list of state fields, so both instances
+        // either have state or have none.
+        let equality = match (&left.state, &right.state) {
+            (Some(l), Some(r)) => eq_expr(l.clone(), r.clone()),
+            (None, None) => EcExpr::Bool(true),
+            _ => unreachable!(
+                "instances `{}` and `{}` of package `{}` disagree on having state",
+                left.instance, right.instance, left.package
+            ),
+        };
+        Ok((equality, EcType::Bool))
     }
 
     fn translate_eq_n(
@@ -1268,11 +1409,11 @@ impl<'a> TCtx<'a> {
             return Err(self.unsupported(format!("`=` needs at least 2 arguments in `{whole}`")));
         }
         if let [Sexp::Atom(a), Sexp::Atom(b)] = rest {
-            if let (Some((lp, linst)), Some((rp, rinst))) = (
+            if let (Some(left), Some(right)) = (
                 self.resolve_instance_atom(a, locals),
                 self.resolve_instance_atom(b, locals),
             ) {
-                return self.translate_instance_equality(lp, linst, rp, rinst, whole);
+                return self.translate_instance_equality(left, right);
             }
         }
         let mut exprs = Vec::with_capacity(rest.len());
@@ -1599,7 +1740,7 @@ fn parse_proj_name(head: &str) -> Option<(usize, usize)> {
 
 struct InvariantParserState<'a> {
     file: String,
-    lookup: &'a HashMap<String, (EcExpr, EcType)>,
+    lookup: &'a StateLookup,
     left_record_ty: EcType,
     right_record_ty: EcType,
     theorem_consts: &'a [(String, Type)],
@@ -1797,6 +1938,13 @@ mod tests {
     use super::*;
     use crate::writers::easycrypt::render::render_expr;
 
+    fn fields_only(fields: HashMap<String, (EcExpr, EcType)>) -> StateLookup {
+        StateLookup {
+            fields,
+            ..StateLookup::default()
+        }
+    }
+
     fn translate_body(smt: &str) -> String {
         translate_body_with(smt, &HashMap::new(), &[])
     }
@@ -1808,9 +1956,10 @@ mod tests {
     ) -> String {
         let sexp = parse_sort_text(smt);
         let ops = OpRegistry::default();
+        let lookup = fields_only(lookup.clone());
         let mut tctx = TCtx {
             file: "test.smt2".to_string(),
-            lookup,
+            lookup: &lookup,
             left_record_ty: EcType::Named("Left_state".to_string()),
             right_record_ty: EcType::Named("Right_state".to_string()),
             theorem_consts,
@@ -2023,7 +2172,7 @@ mod tests {
         ops.define("test.smt2", "state=", EcType::Bool).unwrap();
         let mut tctx = TCtx {
             file: "test.smt2".to_string(),
-            lookup: &HashMap::new(),
+            lookup: &StateLookup::default(),
             left_record_ty: EcType::Named("Left_state".to_string()),
             right_record_ty: EcType::Named("Right_state".to_string()),
             theorem_consts: &[],
@@ -2040,7 +2189,7 @@ mod tests {
         let ops = OpRegistry::default();
         let mut tctx = TCtx {
             file: "test.smt2".to_string(),
-            lookup: &HashMap::new(),
+            lookup: &StateLookup::default(),
             left_record_ty: EcType::Named("Left_state".to_string()),
             right_record_ty: EcType::Named("Right_state".to_string()),
             theorem_consts: &[],
@@ -2135,6 +2284,24 @@ mod tests {
     }
 
     #[test]
+    fn h1_1_h2_0_invariants_file_matches_golden() {
+        // Story 42 §4.3: `Full4WHS`'s hop whose right side has an instance
+        // (`CR`) the left side does not.
+        let (theorem, project) = load_project("example-projects/4WHS", "Full4WHS");
+        let equivalence = find_equivalence(&theorem, "H1_1", "H2_0");
+        let result = build_invariant_file(&theorem, equivalence, project).unwrap();
+        let rendered = crate::writers::easycrypt::render::render_file(&result.file);
+
+        let full_path = format!(
+            "{}/testdata/easycrypt/story42/4WHS/Eq_H1_1_H2_0_Invariants.ec",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let expected = std::fs::read_to_string(&full_path)
+            .unwrap_or_else(|e| panic!("failed to read golden file {full_path}: {e}"));
+        assert_eq!(rendered, expected, "rendered != {full_path}");
+    }
+
+    #[test]
     fn rendering_is_deterministic() {
         let (theorem, project) = load_hybrid0_hybrid1();
         let equivalence = find_equivalence(&theorem, "Hybrid0", "Hybrid1");
@@ -2224,7 +2391,7 @@ mod tests {
     fn fresh_state() -> InvariantParserState<'static> {
         InvariantParserState {
             file: "test.smt2".to_string(),
-            lookup: Box::leak(Box::new(HashMap::new())),
+            lookup: Box::leak(Box::new(StateLookup::default())),
             left_record_ty: EcType::Named("Left_state".to_string()),
             right_record_ty: EcType::Named("Right_state".to_string()),
             theorem_consts: &[],
@@ -2311,7 +2478,7 @@ mod tests {
             (field_expr("r", "r_pkg_KX_State"), EcType::Int),
         );
         let mut state = InvariantParserState {
-            lookup: Box::leak(Box::new(lookup)),
+            lookup: Box::leak(Box::new(fields_only(lookup))),
             ..fresh_state()
         };
         state
@@ -2329,102 +2496,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn whole_package_state_equality_expands_to_a_field_by_field_conjunction() {
-        // `Full4WHS`'s own `invariant-KX-H1_0.smt2` does exactly this:
-        // `(= state-left.KX state-right.KX)`, comparing a whole package
-        // instance's state in one `=` rather than field-by-field.
-        let mut lookup = HashMap::new();
-        lookup.insert(
-            "left.KX.State".to_string(),
-            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
-        );
-        lookup.insert(
-            "right.KX.State".to_string(),
-            (field_expr("r", "r_pkg_KX_State"), EcType::Int),
-        );
-        lookup.insert(
-            "left.KX.LTK".to_string(),
-            (field_expr("l", "l_pkg_KX_LTK"), EcType::Int),
-        );
-        lookup.insert(
-            "right.KX.LTK".to_string(),
-            (field_expr("r", "r_pkg_KX_LTK"), EcType::Int),
-        );
-        let mut state = InvariantParserState {
-            lookup: Box::leak(Box::new(lookup)),
-            ..fresh_state()
-        };
-        state
-            .parse_stmts(
-                "(define-state-relation foo (state-left state-right) \
-                 (= state-left.KX state-right.KX))",
-            )
-            .unwrap();
-        let EcItem::OpDef { body, .. } = &state.items[0] else {
-            panic!("expected an op def");
-        };
-        assert_eq!(
-            render_expr(body),
-            "l.`l_pkg_KX_LTK = r.`r_pkg_KX_LTK /\\ l.`l_pkg_KX_State = r.`r_pkg_KX_State"
-        );
-    }
-
-    #[test]
-    fn whole_package_state_equality_skips_fields_present_on_only_one_side() {
-        let mut lookup = HashMap::new();
-        lookup.insert(
-            "left.KX.State".to_string(),
-            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
-        );
-        lookup.insert(
-            "right.KX.State".to_string(),
-            (field_expr("r", "r_pkg_KX_State"), EcType::Int),
-        );
-        lookup.insert(
-            "left.KX.Extra".to_string(),
-            (field_expr("l", "l_pkg_KX_Extra"), EcType::Int),
-        );
-        let mut state = InvariantParserState {
-            lookup: Box::leak(Box::new(lookup)),
-            ..fresh_state()
-        };
-        state
-            .parse_stmts(
-                "(define-state-relation foo (state-left state-right) \
-                 (= state-left.KX state-right.KX))",
-            )
-            .unwrap();
-        let EcItem::OpDef { body, .. } = &state.items[0] else {
-            panic!("expected an op def");
-        };
-        assert_eq!(render_expr(body), "l.`l_pkg_KX_State = r.`r_pkg_KX_State");
-    }
-
-    #[test]
-    fn instance_level_equality_with_no_shared_fields_is_a_hard_error() {
-        let mut lookup = HashMap::new();
-        lookup.insert(
-            "left.KX.State".to_string(),
-            (field_expr("l", "l_pkg_KX_State"), EcType::Int),
-        );
-        lookup.insert(
-            "right.KX.Other".to_string(),
-            (field_expr("r", "r_pkg_KX_Other"), EcType::Int),
-        );
-        let mut state = InvariantParserState {
-            lookup: Box::leak(Box::new(lookup)),
-            ..fresh_state()
-        };
-        let err = state
-            .parse_stmts(
-                "(define-state-relation foo (state-left state-right) \
-                 (= state-left.KX state-right.KX))",
-            )
-            .unwrap_err();
-        assert!(matches!(err, InvariantError::Unsupported { .. }));
-    }
-
     // --- acceptance criteria exercised against real target projects ------
 
     #[test]
@@ -2436,12 +2507,19 @@ mod tests {
         assert_eq!(result.left_state_type, "Real_Hybrid3_state");
         assert_eq!(result.right_state_type, "Ideal_Hybrid3_state");
 
-        let EcItem::Record { fields: left_fields, .. } = &result.file.items[0] else {
-            panic!("expected the left record first");
+        let record_fields = |type_name: &str| {
+            result
+                .file
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    EcItem::Record { name, fields } if name == type_name => Some(fields),
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("no record type `{type_name}`"))
         };
-        let EcItem::Record { fields: right_fields, .. } = &result.file.items[1] else {
-            panic!("expected the right record second");
-        };
+        let left_fields = record_fields("Real_Hybrid3_state");
+        let right_fields = record_fields("Ideal_Hybrid3_state");
         let left_names: std::collections::HashSet<_> =
             left_fields.iter().map(|(n, _)| n.clone()).collect();
         let right_names: std::collections::HashSet<_> =
@@ -2493,6 +2571,440 @@ mod tests {
         // than equating them.
         assert!(rendered.contains("l_pkg_Prf_b = true"));
         assert!(rendered.contains("r_pkg_Prf_b = true"));
+    }
+
+    // --- story 42: the synthetic project `testdata/easycrypt/story42/params` --
+    //
+    // `L ~ R` (compositions `Left` / `Right`), theorem constants `x y z w`:
+    //
+    // | Left instance (package) | binding        | Right instance (package) | binding          |
+    // |-------------------------|----------------|--------------------------|------------------|
+    // | `Store` (`Ctr`)         | `b: y`         | `Keep` (`CtrToo`)        | `flag: y`        |
+    // | `OnlyL` (`Ctr`)         | `b: true`      | `OnlyR` (`CtrToo`)       | `flag: false`    |
+    // | `Front` (`Pass`, no state) | `b: x`      | `Front` (`Pass`)         | `b: x`           |
+    // | `T` (`Twin`)            | `b1: z, b2: z` | `T` (`Twin`)             | `b1: w, b2: true`|
+    //
+    // Theorem `Params` holds `L ~ R`. Theorem `ParamsBad` holds `L_bad ~
+    // R_bad`, the same pair with an invariant comparing `Store` with `Keep`,
+    // so that `Params` still exports as a whole. Theorem `ParamsWidths`
+    // holds `N ~ W`, two instances of package `Key` whose state is
+    // `Bits(n)` for two different `n`. Theorem `ParamsClash` holds `C1 ~
+    // C2`, both of composition `Clash`, where instance `T_b1` (with state)
+    // and parameter `b1` of instance `T` both name the field `l_pkg_T_b1`.
+
+    fn load_project(dir: &str, theorem_name: &str) -> (
+        crate::theorem::Theorem<'static>,
+        &'static crate::project::DirectoryProject<'static>,
+    ) {
+        use crate::project::{DirectoryFiles, DirectoryProject, Project};
+        use crate::transforms::theorem_transforms::EasyCryptTransform;
+        use crate::transforms::TheoremTransform;
+
+        let files: &'static DirectoryFiles =
+            Box::leak(Box::new(DirectoryFiles::load(std::path::Path::new(dir)).unwrap()));
+        let project: &'static DirectoryProject = Box::leak(Box::new(
+            DirectoryProject::load(std::path::PathBuf::from(dir), files).unwrap(),
+        ));
+        let theorem = project.get_theorem(theorem_name).unwrap();
+        let (theorem, _auxs) = EasyCryptTransform.transform_theorem(theorem).unwrap();
+        (theorem, project)
+    }
+
+    const PARAMS_PROJECT: &str = "testdata/easycrypt/story42/params";
+
+    fn params_project_file(
+        theorem_name: &str,
+        left: &str,
+        right: &str,
+    ) -> Result<String, EcExportError> {
+        let (theorem, project) = load_project(PARAMS_PROJECT, theorem_name);
+        let equivalence = find_equivalence(&theorem, left, right);
+        let result = build_invariant_file(&theorem, equivalence, project)?;
+        Ok(crate::writers::easycrypt::render::render_file(&result.file))
+    }
+
+    /// The text of one top-level item of a rendered file, from its first
+    /// line (`op <name> `, `type <name> `) to its closing `.`.
+    fn item_text<'a>(rendered: &'a str, head: &str) -> &'a str {
+        let start = rendered
+            .find(&format!("\n{head} "))
+            .unwrap_or_else(|| panic!("no `{head}` in:\n{rendered}"))
+            + 1;
+        let len = rendered[start..].find(".\n").expect("item ends with `.`") + 1;
+        &rendered[start..start + len]
+    }
+
+    fn params_inv_text(rendered: &str) -> &str {
+        item_text(rendered, "op params_inv")
+    }
+
+    #[test]
+    fn each_package_with_state_gets_one_state_record_type_shared_by_both_sides() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            item_text(&rendered, "type Ctr_pkgstate"),
+            "type Ctr_pkgstate = {\n  Ctr_ctr : int\n}."
+        );
+        assert_eq!(
+            item_text(&rendered, "type CtrToo_pkgstate"),
+            "type CtrToo_pkgstate = {\n  CtrToo_ctr : int\n}."
+        );
+        assert_eq!(rendered.matches("type Twin_pkgstate").count(), 1, "{rendered}");
+        assert!(!rendered.contains("Pass_pkgstate"), "{rendered}");
+    }
+
+    #[test]
+    fn the_game_record_nests_one_package_record_per_instance_with_state_then_the_parameters() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            item_text(&rendered, "type L_state"),
+            "type L_state = {\n  \
+               l_pkg_Store : Ctr_pkgstate;\n  \
+               l_pkg_OnlyL : Ctr_pkgstate;\n  \
+               l_pkg_T : Twin_pkgstate;\n  \
+               l_pkg_Store_b : bool;\n  \
+               l_pkg_OnlyL_b : bool;\n  \
+               l_pkg_Front_b : bool;\n  \
+               l_pkg_T_b1 : bool;\n  \
+               l_pkg_T_b2 : bool;\n  \
+               l_abort_flag : bool\n\
+             }."
+        );
+    }
+
+    #[test]
+    fn a_dotted_state_atom_is_a_projection_of_the_package_record() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            item_text(&rendered, "op Domino_dotted_state"),
+            "op Domino_dotted_state (l : L_state) (r : R_state) : bool =\n  \
+               l.`l_pkg_Store.`Ctr_ctr = r.`r_pkg_Keep.`CtrToo_ctr."
+        );
+    }
+
+    #[test]
+    fn a_dotted_parameter_atom_is_the_game_record_parameter_field() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            item_text(&rendered, "op Domino_dotted_param"),
+            "op Domino_dotted_param (l : L_state) (r : R_state) : bool =\n  \
+               l.`l_pkg_Front_b = r.`r_pkg_Front_b."
+        );
+    }
+
+    #[test]
+    fn a_whole_package_equality_with_state_is_one_record_equality_without_parameters() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            item_text(&rendered, "op Domino_same_package_with_state"),
+            "op Domino_same_package_with_state (l : L_state) (r : R_state) : bool =\n  \
+               l.`l_pkg_T = r.`r_pkg_T."
+        );
+    }
+
+    #[test]
+    fn a_whole_package_equality_between_stateless_instances_is_true() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            item_text(&rendered, "op Domino_same_package_stateless"),
+            "op Domino_same_package_stateless (l : L_state) (r : R_state) : bool =\n  \
+               true."
+        );
+    }
+
+    #[test]
+    fn a_whole_package_equality_between_different_packages_is_a_hard_error() {
+        let err = params_project_file("ParamsBad", "L_bad", "R_bad").unwrap_err();
+        let EcExportError::Invariant(InvariantError::PackageMismatch {
+            left_instance,
+            left_package,
+            right_instance,
+            right_package,
+            ..
+        }) = &err
+        else {
+            panic!("expected PackageMismatch, got {err:?}");
+        };
+        assert_eq!(
+            (left_instance.as_str(), left_package.as_str()),
+            ("Store", "Ctr")
+        );
+        assert_eq!(
+            (right_instance.as_str(), right_package.as_str()),
+            ("Keep", "CtrToo")
+        );
+        let message = err.to_string();
+        assert!(message.contains("Ctr") && message.contains("CtrToo"), "{message}");
+    }
+
+    #[test]
+    fn instances_of_one_package_with_different_state_types_are_a_hard_error() {
+        // `ParamsWidths`: `Key`'s state is `k: Bits(n)`, with `n` bound to
+        // `narrow` on the left and `wide` on the right.
+        let err = params_project_file("ParamsWidths", "N", "W").unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                EcExportError::Invariant(InvariantError::PackageStateMismatch { package })
+                    if package == "Key"
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn two_record_fields_with_one_name_are_a_hard_error() {
+        let err = params_project_file("ParamsClash", "C1", "C2").unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                EcExportError::Invariant(InvariantError::FieldCollision { field })
+                    if field == "l_pkg_T_b1"
+            ),
+            "{err:?}"
+        );
+    }
+
+    #[test]
+    fn params_inv_pins_a_literal_of_an_instance_only_on_the_left() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert!(
+            params_inv_text(&rendered).contains("l.`l_pkg_OnlyL_b = true"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn params_inv_pins_a_literal_of_an_instance_only_on_the_right() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert!(
+            params_inv_text(&rendered).contains("r.`r_pkg_OnlyR_flag = false"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn params_inv_equates_one_constant_across_different_instance_and_parameter_names() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert!(
+            params_inv_text(&rendered).contains("l.`l_pkg_Store_b = r.`r_pkg_Keep_flag"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn params_inv_chains_one_constant_bound_twice_on_the_same_side() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert!(
+            params_inv_text(&rendered).contains("l.`l_pkg_T_b1 = l.`l_pkg_T_b2"),
+            "{rendered}"
+        );
+    }
+
+    #[test]
+    fn params_inv_says_nothing_about_the_only_parameter_bound_to_its_constant() {
+        // `w` is bound only to `R`'s `T.b1`.
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert!(!params_inv_text(&rendered).contains("r_pkg_T_b1"), "{rendered}");
+    }
+
+    #[test]
+    fn params_inv_states_its_conjuncts_in_field_collection_order() {
+        let rendered = params_project_file("Params", "L", "R").unwrap();
+        assert_eq!(
+            params_inv_text(&rendered),
+            "op params_inv (l : L_state) (r : R_state) : bool =\n     \
+                  l.`l_pkg_OnlyL_b = true\n  \
+               /\\ l.`l_pkg_T_b1 = l.`l_pkg_T_b2\n  \
+               /\\ l.`l_pkg_Store_b = r.`r_pkg_Keep_flag\n  \
+               /\\ r.`r_pkg_OnlyR_flag = false\n  \
+               /\\ l.`l_pkg_Front_b = r.`r_pkg_Front_b\n  \
+               /\\ r.`r_pkg_T_b2 = true."
+        );
+    }
+
+    /// The conjuncts of a `/\` chain, `[]` for `true`.
+    fn conjuncts_of(e: &EcExpr) -> Vec<&EcExpr> {
+        match e {
+            EcExpr::Bool(true) => vec![],
+            EcExpr::Binop {
+                op: EcBinop::And,
+                lhs,
+                rhs,
+            } => {
+                let mut out = conjuncts_of(lhs);
+                out.extend(conjuncts_of(rhs));
+                out
+            }
+            other => vec![other],
+        }
+    }
+
+    /// Story 42 §4.2: in every equivalence of 4WHS, every parameter field of
+    /// either game record is pinned to its literal, or equated (as one
+    /// connected chain) with every other field bound to the same theorem
+    /// constant, or is the only field bound to its constant and is not
+    /// mentioned. Also, `params_inv` states nothing else. The expectation is
+    /// computed from the game instances, not from `params_inv`.
+    #[test]
+    fn params_inv_states_every_parameter_of_every_4whs_equivalence() {
+        use std::collections::BTreeMap;
+
+        enum Expected {
+            Literal(String),
+            Const(String),
+        }
+
+        for theorem_name in ["Simple4WHS", "Full4WHS"] {
+            let (theorem, project) = load_project("example-projects/4WHS", theorem_name);
+            for hop in &theorem.game_hops {
+                let crate::gamehops::GameHop::Equivalence(equivalence) = hop else {
+                    continue;
+                };
+                let hop_name = format!(
+                    "{theorem_name} {} ~ {}",
+                    equivalence.left_name(),
+                    equivalence.right_name()
+                );
+
+                // Expectation, from the instances: field text -> binding.
+                let mut expected: Vec<(String, Expected)> = Vec::new();
+                for (game_name, var, prefix) in [
+                    (equivalence.left_name(), "l", "l_"),
+                    (equivalence.right_name(), "r", "r_"),
+                ] {
+                    let game_inst = theorem.find_game_instance(game_name).unwrap();
+                    for inst in &game_inst.game().pkgs {
+                        for (param, ty, _) in &inst.pkg.params {
+                            if !package::param_needs_var(&inst.pkg, param, ty) {
+                                continue;
+                            }
+                            let mangled = Names::new().mangle(NameKind::Var, param).unwrap();
+                            let field = format!("{var}.`{prefix}pkg_{}_{mangled}", inst.name());
+                            let binding = param_assignment(inst, param)
+                                .and_then(resolve_expr_value)
+                                .unwrap_or_else(|| panic!("{hop_name}: {field} unresolved"));
+                            expected.push((
+                                field,
+                                match binding {
+                                    ParamValue::Literal(lit) => Expected::Literal(lit),
+                                    ParamValue::TheoremConst(c) => Expected::Const(c),
+                                },
+                            ));
+                        }
+                    }
+                }
+
+                // What `params_inv` says: one `(lhs, rhs)` per conjunct.
+                let result = build_invariant_file(&theorem, equivalence, project)
+                    .unwrap_or_else(|e| panic!("{hop_name}: {e}"));
+                let body = result
+                    .file
+                    .items
+                    .iter()
+                    .find_map(|item| match item {
+                        EcItem::OpDef { name, body, .. } if name == "params_inv" => Some(body),
+                        _ => None,
+                    })
+                    .unwrap();
+                let stated: Vec<(String, String)> = conjuncts_of(body)
+                    .into_iter()
+                    .map(|c| match c {
+                        EcExpr::Binop {
+                            op: EcBinop::Eq,
+                            lhs,
+                            rhs,
+                        } => (render_expr(lhs), render_expr(rhs)),
+                        other => panic!("{hop_name}: unexpected conjunct {}", render_expr(other)),
+                    })
+                    .collect();
+
+                let mut by_const: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+                for (field, binding) in &expected {
+                    match binding {
+                        Expected::Literal(lit) => assert!(
+                            stated.contains(&(field.clone(), lit.clone())),
+                            "{hop_name}: {field} is not pinned to {lit}: {stated:?}"
+                        ),
+                        Expected::Const(c) => by_const.entry(c).or_default().push(field),
+                    }
+                }
+
+                let mut accounted = 0;
+                for (constant, fields) in &by_const {
+                    let in_group = |f: &String| fields.contains(&f.as_str());
+                    let equalities: Vec<&(String, String)> = stated
+                        .iter()
+                        .filter(|(a, b)| in_group(a) && in_group(b))
+                        .collect();
+                    accounted += equalities.len();
+                    if fields.len() == 1 {
+                        assert!(
+                            stated.iter().all(|(a, b)| a != fields[0] && b != fields[0]),
+                            "{hop_name}: {} is the only field bound to {constant}: {stated:?}",
+                            fields[0]
+                        );
+                        continue;
+                    }
+                    // Every field bound to `constant` is reached from the first.
+                    let mut reached = vec![fields[0]];
+                    loop {
+                        let before = reached.len();
+                        for (a, b) in &equalities {
+                            if reached.contains(&a.as_str()) && !reached.contains(&b.as_str()) {
+                                reached.push(b);
+                            } else if reached.contains(&b.as_str()) && !reached.contains(&a.as_str()) {
+                                reached.push(a);
+                            }
+                        }
+                        if reached.len() == before {
+                            break;
+                        }
+                    }
+                    for field in fields {
+                        assert!(
+                            reached.contains(field),
+                            "{hop_name}: {field} is not equated with the other fields bound to {constant}: {stated:?}"
+                        );
+                    }
+                }
+                let literals = expected
+                    .iter()
+                    .filter(|(_, b)| matches!(b, Expected::Literal(_)))
+                    .count();
+                assert_eq!(
+                    stated.len(),
+                    literals + accounted,
+                    "{hop_name}: params_inv states something else: {stated:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_params_project_invariant_file_compiles() {
+        let (theorem, project) = load_project(PARAMS_PROJECT, "Params");
+        let equivalence = find_equivalence(&theorem, "L", "R");
+        let result = build_invariant_file(&theorem, equivalence, project).unwrap();
+        let rendered = crate::writers::easycrypt::render::render_file(&result.file);
+
+        let scratch_dir = std::env::temp_dir().join(format!(
+            "domino-easycrypt-story42-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&scratch_dir).unwrap();
+        let file_path = scratch_dir.join(&result.file_name);
+        std::fs::write(&file_path, &rendered).unwrap();
+        std::fs::write(
+            scratch_dir.join("Types.ec"),
+            "require import AllCore Distr FMap Int IntDiv.\n",
+        )
+        .unwrap();
+        crate::writers::easycrypt::test_support::assert_compiles_with_paths(
+            &[scratch_dir.to_str().unwrap()],
+            file_path.to_str().unwrap(),
+        );
+        let _ = std::fs::remove_dir_all(&scratch_dir);
     }
 
     #[test]

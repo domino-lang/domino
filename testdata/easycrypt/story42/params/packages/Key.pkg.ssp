@@ -1,0 +1,13 @@
+package Key {
+    params {
+        n: Integer,
+    }
+
+    state {
+        k: Bits(n),
+    }
+
+    oracle Get() -> Integer {
+        return 0;
+    }
+}

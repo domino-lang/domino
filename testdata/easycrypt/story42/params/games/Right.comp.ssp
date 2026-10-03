@@ -1,0 +1,43 @@
+composition Right {
+    const x: Bool;
+    const y: Bool;
+    const w: Bool;
+
+    instance Front = Pass {
+        params {
+            b: x,
+        }
+    }
+
+    instance Keep = CtrToo {
+        params {
+            flag: y,
+        }
+    }
+
+    instance OnlyR = CtrToo {
+        params {
+            flag: false,
+        }
+    }
+
+    instance T = Twin {
+        params {
+            b1: w,
+            b2: true,
+        }
+    }
+
+    compose {
+        adversary: {
+            Get:  Front,
+            Peek: T,
+        },
+        Front: {
+            Get: Keep,
+        },
+        T: {
+            Get: OnlyR,
+        },
+    }
+}

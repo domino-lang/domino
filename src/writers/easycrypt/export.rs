@@ -358,7 +358,7 @@ mod tests {
         let invariants = &exported.files[Path::new(&eq.invariants_file)];
         assert!(
             invariants.contains(
-                "op Domino_invariant (l : medium_composition_state) (r : small_composition_state) : bool =\n  l.`l_pkg_rand_ctr = r.`r_pkg_rand_ctr."
+                "op Domino_invariant (l : medium_composition_state) (r : small_composition_state) : bool =\n  l.`l_pkg_rand.`Rand_ctr = r.`r_pkg_rand.`Rand_ctr."
             ),
             "{invariants}"
         );
@@ -424,9 +424,9 @@ mod tests {
     // files compare a *whole package instance's* state in one equality
     // (`(= state-left.KX state-right.KX)`, `invariant-KX-H1_0.smt2` and
     // `invariant-H1_1-H2_0.smt2` — `translate_eq_n`'s
-    // `resolve_instance_atom`/`translate_instance_equality` expand that
-    // into a conjunction over every field both sides share for that
-    // instance); and `invariant-H7_1_1_0-H7_1_1_1.smt2` uses `<0_n>`, the
+    // `resolve_instance_atom`/`translate_instance_equality` turn that
+    // into one equality of the two `<Pkg>_pkgstate` records, story 42);
+    // and `invariant-H7_1_1_0-H7_1_1_1.smt2` uses `<0_n>`, the
     // SMT-text form of a fixed-width `BitsLiteral` zero/one value
     // (`src/writers/smt/expr_expr.rs`'s own `<{0|1}_{suffix}>` encoding,
     // not a placeholder — `translate_bits_literal_atom` now maps it onto
@@ -471,14 +471,19 @@ mod tests {
         let first = &exported.files[Path::new(&exported.equivalences[0].invariants_file)];
         for field in ["d_SENTCTXT", "d_SENTKEY", "d_RECEIVEDCTXT", "d_RECEIVEDKEY", "d_TESTED"] {
             assert!(
-                first.contains(&format!("l.`l_pkg_Prot_{field} = r.`r_pkg_Corr_reduction_{field}")),
+                first.contains(&format!(
+                    "l.`l_pkg_Prot.`Prot_{field} = r.`r_pkg_Corr_reduction.`Corr_reduction_{field}"
+                )),
                 "{field}: {first}"
             );
         }
-        assert!(first.contains("l.`l_pkg_Prot_sk = r.`r_pkg_Corr_KEM_sk"), "{first}");
+        assert!(first.contains("l.`l_pkg_Prot.`Prot_sk = r.`r_pkg_Corr_KEM.`Corr_KEM_sk"), "{first}");
         let second = &exported.files[Path::new(&exported.equivalences[1].invariants_file)];
-        assert!(second.contains("l.`l_pkg_Corr_reduction_ctr = r.`r_pkg_CPA_ctr"), "{second}");
-        assert!(second.contains("l.`l_pkg_Corr_KEM_pk = r.`r_pkg_CPA_pk"), "{second}");
+        assert!(
+            second.contains("l.`l_pkg_Corr_reduction.`Corr_reduction_ctr = r.`r_pkg_CPA.`CPA_ctr"),
+            "{second}"
+        );
+        assert!(second.contains("l.`l_pkg_Corr_KEM.`Corr_KEM_pk = r.`r_pkg_CPA.`CPA_pk"), "{second}");
     }
 
     #[test]

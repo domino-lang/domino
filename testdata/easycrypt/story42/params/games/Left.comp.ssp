@@ -1,0 +1,43 @@
+composition Left {
+    const x: Bool;
+    const y: Bool;
+    const z: Bool;
+
+    instance Front = Pass {
+        params {
+            b: x,
+        }
+    }
+
+    instance Store = Ctr {
+        params {
+            b: y,
+        }
+    }
+
+    instance OnlyL = Ctr {
+        params {
+            b: true,
+        }
+    }
+
+    instance T = Twin {
+        params {
+            b1: z,
+            b2: z,
+        }
+    }
+
+    compose {
+        adversary: {
+            Get:  Front,
+            Peek: T,
+        },
+        Front: {
+            Get: Store,
+        },
+        T: {
+            Get: OnlyL,
+        },
+    }
+}

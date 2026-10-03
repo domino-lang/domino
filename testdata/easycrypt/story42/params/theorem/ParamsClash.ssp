@@ -1,0 +1,30 @@
+theorem ParamsClash {
+    const c: Bool;
+
+    instance C1 = Clash {
+        params {
+            c: c,
+        }
+    }
+
+    instance C2 = Clash {
+        params {
+            c: c,
+        }
+    }
+
+    gamehops {
+        equivalence C1 C2 {
+            invariant: [ ./theorem/invariant-trivial.smt2 ]
+            Peek: {
+                randomness: none
+
+                lemmas {
+                    equal-aborts: []
+                    invariant:    [no-abort]
+                    same-output:  [no-abort]
+                }
+            }
+        }
+    }
+}
