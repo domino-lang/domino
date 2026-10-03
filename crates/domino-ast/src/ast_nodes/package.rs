@@ -4,7 +4,7 @@ use crate::ast_nodes::{
     common, expressions,
     identifier::{
         OracleImportIdentifierKind, PackageConstValueIdentifierKind, PackageIdentifier,
-        PackageTypeArgumentIdentifierKind, PackageTypeIdentifierKind,
+        PackageTypeIdentifierKind,
     },
     list::{List, ListNoDelim, Semicolon},
     oracles::{OracleDefinition, OracleSignature},
@@ -54,9 +54,9 @@ pub struct ImportOraclesBlock {
 pub type OracleDeclList = List<OracleSignature<OracleImportIdentifierKind>, Semicolon>;
 pub type PackageItemList = ListNoDelim<PackageItem>;
 
-pub type PackageType = types::Type<PackageTypeIdentifierKind>;
-pub type PackageArgumentedType = types::ArgumentedType<PackageTypeArgumentIdentifierKind>;
-pub type PackageTypeArgument = types::TypeArgument<PackageTypeArgumentIdentifierKind>;
+pub type PackageType = types::Type<types::PackageTypeKind>;
+pub type PackageArgumentedType = types::ArgumentedType<types::PackageTypeKind>;
+pub type PackageTypeArgument = types::TypeArgument<types::PackageTypeKind>;
 
 #[derive(Debug)]
 pub struct Package {

@@ -83,7 +83,7 @@ pub struct FnType<TK: TypeKind> {
     pub ret_ty: Ref<Type<TK>>,
 }
 
-/// A list of types, usually comma separated. Usually surrounded by parenthises
+/// A list of type arguments, usually comma separated. Usually surrounded by parenthises
 pub type TypeArgList<TK: TypeKind> = List<TypeArgument<TK>, Comma>;
 
 /// A list of types, usually comma separated. Usually surrounded by parenthises

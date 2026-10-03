@@ -25,13 +25,13 @@ use crate::ast_nodes::{
     Trivia,
 };
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum UnOp {
     Not,
     Neg,
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum BinOp {
     Eq,
     Neq,
