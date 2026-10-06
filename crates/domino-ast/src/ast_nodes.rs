@@ -22,14 +22,14 @@ pub struct File<T> {
     pub trailing_trivia: Ref<Trivia>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Trivium {
     BlockComment,
     LineComment,
     NewLine,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Trivia {
     pub trivia: Slice<Trivium>,
 }
@@ -174,14 +174,6 @@ macro_rules! define_node_type_enum {
     }
 }
 
-macro_rules! impl_copy_for_node {
-    ($($node_type:ty),*) => {
-        $( impl Copy for $node_type {}
-           impl Clone for $node_type { fn clone(&self) -> Self { *self } } )*
-
-    };
-}
-
 macro_rules! define_node_types {
     (  $( $variant_name:ident { $field_name:ident : $node_type:ty } )* ) => {
         define_node_type_enum! {
@@ -208,11 +200,78 @@ macro_rules! define_node_types {
 
             $($field_name: $node_type),*
         }
-
-        impl_copy_for_node! {
-            $($node_type),*
-        }
     };
+}
+
+macro_rules! impl_copy_for_nodes {
+    ($( $({$($gen:tt)*})? $node_type:ty),* $(,)?) => {
+        $(
+            impl_copy_for_nodes!(@one $([$($gen)*])? $node_type);
+        )*
+    };
+    ( @one [$($gen:tt)*] $node_type:ty) => {
+        impl<$($gen)*> Copy  for $node_type {}
+        impl<$($gen)*> Clone for $node_type { fn clone(&self) -> Self{*self}}
+    };
+    ( @one $node_type:ty) => {
+        impl Copy  for $node_type {}
+        impl Clone for $node_type { fn clone(&self) -> Self{*self}}
+    };
+}
+
+impl_copy_for_nodes! {
+    { T } File<T>,
+
+    { Node: NodeType }     list::ListNoDelim<Node>,
+    { Node, Delim: Copy }  list::List<Node, Delim>,
+
+    { TK: types::TypeKind } types::Type<TK>,
+    { TK: types::TypeKind } types::TupleType<TK>,
+    { TK: types::TypeKind } types::FnType<TK>,
+    { TK: types::TypeKind } types::ArgumentedType<TK>,
+    { TK: types::TypeKind } types::TypeArgument<TK>,
+
+    { EK: expressions::ExpressionKind } expressions::Expression<EK>,
+    { EK: expressions::ExpressionKind } expressions::TableIndexExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::TupleExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::ParenExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::BinOpExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::UnOpExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::CallExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::OracleInvocationExpression<EK>,
+    { EK: expressions::ExpressionKind } expressions::SampleExpression<EK>,
+
+    { IK: identifier::IdentifierKind } identifier::Identifier<IK>,
+
+    { IK: identifier::OracleIdentifierKind } oracles::OracleSignature<IK>,
+    { IK: identifier::ValueIdentifierKind }  oracles::ArgDecl<IK>,
+
+    { EK: expressions::ExpressionKind }    common::ValueDecl<EK>,
+    { EK: expressions::ExpressionKind }    params::ConstParamBlock<EK>,
+    { IK: identifier::TypeIdentifierKind } params::TypeParamBlock<IK>,
+
+    { LhsIK: identifier::ValueIdentifierKind
+           + instances::InstanceAssignmentLhsKind,
+      RhsEK: expressions::ExpressionKind
+    } instances::InstanceConstAssignmentItem<LhsIK, RhsEK>,
+
+    { LhsIK: identifier::ValueIdentifierKind
+           + instances::InstanceAssignmentLhsKind<RhsKind = RhsEK>,
+      RhsEK: expressions::ExpressionKind
+    } instances::InstanceConstBlock<LhsIK, RhsEK>,
+
+    { LhsIK: identifier::TypeIdentifierKind
+           + instances::InstanceAssignmentLhsKind<RhsKind = RhsTK>,
+      RhsTK: types::TypeKind
+    } instances::InstanceTypeAssignmentItem<LhsIK,RhsTK>,
+
+    { LhsIK: identifier::TypeIdentifierKind
+           + instances::InstanceAssignmentLhsKind<RhsKind = RhsTK>,
+      RhsTK: types::TypeKind
+    } instances::InstanceTypeBlock<LhsIK,RhsTK>,
+
+    { IK: instances::InstanceIdentifierKind } instances::InstanceItem<IK>,
+    { IK: instances::InstanceIdentifierKind } instances::InstanceBlock<IK>,
 }
 
 define_node_types! {

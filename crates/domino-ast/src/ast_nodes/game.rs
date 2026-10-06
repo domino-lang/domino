@@ -59,7 +59,7 @@ pub type InstanceItem = instances::InstanceItem<PackageInstanceIdentifierKind>;
 pub type InstanceItemList = instances::InstanceItemList<PackageInstanceIdentifierKind>;
 pub type InstanceBlock = instances::InstanceBlock<PackageInstanceIdentifierKind>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ComposeOracleAssignmentItem {
     pub oracle_name: Ref<OracleCompositionIdentifier>,
     pub colon_trivia: Ref<Trivia>,
@@ -69,7 +69,7 @@ pub struct ComposeOracleAssignmentItem {
 
 pub type ComposeOracleAssignmentList = List<ComposeOracleAssignmentItem, Comma>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ComposePackageInstanceItem {
     pub pkg_inst_name: Ref<PackageInstanceIdentifier>,
     pub colon_trivia: Ref<Trivia>,
@@ -79,13 +79,13 @@ pub struct ComposePackageInstanceItem {
 
 pub type ComposePackageInstanceList = List<ComposePackageInstanceItem, Comma>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ComposeBlock {
     pub trivia: Ref<Trivia>,
     pub items: Ref<ComposePackageInstanceList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum GameItem {
     TypeParams(Ref<GameTypeParamBlock>),
     ConstParams(Ref<GameConstParamBlock>),
@@ -95,7 +95,7 @@ pub enum GameItem {
 
 pub type GameItemList = ListNoDelim<GameItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Game {
     pub name_trivia: Ref<Trivia>,
     pub name: Ref<GameIdentifier>,

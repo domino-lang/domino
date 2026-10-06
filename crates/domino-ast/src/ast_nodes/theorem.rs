@@ -96,24 +96,24 @@ pub type InstanceBlock = instances::InstanceBlock<GameInstanceIdentifierKind>;
 
 // paths for smt files
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Path;
 
 pub type PathList = ListNoDelim<Path>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct InvariantSpec {
     pub pre_colon_trivia: Ref<Trivia>,
     pub pre_open_trivia: Ref<Trivia>,
     pub paths: Ref<PathList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SmtIdentifier;
 
 pub type SmtIdentifierList = List<SmtIdentifier, Comma>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct LemmaItem {
     pub name: Ref<LemmaIdentifier>,
     pub pre_colon_trivia: Ref<Trivia>,
@@ -123,13 +123,13 @@ pub struct LemmaItem {
 
 pub type LemmaItemList = ListNoDelim<LemmaItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct LemmaBlock {
     pub trivia: Ref<Trivia>,
     pub items: Ref<LemmaItemList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum EquivalenceOracleItem {
     InvariantSpec(Ref<InvariantSpec>),
     LemmaBlock(Ref<LemmaBlock>),
@@ -137,7 +137,7 @@ pub enum EquivalenceOracleItem {
 
 pub type EquivalenceOracleItemList = ListNoDelim<EquivalenceOracleItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct EquivalenceOracleBlock {
     pub name: Ref<OracleCompositionIdentifier>,
     pub pre_colon_trivia: Ref<Trivia>,
@@ -147,7 +147,7 @@ pub struct EquivalenceOracleBlock {
 
 pub type EquivalenceOracleBlockList = ListNoDelim<EquivalenceOracleBlock>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Equivalence {
     pub kw_trivia: Ref<Trivia>,
     pub left_name: Ref<GameInstanceIdentifier>,
@@ -157,7 +157,7 @@ pub struct Equivalence {
     pub blocks: Ref<EquivalenceOracleBlockList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Bound {
     pub lhs: Ref<GameInstanceIdentifier>,
     pub pre_tilde_trivia: Ref<Trivia>,
@@ -165,7 +165,7 @@ pub struct Bound {
     pub rhs: Ref<GameInstanceIdentifier>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct AssumptionsItem {
     pub name: Ref<AssumptionIdentifier>,
     pub pre_colon_trivia: Ref<Trivia>,
@@ -175,13 +175,13 @@ pub struct AssumptionsItem {
 
 pub type AssumptionsItemList = ListNoDelim<AssumptionsItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct AssumptionsBlock {
     pub trivia: Ref<Trivia>,
     pub items: Ref<AssumptionsItemList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Conjecture {
     pub left_trivia: Ref<Trivia>,
     pub left_name: Ref<GameInstanceIdentifier>,
@@ -189,13 +189,13 @@ pub struct Conjecture {
     pub right_name: Ref<GameInstanceIdentifier>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ReductionAssumptionLine {
     pub trivia: Ref<Trivia>,
     pub name: Ref<AssumptionIdentifier>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ReductionMapItem {
     pub left_name: Ref<PackageInstanceIdentifier>,
     pub colon_trivia: Ref<Trivia>,
@@ -205,7 +205,7 @@ pub struct ReductionMapItem {
 
 pub type ReductionMapItemList = ListNoDelim<ReductionMapItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ReductionMap {
     pub assumption_trivia: Ref<Trivia>,
     pub assumption_name: Ref<GameInstanceIdentifier>,
@@ -215,7 +215,7 @@ pub struct ReductionMap {
     pub items: Ref<ReductionMapItemList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum ReductionItem {
     AssumptionLine(Ref<ReductionAssumptionLine>),
     Map(Ref<ReductionMap>),
@@ -223,7 +223,7 @@ pub enum ReductionItem {
 
 pub type ReductionItemList = ListNoDelim<ReductionItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Reduction {
     pub left_trivia: Ref<Trivia>,
     pub left_name: Ref<GameInstanceIdentifier>,
@@ -233,7 +233,7 @@ pub struct Reduction {
     pub items: Ref<ReductionItemList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum GameHopItem {
     Reduction(Ref<Reduction>),
     Equivalence(Ref<Equivalence>),
@@ -242,13 +242,13 @@ pub enum GameHopItem {
 
 pub type GameHopItemList = ListNoDelim<GameHopItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct GameHops {
     pub trivia: Ref<Trivia>,
     pub items: Ref<GameHopItemList>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum TheoremItem {
     ConstParams(Ref<TheoremConstParamBlock>),
     GameInstance(Ref<InstanceBlock>),
@@ -259,7 +259,7 @@ pub enum TheoremItem {
 
 pub type TheoremItemList = ListNoDelim<TheoremItem>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Theorem {
     pub name_trivia: Ref<Trivia>,
     pub name: Ref<TheoremIdentifier>,

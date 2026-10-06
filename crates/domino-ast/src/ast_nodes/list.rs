@@ -3,14 +3,14 @@ use domino_collections::arena::Ref;
 use crate::ast_nodes::{Slice, Trivia};
 
 /// Denotes that the list is delimited with a comma
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Comma;
 
 /// Denotes that the list is delimited with a Semicolon
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Semicolon;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Colon;
 
 /// Denotes that the list is delimited with newlines

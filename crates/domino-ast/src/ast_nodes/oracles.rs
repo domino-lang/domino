@@ -69,7 +69,7 @@ pub type OracleValueArgDecl = ArgDecl<OracleValueIdentifierKind>;
 /// A list of declarations, usually comma separated. Usually surrounded by parenthises
 pub type OracleValueDeclList = List<ArgDecl<OracleValueIdentifierKind>, Comma>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct OracleDefinition {
     pub sig_trivia: Ref<Trivia>,
     pub oracle_sig: Ref<OracleSignature<OracleDefinitionIdentifierKind>>,
