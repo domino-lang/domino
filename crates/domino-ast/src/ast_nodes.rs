@@ -327,8 +327,6 @@ define_node_types! {
     PurePackageConstValueBinOnExpression { pkg_expr_binop: package::BinOpExpression }
     PurePackageConstValueUnOnExpression { pkg_expr_unop: package::UnOpExpression }
     PurePackageConstValueCallExpression { pkg_expr_call: package::CallExpression }
-    PurePackageConstValueOracleInvocationExpression { pkg_expr_invoc: package::OracleInvocationExpression }
-    PurePackageConstValueSampleExpression { pkg_expr_sample: package::SampleExpression }
     PurePackageConstPackageExpressionList { pkg_expr_list: package::ExprList }
 
     // ## In Games
@@ -339,8 +337,6 @@ define_node_types! {
     PureGameConstValueBinOnExpression { game_expr_binop: game::BinOpExpression }
     PureGameConstValueUnOnExpression { game_expr_unop: game::UnOpExpression }
     PureGameConstValueCallExpression { game_expr_call: game::CallExpression }
-    PureGameConstValueOracleInvocationExpression { game_expr_invoc: game::OracleInvocationExpression }
-    PureGameConstValueSampleExpression { game_expr_sample: game::SampleExpression }
     PureGameConstPackageExpressionList {game_expr_list: game::ExprList}
 
     // ## In Theorems
@@ -351,9 +347,15 @@ define_node_types! {
     PureTheoremConstValueBinOnExpression { thm_expr_binop: theorem::BinOpExpression }
     PureTheoremConstValueUnOnExpression { thm_expr_unop: theorem::UnOpExpression }
     PureTheoremConstValueCallExpression { thm_expr_call: theorem::CallExpression }
+    PureTheoremConstTheoremExpressionList { thm_expr_list: theorem::ExprList }
+
+    // These are illegal, but we want to be able to process it and return errors
+    PurePackageConstValueOracleInvocationExpression { pkg_expr_invoc: package::OracleInvocationExpression }
+    PurePackageConstValueSampleExpression { pkg_expr_sample: package::SampleExpression }
+    PureGameConstValueOracleInvocationExpression { game_expr_invoc: game::OracleInvocationExpression }
+    PureGameConstValueSampleExpression { game_expr_sample: game::SampleExpression }
     PureTheoremConstValueOracleInvocationExpression { thm_expr_invoc: theorem::OracleInvocationExpression }
     PureTheoremConstValueSampleExpression { thm_expr_sample: theorem::SampleExpression }
-    PureTheoremConstTheoremExpressionList { thm_expr_list: theorem::ExprList }
 
     // ## In Oracles
     OracleExpression { oracle_expr: oracles::OracleExpression }
