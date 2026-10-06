@@ -133,6 +133,16 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 self.expression_to_tex(lhs),
                 self.expression_to_tex(rhs)
             ),
+            ExpressionKind::Sub(lhs, rhs) => format!(
+                "({} - {})",
+                self.expression_to_tex(lhs),
+                self.expression_to_tex(rhs)
+            ),
+            ExpressionKind::Mul(lhs, rhs) => format!(
+                "({} \\cdot {})",
+                self.expression_to_tex(lhs),
+                self.expression_to_tex(rhs)
+            ),
             ExpressionKind::TableAccess(ident, expr) => format!(
                 "{}[{}]",
                 util::ident_to_tex(ident),
@@ -157,6 +167,16 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
                 "\\left({}\\right)",
                 util::logic_to_matrix(
                     " \\wedge ",
+                    &exprs
+                        .iter()
+                        .map(|expr| self.expression_to_tex(expr))
+                        .collect::<Vec<_>>()
+                )
+            ),
+            ExpressionKind::Xor(exprs) => format!(
+                "\\left({}\\right)",
+                util::logic_to_matrix(
+                    " \\oplus ",
                     &exprs
                         .iter()
                         .map(|expr| self.expression_to_tex(expr))
