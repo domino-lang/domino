@@ -31,6 +31,24 @@ theorem KEM_Proof {
         }
     }
 
+    instance Prot_real = Prot {
+        params {
+        isideal_kem_cpa_security: false,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
+    instance Prot_ideal = Prot {
+        params {
+        isideal_kem_cpa_security: true,
+           kgen: kgen,
+         encaps: encaps,
+         decaps: decaps,
+        }
+    }
+
     instance H1_kem_correctness_real = H1 {
         params {
         isideal_kem_cpa_security: isideal_kem_cpa_security,
@@ -211,5 +229,8 @@ theorem KEM_Proof {
 
             }
         }
+    }
+    propositions {
+        Main: Prot_real ~ Prot_ideal
     }
 }
