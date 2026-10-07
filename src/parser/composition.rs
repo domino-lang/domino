@@ -409,6 +409,7 @@ fn handle_export_compose_assign_list(
                 source_code: ctx.named_source(),
                 at: (oracle_name_span.start()..oracle_name_span.end()).into(),
                 oracle_name: oracle_name.to_string(),
+                inst_name: dst_inst.name().to_string(),
             })?
             .sig
             .clone();
@@ -508,6 +509,7 @@ fn handle_edges_compose_assign_list(
                 source_code: ctx.named_source(),
                 at: (oracle_name_span.start()..oracle_name_span.end()).into(),
                 oracle_name: oracle_name.to_string(),
+                inst_name: dst_inst.name().to_string(),
             })?
             .sig
             .clone();
