@@ -195,8 +195,9 @@ fn oracle_imported_but_not_exported() {
             ParseGameError::UndefinedOracle(UndefinedOracleError {
                 source_code,
                 at,
-                oracle_name
-            }) if oracle_name == "Enc" && &source_code.inner()[at.offset()..(at.offset()+at.len())] == "Enc"
+                oracle_name,
+                inst_name,
+            }) if oracle_name == "Enc" && inst_name == "key" && &source_code.inner()[at.offset()..(at.offset()+at.len())] == "Enc"
         ),
         "got instead:\n{err:?}",
         //err = err,
