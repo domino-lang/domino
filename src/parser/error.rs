@@ -280,7 +280,7 @@ pub struct UndefinedPackageError {
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("undefined oracle '{oracle_name}'")]
+#[error("undefined oracle '{oracle_name}' in package instance '{inst_name}'")]
 #[diagnostic(code(domino::code::undefined_oracle))]
 pub struct UndefinedOracleError {
     #[source_code]
@@ -290,6 +290,7 @@ pub struct UndefinedOracleError {
     pub at: SourceSpan,
 
     pub oracle_name: String,
+    pub inst_name: String,
 }
 
 #[derive(Error, Diagnostic, Debug)]
