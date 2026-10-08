@@ -339,14 +339,6 @@ impl<'a> EquivalenceContext<'a> {
                 .into()
         };
 
-        let build_invariant_new_call = |name: &str| -> SmtExpr {
-            (
-                name,
-                &state_left.new_global_const_name(game_inst_name_left, oracle_name.to_string()),
-                &state_right.new_global_const_name(game_inst_name_right, oracle_name.to_string()),
-            )
-                .into()
-        };
         let build_left_invariant_new_call = |name: &str| -> SmtExpr {
             (
                 name,
@@ -368,8 +360,7 @@ impl<'a> EquivalenceContext<'a> {
             .map(|dep| match dep.ty {
                 ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
                 ClaimType::Relation => build_relation_call(&dep.name),
-                ClaimType::Invariant
-                | ClaimType::LeftPackageInvariant
+                ClaimType::LeftPackageInvariant
                 | ClaimType::RightPackageInvariant
                 | ClaimType::LeftGameInvariant
                 | ClaimType::RightGameInvariant => {
@@ -381,7 +372,6 @@ impl<'a> EquivalenceContext<'a> {
         let postcond_call = match claim.ty {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::Invariant => build_invariant_new_call(&claim.name),
             ClaimType::LeftPackageInvariant => build_left_invariant_new_call(&claim.name),
             ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
             ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
