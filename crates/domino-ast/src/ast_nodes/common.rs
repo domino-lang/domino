@@ -18,4 +18,4 @@ pub struct ValueDecl<EK: ExpressionKind> {
 }
 
 pub type TypeDeclList<IK: TypeIdentifierKind> = List<Identifier<IK>, Comma>;
-pub type ConstDeclList<EK: ExpressionKind> = List<ValueDecl<EK>, Comma>;
+pub type ValueDeclList<EK: ExpressionKind> = List<ValueDecl<EK>, Comma>;

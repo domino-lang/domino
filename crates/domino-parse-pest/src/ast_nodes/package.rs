@@ -94,7 +94,7 @@ impl Parsable for StateBlock {
         let decls_pair = inner.next().unwrap();
 
         let trivia = Trivia::parse_ref(file_id, state, trivia_pair);
-        let decls = PackageConstDeclList::parse_ref(file_id, state, decls_pair);
+        let decls = PackageStateDeclList::parse_ref(file_id, state, decls_pair);
 
         Self { trivia, decls }
     }
@@ -143,6 +143,18 @@ impl Parsable for PackageTypeParamBlock {
 }
 
 impl Parsable for PackageConstDecl {
+    const RULE: Rule = Rule::expr_ident_decl;
+
+    fn parse_inner(
+        file_id: domino_ast::source::FileId,
+        state: &mut crate::State,
+        pair: crate::Pair,
+    ) -> Self {
+        common::parse_value_decl(file_id, state, pair)
+    }
+}
+
+impl Parsable for PackageStateDecl {
     const RULE: Rule = Rule::expr_ident_decl;
 
     fn parse_inner(

@@ -37,7 +37,7 @@ pub type GameTypeDeclList = common::TypeDeclList<GameTypeIdentifierKind>;
 pub type GameTypeParamBlock = params::TypeParamBlock<GameTypeIdentifierKind>;
 
 pub type GameConstDecl = common::ValueDecl<PureGameExpressionKind>;
-pub type GameConstDeclList = common::ConstDeclList<PureGameExpressionKind>;
+pub type GameConstDeclList = common::ValueDeclList<PureGameExpressionKind>;
 pub type GameConstParamBlock = params::ConstParamBlock<PureGameExpressionKind>;
 
 pub type InstanceConstAssignmentItem =

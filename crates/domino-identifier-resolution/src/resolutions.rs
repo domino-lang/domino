@@ -1,7 +1,18 @@
-use domino_ast::ast_nodes::{game, identifier, oracles, package, statements, theorem};
+use domino_ast::{
+    ast_nodes::{game, identifier, oracles, package, statements, theorem, types},
+    Arenas,
+};
 use domino_collections::arena::Ref;
 
-use crate::{diag, BuiltinType, BuiltinValue};
+use crate::{
+    diag,
+    traits::{
+        HasTypeArgResolution, HasTypeResolution, HasValueResolution, TypeArgResolution,
+        TypeArgResolutionKind, TypeResolution, TypeResolutionKind, ValueResolution,
+        ValueResolutionKind,
+    },
+    BuiltinType, BuiltinValue,
+};
 
 /// A resolution for an oracle name in a signature position
 #[derive(Debug, Clone, Copy)]
@@ -52,12 +63,49 @@ pub enum OracleCompositionDefinitionResolution {
 
 #[derive(Debug, Clone, Copy)]
 pub enum OracleValueResolution {
-    State(Ref<package::PackageConstDecl>),
+    State(Ref<package::PackageStateDecl>),
     Consts(Ref<package::PackageConstDecl>),
     Arg(Ref<oracles::OracleValueArgDecl>),
     Local(Ref<statements::AssignStatement>),
     Builtin(BuiltinValue),
     Error(Ref<diag::Diagnostic>),
+}
+
+impl ValueResolution<oracles::OracleExpressionKind> for OracleValueResolution {
+    fn kind(
+        &self,
+        arenas: &Arenas,
+    ) -> crate::traits::ValueResolutionKind<oracles::OracleExpressionKind> {
+        match self {
+            OracleValueResolution::State(decl) => {
+                ValueResolutionKind::Declaration(arenas.get(decl).ty)
+            }
+            OracleValueResolution::Consts(decl) => {
+                ValueResolutionKind::Declaration(arenas.get(decl).ty)
+            }
+            OracleValueResolution::Arg(decl) => {
+                ValueResolutionKind::Declaration(arenas.get(decl).ty)
+            }
+            // TODO: handle complex patterns
+            OracleValueResolution::Local(assign) => {
+                ValueResolutionKind::Assignment(arenas.get(assign).expr)
+            }
+            OracleValueResolution::Builtin(builtin_value) => {
+                ValueResolutionKind::Builtin(*builtin_value)
+            }
+            OracleValueResolution::Error(e) => ValueResolutionKind::Error(*e),
+        }
+    }
+}
+
+impl<'a> HasValueResolution<oracles::OracleExpressionKind> for crate::IdentifierResolution<'a> {
+    type Resolution = OracleValueResolution;
+    fn get(
+        &self,
+        id: Ref<identifier::Identifier<identifier::OracleValueIdentifierKind>>,
+    ) -> &OracleValueResolution {
+        self.oracle_value_names.get(id)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -67,12 +115,69 @@ pub enum PackageTypeResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
+impl TypeResolution<types::PackageTypeKind> for PackageTypeResolution {
+    fn kind(&self, _arenas: &Arenas) -> TypeResolutionKind<types::PackageTypeKind> {
+        match *self {
+            PackageTypeResolution::TypeParam(id) => TypeResolutionKind::Declaration(id),
+            PackageTypeResolution::Builtin(builtin_type) => {
+                TypeResolutionKind::Builtin(builtin_type)
+            }
+            PackageTypeResolution::Error(e) => TypeResolutionKind::Error(e),
+        }
+    }
+}
+
+impl<'a> HasTypeResolution<types::PackageTypeKind> for crate::IdentifierResolution<'a> {
+    type Resolution = PackageTypeResolution;
+
+    fn type_resolution(
+        &self,
+        id: Ref<
+            identifier::Identifier<<types::PackageTypeKind as types::TypeKind>::TypeIdentifierKind>,
+        >,
+    ) -> &Self::Resolution {
+        self.pkg_type_names.get(id)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum PackageTypeArgResolution {
     TypeParam(Ref<identifier::PackageTypeIdentifier>),
     Consts(Ref<package::PackageConstDecl>),
     Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
+}
+
+impl TypeArgResolution<types::PackageTypeKind> for PackageTypeArgResolution {
+    fn kind(&self, arenas: &Arenas) -> TypeArgResolutionKind<types::PackageTypeKind> {
+        match *self {
+            PackageTypeArgResolution::TypeParam(id) => {
+                TypeArgResolutionKind::Type(TypeResolutionKind::Declaration(id))
+            }
+            PackageTypeArgResolution::Consts(decl) => {
+                TypeArgResolutionKind::Value(ValueResolutionKind::Declaration(arenas.get(decl).ty))
+            }
+            PackageTypeArgResolution::Builtin(builtin_type) => {
+                TypeArgResolutionKind::Type(TypeResolutionKind::Builtin(builtin_type))
+            }
+            PackageTypeArgResolution::Error(e) => TypeArgResolutionKind::Error(e),
+        }
+    }
+}
+
+impl<'a> HasTypeArgResolution<types::PackageTypeKind> for crate::IdentifierResolution<'a> {
+    type Resolution = PackageTypeArgResolution;
+
+    fn type_arg_resolution(
+        &self,
+        id: Ref<
+            identifier::Identifier<
+                <types::PackageTypeKind as types::TypeKind>::TypeArgIdentifierKind,
+            >,
+        >,
+    ) -> &Self::Resolution {
+        self.pkg_type_arg_names.get(id)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -88,12 +193,65 @@ pub enum GameTypeResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
+impl TypeResolution<types::GameTypeKind> for GameTypeResolution {
+    fn kind(&self, _arenas: &Arenas) -> TypeResolutionKind<types::GameTypeKind> {
+        match *self {
+            GameTypeResolution::TypeParam(id) => TypeResolutionKind::Declaration(id),
+            GameTypeResolution::Builtin(builtin_type) => TypeResolutionKind::Builtin(builtin_type),
+            GameTypeResolution::Error(e) => TypeResolutionKind::Error(e),
+        }
+    }
+}
+
+impl<'a> HasTypeResolution<types::GameTypeKind> for crate::IdentifierResolution<'a> {
+    type Resolution = GameTypeResolution;
+
+    fn type_resolution(
+        &self,
+        id: Ref<
+            identifier::Identifier<<types::GameTypeKind as types::TypeKind>::TypeIdentifierKind>,
+        >,
+    ) -> &Self::Resolution {
+        self.game_type_names.get(id)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum GameTypeArgResolution {
-    TypeParam(Ref<identifier::GameTypeArgumentIdentifier>),
+    TypeParam(Ref<identifier::GameTypeIdentifier>),
     Consts(Ref<game::GameConstDecl>),
     Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
+}
+
+impl TypeArgResolution<types::GameTypeKind> for GameTypeArgResolution {
+    fn kind(&self, arenas: &Arenas) -> TypeArgResolutionKind<types::GameTypeKind> {
+        match *self {
+            GameTypeArgResolution::TypeParam(id) => {
+                TypeArgResolutionKind::Type(TypeResolutionKind::Declaration(id))
+            }
+            GameTypeArgResolution::Consts(decl) => {
+                TypeArgResolutionKind::Value(ValueResolutionKind::Declaration(arenas.get(decl).ty))
+            }
+            GameTypeArgResolution::Builtin(builtin_type) => {
+                TypeArgResolutionKind::Type(TypeResolutionKind::Builtin(builtin_type))
+            }
+            GameTypeArgResolution::Error(e) => TypeArgResolutionKind::Error(e),
+        }
+    }
+}
+
+impl<'a> HasTypeArgResolution<types::GameTypeKind> for crate::IdentifierResolution<'a> {
+    type Resolution = GameTypeArgResolution;
+
+    fn type_arg_resolution(
+        &self,
+        id: Ref<
+            identifier::Identifier<<types::GameTypeKind as types::TypeKind>::TypeArgIdentifierKind>,
+        >,
+    ) -> &Self::Resolution {
+        self.game_type_arg_names.get(id)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -103,11 +261,61 @@ pub enum GameConstValueResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
+impl ValueResolution<game::PureGameExpressionKind> for GameConstValueResolution {
+    fn kind(&self, arenas: &Arenas) -> ValueResolutionKind<game::PureGameExpressionKind> {
+        match self {
+            GameConstValueResolution::ConstParam(decl) => {
+                ValueResolutionKind::Declaration(arenas.get(decl).ty)
+            }
+            GameConstValueResolution::Builtin(builtin_value) => {
+                ValueResolutionKind::Builtin(*builtin_value)
+            }
+            GameConstValueResolution::Error(e) => ValueResolutionKind::Error(*e),
+        }
+    }
+}
+
+impl<'a> HasValueResolution<game::PureGameExpressionKind> for crate::IdentifierResolution<'a> {
+    type Resolution = GameConstValueResolution;
+    fn get(
+        &self,
+        id: Ref<identifier::Identifier<identifier::GameConstValueIdentifierKind>>,
+    ) -> &GameConstValueResolution {
+        self.game_const_value_names.get(id)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum PackageConstValueResolution {
     ConstParam(Ref<package::PackageConstDecl>),
     Builtin(BuiltinValue),
     Error(Ref<diag::Diagnostic>),
+}
+
+impl ValueResolution<package::PurePackageExpressionKind> for PackageConstValueResolution {
+    fn kind(&self, arenas: &Arenas) -> ValueResolutionKind<package::PurePackageExpressionKind> {
+        match self {
+            PackageConstValueResolution::ConstParam(decl) => {
+                ValueResolutionKind::Declaration(arenas.get(decl).ty)
+            }
+            PackageConstValueResolution::Builtin(builtin_value) => {
+                ValueResolutionKind::Builtin(*builtin_value)
+            }
+            PackageConstValueResolution::Error(e) => ValueResolutionKind::Error(*e),
+        }
+    }
+}
+
+impl<'a> HasValueResolution<package::PurePackageExpressionKind>
+    for crate::IdentifierResolution<'a>
+{
+    type Resolution = PackageConstValueResolution;
+    fn get(
+        &self,
+        id: Ref<identifier::Identifier<identifier::PackageConstValueIdentifierKind>>,
+    ) -> &PackageConstValueResolution {
+        self.pkg_const_value_names.get(id)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -135,10 +343,64 @@ pub enum TheoremTypeResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
+impl TypeResolution<types::TheoremTypeKind> for TheoremTypeResolution {
+    fn kind(&self, _arenas: &Arenas) -> TypeResolutionKind<types::TheoremTypeKind> {
+        match *self {
+            TheoremTypeResolution::Builtin(builtin_type) => {
+                TypeResolutionKind::Builtin(builtin_type)
+            }
+            TheoremTypeResolution::Error(e) => TypeResolutionKind::Error(e),
+        }
+    }
+}
+
+impl<'a> HasTypeResolution<types::TheoremTypeKind> for crate::IdentifierResolution<'a> {
+    type Resolution = TheoremTypeResolution;
+
+    fn type_resolution(
+        &self,
+        id: Ref<
+            identifier::Identifier<<types::TheoremTypeKind as types::TypeKind>::TypeIdentifierKind>,
+        >,
+    ) -> &Self::Resolution {
+        self.theorem_type_names.get(id)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum TheoremTypeArgResolution {
+    Consts(Ref<theorem::TheoremConstDecl>),
     Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
+}
+
+impl TypeArgResolution<types::TheoremTypeKind> for TheoremTypeArgResolution {
+    fn kind(&self, arenas: &Arenas) -> TypeArgResolutionKind<types::TheoremTypeKind> {
+        match *self {
+            TheoremTypeArgResolution::Builtin(builtin_type) => {
+                TypeArgResolutionKind::Type(TypeResolutionKind::Builtin(builtin_type))
+            }
+            TheoremTypeArgResolution::Error(e) => TypeArgResolutionKind::Error(e),
+            TheoremTypeArgResolution::Consts(decl) => {
+                TypeArgResolutionKind::Value(ValueResolutionKind::Declaration(arenas.get(decl).ty))
+            }
+        }
+    }
+}
+
+impl<'a> HasTypeArgResolution<types::TheoremTypeKind> for crate::IdentifierResolution<'a> {
+    type Resolution = TheoremTypeArgResolution;
+
+    fn type_arg_resolution(
+        &self,
+        id: Ref<
+            identifier::Identifier<
+                <types::TheoremTypeKind as types::TypeKind>::TypeArgIdentifierKind,
+            >,
+        >,
+    ) -> &Self::Resolution {
+        self.theorem_type_arg_names.get(id)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -146,6 +408,32 @@ pub enum TheoremConstValueResolution {
     ConstParam(Ref<theorem::TheoremConstDecl>),
     Builtin(BuiltinValue),
     Error(Ref<diag::Diagnostic>),
+}
+
+impl ValueResolution<theorem::PureTheoremExpressionKind> for TheoremConstValueResolution {
+    fn kind(&self, arenas: &Arenas) -> ValueResolutionKind<theorem::PureTheoremExpressionKind> {
+        match self {
+            TheoremConstValueResolution::ConstParam(decl) => {
+                ValueResolutionKind::Declaration(arenas.get(decl).ty)
+            }
+            TheoremConstValueResolution::Builtin(builtin_value) => {
+                ValueResolutionKind::Builtin(*builtin_value)
+            }
+            TheoremConstValueResolution::Error(e) => ValueResolutionKind::Error(*e),
+        }
+    }
+}
+
+impl<'a> HasValueResolution<theorem::PureTheoremExpressionKind>
+    for crate::IdentifierResolution<'a>
+{
+    type Resolution = TheoremConstValueResolution;
+    fn get(
+        &self,
+        id: Ref<identifier::Identifier<identifier::TheoremConstValueIdentifierKind>>,
+    ) -> &TheoremConstValueResolution {
+        self.theorem_const_value_names.get(id)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -5,9 +5,10 @@ members = [
     "crates/domino",
     "crates/domino-ast",
     "crates/domino-identifier-resolution",
-    "crates/domino-diagnostic",
+    "crates/domino-resolutions",
     "crates/domino-parse-pest",
     "crates/domino-collections",
+    "crates/domino-miette-diagnostics",
 ]
 
 [workspace.package]
@@ -20,8 +21,9 @@ license = "MIT OR Apache-2.0"
 domino-ast = { path = "crates/domino-ast" }
 domino-parse-pest = { path = "crates/domino-parse-pest" }
 domino-identifier-resolution = { path = "crates/domino-identifier-resolution" }
-domino-diagnostic = { path = "crates/domino-diagnostic" }
+domino-resolutions = { path = "crates/domino-resolutions" }
 domino-collections = { path = "crates/domino-collections" }
+domino-miette-diagnostics = { path = "crates/domino-miette-diagnostics" }
 
 sspverif-smtlib = { path = "crates/smtlib" }
 sspverif = { path = "" }

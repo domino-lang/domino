@@ -5,6 +5,9 @@ mod util;
 mod resolve_game;
 mod resolve_package;
 mod resolve_theorem;
+mod resolves;
+
+pub mod traits;
 
 pub mod resolutions;
 
@@ -12,17 +15,24 @@ use std::collections::HashMap;
 
 use domino_ast::{
     ast_nodes::{game, identifier, package, theorem},
-    Arenas, LocationTable, Visitor as _,
+    Arenas, LocationTable, NodeType, Visitor as _,
 };
+
 use domino_collections::{
     arena::{Arena, Ref},
     dense_table::DenseTable,
     partial_dense_table::PartialDenseTable,
 };
 
-use scope::{Declaration, DeclarationType};
-
+use domino_resolutions::DiagFrom;
+pub use resolutions::{
+    GameConstValueResolution, GameTypeResolution, OracleValueResolution,
+    PackageConstValueResolution, PackageTypeResolution, TheoremConstValueResolution,
+    TheoremTypeArgResolution, TheoremTypeResolution,
+};
 pub use resolve_package::{PackageInfo, PackageVisitor};
+pub use scope::{Declaration, DeclarationType};
+pub use traits::{TypeArgResolution, TypeResolution, ValueResolution};
 
 use crate::{resolve_package::PartialPackagedIdentifierResolution, util::get_text};
 
@@ -59,7 +69,6 @@ pub struct Resolver<'arena> {
         identifier::PackageTypeArgumentIdentifier,
         resolutions::PackageTypeArgResolution,
     >,
-    is_state: PartialDenseTable<package::PackageConstDecl, bool>,
 
     // indexed packages
     pkg_infos: HashMap<&'arena str, PackageInfo>,
@@ -108,6 +117,7 @@ pub struct Resolver<'arena> {
     diagnostics: Arena<diag::Diagnostic>,
 }
 
+#[derive(Debug, Clone)]
 pub struct IdentifierResolution<'arena> {
     // indexed packages
     pub pkg_infos: HashMap<&'arena str, PackageInfo>,
@@ -144,7 +154,6 @@ pub struct IdentifierResolution<'arena> {
         identifier::PackageTypeArgumentIdentifier,
         resolutions::PackageTypeArgResolution,
     >,
-    pub is_state: DenseTable<package::PackageConstDecl, bool>,
 
     // side tables for games
     pub game_names: DenseTable<identifier::GameIdentifier, resolutions::GameResolution>,
@@ -190,7 +199,6 @@ impl<'arena> Resolver<'arena> {
             oracle_value_names: arenas.new_partial_dense_table(),
             pkg_type_names: arenas.new_partial_dense_table(),
             pkg_type_arg_names: arenas.new_partial_dense_table(),
-            is_state: arenas.new_partial_dense_table(),
 
             pkg_names: arenas.new_partial_dense_table(),
             game_names: arenas.new_partial_dense_table(),
@@ -223,7 +231,6 @@ impl<'arena> Resolver<'arena> {
             oracle_value_names: &mut self.oracle_value_names,
             type_names: &mut self.pkg_type_names,
             type_arg_names: &mut self.pkg_type_arg_names,
-            is_state: &mut self.is_state,
         };
         let mut info = None;
 
@@ -318,9 +325,13 @@ impl<'arena> Resolver<'arena> {
         &self.pkg_infos
     }
 
-    pub fn finish(self) -> IdentifierResolution<'arena> {
+    pub fn finish(
+        self,
+        dd: &mut impl DisplayDiagnostic<Diag: DiagFrom<diag::MissingResolutionDiag>>,
+    ) -> IdentifierResolution<'arena> {
         let failed = print_missing! {
             self,
+            dd,
             pkg_names,
             oracle_def_names,
             oracle_import_names,
@@ -330,7 +341,6 @@ impl<'arena> Resolver<'arena> {
             oracle_value_names,
             pkg_type_names,
             pkg_type_arg_names,
-            is_state,
             game_names,
             game_type_names,
             game_type_arg_names,
@@ -387,7 +397,6 @@ impl<'arena> Resolver<'arena> {
                 .pkg_type_arg_names
                 .finish()
                 .expect("error finishing pkg_type_arg_names"),
-            is_state: self.is_state.finish().expect("error finishing is_state"),
             game_names: self
                 .game_names
                 .finish()
@@ -442,7 +451,7 @@ impl<'arena> Resolver<'arena> {
 
 // TODO: move these to a domino-semantics crate or so?
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BuiltinType {
     Integer,
     Bool,
@@ -451,7 +460,7 @@ pub enum BuiltinType {
     Maybe,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BuiltinValue {
     True,
     False,
@@ -517,28 +526,34 @@ macro_rules! fail_resolution_ref {
 use fail_resolution;
 use fail_resolution_ref;
 
+use domino_resolutions::DisplayDiagnostic;
+
 macro_rules! print_missing {
-    ($self:expr, $($name:ident),* ,) => { {
-        let dx = domino_diagnostic::Resolver {
-            arenas: $self.arenas,
-            locations: $self.locations,
-        };
+    ($self:expr, $dd:expr, $($name:ident),* ,) => { {
+         fn print_missing<IK, II> (
+            name: &'static str,
+            missing: II,
+            dd: &mut impl DisplayDiagnostic<Diag: DiagFrom<diag::MissingResolutionDiag>>,
+        ) where
+            IK: domino_ast::ast_nodes::identifier::IdentifierKind,
+            II:IntoIterator<Item = Ref<identifier::Identifier<IK>>>,
+            domino_ast::ast_nodes::identifier::Identifier<IK>: domino_ast::NodeType
 
-        fn print_missing<T: domino_ast::InArena + domino_ast::NodeType>(dx: domino_diagnostic::Resolver,  name: &'static str, mut missing: impl Iterator<Item = Ref<T>>) {
-
+        {
+            let mut missing = missing.into_iter();
             if let Some(first) = missing.next() {
-                let mut errs = vec![diag::MissingResolution::new(dx, name, first)];
+                let mut diags = vec![ diag::MissingResolutionDiag{ ident: NodeType::global_ref_id(first), table: name } ];
 
                 print!("{name} is missing: {first:?}");
 
                 for r in missing {
                     print!(", {r:?}");
-                    errs.push(diag::MissingResolution::new(dx, name, r));
+                    diags.push( diag::MissingResolutionDiag{ table: name, ident: NodeType::global_ref_id(r) } );
                 }
 
                 println!();
-                for d in errs {
-                    println!("{:?}", miette::Report::from(d));
+                for d in diags {
+                    dd.display_diagnostic(d)
                 }
             }
         }
@@ -548,7 +563,7 @@ macro_rules! print_missing {
             let mut missing = $self.$name.missing().peekable();
             failed |= missing.peek().is_some();
 
-            print_missing(dx, stringify!($name), missing);
+            print_missing(stringify!($name), missing, $dd);
 
         };)*
 

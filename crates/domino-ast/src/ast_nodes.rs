@@ -396,6 +396,9 @@ define_node_types! {
     PackageConstDeclList { pkg_const_decl_list: package::PackageConstDeclList }
     PackageConstParamBlock { pkg_const_param_block: package::PackageConstParamBlock }
 
+    PackageStateDecl { pkg_state_decl: package::PackageStateDecl }
+    PackageStateDeclList { pkg_state_decl_list: package::PackageStateDeclList }
+
     PackageTypeDeclList { pkg_type_decl_list: package::PackageTypeDeclList }
     PackageTypeParamBlock { pkg_type_param_block: package::PackageTypeParamBlock }
     PackageItem { pkg_item: package::PackageItem }

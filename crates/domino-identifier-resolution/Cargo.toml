@@ -6,11 +6,8 @@ readme.workspace = true
 license.workspace = true
 
 [dependencies]
-miette.workspace = true
-thiserror.workspace = true
-
 domino-ast.workspace = true
-domino-diagnostic.workspace = true
+domino-resolutions.workspace = true
 domino-collections.workspace = true
 
 [dev-dependencies]
@@ -18,3 +15,4 @@ pest.workspace = true
 miette = { workspace = true, features = ["fancy"] }
 
 domino-parse-pest.workspace = true
+domino-miette-diagnostics.workspace = true

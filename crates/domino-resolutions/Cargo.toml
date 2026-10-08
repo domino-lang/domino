@@ -1,0 +1,11 @@
+[package]
+name = "domino-resolutions"
+version.workspace = true
+edition.workspace = true
+readme.workspace = true
+license.workspace = true
+
+[dependencies]
+miette.workspace = true
+domino-ast.workspace = true
+domino-collections.workspace = true

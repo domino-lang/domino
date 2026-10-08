@@ -7,7 +7,7 @@ use crate::ast_nodes::{
         PackageTypeIdentifierKind,
     },
     list::{List, ListNoDelim, Semicolon},
-    oracles::{OracleDefinition, OracleSignature},
+    oracles::{self, OracleDefinition, OracleSignature},
     package, params, types, Trivia,
 };
 
@@ -36,13 +36,17 @@ pub type PackageTypeDeclList = common::TypeDeclList<PackageTypeIdentifierKind>;
 pub type PackageTypeParamBlock = params::TypeParamBlock<PackageTypeIdentifierKind>;
 
 pub type PackageConstDecl = common::ValueDecl<package::PurePackageExpressionKind>;
-pub type PackageConstDeclList = common::ConstDeclList<package::PurePackageExpressionKind>;
+pub type PackageConstDeclList = common::ValueDeclList<package::PurePackageExpressionKind>;
 pub type PackageConstParamBlock = params::ConstParamBlock<package::PurePackageExpressionKind>;
+
+pub type PackageStateDecl = common::ValueDecl<oracles::OracleExpressionKind>;
+pub type PackageStateDeclList = common::ValueDeclList<oracles::OracleExpressionKind>;
+pub type PackageStateDeclParamBlock = params::ConstParamBlock<oracles::OracleExpressionKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StateBlock {
     pub trivia: Ref<Trivia>,
-    pub decls: Ref<PackageConstDeclList>,
+    pub decls: Ref<PackageStateDeclList>,
 }
 
 #[derive(Debug, Clone, Copy)]

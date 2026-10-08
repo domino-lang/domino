@@ -1,11 +1,15 @@
 [package]
-name = "domino-diagnostic"
+name = "domino-miette-diagnostics"
 version.workspace = true
 edition.workspace = true
 readme.workspace = true
 license.workspace = true
 
 [dependencies]
-miette.workspace = true
+domino-identifier-resolution.workspace = true
 domino-ast.workspace = true
 domino-collections.workspace = true
+domino-resolutions.workspace = true
+
+miette.workspace = true
+thiserror.workspace = true

@@ -1,7 +1,4 @@
-#![allow(unused_assignments)]
-
-use miette::SourceSpan;
-
+use crate::DeclarationType;
 use domino_ast::{
     ast_nodes::{
         game,
@@ -10,108 +7,52 @@ use domino_ast::{
     GlobalRefId, InArena, NodeType, NodeTypeRef as _,
 };
 use domino_collections::arena::{Arena, Ref};
-use domino_diagnostic::{NamedSource, Resolver};
-
-use crate::DeclarationType;
 
 pub type Diagnostics = Arena<Diagnostic>;
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[derive(Debug, Clone, Copy)]
 pub enum Diagnostic {
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    MissingResolution(#[from] MissingResolution),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    UndefinedIdentifier(#[from] UndefinedIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedConstValueIdentifier(#[from] ExpectedConstValueIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedValueIdentifier(#[from] ExpectedValueIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedTypeIdentifier(#[from] ExpectedTypeIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedTypeArgIdentifier(#[from] ExpectedTypeArgIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedOracleIdentifier(#[from] ExpectedOracleIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedPackageIdentifier(#[from] ExpectedPackageIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedPackageInstanceIdentifier(#[from] ExpectedPackageInstanceIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedGameIdentifier(#[from] ExpectedGameIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedGameInstanceIdentifier(#[from] ExpectedGameInstanceIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    ExpectedAssumptionIdentifier(#[from] ExpectedAssumptionIdentifier),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    AssignToConst(#[from] AssignToConst),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    PackageDoesNotImportOracle(#[from] PackageDoesNotImportOracle),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    PackageDoesNotDefineOracle(#[from] PackageDoesNotDefineOracle),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    AdversaryAsCallee(#[from] AdversaryAsCallee),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    CantRedefineBuiltin(#[from] CantRedefineBuiltin),
-
-    #[error(transparent)]
-    #[diagnostic(transparent)]
-    AlreadyDefined(#[from] AlreadyDefined),
+    MissingResolution(MissingResolutionDiag),
+    UndefinedIdentifier(UndefinedIdentifierDiag),
+    ExpectedConstValueIdentifier(ExpectedConstValueIdentifierDiag),
+    ExpectedValueIdentifier(ExpectedValueIdentifierDiag),
+    ExpectedTypeIdentifier(ExpectedTypeIdentifierDiag),
+    ExpectedTypeArgIdentifier(ExpectedTypeArgIdentifierDiag),
+    ExpectedOracleIdentifier(ExpectedOracleIdentifierDiag),
+    ExpectedPackageIdentifier(ExpectedPackageIdentifierDiag),
+    ExpectedPackageInstanceIdentifier(ExpectedPackageInstanceIdentifierDiag),
+    ExpectedGameIdentifier(ExpectedGameIdentifierDiag),
+    ExpectedGameInstanceIdentifier(ExpectedGameInstanceIdentifierDiag),
+    ExpectedAssumptionIdentifier(ExpectedAssumptionIdentifierDiag),
+    AssignToConst(AssignToConstDiag),
+    PackageDoesNotImportOracle(PackageDoesNotImportOracleDiag),
+    PackageDoesNotDefineOracle(PackageDoesNotDefineOracleDiag),
+    AdversaryAsCallee(AdversaryAsCalleeDiag),
+    CantRedefineBuiltin(CantRedefineBuiltinDiag),
+    AlreadyDefined(AlreadyDefinedDiag),
 }
 
 impl Diagnostic {
     pub fn at(&self) -> GlobalRefId {
         match self {
-            Diagnostic::MissingResolution(node) => node.global_ref,
-            Diagnostic::UndefinedIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedValueIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedConstValueIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedTypeIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedTypeArgIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedOracleIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedPackageIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedPackageInstanceIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedGameIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedGameInstanceIdentifier(node) => node.global_ref,
-            Diagnostic::ExpectedAssumptionIdentifier(node) => node.global_ref,
-            Diagnostic::AssignToConst(node) => node.global_ref,
-            Diagnostic::PackageDoesNotImportOracle(node) => node.global_ref,
-            Diagnostic::PackageDoesNotDefineOracle(node) => node.global_ref,
-            Diagnostic::AdversaryAsCallee(node) => node.global_ref,
-            Diagnostic::CantRedefineBuiltin(node) => node.global_ref,
-            Diagnostic::AlreadyDefined(node) => node.global_ref,
+            Diagnostic::MissingResolution(node) => node.ident,
+            Diagnostic::UndefinedIdentifier(node) => node.ident,
+            Diagnostic::ExpectedValueIdentifier(node) => node.ident,
+            Diagnostic::ExpectedConstValueIdentifier(node) => node.ident,
+            Diagnostic::ExpectedTypeIdentifier(node) => node.ident,
+            Diagnostic::ExpectedTypeArgIdentifier(node) => node.ident,
+            Diagnostic::ExpectedOracleIdentifier(node) => node.ident,
+            Diagnostic::ExpectedPackageIdentifier(node) => node.ident,
+            Diagnostic::ExpectedPackageInstanceIdentifier(node) => node.ident,
+            Diagnostic::ExpectedGameIdentifier(node) => node.ident,
+            Diagnostic::ExpectedGameInstanceIdentifier(node) => node.ident,
+            Diagnostic::ExpectedAssumptionIdentifier(node) => node.ident,
+            Diagnostic::AssignToConst(node) => node.ident,
+            Diagnostic::PackageDoesNotImportOracle(node) => node.compose_oracle.global_ref_id(),
+            Diagnostic::PackageDoesNotDefineOracle(node) => node.compose_oracle.global_ref_id(),
+            Diagnostic::AdversaryAsCallee(node) => node.ident.global_ref_id(),
+            Diagnostic::CantRedefineBuiltin(node) => node.ident,
+            Diagnostic::AlreadyDefined(node) => node.ident,
         }
     }
 }
@@ -151,611 +92,448 @@ pub enum OracleIdentifier {
     Composition(Ref<OracleCompositionIdentifier>),
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("internal error: missing resolution for {table}")]
-#[diagnostic(code(domino::resolve::idents::internal::missing_resolution))]
-pub struct MissingResolution {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
+#[derive(Debug, Clone, Copy)]
+pub struct MissingResolutionDiag {
+    pub ident: GlobalRefId,
     pub table: &'static str,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
 }
 
-impl MissingResolution {
-    pub fn new<Node>(dx: Resolver, table: &'static str, ident: Ref<Node>) -> Self
-    where
-        Node: InArena + NodeType,
-    {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
-        Self {
-            at,
-            table,
-            global_ref: ident.global_ref_id(),
-            source_code,
-        }
+impl From<MissingResolutionDiag> for Diagnostic {
+    fn from(value: MissingResolutionDiag) -> Self {
+        Self::MissingResolution(value)
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("undefined identifier")]
-#[diagnostic(code(domino::resolve::idents::undefined))]
-pub struct UndefinedIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
+#[derive(Debug, Clone, Copy)]
+pub struct UndefinedIdentifierDiag {
+    pub ident: GlobalRefId,
 }
 
-impl UndefinedIdentifier {
-    pub fn new<IK: IdentifierKind>(dx: Resolver, ident: Ref<AstIdentifier<IK>>) -> Self
+impl UndefinedIdentifierDiag {
+    pub fn new<IK: IdentifierKind>(ident: Ref<AstIdentifier<IK>>) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
+            ident: ident.global_ref_id(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected a const value identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_const_value))]
-pub struct ExpectedConstValueIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<UndefinedIdentifierDiag> for Diagnostic {
+    fn from(value: UndefinedIdentifierDiag) -> Self {
+        Self::UndefinedIdentifier(value)
+    }
 }
 
-impl ExpectedConstValueIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedConstValueIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedConstValueIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            source_code,
-            global_ref: ident.global_ref_id(),
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected a value identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_value))]
-pub struct ExpectedValueIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedConstValueIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedConstValueIdentifierDiag) -> Self {
+        Self::ExpectedConstValueIdentifier(value)
+    }
 }
 
-impl ExpectedValueIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedValueIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedValueIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            source_code,
-            global_ref: ident.global_ref_id(),
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("assigning to a constant")]
-#[diagnostic(code(domino::resolve::idents::assign_to_const))]
-pub struct AssignToConst {
-    #[label("this identifier is a constant")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedValueIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedValueIdentifierDiag) -> Self {
+        Self::ExpectedValueIdentifier(value)
+    }
 }
 
-impl AssignToConst {
-    pub fn new<IK: IdentifierKind>(dx: Resolver, ident: Ref<AstIdentifier<IK>>) -> Self
+#[derive(Debug, Clone, Copy)]
+pub struct AssignToConstDiag {
+    pub ident: GlobalRefId,
+}
+
+impl AssignToConstDiag {
+    pub fn new<IK: IdentifierKind>(ident: Ref<AstIdentifier<IK>>) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
+            ident: ident.global_ref_id(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an type identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_type))]
-pub struct ExpectedTypeIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<AssignToConstDiag> for Diagnostic {
+    fn from(value: AssignToConstDiag) -> Self {
+        Self::AssignToConst(value)
+    }
 }
 
-impl ExpectedTypeIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedTypeIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedTypeIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an type arg identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_type_arg))]
-pub struct ExpectedTypeArgIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedTypeIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedTypeIdentifierDiag) -> Self {
+        Self::ExpectedTypeIdentifier(value)
+    }
 }
 
-impl ExpectedTypeArgIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedTypeArgIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedTypeArgIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an oracle identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_oracle))]
-pub struct ExpectedOracleIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedTypeArgIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedTypeArgIdentifierDiag) -> Self {
+        Self::ExpectedTypeArgIdentifier(value)
+    }
 }
 
-impl ExpectedOracleIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedOracleIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedOracleIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an package identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_package))]
-pub struct ExpectedPackageIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedOracleIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedOracleIdentifierDiag) -> Self {
+        Self::ExpectedOracleIdentifier(value)
+    }
 }
 
-impl ExpectedPackageIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedPackageIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedPackageIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an package instance identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_package_instance))]
-pub struct ExpectedPackageInstanceIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedPackageIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedPackageIdentifierDiag) -> Self {
+        Self::ExpectedPackageIdentifier(value)
+    }
 }
 
-impl ExpectedPackageInstanceIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedPackageInstanceIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedPackageInstanceIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected a game identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_game))]
-pub struct ExpectedGameIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedPackageInstanceIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedPackageInstanceIdentifierDiag) -> Self {
+        Self::ExpectedPackageInstanceIdentifier(value)
+    }
 }
 
-impl ExpectedGameIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedGameIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedGameIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected a game instance identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_game_instance))]
-pub struct ExpectedGameInstanceIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedGameIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedGameIdentifierDiag) -> Self {
+        Self::ExpectedGameIdentifier(value)
+    }
 }
 
-impl ExpectedGameInstanceIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedGameInstanceIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedGameInstanceIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("expected an assumption identifier, got a {decl_type}")]
-#[diagnostic(code(domino::resolve::idents::expected_assumption))]
-pub struct ExpectedAssumptionIdentifier {
-    #[label("this identifier")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    pub decl_type: DeclarationType,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedGameInstanceIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedGameInstanceIdentifierDiag) -> Self {
+        Self::ExpectedGameInstanceIdentifier(value)
+    }
 }
 
-impl ExpectedAssumptionIdentifier {
+#[derive(Debug, Clone, Copy)]
+pub struct ExpectedAssumptionIdentifierDiag {
+    pub ident: GlobalRefId,
+    pub decl: DeclarationType,
+}
+
+impl ExpectedAssumptionIdentifierDiag {
     pub fn new<IK: IdentifierKind>(
-        dx: Resolver,
         ident: Ref<AstIdentifier<IK>>,
         decl: impl crate::Declaration,
     ) -> Self
     where
         AstIdentifier<IK>: InArena + NodeType,
     {
-        let at = dx.span(ident);
-        let source_code = dx.named_source(ident);
         Self {
-            at,
-            global_ref: ident.global_ref_id(),
-            source_code,
-            decl_type: decl.decl_type(),
+            ident: ident.global_ref_id(),
+            decl: decl.decl_type(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("oracle composition assigns an oracle that is not imported by the package")]
-#[diagnostic(code(domino::resolve::idents::package_does_not_import_oracle))]
-pub struct PackageDoesNotImportOracle {
-    #[label("this oracle is not imported...")]
-    pub compose_oracle: SourceSpan,
-
-    #[label("...by this package instance.{dots}", dots = if pkg_inst.is_none() {""} else {".."})]
-    pub compose_pkg_inst_left: SourceSpan,
-
-    #[label("...which is instantiated here.")]
-    pub pkg_inst: Option<SourceSpan>,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<ExpectedAssumptionIdentifierDiag> for Diagnostic {
+    fn from(value: ExpectedAssumptionIdentifierDiag) -> Self {
+        Self::ExpectedAssumptionIdentifier(value)
+    }
 }
 
-impl PackageDoesNotImportOracle {
+#[derive(Debug, Clone, Copy)]
+pub struct PackageDoesNotImportOracleDiag {
+    pub compose_oracle: Ref<identifier::OracleCompositionIdentifier>,
+    pub compose_pkg_inst_left: Ref<identifier::PackageInstanceIdentifier>,
+    pub pkg_inst: Option<Ref<game::InstanceBlock>>,
+}
+
+impl PackageDoesNotImportOracleDiag {
     pub fn new(
-        dx: Resolver,
         oracle_ident: Ref<identifier::OracleCompositionIdentifier>,
         pkg_inst_ident: Ref<identifier::PackageInstanceIdentifier>,
         inst: Option<Ref<game::InstanceBlock>>,
     ) -> Self {
-        let compose_oracle = dx.span(oracle_ident);
-        let compose_pkg_inst_left = dx.span(pkg_inst_ident);
-        let pkg_inst = inst.map(|inst| dx.span(inst));
-        let source_code = dx.named_source(oracle_ident);
         Self {
-            compose_oracle,
-            compose_pkg_inst_left,
-            pkg_inst,
-            global_ref: oracle_ident.global_ref_id(),
-            source_code,
+            compose_oracle: oracle_ident,
+            compose_pkg_inst_left: pkg_inst_ident,
+            pkg_inst: inst,
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("oracle composition assigns an oracle that is not defined by the package")]
-#[diagnostic(code(domino::resolve::idents::package_does_not_define_oracle))]
-pub struct PackageDoesNotDefineOracle {
-    #[label("this oracle is not defined...")]
-    pub compose_oracle: SourceSpan,
-
-    #[label("...by this package instance.{dots}", dots = if pkg_inst.is_none() {""} else {".."})]
-    pub compose_pkg_inst_left: SourceSpan,
-
-    #[label("...which is instantiated here.")]
-    pub pkg_inst: Option<SourceSpan>,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<PackageDoesNotImportOracleDiag> for Diagnostic {
+    fn from(value: PackageDoesNotImportOracleDiag) -> Self {
+        Self::PackageDoesNotImportOracle(value)
+    }
 }
 
-impl PackageDoesNotDefineOracle {
+#[derive(Debug, Clone, Copy)]
+pub struct PackageDoesNotDefineOracleDiag {
+    pub compose_oracle: Ref<identifier::OracleCompositionIdentifier>,
+    pub compose_pkg_inst_left: Ref<identifier::PackageInstanceIdentifier>,
+    pub pkg_inst: Option<Ref<game::InstanceBlock>>,
+}
+
+impl PackageDoesNotDefineOracleDiag {
     pub fn new(
-        dx: Resolver,
         oracle_ident: Ref<identifier::OracleCompositionIdentifier>,
         pkg_inst_ident: Ref<identifier::PackageInstanceIdentifier>,
         inst: Option<Ref<game::InstanceBlock>>,
     ) -> Self {
-        let compose_oracle = dx.span(oracle_ident);
-        let compose_pkg_inst_left = dx.span(pkg_inst_ident);
-        let pkg_inst = inst.map(|inst| dx.span(inst));
-        let source_code = dx.named_source(oracle_ident);
         Self {
-            compose_oracle,
-            compose_pkg_inst_left,
-            pkg_inst,
-            global_ref: oracle_ident.global_ref_id(),
-            source_code,
+            compose_oracle: oracle_ident,
+            compose_pkg_inst_left: pkg_inst_ident,
+            pkg_inst: inst,
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("adversary is not allowed in callee/right-hand-side position in a composition")]
-#[diagnostic(code(domino::resolve::idents::adversary_as_callee_))]
-pub struct AdversaryAsCallee {
-    #[label("adversary composed in a callee position here")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
-}
-
-impl AdversaryAsCallee {
-    pub fn new(dx: Resolver, at: Ref<identifier::OracleCompositionIdentifier>) -> Self {
-        let global_ref = at.global_ref_id();
-        let source_code = dx.named_source(at);
-        let at = dx.span(at);
-        Self {
-            at,
-            global_ref,
-            source_code,
-        }
+impl From<PackageDoesNotDefineOracleDiag> for Diagnostic {
+    fn from(value: PackageDoesNotDefineOracleDiag) -> Self {
+        Self::PackageDoesNotDefineOracle(value)
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("this identifier is a builtin an can't be redefined")]
-#[diagnostic(code(domino::resolve::idents::cant_redefine_builtin))]
-pub struct CantRedefineBuiltin {
-    #[label("this identifier is a builtin")]
-    pub at: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
+#[derive(Debug, Clone, Copy)]
+pub struct AdversaryAsCalleeDiag {
+    pub ident: Ref<identifier::OracleCompositionIdentifier>,
 }
 
-impl CantRedefineBuiltin {
-    pub fn new<IK>(dx: Resolver, at: Ref<identifier::Identifier<IK>>) -> Self
+impl AdversaryAsCalleeDiag {
+    pub fn new(at: Ref<identifier::OracleCompositionIdentifier>) -> Self {
+        Self { ident: at }
+    }
+}
+
+impl From<AdversaryAsCalleeDiag> for Diagnostic {
+    fn from(value: AdversaryAsCalleeDiag) -> Self {
+        Self::AdversaryAsCallee(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CantRedefineBuiltinDiag {
+    pub ident: GlobalRefId,
+}
+
+impl CantRedefineBuiltinDiag {
+    pub fn new<IK>(at: Ref<identifier::Identifier<IK>>) -> Self
     where
         IK: IdentifierKind,
         identifier::Identifier<IK>: NodeType + InArena,
     {
-        let global_ref = at.global_ref_id();
-        let source_code = dx.named_source(at);
-        let at = dx.span(at);
         Self {
-            at,
-            global_ref,
-            source_code,
+            ident: at.global_ref_id(),
         }
     }
 }
 
-#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
-#[error("this identifier has been defined before")]
-#[diagnostic(code(domino::resolve::idents::already_defined))]
-pub struct AlreadyDefined {
-    #[label("this identifier has been defined earlier")]
-    pub at: SourceSpan,
-
-    #[label("earlier definition is here")]
-    pub earlier: SourceSpan,
-
-    pub global_ref: GlobalRefId,
-
-    #[source_code]
-    pub source_code: NamedSource,
+impl From<CantRedefineBuiltinDiag> for Diagnostic {
+    fn from(value: CantRedefineBuiltinDiag) -> Self {
+        Self::CantRedefineBuiltin(value)
+    }
 }
 
-impl AlreadyDefined {
-    pub fn new<IK, T>(dx: Resolver, at: Ref<identifier::Identifier<IK>>, earlier: Ref<T>) -> Self
+#[derive(Debug, Clone, Copy)]
+pub struct AlreadyDefinedDiag {
+    pub ident: GlobalRefId,
+    pub earlier: GlobalRefId,
+}
+
+impl AlreadyDefinedDiag {
+    pub fn new<IK, T>(at: Ref<identifier::Identifier<IK>>, earlier: Ref<T>) -> Self
     where
         IK: IdentifierKind,
         identifier::Identifier<IK>: NodeType + InArena,
         T: NodeType + InArena,
     {
-        let global_ref = at.global_ref_id();
-        let source_code = dx.named_source(at);
-        let at = dx.span(at);
-        let earlier = dx.span(earlier);
         Self {
-            at,
-            earlier,
-            global_ref,
-            source_code,
+            ident: at.global_ref_id(),
+            earlier: earlier.global_ref_id(),
         }
+    }
+}
+
+impl From<AlreadyDefinedDiag> for Diagnostic {
+    fn from(value: AlreadyDefinedDiag) -> Self {
+        Self::AlreadyDefined(value)
     }
 }

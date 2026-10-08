@@ -1,7 +1,7 @@
 use domino_collections::arena::Ref;
 
 use crate::ast_nodes::{
-    common::{ConstDeclList, TypeDeclList},
+    common::{TypeDeclList, ValueDeclList},
     expressions,
     identifier::IdentifierKind,
     Trivia,
@@ -16,5 +16,5 @@ pub struct TypeParamBlock<IK: IdentifierKind> {
 #[derive(Debug)]
 pub struct ConstParamBlock<EK: expressions::ExpressionKind> {
     pub trivia: Ref<Trivia>,
-    pub decls: Ref<ConstDeclList<EK>>,
+    pub decls: Ref<ValueDeclList<EK>>,
 }

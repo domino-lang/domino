@@ -7,7 +7,7 @@ use domino_ast::{
 use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
 
 use crate::{
-    diag::{self, UndefinedIdentifier},
+    diag::{self, UndefinedIdentifierDiag},
     resolutions::*,
     resolve_game::GameInfo,
     scope::*,
@@ -316,21 +316,17 @@ impl<'a, 'res: 'a> domino_ast::Visitor for TheoremVisitor<'a, 'res> {
             }
             _ => {
                 // If game instances couldn't be resolved, mark the oracle names as errors
-                let dx = domino_diagnostic::Resolver {
-                    arenas,
-                    locations: self.locations,
-                };
                 crate::fail_resolution!(
                     self,
                     block.name,
-                    UndefinedIdentifier::new(dx, block.name),
+                    UndefinedIdentifierDiag::new(block.name),
                     oracle_composition_import_names,
                     then {}
                 );
                 crate::fail_resolution!(
                     self,
                     block.name,
-                    UndefinedIdentifier::new(dx, block.name),
+                    UndefinedIdentifierDiag::new(block.name),
                     oracle_composition_def_names,
                     then {}
                 );
@@ -417,21 +413,17 @@ impl<'a, 'res: 'a> domino_ast::Visitor for TheoremVisitor<'a, 'res> {
                 self.resolve_pkg_inst_in_game_inst(arenas, item.right_name, right_inst);
             }
             _ => {
-                let dx = domino_diagnostic::Resolver {
-                    arenas,
-                    locations: self.locations,
-                };
                 crate::fail_resolution!(
                     self,
                     item.left_name,
-                    UndefinedIdentifier::new(dx, item.left_name),
+                    UndefinedIdentifierDiag::new(item.left_name),
                     pkg_inst_names,
                     then {}
                 );
                 crate::fail_resolution!(
                     self,
                     item.right_name,
-                    UndefinedIdentifier::new(dx, item.right_name),
+                    UndefinedIdentifierDiag::new(item.right_name),
                     pkg_inst_names,
                     then {}
                 );
@@ -496,14 +488,10 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         });
 
         if self.scope.is_builtin(name) {
-            let dx = domino_diagnostic::Resolver {
-                arenas,
-                locations: self.locations,
-            };
             crate::fail_resolution!(
                 self,
                 thm.name,
-                diag::CantRedefineBuiltin::new(dx, thm.name),
+                diag::CantRedefineBuiltinDiag::new(thm.name),
                 theorem_names
             );
         }
@@ -522,18 +510,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             .scope
             .declare(name, TheoremDeclaration::TheoremConst(node))
         {
-            let dx = domino_diagnostic::Resolver {
-                arenas,
-                locations: self.locations,
-            };
-
             let err: diag::Diagnostic = match existing_decl.place() {
                 TheoremDeclarationPlace::BuiltIn => {
-                    diag::CantRedefineBuiltin::new(dx, decl.name).into()
+                    diag::CantRedefineBuiltinDiag::new(decl.name).into()
                 }
                 TheoremDeclarationPlace::UserDeclaration(global_ref_id) => {
                     domino_ast::with_global_ref_id!(global_ref_id, |r| {
-                        diag::AlreadyDefined::new(dx, decl.name, r).into()
+                        diag::AlreadyDefinedDiag::new(decl.name, r).into()
                     })
                 }
             };
@@ -566,18 +549,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             .scope
             .declare(name, TheoremDeclaration::GameInstance(info.clone()))
         {
-            let dx = domino_diagnostic::Resolver {
-                arenas,
-                locations: self.locations,
-            };
-
             let err: diag::Diagnostic = match existing_decl.place() {
                 TheoremDeclarationPlace::BuiltIn => {
-                    diag::CantRedefineBuiltin::new(dx, block.instance_name).into()
+                    diag::CantRedefineBuiltinDiag::new(block.instance_name).into()
                 }
                 TheoremDeclarationPlace::UserDeclaration(global_ref_id) => {
                     domino_ast::with_global_ref_id!(global_ref_id, |r| {
-                        diag::AlreadyDefined::new(dx, block.instance_name, r).into()
+                        diag::AlreadyDefinedDiag::new(block.instance_name, r).into()
                     })
                 }
             };
@@ -611,18 +589,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             .scope
             .declare(name, TheoremDeclaration::Assumption(node))
         {
-            let dx = domino_diagnostic::Resolver {
-                arenas,
-                locations: self.locations,
-            };
-
             let err: diag::Diagnostic = match existing_decl.place() {
                 TheoremDeclarationPlace::BuiltIn => {
-                    diag::CantRedefineBuiltin::new(dx, item.name).into()
+                    diag::CantRedefineBuiltinDiag::new(item.name).into()
                 }
                 TheoremDeclarationPlace::UserDeclaration(global_ref_id) => {
                     domino_ast::with_global_ref_id!(global_ref_id, |r| {
-                        diag::AlreadyDefined::new(dx, item.name, r).into()
+                        diag::AlreadyDefinedDiag::new(item.name, r).into()
                     })
                 }
             };
@@ -651,18 +624,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
 
         // fail if duplicate declaration
         if let Some(existing_decl) = self.scope.declare(name, TheoremDeclaration::Lemma(node)) {
-            let dx = domino_diagnostic::Resolver {
-                arenas,
-                locations: self.locations,
-            };
-
             let err: diag::Diagnostic = match existing_decl.place() {
                 TheoremDeclarationPlace::BuiltIn => {
-                    diag::CantRedefineBuiltin::new(dx, item.name).into()
+                    diag::CantRedefineBuiltinDiag::new(item.name).into()
                 }
                 TheoremDeclarationPlace::UserDeclaration(global_ref_id) => {
                     domino_ast::with_global_ref_id!(global_ref_id, |r| {
-                        diag::AlreadyDefined::new(dx, item.name, r).into()
+                        diag::AlreadyDefinedDiag::new(item.name, r).into()
                     })
                 }
             };
@@ -709,11 +677,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
     }
 
     fn resolve_type(&mut self, arenas: &Arenas, node: Ref<identifier::TheoremTypeIdentifier>) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         let resolution = match self.scope.lookup(name).cloned() {
@@ -722,7 +685,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::UndefinedIdentifier::new(dx, node),
+                    diag::UndefinedIdentifierDiag::new(node),
                     theorem_type_names
                 );
             }
@@ -730,7 +693,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::ExpectedTypeIdentifier::new(dx, node, other),
+                    diag::ExpectedTypeIdentifierDiag::new(node, other),
                     theorem_type_names
                 );
             }
@@ -744,20 +707,16 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         arenas: &Arenas,
         node: Ref<identifier::TheoremTypeArgumentIdentifier>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         let resolution = match self.scope.lookup(name).cloned() {
             Some(TheoremDeclaration::BuiltinType(ty)) => TheoremTypeArgResolution::Builtin(ty),
+            Some(TheoremDeclaration::TheoremConst(decl)) => TheoremTypeArgResolution::Consts(decl),
             None => {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::UndefinedIdentifier::new(dx, node),
+                    diag::UndefinedIdentifierDiag::new(node),
                     theorem_type_arg_names
                 );
             }
@@ -765,7 +724,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::ExpectedTypeArgIdentifier::new(dx, node, other),
+                    diag::ExpectedTypeArgIdentifierDiag::new(node, other),
                     theorem_type_arg_names
                 );
             }
@@ -782,11 +741,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
     }
 
     fn resolve_game(&mut self, arenas: &Arenas, node: Ref<identifier::GameIdentifier>) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         let resolution = match self.scope.lookup(name) {
@@ -795,7 +749,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::UndefinedIdentifier::new(dx, node),
+                    diag::UndefinedIdentifierDiag::new(node),
                     game_names
                 );
             }
@@ -803,7 +757,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::UndefinedIdentifier::new(dx, node),
+                    diag::UndefinedIdentifierDiag::new(node),
                     game_names
                 );
             }
@@ -817,18 +771,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         arenas: &Arenas,
         node: Ref<identifier::GameInstanceIdentifier>,
     ) -> GameInstanceResolution {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         let Some(decl) = self.scope.lookup(name) else {
             crate::fail_resolution!(
                 self,
                 node,
-                diag::UndefinedIdentifier::new(dx, node),
+                diag::UndefinedIdentifierDiag::new(node),
                 game_inst_names,
                 then err => { return GameInstanceResolution::Error(err) }
             );
@@ -839,7 +788,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                diag::ExpectedGameInstanceIdentifier::new(dx, node, decl.clone()),
+                diag::ExpectedGameInstanceIdentifierDiag::new(node, decl.clone()),
                 game_inst_names,
                 then err => { return GameInstanceResolution::Error(err) }
             );
@@ -857,18 +806,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         arenas: &Arenas,
         node: Ref<identifier::AssumptionIdentifier>,
     ) -> AssumptionResolution {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         let Some(decl) = self.scope.lookup(name) else {
             crate::fail_resolution!(
                 self,
                 node,
-                diag::UndefinedIdentifier::new(dx, node),
+                diag::UndefinedIdentifierDiag::new(node),
                 assumption_names,
                 then err => { return AssumptionResolution::Error(err) }
             );
@@ -878,7 +822,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                diag::ExpectedAssumptionIdentifier::new(dx, node, decl.clone()),
+                diag::ExpectedAssumptionIdentifierDiag::new(node, decl.clone()),
                 assumption_names,
                 then err => { return AssumptionResolution::Error(err) }
             );
@@ -892,11 +836,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
     }
 
     fn resolve_lemma(&mut self, arenas: &Arenas, node: Ref<identifier::LemmaIdentifier>) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let name = get_text(node, self.locations, &arenas.source);
 
         let resolution = match self.scope.lookup(name) {
@@ -904,7 +843,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::UndefinedIdentifier::new(dx, node),
+                    diag::UndefinedIdentifierDiag::new(node),
                     lemma_names
                 );
             }
@@ -913,7 +852,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     node,
-                    diag::UndefinedIdentifier::new(dx, node),
+                    diag::UndefinedIdentifierDiag::new(node),
                     lemma_names
                 );
             }
@@ -928,18 +867,13 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         arenas: &Arenas,
         ident: Ref<identifier::TheoremConstValueIdentifier>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let ident_name = get_text(ident, self.locations, &arenas.source);
         let resolution = match self.scope.lookup(ident_name) {
             None => {
                 crate::fail_resolution!(
                     self,
                     ident,
-                    diag::UndefinedIdentifier::new(dx, ident),
+                    diag::UndefinedIdentifierDiag::new(ident),
                     theorem_const_value_names
                 );
             }
@@ -955,7 +889,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
                 crate::fail_resolution!(
                     self,
                     ident,
-                    diag::ExpectedValueIdentifier::new(dx, ident, decl.clone()),
+                    diag::ExpectedValueIdentifierDiag::new(ident, decl.clone()),
                     theorem_const_value_names
                 );
             }
@@ -969,11 +903,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         arenas: &Arenas,
         node: Ref<identifier::GameTypeIdentifier>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let game_inst_info = match &mut self.position {
             Position::GameInstance(game_inst_info) => game_inst_info,
             Position::UnresolvedGameInstance(diag) => {
@@ -1000,7 +929,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                diag::UndefinedIdentifier::new(dx, node),
+                diag::UndefinedIdentifierDiag::new(node),
                 game_type_names
             );
         };
@@ -1015,11 +944,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         arenas: &Arenas,
         node: Ref<identifier::GameConstValueIdentifier>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let game_inst_info = match &mut self.position {
             Position::GameInstance(game_inst_info) => game_inst_info,
             Position::UnresolvedGameInstance(diag) => {
@@ -1046,7 +970,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                diag::UndefinedIdentifier::new(dx, node),
+                diag::UndefinedIdentifierDiag::new(node),
                 game_const_value_names
             );
         };
@@ -1063,11 +987,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         node: Ref<identifier::PackageInstanceIdentifier>,
         game_inst_ref: Ref<theorem::InstanceBlock>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let inst = arenas.thm_inst_block.get(game_inst_ref);
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
 
@@ -1075,7 +994,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                UndefinedIdentifier::new(dx, node),
+                UndefinedIdentifierDiag::new(node),
                 pkg_inst_names
             );
         };
@@ -1093,7 +1012,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                UndefinedIdentifier::new(dx, node),
+                UndefinedIdentifierDiag::new(node),
                 pkg_inst_names
             );
         };
@@ -1111,11 +1030,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         node: Ref<identifier::OracleCompositionIdentifier>,
         game_inst_ref: Ref<theorem::InstanceBlock>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let inst = arenas.thm_inst_block.get(game_inst_ref);
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
         let oracle_name = get_text(node, self.locations, &arenas.source);
@@ -1124,7 +1038,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                UndefinedIdentifier::new(dx, node),
+                UndefinedIdentifierDiag::new(node),
                 oracle_composition_import_names
             );
         };
@@ -1151,7 +1065,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         crate::fail_resolution!(
             self,
             node,
-            UndefinedIdentifier::new(dx, node),
+            UndefinedIdentifierDiag::new(node),
             oracle_composition_import_names
         );
     }
@@ -1163,11 +1077,6 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         node: Ref<identifier::OracleCompositionIdentifier>,
         game_inst_ref: Ref<theorem::InstanceBlock>,
     ) {
-        let dx = domino_diagnostic::Resolver {
-            arenas,
-            locations: self.locations,
-        };
-
         let inst = arenas.thm_inst_block.get(game_inst_ref);
         let game_name = get_text(inst.instantiated_name, self.locations, &arenas.source);
         let oracle_name = get_text(node, self.locations, &arenas.source);
@@ -1176,7 +1085,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
             crate::fail_resolution!(
                 self,
                 node,
-                UndefinedIdentifier::new(dx, node),
+                UndefinedIdentifierDiag::new(node),
                 oracle_composition_def_names
             );
         };
@@ -1202,7 +1111,7 @@ impl<'a: 'res, 'res> TheoremVisitor<'a, 'res> {
         crate::fail_resolution!(
             self,
             node,
-            UndefinedIdentifier::new(dx, node),
+            UndefinedIdentifierDiag::new(node),
             oracle_composition_def_names
         );
     }

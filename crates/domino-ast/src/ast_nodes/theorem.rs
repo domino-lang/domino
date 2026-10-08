@@ -35,7 +35,7 @@ pub type OracleInvocationExpression =
     expressions::OracleInvocationExpression<PureTheoremExpressionKind>;
 
 pub type TheoremConstDecl = common::ValueDecl<PureTheoremExpressionKind>;
-pub type TheoremConstDeclList = common::ConstDeclList<PureTheoremExpressionKind>;
+pub type TheoremConstDeclList = common::ValueDeclList<PureTheoremExpressionKind>;
 pub type TheoremConstParamBlock = params::ConstParamBlock<PureTheoremExpressionKind>;
 
 pub type InstanceConstAssignmentItem =
