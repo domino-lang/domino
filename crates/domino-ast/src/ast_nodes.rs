@@ -76,12 +76,12 @@ macro_rules! define_visitor_trait {
     /// A helper trait for browsing the AST.
     ///
     /// Methods have the form `fn {ast_node_field_name}(&mut self, arenas: &Arenas, node: Ref<{ast_node_ty}>)`.
-    pub trait Visitor {
+    pub trait Visitor<'a> {
       $(
         #[allow(unused_variables)]
         fn $fn_name(
             &mut self,
-            arenas: &$crate::Arenas,
+            arenas: &'a $crate::Arenas,
             node: ::domino_collections::arena::Ref<$node_type>
         ) {
             $crate::walk::walk(self, arenas, node)
@@ -91,9 +91,9 @@ macro_rules! define_visitor_trait {
 
     $(
       impl Visit for $node_type {
-        fn visit<V: Visitor + ?Sized>(
+        fn visit<'a, V: Visitor<'a> + ?Sized>(
             visitor: &mut V,
-            arenas: &$crate::Arenas,
+            arenas: &'a $crate::Arenas,
             node: ::domino_collections::arena::Ref<Self>
         ){
             visitor.$fn_name(arenas, node)

@@ -103,9 +103,9 @@ pub trait InArena: Sized {
 /// a method for.
 pub trait Visit: Sized {
     /// Makes `visitor` visit the AST node `node`.
-    fn visit<V: Visitor + ?Sized>(
+    fn visit<'a, V: Visitor<'a> + ?Sized>(
         visitor: &mut V,
-        arenas: &crate::Arenas,
+        arenas: &'a crate::Arenas,
         node: domino_collections::arena::Ref<Self>,
     );
 }

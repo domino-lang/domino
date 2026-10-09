@@ -3,24 +3,28 @@ use domino_collections::arena::{Ref, Slice};
 use crate::{Arenas, InArena, Visit, Visitor};
 
 pub trait Walk: Sized {
-    fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas);
+    fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas);
 }
 
-pub fn walk<T, V>(visitor: &mut V, arenas: &Arenas, node: Ref<T>)
+pub fn walk<'a, T, V>(visitor: &mut V, arenas: &'a Arenas, node: Ref<T>)
 where
     T: Walk + InArena,
-    V: Visitor + ?Sized,
+    V: Visitor<'a> + ?Sized,
 {
     T::arena(arenas).get(node).walk(visitor, arenas)
 }
 
-pub fn visit_ref<T: Visit, V: Visitor + ?Sized>(visitor: &mut V, arenas: &Arenas, node: Ref<T>) {
+pub fn visit_ref<'a, T: Visit, V: Visitor<'a> + ?Sized>(
+    visitor: &mut V,
+    arenas: &'a Arenas,
+    node: Ref<T>,
+) {
     T::visit(visitor, arenas, node)
 }
 
-pub fn visit_slice<T: Visit, V: Visitor + ?Sized>(
+pub fn visit_slice<'a, T: Visit, V: Visitor<'a> + ?Sized>(
     visitor: &mut V,
-    arenas: &Arenas,
+    arenas: &'a Arenas,
     slice: Slice<T>,
 ) {
     for node in slice.refs() {
@@ -66,35 +70,35 @@ mod impls {
     };
 
     impl<IK: IdentifierKind> Walk for Identifier<IK> {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for Trivium {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for Comma {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for Colon {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for Semicolon {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for SmtIdentifier {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for Path {
-        fn walk<V: Visitor + ?Sized>(&self, _visitor: &mut V, _arenas: &Arenas) {}
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, _visitor: &mut V, _arenas: &'a Arenas) {}
     }
 
     impl Walk for File<Package> {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visitor.trivia(arenas, self.leading_trivia);
             visitor.package(arenas, self.main);
             visitor.trivia(arenas, self.trailing_trivia);
@@ -102,7 +106,7 @@ mod impls {
     }
 
     impl Walk for File<Game> {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visitor.trivia(arenas, self.leading_trivia);
             visitor.game(arenas, self.main);
             visitor.trivia(arenas, self.trailing_trivia);
@@ -110,7 +114,7 @@ mod impls {
     }
 
     impl Walk for File<Theorem> {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visitor.trivia(arenas, self.leading_trivia);
             visitor.thm(arenas, self.main);
             visitor.trivia(arenas, self.trailing_trivia);
@@ -118,13 +122,13 @@ mod impls {
     }
 
     impl Walk for Trivia {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_slice(visitor, arenas, self.trivia);
         }
     }
 
     impl<Node: Visit, Delim> Walk for List<Node, Delim> {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             // `delim_leading_trivia` has n or n-1 entries, so it is stepped manually rather than
             // zipped, to keep source order without dropping the trailing delimiter's trivia.
             let mut delims = self.delim_leading_trivia.refs();
@@ -142,7 +146,7 @@ mod impls {
     }
 
     impl<Node: Visit> Walk for ListNoDelim<Node> {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             for (leading, item) in self.item_leading_trivia.refs().zip(self.items.refs()) {
                 visit_ref(visitor, arenas, leading);
                 visit_ref(visitor, arenas, item);
@@ -159,7 +163,7 @@ mod impls {
         ArgumentedType<TK>: Visit,
         FnType<TK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 Type::Identifier(node) => visit_ref(visitor, arenas, node),
                 Type::Tuple(node) => visit_ref(visitor, arenas, node),
@@ -173,7 +177,7 @@ mod impls {
     where
         List<Type<TK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.0);
         }
     }
@@ -183,7 +187,7 @@ mod impls {
         Identifier<TK::TypeIdentifierKind>: Visit,
         List<TypeArgument<TK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.post_name);
             visit_ref(visitor, arenas, self.args);
@@ -198,7 +202,7 @@ mod impls {
         Type<TK>: Visit,
         Expression<TK::ExpressionKind>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 TypeArgument::Identifier(node) => visit_ref(visitor, arenas, node),
                 TypeArgument::Tuple(node) => visit_ref(visitor, arenas, node),
@@ -214,7 +218,7 @@ mod impls {
         List<Type<TK>, Comma>: Visit,
         Type<TK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.args_trivia);
             visit_ref(visitor, arenas, self.args);
             visit_ref(visitor, arenas, self.arrow_trivia);
@@ -235,7 +239,7 @@ mod impls {
         OracleInvocationExpression<EK>: Visit,
         SampleExpression<EK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 Expression::TableIndex(node) => visit_ref(visitor, arenas, node),
                 Expression::Paren(node) => visit_ref(visitor, arenas, node),
@@ -255,7 +259,7 @@ mod impls {
     where
         Expression<EK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.lhs);
             visit_ref(visitor, arenas, self.pre_op_trivia);
             visit_ref(visitor, arenas, self.post_op_trivia);
@@ -267,7 +271,7 @@ mod impls {
     where
         Expression<EK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.expr);
         }
@@ -277,7 +281,7 @@ mod impls {
     where
         Expression<EK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.expr_trivia);
             visit_ref(visitor, arenas, self.expr);
             visit_ref(visitor, arenas, self.trailing_trivia);
@@ -288,7 +292,7 @@ mod impls {
     where
         List<Expression<EK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.0);
         }
     }
@@ -298,7 +302,7 @@ mod impls {
         Expression<EK>: Visit,
         List<Expression<EK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.args);
@@ -310,7 +314,7 @@ mod impls {
         Identifier<EK::ValueIdentifierKind>: Visit,
         Expression<EK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.table_name);
             visit_ref(visitor, arenas, self.table_name_trivia);
             visit_ref(visitor, arenas, self.index_trivia);
@@ -323,7 +327,7 @@ mod impls {
     where
         Type<EK::TypeKind>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.ty);
         }
     }
@@ -332,7 +336,7 @@ mod impls {
     where
         List<Expression<EK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.oracle_name);
             visit_ref(visitor, arenas, self.oracle_name_trivia);
             visit_ref(visitor, arenas, self.args);
@@ -340,7 +344,7 @@ mod impls {
     }
 
     impl Walk for Statement {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 Statement::Abort => {}
                 Statement::Assert(node) => visit_ref(visitor, arenas, node),
@@ -353,7 +357,7 @@ mod impls {
     }
 
     impl Walk for AssertStatement {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.expr_trivia);
             visit_ref(visitor, arenas, self.expr);
             visit_ref(visitor, arenas, self.semicolon_trivia);
@@ -361,7 +365,7 @@ mod impls {
     }
 
     impl Walk for AssignStatement {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.pat);
             visit_ref(visitor, arenas, self.pre_arrow_trivia);
             visit_ref(visitor, arenas, self.post_arrow_trivia);
@@ -371,14 +375,14 @@ mod impls {
     }
 
     impl Walk for ExpressionStatement {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.expr);
             visit_ref(visitor, arenas, self.semicolon_trivia);
         }
     }
 
     impl Walk for IfThenElseStatement {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.cond_trivia);
             visit_ref(visitor, arenas, self.cond);
             visit_ref(visitor, arenas, self.cond_brace_trivia);
@@ -393,7 +397,7 @@ mod impls {
     }
 
     impl Walk for ReturnStatement {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.expr);
             visit_ref(visitor, arenas, self.semicolon_trivia);
@@ -401,7 +405,7 @@ mod impls {
     }
 
     impl Walk for Pattern {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 Pattern::Identifier(node) => visit_ref(visitor, arenas, node),
                 Pattern::Table(node) => visit_ref(visitor, arenas, node),
@@ -411,7 +415,7 @@ mod impls {
     }
 
     impl Walk for TablePattern {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.table_name);
             visit_ref(visitor, arenas, self.table_name_trivia);
             visit_ref(visitor, arenas, self.index_trivia);
@@ -421,7 +425,7 @@ mod impls {
     }
 
     impl Walk for TuplePattern {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.items);
         }
     }
@@ -434,7 +438,7 @@ mod impls {
     where
         Identifier<OI>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.args);
@@ -451,7 +455,7 @@ mod impls {
     where
         Identifier<IK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.pre_colon_trivia);
             visit_ref(visitor, arenas, self.post_colon_trivia);
@@ -460,7 +464,7 @@ mod impls {
     }
 
     impl Walk for OracleDefinition {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.sig_trivia);
             visit_ref(visitor, arenas, self.oracle_sig);
             visit_ref(visitor, arenas, self.brace_trivia);
@@ -477,7 +481,7 @@ mod impls {
         Identifier<EK::ValueIdentifierKind>: Visit,
         Type<EK::TypeKind>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.colon_trivia);
             visit_ref(visitor, arenas, self.ty_trivia);
@@ -489,7 +493,7 @@ mod impls {
     where
         List<Identifier<IK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.decls);
         }
@@ -499,7 +503,7 @@ mod impls {
     where
         List<ValueDecl<EK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.decls);
         }
@@ -516,7 +520,7 @@ mod impls {
         Identifier<LhsIK>: Visit,
         Expression<RhsEK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.ident);
             visit_ref(visitor, arenas, self.colon_trivia);
             visit_ref(visitor, arenas, self.expr_trivia);
@@ -530,7 +534,7 @@ mod impls {
         RhsEK: ExpressionKind,
         List<InstanceConstAssignmentItem<LhsIK, RhsEK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.list);
         }
@@ -544,7 +548,7 @@ mod impls {
         Identifier<LhsIK>: Visit,
         Type<RhsTK>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.ident);
             visit_ref(visitor, arenas, self.colon_trivia);
             visit_ref(visitor, arenas, self.ty_trivia);
@@ -559,7 +563,7 @@ mod impls {
         RhsTK: TypeKind,
         List<InstanceTypeAssignmentItem<LhsIK, RhsTK>, Comma>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.list);
         }
@@ -570,7 +574,7 @@ mod impls {
         InstanceConstBlock<IK::LhsValueIdentifierKind, IK::RhsExpressionKind>: Visit,
         InstanceTypeBlock<IK::LhsTypeIdentifierKind, IK::RhsTypeKind>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 InstanceItem::InstanceConst(node) => visit_ref(visitor, arenas, node),
                 InstanceItem::InstanceType(node) => visit_ref(visitor, arenas, node),
@@ -584,7 +588,7 @@ mod impls {
         Identifier<IK::InstantiatedIdentifierKind>: Visit,
         ListNoDelim<InstanceItem<IK>>: Visit,
     {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.instance_name_trivia);
             visit_ref(visitor, arenas, self.instance_name);
             visit_ref(visitor, arenas, self.eq_trivia);
@@ -600,21 +604,21 @@ mod impls {
     // ---------------------------------------------------------------------------
 
     impl Walk for StateBlock {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.decls);
         }
     }
 
     impl Walk for ImportOraclesBlock {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.decls);
         }
     }
 
     impl Walk for PackageItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 PackageItem::TypeParams(node) => visit_ref(visitor, arenas, node),
                 PackageItem::ConstParams(node) => visit_ref(visitor, arenas, node),
@@ -626,7 +630,7 @@ mod impls {
     }
 
     impl Walk for Package {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name_trivia);
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.brace_trivia);
@@ -639,7 +643,7 @@ mod impls {
     // ---------------------------------------------------------------------------
 
     impl Walk for ComposeOracleAssignmentItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.oracle_name);
             visit_ref(visitor, arenas, self.colon_trivia);
             visit_ref(visitor, arenas, self.pkg_inst_name_trivia);
@@ -648,7 +652,7 @@ mod impls {
     }
 
     impl Walk for ComposePackageInstanceItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.pkg_inst_name);
             visit_ref(visitor, arenas, self.colon_trivia);
             visit_ref(visitor, arenas, self.items_trivia);
@@ -657,14 +661,14 @@ mod impls {
     }
 
     impl Walk for ComposeBlock {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.items);
         }
     }
 
     impl Walk for GameItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 GameItem::TypeParams(node) => visit_ref(visitor, arenas, node),
                 GameItem::ConstParams(node) => visit_ref(visitor, arenas, node),
@@ -675,7 +679,7 @@ mod impls {
     }
 
     impl Walk for Game {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name_trivia);
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.brace_trivia);
@@ -688,7 +692,7 @@ mod impls {
     // ---------------------------------------------------------------------------
 
     impl Walk for InvariantSpec {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.pre_colon_trivia);
             visit_ref(visitor, arenas, self.pre_open_trivia);
             visit_ref(visitor, arenas, self.paths);
@@ -696,7 +700,7 @@ mod impls {
     }
 
     impl Walk for LemmaItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.pre_colon_trivia);
             visit_ref(visitor, arenas, self.pre_open_trivia);
@@ -705,14 +709,14 @@ mod impls {
     }
 
     impl Walk for LemmaBlock {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.items);
         }
     }
 
     impl Walk for EquivalenceOracleItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 EquivalenceOracleItem::InvariantSpec(node) => visit_ref(visitor, arenas, node),
                 EquivalenceOracleItem::LemmaBlock(node) => visit_ref(visitor, arenas, node),
@@ -721,7 +725,7 @@ mod impls {
     }
 
     impl Walk for EquivalenceOracleBlock {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.pre_colon_trivia);
             visit_ref(visitor, arenas, self.pre_brace_trivia);
@@ -730,7 +734,7 @@ mod impls {
     }
 
     impl Walk for Equivalence {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.kw_trivia);
             visit_ref(visitor, arenas, self.left_name);
             visit_ref(visitor, arenas, self.left_trivia);
@@ -741,7 +745,7 @@ mod impls {
     }
 
     impl Walk for Bound {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.lhs);
             visit_ref(visitor, arenas, self.pre_tilde_trivia);
             visit_ref(visitor, arenas, self.post_tilde_trivia);
@@ -750,7 +754,7 @@ mod impls {
     }
 
     impl Walk for AssumptionsItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.pre_colon_trivia);
             visit_ref(visitor, arenas, self.pre_brace_trivia);
@@ -759,14 +763,14 @@ mod impls {
     }
 
     impl Walk for AssumptionsBlock {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.items);
         }
     }
 
     impl Walk for Conjecture {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.left_trivia);
             visit_ref(visitor, arenas, self.left_name);
             visit_ref(visitor, arenas, self.right_trivia);
@@ -775,14 +779,14 @@ mod impls {
     }
 
     impl Walk for ReductionAssumptionLine {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.name);
         }
     }
 
     impl Walk for ReductionMapItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.left_name);
             visit_ref(visitor, arenas, self.colon_trivia);
             visit_ref(visitor, arenas, self.right_trivia);
@@ -791,7 +795,7 @@ mod impls {
     }
 
     impl Walk for ReductionMap {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.assumption_trivia);
             visit_ref(visitor, arenas, self.assumption_name);
             visit_ref(visitor, arenas, self.construction_trivia);
@@ -802,7 +806,7 @@ mod impls {
     }
 
     impl Walk for ReductionItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 ReductionItem::AssumptionLine(node) => visit_ref(visitor, arenas, node),
                 ReductionItem::Map(node) => visit_ref(visitor, arenas, node),
@@ -811,7 +815,7 @@ mod impls {
     }
 
     impl Walk for Reduction {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.left_trivia);
             visit_ref(visitor, arenas, self.left_name);
             visit_ref(visitor, arenas, self.right_trivia);
@@ -822,7 +826,7 @@ mod impls {
     }
 
     impl Walk for GameHopItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 GameHopItem::Reduction(node) => visit_ref(visitor, arenas, node),
                 GameHopItem::Equivalence(node) => visit_ref(visitor, arenas, node),
@@ -832,14 +836,14 @@ mod impls {
     }
 
     impl Walk for GameHops {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.trivia);
             visit_ref(visitor, arenas, self.items);
         }
     }
 
     impl Walk for TheoremItem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             match *self {
                 TheoremItem::ConstParams(node) => visit_ref(visitor, arenas, node),
                 TheoremItem::GameInstance(node) => visit_ref(visitor, arenas, node),
@@ -850,7 +854,7 @@ mod impls {
     }
 
     impl Walk for Theorem {
-        fn walk<V: Visitor + ?Sized>(&self, visitor: &mut V, arenas: &Arenas) {
+        fn walk<'a, V: Visitor<'a> + ?Sized>(&self, visitor: &mut V, arenas: &'a Arenas) {
             visit_ref(visitor, arenas, self.name_trivia);
             visit_ref(visitor, arenas, self.name);
             visit_ref(visitor, arenas, self.brace_trivia);
