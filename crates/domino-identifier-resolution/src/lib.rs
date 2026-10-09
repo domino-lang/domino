@@ -7,8 +7,6 @@ mod resolve_package;
 mod resolve_theorem;
 mod resolves;
 
-pub mod traits;
-
 pub mod resolutions;
 
 use std::collections::HashMap;
@@ -32,7 +30,6 @@ pub use resolutions::{
 };
 pub use resolve_package::{PackageInfo, PackageVisitor};
 pub use scope::{Declaration, DeclarationType};
-pub use traits::{TypeArgResolution, TypeResolution, ValueResolution};
 
 use crate::{resolve_package::PartialPackagedIdentifierResolution, util::get_text};
 
