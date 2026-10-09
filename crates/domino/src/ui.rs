@@ -2,6 +2,8 @@
 
 use std::sync::{Arc, Mutex};
 
+use itertools::Itertools;
+
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
@@ -16,6 +18,9 @@ use sspverif::{
         GameHop,
     },
     package::Export,
+    parser::ast::Identifier,
+    proof::Proof,
+    theorem::Theorem,
 };
 
 #[derive(Clone)]
@@ -77,6 +82,7 @@ impl UI for IndicatifUI {
         IndicatifProveUI {
             main_ui: self.clone(),
             progress,
+            reports: Arc::default(),
         }
     }
 
@@ -91,6 +97,7 @@ impl UI for IndicatifUI {
 pub struct IndicatifProveUI {
     main_ui: IndicatifUI,
     progress: ProgressBar,
+    reports: Arc<Mutex<Vec<String>>>,
 }
 
 impl IndicatifProveUI {
@@ -100,6 +107,10 @@ impl IndicatifProveUI {
 
     fn tick(&self) {
         self.progress.tick();
+    }
+
+    fn add_report(&self, report: String) {
+        self.reports.lock().unwrap().push(report)
     }
 }
 
@@ -112,7 +123,12 @@ impl ProveUI for IndicatifProveUI {
 
     fn start(&self) {}
     fn finish(&self) {
-        self.progress.finish()
+        self.progress.finish();
+
+        println!("\n\n# Success. The following Propositions verify:\n");
+        for report in self.reports.lock().unwrap().iter() {
+            println!("{}", report)
+        }
     }
 
     fn start_theorem(&self, theorem_name: &str) -> Self::ProveTheoremUI {
@@ -160,7 +176,18 @@ impl ProveTheoremUI for IndicatifProveTheoremUI {
         self.tick();
     }
 
-    fn finish(&self) {
+    fn finish(&self, theorem: &Theorem) {
+        self.prove_ui.progress.inc(1);
+        self.tick();
+        if let Some(progress) = &self.progress {
+            progress.finish()
+        }
+        for proof in &theorem.proofs {
+            self.prove_ui
+                .add_report(PropositionBox::new(&theorem.name, proof).into());
+        }
+    }
+    fn skip(&self) {
         self.prove_ui.progress.inc(1);
         self.tick();
         if let Some(progress) = &self.progress {
@@ -495,5 +522,156 @@ mod indicatif_style {
         )
         .unwrap()
         .progress_chars("#>-")
+    }
+}
+
+struct PropositionBox<'a> {
+    theorem: &'a str,
+    proof: &'a Proof<'a>,
+}
+
+impl<'a> PropositionBox<'a> {
+    fn new(theorem: &'a str, proof: &'a Proof) -> Self {
+        Self { theorem, proof }
+    }
+
+    fn reductions(&self) -> String {
+        self.proof
+            .reductions()
+            .enumerate()
+            .map(|(rednum, _red)| format!("R{}", rednum + 1))
+            .join(", ")
+    }
+    fn reduction_advantages(&self) -> impl Iterator<Item = String> + use<'a> {
+        self.proof.reductions().enumerate().map(|(rednum, red)| {
+            format!(
+                "Adv(A->R{}, {}, {})",
+                rednum + 1,
+                red.right().assumption_game_instance_name().as_str(),
+                red.left().assumption_game_instance_name().as_str(),
+            )
+        })
+    }
+
+    fn intro(&self) -> Vec<String> {
+        wrap_lines(
+            &format!(
+                "For all adversaries A, there are reductions {} such that",
+                self.reductions()
+            ),
+            93,
+        )
+    }
+
+    fn advantages(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut red_adv = self.reduction_advantages();
+        let leftstring = format!(
+            "Adv(A, {}, {}) ",
+            self.proof.left_name(),
+            self.proof.right_name()
+        );
+        let padstring = console::pad_str(
+            "",
+            console::measure_text_width(&leftstring),
+            console::Alignment::Left,
+            None,
+        );
+
+        if let Some(adv) = red_adv.next() {
+            lines.push(format!("{leftstring}≤   {}", adv));
+        } else {
+            lines.push(format!("{leftstring}= 0",));
+        }
+
+        lines.extend(red_adv.map(|adv| format!("{padstring}  + {adv}")));
+
+        lines
+    }
+
+    fn conclusion(&self) -> Vec<String> {
+        let conjectures = self
+            .proof
+            .conjectures()
+            .map(|conj| {
+                format!(
+                    "{} ~ {}",
+                    conj.left_name().as_str(),
+                    conj.right_name().as_str()
+                )
+            })
+            .join(", ");
+
+        if conjectures.is_empty() {
+            Vec::new()
+        } else {
+            wrap_lines(&format!("using conjectures {conjectures}"), 93)
+        }
+    }
+}
+
+fn wrap_lines(input: &str, len: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut worditer = input.split(' ');
+
+    let mut next = if let Some(first) = worditer.next() {
+        first.to_string()
+    } else {
+        return Vec::new();
+    };
+
+    for word in worditer {
+        let candidate = format!("{next} {word}");
+        if console::measure_text_width(&candidate) < len {
+            next = candidate;
+        } else {
+            lines.push(next);
+            next = word.to_string();
+        }
+    }
+    lines.push(next);
+
+    lines
+}
+
+impl From<PropositionBox<'_>> for String {
+    fn from(val: PropositionBox) -> Self {
+        console::style(
+            std::iter::once(format!(
+                "╔{}╗",
+                console::pad_str_with(
+                    &format!(" {}: {} ", val.theorem, val.proof.name),
+                    95,
+                    console::Alignment::Left,
+                    None,
+                    '═'
+                )
+            ))
+            .chain(val.intro().into_iter().map(|line| {
+                format!(
+                    "║ {} ║",
+                    console::pad_str(&line, 93, console::Alignment::Left, None)
+                )
+            }))
+            .chain(val.advantages().into_iter().map(|line| {
+                format!(
+                    "║ {} ║",
+                    console::pad_str(&line, 93, console::Alignment::Left, None)
+                )
+            }))
+            .chain(val.conclusion().into_iter().map(|line| {
+                format!(
+                    "║ {} ║",
+                    console::pad_str(&line, 93, console::Alignment::Left, None)
+                )
+            }))
+            .chain(std::iter::once(format!(
+                "╚{}╝",
+                console::pad_str_with("", 95, console::Alignment::Left, None, '═')
+            )))
+            .join("\n"),
+        )
+        .green()
+        .to_string()
     }
 }

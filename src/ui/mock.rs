@@ -6,6 +6,7 @@ use crate::{
         GameHop,
     },
     package::Export,
+    theorem::Theorem,
     ui::{
         GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
         ProveTheoremUI, ProveUI, UI,
@@ -66,7 +67,8 @@ impl ProveTheoremUI for TestUI {
     }
 
     fn start(&mut self) {}
-    fn finish(&self) {}
+    fn finish(&self, _theorem: &Theorem) {}
+    fn skip(&self) {}
 
     fn start_gamehop(&self, _gamehop_name: &GameHop) -> Self::ProveGamehopUI {
         self.clone()
