@@ -234,13 +234,6 @@ pub struct PackageVisitor<'a> {
     tables: PartialPackagedIdentifierResolution<'a>,
 
     scope: Scope<PackageDeclaration>,
-
-    /// This is a bit of a hack. When in a visitor function of a constant/state declaration block,
-    /// we can't distinguish between the two. so we set a flag when entering state an immediate
-    /// clear it. we then tag all state declaration with a flag, so we know they are mutable.
-    ///
-    /// actually maybe the other way around makes more sense? we'll see.
-    inside_state: bool,
 }
 
 impl<'a> PackageVisitor<'a> {
@@ -251,12 +244,10 @@ impl<'a> PackageVisitor<'a> {
         info: &'a mut Option<PackageInfo>,
     ) -> Self {
         let scope = Scope::new();
-        let inside_state = false;
 
         Self {
             locations,
             scope,
-            inside_state,
 
             info,
             tables,
@@ -322,9 +313,6 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         node: Ref<package::PackageConstParamBlock>,
     ) {
         let const_block = arenas.pkg_const_param_block.get(node);
-
-        // This should really only be set inside state blocks. If it is set here, something is wrong!
-        debug_assert!(!self.inside_state);
 
         self.pkg_const_decl_list(arenas, const_block.decls);
     }
