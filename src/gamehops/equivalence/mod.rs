@@ -22,7 +22,6 @@ pub(crate) use verify_fn::EquivalenceSmtDriver;
 pub enum ClaimType {
     Lemma,
     Relation,
-    Invariant,
     LeftPackageInvariant,
     RightPackageInvariant,
     LeftGameInvariant,
@@ -31,10 +30,8 @@ pub enum ClaimType {
 
 impl ClaimType {
     pub fn guess_from_name(name: &str) -> ClaimType {
-        if name.starts_with("relation") {
+        if name.starts_with("relation") || name == "invariant" {
             ClaimType::Relation
-        } else if name.starts_with("invariant") {
-            ClaimType::Invariant
         } else {
             ClaimType::Lemma
         }
@@ -46,11 +43,7 @@ impl ClaimType {
     ) -> Option<ClaimType> {
         seq.find_map(|stmt| match &stmt.kind {
             SmtStatementKind::StateRelation { name } if req_name == name => {
-                if name == "invariant" {
-                    Some(ClaimType::Invariant)
-                } else {
-                    Some(ClaimType::Relation)
-                }
+                Some(ClaimType::Relation)
             }
             SmtStatementKind::GeneralRelation { name, .. } if req_name == name => {
                 Some(ClaimType::Lemma)
