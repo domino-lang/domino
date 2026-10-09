@@ -1,4 +1,6 @@
-use domino_ast::ast_nodes::{game, identifier, oracles, package, statements, theorem};
+use domino_ast::ast_nodes::{
+    common, expressions, game, identifier, oracles, package, statements, theorem, types,
+};
 use domino_collections::arena::Ref;
 
 use crate::{diag, BuiltinType, BuiltinValue};
@@ -60,12 +62,23 @@ pub enum OracleValueResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum PackageTypeResolution {
-    TypeParam(Ref<identifier::PackageTypeIdentifier>),
+#[derive(Debug)]
+pub enum TypeResolution<TK: types::TypeKind> {
+    TypeParam(Ref<identifier::Identifier<TK::TypeIdentifierKind>>),
     Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
 }
+
+impl<TK: types::TypeKind> Copy for TypeResolution<TK> {}
+impl<TK: types::TypeKind> Clone for TypeResolution<TK> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+pub type PackageTypeResolution = TypeResolution<types::PackageTypeKind>;
+pub type GameTypeResolution = TypeResolution<types::GameTypeKind>;
+pub type TheoremTypeResolution = TypeResolution<types::TheoremTypeKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PackageTypeArgResolution {
@@ -82,13 +95,6 @@ pub enum GameResolution {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum GameTypeResolution {
-    TypeParam(Ref<identifier::GameTypeIdentifier>),
-    Builtin(BuiltinType),
-    Error(Ref<diag::Diagnostic>),
-}
-
-#[derive(Debug, Clone, Copy)]
 pub enum GameTypeArgResolution {
     TypeParam(Ref<identifier::GameTypeIdentifier>),
     Consts(Ref<game::GameConstDecl>),
@@ -96,19 +102,23 @@ pub enum GameTypeArgResolution {
     Error(Ref<diag::Diagnostic>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum GameConstValueResolution {
-    ConstParam(Ref<game::GameConstDecl>),
+#[derive(Debug)]
+pub enum ConstValueResolution<EK: expressions::ExpressionKind> {
+    ConstParam(Ref<common::ValueDecl<EK>>),
     Builtin(BuiltinValue),
     Error(Ref<diag::Diagnostic>),
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum PackageConstValueResolution {
-    ConstParam(Ref<package::PackageConstDecl>),
-    Builtin(BuiltinValue),
-    Error(Ref<diag::Diagnostic>),
+impl<EK: expressions::ExpressionKind> Copy for ConstValueResolution<EK> {}
+impl<EK: expressions::ExpressionKind> Clone for ConstValueResolution<EK> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
+
+pub type PackageConstValueResolution = ConstValueResolution<package::PurePackageExpressionKind>;
+pub type GameConstValueResolution = ConstValueResolution<game::PureGameExpressionKind>;
+pub type TheoremConstValueResolution = ConstValueResolution<theorem::PureTheoremExpressionKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum PackageInstanceResolution {
@@ -130,22 +140,9 @@ pub enum TheoremResolution {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum TheoremTypeResolution {
-    Builtin(BuiltinType),
-    Error(Ref<diag::Diagnostic>),
-}
-
-#[derive(Debug, Clone, Copy)]
 pub enum TheoremTypeArgResolution {
     Consts(Ref<theorem::TheoremConstDecl>),
     Builtin(BuiltinType),
-    Error(Ref<diag::Diagnostic>),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum TheoremConstValueResolution {
-    ConstParam(Ref<theorem::TheoremConstDecl>),
-    Builtin(BuiltinValue),
     Error(Ref<diag::Diagnostic>),
 }
 
