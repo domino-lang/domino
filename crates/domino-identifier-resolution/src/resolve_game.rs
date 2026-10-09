@@ -158,7 +158,7 @@ impl<'arena, 'res> GameVisitor<'arena, 'res> {
     }
 }
 
-impl<'a: 'res, 'res> domino_ast::Visitor for GameVisitor<'a, 'res> {
+impl<'a: 'res, 'res> domino_ast::Visitor<'_> for GameVisitor<'a, 'res> {
     fn game(&mut self, arenas: &domino_ast::Arenas, node: Ref<game::Game>) {
         let game = arenas.game.get(node);
 

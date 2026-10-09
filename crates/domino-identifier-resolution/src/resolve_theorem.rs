@@ -157,7 +157,7 @@ impl<'arena, 'res> TheoremVisitor<'arena, 'res> {
     }
 }
 
-impl<'a, 'res: 'a> domino_ast::Visitor for TheoremVisitor<'a, 'res> {
+impl<'a, 'res: 'a> domino_ast::Visitor<'_> for TheoremVisitor<'a, 'res> {
     fn thm(&mut self, arenas: &Arenas, node: Ref<theorem::Theorem>) {
         let thm = arenas.thm.get(node);
 

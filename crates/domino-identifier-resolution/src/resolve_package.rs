@@ -256,8 +256,8 @@ impl<'a> PackageVisitor<'a> {
     }
 }
 
-impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
-    fn package(&mut self, arenas: &Arenas, node: Ref<package::Package>) {
+impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
+    fn package(&mut self, arenas: &'a Arenas, node: Ref<package::Package>) {
         let package = arenas.package.get(node);
 
         self.declare_package(arenas, node, *package);
@@ -267,8 +267,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.scope.leave();
     }
 
-    // here we process these ordered by type, so you can use a constant before it was declared
-    fn pkg_item_list(&mut self, arenas: &Arenas, node: Ref<package::PackageItemList>) {
+    fn pkg_item_list(&mut self, arenas: &'a Arenas, node: Ref<package::PackageItemList>) {
         let mut type_params = vec![];
         let mut const_params = vec![];
         let mut state = vec![];
@@ -294,7 +293,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             .for_each(|node| self.pkg_item(arenas, node));
     }
 
-    fn pkg_type_decl_list(&mut self, arenas: &Arenas, node: Ref<package::PackageTypeDeclList>) {
+    fn pkg_type_decl_list(&mut self, arenas: &'a Arenas, node: Ref<package::PackageTypeDeclList>) {
         // We do this in here, because if we just keep walking, we can't distinguish the type
         // identifiers here in the declaration block with type identifiers used throughout.
         // TODO: Look into doing this through more fine-grained IdentifierKinds.
@@ -309,7 +308,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn pkg_const_param_block(
         &mut self,
-        arenas: &Arenas,
+        arenas: &'a Arenas,
         node: Ref<package::PackageConstParamBlock>,
     ) {
         let const_block = arenas.pkg_const_param_block.get(node);
@@ -317,7 +316,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.pkg_const_decl_list(arenas, const_block.decls);
     }
 
-    fn state_block(&mut self, arenas: &Arenas, node: Ref<package::StateBlock>) {
+    fn state_block(&mut self, arenas: &'a Arenas, node: Ref<package::StateBlock>) {
         let state_block = arenas.state_block.get(node);
 
         self.pkg_state_decl_list(arenas, state_block.decls);
@@ -325,7 +324,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn pkg_type_ident(
         &mut self,
-        arenas: &domino_ast::Arenas,
+        arenas: &'a domino_ast::Arenas,
         node: Ref<identifier::PackageTypeIdentifier>,
     ) {
         self.resolve_type_ident(arenas, node)
@@ -333,7 +332,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn pkg_type_arg_ident(
         &mut self,
-        arenas: &domino_ast::Arenas,
+        arenas: &'a domino_ast::Arenas,
         node: Ref<identifier::PackageTypeArgumentIdentifier>,
     ) {
         self.resolve_type_arg_ident(arenas, node);
@@ -341,7 +340,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn package_type_list(
         &mut self,
-        arenas: &Arenas,
+        arenas: &'a Arenas,
         node: Ref<types::TypeList<types::PackageTypeKind>>,
     ) {
         let tys = arenas.package_type_list.get(node);
@@ -350,13 +349,13 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
             .for_each(|node| self.package_type(arenas, node));
     }
 
-    fn pkg_const_decl(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {
+    fn pkg_const_decl(&mut self, arenas: &'a Arenas, node: Ref<package::PackageConstDecl>) {
         let decl = arenas.pkg_const_decl.get(node);
         self.package_type(arenas, decl.ty);
         self.declare_const_param(arenas, node);
     }
 
-    fn pkg_state_decl(&mut self, arenas: &Arenas, node: Ref<package::PackageStateDecl>) {
+    fn pkg_state_decl(&mut self, arenas: &'a Arenas, node: Ref<package::PackageStateDecl>) {
         let decl = arenas.pkg_state_decl.get(node);
         self.package_type(arenas, decl.ty);
         self.declare_state_item(arenas, node);
@@ -364,7 +363,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn pkg_const_value_ident(
         &mut self,
-        arenas: &domino_ast::Arenas,
+        arenas: &'a domino_ast::Arenas,
         node: Ref<identifier::PackageConstValueIdentifier>,
     ) {
         self.resolve_pkg_const_value_ident(arenas, node);
@@ -372,7 +371,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn oracle_import_sig(
         &mut self,
-        arenas: &domino_ast::Arenas,
+        arenas: &'a domino_ast::Arenas,
         node: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
     ) {
         self.scope.enter();
@@ -382,7 +381,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.scope.leave();
     }
 
-    fn oracle_def(&mut self, arenas: &Arenas, node: Ref<oracles::OracleDefinition>) {
+    fn oracle_def(&mut self, arenas: &'a Arenas, node: Ref<oracles::OracleDefinition>) {
         let oracle_def = arenas.oracle_def.get(node);
         self.declare_oracle_def(arenas, node);
 
@@ -395,7 +394,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn oracle_value_arg_decl(
         &mut self,
-        arenas: &domino_ast::Arenas,
+        arenas: &'a domino_ast::Arenas,
         node: Ref<oracles::OracleValueArgDecl>,
     ) {
         let arg = arenas.oracle_value_arg_decl.get(node);
@@ -406,7 +405,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.package_type(arenas, arg.ty);
     }
 
-    fn stmt_assign(&mut self, arenas: &Arenas, node: Ref<statements::AssignStatement>) {
+    fn stmt_assign(&mut self, arenas: &'a Arenas, node: Ref<statements::AssignStatement>) {
         let stmt = arenas.stmt_assign.get(node);
 
         // DON'T recurse into the pat child node here, as that would try resolving
@@ -416,7 +415,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
         self.pat_set_assign(arenas, stmt.pat, node);
     }
 
-    fn stmt_ite(&mut self, arenas: &Arenas, node: Ref<statements::IfThenElseStatement>) {
+    fn stmt_ite(&mut self, arenas: &'a Arenas, node: Ref<statements::IfThenElseStatement>) {
         let stmt = arenas.stmt_ite.get(node);
         self.oracle_expr(arenas, stmt.cond);
 
@@ -433,7 +432,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn oracle_value_ident(
         &mut self,
-        arenas: &domino_ast::Arenas,
+        arenas: &'a domino_ast::Arenas,
         node: Ref<identifier::OracleValueIdentifier>,
     ) {
         self.resolve_oracle_value_ident(arenas, node);
@@ -441,7 +440,7 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     fn oracle_expr_invoc(
         &mut self,
-        arenas: &Arenas,
+        arenas: &'a Arenas,
         node: Ref<oracles::OracleInvocationExpression>,
     ) {
         let expr = arenas.oracle_expr_invoc.get(node);
@@ -455,7 +454,12 @@ impl<'a> domino_ast::Visitor for PackageVisitor<'a> {
 
     // ignore trivia
     #[inline]
-    fn trivia(&mut self, _arenas: &domino_ast::Arenas, _node: Ref<domino_ast::ast_nodes::Trivia>) {}
+    fn trivia(
+        &mut self,
+        _arenas: &'a domino_ast::Arenas,
+        _node: Ref<domino_ast::ast_nodes::Trivia>,
+    ) {
+    }
 }
 
 impl<'a> PackageVisitor<'a> {
@@ -486,7 +490,7 @@ impl<'a> PackageVisitor<'a> {
 
     fn declare_type_param(
         &mut self,
-        arenas: &Arenas,
+        arenas: &'a Arenas,
         node: Ref<identifier::PackageTypeIdentifier>,
     ) {
         let name = get_text(node, self.locations, &arenas.source);
@@ -849,7 +853,7 @@ impl<'a> PackageVisitor<'a> {
     /// additional argument. This allows us propagate the assign node throughout the recursion.
     fn pat_set_assign(
         &mut self,
-        arenas: &Arenas,
+        arenas: &'a Arenas,
         pat: Ref<statements::Pattern>,
         assign: Ref<statements::AssignStatement>,
     ) {
