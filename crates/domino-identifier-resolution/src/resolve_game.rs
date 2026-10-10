@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use domino_ast::{
-    ast_nodes::{game, identifier},
+    ast_nodes::{game, identifier, params},
     Arenas, GlobalRefId, LocationTable, NodeTypeRef as _,
 };
 use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
@@ -169,17 +169,42 @@ impl<'a: 'res, 'res> domino_ast::Visitor<'_> for GameVisitor<'a, 'res> {
     }
 
     fn game_item_list(&mut self, arenas: &Arenas, node: Ref<game::GameItemList>) {
-        let game_item_list = arenas.game_item_list.get(node);
+        let mut type_params = vec![];
+        let mut const_param_decls = vec![];
+        let mut const_param_items = vec![];
+        let mut instances = vec![];
+        let mut composes = vec![];
 
-        let mut nodes: Vec<_> = game_item_list.items.refs().collect();
-        nodes.sort_by_key(|node| match arenas.game_item.get(*node) {
-            game::GameItem::TypeParams(_) => 0,
-            game::GameItem::ConstParams(_) => 1,
-            game::GameItem::Instance(_) => 2,
-            game::GameItem::Compose(_) => 3,
-        });
-        nodes
+        for item in arenas.game_item_list.get(node).items.refs() {
+            match arenas.game_item.get(item) {
+                game::GameItem::TypeParams(_) => type_params.push(item),
+                game::GameItem::ConstParams(block) => {
+                    let params::ConstParamBlock { decls, .. } = *arenas.get(block);
+                    const_param_decls.push(decls);
+                    const_param_items.push(item);
+                }
+                game::GameItem::Instance(_) => instances.push(item),
+                game::GameItem::Compose(_) => composes.push(item),
+            }
+        }
+
+        for node in type_params {
+            self.game_item(arenas, node)
+        }
+
+        for decl_list in const_param_decls {
+            for decl in arenas.get(decl_list).items.refs() {
+                self.declare_const_param(arenas, decl);
+            }
+        }
+
+        for item in const_param_items {
+            self.game_item(arenas, item)
+        }
+
+        instances
             .into_iter()
+            .chain(composes)
             .for_each(|node| self.game_item(arenas, node));
     }
 
@@ -202,8 +227,6 @@ impl<'a: 'res, 'res> domino_ast::Visitor<'_> for GameVisitor<'a, 'res> {
 
         // DON'T recurse into the ident child node here, as that would try resolving
         // instead of declaring.
-
-        self.declare_const_param(arenas, node);
     }
 
     fn game_type_ident(

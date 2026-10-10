@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use domino_ast::{
-    ast_nodes::{identifier, theorem},
+    ast_nodes::{identifier, params, theorem},
     Arenas, GlobalRefId, LocationTable, NodeTypeRef as _,
 };
 use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
@@ -168,17 +168,39 @@ impl<'a, 'res: 'a> domino_ast::Visitor<'_> for TheoremVisitor<'a, 'res> {
     }
 
     fn thm_item_list(&mut self, arenas: &Arenas, node: Ref<theorem::TheoremItemList>) {
-        let thm_item_list = arenas.thm_item_list.get(node);
+        let mut const_param_items = vec![];
+        let mut const_param_decls = vec![];
+        let mut instances = vec![];
+        let mut assumptions = vec![];
+        let mut hops = vec![];
 
-        let mut nodes: Vec<_> = thm_item_list.items.refs().collect();
-        nodes.sort_by_key(|node| match arenas.thm_item.get(*node) {
-            theorem::TheoremItem::ConstParams(_) => 0,
-            theorem::TheoremItem::GameInstance(_) => 1,
-            theorem::TheoremItem::Assumptions(_) => 2,
-            theorem::TheoremItem::GameHops(_) => 3,
-        });
-        nodes
+        for item in arenas.thm_item_list.get(node).items.refs() {
+            match arenas.thm_item.get(item) {
+                theorem::TheoremItem::ConstParams(block) => {
+                    let params::ConstParamBlock { decls, .. } = *arenas.get(block);
+                    const_param_decls.push(decls);
+                    const_param_items.push(item);
+                }
+                theorem::TheoremItem::GameInstance(_) => instances.push(item),
+                theorem::TheoremItem::Assumptions(_) => assumptions.push(item),
+                theorem::TheoremItem::GameHops(_) => hops.push(item),
+            }
+        }
+
+        for decl_list in const_param_decls {
+            for decl in arenas.get(decl_list).items.refs() {
+                self.declare_const_param(arenas, decl);
+            }
+        }
+
+        for item in const_param_items {
+            self.thm_item(arenas, item)
+        }
+
+        instances
             .into_iter()
+            .chain(assumptions)
+            .chain(hops)
             .for_each(|node| self.thm_item(arenas, node));
     }
 
@@ -188,8 +210,6 @@ impl<'a, 'res: 'a> domino_ast::Visitor<'_> for TheoremVisitor<'a, 'res> {
 
         // DON'T recurse into the ident child node here, as that would try resolving
         // instead of declaring.
-
-        self.declare_const_param(arenas, node);
     }
 
     fn thm_type_ident(&mut self, arenas: &Arenas, node: Ref<identifier::TheoremTypeIdentifier>) {

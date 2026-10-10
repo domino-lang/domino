@@ -26,7 +26,7 @@ use domino_resolutions::DiagFrom;
 pub use resolutions::{
     GameConstValueResolution, GameTypeResolution, OracleValueResolution,
     PackageConstValueResolution, PackageTypeResolution, TheoremConstValueResolution,
-    TheoremTypeArgResolution, TheoremTypeResolution,
+    TheoremTypeArgResolution, TheoremTypeResolution, TypeResolution,
 };
 pub use resolve_package::{PackageInfo, PackageVisitor};
 pub use scope::{Declaration, DeclarationType};

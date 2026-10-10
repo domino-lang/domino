@@ -80,6 +80,10 @@ pub enum Diagnostic {
     #[error(transparent)]
     #[diagnostic(transparent)]
     AlreadyDefined(#[from] AlreadyDefined),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    DuplicateBindingInPattern(#[from] DuplicateBindingInPattern),
 }
 
 impl Diagnostic {
@@ -103,6 +107,7 @@ impl Diagnostic {
             Diagnostic::AdversaryAsCallee(node) => node.global_ref,
             Diagnostic::CantRedefineBuiltin(node) => node.global_ref,
             Diagnostic::AlreadyDefined(node) => node.global_ref,
+            Diagnostic::DuplicateBindingInPattern(node) => node.global_ref,
         }
     }
 }
@@ -621,6 +626,36 @@ impl DiagFrom<idres::AlreadyDefinedDiag> for AlreadyDefined {
     }
 }
 
+#[derive(Debug, Clone, miette::Diagnostic, thiserror::Error)]
+#[error("this pattern binds the same name twice")]
+#[diagnostic(
+    code(domino::resolve::idents::duplicate_binding_in_pattern),
+    help("rename one of the two bindings")
+)]
+pub struct DuplicateBindingInPattern {
+    #[label("this name is already bound by the same pattern")]
+    pub at: SourceSpan,
+
+    #[label("first bound here")]
+    pub earlier: SourceSpan,
+
+    pub global_ref: GlobalRefId,
+
+    #[source_code]
+    pub source_code: NamedSource,
+}
+
+impl DiagFrom<idres::DuplicateBindingInPatternDiag> for DuplicateBindingInPattern {
+    fn diag_from<'a>(value: idres::DuplicateBindingInPatternDiag, resolver: Resolver<'a>) -> Self {
+        Self {
+            at: resolver.global_span(value.ident),
+            earlier: resolver.global_span(value.earlier),
+            global_ref: value.ident,
+            source_code: resolver.global_named_source(value.ident),
+        }
+    }
+}
+
 macro_rules! impl_intodiag_diagnostic {
     ($idres:ty, $here:ty) => {
         impl DiagFrom<$idres> for Diagnostic {
@@ -691,6 +726,11 @@ impl_intodiag_diagnostic!(idres::CantRedefineBuiltinDiag, CantRedefineBuiltin);
 
 impl_intodiag_diagnostic!(idres::AlreadyDefinedDiag, AlreadyDefined);
 
+impl_intodiag_diagnostic!(
+    idres::DuplicateBindingInPatternDiag,
+    DuplicateBindingInPattern
+);
+
 impl DiagFrom<idres::Diagnostic> for Diagnostic {
     fn diag_from<'a>(value: idres::Diagnostic, resolver: Resolver<'a>) -> Self {
         match value {
@@ -747,6 +787,9 @@ impl DiagFrom<idres::Diagnostic> for Diagnostic {
             }
             idres::Diagnostic::AlreadyDefined(diag) => {
                 AlreadyDefined::diag_from(diag, resolver).into()
+            }
+            idres::Diagnostic::DuplicateBindingInPattern(diag) => {
+                DuplicateBindingInPattern::diag_from(diag, resolver).into()
             }
         }
     }

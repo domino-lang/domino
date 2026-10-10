@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use domino_ast::{
-    ast_nodes::{identifier, oracles, package, statements, types, Visitor},
+    ast_nodes::{identifier, oracles, package, params, statements, types, Visitor},
     walk::Walk,
     Arenas, LocationTable, NodeTypeRef as _,
 };
@@ -256,8 +256,8 @@ impl<'a> PackageVisitor<'a> {
     }
 }
 
-impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
-    fn package(&mut self, arenas: &'a Arenas, node: Ref<package::Package>) {
+impl<'a> domino_ast::Visitor<'_> for PackageVisitor<'a> {
+    fn package(&mut self, arenas: &Arenas, node: Ref<package::Package>) {
         let package = arenas.package.get(node);
 
         self.declare_package(arenas, node, *package);
@@ -267,9 +267,18 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
         self.scope.leave();
     }
 
-    fn pkg_item_list(&mut self, arenas: &'a Arenas, node: Ref<package::PackageItemList>) {
+    fn pkg_item_list(&mut self, arenas: &Arenas, node: Ref<package::PackageItemList>) {
+        // this is a little tricky, because const param types can reference others params.
+        // our process:
+        //  - first declare all type params. these do not depend on anything but anything can depend
+        //    on them.
+        //  - then we declare all the constant parameters
+        //  - then we resolve the types in them
+        //  - finally, do the rest.
+
         let mut type_params = vec![];
-        let mut const_params = vec![];
+        let mut const_param_items = vec![];
+        let mut const_param_decls = vec![];
         let mut state = vec![];
         let mut imports = vec![];
         let mut oracles = vec![];
@@ -277,23 +286,39 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
         for item in arenas.pkg_item_list.get(node).items.refs() {
             match arenas.pkg_item.get(item) {
                 package::PackageItem::TypeParams(_) => type_params.push(item),
-                package::PackageItem::ConstParams(_) => const_params.push(item),
+                package::PackageItem::ConstParams(block) => {
+                    let params::ConstParamBlock { decls, .. } = *arenas.get(block);
+                    const_param_items.push(item);
+                    const_param_decls.push(decls);
+                }
                 package::PackageItem::State(_) => state.push(item),
                 package::PackageItem::ImportOracles(_) => imports.push(item),
                 package::PackageItem::OracleDefinition(_) => oracles.push(item),
             }
         }
 
-        type_params
+        for node in type_params {
+            self.pkg_item(arenas, node)
+        }
+
+        for decl_list in const_param_decls {
+            for decl in arenas.get(decl_list).items.refs() {
+                self.declare_const_param(arenas, decl);
+            }
+        }
+
+        for item in const_param_items {
+            self.pkg_item(arenas, item)
+        }
+
+        state
             .into_iter()
-            .chain(const_params)
-            .chain(state)
             .chain(imports)
             .chain(oracles)
             .for_each(|node| self.pkg_item(arenas, node));
     }
 
-    fn pkg_type_decl_list(&mut self, arenas: &'a Arenas, node: Ref<package::PackageTypeDeclList>) {
+    fn pkg_type_decl_list(&mut self, arenas: &Arenas, node: Ref<package::PackageTypeDeclList>) {
         // We do this in here, because if we just keep walking, we can't distinguish the type
         // identifiers here in the declaration block with type identifiers used throughout.
         // TODO: Look into doing this through more fine-grained IdentifierKinds.
@@ -308,7 +333,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn pkg_const_param_block(
         &mut self,
-        arenas: &'a Arenas,
+        arenas: &Arenas,
         node: Ref<package::PackageConstParamBlock>,
     ) {
         let const_block = arenas.pkg_const_param_block.get(node);
@@ -316,7 +341,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
         self.pkg_const_decl_list(arenas, const_block.decls);
     }
 
-    fn state_block(&mut self, arenas: &'a Arenas, node: Ref<package::StateBlock>) {
+    fn state_block(&mut self, arenas: &Arenas, node: Ref<package::StateBlock>) {
         let state_block = arenas.state_block.get(node);
 
         self.pkg_state_decl_list(arenas, state_block.decls);
@@ -324,7 +349,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn pkg_type_ident(
         &mut self,
-        arenas: &'a domino_ast::Arenas,
+        arenas: &domino_ast::Arenas,
         node: Ref<identifier::PackageTypeIdentifier>,
     ) {
         self.resolve_type_ident(arenas, node)
@@ -332,7 +357,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn pkg_type_arg_ident(
         &mut self,
-        arenas: &'a domino_ast::Arenas,
+        arenas: &domino_ast::Arenas,
         node: Ref<identifier::PackageTypeArgumentIdentifier>,
     ) {
         self.resolve_type_arg_ident(arenas, node);
@@ -340,7 +365,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn package_type_list(
         &mut self,
-        arenas: &'a Arenas,
+        arenas: &Arenas,
         node: Ref<types::TypeList<types::PackageTypeKind>>,
     ) {
         let tys = arenas.package_type_list.get(node);
@@ -349,13 +374,15 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
             .for_each(|node| self.package_type(arenas, node));
     }
 
-    fn pkg_const_decl(&mut self, arenas: &'a Arenas, node: Ref<package::PackageConstDecl>) {
+    fn pkg_const_decl(&mut self, arenas: &Arenas, node: Ref<package::PackageConstDecl>) {
         let decl = arenas.pkg_const_decl.get(node);
         self.package_type(arenas, decl.ty);
-        self.declare_const_param(arenas, node);
+
+        // DON'T recurse into the ident child node here, as that would try resolving
+        // instead of declaring.
     }
 
-    fn pkg_state_decl(&mut self, arenas: &'a Arenas, node: Ref<package::PackageStateDecl>) {
+    fn pkg_state_decl(&mut self, arenas: &Arenas, node: Ref<package::PackageStateDecl>) {
         let decl = arenas.pkg_state_decl.get(node);
         self.package_type(arenas, decl.ty);
         self.declare_state_item(arenas, node);
@@ -363,7 +390,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn pkg_const_value_ident(
         &mut self,
-        arenas: &'a domino_ast::Arenas,
+        arenas: &domino_ast::Arenas,
         node: Ref<identifier::PackageConstValueIdentifier>,
     ) {
         self.resolve_pkg_const_value_ident(arenas, node);
@@ -371,7 +398,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn oracle_import_sig(
         &mut self,
-        arenas: &'a domino_ast::Arenas,
+        arenas: &domino_ast::Arenas,
         node: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
     ) {
         self.scope.enter();
@@ -381,7 +408,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
         self.scope.leave();
     }
 
-    fn oracle_def(&mut self, arenas: &'a Arenas, node: Ref<oracles::OracleDefinition>) {
+    fn oracle_def(&mut self, arenas: &Arenas, node: Ref<oracles::OracleDefinition>) {
         let oracle_def = arenas.oracle_def.get(node);
         self.declare_oracle_def(arenas, node);
 
@@ -394,7 +421,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn oracle_value_arg_decl(
         &mut self,
-        arenas: &'a domino_ast::Arenas,
+        arenas: &domino_ast::Arenas,
         node: Ref<oracles::OracleValueArgDecl>,
     ) {
         let arg = arenas.oracle_value_arg_decl.get(node);
@@ -405,17 +432,18 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
         self.package_type(arenas, arg.ty);
     }
 
-    fn stmt_assign(&mut self, arenas: &'a Arenas, node: Ref<statements::AssignStatement>) {
+    fn stmt_assign(&mut self, arenas: &Arenas, node: Ref<statements::AssignStatement>) {
         let stmt = arenas.stmt_assign.get(node);
 
         // DON'T recurse into the pat child node here, as that would try resolving
         // instead of declaring.
         self.oracle_expr(arenas, stmt.expr);
 
-        self.pat_set_assign(arenas, stmt.pat, node);
+        let mut bound = Default::default();
+        self.pat_set_assign(arenas, stmt.pat, node, &mut bound);
     }
 
-    fn stmt_ite(&mut self, arenas: &'a Arenas, node: Ref<statements::IfThenElseStatement>) {
+    fn stmt_ite(&mut self, arenas: &Arenas, node: Ref<statements::IfThenElseStatement>) {
         let stmt = arenas.stmt_ite.get(node);
         self.oracle_expr(arenas, stmt.cond);
 
@@ -432,7 +460,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn oracle_value_ident(
         &mut self,
-        arenas: &'a domino_ast::Arenas,
+        arenas: &domino_ast::Arenas,
         node: Ref<identifier::OracleValueIdentifier>,
     ) {
         self.resolve_oracle_value_ident(arenas, node);
@@ -440,7 +468,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     fn oracle_expr_invoc(
         &mut self,
-        arenas: &'a Arenas,
+        arenas: &Arenas,
         node: Ref<oracles::OracleInvocationExpression>,
     ) {
         let expr = arenas.oracle_expr_invoc.get(node);
@@ -454,12 +482,7 @@ impl<'a> domino_ast::Visitor<'a> for PackageVisitor<'a> {
 
     // ignore trivia
     #[inline]
-    fn trivia(
-        &mut self,
-        _arenas: &'a domino_ast::Arenas,
-        _node: Ref<domino_ast::ast_nodes::Trivia>,
-    ) {
-    }
+    fn trivia(&mut self, _arenas: &domino_ast::Arenas, _node: Ref<domino_ast::ast_nodes::Trivia>) {}
 }
 
 impl<'a> PackageVisitor<'a> {
@@ -490,7 +513,7 @@ impl<'a> PackageVisitor<'a> {
 
     fn declare_type_param(
         &mut self,
-        arenas: &'a Arenas,
+        arenas: &Arenas,
         node: Ref<identifier::PackageTypeIdentifier>,
     ) {
         let name = get_text(node, self.locations, &arenas.source);
@@ -851,14 +874,32 @@ impl<'a> PackageVisitor<'a> {
 
     /// This is basically a custom override of the pat visitor, but one that has the assign as an
     /// additional argument. This allows us propagate the assign node throughout the recursion.
-    fn pat_set_assign(
+    ///
+    /// `bound` collects the names this pattern binds, so we can reject a pattern that binds the
+    /// same name twice.
+    /// NB: Only identifier patterns add bindings. A table pattern's name is a use of a
+    ///     table that must already be in scope.
+    fn pat_set_assign<'b>(
         &mut self,
-        arenas: &'a Arenas,
+        arenas: &'b Arenas,
         pat: Ref<statements::Pattern>,
         assign: Ref<statements::AssignStatement>,
+        bound: &mut HashMap<&'b str, Ref<identifier::OracleValueIdentifier>>,
     ) {
         match *arenas.pat.get(pat) {
             statements::Pattern::Identifier(ident) => {
+                let name = get_text(ident, self.locations, &arenas.source);
+
+                if let Some(&earlier) = bound.get(name) {
+                    crate::fail_resolution!(
+                        self,
+                        ident,
+                        diag::DuplicateBindingInPatternDiag::new(ident, earlier),
+                        oracle_value_names
+                    );
+                }
+
+                bound.insert(name, ident);
                 self.resolve_or_declare_value_ident(arenas, ident, assign)
             }
             statements::Pattern::Table(tab_ref) => {
@@ -870,7 +911,7 @@ impl<'a> PackageVisitor<'a> {
                 let tup = arenas.pat_tuple.get(tup_ref);
                 let items = arenas.pat_list.get(tup.items);
                 items.items.refs().for_each(|pat| {
-                    self.pat_set_assign(arenas, pat, assign);
+                    self.pat_set_assign(arenas, pat, assign, bound);
                 });
             }
         }

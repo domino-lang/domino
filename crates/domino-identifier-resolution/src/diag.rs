@@ -30,6 +30,7 @@ pub enum Diagnostic {
     AdversaryAsCallee(AdversaryAsCalleeDiag),
     CantRedefineBuiltin(CantRedefineBuiltinDiag),
     AlreadyDefined(AlreadyDefinedDiag),
+    DuplicateBindingInPattern(DuplicateBindingInPatternDiag),
 }
 
 impl Diagnostic {
@@ -53,6 +54,7 @@ impl Diagnostic {
             Diagnostic::AdversaryAsCallee(node) => node.ident.global_ref_id(),
             Diagnostic::CantRedefineBuiltin(node) => node.ident,
             Diagnostic::AlreadyDefined(node) => node.ident,
+            Diagnostic::DuplicateBindingInPattern(node) => node.ident,
         }
     }
 }
@@ -535,5 +537,33 @@ impl AlreadyDefinedDiag {
 impl From<AlreadyDefinedDiag> for Diagnostic {
     fn from(value: AlreadyDefinedDiag) -> Self {
         Self::AlreadyDefined(value)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct DuplicateBindingInPatternDiag {
+    pub ident: GlobalRefId,
+    pub earlier: GlobalRefId,
+}
+
+impl DuplicateBindingInPatternDiag {
+    pub fn new<IK>(
+        at: Ref<identifier::Identifier<IK>>,
+        earlier: Ref<identifier::Identifier<IK>>,
+    ) -> Self
+    where
+        IK: IdentifierKind,
+        identifier::Identifier<IK>: NodeType + InArena,
+    {
+        Self {
+            ident: at.global_ref_id(),
+            earlier: earlier.global_ref_id(),
+        }
+    }
+}
+
+impl From<DuplicateBindingInPatternDiag> for Diagnostic {
+    fn from(value: DuplicateBindingInPatternDiag) -> Self {
+        Self::DuplicateBindingInPattern(value)
     }
 }
