@@ -80,25 +80,28 @@ pub type PackageTypeResolution = TypeResolution<types::PackageTypeKind>;
 pub type GameTypeResolution = TypeResolution<types::GameTypeKind>;
 pub type TheoremTypeResolution = TypeResolution<types::TheoremTypeKind>;
 
-#[derive(Debug, Clone, Copy)]
-pub enum PackageTypeArgResolution {
-    TypeParam(Ref<identifier::PackageTypeIdentifier>),
-    Consts(Ref<package::PackageConstDecl>),
+#[derive(Debug)]
+pub enum TypeArgResolution<TK: types::TypeKind> {
+    TypeParam(Ref<identifier::Identifier<TK::TypeIdentifierKind>>),
+    Consts(Ref<common::ValueDecl<TK::ExpressionKind>>),
     Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
 }
+
+impl<TK: types::TypeKind> Copy for TypeArgResolution<TK> {}
+impl<TK: types::TypeKind> Clone for TypeArgResolution<TK> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+pub type PackageTypeArgResolution = TypeArgResolution<types::PackageTypeKind>;
+pub type GameTypeArgResolution = TypeArgResolution<types::GameTypeKind>;
+pub type TheoremTypeArgResolution = TypeArgResolution<types::TheoremTypeKind>;
 
 #[derive(Debug, Clone, Copy)]
 pub enum GameResolution {
     Game(Ref<game::Game>),
-    Error(Ref<diag::Diagnostic>),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum GameTypeArgResolution {
-    TypeParam(Ref<identifier::GameTypeIdentifier>),
-    Consts(Ref<game::GameConstDecl>),
-    Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
 }
 
@@ -136,13 +139,6 @@ pub enum PackageResolution {
 #[derive(Debug, Clone, Copy)]
 pub enum TheoremResolution {
     Theorem(Ref<theorem::Theorem>),
-    Error(Ref<diag::Diagnostic>),
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum TheoremTypeArgResolution {
-    Consts(Ref<theorem::TheoremConstDecl>),
-    Builtin(BuiltinType),
     Error(Ref<diag::Diagnostic>),
 }
 
