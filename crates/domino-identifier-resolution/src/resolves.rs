@@ -9,6 +9,9 @@ macro_rules! impl_resolves {
             fn resolve(&self, from: domino_collections::arena::Ref<$from>) -> &$to {
                 self.$name.get(from)
             }
+            fn resolve_mut(&mut self, from: domino_collections::arena::Ref<$from>) -> &mut $to {
+                self.$name.get_mut(from)
+            }
         }
     };
 }

@@ -66,4 +66,5 @@ impl<T, F: From<T>> DiagFrom<T> for F {
 
 pub trait Resolves<From, To> {
     fn resolve(&self, from: Ref<From>) -> &To;
+    fn resolve_mut(&mut self, from: Ref<From>) -> &mut To;
 }
