@@ -1,15 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::HashSet;
-
 mod emit;
 
 use crate::{
     gamehops::equivalence::{smtrewrite::SmtStmt, Equivalence, ResolvedClaim},
-    identifier::{
-        theorem_ident::{TheoremConstIdentifier, TheoremIdentifier},
-        Identifier,
-    },
     package::OracleSig,
     theorem::Theorem,
     transforms::{
@@ -18,7 +12,7 @@ use crate::{
         theorem_transforms::{EquivalenceTransform, GameInstAux},
         TheoremTransform,
     },
-    types::{CountSpec, Type, TypeKind},
+    types::Type,
     writers::smt::{
         contexts,
         exprs::SmtExpr,
@@ -201,34 +195,9 @@ impl<'a> EquivalenceContext<'a> {
     fn types(&self) -> Vec<Type> {
         let types_left = &self.aux(self.equivalence().left_name()).types;
         let types_right = &self.aux(self.equivalence().right_name()).types;
-        let types_theorem: HashSet<Type> = self
-            .theorem()
-            .consts
-            .iter()
-            .filter_map(|(name, ty)| match ty.kind() {
-                TypeKind::Integer => {
-                    let id = TheoremConstIdentifier {
-                        theorem_name: self.theorem().name.clone(),
-                        name: name.clone(),
-                        ty: Type::integer(),
-                        inst_info: None,
-                    };
 
-                    Some(Type::bits(CountSpec::Identifier(Box::new(
-                        Identifier::TheoremIdentifier(TheoremIdentifier::Const(id)),
-                    ))))
-                }
-                _ => None,
-            })
-            .collect();
+        let mut types: Vec<_> = types_left.union(types_right).cloned().collect();
 
-        let mut types: Vec<_> = types_left
-            .union(types_right)
-            .cloned()
-            .collect::<HashSet<_>>()
-            .union(&types_theorem)
-            .cloned()
-            .collect();
         types.sort();
         types
     }
