@@ -27,21 +27,30 @@ use crate::util::scope::Scope;
 pub struct SspParser;
 
 #[derive(Debug, Clone)]
-pub struct ParseContext<'a> {
-    pub file_name: &'a str,
-    pub file_content: &'a str,
-
-    pub scope: Scope,
-    pub types: Vec<String>,
+pub enum FileType {
+    Package,
+    Game,
+    Theorem,
 }
 
-impl<'a> ParseContext<'a> {
-    pub fn new(file_name: &'a str, file_content: &'a str) -> Self {
+#[derive(Debug, Clone)]
+pub struct ParseContext<'src> {
+    pub file_name: &'src str,
+    pub file_content: &'src str,
+
+    pub file_type: FileType,
+    pub scope: Scope,
+    pub types: Vec<(&'src str, pest::Span<'src>)>,
+}
+
+impl<'src> ParseContext<'src> {
+    pub fn new(file_name: &'src str, file_content: &'src str, file_type: FileType) -> Self {
         let mut scope = Scope::new();
         scope.enter();
         let types = vec![];
 
         Self {
+            file_type,
             file_name,
             file_content,
             scope,
@@ -55,15 +64,15 @@ impl<'a> ParseContext<'a> {
 }
 
 impl SspParser {
-    pub fn parse_package<'a>(contents: &'a str) -> Result<Pairs<'a, Rule>, Error<Rule>> {
+    pub fn parse_package<'src>(contents: &'src str) -> Result<Pairs<'src, Rule>, Error<Rule>> {
         SspParser::parse(Rule::package, contents)
     }
 
-    pub fn parse_composition<'a>(contents: &'a str) -> Result<Pairs<'a, Rule>, Error<Rule>> {
+    pub fn parse_composition<'src>(contents: &'src str) -> Result<Pairs<'src, Rule>, Error<Rule>> {
         SspParser::parse(Rule::composition, contents)
     }
 
-    pub fn parse_theorem<'a>(contents: &'a str) -> Result<Pairs<'a, Rule>, Error<Rule>> {
+    pub fn parse_theorem<'src>(contents: &'src str) -> Result<Pairs<'src, Rule>, Error<Rule>> {
         SspParser::parse(Rule::theorem, contents)
     }
 }

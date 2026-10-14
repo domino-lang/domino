@@ -33,14 +33,24 @@ where
         self.handle_atom(&format!("\"{content}\""))
     }
 
-    fn handle_define_game_invariant(&mut self, body: Self::Expr) -> Result<Self::Stmt, E> {
+    fn handle_define_game_invariant(
+        &mut self,
+        invname: &str,
+        body: Self::Expr,
+    ) -> Result<Self::Stmt, E> {
         let defun = self.handle_atom("define-game-invariant")?;
-        self.handle_list(vec![defun, body]).map(Into::into)
+        let invname = self.handle_atom(invname)?;
+        self.handle_list(vec![defun, invname, body]).map(Into::into)
     }
 
-    fn handle_define_package_invariant(&mut self, body: Self::Expr) -> Result<Self::Stmt, E> {
+    fn handle_define_package_invariant(
+        &mut self,
+        invname: &str,
+        body: Self::Expr,
+    ) -> Result<Self::Stmt, E> {
         let defun = self.handle_atom("define-package-invariant")?;
-        self.handle_list(vec![defun, body]).map(Into::into)
+        let invname = self.handle_atom(invname)?;
+        self.handle_list(vec![defun, invname, body]).map(Into::into)
     }
 
     fn handle_define_state_relation(
@@ -59,15 +69,17 @@ where
 
     fn handle_define_lemma(
         &mut self,
-        funname: &str,
+        lemma_name: &str,
+        oracle_name: &str,
         args: Vec<Self::Expr>,
         body: Self::Expr,
     ) -> Result<Self::Stmt, E> {
-        let funname = self.handle_atom(funname)?;
+        let lemma_name = self.handle_atom(lemma_name)?;
+        let oracle_name = self.handle_atom(oracle_name)?;
         let args = self.handle_list(args)?;
         let defun = self.handle_atom("define-lemma")?;
 
-        self.handle_list(vec![defun, funname, args, body])
+        self.handle_list(vec![defun, lemma_name, oracle_name, args, body])
             .map(Into::into)
     }
 
@@ -147,15 +159,17 @@ where
             }
             Rule::define_package_invariant => {
                 let mut p = p.into_inner();
+                let invname = p.next().unwrap().as_str();
                 let body = self.rule_expr(p.next().unwrap())?;
 
-                self.handle_define_package_invariant(body)
+                self.handle_define_package_invariant(invname, body)
             }
             Rule::define_game_invariant => {
                 let mut p = p.into_inner();
+                let invname = p.next().unwrap().as_str();
                 let body = self.rule_expr(p.next().unwrap())?;
 
-                self.handle_define_game_invariant(body)
+                self.handle_define_game_invariant(invname, body)
             }
             Rule::define_state_relation => {
                 let mut p = p.into_inner();
@@ -172,7 +186,8 @@ where
             }
             Rule::define_lemma => {
                 let mut p = p.into_inner();
-                let funname = p.next().unwrap().as_str();
+                let lemma_name = p.next().unwrap().as_str();
+                let oracle_name = p.next().unwrap().as_str();
                 let args = p.next().unwrap();
                 debug_assert_matches!(args.as_rule(), Rule::list);
                 let args = args
@@ -181,7 +196,7 @@ where
                     .collect::<Result<Vec<_>, _>>()?;
                 let body = self.rule_expr(p.next().unwrap())?;
 
-                self.handle_define_lemma(funname, args, body)
+                self.handle_define_lemma(lemma_name, oracle_name, args, body)
             }
             Rule::stmt => self.rule_stmt(p.into_inner().next().unwrap()),
             _ => self.rule_expr(p).map(Into::into),

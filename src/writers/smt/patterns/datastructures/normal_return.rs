@@ -7,7 +7,7 @@ use crate::identifier::pkg_ident::PackageConstIdentifier;
 use crate::types::Type;
 use crate::writers::smt::exprs::SmtExpr;
 use crate::writers::smt::names::{FunctionNameBuilder, SortNameBuilder};
-use crate::writers::smt::patterns::instance_names::{encode_params, only_ints};
+use crate::writers::smt::patterns::instance_names::{encode_params, encode_types, only_ints};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ReturnPattern<'a> {
@@ -15,6 +15,7 @@ pub struct ReturnPattern<'a> {
     pub game_params: &'a [(GameConstIdentifier, Expression)],
     pub pkg_name: &'a str,
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
+    pub pkg_types: &'a [(String, Type)],
     pub oracle_name: &'a str,
 }
 
@@ -38,6 +39,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
     fn sort_name(&self) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
+        let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
@@ -45,6 +47,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
             .maybe_extend(&game_encoded_params)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
+            .maybe_extend(&pkg_encoded_types)
             .push(self.oracle_name)
             .build()
     }
@@ -52,6 +55,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
     fn constructor_name(&self, _cons: &Self::Constructor) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
+        let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
         FunctionNameBuilder::new()
             .push("mk")
@@ -60,6 +64,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
             .maybe_extend(&game_encoded_params)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
+            .maybe_extend(&pkg_encoded_types)
             .push(self.oracle_name)
             .build()
     }
@@ -67,6 +72,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
     fn selector_name(&self, sel: &Self::Selector) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
+        let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
         let field_name = match sel {
             ReturnSelector::GameState => "game-state",
@@ -79,6 +85,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
             .maybe_extend(&game_encoded_params)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
+            .maybe_extend(&pkg_encoded_types)
             .push(self.oracle_name)
             .push(field_name)
             .build()
@@ -131,6 +138,7 @@ impl ReturnPattern<'_> {
     pub fn global_const_name(&self) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
+        let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
         FunctionNameBuilder::new()
             .push("!return")
@@ -138,6 +146,7 @@ impl ReturnPattern<'_> {
             .maybe_extend(&game_encoded_params)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
+            .maybe_extend(&pkg_encoded_types)
             .push(self.oracle_name)
             .build()
     }

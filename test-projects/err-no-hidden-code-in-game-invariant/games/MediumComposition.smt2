@@ -1,4 +1,4 @@
-(define-game-invariant
+(define-game-invariant main
    (and
     (< (- 1) game.rand.ctr)
     ;This is some illegal SMT-code which someone maliciously tries to hide in the invariant

@@ -4,9 +4,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 
 use crate::{
     expressions::{Expression, ExpressionKind},
-    gamehops::equivalence::Equivalence,
-    gamehops::reduction::Reduction,
-    gamehops::GameHop,
+    gamehops::{conjecture::Conjecture, equivalence::Equivalence, reduction::Reduction, GameHop},
     identifier::game_ident::GameConstIdentifier,
     theorem::GameInstance,
 };
@@ -52,7 +50,7 @@ impl Specialization {
 }
 
 impl<'a> Proof<'a> {
-    /// Tries to find a swquence of game hops that proves that the game instance with name
+    /// Tries to find a sequence of game hops that proves that the game instance with name
     /// `left_name` is indistinguishable from the game instance with name `right_name`
     pub fn try_new(
         instances: &[GameInstance],
@@ -172,6 +170,10 @@ impl<'a> Proof<'a> {
 
     pub fn equivalences(&self) -> impl Iterator<Item = &Equivalence> {
         self.game_hops().filter_map(GameHop::as_equivalence)
+    }
+
+    pub fn conjectures(&self) -> impl Iterator<Item = &Conjecture<'_>> {
+        self.game_hops().filter_map(GameHop::as_conjecture)
     }
 
     pub fn game_hops(&self) -> impl Iterator<Item = &GameHop<'_>> {

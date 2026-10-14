@@ -7,13 +7,19 @@ readme = { workspace = true }
 [dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
-miette = { version = "7.6.0", features = ["fancy"] }
+console = "0.16"
 env_logger = "0.11"
-shadow-rs = { version = "1.7", default-features = false }
-thiserror = "1.0.61"
+indicatif = "0.18"
+indicatif-log-bridge = "0.2"
+itertools = "0.15"
+miette = { version = "7.6.0", features = ["fancy"] }
+shadow-rs = { version = "2", default-features = false }
+thiserror = "2"
+wildcard = "0.3"
 
 [build-dependencies]
 sspverif = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
 clap_complete = "*"
-shadow-rs = "1.7"
+shadow-rs = "2"
+wildcard = "0.3"
