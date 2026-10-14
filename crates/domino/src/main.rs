@@ -10,11 +10,14 @@ use shadow_rs::shadow;
 use thiserror::Error;
 shadow!(build);
 
-use sspverif::project;
-use sspverif::project::Project;
+use sspverif::project::{self, Project};
+use sspverif::ui::{LatexUI, ProofstepUI, ProveUI, UI};
 
 mod cli;
+mod ui;
+
 use crate::cli::*;
+use crate::ui::*;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, long_version = build::CLAP_LONG_VERSION, about, long_about = None)]
@@ -53,7 +56,7 @@ enum Error {
     ReqOracleWithInvariantStart(#[from] ReqOracleWithInvariantStart),
 }
 
-fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
+fn proofsteps(ui: impl ProofstepUI, p: &Proofsteps) -> Result<(), Error> {
     let project_root = match &p.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -61,11 +64,11 @@ fn proofsteps(p: &Proofsteps) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
-    project.proofsteps()?;
+    project.proofsteps(ui)?;
     Ok(())
 }
 
-fn prove(p: &Prove) -> Result<(), Error> {
+fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
     let project_root = match &p.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -83,6 +86,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
 
     let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
     project.prove(
+        ui,
         &smtsolver,
         p.transcript,
         p.parallel,
@@ -96,7 +100,7 @@ fn prove(p: &Prove) -> Result<(), Error> {
     Ok(())
 }
 
-fn latex(l: &Latex) -> Result<(), Error> {
+fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
     let project_root = match &l.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -107,7 +111,7 @@ fn latex(l: &Latex) -> Result<(), Error> {
     let smtsolver = l
         .smtsolver
         .map(sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new);
-    project.latex(&smtsolver)?;
+    project.latex(ui, &smtsolver)?;
     Ok(())
 }
 
@@ -132,11 +136,12 @@ fn main() -> miette::Result<()> {
     .unwrap();
 
     let cli = Cli::parse();
+    let ui = IndicatifUI::new();
 
     let result = match &cli.command {
-        Commands::Prove(p) => prove(p),
-        Commands::Proofsteps(p) => proofsteps(p),
-        Commands::Latex(l) => latex(l),
+        Commands::Prove(p) => prove(ui.prove_ui(), p),
+        Commands::Proofsteps(p) => proofsteps(ui.proofstep_ui(), p),
+        Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Format(f) => format(f),
     };
 
