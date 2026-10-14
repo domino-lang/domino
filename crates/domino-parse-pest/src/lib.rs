@@ -24,7 +24,7 @@ pub mod ast_nodes {
 //   - This derive creates an enum `Rule`, which describes the grammar rules.
 //   - we need all the other derives in order for the pest trait gymnastics to work.
 #[derive(pest_derive::Parser, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[grammar = "../domino-ast/grammar/domino.pest"]
+#[grammar = "grammar/domino.pest"]
 pub struct Domino;
 
 type Pair<'i> = pest::iterators::Pair<'i, Rule>;
