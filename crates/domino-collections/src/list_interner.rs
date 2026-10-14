@@ -49,7 +49,8 @@ impl<T: Eq + core::hash::Hash + Clone, S: core::hash::BuildHasher> ListInterner<
 
         id
     }
-
+}
+impl<T, S> ListInterner<T, S> {
     pub fn get(&self, id: ListId<T>) -> &[T] {
         &self.items[id.range()]
     }

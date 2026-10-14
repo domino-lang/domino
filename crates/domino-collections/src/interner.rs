@@ -35,7 +35,9 @@ impl<T: Eq + core::hash::Hash + Clone, S: core::hash::BuildHasher> Interner<T, S
 
         id
     }
+}
 
+impl<T, S> Interner<T, S> {
     pub fn get(&self, id: Id<T>) -> &T {
         &self.items[id.offset()]
     }

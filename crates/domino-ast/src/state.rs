@@ -1,6 +1,9 @@
 use std::borrow::Borrow;
 
-use domino_collections::{arena::Ref, partial_dense_table::PartialDenseTable};
+use domino_collections::{
+    arena::{Ref, Slice},
+    partial_dense_table::PartialDenseTable,
+};
 
 use crate::{
     ast_nodes::{Arenas, DenseTables, GrowingTables},
@@ -55,6 +58,13 @@ impl Arenas {
     /// [`Arena`]: domino_collections::arena::Arena
     pub fn get<T: InArena, R: Borrow<Ref<T>>>(&self, r: R) -> &T {
         T::arena(self).get(*r.borrow())
+    }
+
+    /// Return a slice into the arena for the given [`Slice`] or a type that has an [`Arena`] in [`Arenas`].
+    ///
+    /// [`Arena`]: domino_collections::arena::Arena
+    pub fn get_slice<T: InArena, S: Borrow<Slice<T>>>(&self, s: S) -> &[T] {
+        T::arena(self).get_slice(*s.borrow())
     }
 
     /// Returns a new [`PartialDenseTable`] that has the correct number of entries, based on the
