@@ -1,0 +1,9 @@
+composition B {
+  instance a = A {}
+
+  compose {
+    adversary: {
+      Test: a
+    }
+  }
+}

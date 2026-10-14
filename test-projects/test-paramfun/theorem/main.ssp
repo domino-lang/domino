@@ -1,0 +1,22 @@
+theorem main {
+  const n: Integer;
+  const foo: fn Bits(12) -> Bits(12);
+  const bar: fn Bits(n) -> Bits(n);
+
+  instance a1 = A {params{n:12, f: foo}}
+  instance b = B {}
+  instance a2 = A {params{n:n, f: bar}}
+
+  gamehops {
+    equivalence a1 b {
+      invariant: ./theorem/invariant.smt2
+
+      Test: { randomness: none } 
+    }
+    equivalence b a2 {
+      invariant: ./theorem/invariant.smt2
+      
+      Test: { randomness: none } 
+    }
+  }
+}
