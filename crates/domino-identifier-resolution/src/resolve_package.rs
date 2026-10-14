@@ -401,10 +401,10 @@ impl<'a> domino_ast::Visitor<'_> for PackageVisitor<'a> {
         arenas: &domino_ast::Arenas,
         node: Ref<oracles::OracleSignature<identifier::OracleImportIdentifierKind>>,
     ) {
-        self.scope.enter();
         let sig = *arenas.oracle_import_sig.get(node);
-        sig.walk(self, arenas);
         self.declare_oracle_import(arenas, node, sig);
+        self.scope.enter();
+        sig.walk(self, arenas);
         self.scope.leave();
     }
 
