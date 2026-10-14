@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 
 use domino_ast::{
     ast_nodes::{identifier, oracles, package, params, statements, types, Visitor},
@@ -650,11 +650,22 @@ impl<'a> PackageVisitor<'a> {
         let oracle_sig = arenas.oracle_def_sig.get(oracle_def.oracle_sig);
         let ident_name = get_text(oracle_sig.name, self.locations, &arenas.source);
 
-        self.info
-            .as_mut()
-            .unwrap()
-            .oracle_definitions
-            .insert(ident_name.to_string(), oracle_def_ref);
+        let oracle_defs = &mut self.info.as_mut().unwrap().oracle_definitions;
+
+        match oracle_defs.entry(ident_name.to_string()) {
+            hash_map::Entry::Vacant(vacant) => {
+                vacant.insert(oracle_def_ref);
+            }
+            hash_map::Entry::Occupied(occupied) => {
+                let err: diag::Diagnostic = diag::AlreadyDefinedDiag {
+                    ident: oracle_sig.name.global_ref_id(),
+                    earlier: occupied.get().global_ref_id(),
+                }
+                .into();
+                crate::fail_resolution!(self, oracle_sig.name, err, oracle_def_names)
+            }
+        };
+
         self.tables.oracle_def_names.set(
             oracle_sig.name,
             resolutions::OracleDefinitionResolution::Definition(oracle_def_ref),
