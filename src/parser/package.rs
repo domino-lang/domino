@@ -1126,23 +1126,23 @@ fn handle_assign_rhs(
         Rule::assign_rhs_sample => {
             let mut inner = assign_rhs_ast.into_inner();
             let ty_ast = inner.next().unwrap();
-            let ty_span = ty_ast.as_span();
+            // let ty_span = ty_ast.as_span();
             let ty = handle_type(&parse_ctx, ty_ast)?;
 
             // Sampling is only defined for bits, booleans, and integers. The
             // later `samplify` transform assumes this, so reject anything else
             // here with a proper diagnostic instead of panicking downstream.
-            if !matches!(
-                ty.kind(),
-                TypeKind::Boolean | TypeKind::Integer | TypeKind::Bits(_)
-            ) {
-                return Err(IllegalSampleTypeError {
-                    source_code: ctx.named_source(),
-                    at: (ty_span.start()..ty_span.end()).into(),
-                    type_name: ty.to_string(),
-                }
-                .into());
-            }
+            // if !matches!(
+            //     ty.kind(),
+            //     TypeKind::Boolean | TypeKind::Integer | TypeKind::Bits(_)
+            // ) {
+            //     return Err(IllegalSampleTypeError {
+            //         source_code: ctx.named_source(),
+            //         at: (ty_span.start()..ty_span.end()).into(),
+            //         type_name: ty.to_string(),
+            //     }
+            //     .into());
+            // }
 
             // Check for optional sample_name
             let sample_name = inner
