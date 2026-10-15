@@ -12,11 +12,11 @@ use crate::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         Identifier,
     },
+    project::configuration::test::TestProveConfiguration,
     statement::Statement,
     theorem::Claim,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     types::{CountSpec, Type, TypeKind},
-    util::smtsolver::process::{ProcessSmtSolverBackend, SolverVariant},
     writers::smt::contexts::EquivalenceContext,
 };
 use std::{
@@ -201,7 +201,6 @@ fn equivalence_gamehome_generates_code() {
         })
         .unwrap();
 
-    let backend = ProcessSmtSolverBackend::new(SolverVariant::Cvc5);
     let transcript = SharedVecWriter::default();
     let project = crate::project::DirectoryProject::empty();
 
@@ -212,9 +211,8 @@ fn equivalence_gamehome_generates_code() {
         .load_invariants(&project)
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
 
-    let mut driver = equivalence::EquivalenceSmtDriver::new(
-        &eqctx, &project, &backend, false, None, None, 1, false, false,
-    );
+    let mut driver =
+        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &TestProveConfiguration);
     driver
         .verify(TestUI::new())
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
