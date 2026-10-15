@@ -21,6 +21,7 @@ use std::sync::mpsc::Sender;
 use crate::util::{smtmodel::SmtModel, smtparser::parse_model};
 
 pub struct Communicator {
+    child: std::process::Child,
     stdout: std::process::ChildStdout,
     chan: Option<std::sync::mpsc::Sender<String>>,
     thrd: Option<std::thread::JoinHandle<Result<()>>>,
@@ -37,12 +38,12 @@ impl Communicator {
         mut cmd: std::process::Command,
         mut transcript: Option<W>,
     ) -> Result<Self> {
-        let cmd = cmd.spawn()?;
+        let mut child = cmd.spawn()?;
 
         let (send, recv) = std::sync::mpsc::channel();
 
-        let mut stdin = cmd.stdin.unwrap();
-        let stdout = cmd.stdout.unwrap();
+        let mut stdin = child.stdin.take().unwrap();
+        let stdout = child.stdout.take().unwrap();
 
         let thrd = std::thread::spawn(move || {
             writeln!(stdin)?;
@@ -66,6 +67,7 @@ impl Communicator {
         let buf = vec![0u8; 1 << 10];
 
         Ok(Communicator {
+            child,
             stdout,
             chan: Some(send),
             thrd: Some(thrd),
@@ -171,6 +173,41 @@ impl Communicator {
         } else {
             // this is only None if we have already joined
             true
+        }
+    }
+}
+
+impl Drop for Communicator {
+    /// Make sure the child process is reaped. Otherwise every solver process would stay around as
+    /// a zombie until we exit, which counts against the per-user process limit.
+    fn drop(&mut self) {
+        // Closing the channel lets the writer thread finish, which closes the child's stdin.
+        self.close();
+
+        // Nobody is going to read the child's output anymore, so if it is still running, kill it.
+        // This also unblocks the writer thread in case it is stuck writing to a child that is
+        // itself stuck writing to its full stdout pipe, so joining below cannot deadlock.
+        match self.child.try_wait() {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                if let Err(e) = self.child.kill() {
+                    log::warn!("error killing solver process: {e}");
+                }
+            }
+            Err(e) => log::warn!("error checking solver process status: {e}"),
+        }
+
+        if let Some(thrd) = self.thrd.take() {
+            match thrd.join() {
+                Ok(Ok(())) => {}
+                // after the kill above, a broken pipe here is expected
+                Ok(Err(e)) => log::debug!("solver writer thread finished with error: {e}"),
+                Err(_) => log::warn!("solver writer thread panicked"),
+            }
+        }
+
+        if let Err(e) = self.child.wait() {
+            log::warn!("error waiting for solver process: {e}");
         }
     }
 }
