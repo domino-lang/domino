@@ -192,7 +192,7 @@ impl<'a, 'comp> BlockWriter<'a, 'comp> {
             ExpressionKind::FnCall(name, args) => {
                 format!(
                     "\\O{{{}}}({})",
-                    util::ident_to_tex(name),
+                    name.ident().replace("_", "\\_"),
                     args.iter()
                         .map(|expr| self.expression_to_tex(expr))
                         .collect::<Vec<_>>()
