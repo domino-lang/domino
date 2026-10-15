@@ -298,10 +298,10 @@ pub fn tex_write_theorem(
         writeln!(file, "\\end{{definition}}")?;
     }
     for thm in &theorem.proofs {
-        writeln!(file, "\\begin{{definition}}[{}]", thm.name())?;
-        writeln!(file, "\\label{{{}}}", thm.latex_label("advantage"))?;
         let thmname = &thm.name;
         let thmname_esc = thmname.replace('_', "\\_");
+        writeln!(file, "\\begin{{definition}}[{thmname_esc}]")?;
+        writeln!(file, "\\label{{{}}}", thm.latex_label("advantage"))?;
         let left = thm.left_name();
         let left_esc = left.replace('_', "\\_");
         let right = thm.right_name();
@@ -320,7 +320,8 @@ pub fn tex_write_theorem(
 
     for thm in &theorem.proofs {
         let thmname = thm.name();
-        writeln!(file, "\\section{{Theorem: {thmname}}}",)?;
+        let thmname_esc = thmname.replace('_', "\\_");
+        writeln!(file, "\\section{{Theorem: {thmname_esc}}}",)?;
 
         let (reductions, reductiondefs, reductionadvs): (Vec<_>, Vec<_>, Vec<_>) = thm
             .reductions()
@@ -361,7 +362,7 @@ pub fn tex_write_theorem(
 
         write!(
             file,
-            "\\begin{{theorem}}[{thmname}]\n\
+            "\\begin{{theorem}}[{thmname_esc}]\n\
              We prove that for all adversaries $\\adv$, \
              there are reductions {reductions} \
              such that \\begin{{align*}}{adv} \\leq &{reductionadvs}\\end{{align*}} where {reductiondefs}\n\
