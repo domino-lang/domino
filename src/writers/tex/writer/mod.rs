@@ -362,7 +362,7 @@ pub fn tex_write_theorem(
         write!(
             file,
             "\\begin{{theorem}}[{thmname}]\n\
-             We prove that for all adversaries $\\adv$, \
+             For all adversaries $\\adv$, \
              there are reductions {reductions} \
              such that \\begin{{align*}}{adv} \\leq &{reductionadvs}\\end{{align*}} where {reductiondefs}\n\
              \\end{{theorem}}\n",
