@@ -354,7 +354,7 @@ pub fn tex_write_theorem(
         let reductiondefs = reductiondefs.join(", ");
         let reductionadvs = reductionadvs.join(" \\\\+ &");
         let adv = format!(
-            "\\mathsf{{Adv}}(\\adv, {}, {}))",
+            "\\mathsf{{Adv}}(\\adv, {}, {})",
             thm.left_name().replace('_', "\\_"),
             thm.right_name().replace('_', "\\_")
         );
