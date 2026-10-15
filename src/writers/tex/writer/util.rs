@@ -24,7 +24,7 @@ pub(super) fn logic_to_matrix(join: &str, list: &[String]) -> String {
         let mut rest: Vec<_> = it.map(|s| format!("{join}{s}")).collect();
         lines.append(&mut rest);
         format!(
-            "\\begin{{array}}{{c}}{}\\end{{array}}",
+            "\\begin{{array}}{{@{{}}c@{{}}}}{}\\end{{array}}",
             lines.join("\\pclb")
         )
     }
@@ -56,7 +56,7 @@ pub(super) fn list_to_matrix<S: Borrow<str>>(mut it: impl Iterator<Item = S>) ->
         }
     }
     format!(
-        "\\begin{{array}}{{c}}{}\\end{{array}}",
+        "\\begin{{array}}{{@{{}}c@{{}}}}{}\\end{{array}}",
         lines.join("\\pclb")
     )
 }
