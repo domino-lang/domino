@@ -1,0 +1,8 @@
+composition ConstructionGame {
+    instance leaf = Leaf {}
+    instance router = Router {}
+    compose {
+        adversary: { Eval: router },
+        router: { A: Eval of router, B: Eval of router }
+    }
+}
