@@ -764,6 +764,46 @@ fn fail_reduction_construction_wiring_mismatch() {
 }
 
 #[test]
+fn reduction_mapping_preserves_oracle_wiring() {
+    let pkgs = packages::parse_files(&[
+        "reduction-mapped-wiring/Router.pkg.ssp",
+        "reduction-context-oracle/Choices.pkg.ssp",
+    ]);
+    for (right, valid) in [
+        ("reduction-mapped-wiring/Right.comp.ssp", false),
+        ("reduction-mapped-wiring/Right-control.comp.ssp", true),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-mapped-wiring/Assumption.comp.ssp",
+                "reduction-mapped-wiring/Left.comp.ssp",
+                right,
+            ],
+            &pkgs,
+        );
+        let file = "reduction-mapped-wiring.ssp";
+        if valid {
+            theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+        } else {
+            let error = theorems::parse_file_fails(file, &pkgs, &games);
+            let ParseTheoremError::AssumptionMappingWiringMismatch(error) = error else {
+                panic!("expected an internal oracle wiring mismatch, got {error:?}");
+            };
+            assert_eq!(error.reason, "import or destination oracle name differs");
+            assert_eq!(error.direction, "construction to assumption");
+            assert_eq!(error.from_pkg_inst_name, "router");
+            assert_eq!(error.to_pkg_inst_name, "x");
+            assert_eq!(error.import_name, "f");
+            assert_eq!(error.oracle_name, "O2");
+            assert_eq!(
+                slice_source_span(&error.source_code, &error.at),
+                "map a1 right { router: router x: x }"
+            );
+        }
+    }
+}
+
+#[test]
 fn reduction_checks_reverse_wires_before_the_next_package() {
     let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
     let games = games::parse_files(

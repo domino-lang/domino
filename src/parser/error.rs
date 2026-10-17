@@ -751,7 +751,7 @@ pub struct AssumptionMappingUnmappedDestinationError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
-#[error("Wiring differs between assumption game {assumption_game_name} and construction game {construction_game_name}: {from_pkg_inst_name} imports {import_name} from {to_pkg_inst_name} (oracle {oracle_name})")]
+#[error("Wiring differs between assumption game {assumption_game_name} and construction game {construction_game_name}: {from_pkg_inst_name} imports {import_name} from {to_pkg_inst_name} (oracle {oracle_name}): {reason}")]
 #[diagnostic(code(domino::code::theorem::reduction::mapping::wiring_mismatch))]
 #[help("Checking {direction}: expected a corresponding wire from {mapped_from_pkg_inst_name} to {mapped_to_pkg_inst_name}. Oracle signature: {oracle_signature}.")]
 pub struct AssumptionMappingWiringMismatchError {
@@ -762,6 +762,7 @@ pub struct AssumptionMappingWiringMismatchError {
     pub at: SourceSpan,
 
     pub direction: String,
+    pub reason: String,
     pub assumption_game_name: String,
     pub construction_game_name: String,
     pub from_pkg_inst_name: String,
