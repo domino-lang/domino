@@ -1,0 +1,5 @@
+package BitRouter {
+    params { n: Integer }
+    import oracles { Eval(x: Bits(n)) -> Bits(n), }
+    oracle Run() -> Bool { return false; }
+}

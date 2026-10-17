@@ -43,14 +43,18 @@ use super::{
     common::{self, HandleTypeError},
     error::{
         AssumptionAdversaryExportsNotSufficientError, AssumptionExportsNotSufficientError,
-        AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
-        AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameInstanceDefinitionError,
-        DuplicateGameParameterDefinitionError, InvalidGameInstanceInReductionError,
-        MissingGameParameterDefinitionError, NoSuchGameParameterError, ParserScopeError,
-        ReductionCyclicContextError, ReductionInconsistentAssumptionBoundaryError,
-        ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
-        UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
-        UndefinedRandomnessSortError,
+        AssumptionMappingMissesPackageInstanceError, AssumptionMappingOracleSignatureMismatchError,
+        AssumptionMappingParameterMismatchError,
+        AssumptionMappingRightGameInstanceIsFromAssumption,
+        AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
+        DuplicateGameInstanceDefinitionError, DuplicateGameParameterDefinitionError,
+        InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
+        NoSuchGameParameterError, ParserScopeError, ReductionCyclicContextError,
+        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
+        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
+        UndefinedAssumptionError, UndefinedGameError, UndefinedGameInstanceError,
+        UndefinedPackageInstanceError, UndefinedRandomnessSortError,
     },
     package::ParseExpressionError,
     ParseContext,
@@ -274,6 +278,34 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ReductionCyclicContext(#[from] ReductionCyclicContextError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionMissingExport(#[from] ReductionMissingExportError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionSameGameInstance(#[from] ReductionSameGameInstanceError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionInvalidHybridMapping(#[from] ReductionInvalidHybridMappingError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingUnmappedDestination(#[from] AssumptionMappingUnmappedDestinationError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingWiringMismatch(#[from] AssumptionMappingWiringMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionPackageParameterCountMismatch(#[from] ReductionPackageParameterCountMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingOracleSignatureMismatch(#[from] AssumptionMappingOracleSignatureMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]

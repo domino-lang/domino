@@ -1,0 +1,18 @@
+theorem Diagnostic {
+    instance a0 = Game {}
+    instance a1 = Game {}
+    assumptions { Basic: a0 ~ a1 }
+    gamehops {
+        hybrid h {
+            reduction {
+                assumption Basic
+                map a0 h { leaf: leaf }
+                map a1 h[true] { leaf: leaf }
+            }
+            equivalence {
+                invariant: [ invariant.smt2 ]
+                Eval: { lemmas {} }
+            }
+        }
+    }
+}

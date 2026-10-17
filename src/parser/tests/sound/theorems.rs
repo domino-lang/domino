@@ -511,6 +511,258 @@ fn fail_wrong_params_in_reduction_should_fail() {
 }
 
 #[test]
+fn fail_reduction_missing_context_export() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "LeftGame-extra-export.comp.ssp",
+            "RightGame-leaf.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-context.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionMissingExport(error) = error else {
+        panic!("expected a missing export diagnostic, got {error:?}");
+    };
+    assert_eq!(error.game_inst_name, "c1");
+    assert_eq!(error.oracle_name, "Extra");
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at),
+        "assumption Basic
+            map a0 c0 { leaf: leaf }
+            map a1 c1 { leaf: leaf }"
+    );
+}
+
+#[test]
+fn fail_reduction_same_game_instance() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(&["Game-leaf.comp.ssp"], &pkgs);
+    for (file, role, name, reduction) in [
+        (
+            "reduction-same-assumption-should-fail.ssp",
+            "assumption",
+            "a0",
+            "assumption Basic
+            map a0 c0 { leaf: leaf }
+            map a0 c1 { leaf: leaf }",
+        ),
+        (
+            "reduction-same-construction-should-fail.ssp",
+            "construction",
+            "c0",
+            "assumption Basic
+            map a0 c0 { leaf: leaf }
+            map a1 c0 { leaf: leaf }",
+        ),
+    ] {
+        let error = theorems::parse_file_fails(file, &pkgs, &games);
+        let ParseTheoremError::ReductionSameGameInstance(error) = error else {
+            panic!("expected a repeated game instance diagnostic, got {error:?}");
+        };
+        assert_eq!(error.role, role);
+        assert_eq!(error.name, name);
+        assert_eq!(slice_source_span(&error.source_code, &error.at), reduction);
+    }
+}
+
+#[test]
+fn fail_reduction_hybrid_mapping_without_bit() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(&["Game-leaf.comp.ssp"], &pkgs);
+    let error = theorems::parse_file_fails(
+        "reduction-hybrid-without-bit-should-fail.ssp",
+        &pkgs,
+        &games,
+    );
+    let ParseTheoremError::ReductionInvalidHybridMapping(error) = error else {
+        panic!("expected a hybrid mapping diagnostic, got {error:?}");
+    };
+    assert_eq!(slice_source_span(&error.source_code, &error.at), "h");
+}
+
+#[test]
+fn fail_reduction_mapped_wire_leaves_assumption() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-wires-x-x.comp.ssp",
+            "ConstructionGame-wires-outside-x.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-router-mapping.ssp", &pkgs, &games);
+    let ParseTheoremError::AssumptionMappingUnmappedDestination(error) = error else {
+        panic!("expected an unmapped wire destination diagnostic, got {error:?}");
+    };
+    assert_eq!(error.from_pkg_inst_name, "router");
+    assert_eq!(error.to_pkg_inst_name, "outside");
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.import_name, "A");
+    let message = error.to_string();
+    assert!(message.contains("imports A"), "{message}");
+    assert!(message.contains("oracle Eval"), "{message}");
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at),
+        "map a0 c0 { router: router x: x y: y }"
+    );
+}
+
+#[test]
+fn fail_reduction_construction_wiring_mismatch() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-wires-x-x.comp.ssp",
+            "ConstructionGame-wires-y-x.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-router-mapping.ssp", &pkgs, &games);
+    let ParseTheoremError::AssumptionMappingWiringMismatch(error) = error else {
+        panic!("expected a construction wiring diagnostic, got {error:?}");
+    };
+    assert_eq!(error.direction, "construction to assumption");
+    assert_eq!(error.assumption_game_name, "AssumptionGame");
+    assert_eq!(error.construction_game_name, "ConstructionGame");
+    assert_eq!(error.from_pkg_inst_name, "router");
+    assert_eq!(error.to_pkg_inst_name, "y");
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.import_name, "A");
+    let message = error.to_string();
+    assert!(message.contains("imports A"), "{message}");
+    assert!(message.contains("oracle Eval"), "{message}");
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at),
+        "map a0 c0 { router: router x: x y: y }"
+    );
+    assert_eq!(error.oracle_signature, "oracle () -> Boolean");
+}
+
+#[test]
+fn reduction_checks_reverse_wires_before_the_next_package() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-wiring-priority.comp.ssp",
+            "ConstructionGame-wiring-priority.comp.ssp",
+        ],
+        &pkgs,
+    );
+    // The first package's reverse mismatch must precede the second package's
+    // forward unmapped destination, even though both mappings are invalid.
+    let error =
+        theorems::parse_file_fails("reduction-wiring-priority-should-fail.ssp", &pkgs, &games);
+    let ParseTheoremError::AssumptionMappingWiringMismatch(error) = error else {
+        panic!("expected the first package's reverse mismatch, got {error:?}");
+    };
+    assert_eq!(error.direction, "assumption to construction");
+    assert_eq!(error.from_pkg_inst_name, "first");
+    assert_eq!(error.to_pkg_inst_name, "y");
+    assert_eq!(error.assumption_game_name, "AssumptionGame");
+    assert_eq!(error.construction_game_name, "ConstructionGame");
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.import_name, "B");
+    assert_eq!(error.oracle_signature, "oracle () -> Boolean");
+    let message = error.to_string();
+    assert!(message.contains("imports B"), "{message}");
+    assert!(message.contains("oracle Eval"), "{message}");
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at),
+        "map a0 c0 { first: first second: second x: x y: y }"
+    );
+}
+
+#[test]
+fn fail_reduction_package_parameter_count_mismatch() {
+    let pkgs = packages::parse_files(&["ParamLeaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-param-leaf.comp.ssp",
+            "ConstructionGame-repeated-params.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-leaf-mapping.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionPackageParameterCountMismatch(error) = error else {
+        panic!("expected a parameter count diagnostic, got {error:?}");
+    };
+    assert_eq!(error.left_count, 1);
+    assert_eq!(error.right_count, 2);
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at),
+        "map a0 c0 { leaf: leaf }"
+    );
+}
+
+#[test]
+fn fail_reduction_incoming_parameter_mismatch() {
+    let pkgs = packages::parse_files(&["ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-repeated-params.comp.ssp",
+            "ConstructionGame-incoming-params.comp.ssp",
+        ],
+        &pkgs,
+    );
+    // Mapping comparison visits both assumption values against the first
+    // construction value. The incoming-wire check compares in reverse order.
+    let error = theorems::parse_file_fails("reduction-leaf-mapping.ssp", &pkgs, &games);
+    let ParseTheoremError::AssumptionMappingParameterMismatch(error) = error else {
+        panic!("expected an incoming parameter mismatch diagnostic, got {error:?}");
+    };
+    assert_eq!(error.assumption_pkg_inst_name, "leaf");
+    assert_eq!(error.construction_pkg_inst_name, "leaf");
+    assert_eq!(error.param_names, "flag");
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at_assumption),
+        "leaf"
+    );
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at_construction),
+        "leaf"
+    );
+}
+
+#[test]
+fn reduction_incoming_signature_respects_build_mode() {
+    let pkgs = packages::parse_files(&["BitLeaf.pkg.ssp", "BitRouter.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-bit-leaf.comp.ssp",
+            "ConstructionGame-bit-router.comp.ssp",
+        ],
+        &pkgs,
+    );
+    #[cfg(debug_assertions)]
+    {
+        let error = theorems::parse_file_fails("reduction-incoming-signature.ssp", &pkgs, &games);
+        let ParseTheoremError::AssumptionMappingOracleSignatureMismatch(error) = error else {
+            panic!("expected an incoming signature mismatch diagnostic, got {error:?}");
+        };
+        assert_eq!(error.oracle_name, "Eval");
+        assert!(error.assumption_signature.starts_with("oracle (Bits("));
+        // As on main, the construction side is rewritten with game constants only,
+        // so the router's package parameter is still symbolic here.
+        assert_eq!(error.construction_signature, "oracle (Bits(n)) -> Bits(n)");
+        assert_eq!(error.assumption_game_name, "AssumptionGame");
+        assert_eq!(error.construction_game_name, "ConstructionGame");
+        assert_eq!(
+            slice_source_span(&error.source_code, &error.at),
+            "map a0 c0 { leaf: leaf }"
+        );
+    }
+    #[cfg(not(debug_assertions))]
+    theorems::parse(
+        &theorems::read_file("reduction-incoming-signature.ssp"),
+        "reduction-incoming-signature.ssp",
+        &pkgs,
+        &games,
+    );
+}
+
+#[test]
 fn reduction_context_reports_first_declared_import() {
     let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
     let mut games = games::parse_files(
@@ -590,4 +842,101 @@ fn fail_reduction_cyclic_context() {
             map a0 c0 { leaf: leaf }
             map a1 c1 { leaf: leaf }"
     );
+}
+
+#[test]
+fn reduction_requires_complete_assumption_coverage_in_both_maps() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(&["Game-spare-leaf.comp.ssp"], &pkgs);
+    for (file, short_map) in [
+        (
+            "reduction-missing-a0-coverage-should-fail.ssp",
+            "map a0 c0 { leaf: leaf }",
+        ),
+        (
+            "reduction-missing-a1-coverage-should-fail.ssp",
+            "map a1 c1 { leaf: leaf }",
+        ),
+    ] {
+        let error = theorems::parse_file_fails(file, &pkgs, &games);
+        let ParseTheoremError::AssumptionMappingMissesPackageInstance(error) = error else {
+            panic!("expected missing assumption coverage, got {error:?}");
+        };
+        assert_eq!(error.pkg_inst_name, "spare");
+        assert_eq!(slice_source_span(&error.source_code, &error.at), short_map);
+    }
+}
+
+#[test]
+fn reduction_duplicate_assignment_names_the_duplicated_side() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-renamed-packages.comp.ssp",
+            "ConstructionGame-renamed-packages.comp.ssp",
+        ],
+        &pkgs,
+    );
+    for (file, expected) in [
+        (
+            "reduction-duplicate-construction-package-should-fail.ssp",
+            "x",
+        ),
+        (
+            "reduction-duplicate-assumption-package-should-fail.ssp",
+            "a",
+        ),
+        ("reduction-duplicate-both-package-should-fail.ssp", "a"),
+    ] {
+        let error = theorems::parse_file_fails(file, &pkgs, &games);
+        let ParseTheoremError::AssumptionMappingDuplicatePackageInstance(error) = error else {
+            panic!("expected a duplicate mapping diagnostic, got {error:?}");
+        };
+        assert_eq!(error.pkg_inst_name, expected);
+        assert_eq!(
+            slice_source_span(&error.source_code, &error.at_this),
+            expected
+        );
+        assert_eq!(
+            slice_source_span(&error.source_code, &error.at_prev),
+            expected
+        );
+    }
+}
+
+#[test]
+fn reduction_undefined_assignment_names_the_missing_side() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-renamed-packages.comp.ssp",
+            "ConstructionGame-renamed-packages.comp.ssp",
+        ],
+        &pkgs,
+    );
+    for (file, expected, game) in [
+        (
+            "reduction-undefined-construction-package-should-fail.ssp",
+            "absent",
+            "ConstructionGame",
+        ),
+        (
+            "reduction-undefined-assumption-package-should-fail.ssp",
+            "missing",
+            "AssumptionGame",
+        ),
+        (
+            "reduction-undefined-both-package-should-fail.ssp",
+            "missing",
+            "AssumptionGame",
+        ),
+    ] {
+        let error = theorems::parse_file_fails(file, &pkgs, &games);
+        let ParseTheoremError::UndefinedPackageInstance(error) = error else {
+            panic!("expected an undefined package diagnostic, got {error:?}");
+        };
+        assert_eq!(error.pkg_inst_name, expected);
+        assert_eq!(error.in_game, game);
+        assert_eq!(slice_source_span(&error.source_code, &error.at), expected);
+    }
 }

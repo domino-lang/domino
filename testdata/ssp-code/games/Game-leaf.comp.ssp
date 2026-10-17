@@ -1,0 +1,4 @@
+composition Game {
+    instance leaf = Leaf {}
+    compose { adversary: { Eval: leaf } }
+}

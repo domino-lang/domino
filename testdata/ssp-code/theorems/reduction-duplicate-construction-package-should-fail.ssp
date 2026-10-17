@@ -1,0 +1,14 @@
+theorem Diagnostic {
+    instance a0 = AssumptionGame {}
+    instance a1 = AssumptionGame {}
+    instance c0 = ConstructionGame {}
+    instance c1 = ConstructionGame {}
+    assumptions { Basic: a0 ~ a1 }
+    gamehops {
+        reduction c0 c1 {
+            assumption Basic
+            map a0 c0 { a: x b: x }
+            map a1 c1 { a: x b: x }
+        }
+    }
+}
