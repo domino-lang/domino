@@ -47,7 +47,7 @@ use super::{
         AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameInstanceDefinitionError,
         DuplicateGameParameterDefinitionError, InvalidGameInstanceInReductionError,
         MissingGameParameterDefinitionError, NoSuchGameParameterError, ParserScopeError,
-        ReductionInconsistentAssumptionBoundaryError,
+        ReductionCyclicContextError, ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
         UndefinedRandomnessSortError,
@@ -270,6 +270,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     InvalidGameInstanceInReduction(#[from] InvalidGameInstanceInReductionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionCyclicContext(#[from] ReductionCyclicContextError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]

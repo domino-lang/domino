@@ -1,0 +1,4 @@
+package Router {
+    import oracles { A() -> Bool, B() -> Bool, }
+    oracle Eval() -> Bool { return false; }
+}

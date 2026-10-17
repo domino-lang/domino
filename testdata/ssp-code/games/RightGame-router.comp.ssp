@@ -1,0 +1,8 @@
+composition RightGame {
+    instance leaf = Leaf {}
+    instance router = Router {}
+    compose {
+        adversary: { Eval: router },
+        router: { A: Eval of leaf, B: Eval of leaf }
+    }
+}

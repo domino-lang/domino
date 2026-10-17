@@ -40,6 +40,21 @@ fn empty_param_section_is_fine() {
 }
 
 #[test]
+fn reduction_context_uses_first_edge_assignment() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "LeftGame-first-edge.comp.ssp",
+            "RightGame-router.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let source = theorems::read_file("reduction-context.ssp");
+    theorems::parse(&source, "reduction-context.ssp", &pkgs, &games);
+}
+
+#[test]
 fn empty_state_section_is_fine() {
     let file_name = "test_file_name.ssp";
     let file_content = r#"package testpkg {

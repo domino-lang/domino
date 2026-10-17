@@ -18,7 +18,7 @@ use crate::{
         theorem_ident::TheoremIdentifier,
         Identifier,
     },
-    package::PackageInstance,
+    package::{Composition, PackageInstance},
     packageinstance::instantiate::InstantiationContext,
     parser::error::{
         AssumptionMappingLeftGameInstanceIsNotFromAssumption,
@@ -34,7 +34,8 @@ use super::{
         AssumptionMappingContainsDifferentPackagesError,
         AssumptionMappingDuplicatePackageInstanceError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
-        ReductionContainsDifferentPackagesError, ReductionInconsistentAssumptionBoundaryError,
+        ReductionContainsDifferentPackagesError, ReductionCyclicContextError,
+        ReductionInconsistentAssumptionBoundaryError,
         ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
         UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -64,6 +65,50 @@ pub(crate) fn handle_reduction<'a>(
     Ok(GameHop::Reduction(reduction))
 }
 
+// Keep the first edge, as the previous linear lookup did, even when separate
+// compose blocks assign the same import more than once.
+fn index_edges(game: &Composition) -> HashMap<(usize, &str), usize> {
+    let mut edges = HashMap::new();
+    for edge in &game.edges {
+        edges.entry((edge.from(), edge.name())).or_insert(edge.to());
+    }
+    edges
+}
+
+struct ReductionTraversal<'a> {
+    left_edges: HashMap<(usize, &'a str), usize>,
+    right_edges: HashMap<(usize, &'a str), usize>,
+    visited: HashMap<(usize, usize), ComparisonState>,
+    #[cfg(test)]
+    visit_count: usize,
+    #[cfg(test)]
+    visit_budget: usize,
+}
+
+impl<'a> ReductionTraversal<'a> {
+    fn new(left: &'a Composition, right: &'a Composition) -> Self {
+        Self {
+            left_edges: index_edges(left),
+            right_edges: index_edges(right),
+            visited: HashMap::new(),
+            #[cfg(test)]
+            visit_count: 0,
+            #[cfg(test)]
+            visit_budget: left.pkgs.len().saturating_mul(right.pkgs.len()),
+        }
+    }
+}
+
+enum ComparisonState {
+    Active,
+    Complete,
+}
+
+enum ComparisonFrame {
+    Enter((usize, usize)),
+    Leave((usize, usize)),
+}
+
 fn compare_reduction(
     ctx: &ParseTheoremContext,
     reduction_span: pest::Span,
@@ -73,135 +118,172 @@ fn compare_reduction(
     right_game_inst: &GameInstance,
     mapping_left: &ReductionMapping,
     mapping_right: &ReductionMapping,
+    traversal: &mut ReductionTraversal,
 ) -> Result<(), ParseTheoremError> {
     let game_left = left_game_inst.game();
     let game_right = right_game_inst.game();
-
-    let left_pkg_inst = &game_left.pkgs[inst_offs_left];
-    let right_pkg_inst = &game_right.pkgs[inst_offs_right];
-
-    let left_mapping_entry = mapping_left
-        .entries
-        .iter()
-        .find(|mapping_entry| mapping_entry.construction().as_str() == left_pkg_inst.name());
-
-    let right_mapping_entry = mapping_right
-        .entries
-        .iter()
-        .find(|mapping_entry| mapping_entry.construction().as_str() == right_pkg_inst.name());
-
-    match (left_mapping_entry, right_mapping_entry) {
-        // both are in assumption, this is the happy "done" case
-        (Some(_), Some(_)) => return Ok(()),
-
-        // only one of them in the assumption, this is an error
-        (Some(mapping_entry), None) => {
-            println!("asd");
-            let mapping_entry_span = mapping_entry.construction().as_span();
-            Err(ReductionInconsistentAssumptionBoundaryError {
-                source_code: ctx.named_source(),
-                at_reduction: (reduction_span.start()..reduction_span.end()).into(),
-                at_mapping_entry: (mapping_entry_span.start()..mapping_entry_span.end()).into(),
-                game_name_1: game_left.name().to_string(),
-                game_name_2: game_right.name().to_string(),
-                pkg_inst_name_1: left_pkg_inst.name().to_string(),
-                pkg_inst_name_2: right_pkg_inst.name().to_string(),
-            })
+    let mut stack = vec![ComparisonFrame::Enter((inst_offs_left, inst_offs_right))];
+    while let Some(frame) = stack.pop() {
+        let (inst_offs_left, inst_offs_right) = match frame {
+            ComparisonFrame::Leave(pair) => {
+                traversal.visited.insert(pair, ComparisonState::Complete);
+                continue;
+            }
+            ComparisonFrame::Enter(pair) => pair,
+        };
+        let left_pkg_inst = &game_left.pkgs[inst_offs_left];
+        let right_pkg_inst = &game_right.pkgs[inst_offs_right];
+        let pair = (inst_offs_left, inst_offs_right);
+        match traversal.visited.get(&pair) {
+            Some(ComparisonState::Complete) => continue,
+            Some(ComparisonState::Active) => {
+                return Err(ReductionCyclicContextError {
+                    source_code: ctx.named_source(),
+                    at: (reduction_span.start()..reduction_span.end()).into(),
+                    left_game_inst_name: left_game_inst.name().to_string(),
+                    right_game_inst_name: right_game_inst.name().to_string(),
+                    left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                    right_pkg_inst_name: right_pkg_inst.name().to_string(),
+                }
+                .into());
+            }
+            None => {
+                traversal.visited.insert(pair, ComparisonState::Active);
+            }
         }
-        (None, Some(mapping_entry)) => {
-            println!("fgh");
-            let mapping_entry_span = mapping_entry.construction().as_span();
-            Err(ReductionInconsistentAssumptionBoundaryError {
-                source_code: ctx.named_source(),
-                at_reduction: (reduction_span.start()..reduction_span.end()).into(),
-                at_mapping_entry: (mapping_entry_span.start()..mapping_entry_span.end()).into(),
-                game_name_1: game_right.name().to_string(),
-                game_name_2: game_left.name().to_string(),
-                pkg_inst_name_1: right_pkg_inst.name().to_string(),
-                pkg_inst_name_2: left_pkg_inst.name().to_string(),
-            })
+        #[cfg(test)]
+        {
+            traversal.visit_count += 1;
+            assert!(
+                traversal.visit_count <= traversal.visit_budget,
+                "context comparison exceeded its visit budget"
+            );
         }
 
-        // still in reduction, continue traversing
-        (None, None) => Ok(()),
-    }?;
+        let left_mapping_entry = mapping_left
+            .entries
+            .iter()
+            .find(|mapping_entry| mapping_entry.construction().as_str() == left_pkg_inst.name());
 
-    if left_pkg_inst.pkg.name() != right_pkg_inst.pkg.name() {
-        return Err(ReductionContainsDifferentPackagesError {
-            source_code: ctx.named_source(),
-            at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+        let right_mapping_entry = mapping_right
+            .entries
+            .iter()
+            .find(|mapping_entry| mapping_entry.construction().as_str() == right_pkg_inst.name());
 
-            left_pkg_inst_name: left_pkg_inst.name().to_string(),
-            left_pkg_name: left_pkg_inst.pkg_name().to_string(),
+        match (left_mapping_entry, right_mapping_entry) {
+            // both are in assumption, this is the happy "done" case
+            (Some(_), Some(_)) => {
+                traversal.visited.insert(pair, ComparisonState::Complete);
+                continue;
+            }
 
-            right_pkg_inst_name: right_pkg_inst.name().to_string(),
-            right_pkg_name: right_pkg_inst.pkg_name().to_string(),
-        }
-        .into());
-    }
+            // only one of them in the assumption, this is an error
+            (Some(mapping_entry), None) => {
+                println!("asd");
+                let mapping_entry_span = mapping_entry.construction().as_span();
+                Err(ReductionInconsistentAssumptionBoundaryError {
+                    source_code: ctx.named_source(),
+                    at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                    at_mapping_entry: (mapping_entry_span.start()..mapping_entry_span.end()).into(),
+                    game_name_1: game_left.name().to_string(),
+                    game_name_2: game_right.name().to_string(),
+                    pkg_inst_name_1: left_pkg_inst.name().to_string(),
+                    pkg_inst_name_2: right_pkg_inst.name().to_string(),
+                })
+            }
+            (None, Some(mapping_entry)) => {
+                println!("fgh");
+                let mapping_entry_span = mapping_entry.construction().as_span();
+                Err(ReductionInconsistentAssumptionBoundaryError {
+                    source_code: ctx.named_source(),
+                    at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                    at_mapping_entry: (mapping_entry_span.start()..mapping_entry_span.end()).into(),
+                    game_name_1: game_right.name().to_string(),
+                    game_name_2: game_left.name().to_string(),
+                    pkg_inst_name_1: right_pkg_inst.name().to_string(),
+                    pkg_inst_name_2: left_pkg_inst.name().to_string(),
+                })
+            }
 
-    let diff = package_instances_diff(
-        ctx,
-        left_pkg_inst,
-        left_game_inst,
-        right_pkg_inst,
-        right_game_inst,
-    );
+            // still in reduction, continue traversing
+            (None, None) => Ok(()),
+        }?;
 
-    match diff {
-        PackageInstanceDiff::DifferentPackage(left_pkg_name, right_pkg_name) => {
+        if left_pkg_inst.pkg.name() != right_pkg_inst.pkg.name() {
             return Err(ReductionContainsDifferentPackagesError {
                 source_code: ctx.named_source(),
                 at_reduction: (reduction_span.start()..reduction_span.end()).into(),
-                left_pkg_inst_name: left_pkg_inst.name().to_string(),
-                right_pkg_inst_name: right_pkg_inst.name().to_string(),
 
-                left_pkg_name,
-                right_pkg_name,
+                left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                left_pkg_name: left_pkg_inst.pkg_name().to_string(),
+
+                right_pkg_inst_name: right_pkg_inst.name().to_string(),
+                right_pkg_name: right_pkg_inst.pkg_name().to_string(),
             }
             .into());
         }
-        PackageInstanceDiff::DifferentParams(param_diff) => {
-            return Err(ReductionPackageInstanceParameterMismatchError {
-                source_code: ctx.named_source(),
-                at_reduction: (reduction_span.start()..reduction_span.end()).into(),
-                left_pkg_inst_name: left_pkg_inst.name().to_string(),
-                right_pkg_inst_name: right_pkg_inst.name().to_string(),
 
-                param_names: param_diff.iter().map(|(name, _, _)| &name.name).join(", "),
-            }
-            .into());
-        }
-        PackageInstanceDiff::Same => {}
-    }
-
-    // Compare that the _outgoing_ edges of the two package instances match.
-    // These are the same in both games, because the package name is the same
-    for (sig, _) in &left_pkg_inst.pkg.imports {
-        let left_edge = game_left
-            .edges
-            .iter()
-            .find(|edge| edge.from() == inst_offs_left && edge.name() == sig.name)
-            .unwrap();
-
-        let right_edge = game_right
-            .edges
-            .iter()
-            .find(|edge| edge.from() == inst_offs_right && edge.name() == sig.name)
-            .unwrap();
-
-        compare_reduction(
+        let diff = package_instances_diff(
             ctx,
-            reduction_span,
-            left_edge.to(),
-            right_edge.to(),
+            left_pkg_inst,
             left_game_inst,
+            right_pkg_inst,
             right_game_inst,
-            mapping_left,
-            mapping_right,
-        )?
-    }
+        );
 
+        match diff {
+            PackageInstanceDiff::DifferentPackage(left_pkg_name, right_pkg_name) => {
+                return Err(ReductionContainsDifferentPackagesError {
+                    source_code: ctx.named_source(),
+                    at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                    left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                    right_pkg_inst_name: right_pkg_inst.name().to_string(),
+
+                    left_pkg_name,
+                    right_pkg_name,
+                }
+                .into());
+            }
+            PackageInstanceDiff::DifferentParams(param_diff) => {
+                return Err(ReductionPackageInstanceParameterMismatchError {
+                    source_code: ctx.named_source(),
+                    at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                    left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                    right_pkg_inst_name: right_pkg_inst.name().to_string(),
+
+                    param_names: param_diff.iter().map(|(name, _, _)| &name.name).join(", "),
+                }
+                .into());
+            }
+            PackageInstanceDiff::Same => {}
+        }
+
+        // The stack is LIFO: push children in reverse declaration order so the
+        // first declared import and all its descendants are checked first.
+        stack.push(ComparisonFrame::Leave(pair));
+        for (sig, _) in left_pkg_inst
+            .pkg
+            .imports
+            .iter()
+            .sorted_by_key(|(_, span)| span.offset())
+            .rev()
+        {
+            let left_destination = *traversal
+                .left_edges
+                .get(&(inst_offs_left, sig.name.as_str()))
+                .expect("composition validation supplies an edge for every left package import");
+
+            let right_destination = *traversal
+                .right_edges
+                .get(&(inst_offs_right, sig.name.as_str()))
+                .expect("composition validation supplies an edge for every right package import");
+
+            stack.push(ComparisonFrame::Enter((
+                left_destination,
+                right_destination,
+            )));
+        }
+    }
     Ok(())
 }
 
@@ -332,6 +414,7 @@ pub(super) fn handle_reduction_body<'a>(
         .all_unique());
 
     let left_exports = &left_game_inst.game().exports;
+    let mut traversal = ReductionTraversal::new(left_game_inst.game(), right_game_inst.game());
 
     for left_export in left_exports {
         let right_export = right_game_inst
@@ -350,6 +433,7 @@ pub(super) fn handle_reduction_body<'a>(
             right_game_inst,
             &mapping_left,
             &mapping_right,
+            &mut traversal,
         )?;
     }
     // TODO: implement reduction mapspec and do third check in there
@@ -1148,5 +1232,122 @@ impl<'a> ReductionMappingEntry<'a> {
 
     pub(crate) fn construction(&self) -> &PackageInstanceName<'a> {
         &self.construction
+    }
+}
+
+#[cfg(test)]
+mod traversal_tests {
+    use super::*;
+    use crate::package::Edge;
+    use crate::parser::{
+        tests::{games, packages},
+        SspParser,
+    };
+    use pest::Parser;
+
+    // Parse a small valid graph, then extend it without making the parser's
+    // cost part of the traversal regression.
+    fn router_game(depth: usize, cyclic: bool) -> GameInstance {
+        let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+        let mut game = games::parse_file("RightGame-router.comp.ssp", &pkgs);
+        let router = game.pkgs.pop().unwrap();
+        let sig = game.edges[0].sig().clone();
+        game.edges.clear();
+        for i in 1..=depth {
+            let mut instance = router.clone();
+            instance.name = format!("r{i}");
+            game.pkgs.push(instance);
+            let to = if i == depth {
+                if cyclic {
+                    1
+                } else {
+                    0
+                }
+            } else {
+                i + 1
+            };
+            for name in ["A", "B"] {
+                game.edges
+                    .push(Edge::new(i, to, sig.clone(), Some(name.into())));
+            }
+        }
+        GameInstance::new("context".into(), "Traversal".into(), game, vec![], vec![])
+    }
+
+    fn compare_with_budget(
+        left: &GameInstance,
+        right: &GameInstance,
+        budget: usize,
+    ) -> (Result<(), ParseTheoremError>, usize) {
+        let ctx = ParseTheoremContext {
+            file_name: "traversal.ssp",
+            file_content: "context",
+            theorem_name: "Traversal",
+            scope: crate::util::scope::Scope::new(),
+            types: vec![],
+            consts: HashMap::new(),
+            instances: vec![],
+            instances_table: HashMap::new(),
+            assumptions: vec![],
+            propositions: vec![],
+            game_hops: vec![],
+        };
+        let name = SspParser::parse(Rule::identifier, "context")
+            .unwrap()
+            .next()
+            .unwrap();
+        let mapping = ReductionMapping {
+            assumption: name.clone().into(),
+            construction: name.into(),
+            entries: vec![],
+        };
+        let mut traversal = ReductionTraversal::new(left.game(), right.game());
+        traversal.visit_budget = budget;
+        let result = compare_reduction(
+            &ctx,
+            pest::Span::new("context", 0, 7).unwrap(),
+            1,
+            1,
+            left,
+            right,
+            &mapping,
+            &mapping,
+            &mut traversal,
+        );
+        (result, traversal.visit_count)
+    }
+
+    #[test]
+    fn deep_context_chain_passes() {
+        let game = router_game(8192, false);
+        let (result, visits) = compare_with_budget(&game, &game, 8193);
+        result.unwrap();
+        assert_eq!(visits, 8193);
+    }
+
+    #[test]
+    fn deep_context_chain_reports_leaf_mismatch() {
+        let left = router_game(8192, false);
+        let mut right = left.clone();
+        right.game.pkgs[0].pkg.name = "DifferentLeaf".into();
+        let (result, _) = compare_with_budget(&left, &right, 8193);
+        let Err(ParseTheoremError::ReductionContainsDifferentPackages(error)) = result else {
+            panic!("expected the leaf package mismatch");
+        };
+        assert_eq!(error.right_pkg_name, "DifferentLeaf");
+    }
+
+    #[test]
+    fn long_context_cycle_reports_cycle() {
+        // Coprime cycle lengths require 16,637 distinct pairs before repetition.
+        let left = router_game(127, true);
+        let right = router_game(131, true);
+        let (result, visits) = compare_with_budget(&left, &right, 127 * 131);
+        let Err(ParseTheoremError::ReductionCyclicContext(error)) = result else {
+            panic!("expected a cycle diagnostic");
+        };
+        assert_eq!(visits, 127 * 131);
+        assert_eq!(error.left_pkg_inst_name, "r1");
+        assert_eq!(error.right_pkg_inst_name, "r1");
     }
 }

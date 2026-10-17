@@ -509,3 +509,85 @@ fn fail_wrong_params_in_reduction_should_fail() {
     let report = miette::Report::new(err);
     println!("the error prints like this:\n{report:?}")
 }
+
+#[test]
+fn reduction_context_reports_first_declared_import() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
+    let mut games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "LeftGame-import-order.comp.ssp",
+            "RightGame-import-order.comp.ssp",
+        ],
+        &pkgs,
+    );
+    // Reproduce either order that the package parser's HashMap can produce.
+    // Both imports fail, with different error kinds; declaration A must win.
+    for reverse in [false, true] {
+        for game in games.values_mut() {
+            for instance in &mut game.pkgs {
+                instance.pkg.imports.sort_by_key(|(_, span)| span.offset());
+                if reverse {
+                    instance.pkg.imports.reverse();
+                }
+            }
+        }
+        let error = theorems::parse_file_fails("reduction-context.ssp", &pkgs, &games);
+        assert!(
+            matches!(
+                &error,
+                ParseTheoremError::ReductionInconsistentAssumptionBoundary(_)
+            ),
+            "got instead:\n{error:?}",
+            error = miette::Report::new(error)
+        );
+    }
+}
+
+#[test]
+fn reduction_context_compares_both_members_of_a_pair() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "LeftGame-shared-pair.comp.ssp",
+            "RightGame-distinct-pairs.comp.ssp",
+        ],
+        &pkgs,
+    );
+    for (file, expected_left, expected_right) in [
+        ("reduction-context.ssp", "shared", "second"),
+        ("reduction-context-reversed.ssp", "second", "shared"),
+    ] {
+        let error = theorems::parse_file_fails(file, &pkgs, &games);
+        let ParseTheoremError::ReductionContainsDifferentPackages(error) = error else {
+            panic!("expected a package mismatch for the second pair, got {error:?}");
+        };
+        assert_eq!(error.left_pkg_inst_name, expected_left);
+        assert_eq!(error.right_pkg_inst_name, expected_right);
+    }
+}
+
+#[test]
+fn fail_reduction_cyclic_context() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "ConstructionGame-cyclic-context.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-leaf-mapping.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionCyclicContext(error) = error else {
+        panic!("expected a cyclic context diagnostic, got {error:?}");
+    };
+    assert_eq!(error.left_pkg_inst_name, "router");
+    assert_eq!(error.right_pkg_inst_name, "router");
+    assert_eq!(
+        slice_source_span(&error.source_code, &error.at),
+        "assumption Basic
+            map a0 c0 { leaf: leaf }
+            map a1 c1 { leaf: leaf }"
+    );
+}

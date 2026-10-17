@@ -635,6 +635,23 @@ pub struct ReductionPackageInstanceParameterMismatchError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("Reduction context contains a cycle through {left_pkg_inst_name} in {left_game_inst_name} and {right_pkg_inst_name} in {right_game_inst_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::cyclic_context))]
+#[help("Remove the cyclic import path in the context reachable from the construction exports.")]
+pub struct ReductionCyclicContextError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("in this reduction")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub left_pkg_inst_name: String,
+    pub right_pkg_inst_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {pkg_inst_name_1} and {pkg_inst_name_2} should be the same, but {pkg_inst_name_1} is in the assumption part of {game_name_1}, whereas {pkg_inst_name_2} is in the reduction part of {game_name_2}")]
 #[diagnostic(code(
     domino::code::theorem::reduction::mapping::reduction_inconsistent_assumption_boundary
