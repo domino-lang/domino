@@ -1,0 +1,4 @@
+package Value {
+    params { n: Integer }
+    oracle f() -> Integer { return n; }
+}

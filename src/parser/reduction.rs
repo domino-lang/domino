@@ -68,14 +68,11 @@ pub(crate) fn handle_reduction<'a>(
     Ok(GameHop::Reduction(reduction))
 }
 
-// Keep the first edge, as the previous linear lookup did, even when separate
-// compose blocks assign the same import more than once.
 fn index_edges(game: &Composition) -> HashMap<(usize, &str), &Edge> {
-    let mut edges = HashMap::new();
-    for edge in &game.edges {
-        edges.entry((edge.from(), edge.name())).or_insert(edge);
-    }
-    edges
+    game.edges
+        .iter()
+        .map(|edge| ((edge.from(), edge.name()), edge))
+        .collect()
 }
 
 struct ReductionTraversal<'a> {

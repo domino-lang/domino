@@ -1,0 +1,6 @@
+composition Assumption {
+    instance x = Value { params { n: 0 } }
+    compose {
+        adversary: { f: x }
+    }
+}

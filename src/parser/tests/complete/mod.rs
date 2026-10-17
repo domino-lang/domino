@@ -68,18 +68,23 @@ fn reduction_context_resolves_signature_parameters() {
 }
 
 #[test]
-fn reduction_context_uses_first_edge_assignment() {
-    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
-    let games = games::parse_files(
-        &[
-            "AssumptionGame-leaf.comp.ssp",
-            "LeftGame-first-edge.comp.ssp",
-            "RightGame-router.comp.ssp",
-        ],
-        &pkgs,
-    );
-    let source = theorems::read_file("reduction-context.ssp");
-    theorems::parse(&source, "reduction-context.ssp", &pkgs, &games);
+fn disjoint_imports_across_compose_blocks() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    let source = "composition Game {
+        instance leaf = Leaf {}
+        instance router = Router {}
+        instance other = Router {}
+        compose {
+            router: { A: Eval of leaf }
+            other: { A: Eval of leaf }
+        }
+        compose {
+            router: { B: Eval of leaf }
+            other: { B: Eval of leaf }
+        }
+    }";
+    let game = games::parse(source, "disjoint-imports.ssp", &pkgs);
+    assert_eq!(game.edges.len(), 4);
 }
 
 #[test]

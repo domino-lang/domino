@@ -532,6 +532,7 @@ fn handle_edges_compose_assign_list(
 
         let found_duplicate_edge = edges
             .iter()
+            .chain(ctx.edges.iter())
             .any(|edge: &Edge| edge.from() == source_pkgidx && edge.name() == import_name);
 
         if found_duplicate_edge {
