@@ -108,6 +108,61 @@ fn missing_game_instance_params_block() {
     let report = miette::Report::new(err);
     println!("{report:?}");
 }
+
+#[test]
+fn reduction_context_preserves_instance_sharing() {
+    let pkgs = packages::parse_files(&[
+        "reduction-context-instances/Context.pkg.ssp",
+        "reduction-context-instances/Cell.pkg.ssp",
+        "reduction-context-instances/Anchor.pkg.ssp",
+    ]);
+    for (left, right, valid) in [
+        (
+            "reduction-context-instances/Left.comp.ssp",
+            "reduction-context-instances/Right.comp.ssp",
+            false,
+        ),
+        (
+            "reduction-context-instances/Left.comp.ssp",
+            "reduction-context-instances/Right-control.comp.ssp",
+            true,
+        ),
+        (
+            "reduction-context-instances/Left-exports.comp.ssp",
+            "reduction-context-instances/Right-exports.comp.ssp",
+            false,
+        ),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-context-instances/Assumption.comp.ssp",
+                left,
+                right,
+            ],
+            &pkgs,
+        );
+        for file in [
+            "reduction-context-instances.ssp",
+            "reduction-context-instances-reversed.ssp",
+        ] {
+            if valid {
+                theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+            } else {
+                let error = theorems::parse_file_fails(file, &pkgs, &games);
+                let ParseTheoremError::ReductionContextInstanceMismatch(error) = error else {
+                    panic!("expected an instance sharing mismatch, got {error:?}");
+                };
+                assert_eq!(error.game_inst_name, "left");
+                assert_eq!(error.pkg_inst_name, "x");
+                assert_eq!(error.other_game_inst_name, "right");
+                assert_eq!(error.previous_partner_name, "x");
+                assert_eq!(error.partner_name, "y");
+                assert!(slice_source_span(&error.source_code, &error.at)
+                    .starts_with("assumption Identity"));
+            }
+        }
+    }
+}
 #[test]
 fn fail_reduction_assumption_is_second() {
     let pkgs = packages::parse_files(&[

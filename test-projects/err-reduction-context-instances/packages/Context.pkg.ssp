@@ -1,0 +1,13 @@
+package Context {
+    import oracles {
+        f(write: Bool, v: Integer) -> Integer,
+        g(write: Bool, v: Integer) -> Integer,
+    }
+    oracle Eval() -> Integer {
+        first <- invoke f(true, 0);
+        second <- invoke g(true, 0);
+        written <- invoke f(true, 1);
+        result <- invoke g(false, 0);
+        return result;
+    }
+}

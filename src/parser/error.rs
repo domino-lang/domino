@@ -689,6 +689,24 @@ pub struct ReductionContextOracleMismatchError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("Context instance {pkg_inst_name} in {game_inst_name} is paired with both {previous_partner_name} and {partner_name} in {other_game_inst_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::context_instance_mismatch))]
+#[help("Preserve shared context state by pairing each package instance with exactly one instance on the other side.")]
+pub struct ReductionContextInstanceMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes context instance sharing")]
+    pub at: SourceSpan,
+
+    pub game_inst_name: String,
+    pub other_game_inst_name: String,
+    pub pkg_inst_name: String,
+    pub previous_partner_name: String,
+    pub partner_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("Both reduction mappings use the same {role} game instance {name}")]
 #[diagnostic(code(domino::code::theorem::reduction::same_game_instance))]
 #[help("Use a different {role} game instance for each side of the reduction.")]

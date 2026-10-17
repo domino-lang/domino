@@ -1,0 +1,6 @@
+composition Assumption {
+    instance anchor = Anchor {}
+    compose {
+        adversary: { Token: anchor }
+    }
+}

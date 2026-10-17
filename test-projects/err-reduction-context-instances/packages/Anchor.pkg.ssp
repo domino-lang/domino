@@ -1,0 +1,3 @@
+package Anchor {
+    oracle Token() -> Integer { return 0; }
+}

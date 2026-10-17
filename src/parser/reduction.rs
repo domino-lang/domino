@@ -34,10 +34,10 @@ use super::{
         AssumptionMappingDuplicatePackageInstanceError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
         AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
-        ReductionContainsDifferentPackagesError, ReductionContextOracleMismatchError,
-        ReductionCyclicContextError, ReductionInconsistentAssumptionBoundaryError,
-        ReductionInvalidHybridMappingError, ReductionMissingExportError,
-        ReductionPackageInstanceParameterMismatchError,
+        ReductionContainsDifferentPackagesError, ReductionContextInstanceMismatchError,
+        ReductionContextOracleMismatchError, ReductionCyclicContextError,
+        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
+        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
         ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -82,6 +82,7 @@ struct ReductionTraversal<'a> {
     right_edges: HashMap<(usize, &'a str), &'a Edge>,
     visited: HashMap<(usize, usize), ComparisonState>,
     imports: Vec<(&'a Edge, &'a Edge)>,
+    context_pairs: Vec<(usize, usize)>,
     #[cfg(test)]
     visit_count: usize,
     #[cfg(test)]
@@ -95,6 +96,7 @@ impl<'a> ReductionTraversal<'a> {
             right_edges: index_edges(right),
             visited: HashMap::new(),
             imports: vec![],
+            context_pairs: vec![],
             #[cfg(test)]
             visit_count: 0,
             #[cfg(test)]
@@ -186,6 +188,8 @@ fn compare_reduction(
             right_game_inst,
         )?;
 
+        traversal.context_pairs.push(pair);
+
         // The stack is LIFO: push children in reverse declaration order so the
         // first declared import and all its descendants are checked first.
         stack.push(ComparisonFrame::Leave(pair));
@@ -208,6 +212,39 @@ fn compare_reduction(
 
             traversal.imports.push((left_edge, right_edge));
             stack.push(ComparisonFrame::Enter((left_edge.to(), right_edge.to())));
+        }
+    }
+    Ok(())
+}
+
+fn check_context_instances(
+    ctx: &ParseTheoremContext,
+    reduction_span: pest::Span,
+    left_game: &GameInstance,
+    right_game: &GameInstance,
+    traversal: &ReductionTraversal,
+) -> Result<(), ParseTheoremError> {
+    let mut left_partners = HashMap::new();
+    let mut right_partners = HashMap::new();
+    for &(left, right) in &traversal.context_pairs {
+        for (partners, instance, partner, game, other_game) in [
+            (&mut left_partners, left, right, left_game, right_game),
+            (&mut right_partners, right, left, right_game, left_game),
+        ] {
+            if let Some(previous) = partners.insert(instance, partner) {
+                if previous != partner {
+                    return Err(ReductionContextInstanceMismatchError {
+                        source_code: ctx.named_source(),
+                        at: (reduction_span.start()..reduction_span.end()).into(),
+                        game_inst_name: game.name().to_string(),
+                        other_game_inst_name: other_game.name().to_string(),
+                        pkg_inst_name: game.game().pkgs[instance].name().to_string(),
+                        previous_partner_name: other_game.game().pkgs[previous].name().to_string(),
+                        partner_name: other_game.game().pkgs[partner].name().to_string(),
+                    }
+                    .into());
+                }
+            }
         }
     }
     Ok(())
@@ -416,6 +453,13 @@ pub(super) fn handle_reduction_body<'a>(
         right_game_inst,
         &mapping_left,
         &mapping_right,
+        &traversal,
+    )?;
+    check_context_instances(
+        ctx,
+        reduction_span,
+        left_game_inst,
+        right_game_inst,
         &traversal,
     )?;
 
@@ -1470,12 +1514,24 @@ mod traversal_tests {
 
     #[test]
     fn long_context_cycle_reports_cycle() {
-        // Coprime cycle lengths require 16,637 distinct pairs before repetition.
+        let left = router_game(8192, true);
+        let right = router_game(8192, true);
+        let (result, visits) = compare_with_budget(&left, &right, 8192);
+        let Err(ParseTheoremError::ReductionCyclicContext(error)) = result else {
+            panic!("expected a cycle diagnostic");
+        };
+        assert_eq!(visits, 8192);
+        assert_eq!(error.left_pkg_inst_name, "r1");
+        assert_eq!(error.right_pkg_inst_name, "r1");
+    }
+
+    #[test]
+    fn different_context_cycles_preserve_cycle_diagnostic() {
         let left = router_game(127, true);
         let right = router_game(131, true);
         let (result, visits) = compare_with_budget(&left, &right, 127 * 131);
         let Err(ParseTheoremError::ReductionCyclicContext(error)) = result else {
-            panic!("expected a cycle diagnostic");
+            panic!("expected the existing cycle diagnostic");
         };
         assert_eq!(visits, 127 * 131);
         assert_eq!(error.left_pkg_inst_name, "r1");
