@@ -17,7 +17,7 @@ use crate::{
         theorem_ident::TheoremIdentifier,
         Identifier,
     },
-    package::{Composition, Edge, OracleSig, PackageInstance},
+    package::{Composition, Edge, Export, OracleSig, PackageInstance},
     packageinstance::instantiate::InstantiationContext,
     parser::error::{
         AssumptionMappingLeftGameInstanceIsNotFromAssumption,
@@ -34,9 +34,11 @@ use super::{
         AssumptionMappingDuplicatePackageInstanceError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
         AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
-        ReductionContainsDifferentPackagesError, ReductionCyclicContextError,
-        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
-        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionContainsDifferentPackagesError, ReductionContextInstanceMismatchError,
+        ReductionContextOracleMismatchError, ReductionCyclicContextError,
+        ReductionExportMismatchError, ReductionInconsistentAssumptionBoundaryError,
+        ReductionInvalidHybridMappingError, ReductionMissingExportError,
+        ReductionPackageInstanceParameterMismatchError,
         ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -66,20 +68,20 @@ pub(crate) fn handle_reduction<'a>(
     Ok(GameHop::Reduction(reduction))
 }
 
-// The first assignment in declaration order wins, even when separate compose
-// blocks assign the same import more than once.
-fn index_edges(game: &Composition) -> HashMap<(usize, &str), usize> {
-    let mut edges = HashMap::new();
-    for edge in &game.edges {
-        edges.entry((edge.from(), edge.name())).or_insert(edge.to());
-    }
-    edges
+fn index_edges(game: &Composition) -> HashMap<(usize, &str), &Edge> {
+    game.edges
+        .iter()
+        .map(|edge| ((edge.from(), edge.name()), edge))
+        .collect()
 }
 
 struct ReductionTraversal<'a> {
-    left_edges: HashMap<(usize, &'a str), usize>,
-    right_edges: HashMap<(usize, &'a str), usize>,
+    left_edges: HashMap<(usize, &'a str), &'a Edge>,
+    right_edges: HashMap<(usize, &'a str), &'a Edge>,
     visited: HashMap<(usize, usize), ComparisonState>,
+    imports: Vec<(&'a Edge, &'a Edge)>,
+    exports: Vec<(&'a Export, &'a Export)>,
+    context_pairs: Vec<(usize, usize)>,
     #[cfg(test)]
     visit_count: usize,
     #[cfg(test)]
@@ -92,6 +94,9 @@ impl<'a> ReductionTraversal<'a> {
             left_edges: index_edges(left),
             right_edges: index_edges(right),
             visited: HashMap::new(),
+            imports: vec![],
+            exports: vec![],
+            context_pairs: vec![],
             #[cfg(test)]
             visit_count: 0,
             #[cfg(test)]
@@ -185,6 +190,8 @@ fn compare_reduction(
             right_game_inst,
         )?;
 
+        traversal.context_pairs.push(pair);
+
         stack.push(ComparisonFrame::Leave(pair));
         for (sig, _) in left_pkg_inst
             .pkg
@@ -193,23 +200,109 @@ fn compare_reduction(
             .sorted_by_key(|(_, span)| span.offset())
             .rev()
         {
-            let left_destination = *traversal
+            let left_edge = *traversal
                 .left_edges
                 .get(&(inst_offs_left, sig.name.as_str()))
                 .expect("composition validation supplies an edge for every left package import");
 
-            let right_destination = *traversal
+            let right_edge = *traversal
                 .right_edges
                 .get(&(inst_offs_right, sig.name.as_str()))
                 .expect("composition validation supplies an edge for every right package import");
 
-            stack.push(ComparisonFrame::Enter((
-                left_destination,
-                right_destination,
-            )));
+            traversal.imports.push((left_edge, right_edge));
+            stack.push(ComparisonFrame::Enter((left_edge.to(), right_edge.to())));
         }
     }
     Ok(())
+}
+
+fn check_context_instances(
+    ctx: &ParseTheoremContext,
+    reduction_span: pest::Span,
+    left_game: &GameInstance,
+    right_game: &GameInstance,
+    traversal: &ReductionTraversal,
+) -> Result<(), ParseTheoremError> {
+    let mut left_partners = HashMap::new();
+    let mut right_partners = HashMap::new();
+    for &(left, right) in &traversal.context_pairs {
+        for (partners, instance, partner, game, other_game) in [
+            (&mut left_partners, left, right, left_game, right_game),
+            (&mut right_partners, right, left, right_game, left_game),
+        ] {
+            if let Some(previous) = partners.insert(instance, partner) {
+                if previous != partner {
+                    return Err(ReductionContextInstanceMismatchError {
+                        source_code: ctx.named_source(),
+                        at: (reduction_span.start()..reduction_span.end()).into(),
+                        game_inst_name: game.name().to_string(),
+                        other_game_inst_name: other_game.name().to_string(),
+                        pkg_inst_name: game.game().pkgs[instance].name().to_string(),
+                        previous_partner_name: other_game.game().pkgs[previous].name().to_string(),
+                        partner_name: other_game.game().pkgs[partner].name().to_string(),
+                    }
+                    .into());
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn check_context_oracles(
+    ctx: &ParseTheoremContext,
+    reduction_span: pest::Span,
+    left_game_inst: &GameInstance,
+    right_game_inst: &GameInstance,
+    mapping_left: &ReductionMapping,
+    mapping_right: &ReductionMapping,
+    traversal: &ReductionTraversal,
+) -> Result<(), ParseTheoremError> {
+    let game_left = left_game_inst.game();
+    let game_right = right_game_inst.game();
+    for &(left, right) in &traversal.imports {
+        let left_sig = left.sig();
+        let right_sig = right.sig();
+        let enters_assumption = mapping_left.entry_for(&game_left.pkgs[left.to()]).is_some();
+        let left_name = context_destination_name(ctx, mapping_left, game_left, left)?;
+        let right_name = context_destination_name(ctx, mapping_right, game_right, right)?;
+        if left_name != right_name
+            || (!enters_assumption && !left_sig.types_match_resolved(right_sig))
+        {
+            return Err(ReductionContextOracleMismatchError {
+                source_code: ctx.named_source(),
+                at: (reduction_span.start()..reduction_span.end()).into(),
+                left_game_inst_name: left_game_inst.name().to_string(),
+                right_game_inst_name: right_game_inst.name().to_string(),
+                left_pkg_inst_name: game_left.pkgs[left.from()].name().to_string(),
+                right_pkg_inst_name: game_right.pkgs[right.from()].name().to_string(),
+                import_name: left.name().to_string(),
+                left_oracle_name: left_name.to_string(),
+                right_oracle_name: right_name.to_string(),
+                left_signature: left_sig.to_oracle_type().to_string(),
+                right_signature: right_sig.to_oracle_type().to_string(),
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+// Context destinations use their internal oracle name. At the assumption
+// boundary, identify the public export through the mapped assumption instance.
+fn context_destination_name<'a>(
+    ctx: &'a ParseTheoremContext,
+    mapping: &ReductionMapping,
+    construction: &Composition,
+    edge: &'a Edge,
+) -> Result<&'a str, ParseTheoremError> {
+    let Some(entry) = mapping.entry_for(&construction.pkgs[edge.to()]) else {
+        return Ok(&edge.sig().name);
+    };
+    let assumption = mapping.assumption_game_instance(ctx);
+    let export = mapped_oracle_export(ctx, assumption, entry, &edge.sig().name)?;
+    Ok(export.name())
 }
 
 fn check_assumption_boundary(
@@ -222,15 +315,8 @@ fn check_assumption_boundary(
     mapping_left: &ReductionMapping,
     mapping_right: &ReductionMapping,
 ) -> Result<bool, ParseTheoremError> {
-    let left_mapping_entry = mapping_left
-        .entries
-        .iter()
-        .find(|mapping_entry| mapping_entry.construction().as_str() == left_pkg_inst.name());
-
-    let right_mapping_entry = mapping_right
-        .entries
-        .iter()
-        .find(|mapping_entry| mapping_entry.construction().as_str() == right_pkg_inst.name());
+    let left_mapping_entry = mapping_left.entry_for(left_pkg_inst);
+    let right_mapping_entry = mapping_right.entry_for(right_pkg_inst);
 
     let (entry, game_1, pkg_1, game_2, pkg_2) = match (left_mapping_entry, right_mapping_entry) {
         (Some(_), Some(_)) => return Ok(true),
@@ -334,15 +420,49 @@ pub(super) fn handle_reduction_body<'a>(
         mapping2,
         &parsed_name2,
     )?;
-    compare_reduction_context(
+    let left_game_inst = ctx
+        .game_instance(left_name)
+        .expect("validated construction mappings resolve both reduction header game names")
+        .1;
+    let right_game_inst = ctx
+        .game_instance(right_name)
+        .expect("validated construction mappings resolve both reduction header game names")
+        .1;
+    let traversal = compare_reduction_context(
         ctx,
         reduction_span,
-        left_name,
-        right_name,
+        left_game_inst,
+        right_game_inst,
         &mapping_left,
         &mapping_right,
     )?;
     check_distinct_mapped_games(ctx, reduction_span, &mapping_left, &mapping_right)?;
+
+    check_context_oracles(
+        ctx,
+        reduction_span,
+        left_game_inst,
+        right_game_inst,
+        &mapping_left,
+        &mapping_right,
+        &traversal,
+    )?;
+    check_context_instances(
+        ctx,
+        reduction_span,
+        left_game_inst,
+        right_game_inst,
+        &traversal,
+    )?;
+    check_mapping_oracles(ctx, &mapping_left, left_game_inst)?;
+    check_mapping_oracles(ctx, &mapping_right, right_game_inst)?;
+    check_construction_exports(
+        ctx,
+        reduction_span,
+        left_game_inst,
+        right_game_inst,
+        &traversal,
+    )?;
 
     let reduction = Reduction::new(mapping_left, mapping_right, assumption_name.to_string());
 
@@ -393,23 +513,14 @@ fn align_reduction_mappings<'a>(
     Ok((left.0, right.0))
 }
 
-fn compare_reduction_context(
+fn compare_reduction_context<'ctx>(
     ctx: &ParseTheoremContext,
     reduction_span: pest::Span,
-    left_name: &str,
-    right_name: &str,
+    left_game_inst: &'ctx GameInstance,
+    right_game_inst: &'ctx GameInstance,
     mapping_left: &ReductionMapping,
     mapping_right: &ReductionMapping,
-) -> Result<(), ParseTheoremError> {
-    let left_game_inst = ctx
-        .game_instance(left_name)
-        .expect("validated construction mappings resolve both reduction header game names")
-        .1;
-    let right_game_inst = ctx
-        .game_instance(right_name)
-        .expect("validated construction mappings resolve both reduction header game names")
-        .1;
-
+) -> Result<ReductionTraversal<'ctx>, ParseTheoremError> {
     let left_exports = &left_game_inst.game().exports;
     let mut traversal = ReductionTraversal::new(left_game_inst.game(), right_game_inst.game());
 
@@ -437,6 +548,45 @@ fn compare_reduction_context(
             mapping_right,
             &mut traversal,
         )?;
+        traversal.exports.push((left_export, right_export));
+    }
+    Ok(traversal)
+}
+
+fn check_construction_exports(
+    ctx: &ParseTheoremContext,
+    reduction_span: pest::Span,
+    left_game_inst: &GameInstance,
+    right_game_inst: &GameInstance,
+    traversal: &ReductionTraversal,
+) -> Result<(), ParseTheoremError> {
+    let mismatch = |left: Option<&Export>, right: &Export| {
+        ReductionExportMismatchError {
+            source_code: ctx.named_source(),
+            at: (reduction_span.start()..reduction_span.end()).into(),
+            left_game_inst_name: left_game_inst.name().to_string(),
+            right_game_inst_name: right_game_inst.name().to_string(),
+            oracle_name: right.name().to_string(),
+            left_signature: left
+                .map(|export| export.sig().to_oracle_type().to_string())
+                .unwrap_or_else(|| "not exported".to_string()),
+            right_signature: right.sig().to_oracle_type().to_string(),
+        }
+        .into()
+    };
+    for right_export in &right_game_inst.game().exports {
+        if !traversal
+            .exports
+            .iter()
+            .any(|(left, _)| left.name() == right_export.name())
+        {
+            return Err(mismatch(None, right_export));
+        }
+    }
+    for &(left_export, right_export) in &traversal.exports {
+        if !left_export.sig().types_match_resolved(right_export.sig()) {
+            return Err(mismatch(Some(left_export), right_export));
+        }
     }
     Ok(())
 }
@@ -523,39 +673,64 @@ fn handle_mapspec_assumption<'a>(
         construction_game_inst,
     )?;
 
-    for entry in &pkg_offset_mapping {
-        check_construction_wires(
-            ctx,
-            mapping_span,
-            &pkg_offset_mapping,
-            assumption_game_inst,
-            construction_game_inst,
-            &entry.construction_offset,
-            &entry.assumption_offset,
-        )?;
-        check_assumption_wires(
-            ctx,
-            mapping_span,
-            &pkg_offset_mapping,
-            assumption_game_inst,
-            construction_game_inst,
-            &entry.construction_offset,
-            &entry.assumption_offset,
-        )?;
-    }
+    check_mapping_wires(
+        ctx,
+        mapping_span,
+        &pkg_offset_mapping,
+        assumption_game_inst,
+        construction_game_inst,
+        false,
+    )?;
 
     let mapping = ReductionMapping {
+        span: mapping_span,
         assumption: assumption_game_inst_name_ast,
         construction: construction_game_inst_name_ast.into(),
-        entries: mappings
-            .into_iter()
-            .map(|(left, right)| ReductionMappingEntry {
-                assumption: left,
-                construction: right,
-            })
-            .collect_vec(),
+        entries: pkg_offset_mapping,
     };
     Ok((mapping, construction_game_inst_name))
+}
+
+fn check_mapping_oracles(
+    ctx: &ParseTheoremContext,
+    mapping: &ReductionMapping,
+    construction: &GameInstance,
+) -> Result<(), ParseTheoremError> {
+    let assumption = mapping.assumption_game_instance(ctx);
+    check_mapping_wires(
+        ctx,
+        mapping.span,
+        &mapping.entries,
+        assumption,
+        construction,
+        true,
+    )
+}
+
+fn check_mapping_wires(
+    ctx: &ParseTheoremContext,
+    span: pest::Span,
+    entries: &[ReductionMappingEntry],
+    assumption: &GameInstance,
+    construction: &GameInstance,
+    check_oracle_names: bool,
+) -> Result<(), ParseTheoremError> {
+    // Preserve the per-package order: forward wires, then reverse wires.
+    for entry in entries {
+        for check in [check_construction_wires, check_assumption_wires] {
+            check(
+                ctx,
+                span,
+                entries,
+                assumption,
+                construction,
+                &entry.construction_offset,
+                &entry.assumption_offset,
+                check_oracle_names,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn resolve_mapping_games<'ctx>(
@@ -740,20 +915,13 @@ fn resolve_mapping_package<'game>(
         })
 }
 
-struct MappingEntry<'map, 'a> {
-    assumption_offset: usize,
-    construction_offset: usize,
-    assumption_ast: &'map PackageInstanceName<'a>,
-    construction_ast: &'map PackageInstanceName<'a>,
-}
-
-fn check_mapping_assignments<'map, 'a>(
+fn check_mapping_assignments<'a>(
     ctx: &ParseTheoremContext,
     mapping_span: pest::Span,
-    mappings: &'map [(PackageInstanceName<'a>, PackageInstanceName<'a>)],
+    mappings: &[(PackageInstanceName<'a>, PackageInstanceName<'a>)],
     assumption_game: &GameInstance,
     construction_game: &GameInstance,
-) -> Result<Vec<MappingEntry<'map, 'a>>, ParseTheoremError> {
+) -> Result<Vec<ReductionMappingEntry<'a>>, ParseTheoremError> {
     let mut assumption_names = HashMap::new();
     let mut construction_names = HashMap::new();
     let mut entries = Vec::with_capacity(mappings.len());
@@ -778,11 +946,11 @@ fn check_mapping_assignments<'map, 'a>(
             construction_game,
         )?;
         check_mapping_diff(ctx, assumption_ast, construction_ast, diff)?;
-        entries.push(MappingEntry {
+        entries.push(ReductionMappingEntry {
             assumption_offset,
             construction_offset,
-            assumption_ast,
-            construction_ast,
+            assumption: assumption_ast.clone(),
+            construction: construction_ast.clone(),
         });
     }
     Ok(entries)
@@ -830,10 +998,37 @@ fn rewrite_game_signature(
     .rewrite_oracle_sig(sig.clone())
 }
 
+// Match the internal oracle name, not its public export alias.
+fn mapped_oracle_export<'a>(
+    ctx: &ParseTheoremContext,
+    assumption: &'a GameInstance,
+    entry: &ReductionMappingEntry,
+    oracle_name: &str,
+) -> Result<&'a Export, ParseTheoremError> {
+    assumption
+        .game()
+        .exports
+        .iter()
+        .find(|export| export.to() == entry.assumption_offset && export.sig().name == oracle_name)
+        .ok_or_else(|| {
+            let assumption_span = entry.assumption().as_span();
+            let construction_span = entry.construction().as_span();
+            AssumptionExportsNotSufficientError {
+                source_code: ctx.named_source(),
+                assumption_at: (assumption_span.start()..assumption_span.end()).into(),
+                construction_at: (construction_span.start()..construction_span.end()).into(),
+                assumption_pkg_inst_name: entry.assumption().as_str().to_string(),
+                construction_pkg_inst_name: entry.construction().as_str().to_string(),
+                oracle_name: oracle_name.to_string(),
+            }
+            .into()
+        })
+}
+
 fn check_incoming_wires(
     ctx: &ParseTheoremContext,
     mapping_span: pest::Span,
-    pkg_offset_mapping: &[MappingEntry],
+    pkg_offset_mapping: &[ReductionMappingEntry],
     assumption_game_inst: &GameInstance,
     construction_game_inst: &GameInstance,
 ) -> Result<(), ParseTheoremError> {
@@ -860,36 +1055,8 @@ fn check_incoming_wires(
             let constr_dst_pkg_inst = &construction_game_inst.game().pkgs[edge.to()];
             let assump_dst_pkg_inst = &assumption_game_inst.game().pkgs[assump_dst];
 
-            // this lookup is by comparing the oracle name, not the whole signature
-            let assump_dst_export =
-                assumption_game_inst.game().exports.iter().find(|export| {
-                    export.to() == assump_dst && export.sig().name == edge.sig().name
-                });
-
             // if it's cross-cut, it needs to be exported, else error out
-            if assump_dst_export.is_none() {
-                let assumption_span = entry.assumption_ast.as_span();
-                let assumption_at = (assumption_span.start()..assumption_span.end()).into();
-
-                let construction_span = entry.construction_ast.as_span();
-                let construction_at = (construction_span.start()..construction_span.end()).into();
-
-                let assumption_pkg_inst_name =
-                    assumption_game_inst.game().pkgs[assump_dst].name.clone();
-                let construction_pkg_inst_name =
-                    construction_game_inst.game().pkgs[edge.to()].name.clone();
-                let oracle_name = edge.sig().name.clone();
-
-                return Err(AssumptionExportsNotSufficientError {
-                    source_code: ctx.named_source(),
-                    assumption_at,
-                    construction_at,
-                    assumption_pkg_inst_name,
-                    construction_pkg_inst_name,
-                    oracle_name,
-                }
-                .into());
-            }
+            mapped_oracle_export(ctx, assumption_game_inst, entry, &edge.sig().name)?;
 
             // check that the destination packages in construction and assumption are equivalent
 
@@ -909,7 +1076,7 @@ fn check_incoming_wires(
                 }
                 other => other,
             };
-            check_mapping_diff(ctx, entry.assumption_ast, entry.construction_ast, diff)?;
+            check_mapping_diff(ctx, entry.assumption(), entry.construction(), diff)?;
         }
     }
 
@@ -918,7 +1085,7 @@ fn check_incoming_wires(
 
 fn check_adversary_exports(
     ctx: &ParseTheoremContext,
-    pkg_offset_mapping: &[MappingEntry],
+    pkg_offset_mapping: &[ReductionMappingEntry],
     assumption_game_inst: &GameInstance,
     construction_game_inst: &GameInstance,
 ) -> Result<(), ParseTheoremError> {
@@ -942,10 +1109,10 @@ fn check_adversary_exports(
         if !assump_has_export {
             let assumption_dst_name =
                 &assumption_game_inst.game().pkgs[entry.assumption_offset].name;
-            let assumption_span = entry.assumption_ast.as_span();
+            let assumption_span = entry.assumption().as_span();
             let assumption_at = (assumption_span.start()..assumption_span.end()).into();
 
-            let construction_span = entry.construction_ast.as_span();
+            let construction_span = entry.construction().as_span();
             let construction_at = (construction_span.start()..construction_span.end()).into();
 
             return Err(AssumptionAdversaryExportsNotSufficientError {
@@ -978,6 +1145,7 @@ fn wiring_mismatch_diagnostic(
     direction: WiringDirection,
     edge: &Edge,
     mapped: (usize, usize),
+    check_oracle_names: bool,
 ) -> ParseTheoremError {
     let (direction, source, target) = match direction {
         WiringDirection::ConstructionToAssumption => {
@@ -990,6 +1158,12 @@ fn wiring_mismatch_diagnostic(
     AssumptionMappingWiringMismatchError {
         source_code: ctx.named_source(),
         at: (span.start()..span.end()).into(),
+        reason: if check_oracle_names {
+            "import or destination oracle name differs"
+        } else {
+            "no corresponding wire"
+        }
+        .to_string(),
         direction: direction.to_string(),
         assumption_game_name: assumption.name.clone(),
         construction_game_name: construction.name.clone(),
@@ -1007,11 +1181,12 @@ fn wiring_mismatch_diagnostic(
 fn check_construction_wires(
     ctx: &ParseTheoremContext,
     mapping_span: pest::Span,
-    pkg_offset_mapping: &[MappingEntry],
+    pkg_offset_mapping: &[ReductionMappingEntry],
     assumption_game_inst: &GameInstance,
     construction_game_inst: &GameInstance,
     constr_src_pkg_inst_offs: &usize,
     assump_src_pkg_inst_offs: &usize,
+    check_oracle_names: bool,
 ) -> Result<(), ParseTheoremError> {
     // all edges in the construction game that start at the package instance we are currently
     // looking at. We are only looking at mapped package instances, so we know it is part
@@ -1056,6 +1231,9 @@ fn check_construction_wires(
 
                     assumption_game_edge.from() == *assump_src_pkg_inst_offs
                         && assumption_game_edge.to() == destination.assumption_offset
+                        && (!check_oracle_names
+                            || (assumption_game_edge.name() == construction_edge.name()
+                                && assumption_game_edge.sig().name == construction_edge.sig().name))
                         && constr_sig_fixed.types_match(&assump_sig_fixed)
                 });
 
@@ -1068,6 +1246,7 @@ fn check_construction_wires(
                 WiringDirection::ConstructionToAssumption,
                 construction_edge,
                 (*assump_src_pkg_inst_offs, destination.assumption_offset),
+                check_oracle_names,
             ));
         }
     }
@@ -1078,11 +1257,12 @@ fn check_construction_wires(
 fn check_assumption_wires(
     ctx: &ParseTheoremContext,
     mapping_span: pest::Span,
-    pkg_offset_mapping: &[MappingEntry],
+    pkg_offset_mapping: &[ReductionMappingEntry],
     assumption_game_inst: &GameInstance,
     construction_game_inst: &GameInstance,
     constr_src_pkg_inst_offs: &usize,
     assump_src_pkg_inst_offs: &usize,
+    check_oracle_names: bool,
 ) -> Result<(), ParseTheoremError> {
     // all edges in the assumtion game that start at the package instance we are currently
     // looking at.
@@ -1107,6 +1287,9 @@ fn check_assumption_wires(
                 .any(|construction_game_edge| {
                     construction_game_edge.from() == *constr_src_pkg_inst_offs
                         && construction_game_edge.to() == destination.construction_offset
+                        && (!check_oracle_names
+                            || (construction_game_edge.name() == assumption_edge.name()
+                                && construction_game_edge.sig().name == assumption_edge.sig().name))
                 });
 
         if !edge_exists_in_construction {
@@ -1118,6 +1301,7 @@ fn check_assumption_wires(
                 WiringDirection::AssumptionToConstruction,
                 assumption_edge,
                 (*constr_src_pkg_inst_offs, destination.construction_offset),
+                check_oracle_names,
             ));
         }
     }
@@ -1241,6 +1425,7 @@ enum PackageInstanceDiff<'a> {
 
 #[derive(Clone, Debug)]
 pub(crate) struct ReductionMapping<'a> {
+    span: pest::Span<'a>,
     assumption: GameInstanceName<'a>,
     construction: GameInstanceName<'a>,
 
@@ -1248,6 +1433,18 @@ pub(crate) struct ReductionMapping<'a> {
 }
 
 impl<'a> ReductionMapping<'a> {
+    fn assumption_game_instance<'ctx>(&self, ctx: &'ctx ParseTheoremContext) -> &'ctx GameInstance {
+        ctx.game_instance(self.assumption.as_str())
+            .expect("validated reduction mappings resolve the assumption game instance")
+            .1
+    }
+
+    fn entry_for(&self, construction: &PackageInstance) -> Option<&ReductionMappingEntry<'a>> {
+        self.entries
+            .iter()
+            .find(|entry| entry.construction().as_str() == construction.name())
+    }
+
     pub(crate) fn assumption_game_instance_name(&self) -> &GameInstanceName<'a> {
         &self.assumption
     }
@@ -1265,6 +1462,8 @@ impl<'a> ReductionMapping<'a> {
 pub(crate) struct ReductionMappingEntry<'a> {
     assumption: PackageInstanceName<'a>,
     construction: PackageInstanceName<'a>,
+    assumption_offset: usize,
+    construction_offset: usize,
 }
 
 impl<'a> ReductionMappingEntry<'a> {
@@ -1340,6 +1539,7 @@ mod traversal_tests {
             .next()
             .unwrap();
         let mapping = ReductionMapping {
+            span: pest::Span::new("context", 0, 7).unwrap(),
             assumption: name.clone().into(),
             construction: name.into(),
             entries: vec![],
@@ -1382,12 +1582,24 @@ mod traversal_tests {
 
     #[test]
     fn long_context_cycle_reports_cycle() {
-        // Coprime cycle lengths require 16,637 distinct pairs before repetition.
+        let left = router_game(8192, true);
+        let right = router_game(8192, true);
+        let (result, visits) = compare_with_budget(&left, &right, 8192);
+        let Err(ParseTheoremError::ReductionCyclicContext(error)) = result else {
+            panic!("expected a cycle diagnostic");
+        };
+        assert_eq!(visits, 8192);
+        assert_eq!(error.left_pkg_inst_name, "r1");
+        assert_eq!(error.right_pkg_inst_name, "r1");
+    }
+
+    #[test]
+    fn different_context_cycles_preserve_cycle_diagnostic() {
         let left = router_game(127, true);
         let right = router_game(131, true);
         let (result, visits) = compare_with_budget(&left, &right, 127 * 131);
         let Err(ParseTheoremError::ReductionCyclicContext(error)) = result else {
-            panic!("expected a cycle diagnostic");
+            panic!("expected the existing cycle diagnostic");
         };
         assert_eq!(visits, 127 * 131);
         assert_eq!(error.left_pkg_inst_name, "r1");

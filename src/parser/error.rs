@@ -668,6 +668,64 @@ pub struct ReductionMissingExportError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("Construction game instances {left_game_inst_name} and {right_game_inst_name} have different exports for oracle {oracle_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::export_mismatch))]
+#[help("Export the same names with matching signatures. Left: {left_signature}; right: {right_signature}.")]
+pub struct ReductionExportMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes the adversary's interface")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub oracle_name: String,
+    pub left_signature: String,
+    pub right_signature: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Context import {import_name} of {left_pkg_inst_name} in {left_game_inst_name} targets {left_oracle_name}, but {right_pkg_inst_name} in {right_game_inst_name} targets {right_oracle_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::context_oracle_mismatch))]
+#[help("Use matching destination oracle names and signatures within the context, or matching assumption export names at its boundary. Left: {left_signature}; right: {right_signature}.")]
+pub struct ReductionContextOracleMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes a context import's destination oracle")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub left_pkg_inst_name: String,
+    pub right_pkg_inst_name: String,
+    pub import_name: String,
+    pub left_oracle_name: String,
+    pub right_oracle_name: String,
+    pub left_signature: String,
+    pub right_signature: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Context instance {pkg_inst_name} in {game_inst_name} is paired with both {previous_partner_name} and {partner_name} in {other_game_inst_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::context_instance_mismatch))]
+#[help("Preserve shared context state by pairing each package instance with exactly one instance on the other side.")]
+pub struct ReductionContextInstanceMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes context instance sharing")]
+    pub at: SourceSpan,
+
+    pub game_inst_name: String,
+    pub other_game_inst_name: String,
+    pub pkg_inst_name: String,
+    pub previous_partner_name: String,
+    pub partner_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("Both reduction mappings use the same {role} game instance {name}")]
 #[diagnostic(code(domino::code::theorem::reduction::same_game_instance))]
 #[help("Use a different {role} game instance for each side of the reduction.")]
@@ -712,7 +770,7 @@ pub struct AssumptionMappingUnmappedDestinationError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
-#[error("Wiring differs between assumption game {assumption_game_name} and construction game {construction_game_name}: {from_pkg_inst_name} imports {import_name} from {to_pkg_inst_name} (oracle {oracle_name})")]
+#[error("Wiring differs between assumption game {assumption_game_name} and construction game {construction_game_name}: {from_pkg_inst_name} imports {import_name} from {to_pkg_inst_name} (oracle {oracle_name}): {reason}")]
 #[diagnostic(code(domino::code::theorem::reduction::mapping::wiring_mismatch))]
 #[help("Checking {direction}: expected a corresponding wire from {mapped_from_pkg_inst_name} to {mapped_to_pkg_inst_name}. Oracle signature: {oracle_signature}.")]
 pub struct AssumptionMappingWiringMismatchError {
@@ -723,6 +781,7 @@ pub struct AssumptionMappingWiringMismatchError {
     pub at: SourceSpan,
 
     pub direction: String,
+    pub reason: String,
     pub assumption_game_name: String,
     pub construction_game_name: String,
     pub from_pkg_inst_name: String,

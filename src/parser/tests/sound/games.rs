@@ -9,11 +9,52 @@ use crate::{
             TypeMismatchError, UndefinedOracleError, UnusedEdgeError,
         },
         package::ParseExpressionError,
-        tests::{games, packages},
+        tests::{games, packages, slice_source_span},
     },
     types::{CountSpec, Type, TypeKind},
 };
 use std::{collections::HashMap, iter::FromIterator as _};
+
+#[test]
+fn repeated_import_across_compose_blocks() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    for destination in ["leaf", "other"] {
+        let source = format!(
+            "composition Game {{
+                instance leaf = Leaf {{}}
+                instance other = Leaf {{}}
+                instance router = Router {{}}
+                compose {{ router: {{ A: Eval of leaf, B: Eval of leaf }} }}
+                compose {{ router: {{ A: Eval of {destination} }} }}
+            }}"
+        );
+        let error = games::parse_fails(&source, "repeated-import.ssp", &pkgs);
+        let ParseGameError::DuplicateEdgeDefinition(error) = error else {
+            panic!("expected a duplicate edge diagnostic, got {error:?}");
+        };
+        assert_eq!(error.game_name, "Game");
+        assert_eq!(error.pkg_inst_name, "router");
+        assert_eq!(error.oracle_name, "A");
+        assert_eq!(slice_source_span(&error.source_code, &error.at), "A");
+        assert_eq!(error.at.offset(), source.rfind("A:").unwrap());
+    }
+}
+
+#[test]
+fn repeated_import_in_separate_source_entries() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
+    let error = games::parse_file_fails("LeftGame-first-edge.comp.ssp", &pkgs);
+    let ParseGameError::DuplicateEdgeDefinition(error) = error else {
+        panic!("expected a duplicate edge diagnostic, got {error:?}");
+    };
+    assert_eq!(error.pkg_inst_name, "router");
+    assert_eq!(error.oracle_name, "A");
+    assert_eq!(slice_source_span(&error.source_code, &error.at), "A");
+    assert_eq!(
+        error.at.offset(),
+        error.source_code.inner().rfind("A:").unwrap()
+    );
+}
 
 #[test]
 fn type_mismatch_in_game_params() {

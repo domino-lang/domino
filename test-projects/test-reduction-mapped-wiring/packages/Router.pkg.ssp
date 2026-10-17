@@ -1,0 +1,8 @@
+package Router {
+    import oracles { f() -> Integer, g() -> Integer, }
+    oracle Eval() -> Integer {
+        first <- invoke f();
+        second <- invoke g();
+        return (first - second);
+    }
+}

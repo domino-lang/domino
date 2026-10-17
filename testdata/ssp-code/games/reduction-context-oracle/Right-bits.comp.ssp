@@ -1,0 +1,9 @@
+composition Right {
+    instance router = BitRouter { params { n: 1 } }
+    instance target = BitLeaf { params { n: 1 } }
+    instance leaf = Leaf {}
+    compose {
+        adversary: { Run: router }
+        router: { Eval: target }
+    }
+}

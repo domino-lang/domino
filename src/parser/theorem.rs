@@ -48,9 +48,11 @@ use super::{
         AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
         DuplicateGameInstanceDefinitionError, DuplicateGameParameterDefinitionError,
         InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
-        NoSuchGameParameterError, ParserScopeError, ReductionCyclicContextError,
-        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
-        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        NoSuchGameParameterError, ParserScopeError, ReductionContextInstanceMismatchError,
+        ReductionContextOracleMismatchError, ReductionCyclicContextError,
+        ReductionExportMismatchError, ReductionInconsistentAssumptionBoundaryError,
+        ReductionInvalidHybridMappingError, ReductionMissingExportError,
+        ReductionPackageInstanceParameterMismatchError,
         ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameError, UndefinedGameInstanceError,
         UndefinedPackageInstanceError, UndefinedRandomnessSortError,
@@ -277,6 +279,18 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ReductionCyclicContext(#[from] ReductionCyclicContextError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionContextOracleMismatch(#[from] ReductionContextOracleMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionContextInstanceMismatch(#[from] ReductionContextInstanceMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionExportMismatch(#[from] ReductionExportMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]

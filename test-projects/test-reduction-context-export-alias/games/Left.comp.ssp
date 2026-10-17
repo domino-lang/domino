@@ -1,0 +1,8 @@
+composition Left {
+    instance c = Context {}
+    instance real = Real {}
+    compose {
+        adversary: { Eval: c }
+        c: { f: RealEval of real }
+    }
+}

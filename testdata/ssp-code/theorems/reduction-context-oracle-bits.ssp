@@ -1,0 +1,14 @@
+theorem ContextSignature {
+    instance a0 = AssumptionGame {}
+    instance a1 = AssumptionGame {}
+    instance left = Left { params { width: 1 } }
+    instance right = Right {}
+    assumptions { Identity: a0 ~ a1 }
+    gamehops {
+        reduction left right {
+            assumption Identity
+            map a0 left { leaf: leaf }
+            map a1 right { leaf: leaf }
+        }
+    }
+}

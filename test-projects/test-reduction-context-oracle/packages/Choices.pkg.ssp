@@ -1,0 +1,4 @@
+package Choices {
+    oracle O1() -> Integer { return 0; }
+    oracle O2() -> Integer { return 1; }
+}
