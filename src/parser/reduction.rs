@@ -36,8 +36,9 @@ use super::{
         AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
         ReductionContainsDifferentPackagesError, ReductionContextInstanceMismatchError,
         ReductionContextOracleMismatchError, ReductionCyclicContextError,
-        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
-        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionExportMismatchError, ReductionInconsistentAssumptionBoundaryError,
+        ReductionInvalidHybridMappingError, ReductionMissingExportError,
+        ReductionPackageInstanceParameterMismatchError,
         ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
@@ -82,6 +83,7 @@ struct ReductionTraversal<'a> {
     right_edges: HashMap<(usize, &'a str), &'a Edge>,
     visited: HashMap<(usize, usize), ComparisonState>,
     imports: Vec<(&'a Edge, &'a Edge)>,
+    exports: Vec<(&'a Export, &'a Export)>,
     context_pairs: Vec<(usize, usize)>,
     #[cfg(test)]
     visit_count: usize,
@@ -96,6 +98,7 @@ impl<'a> ReductionTraversal<'a> {
             right_edges: index_edges(right),
             visited: HashMap::new(),
             imports: vec![],
+            exports: vec![],
             context_pairs: vec![],
             #[cfg(test)]
             visit_count: 0,
@@ -456,6 +459,13 @@ pub(super) fn handle_reduction_body<'a>(
     )?;
     check_mapping_oracles(ctx, &mapping_left, left_game_inst)?;
     check_mapping_oracles(ctx, &mapping_right, right_game_inst)?;
+    check_construction_exports(
+        ctx,
+        reduction_span,
+        left_game_inst,
+        right_game_inst,
+        &traversal,
+    )?;
 
     let reduction = Reduction::new(mapping_left, mapping_right, assumption_name.to_string());
 
@@ -541,8 +551,47 @@ fn compare_reduction_context<'ctx>(
             mapping_right,
             &mut traversal,
         )?;
+        traversal.exports.push((left_export, right_export));
     }
     Ok(traversal)
+}
+
+fn check_construction_exports(
+    ctx: &ParseTheoremContext,
+    reduction_span: pest::Span,
+    left_game_inst: &GameInstance,
+    right_game_inst: &GameInstance,
+    traversal: &ReductionTraversal,
+) -> Result<(), ParseTheoremError> {
+    let mismatch = |left: Option<&Export>, right: &Export| {
+        ReductionExportMismatchError {
+            source_code: ctx.named_source(),
+            at: (reduction_span.start()..reduction_span.end()).into(),
+            left_game_inst_name: left_game_inst.name().to_string(),
+            right_game_inst_name: right_game_inst.name().to_string(),
+            oracle_name: right.name().to_string(),
+            left_signature: left
+                .map(|export| export.sig().to_oracle_type().to_string())
+                .unwrap_or_else(|| "not exported".to_string()),
+            right_signature: right.sig().to_oracle_type().to_string(),
+        }
+        .into()
+    };
+    for right_export in &right_game_inst.game().exports {
+        if !traversal
+            .exports
+            .iter()
+            .any(|(left, _)| left.name() == right_export.name())
+        {
+            return Err(mismatch(None, right_export));
+        }
+    }
+    for &(left_export, right_export) in &traversal.exports {
+        if !left_export.sig().types_match_resolved(right_export.sig()) {
+            return Err(mismatch(Some(left_export), right_export));
+        }
+    }
+    Ok(())
 }
 
 fn check_distinct_mapped_games(

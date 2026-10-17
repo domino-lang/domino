@@ -81,6 +81,69 @@ fn reduction_context_preserves_destination_oracles() {
 }
 
 #[test]
+fn reduction_requires_matching_exports() {
+    let pkgs = packages::parse_files(&["reduction-context-oracle/Choices.pkg.ssp"]);
+    for (right, valid) in [
+        ("reduction-exports/Right.comp.ssp", false),
+        ("reduction-exports/Right-control.comp.ssp", true),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-context-oracle/Assumption.comp.ssp",
+                "reduction-exports/Left.comp.ssp",
+                right,
+            ],
+            &pkgs,
+        );
+        for file in [
+            "reduction-context-oracle.ssp",
+            "reduction-exports-reversed.ssp",
+        ] {
+            if valid {
+                theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+            } else {
+                let error = theorems::parse_file_fails(file, &pkgs, &games);
+                match error {
+                    ParseTheoremError::ReductionExportMismatch(error) => {
+                        assert_eq!(error.oracle_name, "O2");
+                        assert_eq!(error.left_signature, "not exported");
+                        assert_eq!(error.right_signature, "oracle () -> Integer");
+                        assert!(slice_source_span(&error.source_code, &error.at)
+                            .starts_with("assumption Identity"));
+                    }
+                    ParseTheoremError::ReductionMissingExport(error) => {
+                        assert_eq!(error.game_inst_name, "left");
+                        assert_eq!(error.oracle_name, "O2");
+                    }
+                    error => panic!("expected an export mismatch, got {error:?}"),
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn reduction_requires_matching_export_signatures() {
+    let pkgs = packages::parse_files(&["BitLeaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "reduction-exports/Bits.comp.ssp",
+            "reduction-exports/Literal-bits.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let file = "reduction-export-signatures-control.ssp";
+    theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+    let error = theorems::parse_file_fails("reduction-export-signatures.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionExportMismatch(error) = error else {
+        panic!("expected an export signature mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.left_game_inst_name, "left");
+    assert_eq!(error.right_game_inst_name, "right");
+}
+
+#[test]
 fn missing_game_instance_params_block() {
     let games = games::parse_files(&["tiny.ssp"], &HashMap::new());
     let err = theorems::parse_file_fails("empty-params.ssp", &HashMap::new(), &games);

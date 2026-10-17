@@ -667,6 +667,24 @@ pub struct ReductionMissingExportError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error("Construction game instances {left_game_inst_name} and {right_game_inst_name} have different exports for oracle {oracle_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::export_mismatch))]
+#[help("Export the same names with matching signatures. Left: {left_signature}; right: {right_signature}.")]
+pub struct ReductionExportMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes the adversary's interface")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub oracle_name: String,
+    pub left_signature: String,
+    pub right_signature: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("Context import {import_name} of {left_pkg_inst_name} in {left_game_inst_name} targets {left_oracle_name}, but {right_pkg_inst_name} in {right_game_inst_name} targets {right_oracle_name}")]
 #[diagnostic(code(domino::code::theorem::reduction::context_oracle_mismatch))]
 #[help("Use matching destination oracle names and signatures within the context, or matching assumption export names at its boundary. Left: {left_signature}; right: {right_signature}.")]

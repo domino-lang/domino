@@ -1,0 +1,14 @@
+theorem ExtraExport {
+    instance a0 = Assumption {}
+    instance a1 = Assumption {}
+    instance left = Left {}
+    instance right = Right {}
+    assumptions { Identity: a0 ~ a1 }
+    gamehops {
+        reduction left right {
+            assumption Identity
+            map a0 left { x: x }
+            map a1 right { x: x }
+        }
+    }
+}

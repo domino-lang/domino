@@ -51,8 +51,9 @@ use super::{
         InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
         NoSuchGameParameterError, ParserScopeError, ReductionContextInstanceMismatchError,
         ReductionContextOracleMismatchError, ReductionCyclicContextError,
-        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
-        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionExportMismatchError, ReductionInconsistentAssumptionBoundaryError,
+        ReductionInvalidHybridMappingError, ReductionMissingExportError,
+        ReductionPackageInstanceParameterMismatchError,
         ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameError, UndefinedGameInstanceError,
         UndefinedPackageInstanceError, UndefinedRandomnessSortError,
@@ -287,6 +288,10 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ReductionContextInstanceMismatch(#[from] ReductionContextInstanceMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionExportMismatch(#[from] ReductionExportMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]

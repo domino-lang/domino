@@ -1,0 +1,6 @@
+composition Right {
+    instance x = Choices {}
+    compose {
+        adversary: { O1: x, O2: x }
+    }
+}

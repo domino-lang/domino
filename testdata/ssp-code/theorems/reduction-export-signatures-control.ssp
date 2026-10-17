@@ -1,0 +1,14 @@
+theorem ExportSignatures {
+    instance a0 = BitsGame { params { width: 1 } }
+    instance a1 = LiteralBitsGame {}
+    instance left = BitsGame { params { width: 1 } }
+    instance right = LiteralBitsGame {}
+    assumptions { Interface: a0 ~ a1 }
+    gamehops {
+        reduction left right {
+            assumption Interface
+            map a0 left { leaf: leaf }
+            map a1 right { leaf: leaf }
+        }
+    }
+}
