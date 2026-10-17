@@ -13,6 +13,74 @@ use crate::parser::{
 use std::collections::HashMap;
 
 #[test]
+fn context_oracle_mismatch_precedes_later_reduction_error() {
+    let pkgs = packages::parse_files(&[
+        "reduction-context-oracle/Context.pkg.ssp",
+        "reduction-context-oracle/Choices.pkg.ssp",
+    ]);
+    let games = games::parse_files(
+        &[
+            "reduction-context-oracle/Assumption.comp.ssp",
+            "reduction-context-oracle/Left.comp.ssp",
+            "reduction-context-oracle/Right.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let source = theorems::read_file("reduction-context-oracle.ssp");
+    let source = source.replace(
+        "    }\n}",
+        "        reduction left right {
+            assumption Missing
+            map a0 left { x: x }
+            map a1 right { x: x }
+        }
+    }\n}",
+    );
+    assert!(matches!(
+        theorems::parse_fails(&source, "priority.ssp", &pkgs, &games),
+        ParseTheoremError::ReductionContextOracleMismatch(_)
+    ));
+}
+
+#[test]
+fn reduction_context_preserves_destination_oracles() {
+    let pkgs = packages::parse_files(&[
+        "reduction-context-oracle/Context.pkg.ssp",
+        "reduction-context-oracle/Choices.pkg.ssp",
+    ]);
+    for (right, valid) in [
+        ("reduction-context-oracle/Right.comp.ssp", false),
+        ("reduction-context-oracle/Right-control.comp.ssp", true),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-context-oracle/Assumption.comp.ssp",
+                "reduction-context-oracle/Left.comp.ssp",
+                right,
+            ],
+            &pkgs,
+        );
+        let file = "reduction-context-oracle.ssp";
+        if valid {
+            theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+        } else {
+            let error = theorems::parse_file_fails(file, &pkgs, &games);
+            let ParseTheoremError::ReductionContextOracleMismatch(error) = error else {
+                panic!("expected a context oracle mismatch, got {error:?}");
+            };
+            assert_eq!(error.import_name, "f");
+            assert_eq!(error.left_oracle_name, "O1");
+            assert_eq!(error.right_oracle_name, "O2");
+            assert_eq!(error.left_signature, "oracle () -> Integer");
+            assert_eq!(error.right_signature, "oracle () -> Integer");
+            assert!(
+                slice_source_span(&error.source_code, &error.at).starts_with("assumption Identity")
+            );
+        }
+    }
+}
+
+#[test]
 fn missing_game_instance_params_block() {
     let games = games::parse_files(&["tiny.ssp"], &HashMap::new());
     let err = theorems::parse_file_fails("empty-params.ssp", &HashMap::new(), &games);

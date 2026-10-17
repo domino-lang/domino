@@ -1,0 +1,6 @@
+composition AssumptionReal {
+    instance r = Real {}
+    compose {
+        adversary: { Eval: RealEval of r }
+    }
+}

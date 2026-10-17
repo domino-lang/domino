@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::expressions::{Expression, ExpressionKind};
-use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
+use crate::identifier::{
+    game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
+    Identifier,
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Type {
@@ -175,27 +178,45 @@ impl Type {
     }
 
     pub(crate) fn types_match(&self, other: &Self) -> bool {
+        self.types_match_impl(other, false)
+    }
+
+    pub(crate) fn types_match_resolved(&self, other: &Self) -> bool {
+        self.types_match_impl(other, true)
+    }
+
+    fn types_match_impl(&self, other: &Self, resolve_assignments: bool) -> bool {
+        let types_match =
+            |left: &Type, right: &Type| left.types_match_impl(right, resolve_assignments);
         match (self.kind(), other.kind()) {
+            (TypeKind::Bits(l), TypeKind::Bits(r)) if resolve_assignments => {
+                l == r
+                    || matches!((l.resolved_expression(), r.resolved_expression()),
+                        (Some(l), Some(r)) if l == r)
+            }
             (TypeKind::Bits(l), TypeKind::Bits(r)) => l.countspecs_match(r),
 
             (TypeKind::List(l), TypeKind::List(r))
             | (TypeKind::Set(l), TypeKind::Set(r))
-            | (TypeKind::Maybe(l), TypeKind::Maybe(r)) => l.types_match(r.as_ref()),
+            | (TypeKind::Maybe(l), TypeKind::Maybe(r)) => types_match(l, r),
 
             (TypeKind::Table(lk, lv), TypeKind::Table(rk, rv)) => {
-                lk.types_match(rk.as_ref()) && lv.types_match(rv)
+                types_match(lk, rk) && types_match(lv, rv)
             }
 
             (TypeKind::Tuple(l), TypeKind::Tuple(r)) => {
-                l.len() == r.len() && l.iter().zip(r.iter()).all(|(l, r)| Type::types_match(l, r))
+                l.len() == r.len() && l.iter().zip(r.iter()).all(|(l, r)| types_match(l, r))
             }
 
             (TypeKind::Fn(largs, lty), TypeKind::Fn(rargs, rty)) => {
-                largs
-                    .iter()
-                    .zip(rargs.iter())
-                    .all(|(l, r)| Type::types_match(l, r))
-                    && lty.types_match(rty.as_ref())
+                // Existing callers compare zipped arguments; reduction interfaces
+                // also require matching function arities.
+                (!resolve_assignments || largs.len() == rargs.len())
+                    && largs
+                        .iter()
+                        .zip(rargs.iter())
+                        .all(|(l, r)| types_match(l, r))
+                    && types_match(lty, rty)
             }
 
             (lother, rother) => lother == rother,
@@ -298,6 +319,40 @@ pub enum CountSpec {
 }
 
 impl CountSpec {
+    // Instantiation retains package/game assignments, including expressions.
+    // Compare their values without theorem identifiers' instance metadata.
+    fn resolved_expression(&self) -> Option<Expression> {
+        fn resolve(expr: &Expression) -> Expression {
+            expr.map(|expr| {
+                let assignment = match expr.kind() {
+                    ExpressionKind::Identifier(Identifier::PackageIdentifier(
+                        PackageIdentifier::Const(id),
+                    )) => id.game_assignment.as_deref(),
+                    ExpressionKind::Identifier(Identifier::GameIdentifier(
+                        GameIdentifier::Const(id),
+                    )) => id.assigned_value.as_deref(),
+                    _ => None,
+                };
+                if let Some(assignment) = assignment {
+                    return resolve(assignment);
+                }
+                let mut kind = expr.into_kind();
+                if let ExpressionKind::Identifier(Identifier::TheoremIdentifier(id)) = &mut kind {
+                    match id {
+                        TheoremIdentifier::Const(id) => id.inst_info = None,
+                        TheoremIdentifier::LoopVar(id) => id.inst_info = None,
+                    }
+                }
+                Expression::from_kind(kind)
+            })
+        }
+        match self {
+            Self::Any => None,
+            Self::Literal(n) => i64::try_from(*n).ok().map(Expression::integer),
+            Self::Identifier(id) => Some(resolve(&Expression::from((**id).clone()))),
+        }
+    }
+
     pub(crate) fn countspecs_match(&self, other: &Self) -> bool {
         if let (Self::Identifier(l), Self::Identifier(r)) = (self, other) {
             l.identifiers_match(r)

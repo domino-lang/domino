@@ -40,6 +40,34 @@ fn empty_param_section_is_fine() {
 }
 
 #[test]
+fn reduction_context_matches_assumption_export_aliases() {
+    use crate::project::{directory::DirectoryFiles, DirectoryProject, Project};
+
+    let root = std::path::PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test-projects/test-reduction-context-export-alias"
+    ));
+    let files = DirectoryFiles::load(&root).unwrap();
+    let project = DirectoryProject::load(root, &files).unwrap();
+    assert!(project.get_theorem("ContextExportAlias").is_some());
+}
+
+#[test]
+fn reduction_context_resolves_signature_parameters() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "BitLeaf.pkg.ssp", "BitRouter.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "reduction-context-oracle/Left-bits.comp.ssp",
+            "reduction-context-oracle/Right-bits.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let file = "reduction-context-oracle-bits.ssp";
+    theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+}
+
+#[test]
 fn reduction_context_uses_first_edge_assignment() {
     let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
     let games = games::parse_files(

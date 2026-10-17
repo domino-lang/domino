@@ -1,0 +1,10 @@
+composition Left {
+    const width: Integer;
+    instance router = BitRouter { params { n: width } }
+    instance target = BitLeaf { params { n: width } }
+    instance leaf = Leaf {}
+    compose {
+        adversary: { Run: router }
+        router: { Eval: target }
+    }
+}
