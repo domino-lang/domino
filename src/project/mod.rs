@@ -122,7 +122,7 @@ pub trait Project {
             let theorem = self.get_theorem(theorem_key).unwrap();
 
             if !config.theorem_requested(theorem_key) {
-                ui.finish();
+                ui.skip();
                 continue;
             }
 
@@ -169,7 +169,7 @@ pub trait Project {
                 }
             }
 
-            ui.finish();
+            ui.finish(theorem);
         }
 
         ui.finish();
