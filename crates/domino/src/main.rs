@@ -56,7 +56,7 @@ enum Error {
     ReqOracleWithInvariantStart(#[from] ReqOracleWithInvariantStart),
 }
 
-fn gamehops(ui: impl GamehopUI, g: &Gamehops) -> Result<(), Error> {
+fn gamehops(ui: impl GamehopUI, g: Gamehops) -> Result<(), Error> {
     let project_root = match &g.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -68,7 +68,7 @@ fn gamehops(ui: impl GamehopUI, g: &Gamehops) -> Result<(), Error> {
     Ok(())
 }
 
-fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
+fn prove(ui: impl ProveUI, mut p: Prove) -> Result<(), Error> {
     let project_root = match &p.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -84,11 +84,11 @@ fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
         return Err(ReqOracleWithInvariantStart.into());
     }
 
-    project.prove(ui, p)?;
+    project.prove(ui, &p)?;
     Ok(())
 }
 
-fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
+fn latex(ui: impl LatexUI, l: Latex) -> Result<(), Error> {
     let project_root = match &l.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -103,7 +103,7 @@ fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
     Ok(())
 }
 
-fn format(f: &Format) -> Result<(), Error> {
+fn format(f: Format) -> Result<(), Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
@@ -126,7 +126,7 @@ fn main() -> miette::Result<()> {
     let cli = Cli::parse();
     let ui = IndicatifUI::new();
 
-    let result = match &cli.command {
+    let result = match cli.command {
         Commands::Prove(p) => prove(ui.prove_ui(), p),
         Commands::Gamehops(g) => gamehops(ui.gamehop_ui(), g),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
