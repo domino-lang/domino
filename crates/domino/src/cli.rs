@@ -6,12 +6,12 @@ use wildcard::Wildcard;
 use sspverif::{project::configuration::*, util::smtsolver::process::SolverVariant};
 
 #[derive(Subcommand, Debug)]
-pub(crate) enum Commands {
+pub(crate) enum Commands<'a> {
     /// Export to LaTeX
     Latex(Latex),
 
     /// Prove the whole project.
-    Prove(Prove),
+    Prove(Prove<'a>),
 
     /// Reformat file or directory
     Format(Format),
@@ -41,7 +41,7 @@ pub(crate) struct Latex {
 
 #[derive(clap::Args, Debug)]
 #[clap(author, version, about, long_about = None)]
-pub(crate) struct Prove {
+pub(crate) struct Prove<'a> {
     /// Path to the Domino project. Defaults to searching the current
     /// directory and its ancestors for an `ssp.toml`.
     #[clap(long)]
@@ -65,6 +65,9 @@ pub(crate) struct Prove {
     pub(crate) claim: Option<String>,
     #[clap(long, default_value_t = 1)]
     pub(crate) parallel: usize,
+
+    #[clap(skip)]
+    pub(crate) compiled_claim: Option<Wildcard<'a>>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -76,7 +79,7 @@ pub(crate) struct Gamehops {
     pub(crate) path: Option<std::path::PathBuf>,
 }
 
-impl ProveConfiguration for Prove {
+impl<'a> ProveConfiguration for Prove<'a> {
     type SolverBackend = sspverif::util::smtsolver::process::ProcessSmtSolverBackend;
 
     fn solver_backend(&self) -> Self::SolverBackend {
@@ -106,11 +109,7 @@ impl ProveConfiguration for Prove {
     }
 
     fn claim_requested(&self, claim: &str) -> bool {
-        let req_claim = self
-            .claim
-            .as_ref()
-            .map(|req| Wildcard::new(req.as_bytes()).unwrap());
-        match req_claim {
+        match &self.compiled_claim {
             Some(req_claim) => req_claim.is_match(claim.as_bytes()),
             None => true,
         }
@@ -136,5 +135,14 @@ impl ProveConfiguration for Prove {
     }
     fn injectivity_requested(&self) -> bool {
         self.injective_randmap
+    }
+}
+
+impl Prove<'_> {
+    pub(crate) fn init(&mut self) {
+        self.compiled_claim = self
+            .claim
+            .as_ref()
+            .map(|req| Wildcard::from_owned(req.as_bytes().to_vec()).unwrap())
     }
 }

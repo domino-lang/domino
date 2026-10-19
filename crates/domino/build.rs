@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(dead_code)]
+
 use clap::{CommandFactory, Parser, ValueEnum};
 use clap_complete::{generate_to, Shell};
 use std::env;
@@ -12,9 +14,9 @@ include!("src/cli.rs");
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 #[clap(propagate_version = true)]
-pub(crate) struct Cli {
+pub(crate) struct Cli<'a> {
     #[clap(subcommand)]
-    pub(crate) command: Commands,
+    pub(crate) command: Commands<'a>,
 }
 
 fn main() -> Result<(), Error> {
