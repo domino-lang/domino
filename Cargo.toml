@@ -46,7 +46,6 @@ sspverif-smtlib = { workspace = true }
 tempfile = "3"
 thiserror = "1.0.61"
 walkdir = "2"
-wildcard = "0.3"
 
 # Feature: zipfile
 zip = { version = "8", features = [
@@ -57,6 +56,3 @@ zip = { version = "8", features = [
 subprocess = { version = "0.2", optional = true }
 expectrl = { version = "0.8.0", optional = true }
 clap = { version = "4.0", features = ["derive"], optional = true }
-
-[dev-dependencies]
-mockall = "0.13"

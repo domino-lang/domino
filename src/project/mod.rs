@@ -21,9 +21,7 @@ use crate::{
     writers::smt::contexts::EquivalenceContext,
 };
 
-use crate::ui::{
-    LatexUI, LatexUIGameIterator, ProofstepUI, ProveGamehopUI, ProveTheoremUI, ProveUI,
-};
+use crate::ui::{GamehopUI, LatexUI, LatexUIGameIterator, ProveGamehopUI, ProveTheoremUI, ProveUI};
 
 mod consts;
 mod load;
@@ -36,6 +34,7 @@ pub use zipfile::{ZipFiles, ZipProject};
 pub mod directory;
 pub use directory::{DirectoryFiles, DirectoryProject};
 
+pub mod configuration;
 pub mod error;
 
 pub trait Project {
@@ -51,7 +50,7 @@ pub trait Project {
 
     fn read_input_file(&self, extension: &str) -> std::io::Result<String>;
 
-    fn proofsteps(&self, ui: impl ProofstepUI) -> Result<()> {
+    fn gamehops(&self, ui: impl GamehopUI) -> Result<()> {
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
@@ -106,15 +105,7 @@ pub trait Project {
     fn prove(
         &self,
         ui: impl ProveUI,
-        backend: &(impl SmtSolverBackend + Sync),
-        transcript: bool,
-        parallel: usize,
-        req_theorem: &Option<String>,
-        req_proofstep: Option<usize>,
-        req_oracle: &Option<String>,
-        req_claim: &Option<String>,
-        invariant_start: bool,
-        injective_randmap: bool,
+        config: &(impl configuration::ProveConfiguration + Sync),
     ) -> Result<()>
     where
         Self: Sized + Sync,
@@ -130,11 +121,9 @@ pub trait Project {
             ui.start();
             let theorem = self.get_theorem(theorem_key).unwrap();
 
-            if let Some(ref req_theorem) = req_theorem {
-                if theorem_key != req_theorem {
-                    ui.finish();
-                    continue;
-                }
+            if !config.theorem_requested(theorem_key) {
+                ui.finish();
+                continue;
             }
 
             for (i, game_hop, mut ui) in theorem
@@ -145,11 +134,9 @@ pub trait Project {
                 .collect::<Vec<_>>()
             {
                 ui.start();
-                if let Some(ref req_proofstep) = req_proofstep {
-                    if i != *req_proofstep {
-                        ui.finish();
-                        continue;
-                    }
+                if !config.gamehop_requested(i) {
+                    ui.finish();
+                    continue;
                 }
 
                 match game_hop {
@@ -166,17 +153,7 @@ pub trait Project {
                         eqctx.load_invariants(self)?;
                         eqctx.resolve_claims();
 
-                        let mut driver = EquivalenceSmtDriver::new(
-                            &eqctx,
-                            self,
-                            backend,
-                            transcript,
-                            req_oracle.as_deref(),
-                            req_claim.as_deref(),
-                            parallel,
-                            invariant_start,
-                            injective_randmap,
-                        );
+                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config);
                         driver.verify(ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
@@ -186,17 +163,7 @@ pub trait Project {
                         eqctx.load_invariants(self)?;
                         eqctx.resolve_claims();
 
-                        let mut driver = EquivalenceSmtDriver::new(
-                            &eqctx,
-                            self,
-                            backend,
-                            transcript,
-                            req_oracle.as_deref(),
-                            req_claim.as_deref(),
-                            parallel,
-                            invariant_start,
-                            injective_randmap,
-                        );
+                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config);
                         driver.verify(ui)?;
                     }
                 }
