@@ -37,12 +37,12 @@ impl Communicator {
         mut cmd: std::process::Command,
         mut transcript: Option<W>,
     ) -> Result<Self> {
-        let cmd = cmd.spawn()?;
+        let mut cmd = cmd.spawn()?;
 
         let (send, recv) = std::sync::mpsc::channel();
 
-        let mut stdin = cmd.stdin.unwrap();
-        let stdout = cmd.stdout.unwrap();
+        let mut stdin = cmd.stdin.take().unwrap();
+        let stdout = cmd.stdout.take().unwrap();
 
         let thrd = std::thread::spawn(move || {
             writeln!(stdin)?;
@@ -60,6 +60,12 @@ impl Communicator {
                 write!(stdin, "{data}")?;
                 stdin.flush()?;
             }
+
+            // Close stdin to make the smt solver terminate
+            drop(stdin);
+
+            // Wait and collect child process
+            cmd.wait()?;
             Ok(())
         });
 
