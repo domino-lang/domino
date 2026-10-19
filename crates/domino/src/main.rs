@@ -22,9 +22,9 @@ use crate::ui::*;
 #[derive(Parser, Debug)]
 #[clap(author, version, long_version = build::CLAP_LONG_VERSION, about, long_about = None)]
 #[clap(propagate_version = true)]
-pub(crate) struct Cli {
+pub(crate) struct Cli<'a> {
     #[clap(subcommand)]
-    pub(crate) command: Commands,
+    pub(crate) command: Commands<'a>,
 }
 
 #[derive(Error, Diagnostic, Debug)]
@@ -83,6 +83,8 @@ fn prove(ui: impl ProveUI, mut p: Prove) -> Result<(), Error> {
     if p.invariant_start && p.oracle.is_some() {
         return Err(ReqOracleWithInvariantStart.into());
     }
+
+    p.init();
 
     project.prove(ui, &p)?;
     Ok(())
