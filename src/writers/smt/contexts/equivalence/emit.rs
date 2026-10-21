@@ -13,6 +13,7 @@ use crate::{
     transforms::samplify::SampleInfo,
     types::{Type, TypeKind},
     writers::smt::{
+        contexts::equivalence::composition_writer::CompositionSmtWriter,
         contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtNot},
@@ -30,7 +31,6 @@ use crate::{
             GameStateDeclareInfo, ReturnIsAbortConst, SmtDefineFun,
         },
         sorts::Sort,
-        writer::CompositionSmtWriter,
     },
 };
 

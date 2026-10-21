@@ -15,20 +15,19 @@ use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 
 use crate::types::TypeKind;
-use crate::writers::smt::exprs::{SmtExpr, SmtIte, SmtLet};
+use crate::writers::smt::exprs::{SmtAs, SmtEq2, SmtExpr, SmtIte, SmtLet};
 
-use super::contexts::{
+use crate::writers::smt::contexts::{
     GameInstanceContext, GenericOracleContext, OracleContext, PackageInstanceContext,
 };
-use super::exprs::{SmtAs, SmtEq2};
-use super::names;
-use super::patterns::oracle_args::{GameConstsPattern, OracleArgPattern};
-use super::patterns::{
+use crate::writers::smt::names;
+use crate::writers::smt::patterns::oracle_args::{GameConstsPattern, OracleArgPattern};
+use crate::writers::smt::patterns::{
     variables::GameStatePattern, variables::VariablePattern, FunctionPattern, ReturnValue,
     ReturnValueSelector,
 };
 
-use super::patterns;
+use crate::writers::smt::patterns;
 use patterns::DatastructurePattern;
 
 pub(crate) struct CompositionSmtWriter<'a> {
