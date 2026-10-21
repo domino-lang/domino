@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+pub(super) mod composition_writer;
+
 use crate::{
     expressions::Expression,
     identifier::game_ident::GameConstIdentifier,
