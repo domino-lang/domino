@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+mod composition_writer;
 mod emit;
 
 use crate::{
