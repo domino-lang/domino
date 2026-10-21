@@ -55,11 +55,7 @@ impl<'a> CompositionSmtWriter<'a> {
         self.context().pkg_inst_ctx_by_name(inst_name)
     }
 
-    fn this_normal_oracle_ctx(
-        &self,
-        inst_name: &str,
-        oracle_name: &str,
-    ) -> Option<OracleContext<'a>> {
+    fn this_oracle_ctx(&self, inst_name: &str, oracle_name: &str) -> Option<OracleContext<'a>> {
         self.get_package_instance_context(inst_name)?
             .oracle_ctx_by_name(oracle_name)
     }
@@ -74,7 +70,7 @@ impl<'a> CompositionSmtWriter<'a> {
         game_context.smt_access_gamestate_rand(self.sample_info, gamestate, sample_id)
     }
 
-    fn smt_codeblock_nonsplit(&self, oracle_ctx: &OracleContext, block: CodeBlock) -> SmtExpr {
+    fn smt_codeblock(&self, oracle_ctx: &OracleContext, block: CodeBlock) -> SmtExpr {
         let game_inst_ctx = self.context();
         let game_inst = game_inst_ctx.game_inst();
         let game = game_inst_ctx.game();
@@ -88,8 +84,8 @@ impl<'a> CompositionSmtWriter<'a> {
             result = match stmt {
                 Statement::IfThenElse(ite) => SmtIte {
                     cond: &ite.cond,
-                    then: self.smt_codeblock_nonsplit(oracle_ctx, ite.then_block.clone()),
-                    els: self.smt_codeblock_nonsplit(oracle_ctx, ite.else_block.clone()),
+                    then: self.smt_codeblock(oracle_ctx, ite.then_block.clone()),
+                    els: self.smt_codeblock(oracle_ctx, ite.else_block.clone()),
                 }
                 .into(),
                 Statement::Return(None, _) => {
@@ -199,8 +195,8 @@ impl<'a> CompositionSmtWriter<'a> {
         match stmt {
             Statement::IfThenElse(ite) => SmtIte {
                 cond: &ite.cond,
-                then: self.smt_codeblock_nonsplit(oracle_ctx, ite.then_block.clone()),
-                els: self.smt_codeblock_nonsplit(oracle_ctx, ite.else_block.clone()),
+                then: self.smt_codeblock(oracle_ctx, ite.then_block.clone()),
+                els: self.smt_codeblock(oracle_ctx, ite.else_block.clone()),
             }
             .into(),
             Statement::Return(None, _) => {
@@ -368,7 +364,7 @@ impl<'a> CompositionSmtWriter<'a> {
         let target = &self.game_inst.game.pkgs[edge.to()];
 
         let called_oracle_context = self
-            .this_normal_oracle_ctx(&target.name, &edge.sig().name)
+            .this_oracle_ctx(&target.name, &edge.sig().name)
             .unwrap();
 
         let var_gamestate = &GameStatePattern;
@@ -496,11 +492,7 @@ impl<'a> CompositionSmtWriter<'a> {
         }
     }
 
-    pub(crate) fn smt_define_nonsplit_oracle_fn(
-        &self,
-        inst: &PackageInstance,
-        def: &OracleDef,
-    ) -> SmtExpr {
+    pub(crate) fn smt_define_oracle_fn(&self, inst: &PackageInstance, def: &OracleDef) -> SmtExpr {
         let pkg_inst_name = &inst.name;
         let oracle_sig = &def.sig;
         let oracle_name = &oracle_sig.name;
@@ -518,7 +510,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .smt_access_gamestate_pkgstate(var_globalstate, pkg_inst_name)
             .unwrap();
 
-        let inner = self.smt_codeblock_nonsplit(&octx, def.code.clone());
+        let inner = self.smt_codeblock(&octx, def.code.clone());
 
         let pkgstate_bindings = inst.pkg.state.iter().map(|(name, _ty, _)| {
             (

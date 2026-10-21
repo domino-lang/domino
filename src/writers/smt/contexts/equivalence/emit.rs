@@ -13,7 +13,7 @@ use crate::{
     transforms::samplify::SampleInfo,
     types::{Type, TypeKind},
     writers::smt::{
-        contexts::equivalence::composition_writer::CompositionSmtWriter,
+        contexts::game_inst::composition_writer::CompositionSmtWriter,
         contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtNot},
@@ -1277,8 +1277,7 @@ impl<'a> EquivalenceContext<'a> {
                 let writer = CompositionSmtWriter::new(game_inst, sample_info);
 
                 if already_defined.insert(pattern.function_name()) {
-                    let fundef =
-                        writer.smt_define_nonsplit_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
+                    let fundef = writer.smt_define_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
                     Some(fundef)
                 } else {
                     None
