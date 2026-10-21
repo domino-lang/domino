@@ -14,20 +14,10 @@ impl GlobalContext {
     }
 }
 
-//mod game;
 mod equivalence;
 mod game_inst;
 mod oracle;
 mod pkg_inst;
-//mod split_oracle;
-
-// #[derive(Clone, Debug)]
-// pub struct SplitOracleContext<'a> {
-//     game_inst_context: GameInstanceContext<'a>,
-//     pkg_inst_offs: usize,
-//     split_oracle_offs: usize,
-//     partials: &'a PartialsDatatype,
-// }
 
 pub use equivalence::EquivalenceContext;
 pub use game_inst::GameInstanceContext;
