@@ -14,7 +14,7 @@ use crate::{
     types::{Type, TypeKind},
     writers::smt::{
         contexts::game_inst::composition_writer::CompositionSmtWriter,
-        contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
+        contexts::{EquivalenceContext, GameInstanceContext},
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtNot},
         names, patterns,

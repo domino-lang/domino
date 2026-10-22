@@ -13,7 +13,7 @@ use crate::writers::smt::patterns::{
 
 use super::super::exprs::SmtExpr;
 
-use super::{GameInstanceContext, GenericOracleContext, PackageInstanceContext};
+use super::{GameInstanceContext, PackageInstanceContext};
 
 #[derive(Copy, Clone, Debug)]
 pub struct OracleContext<'a> {
@@ -305,37 +305,33 @@ impl OracleContext<'_> {
 }
 
 // Contexts
-impl<'a> GenericOracleContext<'a> for OracleContext<'a> {
-    fn game_inst_ctx(&self) -> GameInstanceContext<'a> {
+impl<'a> OracleContext<'a> {
+    pub(crate) fn game_inst_ctx(&self) -> GameInstanceContext<'a> {
         self.game_inst_context
     }
 
-    fn pkg_inst_ctx(&self) -> PackageInstanceContext<'a> {
+    pub(crate) fn pkg_inst_ctx(&self) -> PackageInstanceContext<'a> {
         PackageInstanceContext::new(self.game_inst_context, self.pkg_inst_offs)
     }
 
-    fn oracle_name(&self) -> &'a str {
+    pub(crate) fn oracle_name(&self) -> &'a str {
         let oracle_def: &'a _ = self.oracle_def();
         &oracle_def.sig.name
     }
 
-    fn oracle_args(&self) -> &'a [(String, Type)] {
+    pub(crate) fn oracle_args(&self) -> &'a [(String, Type)] {
         &self.oracle_def().sig.args
     }
 
-    fn oracle_return_type(&self) -> &'a Type {
+    pub(crate) fn oracle_return_type(&self) -> &'a Type {
         &self.oracle_def().sig.ty
     }
 
-    fn smt_write_back_state(&self, sample_info: &SampleInfo) -> SmtExpr {
-        self.smt_write_back_state(sample_info)
-    }
-
-    fn smt_game_state(&self) -> SmtExpr {
+    pub(crate) fn smt_game_state(&self) -> SmtExpr {
         "<game-state>".into()
     }
 
-    fn smt_construct_abort<S: Into<SmtExpr>>(&self, game_state: S) -> SmtExpr {
+    pub(crate) fn smt_construct_abort<S: Into<SmtExpr>>(&self, game_state: S) -> SmtExpr {
         let game_inst = self.game_inst_context.game_inst();
         let pkg_inst = &game_inst.game().pkgs[self.pkg_inst_offs];
         let osig = &pkg_inst.pkg.oracles[self.oracle_offs].sig;
@@ -377,7 +373,7 @@ impl<'a> GenericOracleContext<'a> for OracleContext<'a> {
     }
 
     // returns none if the wrong number of arguments were provided
-    fn smt_call_oracle_fn<
+    pub(crate) fn smt_call_oracle_fn<
         GameState: Into<SmtExpr>,
         GameConsts: Into<SmtExpr>,
         Args: IntoIterator<Item = SmtExpr>,
