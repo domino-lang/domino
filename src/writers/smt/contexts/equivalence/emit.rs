@@ -1249,12 +1249,11 @@ impl<'a> EquivalenceContext<'a> {
             .flat_map(|gctx| gctx.pkg_inst_contexts())
             .flat_map(|pctx| pctx.oracle_contexts())
             .filter_map(move |octx| {
-                let gctx = octx.game_inst_ctx();
                 let pctx = octx.pkg_inst_ctx();
                 let pattern = octx.oracle_pattern();
 
                 if already_defined.insert(pattern.function_name()) {
-                    let fundef = gctx.smt_define_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
+                    let fundef = pctx.smt_define_oracle_fn(octx.oracle_def());
                     Some(fundef)
                 } else {
                     None
