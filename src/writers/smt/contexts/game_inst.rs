@@ -40,6 +40,10 @@ impl<'a> GameInstanceContext<'a> {
         self.game_inst
     }
 
+    pub(crate) fn sample_info(self) -> &'a SampleInfo {
+        self.sample_info
+    }
+
     pub(crate) fn game(self) -> &'a Composition {
         self.game_inst().game()
     }
