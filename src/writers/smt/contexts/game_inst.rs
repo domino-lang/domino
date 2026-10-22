@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-pub(super) mod composition_writer;
+mod composition_writer;
 
 use crate::{
     expressions::Expression,
@@ -22,11 +22,15 @@ use super::{OracleContext, PackageInstanceContext};
 #[derive(Clone, Debug, Copy)]
 pub struct GameInstanceContext<'a> {
     game_inst: &'a GameInstance,
+    sample_info: &'a SampleInfo,
 }
 
 impl<'a> GameInstanceContext<'a> {
-    pub(crate) fn new(game_inst: &'a GameInstance) -> Self {
-        GameInstanceContext { game_inst }
+    pub(crate) fn new(game_inst: &'a GameInstance, sample_info: &'a SampleInfo) -> Self {
+        GameInstanceContext {
+            game_inst,
+            sample_info,
+        }
     }
 
     pub(crate) fn pkg_inst_contexts(self) -> impl Iterator<Item = PackageInstanceContext<'a>> {
@@ -81,11 +85,9 @@ impl<'a> GameInstanceContext<'a> {
         GameConstsPattern { game_name }
     }
 
-    pub(crate) fn game_state_declare_info(
-        &self,
-        sample_info: &'a SampleInfo,
-    ) -> GameStateDeclareInfo<'a> {
+    pub(crate) fn game_state_declare_info(&self) -> GameStateDeclareInfo<'a> {
         let game_inst = self.game_inst;
+        let sample_info = self.sample_info;
         GameStateDeclareInfo {
             game_inst,
             sample_info,
@@ -102,14 +104,7 @@ impl GameInstanceContext<'_> {
     ) -> Option<SmtExpr> {
         let pkg_ctx = self.pkg_inst_ctx_by_name(pkg_inst_name)?;
 
-        // TODO/HACK: we don't have access to the sample info here, but we also don't really need
-        //            it for accessing package state. we'll just pretend that the package doesn't
-        //            sample. while the spec is "wrong" in that it won't contain the data based
-        //            for sample instuctions, it should still behave correctly when queried for
-        //            package state.
-        let sample_info = SampleInfo::default();
-
-        let declare_info = self.game_state_declare_info(&sample_info);
+        let declare_info = self.game_state_declare_info();
         let spec = self
             .datastructure_game_state_pattern()
             .datastructure_spec(&declare_info);
@@ -124,16 +119,15 @@ impl GameInstanceContext<'_> {
 
     pub(crate) fn smt_access_gamestate_rand<S: Into<SmtExpr>>(
         &self,
-        sample_info: &SampleInfo,
         state: S,
         sample_id: usize,
     ) -> Option<SmtExpr> {
-        let declare_info = self.game_state_declare_info(sample_info);
+        let declare_info = self.game_state_declare_info();
         let spec = self
             .datastructure_game_state_pattern()
             .datastructure_spec(&declare_info);
         let selector = GameStateSelector::Randomness {
-            sample_pos: Box::new(sample_info.positions[sample_id].clone()),
+            sample_pos: Box::new(self.sample_info.positions[sample_id].clone()),
         };
 
         self.datastructure_game_state_pattern()
@@ -143,7 +137,6 @@ impl GameInstanceContext<'_> {
     pub(crate) fn smt_update_gamestate_pkgstate<S, V>(
         &self,
         gamestate: S,
-        sample_info: &SampleInfo,
         target_name: &str,
         new_pkgstate: V,
     ) -> Option<SmtExpr>
@@ -153,7 +146,7 @@ impl GameInstanceContext<'_> {
     {
         let pkg_ctx = self.pkg_inst_ctx_by_name(target_name).unwrap();
 
-        let declare_info = self.game_state_declare_info(sample_info);
+        let declare_info = self.game_state_declare_info();
         let spec = self
             .datastructure_game_state_pattern()
             .datastructure_spec(&declare_info);
@@ -181,7 +174,7 @@ impl GameInstanceContext<'_> {
         S: Clone + Into<SmtExpr>,
         V: Clone + Into<SmtExpr>,
     {
-        let declare_info = self.game_state_declare_info(sample_info);
+        let declare_info = self.game_state_declare_info();
         let spec = self
             .datastructure_game_state_pattern()
             .datastructure_spec(&declare_info);
@@ -202,8 +195,7 @@ impl GameInstanceContext<'_> {
     where
         S: Clone + Into<SmtExpr>,
     {
-        let old_value =
-            self.smt_access_gamestate_rand(sample_info, state.clone(), target_sample_id)?;
+        let old_value = self.smt_access_gamestate_rand(state.clone(), target_sample_id)?;
         let new_value = ("+", 1, old_value);
         self.smt_update_gamestate_rand(state, sample_info, target_sample_id, new_value)
     }

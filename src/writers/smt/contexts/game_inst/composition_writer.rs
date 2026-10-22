@@ -10,8 +10,6 @@ use crate::identifier::Identifier;
 use crate::package::{Edge, OracleDef, PackageInstance};
 use crate::statement::InvokeOracle;
 use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
-use crate::theorem::GameInstance;
-use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 
 use crate::types::TypeKind;
@@ -28,29 +26,9 @@ use crate::writers::smt::patterns::{
 use crate::writers::smt::patterns;
 use patterns::DatastructurePattern;
 
-pub(crate) struct CompositionSmtWriter<'a> {
-    game_inst: &'a GameInstance,
-
-    sample_info: &'a SampleInfo,
-}
-
-impl<'a> CompositionSmtWriter<'a> {
-    pub(crate) fn new(
-        game_inst: &'a GameInstance,
-        sample_info: &'a SampleInfo,
-    ) -> CompositionSmtWriter<'a> {
-        CompositionSmtWriter {
-            game_inst,
-            sample_info,
-        }
-    }
-
-    fn context(&self) -> GameInstanceContext<'a> {
-        GameInstanceContext::new(self.game_inst)
-    }
-
+impl<'a> GameInstanceContext<'a> {
     fn get_package_instance_context(&self, inst_name: &str) -> Option<PackageInstanceContext<'a>> {
-        self.context().pkg_inst_ctx_by_name(inst_name)
+        self.pkg_inst_ctx_by_name(inst_name)
     }
 
     fn this_oracle_ctx(&self, inst_name: &str, oracle_name: &str) -> Option<OracleContext<'a>> {
@@ -63,15 +41,12 @@ impl<'a> CompositionSmtWriter<'a> {
         gamestate: GS,
         sample_id: usize,
     ) -> Option<SmtExpr> {
-        let game_context = self.context();
-
-        game_context.smt_access_gamestate_rand(self.sample_info, gamestate, sample_id)
+        self.smt_access_gamestate_rand(gamestate, sample_id)
     }
 
     fn smt_codeblock(&self, oracle_ctx: &OracleContext, block: CodeBlock) -> SmtExpr {
-        let game_inst_ctx = self.context();
-        let game_inst = game_inst_ctx.game_inst();
-        let game = game_inst_ctx.game();
+        let game_inst = self.game_inst();
+        let game = self.game();
 
         let mut stmts = block.0.iter().rev();
 
@@ -214,7 +189,7 @@ impl<'a> CompositionSmtWriter<'a> {
     }
 
     fn smt_build_return_none_nonsplit(&self, oracle_ctx: &OracleContext) -> SmtExpr {
-        let new_game_state = oracle_ctx.smt_write_back_state(self.sample_info);
+        let new_game_state = oracle_ctx.smt_write_back_state();
         oracle_ctx.smt_construct_return(new_game_state, "mk-empty")
     }
 
@@ -223,12 +198,12 @@ impl<'a> CompositionSmtWriter<'a> {
         oracle_ctx: &OracleContext,
         expr: &Expression,
     ) -> SmtExpr {
-        let new_game_state = oracle_ctx.smt_write_back_state(self.sample_info);
+        let new_game_state = oracle_ctx.smt_write_back_state();
         oracle_ctx.smt_construct_return(new_game_state, expr)
     }
 
     fn smt_build_abort(&self, oracle_ctx: &OracleContext) -> SmtExpr {
-        let new_game_state = oracle_ctx.smt_write_back_state(self.sample_info);
+        let new_game_state = oracle_ctx.smt_write_back_state();
         let var_game_state = &GameStatePattern;
         let body = oracle_ctx.smt_construct_abort(var_game_state);
         let bindings = vec![(var_game_state.name(), new_game_state)];
@@ -269,9 +244,7 @@ impl<'a> CompositionSmtWriter<'a> {
         let sample_pos = &self.sample_info.positions[sample_id];
         debug_assert!(sample_name.is_some_and(|name| *name == sample_pos.sample_name));
 
-        let game_inst_ctx = self.context();
-
-        let game_inst_name = game_inst_ctx.game_inst_name();
+        let game_inst_name = self.game_inst_name();
 
         let gamestate = oracle_ctx.smt_game_state();
         // ctr is the current "i-th sampling for sample id sample_id"
@@ -300,7 +273,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .collect();
 
         let var_gamestate = &GameStatePattern;
-        let new_gamestate = game_inst_ctx
+        let new_gamestate = self
             .smt_increment_gamestate_rand(var_gamestate, self.sample_info, sample_id)
             .unwrap();
 
@@ -370,12 +343,7 @@ impl<'a> CompositionSmtWriter<'a> {
 
         let updated_pkgstate = pkg_inst_ctx.smt_update_pkgstate_from_locals().unwrap();
         let updated_game_state = game_inst_ctx
-            .smt_update_gamestate_pkgstate(
-                var_gamestate,
-                self.sample_info,
-                &pkg_inst.name,
-                updated_pkgstate,
-            )
+            .smt_update_gamestate_pkgstate(var_gamestate, &pkg_inst.name, updated_pkgstate)
             .unwrap();
 
         let abort_body = this_oracle_ctx.smt_construct_abort(updated_game_state);
@@ -495,8 +463,7 @@ impl<'a> CompositionSmtWriter<'a> {
         let oracle_sig = &def.sig;
         let oracle_name = &oracle_sig.name;
 
-        let game_inst_ctx = self.context();
-        let pkg_inst_ctx = game_inst_ctx
+        let pkg_inst_ctx = self
             .pkg_inst_ctx_by_name(pkg_inst_name)
             .expect("couldn't find package instance with name {inst_name}");
         let octx = pkg_inst_ctx
@@ -504,7 +471,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .expect("couldn't find oracle with name {oracle_name}");
 
         let var_globalstate = &GameStatePattern;
-        let pkg_state = game_inst_ctx
+        let pkg_state = self
             .smt_access_gamestate_pkgstate(var_globalstate, pkg_inst_name)
             .unwrap();
 
@@ -541,8 +508,7 @@ impl<'a> CompositionSmtWriter<'a> {
     }
 
     pub(crate) fn smt_composition_randomness(&mut self) -> impl Iterator<Item = SmtExpr> {
-        let game_inst_ctx = self.context();
-        let game_inst = game_inst_ctx.game_inst();
+        let game_inst = self.game_inst();
 
         // ensure the sorts are unique so they all just exist once
         let smt_sorts: HashSet<SmtExpr> = self
