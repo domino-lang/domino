@@ -17,9 +17,7 @@ use crate::types::Type;
 use crate::types::TypeKind;
 use crate::writers::smt::exprs::{SmtAs, SmtEq2, SmtExpr, SmtIte, SmtLet};
 
-use crate::writers::smt::contexts::{
-    GameInstanceContext, GenericOracleContext, OracleContext, PackageInstanceContext,
-};
+use crate::writers::smt::contexts::{GameInstanceContext, OracleContext, PackageInstanceContext};
 use crate::writers::smt::names;
 use crate::writers::smt::patterns::oracle_args::{GameConstsPattern, OracleArgPattern};
 use crate::writers::smt::patterns::{
@@ -229,7 +227,7 @@ impl<'a> CompositionSmtWriter<'a> {
         oracle_ctx.smt_construct_return(new_game_state, expr)
     }
 
-    fn smt_build_abort<OCTX: GenericOracleContext<'a>>(&self, oracle_ctx: &OCTX) -> SmtExpr {
+    fn smt_build_abort(&self, oracle_ctx: &OracleContext) -> SmtExpr {
         let new_game_state = oracle_ctx.smt_write_back_state(self.sample_info);
         let var_game_state = &GameStatePattern;
         let body = oracle_ctx.smt_construct_abort(var_game_state);
@@ -257,9 +255,9 @@ impl<'a> CompositionSmtWriter<'a> {
      *
      */
 
-    fn smt_build_sample<OCTX: GenericOracleContext<'a>>(
+    fn smt_build_sample(
         &self,
-        oracle_ctx: &OCTX,
+        oracle_ctx: &OracleContext,
         result: SmtExpr,
         ident: &Identifier,
         opt_idx: Option<&Expression>,
@@ -316,9 +314,9 @@ impl<'a> CompositionSmtWriter<'a> {
         .into()
     }
 
-    fn smt_build_parse<OCTX: GenericOracleContext<'a>>(
+    fn smt_build_parse(
         &self,
-        _oracle_ctx: &OCTX,
+        _oracle_ctx: &OracleContext,
         result: SmtExpr,
         idents: &[Identifier],
         expr: &Expression,
@@ -346,9 +344,9 @@ impl<'a> CompositionSmtWriter<'a> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn smt_build_invoke<OCTX: GenericOracleContext<'a>>(
+    fn smt_build_invoke(
         &self,
-        this_oracle_ctx: &OCTX,
+        this_oracle_ctx: &OracleContext,
         body: SmtExpr,
         assignee_ident: &Identifier,
         opt_idx: Option<&Expression>,
@@ -438,9 +436,9 @@ impl<'a> CompositionSmtWriter<'a> {
         }
     }
 
-    fn smt_build_assign<OCTX: GenericOracleContext<'a>>(
+    fn smt_build_assign(
         &self,
-        oracle_ctx: &OCTX,
+        oracle_ctx: &OracleContext,
         result: SmtExpr,
         ident: &Identifier,
         opt_idx: Option<&Expression>,

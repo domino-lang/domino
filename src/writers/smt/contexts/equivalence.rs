@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::{GameInstanceContext, GenericOracleContext, OracleContext};
+use super::{GameInstanceContext, OracleContext};
 
 #[derive(Clone)]
 pub struct EquivalenceContext<'a> {
