@@ -13,7 +13,6 @@ use crate::{
     transforms::samplify::SampleInfo,
     types::{Type, TypeKind},
     writers::smt::{
-        contexts::game_inst::composition_writer::CompositionSmtWriter,
         contexts::{EquivalenceContext, GameInstanceContext},
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtNot},
@@ -535,17 +534,8 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let left = self
-            .theorem
-            .find_game_instance(self.equivalence.left_name())
-            .unwrap();
-        let right = self
-            .theorem
-            .find_game_instance(self.equivalence.right_name())
-            .unwrap();
-
-        let mut left_writer = CompositionSmtWriter::new(left, self.sample_info_left());
-        let mut right_writer = CompositionSmtWriter::new(right, self.sample_info_right());
+        let mut left_writer = self.left_game_inst_ctx();
+        let mut right_writer = self.right_game_inst_ctx();
 
         left_writer
             .smt_composition_randomness()
@@ -901,8 +891,8 @@ impl<'a> EquivalenceContext<'a> {
             .find_game_instance(self.equivalence.right_name())
             .unwrap();
 
-        let gctx_left = GameInstanceContext::new(left);
-        let gctx_right = GameInstanceContext::new(right);
+        let gctx_left = GameInstanceContext::new(left, self.sample_info_left());
+        let gctx_right = GameInstanceContext::new(right, self.sample_info_right());
 
         let left_game_name = &gctx_left.game().name;
         let right_game_name = &gctx_right.game().name;
@@ -1028,12 +1018,12 @@ impl<'a> EquivalenceContext<'a> {
 
         ////// return values
 
-        for (decl_ret, constrain) in build_returns(left) {
+        for (decl_ret, constrain) in build_returns(left, self.sample_info_left()) {
             out.push(decl_ret);
             out.push(constrain);
         }
 
-        for (decl_ret, constrain) in build_returns(right) {
+        for (decl_ret, constrain) in build_returns(right, self.sample_info_right()) {
             out.push(decl_ret);
             out.push(constrain);
         }
@@ -1254,30 +1244,17 @@ impl<'a> EquivalenceContext<'a> {
                 let left_gctx = ectx.left_game_inst_ctx();
                 let right_gctx = ectx.right_game_inst_ctx();
 
-                vec![
-                    (left_gctx, ectx.sample_info_left()),
-                    (right_gctx, ectx.sample_info_right()),
-                ]
-                .into_iter()
+                vec![left_gctx, right_gctx].into_iter()
             })
-            .flat_map(|(gctx, sample_info)| {
-                gctx.pkg_inst_contexts()
-                    .map(move |pctx| (pctx, sample_info))
-            })
-            .flat_map(|(pctx, sample_info)| {
-                pctx.oracle_contexts().map(move |octx| (octx, sample_info))
-            })
-            .filter_map(move |(octx, sample_info)| {
+            .flat_map(|gctx| gctx.pkg_inst_contexts())
+            .flat_map(|pctx| pctx.oracle_contexts())
+            .filter_map(move |octx| {
                 let gctx = octx.game_inst_ctx();
                 let pctx = octx.pkg_inst_ctx();
                 let pattern = octx.oracle_pattern();
 
-                let game_inst = gctx.game_inst();
-
-                let writer = CompositionSmtWriter::new(game_inst, sample_info);
-
                 if already_defined.insert(pattern.function_name()) {
-                    let fundef = writer.smt_define_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
+                    let fundef = gctx.smt_define_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
                     Some(fundef)
                 } else {
                     None
@@ -1286,8 +1263,8 @@ impl<'a> EquivalenceContext<'a> {
     }
 }
 
-fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
-    let gctx = GameInstanceContext::new(game_inst);
+fn build_returns(game_inst: &GameInstance, sample_info: &SampleInfo) -> Vec<(SmtExpr, SmtExpr)> {
+    let gctx = GameInstanceContext::new(game_inst, sample_info);
     let game_name = &game_inst.game().name;
     let game_inst_name = &game_inst.name();
     let game_params = &game_inst.consts;
@@ -1412,7 +1389,7 @@ fn build_rands(
     sample_info: &SampleInfo,
     game_inst: &GameInstance,
 ) -> Vec<(SmtExpr, SmtExpr, SmtExpr)> {
-    let gctx = GameInstanceContext::new(game_inst);
+    let gctx = GameInstanceContext::new(game_inst, sample_info);
 
     sample_info
         .positions
@@ -1430,9 +1407,7 @@ fn build_rands(
             let decl_randctr = declare_const(randctr_name.clone(), Sort::Int);
 
             // pull randomness counter for given sample_id out of the gamestate
-            let randctr = gctx
-                .smt_access_gamestate_rand(sample_info, state, sample_id)
-                .unwrap();
+            let randctr = gctx.smt_access_gamestate_rand(state, sample_id).unwrap();
 
             let constrain_randctr: SmtExpr = SmtAssert(SmtEq2 {
                 lhs: randctr_name.as_str(),
