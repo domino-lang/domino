@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::package::{OracleDef, OracleSig};
-use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 use crate::writers::smt::names::FunctionNameBuilder;
 use crate::writers::smt::patterns::oracle_args::OracleArgPattern;
@@ -284,7 +283,7 @@ impl OracleContext<'_> {
     }
 
     /// writes the changes we made to local package state variables back into the package and game state
-    pub(crate) fn smt_write_back_state(&self, sample_info: &SampleInfo) -> SmtExpr {
+    pub(crate) fn smt_write_back_state(&self) -> SmtExpr {
         let game_inst_ctx = self.game_inst_ctx();
         let pkg_inst_ctx = self.pkg_inst_ctx();
         let pkg_inst = self.pkg_inst_ctx().pkg_inst();
@@ -296,7 +295,6 @@ impl OracleContext<'_> {
         game_inst_ctx
             .smt_update_gamestate_pkgstate(
                 game_state.local_arg_name(),
-                sample_info,
                 &pkg_inst.name,
                 pkg_inst_ctx.smt_update_pkgstate_from_locals().unwrap(),
             )
