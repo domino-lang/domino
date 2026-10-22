@@ -4,44 +4,130 @@ use std::collections::HashSet;
 
 use itertools::Itertools;
 
-use crate::expressions::Expression;
-use crate::expressions::ExpressionKind;
-use crate::identifier::Identifier;
-use crate::package::{Edge, OracleDef, PackageInstance};
-use crate::statement::InvokeOracle;
-use crate::statement::{Assignment, AssignmentRhs, CodeBlock, Pattern, Statement};
-use crate::types::Type;
-
-use crate::types::TypeKind;
-use crate::writers::smt::exprs::{SmtAs, SmtEq2, SmtExpr, SmtIte, SmtLet};
-
-use crate::writers::smt::contexts::{GameInstanceContext, OracleContext, PackageInstanceContext};
-use crate::writers::smt::names;
-use crate::writers::smt::patterns::oracle_args::{GameConstsPattern, OracleArgPattern};
-use crate::writers::smt::patterns::{
-    variables::GameStatePattern, variables::VariablePattern, FunctionPattern, ReturnValue,
-    ReturnValueSelector,
+use crate::{
+    expressions::{Expression, ExpressionKind},
+    identifier::Identifier,
+    package::{Edge, OracleDef, PackageInstance},
+    statement::{Assignment, AssignmentRhs, CodeBlock, InvokeOracle, Pattern, Statement},
+    transforms::samplify::SampleInfo,
+    types::{Type, TypeKind},
+    writers::smt::{
+        contexts::{GameInstanceContext, OracleContext},
+        exprs::{SmtAs, SmtEq2, SmtExpr, SmtIte, SmtLet},
+        names,
+        patterns::{
+            self,
+            oracle_args::{GameConstsPattern, OracleArgPattern},
+            variables::GameStatePattern,
+            variables::VariablePattern,
+            DatastructurePattern, FunctionPattern, GameStateSelector, ReturnValue,
+            ReturnValueSelector,
+        },
+    },
 };
 
-use crate::writers::smt::patterns;
-use patterns::DatastructurePattern;
-
 impl<'a> GameInstanceContext<'a> {
-    fn get_package_instance_context(&self, inst_name: &str) -> Option<PackageInstanceContext<'a>> {
-        self.pkg_inst_ctx_by_name(inst_name)
-    }
-
-    fn this_oracle_ctx(&self, inst_name: &str, oracle_name: &str) -> Option<OracleContext<'a>> {
-        self.get_package_instance_context(inst_name)?
-            .oracle_ctx_by_name(oracle_name)
-    }
-
-    fn get_randomness<GS: Into<SmtExpr>>(
+    pub(crate) fn smt_access_gamestate_pkgstate<S: Into<SmtExpr>>(
         &self,
-        gamestate: GS,
+        state: S,
+        pkg_inst_name: &str,
+    ) -> Option<SmtExpr> {
+        let pkg_ctx = self.pkg_inst_ctx_by_name(pkg_inst_name)?;
+
+        let declare_info = self.game_state_declare_info();
+        let spec = self
+            .datastructure_game_state_pattern()
+            .datastructure_spec(&declare_info);
+        let selector = GameStateSelector::PackageInstance {
+            pkg_inst_name,
+            sort: pkg_ctx.pkg_state_pattern().sort(vec![]),
+        };
+
+        self.datastructure_game_state_pattern()
+            .access(&spec, &selector, state)
+    }
+
+    pub(crate) fn smt_access_gamestate_rand<S: Into<SmtExpr>>(
+        &self,
+        state: S,
         sample_id: usize,
     ) -> Option<SmtExpr> {
-        self.smt_access_gamestate_rand(gamestate, sample_id)
+        let declare_info = self.game_state_declare_info();
+        let spec = self
+            .datastructure_game_state_pattern()
+            .datastructure_spec(&declare_info);
+        let selector = GameStateSelector::Randomness {
+            sample_pos: Box::new(self.sample_info.positions[sample_id].clone()),
+        };
+
+        self.datastructure_game_state_pattern()
+            .access(&spec, &selector, state)
+    }
+
+    pub(crate) fn smt_update_gamestate_pkgstate<S, V>(
+        &self,
+        gamestate: S,
+        target_name: &str,
+        new_pkgstate: V,
+    ) -> Option<SmtExpr>
+    where
+        S: Clone + Into<SmtExpr>,
+        V: Clone + Into<SmtExpr>,
+    {
+        let pkg_ctx = self.pkg_inst_ctx_by_name(target_name).unwrap();
+
+        let declare_info = self.game_state_declare_info();
+        let spec = self
+            .datastructure_game_state_pattern()
+            .datastructure_spec(&declare_info);
+        let pkgstate_selector = GameStateSelector::PackageInstance {
+            pkg_inst_name: target_name,
+            sort: pkg_ctx.pkg_state_pattern().sort(vec![]),
+        };
+
+        self.datastructure_game_state_pattern().update(
+            &spec,
+            &pkgstate_selector,
+            gamestate,
+            new_pkgstate,
+        )
+    }
+
+    pub(crate) fn smt_update_gamestate_rand<S, V>(
+        &self,
+        state: S,
+        sample_info: &SampleInfo,
+        sample_id: usize,
+        new_value: V,
+    ) -> Option<SmtExpr>
+    where
+        S: Clone + Into<SmtExpr>,
+        V: Clone + Into<SmtExpr>,
+    {
+        let declare_info = self.game_state_declare_info();
+        let spec = self
+            .datastructure_game_state_pattern()
+            .datastructure_spec(&declare_info);
+        let selector = GameStateSelector::Randomness {
+            sample_pos: Box::new(sample_info.positions[sample_id].clone()),
+        };
+
+        self.datastructure_game_state_pattern()
+            .update(&spec, &selector, state, new_value)
+    }
+
+    pub(crate) fn smt_increment_gamestate_rand<S>(
+        &self,
+        state: S,
+        sample_info: &SampleInfo,
+        target_sample_id: usize,
+    ) -> Option<SmtExpr>
+    where
+        S: Clone + Into<SmtExpr>,
+    {
+        let old_value = self.smt_access_gamestate_rand(state.clone(), target_sample_id)?;
+        let new_value = ("+", 1, old_value);
+        self.smt_update_gamestate_rand(state, sample_info, target_sample_id, new_value)
     }
 
     fn smt_codeblock(&self, oracle_ctx: &OracleContext, block: CodeBlock) -> SmtExpr {
@@ -51,7 +137,7 @@ impl<'a> GameInstanceContext<'a> {
         let mut stmts = block.0.iter().rev();
 
         let innermost = stmts.next();
-        let mut result = self.smt_build_innermost_nonsplit(oracle_ctx, innermost.unwrap());
+        let mut result = self.smt_build_innermost(oracle_ctx, innermost.unwrap());
 
         for stmt in stmts {
             result = match stmt {
@@ -63,11 +149,11 @@ impl<'a> GameInstanceContext<'a> {
                 .into(),
                 Statement::Return(None, _) => {
                     // (mk-return-{name} statevarname expr)
-                    self.smt_build_return_none_nonsplit(oracle_ctx)
+                    self.smt_build_return_none(oracle_ctx)
                 }
                 Statement::Return(Some(expr), _) => {
                     // (mk-return-{name} statevarname expr)
-                    self.smt_build_return_some_nonsplit(oracle_ctx, expr)
+                    self.smt_build_return_some(oracle_ctx, expr)
                 }
                 Statement::Abort(_) => {
                     // mk-abort-{name}
@@ -160,11 +246,7 @@ impl<'a> GameInstanceContext<'a> {
         result
     }
 
-    fn smt_build_innermost_nonsplit(
-        &self,
-        oracle_ctx: &OracleContext,
-        stmt: &Statement,
-    ) -> SmtExpr {
+    fn smt_build_innermost(&self, oracle_ctx: &OracleContext, stmt: &Statement) -> SmtExpr {
         match stmt {
             Statement::IfThenElse(ite) => SmtIte {
                 cond: &ite.cond,
@@ -174,11 +256,11 @@ impl<'a> GameInstanceContext<'a> {
             .into(),
             Statement::Return(None, _) => {
                 // (mk-return-{name} statevarname expr)
-                self.smt_build_return_none_nonsplit(oracle_ctx)
+                self.smt_build_return_none(oracle_ctx)
             }
             Statement::Return(Some(expr), _) => {
                 // (mk-return-{name} statevarname expr)
-                self.smt_build_return_some_nonsplit(oracle_ctx, expr)
+                self.smt_build_return_some(oracle_ctx, expr)
             }
             Statement::Abort(_) => {
                 // mk-abort-{name}
@@ -188,16 +270,12 @@ impl<'a> GameInstanceContext<'a> {
         }
     }
 
-    fn smt_build_return_none_nonsplit(&self, oracle_ctx: &OracleContext) -> SmtExpr {
+    fn smt_build_return_none(&self, oracle_ctx: &OracleContext) -> SmtExpr {
         let new_game_state = oracle_ctx.smt_write_back_state();
         oracle_ctx.smt_construct_return(new_game_state, "mk-empty")
     }
 
-    fn smt_build_return_some_nonsplit(
-        &self,
-        oracle_ctx: &OracleContext,
-        expr: &Expression,
-    ) -> SmtExpr {
+    fn smt_build_return_some(&self, oracle_ctx: &OracleContext, expr: &Expression) -> SmtExpr {
         let new_game_state = oracle_ctx.smt_write_back_state();
         oracle_ctx.smt_construct_return(new_game_state, expr)
     }
@@ -249,7 +327,7 @@ impl<'a> GameInstanceContext<'a> {
         let gamestate = oracle_ctx.smt_game_state();
         // ctr is the current "i-th sampling for sample id sample_id"
         let ctr = self
-            .get_randomness(gamestate, sample_id)
+            .smt_access_gamestate_rand(gamestate, sample_id)
             .unwrap_or_else(|| {
                 let max_known_sample_id = self.sample_info.count;
                 panic!(
@@ -335,7 +413,9 @@ impl<'a> GameInstanceContext<'a> {
         let target = &self.game_inst.game.pkgs[edge.to()];
 
         let called_oracle_context = self
-            .this_oracle_ctx(&target.name, &edge.sig().name)
+            .pkg_inst_ctx_by_name(&target.name)
+            .unwrap()
+            .oracle_ctx_by_name(&edge.sig().name)
             .unwrap();
 
         let var_gamestate = &GameStatePattern;
