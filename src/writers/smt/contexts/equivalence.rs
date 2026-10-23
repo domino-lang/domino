@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::{GameInstanceContext, GenericOracleContext, OracleContext};
+use super::{GameInstanceContext, OracleContext};
 
 #[derive(Clone)]
 pub struct EquivalenceContext<'a> {
@@ -107,7 +107,7 @@ impl<'a> EquivalenceContext<'a> {
             .find_game_instance(self.equivalence().left_name())
             .unwrap();
 
-        contexts::GameInstanceContext::new(game_inst)
+        contexts::GameInstanceContext::new(game_inst, self.sample_info_left())
     }
 
     pub(crate) fn right_game_inst_ctx(&self) -> contexts::GameInstanceContext<'a> {
@@ -116,7 +116,7 @@ impl<'a> EquivalenceContext<'a> {
             .find_game_instance(self.equivalence().right_name())
             .unwrap();
 
-        contexts::GameInstanceContext::new(game_inst)
+        contexts::GameInstanceContext::new(game_inst, self.sample_info_right())
     }
 }
 
