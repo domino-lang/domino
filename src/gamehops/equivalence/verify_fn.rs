@@ -108,13 +108,7 @@ where
             .collect()
     }
 
-    pub(crate) fn verify(&mut self, ui: impl ProveGamehopUI) -> Result<()> {
-        self.eqctx.verify_exports_match()?;
-
-        self.verify_equivalence(ui)
-    }
-
-    fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
+    pub(crate) fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut smt = Vec::new();
 
