@@ -211,10 +211,9 @@ fn equivalence_gamehome_generates_code() {
         .load_invariants(&project)
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
 
-    let mut driver =
-        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &TestProveConfiguration);
+    let driver = equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &TestProveConfiguration);
     driver
-        .verify(TestUI::new())
+        .verify_equivalence(TestUI::new())
         .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
 }
 

@@ -15,10 +15,12 @@ use crate::parser::ast::Identifier;
 use crate::{
     gamehops::{equivalence::EquivalenceSmtDriver, GameHop},
     package::{Composition, Package},
-    theorem::Theorem,
-    transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform, Transformation},
+    theorem::{GameInstance, Theorem},
+    transforms::{
+        theorem_transforms::EquivalenceTransform, GameTransform, TheoremTransform, Transformation,
+    },
     util::smtsolver::SmtSolverBackend,
-    writers::smt::contexts::EquivalenceContext,
+    writers::smt::contexts::{EquivalenceContext, GameInstanceContext},
 };
 
 use crate::ui::{GamehopUI, LatexUI, LatexUIGameIterator, ProveGamehopUI, ProveTheoremUI, ProveUI};
@@ -110,6 +112,25 @@ pub trait Project {
     where
         Self: Sized + Sync,
     {
+        let mut game_keys: Vec<_> = self.games().collect();
+        game_keys.sort();
+        for game_key in game_keys {
+            let game = self.get_game(game_key).unwrap();
+
+            if !game.invariants.is_empty() {
+                let (game, aux) = EquivalenceTransform.transform_game(game)?;
+
+                let inst = GameInstance::new(
+                    game.name().to_string(),
+                    game.name().to_string(),
+                    game,
+                    Vec::new(),
+                    Vec::new(),
+                );
+                let _gctx = GameInstanceContext::new(&inst, &aux.sample_info);
+            }
+        }
+
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
@@ -150,21 +171,23 @@ pub trait Project {
                         let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
 
                         let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+                        eqctx.verify_exports_match()?;
                         eqctx.load_invariants(self)?;
                         eqctx.resolve_claims();
 
-                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config);
-                        driver.verify(ui)?;
+                        let driver = EquivalenceSmtDriver::new(&eqctx, self, config);
+                        driver.verify_equivalence(ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
                         let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
 
                         let mut eqctx = EquivalenceContext::new(hyb.equivalence(), &theorem, &auxs);
+                        eqctx.verify_exports_match()?;
                         eqctx.load_invariants(self)?;
                         eqctx.resolve_claims();
 
-                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config);
-                        driver.verify(ui)?;
+                        let driver = EquivalenceSmtDriver::new(&eqctx, self, config);
+                        driver.verify_equivalence(ui)?;
                     }
                 }
             }
