@@ -431,7 +431,7 @@ impl SmtParser<Error> for SmtRewriteGame<'_> {
     fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
         let Some(package) = self.package else {
             return Err(Error::RewriteNeedsPackageContext {
-                defn: format!("(define-package-invariant {body})"),
+                defn: format!("(define-package-invariant {invname} {body})"),
             });
         };
 
@@ -477,6 +477,34 @@ impl SmtParser<Error> for SmtRewriteGame<'_> {
             .into();
 
         Ok(SmtStmt { kind, expr })
+    }
+
+    fn handle_define_state_relation(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        Err(Error::RewriteNeedsPackageContext {
+            defn: format!(
+                "(define-state-relation {funname} ({}) {body})",
+                args.into_iter().join(", ")
+            ),
+        })
+    }
+    fn handle_define_lemma(
+        &mut self,
+        lemma_name: &str,
+        oracle_name: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        Err(Error::RewriteNeedsPackageContext {
+            defn: format!(
+                "(define-state-relation {lemma_name} {oracle_name} ({}) {body})",
+                args.into_iter().join(", ")
+            ),
+        })
     }
 }
 
@@ -819,6 +847,17 @@ impl SmtParser<Error> for SmtRewriteEquivalence<'_> {
         let expr = ("define-fun", kind.name(), newargs, "Bool", bindreturn).into();
 
         Ok(SmtStmt { kind, expr })
+    }
+
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-package-invariant {invname} {body})"),
+        })
+    }
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-game-invariant {invname} {body})"),
+        })
     }
 }
 
