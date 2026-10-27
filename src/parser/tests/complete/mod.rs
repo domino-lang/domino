@@ -19,12 +19,7 @@ use crate::{
     types::{CountSpec, Type, TypeKind},
     writers::smt::contexts::EquivalenceContext,
 };
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    iter::FromIterator as _,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, iter::FromIterator as _};
 
 use crate::ui::mock::TestUI;
 
@@ -201,21 +196,18 @@ fn equivalence_gamehome_generates_code() {
         })
         .unwrap();
 
-    let transcript = SharedVecWriter::default();
     let project = crate::project::DirectoryProject::empty();
 
     let (theorem, auxs) = EquivalenceTransform.transform_theorem(&theorem).unwrap();
 
-    let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
-    eqctx
-        .load_invariants(&project)
-        .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
+    let eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
 
     let mut driver =
-        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &TestProveConfiguration);
+        equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &TestProveConfiguration)
+            .unwrap_or_else(|err| panic!("got error {err}."));
     driver
         .verify(TestUI::new())
-        .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
+        .unwrap_or_else(|err| panic!("got error {err}."));
 }
 
 #[test]
@@ -317,30 +309,4 @@ fn theorem_const_rename() {
         &pkgs,
         &games,
     );
-}
-
-/// This is a helper for transcripts. It can be cloned, and what is written in one clone can be
-/// read in all others. It is concurrency-safe. This can be passed into the Communicator, a simple
-/// `&mut Vec<u8>` can't. a `Vec<u8>` can, but then we lose access to it. This solves that problem.
-#[derive(Clone, Default)]
-struct SharedVecWriter(Arc<RwLock<Vec<u8>>>);
-
-impl Display for SharedVecWriter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let vec_guard = self.0.read().unwrap();
-        let vec_ref: &Vec<u8> = vec_guard.as_ref();
-        let string = String::from_utf8(vec_ref.to_vec()).unwrap();
-
-        write!(f, "{string}")
-    }
-}
-
-impl std::io::Write for SharedVecWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.write().as_mut().unwrap().write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.0.write().as_mut().unwrap().flush()
-    }
 }
