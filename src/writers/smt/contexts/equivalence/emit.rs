@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Display};
 use crate::{
     gamehops::equivalence::{
         smtrewrite::SmtStatementKind,
-        {ClaimType, ResolvedClaim},
+        SmtStmt, {ClaimType, ResolvedClaim},
     },
     theorem::{RandomnessMappingInjectivityCheck, RandomnessType},
     types::{Type, TypeKind},
@@ -119,15 +119,6 @@ impl Display for RandomnessMappingEntry {
 }
 
 impl<'a> EquivalenceContext<'a> {
-    pub(crate) fn emit_invariant(&self) -> Vec<SmtExpr> {
-        self.invariants
-            .iter()
-            .chain(self.left_invariants.iter())
-            .chain(self.right_invariants.iter())
-            .map(|stmt| stmt.expr.clone())
-            .collect()
-    }
-
     pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
         let mut out = Vec::new();
 
@@ -181,6 +172,8 @@ impl<'a> EquivalenceContext<'a> {
         &self,
         claim: &ResolvedClaim,
         oracle_name: &str,
+        left_invariants: &[SmtStmt],
+        right_invariants: &[SmtStmt],
     ) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
@@ -335,28 +328,18 @@ impl<'a> EquivalenceContext<'a> {
             build_invariant_old_call("invariant"),
         ];
 
-        dependencies_code.extend(
-            self.left_invariants
-                .iter()
-                .filter_map(|stmt| match stmt.kind {
-                    SmtStatementKind::GameInvariant { .. }
-                    | SmtStatementKind::PackageInvariant { .. } => {
-                        Some(build_left_invariant_old_call(&stmt.kind.name()))
-                    }
-                    _ => None,
-                }),
-        );
-        dependencies_code.extend(
-            self.right_invariants
-                .iter()
-                .filter_map(|stmt| match stmt.kind {
-                    SmtStatementKind::GameInvariant { .. }
-                    | SmtStatementKind::PackageInvariant { .. } => {
-                        Some(build_right_invariant_old_call(&stmt.kind.name()))
-                    }
-                    _ => None,
-                }),
-        );
+        dependencies_code.extend(left_invariants.iter().filter_map(|stmt| match stmt.kind {
+            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+                Some(build_left_invariant_old_call(&stmt.kind.name()))
+            }
+            _ => None,
+        }));
+        dependencies_code.extend(right_invariants.iter().filter_map(|stmt| match stmt.kind {
+            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+                Some(build_right_invariant_old_call(&stmt.kind.name()))
+            }
+            _ => None,
+        }));
 
         for dep in dep_calls {
             dependencies_code.push(dep)
