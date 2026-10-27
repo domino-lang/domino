@@ -6,11 +6,13 @@ use crate::{
         reduction::{Assumption, Reduction},
         GameHop,
     },
-    identifier::game_ident::GameConstIdentifier,
+    identifier::{
+        game_ident::GameConstIdentifier, theorem_ident::TheoremConstIdentifier, Identifier,
+    },
     package::{Composition, Edge, Export, Package},
     packageinstance::instantiate::InstantiationContext,
     proof::Proof,
-    types::Type,
+    types::{CountSpec, Type, TypeKind},
 };
 
 ////////////////////////////////////////////////////
@@ -113,6 +115,55 @@ mod instantiate {
             params: new_params,
             ..pkg_inst
         }
+    }
+}
+
+impl From<Composition> for GameInstance {
+    fn from(comp: Composition) -> Self {
+        let game_inst_name = comp.name.to_string();
+        let theorem_name = comp.name.to_string();
+
+        fn thm_ident(thm_name: &str, name: &str, ty: &Type) -> TheoremConstIdentifier {
+            TheoremConstIdentifier {
+                theorem_name: thm_name.to_string(),
+                name: name.to_string(),
+                ty: ty.clone(),
+                inst_info: None,
+            }
+        }
+
+        let params = comp
+            .consts
+            .iter()
+            .map(|(name, ty)| {
+                let ty = ty.map(|ty| match ty.kind() {
+                    TypeKind::Bits(CountSpec::Identifier(id)) => {
+                        Type::from_kind(TypeKind::Bits(CountSpec::Identifier(Box::new(
+                            thm_ident(&theorem_name, &id.ident(), &id.get_type()).into(),
+                        ))))
+                    }
+                    _ => ty,
+                });
+
+                let thmident = thm_ident(&theorem_name, name, &ty);
+
+                let value: Expression = Identifier::TheoremIdentifier(thmident.into()).into();
+                (
+                    GameConstIdentifier {
+                        game_name: comp.name().to_string(),
+                        name: name.clone(),
+                        ty,
+                        assigned_value: Some(Box::new(value.clone())),
+                        inst_info: None,
+                        game_inst_name: Some(game_inst_name.clone()),
+                        theorem_name: Some(theorem_name.clone()),
+                    },
+                    value,
+                )
+            })
+            .collect();
+
+        GameInstance::new(game_inst_name, theorem_name, comp, Vec::new(), params)
     }
 }
 
