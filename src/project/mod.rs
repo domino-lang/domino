@@ -149,21 +149,15 @@ pub trait Project {
                     GameHop::Equivalence(eq) => {
                         let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
 
-                        let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
-                        eqctx.load_invariants(self)?;
-                        eqctx.resolve_claims();
-
-                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config);
+                        let eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
+                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config)?;
                         driver.verify(ui)?;
                     }
                     GameHop::Hybrid(hyb) => {
                         let (theorem, auxs) = EquivalenceTransform.transform_theorem(theorem)?;
 
-                        let mut eqctx = EquivalenceContext::new(hyb.equivalence(), &theorem, &auxs);
-                        eqctx.load_invariants(self)?;
-                        eqctx.resolve_claims();
-
-                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config);
+                        let eqctx = EquivalenceContext::new(hyb.equivalence(), &theorem, &auxs);
+                        let mut driver = EquivalenceSmtDriver::new(&eqctx, self, config)?;
                         driver.verify(ui)?;
                     }
                 }
