@@ -288,8 +288,7 @@ impl<'a> EquivalenceContext<'a> {
                     error::new_invariant_file_read_error(file_name, err)
                 })?;
 
-                let stmts =
-                    smtrewrite::rewrite_package(self, left_gctx.game_inst(), pkg, &file_contents)?;
+                let stmts = smtrewrite::rewrite_package(&left_gctx, pkg, &file_contents)?;
 
                 self.append_left_invariants(stmts);
             }
@@ -301,8 +300,7 @@ impl<'a> EquivalenceContext<'a> {
                     error::new_invariant_file_read_error(file_name, err)
                 })?;
 
-                let stmts =
-                    smtrewrite::rewrite_package(self, right_gctx.game_inst(), pkg, &file_contents)?;
+                let stmts = smtrewrite::rewrite_package(&right_gctx, pkg, &file_contents)?;
 
                 self.append_right_invariants(stmts);
             }
@@ -315,7 +313,7 @@ impl<'a> EquivalenceContext<'a> {
                 error::new_invariant_file_read_error(file_name, err)
             })?;
 
-            let stmts = smtrewrite::rewrite_game(self, left_gctx.game_inst(), &file_contents)?;
+            let stmts = smtrewrite::rewrite_game(&left_gctx, &file_contents)?;
 
             self.append_left_invariants(stmts);
         }
@@ -325,7 +323,7 @@ impl<'a> EquivalenceContext<'a> {
                 error::new_invariant_file_read_error(file_name, err)
             })?;
 
-            let stmts = smtrewrite::rewrite_game(self, right_gctx.game_inst(), &file_contents)?;
+            let stmts = smtrewrite::rewrite_game(&right_gctx, &file_contents)?;
 
             self.append_right_invariants(stmts);
         }
