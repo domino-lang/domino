@@ -9,7 +9,7 @@ use crate::{
     transforms::{
         sample_max_counter_extractor::MaxOffsets,
         samplify::SampleInfo,
-        theorem_transforms::{EquivalenceTransform, GameInstAux},
+        theorem_transforms::{EquivalenceTransform, GameAux},
         TheoremTransform,
     },
     types::Type,
@@ -183,7 +183,7 @@ impl<'a> EquivalenceContext<'a> {
 }
 
 impl<'a> EquivalenceContext<'a> {
-    fn aux(&self, game_inst_name: &str) -> &'a GameInstAux {
+    fn aux(&self, game_inst_name: &str) -> &'a GameAux {
         let (_, aux) = self
             .auxs
             .iter()
