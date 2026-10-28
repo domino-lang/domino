@@ -18,6 +18,7 @@ pub mod smtrewrite;
 mod verify;
 
 pub(crate) use verify::equivalence::EquivalenceSmtDriver;
+pub(crate) use verify::gameinvariant::GameInvariantSmtDriver;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClaimType {
