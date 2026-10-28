@@ -16,6 +16,7 @@ use crate::{
 };
 
 pub(super) mod equivalence;
+pub(super) mod gameinvariant;
 
 pub(super) enum ClaimGroup {
     Oracle { oracle_name: String },

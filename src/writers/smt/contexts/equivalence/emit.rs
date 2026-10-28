@@ -470,8 +470,8 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut left_writer = self.left_game_inst_ctx();
-        let mut right_writer = self.right_game_inst_ctx();
+        let left_writer = self.left_game_inst_ctx();
+        let right_writer = self.right_game_inst_ctx();
 
         left_writer
             .smt_composition_randomness()

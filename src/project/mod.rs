@@ -13,12 +13,17 @@ use error::Result;
 
 use crate::parser::ast::Identifier;
 use crate::{
-    gamehops::{equivalence::EquivalenceSmtDriver, GameHop},
+    gamehops::{
+        equivalence::{EquivalenceSmtDriver, GameInvariantSmtDriver},
+        GameHop,
+    },
     package::{Composition, Package},
-    theorem::Theorem,
-    transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform, Transformation},
+    theorem::{GameInstance, Theorem},
+    transforms::{
+        theorem_transforms::EquivalenceTransform, GameTransform, TheoremTransform, Transformation,
+    },
     util::smtsolver::SmtSolverBackend,
-    writers::smt::contexts::EquivalenceContext,
+    writers::smt::contexts::{EquivalenceContext, GameInstanceContext},
 };
 
 use crate::ui::{GamehopUI, LatexUI, LatexUIGameIterator, ProveGamehopUI, ProveTheoremUI, ProveUI};
@@ -110,6 +115,41 @@ pub trait Project {
     where
         Self: Sized + Sync,
     {
+        let mut game_keys: Vec<_> = self.games().collect();
+        game_keys.sort();
+
+        let game_insts = game_keys
+            .iter()
+            .filter_map(|key| {
+                let game = self.get_game(key).unwrap();
+
+                if game.invariants.is_empty()
+                    && game
+                        .pkgs
+                        .iter()
+                        .all(|pkg_inst| pkg_inst.pkg.invariants.is_empty())
+                {
+                    None
+                } else {
+                    Some(game).map(|game| -> Result<_> {
+                        let inst: GameInstance = game.clone().into();
+                        let (game, aux) = EquivalenceTransform.transform_game(&inst.game)?;
+                        inst.with_other_game(game);
+                        Ok((aux, inst))
+                    })
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        game_insts
+            .iter()
+            .map(|(aux, game_inst)| {
+                let gctx = GameInstanceContext::new(game_inst, &aux.sample_info);
+                let driver = GameInvariantSmtDriver::new(&gctx, self, config)?;
+                driver.verify_game_invariants()
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
@@ -218,8 +258,7 @@ pub trait Project {
     fn get_smt_file(
         &self,
         theorem_name: &str,
-        left_game_name: &str,
-        right_game_name: &str,
+        context_name: &str,
         claim_group_name: &str,
         claim_name: &str,
     ) -> Result<std::fs::File> {
@@ -227,7 +266,7 @@ pub trait Project {
 
         path.push("_build/code_eq/");
         path.push(theorem_name);
-        path.push(format!("{left_game_name}-{right_game_name}"));
+        path.push(context_name);
         path.push(claim_group_name);
         std::fs::create_dir_all(&path)?;
 
