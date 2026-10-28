@@ -46,12 +46,13 @@ where
     }
     fn transcript_file(&self, claim_group: &ClaimGroup, claim_name: &str) -> std::fs::File {
         let eq = self.eqctx.equivalence();
+        let left_game_name = eq.left_name();
+        let right_game_name = eq.right_name();
 
         self.project()
             .get_smt_file(
                 eq.theorem_name(),
-                eq.left_name(),
-                eq.right_name(),
+                &format!("{left_game_name}-{right_game_name}"),
                 &claim_group.file_system_name(),
                 claim_name,
             )
