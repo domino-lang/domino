@@ -695,7 +695,7 @@ pub struct ReductionInvalidHybridMappingError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
-#[error("Mapped package {from_pkg_inst_name} imports {import_name} from unmapped package {to_pkg_inst_name} (oracle {oracle_name})")]
+#[error("Mapped package instance {from_pkg_inst_name} imports {import_name} from unmapped package instance {to_pkg_inst_name} (oracle {oracle_name})")]
 #[diagnostic(code(domino::code::theorem::reduction::mapping::unmapped_destination))]
 #[help("The mapped assumption subgraph must contain the destinations of its outgoing wires.")]
 pub struct AssumptionMappingUnmappedDestinationError {
@@ -731,7 +731,7 @@ pub struct AssumptionMappingWiringMismatchError {
     pub mapped_to_pkg_inst_name: String,
     pub import_name: String,
     pub oracle_name: String,
-    pub oracle_signature: String,
+    pub oracle_signature: OracleSigType,
 }
 
 #[derive(Debug, Diagnostic, Error)]
@@ -765,8 +765,8 @@ pub struct AssumptionMappingOracleSignatureMismatchError {
     pub oracle_name: String,
     pub assumption_game_name: String,
     pub construction_game_name: String,
-    pub assumption_signature: String,
-    pub construction_signature: String,
+    pub assumption_signature: OracleSigType,
+    pub construction_signature: OracleSigType,
 }
 
 #[derive(Debug, Diagnostic, Error)]

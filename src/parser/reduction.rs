@@ -66,8 +66,8 @@ pub(crate) fn handle_reduction<'a>(
     Ok(GameHop::Reduction(reduction))
 }
 
-// Keep the first edge, as the previous linear lookup did, even when separate
-// compose blocks assign the same import more than once.
+// The first assignment in declaration order wins, even when separate compose
+// blocks assign the same import more than once.
 fn index_edges(game: &Composition) -> HashMap<(usize, &str), usize> {
     let mut edges = HashMap::new();
     for edge in &game.edges {
@@ -523,21 +523,25 @@ fn handle_mapspec_assumption<'a>(
         construction_game_inst,
     )?;
 
-    // Preserve the original per-package order: forward wires, then reverse wires.
     for entry in &pkg_offset_mapping {
-        let construction = &entry.construction_offset;
-        let assumption = &entry.assumption_offset;
-        for check in [check_construction_wires, check_assumption_wires] {
-            check(
-                ctx,
-                mapping_span,
-                &pkg_offset_mapping,
-                assumption_game_inst,
-                construction_game_inst,
-                construction,
-                assumption,
-            )?;
-        }
+        check_construction_wires(
+            ctx,
+            mapping_span,
+            &pkg_offset_mapping,
+            assumption_game_inst,
+            construction_game_inst,
+            &entry.construction_offset,
+            &entry.assumption_offset,
+        )?;
+        check_assumption_wires(
+            ctx,
+            mapping_span,
+            &pkg_offset_mapping,
+            assumption_game_inst,
+            construction_game_inst,
+            &entry.construction_offset,
+            &entry.assumption_offset,
+        )?;
     }
 
     let mapping = ReductionMapping {
@@ -908,8 +912,8 @@ fn check_incoming_wires(
                         oracle_name: constr_sig_fixed.name.clone(),
                         assumption_game_name: assumption_game_inst.game_name().to_string(),
                         construction_game_name: construction_game_inst.game_name().to_string(),
-                        assumption_signature: assump_sig_fixed.to_oracle_type().to_string(),
-                        construction_signature: constr_sig_fixed.to_oracle_type().to_string(),
+                        assumption_signature: assump_sig_fixed.to_oracle_type(),
+                        construction_signature: constr_sig_fixed.to_oracle_type(),
                     }
                     .into(),
                 );
@@ -1025,7 +1029,7 @@ fn wiring_mismatch_diagnostic(
         mapped_to_pkg_inst_name: target.pkgs[mapped.1].name.clone(),
         import_name: edge.name().to_string(),
         oracle_name: edge.sig().name.clone(),
-        oracle_signature: edge.sig().to_oracle_type().to_string(),
+        oracle_signature: edge.sig().to_oracle_type(),
     }
     .into()
 }
@@ -1181,8 +1185,7 @@ fn package_instances_diff<'a>(
     let mut different_params = vec![];
     let mut right_params = HashMap::new();
     for (ident, expression) in &right_pkg_inst.params {
-        // Repeated params blocks are possible. Retain the first assignment to
-        // match the previous linear search and keep left-side diagnostic order.
+        // The first assignment in declaration order wins across repeated params blocks.
         right_params
             .entry(ident.name.as_str())
             .or_insert(expression);

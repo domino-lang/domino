@@ -637,7 +637,7 @@ fn fail_reduction_construction_wiring_mismatch() {
         slice_source_span(&error.source_code, &error.at),
         "map a0 c0 { router: router x: x y: y }"
     );
-    assert_eq!(error.oracle_signature, "oracle () -> Boolean");
+    assert_eq!(error.oracle_signature.to_string(), "oracle () -> Boolean");
 }
 
 #[test]
@@ -664,7 +664,7 @@ fn reduction_checks_reverse_wires_before_the_next_package() {
     assert_eq!(error.construction_game_name, "ConstructionGame");
     assert_eq!(error.oracle_name, "Eval");
     assert_eq!(error.import_name, "B");
-    assert_eq!(error.oracle_signature, "oracle () -> Boolean");
+    assert_eq!(error.oracle_signature.to_string(), "oracle () -> Boolean");
     let message = error.to_string();
     assert!(message.contains("imports B"), "{message}");
     assert!(message.contains("oracle Eval"), "{message}");
@@ -742,10 +742,16 @@ fn reduction_incoming_signature_respects_build_mode() {
             panic!("expected an incoming signature mismatch diagnostic, got {error:?}");
         };
         assert_eq!(error.oracle_name, "Eval");
-        assert!(error.assumption_signature.starts_with("oracle (Bits("));
+        assert!(error
+            .assumption_signature
+            .to_string()
+            .starts_with("oracle (Bits("));
         // As on main, the construction side is rewritten with game constants only,
         // so the router's package parameter is still symbolic here.
-        assert_eq!(error.construction_signature, "oracle (Bits(n)) -> Bits(n)");
+        assert_eq!(
+            error.construction_signature.to_string(),
+            "oracle (Bits(n)) -> Bits(n)"
+        );
         assert_eq!(error.assumption_game_name, "AssumptionGame");
         assert_eq!(error.construction_game_name, "ConstructionGame");
         assert_eq!(
