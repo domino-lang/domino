@@ -137,6 +137,46 @@ impl TypeKind {
 }
 
 impl Type {
+    pub fn map<F>(&self, f: F) -> Type
+    where
+        F: Fn(Type) -> Type,
+    {
+        self.borrow_map(&f)
+    }
+
+    pub fn borrow_map<F>(&self, f: &F) -> Type
+    where
+        F: Fn(Type) -> Type,
+    {
+        let kind = match &self.kind {
+            TypeKind::Unknown
+            | TypeKind::Empty
+            | TypeKind::Integer
+            | TypeKind::String
+            | TypeKind::AddiGroupEl(_)
+            | TypeKind::MultGroupEl(_)
+            | TypeKind::Boolean
+            | TypeKind::UserDefined(_)
+            | TypeKind::Bits(_) => self.kind.clone(),
+            TypeKind::List(ty) => TypeKind::List(Box::new(ty.borrow_map(f))),
+            TypeKind::Set(ty) => TypeKind::Set(Box::new(ty.borrow_map(f))),
+            TypeKind::Maybe(ty) => TypeKind::Maybe(Box::new(ty.borrow_map(f))),
+            TypeKind::Table(idx_ty, val_ty) => TypeKind::Table(
+                Box::new(idx_ty.borrow_map(f)),
+                Box::new(val_ty.borrow_map(f)),
+            ),
+            TypeKind::Fn(arg_tys, ret_ty) => TypeKind::Fn(
+                arg_tys.iter().map(|ty| ty.borrow_map(f)).collect(),
+                Box::new(ret_ty.borrow_map(f)),
+            ),
+            TypeKind::Tuple(tys) => {
+                TypeKind::Tuple(tys.iter().map(|ty| ty.borrow_map(f)).collect())
+            }
+        };
+
+        f(Type { kind })
+    }
+
     pub(crate) fn rewrite_type(&self, rules: &[(Type, Type)]) -> Self {
         if let Some((_, replace)) = rules.iter().find(|(search, _)| self == search) {
             replace.clone()
