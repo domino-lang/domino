@@ -15,9 +15,10 @@ use error::{Error, ExportSignatureMismatch, Result};
 
 pub mod error;
 pub mod smtrewrite;
-mod verify_fn;
+mod verify;
 
-pub(crate) use verify_fn::EquivalenceSmtDriver;
+pub(crate) use verify::equivalence::EquivalenceSmtDriver;
+pub(crate) use verify::gameinvariant::GameInvariantSmtDriver;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClaimType {

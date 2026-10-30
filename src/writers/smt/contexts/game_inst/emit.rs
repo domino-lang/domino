@@ -293,7 +293,7 @@ impl<'a> GameInstanceContext<'a> {
         self.smt_update_gamestate_rand(state, sample_info, target_sample_id, new_value)
     }
 
-    pub(crate) fn smt_composition_randomness(&mut self) -> impl Iterator<Item = SmtExpr> {
+    pub(crate) fn smt_composition_randomness(self) -> impl Iterator<Item = SmtExpr> {
         let game_inst = self.game_inst();
 
         // ensure the sorts are unique so they all just exist once
