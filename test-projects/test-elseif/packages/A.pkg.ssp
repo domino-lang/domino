@@ -1,0 +1,7 @@
+package A {
+  oracle O(i: Integer) -> Bool {
+    if (i < 2) {return false;}
+    else if (i > 2) {return false;}
+    return true;
+  }
+}
