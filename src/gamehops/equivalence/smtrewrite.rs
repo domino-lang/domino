@@ -268,6 +268,7 @@ fn gen_returnbinding(
     let pattern = patterns::ReturnPattern {
         game_name: &game.game().name,
         game_params: &game.consts,
+        game_types: &game.types,
         pkg_name: &pkginst.pkg.name,
         pkg_params: &pkginst.params,
         pkg_types: &pkginst.types,
@@ -295,6 +296,7 @@ fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr
     let state_pattern = patterns::GameStatePattern {
         game_name: game.game_name(),
         params: &game.consts,
+        types: &game.types,
     };
     let state_info = patterns::GameStateDeclareInfo {
         game_inst: game,
@@ -306,6 +308,8 @@ fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr
 
     let const_pattern = patterns::GameConstsPattern {
         game_name: game.game_name(),
+        params: &game.consts,
+        types: &game.types,
     };
     let const_spec = const_pattern.datastructure_spec(&game.game);
 
@@ -356,6 +360,8 @@ fn gen_varbinding(
 
     let pkg_consts = patterns::const_mapping::PackageConstMappingFunction {
         game_name: game.game_name(),
+        game_params: &game.consts,
+        game_types: &game.types,
         pkg_name: package.pkg_name(),
         pkg_inst_name: package.name(),
         params: &package.params,
@@ -572,10 +578,12 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let left_game_state_pattern = patterns::GameStatePattern {
             game_name: left_game_inst.game_name(),
             params: &left_game_inst.consts,
+            types: &left_game_inst.types,
         };
         let right_game_state_pattern = patterns::GameStatePattern {
             game_name: right_game_inst.game_name(),
             params: &right_game_inst.consts,
+            types: &right_game_inst.types,
         };
 
         let [left_arg, right_arg] = &args[..] else {
@@ -679,10 +687,12 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let left_game_state_pattern = patterns::GameStatePattern {
             game_name: left_game_inst.game_name(),
             params: &left_game_inst.consts,
+            types: &left_game_inst.types,
         };
         let right_game_state_pattern = patterns::GameStatePattern {
             game_name: right_game_inst.game_name(),
             params: &right_game_inst.consts,
+            types: &right_game_inst.types,
         };
 
         let Some(left_oracle_export) = left_game_inst
@@ -699,6 +709,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let left_oracle_return_pattern = patterns::ReturnPattern {
             game_name: left_game_inst.game_name(),
             game_params: &left_game_inst.consts,
+            game_types: &left_game_inst.types,
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
             pkg_types: &left_game_inst.game.pkgs[left_oracle_export.to()].types,
@@ -719,6 +730,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let right_oracle_return_pattern = patterns::ReturnPattern {
             game_name: right_game_inst.game_name(),
             game_params: &right_game_inst.consts,
+            game_types: &right_game_inst.types,
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
             pkg_types: &right_game_inst.game.pkgs[right_oracle_export.to()].types,

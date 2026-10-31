@@ -10,7 +10,7 @@ use crate::{
         exprs::SmtExpr,
         names::{Delimiter, FunctionNameBuilder, NameBuilderStage, NameSection, SortNameBuilder},
         patterns::{
-            instance_names::{encode_params, only_ints},
+            instance_names::{encode_params, encode_types, only_ints},
             DatastructurePattern, DatastructureSpec, PackageStatePattern,
         },
         sorts::Sort,
@@ -21,6 +21,7 @@ use crate::{
 pub struct GameStatePattern<'a> {
     pub game_name: &'a str,
     pub params: &'a [(GameConstIdentifier, Expression)],
+    pub types: &'a [(String, Type)],
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -66,32 +67,38 @@ impl<'a> DatastructurePattern<'a> for GameStatePattern<'a> {
 
     fn sort_name(&self) -> String {
         let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_, ty)| ty));
 
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
             .push(self.game_name)
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
     }
 
     fn constructor_name(&self, _cons: &Self::Constructor) -> String {
         let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_, ty)| ty));
 
         FunctionNameBuilder::new()
             .push("mk")
             .push(Self::KEBAB_CASE)
             .push(self.game_name)
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
     }
 
     fn selector_name(&self, sel: &Self::Selector) -> String {
         let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_, ty)| ty));
 
         FunctionNameBuilder::new()
             .push(Self::KEBAB_CASE)
             .push(self.game_name)
             .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .extend(sel)
             .build()
     }

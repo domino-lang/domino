@@ -13,6 +13,7 @@ use crate::writers::smt::patterns::instance_names::{encode_params, encode_types,
 pub struct ReturnPattern<'a> {
     pub game_name: &'a str,
     pub game_params: &'a [(GameConstIdentifier, Expression)],
+    pub game_types: &'a [(String, Type)],
     pub pkg_name: &'a str,
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
     pub pkg_types: &'a [(String, Type)],
@@ -38,6 +39,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
 
     fn sort_name(&self) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
+        let game_encoded_types = encode_types(self.game_types.iter().map(|(_, ty)| ty));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
         let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
@@ -45,6 +47,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
             .push(Self::CAMEL_CASE)
             .push(self.game_name)
             .maybe_extend(&game_encoded_params)
+            .maybe_extend(&game_encoded_types)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
             .maybe_extend(&pkg_encoded_types)
@@ -54,6 +57,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
 
     fn constructor_name(&self, _cons: &Self::Constructor) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
+        let game_encoded_types = encode_types(self.game_types.iter().map(|(_, ty)| ty));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
         let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
@@ -62,6 +66,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
             .push(Self::KEBAB_CASE)
             .push(self.game_name)
             .maybe_extend(&game_encoded_params)
+            .maybe_extend(&game_encoded_types)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
             .maybe_extend(&pkg_encoded_types)
@@ -71,6 +76,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
 
     fn selector_name(&self, sel: &Self::Selector) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
+        let game_encoded_types = encode_types(self.game_types.iter().map(|(_, ty)| ty));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
         let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
@@ -83,6 +89,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
             .push(Self::KEBAB_CASE)
             .push(self.game_name)
             .maybe_extend(&game_encoded_params)
+            .maybe_extend(&game_encoded_types)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
             .maybe_extend(&pkg_encoded_types)
@@ -117,12 +124,14 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
         let Self {
             game_name,
             game_params,
+            game_types,
             ..
         } = self;
 
         let game_state_pattern = super::game_state::GameStatePattern {
             game_name,
             params: game_params,
+            types: game_types,
         };
 
         match sel {
@@ -137,6 +146,7 @@ impl<'a> DatastructurePattern<'a> for ReturnPattern<'a> {
 impl ReturnPattern<'_> {
     pub fn global_const_name(&self) -> String {
         let game_encoded_params = encode_params(only_ints(self.game_params));
+        let game_encoded_types = encode_types(self.game_types.iter().map(|(_, ty)| ty));
         let pkg_encoded_params = encode_params(only_ints(self.pkg_params));
         let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
@@ -144,6 +154,7 @@ impl ReturnPattern<'_> {
             .push("!return")
             .push(self.game_name)
             .maybe_extend(&game_encoded_params)
+            .maybe_extend(&game_encoded_types)
             .push(self.pkg_name)
             .maybe_extend(&pkg_encoded_params)
             .maybe_extend(&pkg_encoded_types)

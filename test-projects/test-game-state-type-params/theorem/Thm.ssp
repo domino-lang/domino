@@ -1,0 +1,32 @@
+theorem Thm {
+    const n: Integer;
+    const m: Integer;
+
+    instance G_n = G {
+        types {
+            T: Bits(n),
+        }
+    }
+
+    instance G_m = G {
+        types {
+            T: Bits(m),
+        }
+    }
+
+    gamehops {
+        equivalence G_n G_m {
+            invariant: [
+                ./theorem/inv.smt2
+            ]
+
+            Get: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+    }
+}

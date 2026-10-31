@@ -1,0 +1,13 @@
+package P {
+    types {
+        T
+    }
+
+    params {
+        z: T
+    }
+
+    oracle Get() -> Bool {
+        return true;
+    }
+}

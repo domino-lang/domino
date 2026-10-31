@@ -55,6 +55,7 @@ impl<'a> OracleContext<'a> {
         let oracle_name: &'a _ = self.oracle_name();
         let oracle_args: &'a _ = self.oracle_args();
         let game_params: &'a _ = gctx.game_params();
+        let game_types: &'a _ = gctx.game_types();
         let pkg_params: &'a _ = pctx.pkg_params();
         let pkg_types: &'a _ = pctx.pkg_types();
 
@@ -66,6 +67,7 @@ impl<'a> OracleContext<'a> {
             oracle_name,
             oracle_args,
             game_params,
+            game_types,
             pkg_params,
             pkg_types,
         }
@@ -98,6 +100,7 @@ impl<'a> OracleContext<'a> {
         let pkg_name: &'a _ = pctx.pkg_name();
         let oracle_name: &'a _ = self.oracle_name();
         let game_params: &'a _ = gctx.game_params();
+        let game_types: &'a _ = gctx.game_types();
         let pkg_params: &'a _ = pctx.pkg_params();
         let pkg_types: &'a _ = pctx.pkg_types();
 
@@ -106,6 +109,7 @@ impl<'a> OracleContext<'a> {
             pkg_name,
             oracle_name,
             game_params,
+            game_types,
             pkg_params,
             pkg_types,
         }
@@ -120,6 +124,8 @@ impl<'a> OracleContext<'a> {
     pub(crate) fn oracle_arg_game_consts_pattern(&self) -> oracle_args::GameConstsPattern<'a> {
         oracle_args::GameConstsPattern {
             game_name: self.game_inst_ctx().game().name(),
+            game_params: &self.game_inst_ctx().game_inst().consts,
+            game_types: &self.game_inst_ctx().game_inst().types,
         }
     }
 
@@ -127,6 +133,7 @@ impl<'a> OracleContext<'a> {
         oracle_args::GameStatePattern {
             game_name: self.game_inst_ctx().game().name(),
             game_params: &self.game_inst_ctx().game_inst().consts,
+            game_types: &self.game_inst_ctx().game_inst().types,
         }
     }
 
@@ -295,6 +302,7 @@ impl OracleContext<'_> {
         let game_state = oracle_args::GameStatePattern {
             game_name: game_inst_ctx.game_name(),
             game_params: game_inst_ctx.game_params(),
+            game_types: game_inst_ctx.game_types(),
         };
 
         game_inst_ctx

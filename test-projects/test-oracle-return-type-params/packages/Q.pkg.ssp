@@ -1,0 +1,5 @@
+package Q {
+    oracle Ping() -> Bool {
+        return true;
+    }
+}

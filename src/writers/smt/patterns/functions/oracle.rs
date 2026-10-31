@@ -27,6 +27,7 @@ pub struct OraclePattern<'a> {
     pub oracle_name: &'a str,
     pub oracle_args: &'a [(String, Type)],
     pub game_params: &'a [(GameConstIdentifier, Expression)],
+    pub game_types: &'a [(String, Type)],
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
     pub pkg_types: &'a [(String, Type)],
 }
@@ -52,6 +53,7 @@ impl FunctionPattern for OraclePattern<'_> {
         let Self {
             game_name,
             game_params,
+            game_types,
             oracle_args,
             ..
         } = self;
@@ -59,9 +61,14 @@ impl FunctionPattern for OraclePattern<'_> {
         let game_state = patterns::oracle_args::GameStatePattern {
             game_name,
             game_params,
+            game_types,
         };
 
-        let game_consts = patterns::oracle_args::GameConstsPattern { game_name };
+        let game_consts = patterns::oracle_args::GameConstsPattern {
+            game_name,
+            game_params,
+            game_types,
+        };
 
         let game_state_pair = (game_state.local_arg_name(), game_state.sort());
         let game_const_pair = (game_consts.local_arg_name(), game_consts.sort());
@@ -88,6 +95,7 @@ impl FunctionPattern for OraclePattern<'_> {
             pkg_name,
             oracle_name,
             game_params,
+            game_types,
             pkg_params,
             pkg_types,
             ..
@@ -98,6 +106,7 @@ impl FunctionPattern for OraclePattern<'_> {
             pkg_name,
             oracle_name,
             game_params,
+            game_types,
             pkg_params,
             pkg_types,
         }

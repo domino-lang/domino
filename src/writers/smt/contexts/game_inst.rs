@@ -6,6 +6,7 @@ use crate::{
     package::Composition,
     theorem::GameInstance,
     transforms::samplify::SampleInfo,
+    types::Type,
     writers::smt::{
         exprs::SmtExpr,
         patterns::{
@@ -53,6 +54,10 @@ impl<'a> GameInstanceContext<'a> {
     pub(crate) fn game_params(self) -> &'a [(GameConstIdentifier, Expression)] {
         self.game_inst().consts.as_slice()
     }
+
+    pub(crate) fn game_types(self) -> &'a [(String, Type)] {
+        self.game_inst().types.as_slice()
+    }
 }
 
 // Patterns
@@ -63,20 +68,32 @@ impl<'a> GameInstanceContext<'a> {
         patterns::oracle_args::GameStatePattern {
             game_name: self.game_name(),
             game_params: self.game_params(),
+            game_types: self.game_types(),
         }
     }
 
     pub(crate) fn datastructure_game_state_pattern(self) -> GameStatePattern<'a> {
         let game_name = self.game_name();
         let params = &self.game_inst.consts;
+        let types = &self.game_inst.types;
 
-        GameStatePattern { game_name, params }
+        GameStatePattern {
+            game_name,
+            params,
+            types,
+        }
     }
 
     pub(crate) fn datastructure_game_consts_pattern(self) -> GameConstsPattern<'a> {
         let game_name = self.game_name();
+        let params = &self.game_inst.consts;
+        let types = &self.game_inst.types;
 
-        GameConstsPattern { game_name }
+        GameConstsPattern {
+            game_name,
+            params,
+            types,
+        }
     }
 
     pub(crate) fn game_state_declare_info(

@@ -14,6 +14,7 @@ pub struct ReturnConst<'a> {
     pub game_inst_name: &'a str,
     pub game_name: &'a str,
     pub game_params: &'a [(GameConstIdentifier, Expression)],
+    pub game_types: &'a [(String, Type)],
 
     pub pkg_name: &'a str,
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
@@ -38,6 +39,7 @@ impl ConstantPattern for ReturnConst<'_> {
         ReturnPattern {
             game_name: self.game_name,
             game_params: self.game_params,
+            game_types: self.game_types,
             pkg_name: self.pkg_name,
             pkg_params: self.pkg_params,
             pkg_types: self.pkg_types,

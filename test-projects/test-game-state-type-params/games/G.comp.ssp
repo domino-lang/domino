@@ -1,0 +1,17 @@
+composition G {
+    types {
+        T
+    }
+
+    instance P = P {
+        types {
+            T: T,
+        }
+    }
+
+    compose {
+        adversary: {
+            Get: P,
+        },
+    }
+}

@@ -248,6 +248,9 @@ impl<'a> EquivalenceContext<'a> {
         let game_params_left = &gctx_left.game_inst().consts;
         let game_params_right = &gctx_right.game_inst().consts;
 
+        let game_types_left = &gctx_left.game_inst().types;
+        let game_types_right = &gctx_right.game_inst().types;
+
         let pkg_name_left = octx_left.pkg_inst_ctx().pkg_name();
         let pkg_name_right = octx_right.pkg_inst_ctx().pkg_name();
 
@@ -276,6 +279,7 @@ impl<'a> EquivalenceContext<'a> {
             game_inst_name: game_inst_name_left,
             game_name: game_name_left,
             game_params: game_params_left,
+            game_types: game_types_left,
             pkg_name: pkg_name_left,
             pkg_params: pkg_params_left,
             pkg_types: pkg_types_left,
@@ -287,6 +291,7 @@ impl<'a> EquivalenceContext<'a> {
             game_inst_name: game_inst_name_right,
             game_name: game_name_right,
             game_params: game_params_right,
+            game_types: game_types_right,
             pkg_name: pkg_name_right,
             pkg_params: pkg_params_right,
             pkg_types: pkg_types_right,
@@ -879,9 +884,13 @@ impl<'a> EquivalenceContext<'a> {
 
         let game_consts_left = patterns::oracle_args::GameConstsPattern {
             game_name: left_game_name,
+            game_params: gctx_left.game_params(),
+            game_types: gctx_left.game_types(),
         };
         let game_consts_right = patterns::oracle_args::GameConstsPattern {
             game_name: right_game_name,
+            game_params: gctx_right.game_params(),
+            game_types: gctx_right.game_types(),
         };
 
         let theorem_consts = patterns::oracle_args::TheoremConstsPattern {
@@ -899,12 +908,16 @@ impl<'a> EquivalenceContext<'a> {
             theorem_name: &self.theorem().name,
             game_name: left_game_name,
             game_inst_name: left_game_inst_name,
+            game_params: gctx_left.game_params(),
+            game_types: gctx_left.game_types(),
         };
 
         let theorem_game_const_mapping_right = GameConstMappingFunction {
             theorem_name: &self.theorem().name,
             game_name: right_game_name,
             game_inst_name: right_game_inst_name,
+            game_params: gctx_right.game_params(),
+            game_types: gctx_right.game_types(),
         };
 
         let theorem_game_const_mapping_call_left =
@@ -1183,17 +1196,19 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn smt_game_pkg_const_mapping_definitions(
         &'a self,
     ) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut seen_game_names: HashSet<&str> = Default::default();
+        let mut seen_game_consts: HashSet<String> = Default::default();
 
         Some(self)
             .into_iter()
             .flat_map(move |ectx| {
                 vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
             })
-            .filter(move |gctx| seen_game_names.insert(gctx.game_name()))
+            .filter(move |gctx| {
+                seen_game_consts.insert(gctx.datastructure_game_consts_pattern().sort_name())
+            })
             .flat_map(|gctx| {
                 gctx.game().pkgs.iter().flat_map(move |pkg_inst| {
-                    define_pkg_const_mapping_fun(gctx.game(), &pkg_inst.pkg, &pkg_inst.name)
+                    define_pkg_const_mapping_fun(gctx.game_inst(), &pkg_inst.pkg, &pkg_inst.name)
                         .map(SmtExpr::from)
                 })
             })
@@ -1246,6 +1261,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
     let game_name = &game_inst.game().name;
     let game_inst_name = &game_inst.name();
     let game_params = &game_inst.consts;
+    let game_types = &game_inst.types;
 
     // write declarations of right return constants and constrain them
     let mut out = vec![];
@@ -1274,6 +1290,7 @@ fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
             game_inst_name,
             game_name,
             game_params,
+            game_types,
             pkg_name,
             pkg_params,
             pkg_types,

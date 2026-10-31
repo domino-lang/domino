@@ -1,13 +1,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
+    expressions::Expression,
+    identifier::game_ident::GameConstIdentifier,
     package::Composition,
-    theorem::Theorem,
+    theorem::{GameInstance, Theorem},
     types::Type,
     writers::smt::{
         exprs::{SmtExpr, SmtLet},
         names::{FunctionNameBuilder, SortNameBuilder},
-        patterns::{DatastructurePattern, DatastructureSpec},
+        patterns::{
+            instance_names::{encode_params, encode_types, only_ints},
+            DatastructurePattern, DatastructureSpec,
+        },
     },
 };
 
@@ -16,6 +21,8 @@ use super::theorem_consts::TheoremConstsPattern;
 #[derive(Debug, Clone)]
 pub struct GameConstsPattern<'a> {
     pub game_name: &'a str,
+    pub params: &'a [(GameConstIdentifier, Expression)],
+    pub types: &'a [(String, Type)],
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -36,24 +43,39 @@ impl<'a> DatastructurePattern<'a> for GameConstsPattern<'a> {
     const KEBAB_CASE: &'static str = "game-consts";
 
     fn sort_name(&self) -> String {
+        let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_, ty)| ty));
+
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
             .push(self.game_name)
+            .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
     }
 
     fn constructor_name(&self, _cons: &Self::Constructor) -> String {
+        let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_, ty)| ty));
+
         FunctionNameBuilder::new()
             .push("mk")
             .push(Self::KEBAB_CASE)
             .push(self.game_name)
+            .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .build()
     }
 
     fn selector_name(&self, sel: &Self::Selector) -> String {
+        let encoded_params = encode_params(only_ints(self.params));
+        let encoded_types = encode_types(self.types.iter().map(|(_, ty)| ty));
+
         FunctionNameBuilder::new()
             .push(Self::KEBAB_CASE)
             .push(self.game_name)
+            .maybe_extend(&encoded_params)
+            .maybe_extend(&encoded_types)
             .push(sel.name)
             .build()
     }
@@ -85,14 +107,16 @@ impl<'a> DatastructurePattern<'a> for GameConstsPattern<'a> {
 }
 
 pub fn bind_game_consts<Inner: Into<SmtExpr>>(
-    game: &Composition,
+    game_inst: &GameInstance,
     game_consts: &SmtExpr,
     inner: Inner,
 ) -> SmtLet<Inner> {
-    let game_name = game.name();
-
-    let pattern = GameConstsPattern { game_name };
-    let spec = pattern.datastructure_spec(game);
+    let pattern = GameConstsPattern {
+        game_name: game_inst.game_name(),
+        params: &game_inst.consts,
+        types: &game_inst.types,
+    };
+    let spec = pattern.datastructure_spec(game_inst.game());
 
     // unpack the only (constructor, selector_list) pair
     let (_, selectors) = &spec.0[0];

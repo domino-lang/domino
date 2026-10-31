@@ -3,6 +3,7 @@
 use crate::{
     expressions::Expression,
     identifier::game_ident::GameConstIdentifier,
+    types::Type,
     writers::smt::patterns::{
         DatastructurePattern as _, GameStatePattern as GameStateDatatypePattern,
     },
@@ -13,6 +14,7 @@ use super::*;
 pub struct GameStatePattern<'a> {
     pub game_name: &'a str,
     pub game_params: &'a [(GameConstIdentifier, Expression)],
+    pub game_types: &'a [(String, Type)],
 }
 
 impl OracleArgPattern for GameStatePattern<'_> {
@@ -34,6 +36,7 @@ impl OracleArgPattern for GameStatePattern<'_> {
         GameStateDatatypePattern {
             game_name: self.game_name,
             params: self.game_params,
+            types: self.game_types,
         }
         .sort(vec![])
     }
