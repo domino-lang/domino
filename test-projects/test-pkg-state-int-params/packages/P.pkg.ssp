@@ -1,0 +1,13 @@
+package P {
+    params {
+        y: Integer
+    }
+
+    state {
+        s: Maybe(Bits(y))
+    }
+
+    oracle Get() -> Bool {
+        return true;
+    }
+}
