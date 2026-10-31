@@ -1,0 +1,48 @@
+theorem Proof {
+    const n: Integer;
+    const m: Integer;
+    const z_n: Bits(n);
+    const z_m: Bits(m);
+
+    instance H_1 = H {
+        params {
+            x1: n,
+            x2: m,
+            z1: z_n,
+            z2: z_m
+        }
+    }
+
+    instance H_2 = H {
+        params {
+            x1: n,
+            x2: m,
+            z1: z_n,
+            z2: z_m
+        }
+    }
+
+    gamehops {
+        equivalence H_1 H_2 {
+            invariant: [
+                ./theorem/inv.smt2
+            ]
+            Get1: {
+                randomness: none
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+            Get2: {
+                randomness: none
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+    }
+}

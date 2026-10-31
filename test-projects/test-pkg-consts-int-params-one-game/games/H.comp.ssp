@@ -1,0 +1,27 @@
+composition H {
+    const x1: Integer;
+    const x2: Integer;
+    const z1: Bits(x1);
+    const z2: Bits(x2);
+
+    instance P_1 = P {
+        params {
+            y: x1,
+            z: z1
+        }
+    }
+
+    instance P_2 = P {
+        params {
+            y: x2,
+            z: z2
+        }
+    }
+
+    compose {
+        adversary: {
+            Get1: Get of P_1,
+            Get2: Get of P_2
+        }
+    }
+}
