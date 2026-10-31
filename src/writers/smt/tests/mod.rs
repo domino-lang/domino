@@ -56,7 +56,11 @@ fn test_const_datatypes_eq_small_small() {
     let pkg_name = &pkg.name;
     let pkg = &pkgs[pkg_name];
 
-    let pkg_const_pattern = pkg_consts::PackageConstsPattern { pkg_name };
+    let pkg_const_pattern = pkg_consts::PackageConstsPattern {
+        pkg_name,
+        params: &pkg_inst.params,
+        types: &pkg_inst.types,
+    };
     let pkg_const_spec = pkg_const_pattern.datastructure_spec(pkg);
 
     let pkg_const_constructors = &pkg_const_spec.0;
@@ -127,7 +131,11 @@ fn test_const_datatypes_remap_consts() {
     let pkg_name = &pkg.name;
     let pkg = &pkgs[pkg_name];
 
-    let pkg_const_pattern = pkg_consts::PackageConstsPattern { pkg_name };
+    let pkg_const_pattern = pkg_consts::PackageConstsPattern {
+        pkg_name,
+        params: &pkg_inst.params,
+        types: &pkg_inst.types,
+    };
     let pkg_const_spec = pkg_const_pattern.datastructure_spec(pkg);
 
     let pkg_const_constructors = &pkg_const_spec.0;

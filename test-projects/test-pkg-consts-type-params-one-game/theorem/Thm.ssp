@@ -1,0 +1,52 @@
+theorem Thm {
+    const n: Integer;
+    const m: Integer;
+    const z_n: Bits(n);
+    const z_m: Bits(m);
+
+    instance H_1 = HA {
+        types {
+            N: Bits(n),
+            M: Bits(m),
+        }
+        params {
+            z1: z_n,
+            z2: z_m,
+        }
+    }
+
+    instance H_2 = HB {
+        types {
+            N: Bits(n),
+            M: Bits(m),
+        }
+        params {
+            z1: z_n,
+            z2: z_m,
+        }
+    }
+
+    gamehops {
+        equivalence H_1 H_2 {
+            invariant: [
+                ./theorem/inv.smt2
+            ]
+
+            GetN: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+
+            GetM: {
+                lemmas {
+                    equal-aborts: []
+                    invariant: [no-abort]
+                    same-output: [no-abort]
+                }
+            }
+        }
+    }
+}

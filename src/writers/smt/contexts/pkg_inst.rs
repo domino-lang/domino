@@ -149,6 +149,8 @@ impl<'a> PackageInstanceContext<'a> {
     pub(crate) fn datastructure_pkg_consts_pattern(&self) -> PackageConstsPattern<'a> {
         PackageConstsPattern {
             pkg_name: &self.pkg_inst().pkg.name,
+            params: &self.pkg_inst().params,
+            types: &self.pkg_inst().types,
         }
     }
 
@@ -159,6 +161,8 @@ impl<'a> PackageInstanceContext<'a> {
             game_name: self.game_name(),
             pkg_name: self.pkg_name(),
             pkg_inst_name: self.pkg_inst_name(),
+            params: self.pkg_params(),
+            types: self.pkg_types(),
         }
     }
 

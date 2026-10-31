@@ -1,0 +1,34 @@
+composition HA {
+    types {
+        N,
+        M
+    }
+
+    const z1: N;
+    const z2: M;
+
+    instance P_n = P {
+        types {
+            T: N,
+        }
+        params {
+            z: z1,
+        }
+    }
+
+    instance P_m = P {
+        types {
+            T: M,
+        }
+        params {
+            z: z2,
+        }
+    }
+
+    compose {
+        adversary: {
+            GetN: Get of P_n,
+            GetM: Get of P_m,
+        },
+    }
+}

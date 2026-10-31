@@ -1044,7 +1044,7 @@ impl<'a> CompositionSmtWriter<'a> {
             .unwrap();
 
         let const_bindwrapped = patterns::datastructures::pkg_consts::bind_pkg_consts(
-            pkg_inst_ctx.pkg(),
+            pkg_inst_ctx.pkg_inst(),
             &pkg_consts,
             inner,
         );

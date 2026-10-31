@@ -347,6 +347,8 @@ fn gen_varbinding(
 
     let const_pattern = patterns::PackageConstsPattern {
         pkg_name: package.pkg_name(),
+        params: &package.params,
+        types: &package.types,
     };
     let const_spec = const_pattern.datastructure_spec(&package.pkg);
 
@@ -356,6 +358,8 @@ fn gen_varbinding(
         game_name: game.game_name(),
         pkg_name: package.pkg_name(),
         pkg_inst_name: package.name(),
+        params: &package.params,
+        types: &package.types,
     }
     .call(&[format!("<<game-consts-{}>>", game.name()).into()])
     .unwrap();

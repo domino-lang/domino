@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
+    expressions::Expression,
+    identifier::pkg_ident::PackageConstIdentifier,
     package::{Composition, Package},
     theorem::Theorem,
+    types::Type,
     writers::smt::{
         exprs::{SmtExpr, SmtLet},
         names::FunctionNameBuilder,
@@ -23,6 +26,8 @@ pub struct PackageConstMappingFunction<'a> {
     pub game_name: &'a str,
     pub pkg_name: &'a str,
     pub pkg_inst_name: &'a str,
+    pub params: &'a [(PackageConstIdentifier, Expression)],
+    pub types: &'a [(String, Type)],
 }
 
 impl FunctionPattern for PackageConstMappingFunction<'_> {
@@ -44,6 +49,8 @@ impl FunctionPattern for PackageConstMappingFunction<'_> {
     fn function_return_sort(&self) -> Sort {
         PackageConstsPattern {
             pkg_name: self.pkg_name,
+            params: self.params,
+            types: self.types,
         }
         .sort(vec![])
     }
@@ -110,9 +117,15 @@ pub fn define_pkg_const_mapping_fun<'a>(
         game_name: game.name(),
         pkg_inst_name,
         pkg_name,
+        params: &pkg_inst.params,
+        types: &pkg_inst.types,
     };
 
-    let pkg_consts = PackageConstsPattern { pkg_name };
+    let pkg_consts = PackageConstsPattern {
+        pkg_name,
+        params: &pkg_inst.params,
+        types: &pkg_inst.types,
+    };
     let pkg_consts_spec = pkg_consts.datastructure_spec(pkg);
 
     Some(

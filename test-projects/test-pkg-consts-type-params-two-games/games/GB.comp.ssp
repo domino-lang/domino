@@ -1,0 +1,22 @@
+composition GB {
+    types {
+        T
+    }
+
+    const z: T;
+
+    instance P = P {
+        types {
+            T: T,
+        }
+        params {
+            z: z,
+        }
+    }
+
+    compose {
+        adversary: {
+            Get: P,
+        },
+    }
+}
