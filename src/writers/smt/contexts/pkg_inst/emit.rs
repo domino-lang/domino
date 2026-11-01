@@ -44,7 +44,7 @@ impl<'a> PackageInstanceContext<'a> {
             .call(&["<game-consts>".into()])
             .unwrap();
 
-        let const_bindwrapped = pkg_consts::bind_pkg_consts(self.pkg(), &pkg_consts, inner);
+        let const_bindwrapped = pkg_consts::bind_pkg_consts(self.pkg_inst(), &pkg_consts, inner);
 
         let state_bindwrapped = SmtLet {
             bindings: pkgstate_bindings.collect(),

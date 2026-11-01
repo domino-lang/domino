@@ -3,6 +3,7 @@
 use super::patterns::{game_consts, pkg_consts, pkg_state, DatastructurePattern};
 use crate::{
     parser::tests::*,
+    theorem::GameInstance,
     types::{CountSpec, TypeKind},
     writers::smt::{
         exprs::SmtExpr,
@@ -33,7 +34,10 @@ fn test_const_datatypes_eq_small_small() {
     let game_name = game.name();
     let game = &games[game_name];
 
-    let game_const_pattern = game_consts::GameConstsPattern { game_name };
+    let game_const_pattern = game_consts::GameConstsPattern {
+        game_name,
+        params: &game_inst.consts,
+    };
     let game_const_spec = game_const_pattern.datastructure_spec(game);
 
     let game_const_constructors = &game_const_spec.0;
@@ -56,7 +60,10 @@ fn test_const_datatypes_eq_small_small() {
     let pkg_name = &pkg.name;
     let pkg = &pkgs[pkg_name];
 
-    let pkg_const_pattern = pkg_consts::PackageConstsPattern { pkg_name };
+    let pkg_const_pattern = pkg_consts::PackageConstsPattern {
+        pkg_name,
+        params: &pkg_inst.params,
+    };
     let pkg_const_spec = pkg_const_pattern.datastructure_spec(pkg);
 
     let pkg_const_constructors = &pkg_const_spec.0;
@@ -73,7 +80,7 @@ fn test_const_datatypes_eq_small_small() {
         assert_eq!(ty, &const_ty);
     }
 
-    let mapping = define_pkg_const_mapping_fun(game, pkg, pkg_inst_name).unwrap();
+    let mapping = define_pkg_const_mapping_fun(game_inst, pkg, pkg_inst_name).unwrap();
     let args = &mapping.args;
 
     // takes a single argument as described here
@@ -82,14 +89,14 @@ fn test_const_datatypes_eq_small_small() {
     assert_eq!(args[0].1, game_const_pattern.sort(vec![]));
     assert_eq!(
         args[0].1,
-        Sort::Other(format!("<GameConsts_{game_name}>"), vec![]),
+        Sort::Other(format!("<GameConsts_{game_name}_<$<!n!>$>>"), vec![]),
     );
 
     // returns a package const
     assert_eq!(mapping.sort, pkg_const_pattern.sort(vec![]));
     assert_eq!(
         mapping.sort,
-        Sort::Other(format!("<PackageConsts_{pkg_name}>"), vec![]),
+        Sort::Other(format!("<PackageConsts_{pkg_name}_<$<!n!>$>>"), vec![]),
     );
 
     let bindings = &mapping.body.bindings;
@@ -101,10 +108,19 @@ fn test_const_datatypes_eq_small_small() {
 fn test_const_datatypes_remap_consts() {
     let pkgs = packages::parse_files(&["tiny.ssp"]);
     let game = games::parse_file("small_remap_consts.ssp", &pkgs);
+    let game_inst = GameInstance {
+        name: game.name().to_string(),
+        game: game.clone(),
+        types: vec![],
+        consts: vec![],
+    };
 
     let game_name = game.name();
 
-    let game_const_pattern = game_consts::GameConstsPattern { game_name };
+    let game_const_pattern = game_consts::GameConstsPattern {
+        game_name,
+        params: &game_inst.consts,
+    };
     let game_const_spec = game_const_pattern.datastructure_spec(&game);
 
     let game_const_constructors = &game_const_spec.0;
@@ -127,7 +143,10 @@ fn test_const_datatypes_remap_consts() {
     let pkg_name = &pkg.name;
     let pkg = &pkgs[pkg_name];
 
-    let pkg_const_pattern = pkg_consts::PackageConstsPattern { pkg_name };
+    let pkg_const_pattern = pkg_consts::PackageConstsPattern {
+        pkg_name,
+        params: &pkg_inst.params,
+    };
     let pkg_const_spec = pkg_const_pattern.datastructure_spec(pkg);
 
     let pkg_const_constructors = &pkg_const_spec.0;
@@ -144,7 +163,7 @@ fn test_const_datatypes_remap_consts() {
         assert_eq!(ty, &const_ty);
     }
 
-    let mapping = define_pkg_const_mapping_fun(&game, pkg, pkg_inst_name).unwrap();
+    let mapping = define_pkg_const_mapping_fun(&game_inst, pkg, pkg_inst_name).unwrap();
     let args = &mapping.args;
 
     // takes a single argument as described here
@@ -160,7 +179,7 @@ fn test_const_datatypes_remap_consts() {
     assert_eq!(mapping.sort, pkg_const_pattern.sort(vec![]));
     assert_eq!(
         mapping.sort,
-        Sort::Other(format!("<PackageConsts_{pkg_name}>"), vec![]),
+        Sort::Other(format!("<PackageConsts_{pkg_name}_<$<!1!>$>>"), vec![]),
     );
 
     let bindings = &mapping.body.bindings;
@@ -175,7 +194,10 @@ fn test_const_datatypes_remap_consts() {
     };
 
     assert_eq!(constructor_list.len(), 2);
-    assert_eq!(constructor_list[0].to_string(), "<mk-pkg-consts-TinyPkg>");
+    assert_eq!(
+        constructor_list[0].to_string(),
+        "<mk-pkg-consts-TinyPkg-<$<!1!>$>>"
+    );
     assert_eq!(constructor_list[1].to_string(), "1");
 }
 

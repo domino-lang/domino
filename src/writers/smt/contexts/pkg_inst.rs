@@ -100,6 +100,7 @@ impl<'a> PackageInstanceContext<'a> {
     pub(crate) fn datastructure_pkg_consts_pattern(&self) -> PackageConstsPattern<'a> {
         PackageConstsPattern {
             pkg_name: &self.pkg_inst().pkg.name,
+            params: &self.pkg_inst().params,
         }
     }
 
@@ -108,8 +109,10 @@ impl<'a> PackageInstanceContext<'a> {
     ) -> patterns::functions::const_mapping::PackageConstMappingFunction<'a> {
         patterns::functions::const_mapping::PackageConstMappingFunction {
             game_name: self.game_name(),
+            game_params: self.game_inst_ctx().game_params(),
             pkg_name: self.pkg_name(),
             pkg_inst_name: self.pkg_inst_name(),
+            params: self.pkg_params(),
         }
     }
 

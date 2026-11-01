@@ -938,14 +938,16 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn smt_game_pkg_const_mapping_definitions(
         &'a self,
     ) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut seen_game_names: HashSet<&str> = Default::default();
+        let mut seen_game_const_sorts: HashSet<String> = Default::default();
 
         Some(self)
             .into_iter()
             .flat_map(move |ectx| {
                 vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
             })
-            .filter(move |gctx| seen_game_names.insert(gctx.game_name()))
+            .filter(move |gctx| {
+                seen_game_const_sorts.insert(gctx.datastructure_game_consts_pattern().sort_name())
+            })
             .flat_map(|gctx| gctx.smt_game_pkg_const_mapping_definitions())
     }
 
