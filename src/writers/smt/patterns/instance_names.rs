@@ -2,7 +2,12 @@
 
 use std::borrow::Borrow;
 
-use crate::{expressions::Expression, types::TypeKind, writers::smt::exprs::SmtExpr};
+use crate::{
+    expressions::Expression,
+    identifier::{game_ident::GameIdentifier, pkg_ident::PackageIdentifier, Identifier},
+    types::TypeKind,
+    writers::smt::exprs::SmtExpr,
+};
 
 pub fn only_ints<'a, T: 'a, I: IntoIterator<Item = &'a (T, Expression)>>(
     iter: I,
@@ -41,8 +46,26 @@ where
     encode_smt_exprs(
         params_iter
             .into_iter()
-            .map(|expr: &Expression| -> SmtExpr { expr.into() }),
+            .map(|expr: &Expression| -> SmtExpr { (&resolve_assignments(expr)).into() }),
     )
+}
+
+/// Replaces package and game consts by the values they are assigned, so that names encode the
+/// value a param has in the theorem rather than the name of the const it is set to in a game.
+fn resolve_assignments(expr: &Expression) -> Expression {
+    expr.map(|expr| {
+        let assignment = match expr.as_identifier() {
+            Some(Identifier::PackageIdentifier(PackageIdentifier::Const(ident))) => {
+                ident.game_assignment.as_deref()
+            }
+            Some(Identifier::GameIdentifier(GameIdentifier::Const(ident))) => {
+                ident.assigned_value.as_deref()
+            }
+            _ => None,
+        };
+
+        assignment.map(resolve_assignments).unwrap_or(expr)
+    })
 }
 
 pub fn encode_smt_exprs<Ref: Borrow<SmtExpr>, Iter: IntoIterator<Item = Ref>>(

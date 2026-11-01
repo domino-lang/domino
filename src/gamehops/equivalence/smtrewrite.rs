@@ -262,6 +262,7 @@ fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr
 
     let const_pattern = patterns::GameConstsPattern {
         game_name: game.game_name(),
+        params: &game.consts,
     };
     let const_spec = const_pattern.datastructure_spec(&game.game);
 
@@ -302,6 +303,7 @@ fn gen_varbinding(
 
     let const_pattern = patterns::PackageConstsPattern {
         pkg_name: package.pkg_name(),
+        params: &package.params,
     };
     let const_spec = const_pattern.datastructure_spec(&package.pkg);
 
@@ -309,8 +311,10 @@ fn gen_varbinding(
 
     let pkg_consts = patterns::const_mapping::PackageConstMappingFunction {
         game_name: game.game_name(),
+        game_params: &game.consts,
         pkg_name: package.pkg_name(),
         pkg_inst_name: package.name(),
+        params: &package.params,
     }
     .call(&[format!("<<game-consts-{}>>", game.name()).into()])
     .unwrap();

@@ -58,7 +58,10 @@ impl FunctionPattern for OraclePattern<'_> {
             game_params,
         };
 
-        let game_consts = patterns::oracle_args::GameConstsPattern { game_name };
+        let game_consts = patterns::oracle_args::GameConstsPattern {
+            game_name,
+            game_params,
+        };
 
         let game_state_pair = (game_state.local_arg_name(), game_state.sort());
         let game_const_pair = (game_consts.local_arg_name(), game_consts.sort());
