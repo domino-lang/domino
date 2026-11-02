@@ -6,10 +6,10 @@ use crate::{
     gamehops::equivalence::{
         error::{Error, Result},
         verify::{
-            load_equivalence_invariants, load_game_invariants, resolve_claims, ClaimGroup, SmtBuf,
-            SmtDriver,
+            gameinvariant::GameInvariantSmtDriver, load_equivalence_invariants, resolve_claims,
+            ClaimGroup, SmtBuf, SmtDriver,
         },
-        ClaimType, ResolvedClaim, ResolvedDependency, SmtStatementKind, SmtStmt,
+        ResolvedClaim, SmtStmt,
     },
     package::Export,
     project::{configuration::ProveConfiguration, Project},
@@ -28,8 +28,8 @@ pub(crate) struct EquivalenceSmtDriver<
     config: &'a ProveConf,
     invariants: Vec<SmtStmt>,
     claims: Vec<(String, Vec<ResolvedClaim>)>,
-    left_invariants: Vec<SmtStmt>,
-    right_invariants: Vec<SmtStmt>,
+    left_driver: GameInvariantSmtDriver<'a, Proj, ProveConf>,
+    right_driver: GameInvariantSmtDriver<'a, Proj, ProveConf>,
 }
 
 impl<'a, Proj, ProveConf> SmtDriver<'a, Proj, ProveConf>
@@ -73,9 +73,11 @@ where
         eqctx.verify_exports_match()?;
 
         let invariants = load_equivalence_invariants(eqctx, project)?;
-        let left_invariants = load_game_invariants(&eqctx.left_game_inst_ctx(), project)?;
-        let right_invariants = load_game_invariants(&eqctx.right_game_inst_ctx(), project)?;
         let claims = resolve_claims(eqctx, &invariants);
+
+        let left_driver = GameInvariantSmtDriver::new(eqctx.left_game_inst_ctx(), project, config)?;
+        let right_driver =
+            GameInvariantSmtDriver::new(eqctx.right_game_inst_ctx(), project, config)?;
 
         Ok(Self {
             eqctx,
@@ -83,8 +85,8 @@ where
             config,
             invariants,
             claims,
-            left_invariants,
-            right_invariants,
+            left_driver,
+            right_driver,
         })
     }
 
@@ -109,58 +111,6 @@ where
             .find(|(name, _tree)| name == oracle_name)
             .map(|(_oname, tree)| tree.clone())
             .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
-    }
-
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<ResolvedClaim> {
-        fn new_claim(ty: ClaimType, name: String) -> Option<ResolvedClaim> {
-            Some(ResolvedClaim {
-                admitted: false,
-                dependencies: vec![ResolvedDependency {
-                    name: "no-abort".to_string(),
-                    ty: ClaimType::Lemma,
-                }],
-                ty,
-                name,
-            })
-        }
-
-        self.left_invariants
-            .iter()
-            .filter_map(|stmt| match stmt.kind {
-                SmtStatementKind::PackageInvariant { .. } => {
-                    new_claim(ClaimType::LeftPackageInvariant, stmt.kind.name())
-                }
-                SmtStatementKind::GameInvariant { .. } => {
-                    new_claim(ClaimType::LeftGameInvariant, stmt.kind.name())
-                }
-                _ => None,
-            })
-            .chain(
-                self.right_invariants
-                    .iter()
-                    .filter_map(|stmt| match stmt.kind {
-                        SmtStatementKind::PackageInvariant { .. } => {
-                            new_claim(ClaimType::RightPackageInvariant, stmt.kind.name())
-                        }
-                        SmtStatementKind::GameInvariant { .. } => {
-                            new_claim(ClaimType::RightGameInvariant, stmt.kind.name())
-                        }
-                        _ => None,
-                    }),
-            )
-            .collect()
-    }
-
-    fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
-        self.generate_game_or_package_invariant_claims()
-            .iter()
-            .map(|claim| {
-                let smt = self
-                    .eqctx
-                    .emit_game_or_package_invariant_start_assert(claim);
-                (claim.name().to_string(), smt)
-            })
-            .collect()
     }
 
     pub(crate) fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
@@ -202,8 +152,8 @@ where
         smt.extend(
             self.invariants
                 .iter()
-                .chain(self.left_invariants.iter())
-                .chain(self.right_invariants.iter())
+                .chain(self.left_driver.invariants.iter())
+                .chain(self.right_driver.invariants.iter())
                 .map(|stmt| stmt.expr.clone()),
         );
 
@@ -274,11 +224,10 @@ where
         let mut base_smt = equivalence_smt.to_owned();
         base_smt.push(initial_state_values.as_slice());
 
-        let mut checks: Vec<(String, SmtExpr)> = vec![(
+        let checks: Vec<(String, SmtExpr)> = vec![(
             "invariant".to_string(),
             self.eqctx.emit_invariant_start_assert(),
         )];
-        checks.append(&mut self.generate_game_or_package_invariant_start_asserts());
 
         ui.run(|ui| {
             let checks: Vec<_> = checks
@@ -310,9 +259,7 @@ where
         equivalence_smt: &SmtBuf,
         oracle: &Export,
     ) -> Vec<Result<()>> {
-        let mut claims = self.claims_by_oracle_name(oracle.name());
-
-        claims.append(&mut self.generate_game_or_package_invariant_claims());
+        let claims = self.claims_by_oracle_name(oracle.name());
 
         let claim_group = ClaimGroup::Oracle {
             oracle_name: oracle.name().to_string(),
@@ -365,8 +312,8 @@ where
                         let claim_smt = vec![self.eqctx.emit_oracle_claim_assert(
                             claim,
                             oracle.name(),
-                            &self.left_invariants,
-                            &self.right_invariants,
+                            &self.left_driver.invariants,
+                            &self.right_driver.invariants,
                         )];
                         let ui = ui.start_claim(claim);
 

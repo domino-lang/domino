@@ -24,10 +24,8 @@ pub(crate) use verify::gameinvariant::GameInvariantSmtDriver;
 pub enum ClaimType {
     Lemma,
     Relation,
-    LeftPackageInvariant,
-    RightPackageInvariant,
-    LeftGameInvariant,
-    RightGameInvariant,
+    PackageInvariant,
+    GameInvariant,
 }
 
 impl ClaimType {
