@@ -7,7 +7,7 @@ use crate::{
     identifier::game_ident::GameConstIdentifier,
     package::Composition,
     theorem::GameInstance,
-    transforms::samplify::SampleInfo,
+    transforms::{samplify::SampleInfo, theorem_transforms::EquivalenceTransform, GameTransform},
     writers::smt::patterns::{
         self, game_consts::GameConstsPattern, GameStateDeclareInfo, GameStatePattern,
     },
@@ -18,15 +18,15 @@ use super::{OracleContext, PackageInstanceContext};
 #[derive(Clone, Debug, Copy)]
 pub struct GameInstanceContext<'a> {
     game_inst: &'a GameInstance,
-    sample_info: &'a SampleInfo,
+    aux: &'a <EquivalenceTransform as GameTransform>::Aux,
 }
 
 impl<'a> GameInstanceContext<'a> {
-    pub(crate) fn new(game_inst: &'a GameInstance, sample_info: &'a SampleInfo) -> Self {
-        GameInstanceContext {
-            game_inst,
-            sample_info,
-        }
+    pub(crate) fn new(
+        game_inst: &'a GameInstance,
+        aux: &'a <EquivalenceTransform as GameTransform>::Aux,
+    ) -> Self {
+        GameInstanceContext { game_inst, aux }
     }
 
     pub(crate) fn pkg_inst_contexts(self) -> impl Iterator<Item = PackageInstanceContext<'a>> {
@@ -41,7 +41,7 @@ impl<'a> GameInstanceContext<'a> {
     }
 
     pub(crate) fn sample_info(self) -> &'a SampleInfo {
-        self.sample_info
+        &self.aux.sample_info
     }
 
     pub(crate) fn game(self) -> &'a Composition {
@@ -88,7 +88,7 @@ impl<'a> GameInstanceContext<'a> {
 
     pub(crate) fn game_state_declare_info(&self) -> GameStateDeclareInfo<'a> {
         let game_inst = self.game_inst;
-        let sample_info = self.sample_info;
+        let sample_info = self.sample_info();
         GameStateDeclareInfo {
             game_inst,
             sample_info,

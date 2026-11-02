@@ -134,7 +134,8 @@ pub trait Project {
                     Some(game).map(|game| -> Result<_> {
                         let inst: GameInstance = game.clone().into();
                         let (game, aux) = EquivalenceTransform.transform_game(&inst.game)?;
-                        inst.with_other_game(game);
+                        let inst = inst.with_other_game(game);
+
                         Ok((aux, inst))
                     })
                 }
@@ -144,8 +145,8 @@ pub trait Project {
         game_insts
             .iter()
             .map(|(aux, game_inst)| {
-                let gctx = GameInstanceContext::new(game_inst, &aux.sample_info);
-                let driver = GameInvariantSmtDriver::new(&gctx, self, config)?;
+                let gctx = GameInstanceContext::new(game_inst, aux);
+                let driver = GameInvariantSmtDriver::new(gctx, self, config)?;
                 driver.verify_game_invariants()
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;

@@ -8,7 +8,6 @@ use crate::{
     theorem::Theorem,
     transforms::{
         sample_max_counter_extractor::MaxOffsets,
-        samplify::SampleInfo,
         theorem_transforms::{EquivalenceTransform, GameAux},
         TheoremTransform,
     },
@@ -63,7 +62,7 @@ impl<'a> EquivalenceContext<'a> {
             .find_game_instance(self.equivalence().left_name())
             .unwrap();
 
-        contexts::GameInstanceContext::new(game_inst, self.sample_info_left())
+        contexts::GameInstanceContext::new(game_inst, self.aux_left())
     }
 
     pub(crate) fn right_game_inst_ctx(&self) -> contexts::GameInstanceContext<'a> {
@@ -72,7 +71,7 @@ impl<'a> EquivalenceContext<'a> {
             .find_game_instance(self.equivalence().right_name())
             .unwrap();
 
-        contexts::GameInstanceContext::new(game_inst, self.sample_info_right())
+        contexts::GameInstanceContext::new(game_inst, self.aux_right())
     }
 }
 
@@ -158,12 +157,12 @@ impl<'a> EquivalenceContext<'a> {
         types
     }
 
-    pub(crate) fn sample_info_left(&self) -> &'a SampleInfo {
-        &self.aux(self.equivalence().left_name()).sample_info
+    pub(crate) fn aux_left(&self) -> &'a GameAux {
+        self.aux(self.equivalence().left_name())
     }
 
-    pub(crate) fn sample_info_right(&self) -> &'a SampleInfo {
-        &self.aux(self.equivalence().right_name()).sample_info
+    pub(crate) fn aux_right(&self) -> &'a GameAux {
+        self.aux(self.equivalence().right_name())
     }
 
     pub(crate) fn max_offsets_left(&self) -> &'a MaxOffsets {
