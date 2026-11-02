@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
+    expressions::Expression,
+    identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
     package::{Composition, Package},
-    theorem::Theorem,
+    theorem::{GameInstance, Theorem},
     writers::smt::{
         exprs::{SmtExpr, SmtLet},
         names::FunctionNameBuilder,
         patterns::{
             datastructures::game_consts::GameConstsPattern as GameConstsDatatypePattern,
             game_consts::{bind_game_consts, bind_theorem_consts},
+            instance_names::{encode_params, only_ints},
             oracle_args::{GameConstsPattern, OracleArgPattern as _, TheoremConstsPattern},
             pkg_consts::PackageConstsPattern,
             DatastructurePattern, FunctionPattern,
@@ -21,15 +24,20 @@ use super::SmtDefineFun;
 
 pub struct PackageConstMappingFunction<'a> {
     pub game_name: &'a str,
+    pub game_params: &'a [(GameConstIdentifier, Expression)],
     pub pkg_name: &'a str,
     pub pkg_inst_name: &'a str,
+    pub params: &'a [(PackageConstIdentifier, Expression)],
 }
 
 impl FunctionPattern for PackageConstMappingFunction<'_> {
     fn function_name(&self) -> String {
+        let game_encoded_params = encode_params(only_ints(self.game_params));
+
         FunctionNameBuilder::new()
             .push("pkgconsts")
             .push(self.game_name)
+            .maybe_extend(&game_encoded_params)
             .push(self.pkg_inst_name)
             .build()
     }
@@ -37,6 +45,7 @@ impl FunctionPattern for PackageConstMappingFunction<'_> {
     fn function_args(&self) -> Vec<(String, Sort)> {
         let game_consts_pattern = GameConstsPattern {
             game_name: self.game_name,
+            game_params: self.game_params,
         };
         vec![("<game-consts>".to_string(), game_consts_pattern.sort())]
     }
@@ -44,6 +53,7 @@ impl FunctionPattern for PackageConstMappingFunction<'_> {
     fn function_return_sort(&self) -> Sort {
         PackageConstsPattern {
             pkg_name: self.pkg_name,
+            params: self.params,
         }
         .sort(vec![])
     }
@@ -57,6 +67,7 @@ pub struct GameConstMappingFunction<'a> {
     pub theorem_name: &'a str,
     pub game_name: &'a str,
     pub game_inst_name: &'a str,
+    pub game_params: &'a [(GameConstIdentifier, Expression)],
 }
 
 impl FunctionPattern for GameConstMappingFunction<'_> {
@@ -81,6 +92,7 @@ impl FunctionPattern for GameConstMappingFunction<'_> {
     fn function_return_sort(&self) -> Sort {
         GameConstsPattern {
             game_name: self.game_name,
+            game_params: self.game_params,
         }
         .sort()
     }
@@ -91,10 +103,11 @@ impl FunctionPattern for GameConstMappingFunction<'_> {
 }
 
 pub fn define_pkg_const_mapping_fun<'a>(
-    game: &'a Composition,
+    game_inst: &'a GameInstance,
     pkg: &'a Package,
     pkg_inst_name: &'a str,
 ) -> Option<SmtDefineFun<SmtLet<SmtExpr>>> {
+    let game = game_inst.game();
     let pkg_inst = game
         .pkgs
         .iter()
@@ -108,16 +121,21 @@ pub fn define_pkg_const_mapping_fun<'a>(
 
     let mapping_fun = PackageConstMappingFunction {
         game_name: game.name(),
+        game_params: &game_inst.consts,
         pkg_inst_name,
         pkg_name,
+        params: &pkg_inst.params,
     };
 
-    let pkg_consts = PackageConstsPattern { pkg_name };
+    let pkg_consts = PackageConstsPattern {
+        pkg_name,
+        params: &pkg_inst.params,
+    };
     let pkg_consts_spec = pkg_consts.datastructure_spec(pkg);
 
     Some(
         mapping_fun.define_fun(bind_game_consts(
-            game,
+            game_inst,
             &"<game-consts>".into(),
             pkg_consts
                 .call_constructor(&pkg_consts_spec, vec![], &(), |sel| {
@@ -149,9 +167,13 @@ pub fn define_game_const_mapping_fun<'a>(
         theorem_name: &theorem.name,
         game_inst_name,
         game_name,
+        game_params: &game_inst.consts,
     };
 
-    let game_consts = GameConstsDatatypePattern { game_name };
+    let game_consts = GameConstsDatatypePattern {
+        game_name,
+        params: &game_inst.consts,
+    };
     let game_consts_spec = game_consts.datastructure_spec(game);
 
     Some(

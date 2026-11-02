@@ -43,10 +43,12 @@ impl<'a> GameInstanceContext<'a> {
             theorem_name,
             game_name: self.game_name(),
             game_inst_name: self.game_inst_name(),
+            game_params: self.game_params(),
         };
 
         let game_consts = patterns::oracle_args::GameConstsPattern {
             game_name: self.game_name(),
+            game_params: self.game_params(),
         };
 
         let theorem_consts = patterns::oracle_args::TheoremConstsPattern { theorem_name };
@@ -329,7 +331,7 @@ impl<'a> GameInstanceContext<'a> {
         self,
     ) -> impl Iterator<Item = SmtExpr> + 'a {
         self.game().pkgs.iter().flat_map(move |pkg_inst| {
-            define_pkg_const_mapping_fun(self.game(), &pkg_inst.pkg, &pkg_inst.name)
+            define_pkg_const_mapping_fun(self.game_inst(), &pkg_inst.pkg, &pkg_inst.name)
                 .map(SmtExpr::from)
         })
     }

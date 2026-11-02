@@ -81,8 +81,9 @@ impl<'a> GameInstanceContext<'a> {
 
     pub(crate) fn datastructure_game_consts_pattern(self) -> GameConstsPattern<'a> {
         let game_name = self.game_name();
+        let params = &self.game_inst.consts;
 
-        GameConstsPattern { game_name }
+        GameConstsPattern { game_name, params }
     }
 
     pub(crate) fn game_state_declare_info(&self) -> GameStateDeclareInfo<'a> {

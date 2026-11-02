@@ -1,0 +1,32 @@
+theorem Proof {
+    const n: Integer;
+    const m: Integer;
+
+    instance G_n = G {
+        params {
+            x: n
+        }
+    }
+
+    instance G_m = G {
+        params {
+            x: m
+        }
+    }
+
+    gamehops {
+        equivalence G_n G_m {
+            invariant: [
+                ./theorem/inv.smt2
+            ]
+            Get: {
+                randomness: none
+                lemmas {
+                    same-output: [no-abort]
+                    equal-aborts: []
+                    invariant: [no-abort]
+                }
+            }
+        }
+    }
+}

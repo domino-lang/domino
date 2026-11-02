@@ -1,18 +1,24 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::{
-    package::Package,
+    expressions::Expression,
+    identifier::pkg_ident::PackageConstIdentifier,
+    package::{Package, PackageInstance},
     types::Type,
     writers::smt::{
         exprs::{SmtExpr, SmtLet},
         names::{FunctionNameBuilder, SortNameBuilder},
-        patterns::{DatastructurePattern, DatastructureSpec},
+        patterns::{
+            instance_names::{encode_params, only_ints},
+            DatastructurePattern, DatastructureSpec,
+        },
     },
 };
 
 #[derive(Debug)]
 pub struct PackageConstsPattern<'a> {
     pub pkg_name: &'a str,
+    pub params: &'a [(PackageConstIdentifier, Expression)],
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -33,24 +39,33 @@ impl<'a> DatastructurePattern<'a> for PackageConstsPattern<'a> {
     const KEBAB_CASE: &'static str = "pkg-consts";
 
     fn sort_name(&self) -> String {
+        let encoded_params = encode_params(only_ints(self.params));
+
         SortNameBuilder::new()
             .push(Self::CAMEL_CASE)
             .push(self.pkg_name)
+            .maybe_extend(&encoded_params)
             .build()
     }
 
     fn constructor_name(&self, _cons: &Self::Constructor) -> String {
+        let encoded_params = encode_params(only_ints(self.params));
+
         FunctionNameBuilder::new()
             .push("mk")
             .push(Self::KEBAB_CASE)
             .push(self.pkg_name)
+            .maybe_extend(&encoded_params)
             .build()
     }
 
     fn selector_name(&self, sel: &Self::Selector) -> String {
+        let encoded_params = encode_params(only_ints(self.params));
+
         FunctionNameBuilder::new()
             .push(Self::KEBAB_CASE)
             .push(self.pkg_name)
+            .maybe_extend(&encoded_params)
             .push(sel.name)
             .build()
     }
@@ -82,14 +97,15 @@ impl<'a> DatastructurePattern<'a> for PackageConstsPattern<'a> {
 }
 
 pub fn bind_pkg_consts<Inner: Into<SmtExpr>>(
-    pkg: &Package,
+    pkg_inst: &PackageInstance,
     pkg_consts: &SmtExpr,
     inner: Inner,
 ) -> SmtLet<Inner> {
-    let pkg_name = pkg.name();
-
-    let pattern = PackageConstsPattern { pkg_name };
-    let spec = pattern.datastructure_spec(pkg);
+    let pattern = PackageConstsPattern {
+        pkg_name: pkg_inst.pkg_name(),
+        params: &pkg_inst.params,
+    };
+    let spec = pattern.datastructure_spec(&pkg_inst.pkg);
 
     // unpack the only (constructor, selector_list) pair
     let (_, selectors) = &spec.0[0];

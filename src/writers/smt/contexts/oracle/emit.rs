@@ -408,7 +408,10 @@ impl<'a> OracleContext<'a> {
             .unwrap();
 
         let var_gamestate = &GameStatePattern;
-        let var_gameconsts = GameConstsPattern { game_name };
+        let var_gameconsts = GameConstsPattern {
+            game_name,
+            game_params: game_inst_ctx.game_params(),
+        };
 
         let updated_pkgstate = pkg_inst_ctx.smt_update_pkgstate_from_locals().unwrap();
         let updated_game_state = game_inst_ctx
