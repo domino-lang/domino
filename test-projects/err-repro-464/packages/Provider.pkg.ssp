@@ -1,0 +1,4 @@
+package Provider {
+    oracle Real() {}
+    oracle Ideal() {}
+}

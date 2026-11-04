@@ -1,0 +1,9 @@
+package Runner {
+    import oracles {
+        Eval(),
+    }
+
+    oracle Run() {
+        invoke Eval();
+    }
+}
