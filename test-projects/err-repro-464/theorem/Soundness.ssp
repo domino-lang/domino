@@ -1,0 +1,27 @@
+theorem Soundness {
+    instance SoundnessReal = SoundnessReal { params {} }
+    instance SoundnessIdeal = SoundnessIdeal { params {} }
+
+    instance AssumptionReal = AssumptionReal { params {} }
+    instance AssumptionIdeal = AssumptionIdeal { params {} }
+
+    assumptions {
+        Assumption: AssumptionReal ~ AssumptionIdeal
+    }
+
+    gamehops {
+        reduction SoundnessReal SoundnessIdeal {
+            assumption Assumption
+            map AssumptionReal SoundnessReal {
+                Importer: Importer
+                Provider: Provider
+                Wrong: Wrong
+            }
+            map AssumptionIdeal SoundnessIdeal {
+                Importer: Importer
+                Provider: Provider
+                Wrong: Wrong
+            }
+        }
+    }
+}
