@@ -6,10 +6,10 @@ use crate::{
         GameHop,
     },
     package::Export,
-    theorem::Theorem,
+    theorem::{GameInstance, Theorem},
     ui::{
-        GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
-        ProveTheoremUI, ProveUI, UI,
+        GamehopUI, LatexUI, ProveClaimUI, ProveGameUI, ProveGamehopUI, ProveGamesUI,
+        ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI, ProveUI, UI,
     },
 };
 
@@ -46,6 +46,7 @@ impl UI for TestUI {
 
 impl ProveUI for TestUI {
     type ProveTheoremUI = TestUI;
+    type ProveGamesUI = TestUI;
 
     fn println(&self, _line: &str) -> std::io::Result<()> {
         Ok(())
@@ -57,8 +58,26 @@ impl ProveUI for TestUI {
     fn start_theorem(&self, _theorem_name: &str) -> Self::ProveTheoremUI {
         self.clone()
     }
+    fn start_games(&self) -> Self::ProveGamesUI {
+        self.clone()
+    }
 }
 
+impl ProveGamesUI for TestUI {
+    type ProveGameUI = TestUI;
+
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn start(&mut self) {}
+    fn finish(&self) {}
+    fn skip(&self) {}
+
+    fn start_game(&self, _game: &GameInstance) -> Self::ProveGameUI {
+        self.clone()
+    }
+}
 impl ProveTheoremUI for TestUI {
     type ProveGamehopUI = TestUI;
 
@@ -71,6 +90,26 @@ impl ProveTheoremUI for TestUI {
     fn skip(&self) {}
 
     fn start_gamehop(&self, _gamehop_name: &GameHop) -> Self::ProveGamehopUI {
+        self.clone()
+    }
+}
+
+impl ProveGameUI for TestUI {
+    type ProveOracleUI = TestUI;
+    type ProveInvariantStartUI = TestUI;
+
+    fn println(&self, _line: &str) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn run(self, fun: impl FnOnce(&Self) -> Result<()>) -> Result<()> {
+        fun(&self)
+    }
+
+    fn start_oracle(&self, _oracle_name: &Export) -> Self::ProveOracleUI {
+        self.clone()
+    }
+    fn start_invariant_start(&self, _oracle_name: String) -> Self::ProveInvariantStartUI {
         self.clone()
     }
 }

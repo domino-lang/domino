@@ -6,7 +6,7 @@ use crate::{
         GameHop,
     },
     package::Export,
-    theorem::Theorem,
+    theorem::{GameInstance, Theorem},
 };
 
 #[cfg(test)]
@@ -26,6 +26,7 @@ pub trait UI {
 
 pub trait ProveUI {
     type ProveTheoremUI: ProveTheoremUI;
+    type ProveGamesUI: ProveGamesUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
@@ -33,6 +34,19 @@ pub trait ProveUI {
     fn finish(&self);
 
     fn start_theorem(&self, theorem_name: &str) -> Self::ProveTheoremUI;
+    fn start_games(&self) -> Self::ProveGamesUI;
+}
+
+pub trait ProveGamesUI {
+    type ProveGameUI: ProveGameUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn start(&mut self);
+    fn skip(&self);
+    fn finish(&self);
+
+    fn start_game(&self, game: &GameInstance) -> Self::ProveGameUI;
 }
 
 pub trait ProveTheoremUI {
@@ -45,6 +59,18 @@ pub trait ProveTheoremUI {
     fn finish(&self, theorem: &Theorem);
 
     fn start_gamehop(&self, gamehop: &GameHop) -> Self::ProveGamehopUI;
+}
+
+pub trait ProveGameUI: Sync {
+    type ProveOracleUI: ProveOracleUI;
+    type ProveInvariantStartUI: ProveInvariantStartUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn run(self, fun: impl FnOnce(&Self) -> Result<()>) -> Result<()>;
+
+    fn start_oracle(&self, oracle: &Export) -> Self::ProveOracleUI;
+    fn start_invariant_start(&self, start: String) -> Self::ProveInvariantStartUI;
 }
 
 pub trait ProveGamehopUI: Sync {

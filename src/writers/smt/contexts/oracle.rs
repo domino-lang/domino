@@ -109,7 +109,7 @@ impl<'a> OracleContext<'a> {
 
 // Getters
 impl<'a> OracleContext<'a> {
-    fn return_type(&self) -> &'a Type {
+    pub(crate) fn return_type(&self) -> &'a Type {
         &self.oracle_def().sig.ty
     }
 

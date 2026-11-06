@@ -146,28 +146,6 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    pub(crate) fn emit_game_or_package_invariant_start_assert(
-        &self,
-        claim: &ResolvedClaim,
-    ) -> SmtExpr {
-        let gctx = match claim.ty {
-            ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
-                self.left_game_inst_ctx()
-            }
-            ClaimType::RightGameInvariant | ClaimType::RightPackageInvariant => {
-                self.right_game_inst_ctx()
-            }
-            _ => unreachable!(),
-        };
-        let game_inst_name = gctx.game_inst_name();
-        let state = gctx.oracle_arg_game_state_pattern();
-        let initial_state = state.global_const_name(
-            game_inst_name,
-            &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-        );
-        SmtAssert(SmtNot((claim.name(), initial_state.clone()))).into()
-    }
-
     pub(crate) fn emit_oracle_claim_assert(
         &self,
         claim: &ResolvedClaim,
@@ -284,31 +262,13 @@ impl<'a> EquivalenceContext<'a> {
                 .into()
         };
 
-        let build_left_invariant_new_call = |name: &str| -> SmtExpr {
-            (
-                name,
-                &state_left.new_global_const_name(game_inst_name_left, oracle_name.to_string()),
-            )
-                .into()
-        };
-        let build_right_invariant_new_call = |name: &str| -> SmtExpr {
-            (
-                name,
-                &state_right.new_global_const_name(game_inst_name_right, oracle_name.to_string()),
-            )
-                .into()
-        };
-
         let dep_calls: Vec<_> = claim
             .dependencies()
             .iter()
             .map(|dep| match dep.ty {
                 ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
                 ClaimType::Relation => build_relation_call(&dep.name),
-                ClaimType::LeftPackageInvariant
-                | ClaimType::RightPackageInvariant
-                | ClaimType::LeftGameInvariant
-                | ClaimType::RightGameInvariant => {
+                ClaimType::PackageInvariant | ClaimType::GameInvariant => {
                     unreachable!("Not a valid dependency: {} - {:?}", dep.name, dep.ty)
                 }
             })
@@ -317,10 +277,9 @@ impl<'a> EquivalenceContext<'a> {
         let postcond_call = match claim.ty {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::LeftPackageInvariant => build_left_invariant_new_call(&claim.name),
-            ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
-            ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
-            ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
+            ClaimType::PackageInvariant | ClaimType::GameInvariant => {
+                unreachable!("Game and Package Invariants are proven using GameInstanceContext")
+            }
         };
 
         let mut dependencies_code: Vec<SmtExpr> = vec![
@@ -470,8 +429,8 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut left_writer = self.left_game_inst_ctx();
-        let mut right_writer = self.right_game_inst_ctx();
+        let left_writer = self.left_game_inst_ctx();
+        let right_writer = self.right_game_inst_ctx();
 
         left_writer
             .smt_composition_randomness()
@@ -837,8 +796,8 @@ impl<'a> EquivalenceContext<'a> {
             }
         }
 
-        out.extend(gctx_left.emit_constant_declarations(&self.theorem().name));
-        out.extend(gctx_right.emit_constant_declarations(&self.theorem().name));
+        out.extend(gctx_left.emit_constant_declarations(Some(&self.theorem().name)));
+        out.extend(gctx_right.emit_constant_declarations(Some(&self.theorem().name)));
 
         out
     }
