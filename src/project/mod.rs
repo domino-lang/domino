@@ -26,7 +26,10 @@ use crate::{
     writers::smt::contexts::{EquivalenceContext, GameInstanceContext},
 };
 
-use crate::ui::{GamehopUI, LatexUI, LatexUIGameIterator, ProveGamehopUI, ProveTheoremUI, ProveUI};
+use crate::ui::{
+    GamehopUI, LatexUI, LatexUIGameIterator, ProveGameUI, ProveGamehopUI, ProveGamesUI,
+    ProveTheoremUI, ProveUI,
+};
 
 mod consts;
 mod load;
@@ -118,6 +121,8 @@ pub trait Project {
         let mut game_keys: Vec<_> = self.games().collect();
         game_keys.sort();
 
+        let mut games_ui = ui.start_games();
+        games_ui.start();
         let game_insts = game_keys
             .iter()
             .filter_map(|key| {
@@ -135,21 +140,23 @@ pub trait Project {
                         let inst: GameInstance = game.clone().into();
                         let (game, aux) = EquivalenceTransform.transform_game(&inst.game)?;
                         let inst = inst.with_other_game(game);
+                        let ui = games_ui.start_game(&inst);
 
-                        Ok((aux, inst))
+                        Ok((ui, aux, inst))
                     })
                 }
             })
             .collect::<Result<Vec<_>>>()?;
 
         game_insts
-            .iter()
-            .map(|(aux, game_inst)| {
-                let gctx = GameInstanceContext::new(game_inst, aux);
+            .into_iter()
+            .map(|(ui, aux, game_inst)| {
+                let gctx = GameInstanceContext::new(&game_inst, &aux);
                 let driver = GameInvariantSmtDriver::new(gctx, self, config)?;
-                driver.verify_game_invariants()
+                ui.run(|ui| driver.verify_game_invariants(ui))
             })
             .collect::<std::result::Result<Vec<_>, _>>()?;
+        games_ui.finish();
 
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
