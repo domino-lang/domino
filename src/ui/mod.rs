@@ -6,22 +6,11 @@ use crate::{
         GameHop,
     },
     package::Export,
+    theorem::Theorem,
 };
 
 #[cfg(test)]
 pub(crate) mod mock;
-
-pub trait UI {
-    type GamehopUI: GamehopUI;
-    type ProveUI: ProveUI;
-    type LatexUI: LatexUI;
-
-    fn println(&self, line: &str) -> std::io::Result<()>;
-
-    fn gamehop_ui(&self) -> Self::GamehopUI;
-    fn prove_ui(&self) -> Self::ProveUI;
-    fn latex_ui(&self) -> Self::LatexUI;
-}
 
 pub trait ProveUI {
     type ProveTheoremUI: ProveTheoremUI;
@@ -40,7 +29,8 @@ pub trait ProveTheoremUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn start(&mut self);
-    fn finish(&self);
+    fn skip(&self);
+    fn finish(&self, theorem: &Theorem);
 
     fn start_gamehop(&self, gamehop: &GameHop) -> Self::ProveGamehopUI;
 }

@@ -68,9 +68,7 @@ impl_ast!(GameInstanceName<'a>);
 impl_ast!(TheoremName<'a>);
 impl_ast!(AssumptionName<'a>);
 
-pub(crate) trait Identifier<'a>:
-    From<Pair<'a, crate::parser::Rule>> + std::fmt::Debug
-{
+pub trait Identifier<'a>: From<Pair<'a, crate::parser::Rule>> + std::fmt::Debug {
     fn as_str(&self) -> &'a str;
     fn as_span(&self) -> Span<'a>;
 }
