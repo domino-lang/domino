@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::expressions::Expression;
-use crate::identifier::pkg_ident::{
-    PackageConstIdentifier, PackageIdentifier, PackageStateIdentifier,
-};
-use crate::identifier::Identifier;
-use crate::package::{Composition, Package, PackageInstance};
-use crate::theorem::GameInstance;
-use crate::writers::smt::patterns::{self, pkg_consts::PackageConstsPattern, PackageStateSelector};
-use crate::writers::smt::{
-    contexts::{GameInstanceContext, OracleContext},
-    exprs::SmtExpr,
-    patterns::{DatastructurePattern, PackageStatePattern},
+mod emit;
+
+use crate::{
+    expressions::Expression,
+    identifier::pkg_ident::PackageConstIdentifier,
+    package::{Composition, Package, PackageInstance},
+    theorem::GameInstance,
+    writers::smt::{
+        contexts::{GameInstanceContext, OracleContext},
+        patterns::{self, PackageConstsPattern, PackageStatePattern, PackageStateSelector},
+    },
 };
 
 #[derive(Clone, Debug, Copy)]
@@ -47,27 +46,6 @@ impl<'a> PackageInstanceContext<'a> {
         (0..self.pkg().oracles.len()).map(move |i| self.oracle_ctx_by_oracle_offs(i).unwrap())
     }
 
-    // pub(crate) fn split_oracle_ctx_by_name(
-    //     &self,
-    //     oracle_name: &str,
-    //     partials: &'a PartialsDatatype,
-    // ) -> Option<SplitOracleContext<'a>> {
-    //     let inst_offs = self.inst_offs;
-    //     let inst = &self.game().pkgs[inst_offs];
-    //     let split_oracle_offs = inst
-    //         .pkg
-    //         .split_oracles
-    //         .iter()
-    //         .position(|odef| odef.sig.name == oracle_name)?;
-    //
-    //     Some(SplitOracleContext {
-    //         game_inst_context: self.game_ctx,
-    //         pkg_inst_offs: inst_offs,
-    //         split_oracle_offs,
-    //         partials,
-    //     })
-    // }
-
     pub(crate) fn oracle_ctx_by_name(&self, oracle_name: &str) -> Option<OracleContext<'a>> {
         let inst_offs = self.inst_offs;
         let inst = &self.game().pkgs[inst_offs];
@@ -83,28 +61,6 @@ impl<'a> PackageInstanceContext<'a> {
             oracle_offs,
         ))
     }
-
-    // pub(crate) fn split_oracle_ctx_by_name_and_path(
-    //     &self,
-    //     oracle_name: &str,
-    //     oracle_path: &SplitPath,
-    //     partials: &'a PartialsDatatype,
-    // ) -> Option<SplitOracleContext<'a>> {
-    //     let inst_offs = self.inst_offs;
-    //     let inst = &self.game().pkgs[inst_offs];
-    //     let split_oracle_offs = inst
-    //         .pkg
-    //         .split_oracles
-    //         .iter()
-    //         .position(|odef| odef.sig.name == oracle_name && &odef.sig.path == oracle_path)?;
-    //
-    //     Some(SplitOracleContext {
-    //         game_inst_context: self.game_ctx,
-    //         pkg_inst_offs: inst_offs,
-    //         split_oracle_offs,
-    //         partials,
-    //     })
-    // }
 
     pub(crate) fn oracle_ctx_by_oracle_offs(
         &self,
@@ -165,20 +121,6 @@ impl<'a> PackageInstanceContext<'a> {
         PackageStatePattern { pkg_name, params }
     }
 
-    pub(crate) fn smt_access_pkgstate<S: Into<SmtExpr>>(
-        &self,
-        pkg_state: S,
-        field_name: &str,
-    ) -> Option<SmtExpr> {
-        let pkg = &self.game().pkgs[self.inst_offs].pkg;
-
-        let pkg_state_pattern = self.pkg_state_pattern();
-        let pkg_state_spec = pkg_state_pattern.datastructure_spec(pkg);
-        let pkg_state_field = self.field_selector(field_name)?;
-
-        pkg_state_pattern.access(&pkg_state_spec, &pkg_state_field, pkg_state)
-    }
-
     fn field_selector(&self, field_name: &'a str) -> Option<PackageStateSelector<'a>> {
         let pkg_inst = &self.game().pkgs[self.inst_offs];
 
@@ -192,33 +134,6 @@ impl<'a> PackageInstanceContext<'a> {
         Some(PackageStateSelector {
             name: field_name,
             ty,
-        })
-    }
-
-    pub(crate) fn smt_update_pkgstate_from_locals(&self) -> Option<SmtExpr> {
-        let game = self.game();
-        let game_inst = self.game_inst();
-        let pkg_inst = &game.pkgs[self.inst_offs];
-        let pkg = &pkg_inst.pkg;
-        let pkg_name = &pkg.name;
-
-        let pkg_state_pattern = self.pkg_state_pattern();
-        let pkg_state_spec = pkg_state_pattern.datastructure_spec(pkg);
-
-        pkg_state_pattern.call_constructor(&pkg_state_spec, vec![], &(), |sel| {
-            let PackageStateSelector { name, ty } = *sel;
-            Some(
-                Identifier::PackageIdentifier(PackageIdentifier::State(PackageStateIdentifier {
-                    pkg_name: pkg_name.clone(),
-                    name: name.to_string(),
-                    ty: ty.clone(),
-                    pkg_inst_name: Some(pkg_inst.name.clone()),
-                    game_name: Some(game.name.clone()),
-                    game_inst_name: Some(game_inst.name.clone()),
-                    theorem_name: None,
-                }))
-                .into(),
-            )
         })
     }
 }

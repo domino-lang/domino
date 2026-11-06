@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::{BTreeSet, HashSet};
+
 use crate::{
-    transforms::samplify::SampleInfo,
-    types::Type,
+    hacks,
+    types::{Type, TypeKind},
     writers::smt::{exprs::SmtExpr, names},
 };
 
@@ -14,47 +16,82 @@ impl GlobalContext {
     }
 }
 
-//mod game;
 mod equivalence;
 mod game_inst;
 mod oracle;
 mod pkg_inst;
-//mod split_oracle;
-
-// #[derive(Clone, Debug)]
-// pub struct SplitOracleContext<'a> {
-//     game_inst_context: GameInstanceContext<'a>,
-//     pkg_inst_offs: usize,
-//     split_oracle_offs: usize,
-//     partials: &'a PartialsDatatype,
-// }
 
 pub use equivalence::EquivalenceContext;
 pub use game_inst::GameInstanceContext;
 pub use oracle::OracleContext;
 pub use pkg_inst::PackageInstanceContext;
 
-pub trait GenericOracleContext<'a> {
-    fn game_inst_ctx(&self) -> GameInstanceContext<'a>;
-    fn pkg_inst_ctx(&self) -> PackageInstanceContext<'a>;
+fn unique_by_name(
+    input: impl IntoIterator<Item = (String, SmtExpr)>,
+) -> impl Iterator<Item = SmtExpr> {
+    let mut already_defined = BTreeSet::new();
 
-    fn oracle_name(&self) -> &'a str;
-    fn oracle_args(&self) -> &'a [(String, Type)];
-    fn oracle_return_type(&self) -> &'a Type;
+    input.into_iter().filter_map(move |(name, entry)| {
+        if already_defined.insert(name) {
+            Some(entry)
+        } else {
+            None
+        }
+    })
+}
 
-    fn smt_write_back_state(&self, sample_info: &SampleInfo) -> SmtExpr;
-    fn smt_game_state(&self) -> SmtExpr;
+fn emit_base_declarations(types: impl IntoIterator<Item = Type>) -> Vec<SmtExpr> {
+    let mut base_declarations: Vec<SmtExpr> = vec![("set-logic", "ALL").into()];
 
-    fn smt_construct_abort<S: Into<SmtExpr>>(&self, game_state: S) -> SmtExpr;
+    let mut bits_sort_suffixes = HashSet::new();
 
-    fn smt_call_oracle_fn<
-        GameState: Into<SmtExpr>,
-        GameConsts: Into<SmtExpr>,
-        Args: IntoIterator<Item = SmtExpr>,
-    >(
-        &self,
-        game_state: GameState,
-        game_consts: GameConsts,
-        args: Args,
-    ) -> Option<SmtExpr>;
+    fn add_type(suffixes: &mut HashSet<String>, ty: &Type) {
+        match ty.kind() {
+            TypeKind::Bits(count_spec) => {
+                let bits_sort_suffix = count_spec.resolved_suffix();
+
+                log::debug!("found {bits_sort_suffix}");
+
+                // ensure we don't write more than once. Earlier we also dedupe, but we dedupe
+                // identifiers, which contain more info than just the name.
+                suffixes.insert(bits_sort_suffix.clone());
+            }
+            TypeKind::List(inner_ty) | TypeKind::Set(inner_ty) | TypeKind::Maybe(inner_ty) => {
+                add_type(suffixes, inner_ty);
+            }
+            TypeKind::Fn(arg_tys, return_ty) => {
+                for ty in arg_tys {
+                    add_type(suffixes, ty);
+                }
+                add_type(suffixes, return_ty);
+            }
+            TypeKind::Table(index_ty, value_ty) => {
+                add_type(suffixes, index_ty);
+                add_type(suffixes, value_ty);
+            }
+            TypeKind::Tuple(inner_tys) => {
+                for ty in inner_tys {
+                    add_type(suffixes, ty);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    for ty in types {
+        add_type(&mut bits_sort_suffixes, &ty);
+    }
+    base_declarations.extend(
+        bits_sort_suffixes
+            .into_iter()
+            .flat_map(hacks::BitsDeclaration),
+    );
+
+    base_declarations.extend(hacks::MaybeDeclaration);
+    base_declarations.push(hacks::ReturnValueDeclaration.into());
+    base_declarations.extend(hacks::TuplesDeclaration(0..32));
+    base_declarations.extend(hacks::EmptyDeclaration);
+    base_declarations.push(hacks::SampleIdDeclaration.into());
+
+    base_declarations
 }
