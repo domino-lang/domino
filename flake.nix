@@ -60,6 +60,9 @@
           cargoLock.lockFile = ./Cargo.lock;
           buildAndTestSubdir = "crates/domino/";
           cargoBuildFlags = [ "--workspace" ];
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs = [ pkgs.libgit2 ];
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.libgit2 ];
           # NOTE: cargo check / clippy / fmt used to live here too. They are
           # now separate checks (checks.cargo-check, checks.clippy,
           # checks.treefmt) so they can be run independently and don't run
