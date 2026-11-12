@@ -1,0 +1,18 @@
+composition SoundnessIdeal {
+    instance Runner = Runner { params {} }
+    instance Importer = Importer { params { b: true } }
+    instance Provider = Provider { params {} }
+    instance Wrong = Provider { params {} }
+
+    compose {
+        adversary: {
+            Run: Runner
+        }
+        Runner: {
+            Eval: Importer
+        }
+        Importer: {
+            Oracle: Real of Provider /* This is intentionally incorrect */
+        }
+    }
+}

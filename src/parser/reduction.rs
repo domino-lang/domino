@@ -921,11 +921,13 @@ fn handle_mapspec_assumption<'a>(
 
                         assumption_game_edge.from() == *assump_src_pkg_inst_offs
                             && assumption_game_edge.to() == *assumption_game_to
+                            && assumption_game_edge.alias() == construction_edge.alias() // Name used by the importer must match
+                            && assump_sig_fixed.name == constr_sig_fixed.name            // Name used by the provider must match
                             && constr_sig_fixed.types_match(&assump_sig_fixed)
                     });
 
             if !edge_exists_in_assumption {
-                panic!("assumption wires 1")
+                panic!("assumption wires {construction_edge:?}")
             }
         }
 
