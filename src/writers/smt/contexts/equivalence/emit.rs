@@ -566,19 +566,47 @@ impl<'a> EquivalenceContext<'a> {
 
         let mut bits_sort_suffixes = HashSet::new();
 
-        for ty in self.types() {
-            if let TypeKind::Bits(count_spec) = &ty.kind() {
-                let bits_sort_suffix = count_spec.resolved_suffix();
+        fn add_type(suffixes: &mut HashSet<String>, ty: &Type) {
+            match ty.kind() {
+                TypeKind::Bits(count_spec) => {
+                    let bits_sort_suffix = count_spec.resolved_suffix();
 
-                log::debug!("found {bits_sort_suffix}");
+                    log::debug!("found {bits_sort_suffix}");
 
-                // ensure we don't write more than once. Earlier we also dedupe, but we dedupe
-                // identifiers, which contain more info than just the name.
-                if bits_sort_suffixes.insert(bits_sort_suffix.clone()) {
-                    base_declarations.extend(hacks::BitsDeclaration(bits_sort_suffix));
+                    // ensure we don't write more than once. Earlier we also dedupe, but we dedupe
+                    // identifiers, which contain more info than just the name.
+                    suffixes.insert(bits_sort_suffix.clone());
                 }
+                TypeKind::List(inner_ty) | TypeKind::Set(inner_ty) | TypeKind::Maybe(inner_ty) => {
+                    add_type(suffixes, inner_ty);
+                }
+                TypeKind::Fn(arg_tys, return_ty) => {
+                    for ty in arg_tys {
+                        add_type(suffixes, ty);
+                    }
+                    add_type(suffixes, return_ty);
+                }
+                TypeKind::Table(index_ty, value_ty) => {
+                    add_type(suffixes, index_ty);
+                    add_type(suffixes, value_ty);
+                }
+                TypeKind::Tuple(inner_tys) => {
+                    for ty in inner_tys {
+                        add_type(suffixes, ty);
+                    }
+                }
+                _ => {}
             }
         }
+
+        for ty in self.types() {
+            add_type(&mut bits_sort_suffixes, &ty);
+        }
+        base_declarations.extend(
+            bits_sort_suffixes
+                .into_iter()
+                .flat_map(hacks::BitsDeclaration),
+        );
 
         base_declarations.extend(hacks::MaybeDeclaration);
         base_declarations.push(hacks::ReturnValueDeclaration.into());
@@ -664,25 +692,48 @@ impl<'a> EquivalenceContext<'a> {
             }
         }
 
-        self.theorem
+        let imported_fns = self
+            .left_game_inst_ctx()
+            .game_inst()
             .consts
             .iter()
-            .filter_map(get_fn)
-            .map(|(func_name, arg_types, ret_type)| {
-                let arg_types: SmtExpr = arg_types
-                    .into_iter()
-                    .map(|ty| ty.into())
-                    .collect::<Vec<SmtExpr>>()
-                    .into();
-
-                (
-                    "declare-fun",
-                    format!("<<func-{func_name}>>"),
-                    arg_types,
-                    ret_type,
-                )
-                    .into()
+            .chain(self.right_game_inst_ctx().game_inst().consts.iter())
+            .filter_map(|(ident, _expr)| {
+                if matches!(ident.ty.kind(), TypeKind::Fn(_, _)) {
+                    if let Some(val) = &ident.assigned_value {
+                        val.as_identifier().map(|ident| ident.ident())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             })
+            .collect::<HashSet<_>>();
+
+        self.theorem.consts.iter().filter_map(get_fn).filter_map(
+            move |(func_name, arg_types, ret_type)| {
+                if imported_fns.contains(&func_name) {
+                    let arg_types: SmtExpr = arg_types
+                        .into_iter()
+                        .map(|ty| ty.into())
+                        .collect::<Vec<SmtExpr>>()
+                        .into();
+
+                    Some(
+                        (
+                            "declare-fun",
+                            format!("<<func-{func_name}>>"),
+                            arg_types,
+                            ret_type,
+                        )
+                            .into(),
+                    )
+                } else {
+                    None
+                }
+            },
+        )
     }
 
     pub(crate) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {

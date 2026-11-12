@@ -89,6 +89,37 @@ impl Identifier {
         }
     }
 
+    pub fn as_literal(&self) -> Option<&Expression> {
+        let value = match self {
+            Identifier::PackageIdentifier(package_identifier) => Some(
+                package_identifier
+                    .as_const()?
+                    .game_assignment
+                    .as_ref()?
+                    .as_ref(),
+            ),
+            Identifier::GameIdentifier(game_identifier) => Some(
+                game_identifier
+                    .as_const()?
+                    .assigned_value
+                    .as_ref()?
+                    .as_ref(),
+            ),
+            _ => None,
+        }?;
+        if let Some(ident) = value.as_identifier() {
+            ident.as_literal()
+        } else {
+            match value.kind() {
+                ExpressionKind::StringLiteral(_)
+                | ExpressionKind::IntegerLiteral(_)
+                | ExpressionKind::BooleanLiteral(_) => Some(value),
+
+                _ => None,
+            }
+        }
+    }
+
     pub(crate) fn identifiers_match(&self, other: &Self) -> bool {
         match (self, other) {
             (Identifier::Generated(_, _), _) | (_, Identifier::Generated(_, _)) => {

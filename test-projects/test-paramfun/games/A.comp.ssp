@@ -1,0 +1,12 @@
+composition A {
+  const n: Integer;
+  const f: fn Bits(n) -> Bits(n);
+
+  instance a = A {}
+
+  compose {
+    adversary: {
+      Test: a
+    }
+  }
+}
