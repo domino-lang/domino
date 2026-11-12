@@ -5,7 +5,6 @@ use crate::transforms::samplify::SampleInfo;
 use crate::types::Type;
 use crate::writers::smt::names::FunctionNameBuilder;
 use crate::writers::smt::patterns::oracle_args::OracleArgPattern;
-use crate::writers::smt::patterns::theorem_constants::ReturnValueConst;
 use crate::writers::smt::patterns::FunctionPattern;
 use crate::writers::smt::patterns::{
     oracle_args, DatastructurePattern, OraclePattern, ReturnConstructor, ReturnPattern,
@@ -105,19 +104,6 @@ impl<'a> OracleContext<'a> {
             oracle_name,
             game_params,
             pkg_params,
-        }
-    }
-
-    pub(crate) fn return_value_const_pattern(&self, oracle_name: &'a str) -> ReturnValueConst<'a> {
-        let game_inst_name = self.game_inst_ctx().game_inst_name();
-        let pkg_inst_name = self.pkg_inst_ctx().pkg_inst_name();
-        let ty = self.return_type();
-
-        ReturnValueConst {
-            game_inst_name,
-            pkg_inst_name,
-            oracle_name,
-            ty,
         }
     }
 

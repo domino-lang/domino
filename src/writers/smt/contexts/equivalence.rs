@@ -171,22 +171,6 @@ impl<'a> EquivalenceContext<'a> {
             .build_equal_aborts()
     }
 
-    pub(crate) fn relation_definition_left_no_abort(
-        &self,
-        oracle_name: &str,
-    ) -> impl Into<SmtExpr> {
-        self.relation_pattern("left-no-abort", oracle_name)
-            .build_left_no_abort()
-    }
-
-    pub(crate) fn relation_definition_right_no_abort(
-        &self,
-        oracle_name: &str,
-    ) -> impl Into<SmtExpr> {
-        self.relation_pattern("right-no-abort", oracle_name)
-            .build_right_no_abort()
-    }
-
     pub(crate) fn relation_definition_no_abort(&self, oracle_name: &str) -> impl Into<SmtExpr> {
         self.relation_pattern("no-abort", oracle_name)
             .build_no_abort()
