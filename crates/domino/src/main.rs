@@ -11,7 +11,7 @@ use thiserror::Error;
 shadow!(build);
 
 use sspverif::project::{self, Project};
-use sspverif::ui::{GamehopUI, LatexUI, ProveUI, UI};
+use sspverif::ui::{GamehopUI, LatexUI, ProveUI};
 
 mod cli;
 mod ui;
@@ -129,7 +129,7 @@ fn main() -> miette::Result<()> {
     let ui = IndicatifUI::new();
 
     let result = match cli.command {
-        Commands::Prove(p) => prove(ui.prove_ui(), p),
+        Commands::Prove(p) => prove(ui.prove_ui(&p.clone()), p),
         Commands::Gamehops(g) => gamehops(ui.gamehop_ui(), g),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Format(f) => format(f),
