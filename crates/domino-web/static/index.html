@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="/pure/pure-min.css"></link>
+    <link rel="stylesheet" href="/index.css"></link>
+    <link rel="preload" href="index.js" as="script" />
+    <link rel="preload" href="domino-worker.js" as="script" />
+    <link rel="preload" href="dominoui.js" as="script" />
+  </head>
+  <body>
+    <div id="document">
+      <div class="pure-menu pure-menu-horizontal">
+        <a href="#" class="pure-menu-heading pure-menu-link">Domino</a>
+      </div>
+
+      <p>
+        Please supply a zip of your project!
+        If you don't have any by hand, you can use <a href="hello-world.zip">hello-world</a>
+        or <a href="4WHS-simple.zip">4WHS-simple</a> to play!
+      </p>
+
+      <div id="project-list">
+        <div id="drop-zone">
+          <label for="file-upload">
+            Drop your Dominos here to load project!
+            <input style="display:none" type="file" id="file-upload" />
+          </label>
+        </div>
+      </div>
+
+
+
+      <template id="pkg-tile-template">
+        <div class="pkg-tile" style="display: none">
+          <h5>Code</h5>
+          <pre></pre>
+        </div>
+      </template>
+      <template id="game-tile-template">
+        <div class="game-tile" style="display: none">
+          <h5>Game Graph</h5>
+        </div>
+      </template>
+      <template id="theorem-tile-template">
+        <div class="theorem-tile" style="display: none">
+          <h5>Domino Verification</h5>
+          <div style="display: grid; grid-template-columns: 1fr 6fr;">
+            <button class="pure-button pure-button-primary">
+              Prove!
+            </button>
+            <details style="display: none" class="domino-ui">
+              <summary class="domino-ui-new">Prover Run</summary>
+            </details>
+          </div>
+        </div>
+      </template>
+      <template id="proof-tile-template">
+        <div class="proof-tile">
+          <h5>Proof: </h5>
+          <div class="proof-grid" style="display: grid; grid-template-columns: 1fr 6fr;">
+          </div>
+        </div>
+      </template>
+      <template id="project-tile-template">
+        <div class="project-tile project-disabled">
+          <h5></h5>
+          <div class="loader"></div>
+          <pre></pre>
+        </div>
+      </template>
+      <template id="project-detail-template">
+        <div class="project-detail" style="display: none">
+          <h2>Project: </h2>
+          <div class="project-detail-container">
+            <div class="project-detail-type-tab">
+            </div>
+            <div class="project-detail-type-container">
+            </div>
+          </div>
+        </div>
+      </template>
+      <template id="type-detail-template">
+        <div class="type-detail"  style="display: none">
+          <div class="type-detail-file-tab">
+          </div>
+        </div>
+      </template>
+      <template id="domino_output_template">
+        <h5 class="domino_output_heading">TODO</h5>
+        <pre class="domino_output_pre"></pre>
+      </template>
+      <template id="template_ui_theorem">
+        <div style="background-color: #ddd; width: 95%; margin: 0 auto;">
+          <h4></h4>
+        </div>
+      </template>
+      <template id="template_ui_proofstep">
+        <div style="background-color: #ccc; width: 95%; margin: 0 auto;">
+          <h5></h5>
+        </div>
+      </template>
+      <template id="template_ui_oracle">
+        <div style="background-color: #bbb; width: 95%; margin: 0 auto;">
+          <h6></h6>
+          <div class="ui-lemmata"></div>
+        </div>
+      </template>
+      <template id="proof_ui_template">
+        <div style="background-color: #eee; width: 100%">
+        </div>
+      </template>
+      <script src="/index.js" type="module"></script>
+    </div>
+  </body>
+</html>

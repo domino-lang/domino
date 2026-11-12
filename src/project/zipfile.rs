@@ -2,7 +2,7 @@ use std::io::{Cursor, Read, Seek};
 use std::{collections::HashMap, path::PathBuf};
 use zip::ZipArchive;
 
-use crate::{package::Composition, theorem::Theorem};
+use crate::{package::Composition, package::Package, theorem::Theorem};
 
 use super::consts::{GAMES_DIR, PACKAGES_DIR, THEOREM_DIR};
 use super::error::Result;
@@ -39,7 +39,7 @@ impl ZipFiles {
                 continue;
             }
 
-            let filename = file.name().to_string();
+            let filename = file.name()?.to_string();
             if !filename.ends_with(".ssp") {
                 continue;
             }
@@ -61,6 +61,30 @@ impl ZipFiles {
             packages,
         })
     }
+    pub fn packages(&self) -> impl Iterator<Item = &String> {
+        self.packages.iter().map(|(k, _)| k)
+    }
+    pub fn package(&self, name: &str) -> Option<&String> {
+        self.packages
+            .iter()
+            .find_map(|(k, v)| if k == name { Some(v) } else { None })
+    }
+    pub fn games(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.games.iter().map(|(k, _)| k)
+    }
+    pub fn game(&self, name: &str) -> Option<&String> {
+        self.games
+            .iter()
+            .find_map(|(k, v)| if k == name { Some(v) } else { None })
+    }
+    pub fn theorems(&self) -> impl ExactSizeIterator<Item = &String> {
+        self.theorems.iter().map(|(k, _)| k)
+    }
+    pub fn theorem(&self, name: &str) -> Option<&String> {
+        self.theorems
+            .iter()
+            .find_map(|(k, v)| if k == name { Some(v) } else { None })
+    }
 }
 
 impl<'a> ZipProject<'a> {
@@ -80,13 +104,13 @@ impl<'a> ZipProject<'a> {
 }
 
 impl Project for ZipProject<'_> {
-    fn packages(&self) -> impl Iterator<Item = &str> {
+    fn packages(&self) -> impl ExactSizeIterator<Item = &str> {
         self.packages.keys().map(String::as_str)
     }
-    fn games(&self) -> impl Iterator<Item = &str> {
+    fn games(&self) -> impl ExactSizeIterator<Item = &str> {
         self.games.keys().map(String::as_str)
     }
-    fn theorems(&self) -> impl Iterator<Item = &str> {
+    fn theorems(&self) -> impl ExactSizeIterator<Item = &str> {
         self.theorems.keys().map(String::as_str)
     }
     fn get_package(&self, name: &str) -> Option<&Package> {

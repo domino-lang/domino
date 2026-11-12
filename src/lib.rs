@@ -15,6 +15,7 @@
 extern crate pest_derive;
 
 pub mod expressions;
+#[cfg(feature = "source-format")]
 pub mod format;
 pub mod gamehops;
 pub mod identifier;
