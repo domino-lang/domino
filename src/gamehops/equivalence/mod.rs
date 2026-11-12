@@ -3,12 +3,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    gamehops::equivalence::smtrewrite::{SmtStatementKind, SmtStmt},
+    gamehops::equivalence::smtrewrite::SmtStatementKind,
     package::{Export, OracleSig},
-    project::Project,
     theorem::{Claim, RandomnessType},
-    writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
+    writers::smt::contexts::EquivalenceContext,
 };
+
+pub(crate) use smtrewrite::SmtStmt;
 
 use error::{Error, ExportSignatureMismatch, Result};
 
@@ -263,173 +264,6 @@ impl<'a> EquivalenceContext<'a> {
             &left_game_inst.game().exports,
             &right_game_inst.game().exports,
         )
-    }
-
-    fn oracle_sequence(&self) -> Vec<&'a Export> {
-        let game_inst = self
-            .theorem()
-            .find_game_instance(self.equivalence().left_name())
-            .unwrap();
-
-        log::debug!("oracle sequence: {:?}", game_inst.game().exports);
-
-        game_inst.game().exports.iter().collect()
-    }
-
-    pub(crate) fn load_invariants(&mut self, project: &impl Project) -> Result<()> {
-        let left_gctx = self.left_game_inst_ctx();
-        let right_gctx = self.right_game_inst_ctx();
-
-        // Emit package invariants
-        for pkg in &left_gctx.game().pkgs {
-            for file_name in &pkg.pkg.invariants {
-                let file_contents = project.read_input_file(file_name).map_err(|err| {
-                    let file_name = file_name.to_string();
-                    error::new_invariant_file_read_error(file_name, err)
-                })?;
-
-                let stmts = smtrewrite::rewrite_package(&left_gctx, pkg, &file_contents)?;
-
-                self.append_left_invariants(stmts);
-            }
-        }
-        for pkg in &right_gctx.game().pkgs {
-            for file_name in &pkg.pkg.invariants {
-                let file_contents = project.read_input_file(file_name).map_err(|err| {
-                    let file_name = file_name.to_string();
-                    error::new_invariant_file_read_error(file_name, err)
-                })?;
-
-                let stmts = smtrewrite::rewrite_package(&right_gctx, pkg, &file_contents)?;
-
-                self.append_right_invariants(stmts);
-            }
-        }
-
-        // Load Game Invariants
-        for file_name in &left_gctx.game().invariants {
-            let file_contents = project.read_input_file(file_name).map_err(|err| {
-                let file_name = file_name.to_string();
-                error::new_invariant_file_read_error(file_name, err)
-            })?;
-
-            let stmts = smtrewrite::rewrite_game(&left_gctx, &file_contents)?;
-
-            self.append_left_invariants(stmts);
-        }
-        for file_name in &right_gctx.game().invariants {
-            let file_contents = project.read_input_file(file_name).map_err(|err| {
-                let file_name = file_name.to_string();
-                error::new_invariant_file_read_error(file_name, err)
-            })?;
-
-            let stmts = smtrewrite::rewrite_game(&right_gctx, &file_contents)?;
-
-            self.append_right_invariants(stmts);
-        }
-
-        // Load the main Invariant
-        for file_name in self.equivalence().invariants() {
-            log::info!("reading file {file_name}");
-            let file_contents = project.read_input_file(file_name).map_err(|err| {
-                let file_name = file_name.clone();
-                error::new_invariant_file_read_error(file_name, err)
-            })?;
-            log::info!("read file {file_name}");
-            self.append_invariants(smtrewrite::rewrite(self, &file_contents)?);
-        }
-
-        Ok(())
-    }
-
-    pub(crate) fn resolve_claims(&mut self) {
-        let claims = &self.equivalence().trees;
-        let claims = claims
-            .iter()
-            .map(|(oracle, claims)| {
-                let claims = claims
-                    .iter()
-                    .map(|claim| {
-                        let Claim {
-                            name,
-                            dependencies,
-                            admitted,
-                        } = claim.clone();
-
-                        let ty = ClaimType::read_from_smt(&name, self.invariants())
-                            .unwrap_or_else(|| ClaimType::guess_from_name(&name));
-
-                        let dependencies = dependencies
-                            .into_iter()
-                            .map(|name| {
-                                let ty = ClaimType::read_from_smt(&name, self.invariants())
-                                    .unwrap_or_else(|| ClaimType::guess_from_name(&name));
-                                ResolvedDependency { name, ty }
-                            })
-                            .collect();
-
-                        ResolvedClaim {
-                            name,
-                            ty,
-                            dependencies,
-                            admitted,
-                        }
-                    })
-                    .collect();
-
-                (oracle.clone(), claims)
-            })
-            .collect();
-        self.append_claims(claims);
-    }
-
-    fn generate_game_or_package_invariant_claims(&self) -> Vec<ResolvedClaim> {
-        fn new_claim(ty: ClaimType, name: String) -> Option<ResolvedClaim> {
-            Some(ResolvedClaim {
-                admitted: false,
-                dependencies: vec![ResolvedDependency {
-                    name: "no-abort".to_string(),
-                    ty: ClaimType::Lemma,
-                }],
-                ty,
-                name,
-            })
-        }
-
-        self.left_invariants()
-            .iter()
-            .filter_map(|stmt| match stmt.kind {
-                SmtStatementKind::PackageInvariant { .. } => {
-                    new_claim(ClaimType::LeftPackageInvariant, stmt.kind.name())
-                }
-                SmtStatementKind::GameInvariant { .. } => {
-                    new_claim(ClaimType::LeftGameInvariant, stmt.kind.name())
-                }
-                _ => None,
-            })
-            .chain(
-                self.right_invariants()
-                    .iter()
-                    .filter_map(|stmt| match stmt.kind {
-                        SmtStatementKind::PackageInvariant { .. } => {
-                            new_claim(ClaimType::RightPackageInvariant, stmt.kind.name())
-                        }
-                        SmtStatementKind::GameInvariant { .. } => {
-                            new_claim(ClaimType::RightGameInvariant, stmt.kind.name())
-                        }
-                        _ => None,
-                    }),
-            )
-            .collect()
-    }
-    fn generate_game_or_package_invariant_start_asserts(&self) -> Vec<(String, SmtExpr)> {
-        self.generate_game_or_package_invariant_claims()
-            .iter()
-            .map(|claim| {
-                let smt = self.emit_game_or_package_invariant_start_assert(claim);
-                (claim.name().to_string(), smt)
-            })
-            .collect()
     }
 }
 
