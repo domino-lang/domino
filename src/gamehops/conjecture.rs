@@ -15,10 +15,10 @@ impl<'a> Conjecture<'a> {
             right_game,
         }
     }
-    pub(crate) fn left_name(&self) -> &GameInstanceName<'a> {
+    pub fn left_name(&self) -> &GameInstanceName<'a> {
         &self.left_game
     }
-    pub(crate) fn right_name(&self) -> &GameInstanceName<'a> {
+    pub fn right_name(&self) -> &GameInstanceName<'a> {
         &self.right_game
     }
 }

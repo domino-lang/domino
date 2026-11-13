@@ -50,8 +50,8 @@ pub enum AssignmentRhs {
 /// An assignment statement: pattern <- rhs
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Assignment {
-    pub(crate) pattern: Pattern,
-    pub(crate) rhs: AssignmentRhs,
+    pub pattern: Pattern,
+    pub rhs: AssignmentRhs,
 }
 
 /// Standalone oracle invocation (discards return value): invoke Oracle(args)
@@ -75,12 +75,12 @@ pub enum Statement {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IfThenElse {
-    pub(crate) cond: Expression,
-    pub(crate) then_block: CodeBlock,
-    pub(crate) else_block: CodeBlock,
-    pub(crate) then_span: SourceSpan,
-    pub(crate) else_span: SourceSpan,
-    pub(crate) full_span: SourceSpan,
+    pub  cond: Expression,
+    pub  then_block: CodeBlock,
+    pub  else_block: CodeBlock,
+    pub  then_span: SourceSpan,
+    pub  else_span: SourceSpan,
+    pub  full_span: SourceSpan,
 }
 
 impl Statement {

@@ -6,14 +6,14 @@ use std::path::Path;
 
 use itertools::MultiUnzip;
 
-use crate::gamehops::GameHop;
-use crate::identifier::Identifier;
-use crate::package::{Composition, OracleDef, PackageInstance};
-use crate::parser::ast::Identifier as _;
-use crate::theorem::Theorem;
-use crate::util::smtsolver::SmtSolverBackend;
+use sspverif::gamehops::GameHop;
+use sspverif::identifier::Identifier;
+use sspverif::package::{Composition, OracleDef, PackageInstance};
+use sspverif::parser::ast::Identifier as _;
+use sspverif::theorem::Theorem;
+use sspverif::util::smtsolver::SmtSolverBackend;
 
-use crate::writers::tex::{
+use crate::{
     label::LatexLabel,
     tikzgraph::{ReductionGraph, TikzGraph},
 };

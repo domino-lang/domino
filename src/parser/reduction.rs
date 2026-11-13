@@ -1113,7 +1113,7 @@ enum PackageInstanceDiff {
 // ----
 
 #[derive(Clone, Debug)]
-pub(crate) struct ReductionMapping<'a> {
+pub struct ReductionMapping<'a> {
     assumption: GameInstanceName<'a>,
     construction: GameInstanceName<'a>,
 
@@ -1121,32 +1121,32 @@ pub(crate) struct ReductionMapping<'a> {
 }
 
 impl<'a> ReductionMapping<'a> {
-    pub(crate) fn assumption_game_instance_name(&self) -> &GameInstanceName<'a> {
+    pub fn assumption_game_instance_name(&self) -> &GameInstanceName<'a> {
         &self.assumption
     }
 
-    pub(crate) fn construction_game_instance_name(&self) -> &GameInstanceName<'a> {
+    pub fn construction_game_instance_name(&self) -> &GameInstanceName<'a> {
         &self.construction
     }
 
-    pub(crate) fn entries(&self) -> &[ReductionMappingEntry<'a>] {
+    pub fn entries(&self) -> &[ReductionMappingEntry<'a>] {
         &self.entries
     }
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct ReductionMappingEntry<'a> {
+pub struct ReductionMappingEntry<'a> {
     assumption: PackageInstanceName<'a>,
     construction: PackageInstanceName<'a>,
 }
 
 impl<'a> ReductionMappingEntry<'a> {
     #[allow(dead_code)]
-    pub(crate) fn assumption(&self) -> &PackageInstanceName<'a> {
+    pub fn assumption(&self) -> &PackageInstanceName<'a> {
         &self.assumption
     }
 
-    pub(crate) fn construction(&self) -> &PackageInstanceName<'a> {
+    pub fn construction(&self) -> &PackageInstanceName<'a> {
         &self.construction
     }
 }

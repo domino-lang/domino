@@ -2,7 +2,7 @@
 
 use std::{fs::File, io::Write};
 
-use crate::{
+use sspverif::{
     expressions::{Expression, ExpressionKind},
     identifier::{
         pkg_ident::{PackageIdentifier, PackageOracleCodeLoopVarIdentifier},
@@ -14,8 +14,9 @@ use crate::{
         Assignment, AssignmentRhs, CodeBlock, IfThenElse, InvokeOracle, Pattern, Statement,
     },
     types::{CountSpec, Type, TypeKind},
-    writers::tex::writer::util,
 };
+
+use crate::writer::util;
 
 fn genindentation(cnt: u8) -> String {
     let mut acc = String::new();
