@@ -2,8 +2,9 @@
 
 use sspverif::{
     package::Composition, parser::ast::Identifier, parser::reduction::ReductionMapping,
-    util::smtsolver::SmtSolverBackend, writers::util::graph::GraphLayout,
+    util::smtsolver::SmtSolverBackend,
 };
+use domino_export_common::graph::GraphLayout;
 
 use std::{fmt::Write, path::Path};
 
