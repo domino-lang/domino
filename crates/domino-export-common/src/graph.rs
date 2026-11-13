@@ -8,7 +8,7 @@ use std::{
 use miette::Diagnostic;
 use thiserror::Error;
 
-use crate::{
+use sspverif::{
     package::Composition,
     util::{
         smtmodel::SmtModel,

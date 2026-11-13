@@ -326,9 +326,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "domino-export-common"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "log",
+ "miette",
+ "sspverif",
+ "thiserror",
+]
+
+[[package]]
 name = "domino-export-latex"
 version = "0.1.0"
 dependencies = [
+ "domino-export-common",
  "itertools",
  "miette",
  "sspverif",
