@@ -1,6 +1,8 @@
 use std::borrow::Borrow;
 
-pub(super) fn ident_to_tex(ident: &crate::identifier::Identifier) -> String {
+use sspverif::identifier::Identifier;
+
+pub(super) fn ident_to_tex(ident: &Identifier) -> String {
     let ident = ident.ident();
     if let Some((first, second)) = ident.split_once("_") {
         if second.is_empty() {

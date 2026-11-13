@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub struct Transformation<'a>(pub &'a Composition);
 
 #[derive(Debug)]
-pub(crate) struct ResolutionError(pub(crate) Vec<(String, usize)>); // (oracle_name, position)
+pub struct ResolutionError(pub(crate) Vec<(String, usize)>); // (oracle_name, position)
 
 type Result<T> = std::result::Result<T, ResolutionError>;
 

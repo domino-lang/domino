@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "crates/smtlib", "crates/domino"]
+members = [".", "crates/smtlib", "crates/domino", "crates/domino-export-latex"]
 
 [workspace.package]
 version = "0.1.0"
@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 sspverif-smtlib = { path = "crates/smtlib" }
+domino-export-latex = { path = "crates/domino-export-latex" }
 sspverif = { path = "" }
 
 [package]

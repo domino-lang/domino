@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{
+use sspverif::{
     package::Composition, parser::ast::Identifier, parser::reduction::ReductionMapping,
     util::smtsolver::SmtSolverBackend, writers::util::graph::GraphLayout,
 };

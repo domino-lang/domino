@@ -193,15 +193,15 @@ impl GameInstance {
         }
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
-    pub(crate) fn game_name(&self) -> &str {
+    pub fn game_name(&self) -> &str {
         &self.game.name
     }
 
-    pub(crate) fn game(&self) -> &Composition {
+    pub fn game(&self) -> &Composition {
         &self.game
     }
 }
@@ -280,7 +280,7 @@ impl<'a> Theorem<'a> {
         }
     }
 
-    pub(crate) fn reductions(&self) -> impl Iterator<Item = &Reduction<'_>> {
+    pub fn reductions(&self) -> impl Iterator<Item = &Reduction<'_>> {
         self.game_hops.iter().filter_map(|hop| {
             if let GameHop::Reduction(red) = hop {
                 Some(red)
@@ -290,7 +290,7 @@ impl<'a> Theorem<'a> {
         })
     }
 
-    pub(crate) fn find_game_instance(&self, game_inst_name: &str) -> Option<&GameInstance> {
+    pub fn find_game_instance(&self, game_inst_name: &str) -> Option<&GameInstance> {
         self.instances
             .iter()
             .find(|inst| inst.name == game_inst_name)

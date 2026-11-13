@@ -315,11 +315,22 @@ dependencies = [
  "clap",
  "clap_complete",
  "console",
+ "domino-export-latex",
  "env_logger",
  "indicatif",
  "indicatif-log-bridge",
  "miette",
  "shadow-rs",
+ "sspverif",
+ "thiserror",
+]
+
+[[package]]
+name = "domino-export-latex"
+version = "0.1.0"
+dependencies = [
+ "itertools",
+ "miette",
  "sspverif",
  "thiserror",
 ]
