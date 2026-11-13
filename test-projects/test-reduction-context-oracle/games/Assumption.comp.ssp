@@ -1,0 +1,6 @@
+composition Assumption {
+    instance x = Choices {}
+    compose {
+        adversary: { O1: x, O2: x }
+    }
+}

@@ -1,0 +1,8 @@
+composition Right {
+    instance router = Router {}
+    instance x = Choices {}
+    compose {
+        adversary: { Eval: router }
+        router: { f: O2 of x, g: O1 of x }
+    }
+}

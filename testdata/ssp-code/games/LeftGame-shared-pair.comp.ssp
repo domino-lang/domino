@@ -1,0 +1,9 @@
+composition LeftGame {
+    instance leaf = Leaf {}
+    instance shared = Leaf {}
+    instance router = Router {}
+    compose {
+        adversary: { Eval: router },
+        router: { A: Eval of shared, B: Eval of shared }
+    }
+}

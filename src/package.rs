@@ -52,13 +52,21 @@ impl OracleSig {
     }
 
     pub(crate) fn types_match(&self, other: &Self) -> bool {
-        self.ty.types_match(&other.ty)
-            && self.args.len() == other.args.len()
+        self.ty.types_match(&other.ty) && self.args_match(other, Type::types_match)
+    }
+
+    pub(crate) fn types_match_resolved(&self, other: &Self) -> bool {
+        self.args_match(other, Type::types_match_resolved)
+            && self.ty.types_match_resolved(&other.ty)
+    }
+
+    fn args_match(&self, other: &Self, types_match: impl Fn(&Type, &Type) -> bool) -> bool {
+        self.args.len() == other.args.len()
             && self
                 .args
                 .iter()
                 .zip(&other.args)
-                .all(|((_, l), (_, r))| l.types_match(r))
+                .all(|((_, l), (_, r))| types_match(l, r))
     }
 }
 

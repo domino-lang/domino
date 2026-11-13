@@ -3,7 +3,7 @@
 use super::{
     games,
     packages::{self, *},
-    theorems,
+    slice_source_span, theorems,
 };
 use crate::{
     expressions::{Expression, ExpressionKind},
@@ -12,6 +12,7 @@ use crate::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         Identifier,
     },
+    parser::theorem::ParseTheoremError,
     statement::Statement,
     theorem::Claim,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
@@ -40,6 +41,270 @@ fn empty_param_section_is_fine() {
 }
 
 #[test]
+fn reduction_context_matches_assumption_export_aliases() {
+    let root = std::path::PathBuf::from(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/test-projects/test-reduction-context-export-alias"
+    ));
+    let read_file = |file| std::fs::read_to_string(root.join(file)).unwrap();
+    let pkgs = [
+        "packages/Context.pkg.ssp",
+        "packages/Real.pkg.ssp",
+        "packages/Ideal.pkg.ssp",
+    ]
+    .into_iter()
+    .map(|file| packages::parse(&read_file(file), file))
+    .collect();
+    let games = [
+        "games/AssumptionReal.comp.ssp",
+        "games/AssumptionIdeal.comp.ssp",
+        "games/Left.comp.ssp",
+        "games/Right.comp.ssp",
+    ]
+    .into_iter()
+    .map(|file| {
+        let game = games::parse(&read_file(file), file, &pkgs);
+        (game.name.clone(), game)
+    })
+    .collect();
+    let file = "theorem/proof.ssp";
+    let source = read_file(file);
+    let theorem = theorems::parse(&source, file, &pkgs, &games);
+    assert_eq!(theorem.name, "ContextExportAlias");
+}
+
+#[test]
+fn reduction_context_preserves_destination_oracles() {
+    let pkgs = packages::parse_files(&[
+        "reduction-context-oracle/Context.pkg.ssp",
+        "reduction-context-oracle/Choices.pkg.ssp",
+    ]);
+    for (right, valid) in [
+        ("reduction-context-oracle/Right.comp.ssp", false),
+        ("reduction-context-oracle/Right-control.comp.ssp", true),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-context-oracle/Assumption.comp.ssp",
+                "reduction-context-oracle/Left.comp.ssp",
+                right,
+            ],
+            &pkgs,
+        );
+        let file = "reduction-context-oracle.ssp";
+        if valid {
+            theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+        } else {
+            let error = theorems::parse_file_fails(file, &pkgs, &games);
+            let ParseTheoremError::ReductionContextOracleMismatch(error) = error else {
+                panic!("expected a context oracle mismatch, got {error:?}");
+            };
+            assert_eq!(error.import_name, "f");
+            assert_eq!(error.left_oracle_name, "O1");
+            assert_eq!(error.right_oracle_name, "O2");
+            assert_eq!(error.left_signature.to_string(), "oracle () -> Integer");
+            assert_eq!(error.right_signature.to_string(), "oracle () -> Integer");
+            assert!(
+                slice_source_span(&error.source_code, &error.at).starts_with("assumption Identity")
+            );
+        }
+    }
+}
+
+#[test]
+fn reduction_requires_matching_exports() {
+    let pkgs = packages::parse_files(&["reduction-context-oracle/Choices.pkg.ssp"]);
+    for (right, valid) in [
+        ("reduction-exports/Right.comp.ssp", false),
+        ("reduction-exports/Right-control.comp.ssp", true),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-context-oracle/Assumption.comp.ssp",
+                "reduction-exports/Left.comp.ssp",
+                right,
+            ],
+            &pkgs,
+        );
+        for file in [
+            "reduction-context-oracle.ssp",
+            "reduction-exports-reversed.ssp",
+        ] {
+            if valid {
+                theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+            } else {
+                let error = theorems::parse_file_fails(file, &pkgs, &games);
+                match error {
+                    ParseTheoremError::ReductionExportMismatch(error) => {
+                        assert_eq!(error.oracle_name, "O2");
+                        assert_eq!(error.left_signature, "not exported");
+                        assert_eq!(error.right_signature.to_string(), "oracle () -> Integer");
+                        assert!(slice_source_span(&error.source_code, &error.at)
+                            .starts_with("assumption Identity"));
+                    }
+                    ParseTheoremError::ReductionMissingExport(error) => {
+                        assert_eq!(error.game_inst_name, "left");
+                        assert_eq!(error.oracle_name, "O2");
+                    }
+                    error => panic!("expected an export mismatch, got {error:?}"),
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn reduction_requires_matching_export_signatures() {
+    let pkgs = packages::parse_files(&["BitLeaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "reduction-exports/Bits.comp.ssp",
+            "reduction-exports/Literal-bits.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let file = "reduction-export-signatures-control.ssp";
+    theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+    let error = theorems::parse_file_fails("reduction-export-signatures.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionExportMismatch(error) = error else {
+        panic!("expected an export signature mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.left_game_inst_name, "left");
+    assert_eq!(error.right_game_inst_name, "right");
+}
+
+#[test]
+fn reduction_context_preserves_instance_sharing() {
+    let pkgs = packages::parse_files(&[
+        "reduction-context-instances/Context.pkg.ssp",
+        "reduction-context-instances/Cell.pkg.ssp",
+        "reduction-context-instances/Anchor.pkg.ssp",
+    ]);
+    for (left, right, valid) in [
+        (
+            "reduction-context-instances/Left.comp.ssp",
+            "reduction-context-instances/Right.comp.ssp",
+            false,
+        ),
+        (
+            "reduction-context-instances/Left.comp.ssp",
+            "reduction-context-instances/Right-control.comp.ssp",
+            true,
+        ),
+        (
+            "reduction-context-instances/Left-exports.comp.ssp",
+            "reduction-context-instances/Right-exports.comp.ssp",
+            false,
+        ),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-context-instances/Assumption.comp.ssp",
+                left,
+                right,
+            ],
+            &pkgs,
+        );
+        for file in [
+            "reduction-context-instances.ssp",
+            "reduction-context-instances-reversed.ssp",
+        ] {
+            if valid {
+                theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+            } else {
+                let error = theorems::parse_file_fails(file, &pkgs, &games);
+                let ParseTheoremError::ReductionContextInstanceMismatch(error) = error else {
+                    panic!("expected an instance sharing mismatch, got {error:?}");
+                };
+                assert_eq!(error.game_inst_name, "left");
+                assert_eq!(error.pkg_inst_name, "x");
+                assert_eq!(error.other_game_inst_name, "right");
+                assert_eq!(error.previous_partner_name, "x");
+                assert_eq!(error.partner_name, "y");
+                assert!(slice_source_span(&error.source_code, &error.at)
+                    .starts_with("assumption Identity"));
+            }
+        }
+    }
+}
+
+#[test]
+fn reduction_mapping_preserves_oracle_wiring() {
+    let pkgs = packages::parse_files(&[
+        "reduction-mapped-wiring/Router.pkg.ssp",
+        "reduction-context-oracle/Choices.pkg.ssp",
+    ]);
+    for (right, valid) in [
+        ("reduction-mapped-wiring/Right.comp.ssp", false),
+        ("reduction-mapped-wiring/Right-control.comp.ssp", true),
+    ] {
+        let games = games::parse_files(
+            &[
+                "reduction-mapped-wiring/Assumption.comp.ssp",
+                "reduction-mapped-wiring/Left.comp.ssp",
+                right,
+            ],
+            &pkgs,
+        );
+        let file = "reduction-mapped-wiring.ssp";
+        if valid {
+            theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+        } else {
+            let error = theorems::parse_file_fails(file, &pkgs, &games);
+            let ParseTheoremError::AssumptionMappingWiringMismatch(error) = error else {
+                panic!("expected an internal oracle wiring mismatch, got {error:?}");
+            };
+            assert_eq!(error.reason, "import or destination oracle name differs");
+            assert_eq!(error.direction, "construction to assumption");
+            assert_eq!(error.from_pkg_inst_name, "router");
+            assert_eq!(error.to_pkg_inst_name, "x");
+            assert_eq!(error.import_name, "f");
+            assert_eq!(error.oracle_name, "O2");
+            assert_eq!(
+                slice_source_span(&error.source_code, &error.at),
+                "map a1 right { router: router x: x }"
+            );
+        }
+    }
+}
+
+#[test]
+fn reduction_context_resolves_signature_parameters() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "BitLeaf.pkg.ssp", "BitRouter.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-leaf.comp.ssp",
+            "reduction-context-oracle/Left-bits.comp.ssp",
+            "reduction-context-oracle/Right-bits.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let file = "reduction-context-oracle-bits.ssp";
+    theorems::parse(&theorems::read_file(file), file, &pkgs, &games);
+}
+
+#[test]
+fn disjoint_imports_across_compose_blocks() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
+    let source = "composition Game {
+        instance leaf = Leaf {}
+        instance router = Router {}
+        instance other = Router {}
+        compose {
+            router: { A: Eval of leaf }
+            other: { A: Eval of leaf }
+        }
+        compose {
+            router: { B: Eval of leaf }
+            other: { B: Eval of leaf }
+        }
+    }";
+    let game = games::parse(source, "disjoint-imports.ssp", &pkgs);
+    assert_eq!(game.edges.len(), 4);
+}
+
+#[test]
 fn empty_state_section_is_fine() {
     let file_name = "test_file_name.ssp";
     let file_content = r#"package testpkg {
@@ -48,6 +313,29 @@ fn empty_state_section_is_fine() {
         "#;
 
     parse(file_content, file_name);
+}
+
+#[test]
+fn reduction_mapping_uses_first_parameter_assignment() {
+    let pkgs = packages::parse_files(&["ParamLeaf.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-repeated-params.comp.ssp",
+            "ConstructionGame-first-parameter.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let source = theorems::read_file("reduction-leaf-mapping.ssp");
+    theorems::parse(&source, "reduction-leaf-mapping.ssp", &pkgs, &games);
+}
+
+#[test]
+fn reduction_accepts_reversed_mapping_order() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let games = games::parse_files(&["Game-leaf.comp.ssp"], &pkgs);
+    // Reverse the header to exercise alignment with the first map on the right.
+    let source = theorems::read_file("reduction-mapping-order.ssp");
+    theorems::parse(&source, "reduction-mapping-order.ssp", &pkgs, &games);
 }
 
 #[test]

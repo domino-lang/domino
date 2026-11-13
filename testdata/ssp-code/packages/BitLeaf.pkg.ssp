@@ -1,0 +1,4 @@
+package BitLeaf {
+    params { n: Integer }
+    oracle Eval(x: Bits(n)) -> Bits(n) { return x; }
+}

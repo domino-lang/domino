@@ -1,0 +1,8 @@
+composition Right {
+    instance c = Context {}
+    instance x = Choices {}
+    compose {
+        adversary: { Eval: c }
+        c: { f: O2 of x }
+    }
+}

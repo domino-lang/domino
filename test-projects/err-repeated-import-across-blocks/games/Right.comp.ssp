@@ -1,0 +1,12 @@
+composition Right {
+    instance c = Context {}
+    instance x = Value { params { n: 0 } }
+    instance y = Value { params { n: 1 } }
+    compose {
+        adversary: { Eval: c }
+        c: { f: x }
+    }
+    compose {
+        c: { f: y }
+    }
+}

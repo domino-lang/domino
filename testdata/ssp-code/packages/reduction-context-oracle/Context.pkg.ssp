@@ -1,0 +1,7 @@
+package Context {
+    import oracles { f() -> Integer, }
+    oracle Eval() -> Integer {
+        result <- invoke f();
+        return result;
+    }
+}

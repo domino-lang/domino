@@ -1,0 +1,4 @@
+composition LiteralBitsGame {
+    instance leaf = BitLeaf { params { n: 1 } }
+    compose { adversary: { Eval: leaf } }
+}
