@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
 sspverif-smtlib = { path = "crates/smtlib" }
+domino-export-latex = { path = "crates/domino-export-latex" }
 sspverif = { path = "" }
 
 [package]

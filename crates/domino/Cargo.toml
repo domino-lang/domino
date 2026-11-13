@@ -6,6 +6,7 @@ readme = { workspace = true }
 
 [dependencies]
 sspverif = { workspace = true }
+domino-export-latex = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
 console = "0.16"
 env_logger = "0.11"
