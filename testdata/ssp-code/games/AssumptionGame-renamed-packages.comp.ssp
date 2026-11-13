@@ -1,0 +1,5 @@
+composition AssumptionGame {
+    instance a = Leaf {}
+    instance b = Leaf {}
+    compose { adversary: { Eval: a } }
+}

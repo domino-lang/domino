@@ -1,0 +1,11 @@
+composition ConstructionGame {
+    instance leaf = ParamLeaf {
+        params { flag: false }
+        params { flag: true }
+    }
+    instance router = Router {}
+    compose {
+        adversary: { Eval: router },
+        router: { A: Eval of leaf, B: Eval of leaf }
+    }
+}
