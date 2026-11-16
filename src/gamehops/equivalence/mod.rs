@@ -163,6 +163,14 @@ fn verify_exports_match(
     let left_game_inst_name = equivalence.left_name();
     let right_game_inst_name = equivalence.right_name();
 
+    // Both sides would map to the same constant symbols in the SMT encoding, which the solver
+    // rejects as a redeclaration. Reject it here with a readable error instead.
+    if left_game_inst_name == right_game_inst_name {
+        return Err(Error::SameGameInstance {
+            game_inst_name: left_game_inst_name.to_string(),
+        });
+    }
+
     let left_exports: BTreeMap<&str, &OracleSig> = left_game_exports
         .iter()
         .map(|export| (export.name(), export.sig()))
@@ -505,6 +513,27 @@ mod tests {
 
         assert_eq!(left_game_inst_name, "left");
         assert_eq!(right_game_inst_name, "right");
+    }
+
+    #[test]
+    fn same_game_instance_on_both_sides_is_rejected() {
+        let exports = vec![simple_export("Eval")];
+        let eq = Equivalence::new(
+            "test".to_string(),
+            "A".to_string(),
+            "A".to_string(),
+            vec![],
+            vec![("Eval".to_string(), vec![])],
+            vec![],
+        );
+
+        let err = verify_exports_match(&eq, &exports, &exports)
+            .expect_err("same game instance on both sides must be rejected");
+
+        assert!(
+            err.to_string().contains("with itself"),
+            "expected a with-itself error, got {err}"
+        );
     }
 
     #[test]

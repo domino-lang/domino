@@ -35,6 +35,8 @@ pub enum Error {
         right_game_inst_name: String,
         mismatching_param_name: String,
     },
+    #[error("equivalence of game instance {game_inst_name} with itself: both sides of an equivalence must be different game instances")]
+    SameGameInstance { game_inst_name: String },
     #[error("neither game instance {left_game_inst_name} nor {right_game_inst_name} exports any oracles")]
     #[diagnostic(help(
         "an equivalence needs both game instances to export at least one oracle. \
