@@ -315,12 +315,16 @@ impl CountSpec {
         match self {
             CountSpec::Literal(n) => n.to_string(),
             CountSpec::Any => "*".to_string(),
-            CountSpec::Identifier(id) => id
-                .as_theorem_identifier()
-                .map(|id| id.ident())
-                .unwrap_or_else(|| {
-                    panic!("bits-length identifier not resolved to a theorem const: {id:?}")
-                }),
+            CountSpec::Identifier(id) => {
+                if let Some(id) = id.as_theorem_identifier() {
+                    return id.ident();
+                }
+                if let Some(ExpressionKind::IntegerLiteral(n)) = id.as_literal().map(|ty| ty.kind())
+                {
+                    return n.to_string();
+                }
+                panic!("bits-length identifier not resolved to a theorem const: {id:?}")
+            }
         }
     }
 }
