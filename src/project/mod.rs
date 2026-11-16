@@ -110,6 +110,7 @@ pub trait Project {
     where
         Self: Sized + Sync,
     {
+        ui.start();
         let mut theorem_keys: Vec<_> = self.theorems().collect();
         theorem_keys.sort();
 
@@ -122,7 +123,7 @@ pub trait Project {
             let theorem = self.get_theorem(theorem_key).unwrap();
 
             if !config.theorem_requested(theorem_key) {
-                ui.finish();
+                ui.skip();
                 continue;
             }
 
@@ -169,7 +170,7 @@ pub trait Project {
                 }
             }
 
-            ui.finish();
+            ui.finish(theorem);
         }
 
         ui.finish();

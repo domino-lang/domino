@@ -2,12 +2,17 @@
 
 use std::sync::{Arc, Mutex};
 
+use itertools::Itertools;
+
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
-use sspverif::ui::{
-    GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
-    ProveTheoremUI, ProveUI, UI,
+use sspverif::{
+    project::configuration::ProveConfiguration,
+    ui::{
+        GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
+        ProveTheoremUI, ProveUI,
+    },
 };
 
 use sspverif::{
@@ -16,6 +21,9 @@ use sspverif::{
         GameHop,
     },
     package::Export,
+    parser::ast::Identifier,
+    proof::Proof,
+    theorem::Theorem,
 };
 
 #[derive(Clone)]
@@ -53,22 +61,21 @@ impl Default for IndicatifUI {
     }
 }
 
-impl UI for IndicatifUI {
-    type GamehopUI = IndicatifGamehopUI;
-    type ProveUI = IndicatifProveUI;
-    type LatexUI = IndicatifLatexUI;
-
+impl IndicatifUI {
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.multi_progress.println(line)
     }
 
-    fn gamehop_ui(&self) -> Self::GamehopUI {
+    pub(crate) fn gamehop_ui(&self) -> IndicatifGamehopUI {
         IndicatifGamehopUI {
             main_ui: self.clone(),
         }
     }
 
-    fn prove_ui(&self) -> Self::ProveUI {
+    pub(crate) fn prove_ui<'a, ProveConfig: ProveConfiguration + Sync + Clone>(
+        &self,
+        config: &'a ProveConfig,
+    ) -> IndicatifProveUI<'a, ProveConfig> {
         let progress = self.multi_progress.add(ProgressBar::new(0));
 
         progress.set_style(indicatif_style::theorem_bar());
@@ -76,11 +83,13 @@ impl UI for IndicatifUI {
 
         IndicatifProveUI {
             main_ui: self.clone(),
+            config,
             progress,
+            reports: Arc::default(),
         }
     }
 
-    fn latex_ui(&self) -> Self::LatexUI {
+    pub(crate) fn latex_ui(&self) -> IndicatifLatexUI {
         IndicatifLatexUI {
             main_ui: self.clone(),
         }
@@ -88,12 +97,14 @@ impl UI for IndicatifUI {
 }
 
 #[derive(Clone)]
-pub struct IndicatifProveUI {
+pub struct IndicatifProveUI<'a, ProveConfig: ProveConfiguration> {
     main_ui: IndicatifUI,
+    config: &'a ProveConfig,
     progress: ProgressBar,
+    reports: Arc<Mutex<Vec<String>>>,
 }
 
-impl IndicatifProveUI {
+impl<'a, ProveConfig: ProveConfiguration> IndicatifProveUI<'a, ProveConfig> {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.main_ui.insert_before(before, progress)
     }
@@ -101,10 +112,16 @@ impl IndicatifProveUI {
     fn tick(&self) {
         self.progress.tick();
     }
+
+    fn add_report(&self, report: String) {
+        self.reports.lock().unwrap().push(report)
+    }
 }
 
-impl ProveUI for IndicatifProveUI {
-    type ProveTheoremUI = IndicatifProveTheoremUI;
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveUI
+    for IndicatifProveUI<'a, ProveConfig>
+{
+    type ProveTheoremUI = IndicatifProveTheoremUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.main_ui.println(line)
@@ -112,7 +129,24 @@ impl ProveUI for IndicatifProveUI {
 
     fn start(&self) {}
     fn finish(&self) {
-        self.progress.finish()
+        self.progress.finish();
+
+        if self.config.restricted_requests() {
+            println!(
+                "\n\n# Success. Verified selected claims (following requested restrictions).\n"
+            );
+        } else {
+            let reports = self.reports.lock().unwrap();
+
+            if reports.is_empty() {
+                println!("\n\n# Success. Verified all Gamehops, Game and Package Invariants (no propositions specified).\n");
+            } else {
+                println!("\n\n# Success. The following Propositions verify:\n");
+                for report in reports.iter() {
+                    println!("{}", report)
+                }
+            }
+        }
     }
 
     fn start_theorem(&self, theorem_name: &str) -> Self::ProveTheoremUI {
@@ -127,13 +161,13 @@ impl ProveUI for IndicatifProveUI {
 }
 
 #[derive(Clone)]
-pub struct IndicatifProveTheoremUI {
-    prove_ui: IndicatifProveUI,
+pub struct IndicatifProveTheoremUI<'a, ProveConfig: ProveConfiguration> {
+    prove_ui: IndicatifProveUI<'a, ProveConfig>,
     name: String,
     progress: Option<ProgressBar>,
 }
 
-impl IndicatifProveTheoremUI {
+impl<'a, ProveConfig: ProveConfiguration> IndicatifProveTheoremUI<'a, ProveConfig> {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.prove_ui.insert_before(before, progress)
     }
@@ -145,8 +179,10 @@ impl IndicatifProveTheoremUI {
     }
 }
 
-impl ProveTheoremUI for IndicatifProveTheoremUI {
-    type ProveGamehopUI = IndicatifProveGamehopUI;
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveTheoremUI
+    for IndicatifProveTheoremUI<'a, ProveConfig>
+{
+    type ProveGamehopUI = IndicatifProveGamehopUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.prove_ui.println(line)
@@ -160,7 +196,18 @@ impl ProveTheoremUI for IndicatifProveTheoremUI {
         self.tick();
     }
 
-    fn finish(&self) {
+    fn finish(&self, theorem: &Theorem) {
+        self.prove_ui.progress.inc(1);
+        self.tick();
+        if let Some(progress) = &self.progress {
+            progress.finish()
+        }
+        for proof in &theorem.proofs {
+            self.prove_ui
+                .add_report(PropositionBox::new(&theorem.name, proof).into());
+        }
+    }
+    fn skip(&self) {
         self.prove_ui.progress.inc(1);
         self.tick();
         if let Some(progress) = &self.progress {
@@ -184,14 +231,14 @@ impl ProveTheoremUI for IndicatifProveTheoremUI {
 }
 
 #[derive(Clone)]
-pub struct IndicatifProveGamehopUI {
-    theorem_ui: IndicatifProveTheoremUI,
+pub struct IndicatifProveGamehopUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
+    theorem_ui: IndicatifProveTheoremUI<'a, ProveConfig>,
     name: String,
     progress: Option<ProgressBar>,
     children: Arc<Mutex<Vec<ProgressBar>>>,
 }
 
-impl IndicatifProveGamehopUI {
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveGamehopUI<'a, ProveConfig> {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.children.lock().unwrap().push(progress.clone());
         self.theorem_ui.insert_before(before, progress)
@@ -204,9 +251,11 @@ impl IndicatifProveGamehopUI {
     }
 }
 
-impl ProveGamehopUI for IndicatifProveGamehopUI {
-    type ProveOracleUI = IndicatifProveOracleUI;
-    type ProveInvariantStartUI = IndicatifProveOracleUI;
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamehopUI
+    for IndicatifProveGamehopUI<'a, ProveConfig>
+{
+    type ProveOracleUI = IndicatifProveOracleUI<'a, ProveConfig>;
+    type ProveInvariantStartUI = IndicatifProveOracleUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.theorem_ui.println(line)
@@ -274,13 +323,13 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
 }
 
 #[derive(Clone)]
-pub struct IndicatifProveOracleUI {
-    gamehop_ui: IndicatifProveGamehopUI,
+pub struct IndicatifProveOracleUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
+    gamehop_ui: IndicatifProveGamehopUI<'a, ProveConfig>,
     name: String,
     progress: Option<ProgressBar>,
 }
 
-impl IndicatifProveOracleUI {
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveOracleUI<'a, ProveConfig> {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.gamehop_ui.insert_before(before, progress)
     }
@@ -311,8 +360,10 @@ impl IndicatifProveOracleUI {
     }
 }
 
-impl ProveOracleUI for IndicatifProveOracleUI {
-    type ProveClaimUI = IndicatifProveClaimUI;
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveOracleUI
+    for IndicatifProveOracleUI<'a, ProveConfig>
+{
+    type ProveClaimUI = IndicatifProveClaimUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.println(line)
@@ -349,8 +400,10 @@ impl ProveOracleUI for IndicatifProveOracleUI {
     }
 }
 
-impl ProveInvariantStartUI for IndicatifProveOracleUI {
-    type ProveClaimUI = IndicatifProveClaimUI;
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveInvariantStartUI
+    for IndicatifProveOracleUI<'a, ProveConfig>
+{
+    type ProveClaimUI = IndicatifProveClaimUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.gamehop_ui.println(line)
@@ -376,12 +429,12 @@ impl ProveInvariantStartUI for IndicatifProveOracleUI {
     }
 }
 
-pub struct IndicatifProveClaimUI {
-    oracle_ui: IndicatifProveOracleUI,
+pub struct IndicatifProveClaimUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
+    oracle_ui: IndicatifProveOracleUI<'a, ProveConfig>,
     name: String,
 }
 
-impl IndicatifProveClaimUI {
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveClaimUI<'a, ProveConfig> {
     fn start(&mut self) {
         if let Some(progress) = &self.oracle_ui.progress {
             progress.set_message(format!("{} (cur: {})", self.oracle_ui.name, self.name));
@@ -414,7 +467,9 @@ impl IndicatifProveClaimUI {
     }
 }
 
-impl ProveClaimUI for IndicatifProveClaimUI {
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveClaimUI
+    for IndicatifProveClaimUI<'a, ProveConfig>
+{
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.oracle_ui.println(line)
     }
@@ -495,5 +550,156 @@ mod indicatif_style {
         )
         .unwrap()
         .progress_chars("#>-")
+    }
+}
+
+struct PropositionBox<'a> {
+    theorem: &'a str,
+    proof: &'a Proof<'a>,
+}
+
+impl<'a> PropositionBox<'a> {
+    fn new(theorem: &'a str, proof: &'a Proof) -> Self {
+        Self { theorem, proof }
+    }
+
+    fn reductions(&self) -> String {
+        self.proof
+            .reductions()
+            .enumerate()
+            .map(|(rednum, _red)| format!("R{}", rednum + 1))
+            .join(", ")
+    }
+    fn reduction_advantages(&self) -> impl Iterator<Item = String> + use<'a> {
+        self.proof.reductions().enumerate().map(|(rednum, red)| {
+            format!(
+                "Adv(A->R{}, {}, {})",
+                rednum + 1,
+                red.right().assumption_game_instance_name().as_str(),
+                red.left().assumption_game_instance_name().as_str(),
+            )
+        })
+    }
+
+    fn intro(&self) -> Vec<String> {
+        wrap_lines(
+            &format!(
+                "For all adversaries A, there are reductions {} such that",
+                self.reductions()
+            ),
+            93,
+        )
+    }
+
+    fn advantages(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        let mut red_adv = self.reduction_advantages();
+        let leftstring = format!(
+            "Adv(A, {}, {}) ",
+            self.proof.left_name(),
+            self.proof.right_name()
+        );
+        let padstring = console::pad_str(
+            "",
+            console::measure_text_width(&leftstring),
+            console::Alignment::Left,
+            None,
+        );
+
+        if let Some(adv) = red_adv.next() {
+            lines.push(format!("{leftstring}≤   {}", adv));
+        } else {
+            lines.push(format!("{leftstring}= 0",));
+        }
+
+        lines.extend(red_adv.map(|adv| format!("{padstring}  + {adv}")));
+
+        lines
+    }
+
+    fn conclusion(&self) -> Vec<String> {
+        let conjectures = self
+            .proof
+            .conjectures()
+            .map(|conj| {
+                format!(
+                    "{} ~ {}",
+                    conj.left_name().as_str(),
+                    conj.right_name().as_str()
+                )
+            })
+            .join(", ");
+
+        if conjectures.is_empty() {
+            Vec::new()
+        } else {
+            wrap_lines(&format!("using conjectures {conjectures}"), 93)
+        }
+    }
+}
+
+fn wrap_lines(input: &str, len: usize) -> Vec<String> {
+    let mut lines = Vec::new();
+    let mut worditer = input.split(' ');
+
+    let mut next = if let Some(first) = worditer.next() {
+        first.to_string()
+    } else {
+        return Vec::new();
+    };
+
+    for word in worditer {
+        let candidate = format!("{next} {word}");
+        if console::measure_text_width(&candidate) < len {
+            next = candidate;
+        } else {
+            lines.push(next);
+            next = word.to_string();
+        }
+    }
+    lines.push(next);
+
+    lines
+}
+
+impl From<PropositionBox<'_>> for String {
+    fn from(val: PropositionBox) -> Self {
+        console::style(
+            std::iter::once(format!(
+                "╔{}╗",
+                console::pad_str_with(
+                    &format!(" {}: {} ", val.theorem, val.proof.name),
+                    95,
+                    console::Alignment::Left,
+                    None,
+                    '═'
+                )
+            ))
+            .chain(val.intro().into_iter().map(|line| {
+                format!(
+                    "║ {} ║",
+                    console::pad_str(&line, 93, console::Alignment::Left, None)
+                )
+            }))
+            .chain(val.advantages().into_iter().map(|line| {
+                format!(
+                    "║ {} ║",
+                    console::pad_str(&line, 93, console::Alignment::Left, None)
+                )
+            }))
+            .chain(val.conclusion().into_iter().map(|line| {
+                format!(
+                    "║ {} ║",
+                    console::pad_str(&line, 93, console::Alignment::Left, None)
+                )
+            }))
+            .chain(std::iter::once(format!(
+                "╚{}╝",
+                console::pad_str_with("", 95, console::Alignment::Left, None, '═')
+            )))
+            .join("\n"),
+        )
+        .green()
+        .to_string()
     }
 }
