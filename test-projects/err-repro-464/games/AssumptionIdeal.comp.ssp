@@ -1,0 +1,14 @@
+composition AssumptionIdeal {
+    instance Importer = Importer { params { b: true } }
+    instance Provider = Provider { params {} }
+    instance Wrong = Provider { params {} }
+
+    compose {
+        adversary: {
+            Eval: Importer
+        }
+        Importer: {
+            Oracle: Ideal of Provider
+        }
+    }
+}

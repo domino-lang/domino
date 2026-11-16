@@ -1,0 +1,13 @@
+package Importer {
+    params {
+        b: Bool
+    }
+
+    import oracles {
+        Oracle(),
+    }
+
+    oracle Eval() {
+        invoke Oracle();
+    }
+}
