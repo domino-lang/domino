@@ -1,0 +1,11 @@
+composition AssumptionGame {
+    instance first = Router {}
+    instance second = Router {}
+    instance x = Leaf {}
+    instance y = Leaf {}
+    compose {
+        adversary: { Eval: first },
+        first: { A: Eval of x, B: Eval of y },
+        second: { A: Eval of x, B: Eval of x }
+    }
+}
