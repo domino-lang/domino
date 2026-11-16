@@ -1,0 +1,33 @@
+theorem SmallIsSmall {
+  const n: Integer;
+
+  instance smallA = SmallGame{
+    params {
+      n: 1 
+    }
+  }
+
+  instance smallB = SmallGame{
+    params {
+      n: n 
+    }
+  }
+
+  propositions {
+    Main: smallA ~ smallB
+  }
+
+  gamehops {
+    equivalence smallA smallB {
+      invariant: ./invariant.smt
+      N: {
+        lemmas {
+        invariant: []
+        equal-aborts: []
+        same-output: []
+        smt_ident: []
+        }
+      }
+    }
+  }
+}
