@@ -41,7 +41,7 @@ impl Expression {
         Self { kind }
     }
 
-    pub(crate) fn kind(&self) -> &ExpressionKind {
+    pub fn kind(&self) -> &ExpressionKind {
         &self.kind
     }
 

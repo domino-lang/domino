@@ -18,14 +18,14 @@ pub mod unwrapify;
 
 pub mod theorem_transforms;
 
-pub(crate) trait GameTransform {
+pub trait GameTransform {
     type Err;
     type Aux;
 
     fn transform_game(&self, game: &Composition) -> Result<(Composition, Self::Aux), Self::Err>;
 }
 
-pub(crate) trait TheoremTransform {
+pub trait TheoremTransform {
     type Err;
     type Aux;
 
@@ -35,7 +35,7 @@ pub(crate) trait TheoremTransform {
     ) -> Result<(Theorem<'a>, Self::Aux), Self::Err>;
 }
 
-pub(crate) trait Transformation {
+pub trait Transformation {
     type Err;
     type Aux;
 

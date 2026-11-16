@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::{
+use sspverif::{
     gamehops::reduction::{Assumption, Reduction},
     parser::ast::Identifier,
     proof::Proof,

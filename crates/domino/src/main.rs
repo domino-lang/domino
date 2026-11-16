@@ -13,6 +13,8 @@ shadow!(build);
 use sspverif::project::{self, Project};
 use sspverif::ui::{LatexUI, ProofstepUI, ProveUI, UI};
 
+use domino_export_latex::LatexProject;
+
 mod cli;
 mod ui;
 
