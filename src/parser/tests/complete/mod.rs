@@ -126,6 +126,22 @@ fn untyped_none_type_inference_works() {
 }
 
 #[test]
+fn propositions_before_gamehops_parses() {
+    let packages = parse_files(&["tiny.ssp"]);
+    let games = games::parse_files(&["small.ssp"], &packages);
+    let theorem_file = theorems::read_file("propositions-before-gamehops.ssp");
+    let theorem = theorems::parse(
+        &theorem_file,
+        "propositions-before-gamehops.ssp",
+        &packages,
+        &games,
+    );
+
+    assert_eq!(theorem.proofs.len(), 1);
+    assert_eq!(theorem.game_hops.len(), 1);
+}
+
+#[test]
 fn equivalence_parses() {
     let packages = parse_files(&["tiny.ssp"]);
     let games = games::parse_files(&["small.ssp"], &packages);

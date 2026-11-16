@@ -291,6 +291,8 @@ pub fn handle_theorem<'a>(
     let mut ctx = ctx.theorem_context(theorem_name);
     ctx.scope.enter();
 
+    let mut deferred_propositions = Vec::new();
+
     for ast in theorem_ast.into_inner() {
         match ast.as_rule() {
             Rule::const_decl => {
@@ -317,7 +319,9 @@ pub fn handle_theorem<'a>(
                 handle_assumptions(&mut ctx, ast.into_inner())?;
             }
             Rule::propositions => {
-                handle_propositions(&mut ctx, ast.into_inner())?;
+                // Propositions are checked against the game hops, so they are handled after
+                // all blocks have been read, regardless of their order in the file.
+                deferred_propositions.push(ast.into_inner());
             }
             Rule::game_hops => {
                 handle_game_hops(&mut ctx, ast.into_inner())?;
@@ -333,6 +337,10 @@ pub fn handle_theorem<'a>(
             }
             otherwise => unreachable!("found {:?} in theorem", otherwise),
         }
+    }
+
+    for propositions in deferred_propositions {
+        handle_propositions(&mut ctx, propositions)?;
     }
 
     let ParseTheoremContext {
