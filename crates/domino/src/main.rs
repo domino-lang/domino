@@ -11,7 +11,7 @@ use thiserror::Error;
 shadow!(build);
 
 use sspverif::project::{self, Project};
-use sspverif::ui::{LatexUI, ProofstepUI, ProveUI, UI};
+use sspverif::ui::{GamehopUI, LatexUI, ProveUI, UI};
 
 mod cli;
 mod ui;
@@ -22,13 +22,13 @@ use crate::ui::*;
 #[derive(Parser, Debug)]
 #[clap(author, version, long_version = build::CLAP_LONG_VERSION, about, long_about = None)]
 #[clap(propagate_version = true)]
-pub(crate) struct Cli {
+pub(crate) struct Cli<'a> {
     #[clap(subcommand)]
-    pub(crate) command: Commands,
+    pub(crate) command: Commands<'a>,
 }
 
 #[derive(Error, Diagnostic, Debug)]
-#[error("Need to specify a proof when specifying a proofstep")]
+#[error("Need to specify a theorem when specifying a gamehop")]
 #[diagnostic(code(cli::incompatible_arguments))]
 pub struct IncompatibleArguments;
 
@@ -56,19 +56,19 @@ enum Error {
     ReqOracleWithInvariantStart(#[from] ReqOracleWithInvariantStart),
 }
 
-fn proofsteps(ui: impl ProofstepUI, p: &Proofsteps) -> Result<(), Error> {
-    let project_root = match &p.path {
+fn gamehops(ui: impl GamehopUI, g: Gamehops) -> Result<(), Error> {
+    let project_root = match &g.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
     };
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
-    project.proofsteps(ui)?;
+    project.gamehops(ui)?;
     Ok(())
 }
 
-fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
+fn prove(ui: impl ProveUI, mut p: Prove) -> Result<(), Error> {
     let project_root = match &p.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -76,7 +76,7 @@ fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
     let files = project::DirectoryFiles::load(&project_root)?;
     let project = project::DirectoryProject::load(project_root, &files)?;
 
-    if p.proofstep.is_some() && p.proof.is_none() {
+    if p.gamehop.is_some() && p.theorem.is_none() {
         return Err(IncompatibleArguments.into());
     }
 
@@ -84,23 +84,13 @@ fn prove(ui: impl ProveUI, p: &Prove) -> Result<(), Error> {
         return Err(ReqOracleWithInvariantStart.into());
     }
 
-    let smtsolver = sspverif::util::smtsolver::process::ProcessSmtSolverBackend::new(p.smtsolver);
-    project.prove(
-        ui,
-        &smtsolver,
-        p.transcript,
-        p.parallel,
-        &p.proof,
-        p.proofstep,
-        &p.oracle,
-        &p.claim,
-        p.invariant_start,
-        p.injective_randmap,
-    )?;
+    p.init();
+
+    project.prove(ui, &p)?;
     Ok(())
 }
 
-fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
+fn latex(ui: impl LatexUI, l: Latex) -> Result<(), Error> {
     let project_root = match &l.path {
         Some(path) => path.clone(),
         None => project::directory::find_project_root()?,
@@ -115,7 +105,7 @@ fn latex(ui: impl LatexUI, l: &Latex) -> Result<(), Error> {
     Ok(())
 }
 
-fn format(f: &Format) -> Result<(), Error> {
+fn format(f: Format) -> Result<(), Error> {
     if let Some(input) = &f.input {
         sspverif::format::format_file(input)?;
     } else {
@@ -138,9 +128,9 @@ fn main() -> miette::Result<()> {
     let cli = Cli::parse();
     let ui = IndicatifUI::new();
 
-    let result = match &cli.command {
+    let result = match cli.command {
         Commands::Prove(p) => prove(ui.prove_ui(), p),
-        Commands::Proofsteps(p) => proofsteps(ui.proofstep_ui(), p),
+        Commands::Gamehops(g) => gamehops(ui.gamehop_ui(), g),
         Commands::Latex(l) => latex(ui.latex_ui(), l),
         Commands::Format(f) => format(f),
     };
