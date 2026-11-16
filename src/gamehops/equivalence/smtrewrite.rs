@@ -105,41 +105,39 @@ impl From<SmtExpr> for SmtStmt {
     }
 }
 
-struct SmtRewrite<'a> {
+struct SmtRewriteEquivalence<'a> {
     context: &'a EquivalenceContext<'a>,
-    package: Option<&'a PackageInstance>,
-    game: Option<&'a GameInstance>,
     content: Vec<SmtStmt>,
 }
 
-impl<'a> SmtRewrite<'a> {
+struct SmtRewriteGame<'a> {
+    context: &'a GameInstanceContext<'a>,
+    package: Option<&'a PackageInstance>,
+    content: Vec<SmtStmt>,
+}
+
+impl<'a> SmtRewriteEquivalence<'a> {
     fn new(context: &'a EquivalenceContext) -> Self {
         Self {
             context,
-            package: None,
-            game: None,
             content: Vec::new(),
         }
     }
+}
 
-    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance) -> Self {
+impl<'a> SmtRewriteGame<'a> {
+    fn new_with_game(context: &'a GameInstanceContext) -> Self {
         Self {
             context,
             package: None,
-            game: Some(game),
             content: Vec::new(),
         }
     }
 
-    fn new_with_package(
-        context: &'a EquivalenceContext,
-        game: &'a GameInstance,
-        package: &'a PackageInstance,
-    ) -> Self {
+    fn new_with_package(context: &'a GameInstanceContext, package: &'a PackageInstance) -> Self {
         Self {
             context,
             package: Some(package),
-            game: Some(game),
             content: Vec::new(),
         }
     }
@@ -336,7 +334,7 @@ fn gen_varbinding(
         .collect()
 }
 
-impl SmtRewrite<'_> {
+impl SmtRewriteEquivalence<'_> {
     fn equivalence_name(&self) -> String {
         format!(
             "{} = {}",
@@ -346,7 +344,7 @@ impl SmtRewrite<'_> {
     }
 }
 
-impl SmtParser<Error> for SmtRewrite<'_> {
+impl SmtParser<Error> for SmtRewriteGame<'_> {
     type Expr = SmtExpr;
     type Stmt = SmtStmt;
 
@@ -381,25 +379,21 @@ impl SmtParser<Error> for SmtRewrite<'_> {
     }
 
     fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
-        let Some(game) = self.game else {
-            return Err(Error::RewriteNeedsGameContext {
-                defn: format!("(define-game-invariant {body})"),
-            });
-        };
+        let func_aliases: Vec<_> =
+            generate_func_aliases_game(self.context.game_inst(), "game".to_string()).collect();
 
-        let func_aliases: Vec<_> = generate_func_aliases_game(game, "game".to_string()).collect();
-
-        let dummy_sample_info = SampleInfo::default();
-        let gamestate_context = GameInstanceContext::new(game, &dummy_sample_info);
-        let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
+        let gamestate_pattern = self.context.datastructure_game_state_pattern();
         let gamestate_sort = gamestate_pattern.sort_name();
 
-        let pkgbindings = gen_pkgbinding(self.game.unwrap(), "game");
-        let varbindings: Vec<_> = game
-            .game
+        let pkgbindings = gen_pkgbinding(self.context.game_inst(), "game");
+        let varbindings: Vec<_> = self
+            .context
+            .game()
             .pkgs
             .iter()
-            .flat_map(|pkg| gen_varbinding(pkg, self.game.unwrap(), &format!("game.{}", pkg.name)))
+            .flat_map(|pkg| {
+                gen_varbinding(pkg, self.context.game_inst(), &format!("game.{}", pkg.name))
+            })
             .collect();
 
         let bindvars = SmtLet {
@@ -415,7 +409,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         let kind = SmtStatementKind::GameInvariant {
             name: invname.to_string(),
-            game: self.game.unwrap().name().to_string(),
+            game: self.context.game_inst_name().to_string(),
         };
 
         let expr = (
@@ -435,21 +429,19 @@ impl SmtParser<Error> for SmtRewrite<'_> {
     }
 
     fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
-        let (Some(game), Some(package)) = (self.game, self.package) else {
+        let Some(package) = self.package else {
             return Err(Error::RewriteNeedsPackageContext {
-                defn: format!("(define-package-invariant {body})"),
+                defn: format!("(define-package-invariant {invname} {body})"),
             });
         };
 
         let func_aliases: Vec<_> =
             generate_func_aliases_package(package, "pkg".to_string()).collect();
 
-        let dummy_sample_info = SampleInfo::default();
-        let gamestate_context = GameInstanceContext::new(game, &dummy_sample_info);
-        let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
+        let gamestate_pattern = self.context.datastructure_game_state_pattern();
         let gamestate_sort = gamestate_pattern.sort_name();
 
-        let varbindings = gen_varbinding(package, game, "pkg");
+        let varbindings = gen_varbinding(package, self.context.game_inst(), "pkg");
         let bindvars = SmtLet {
             bindings: varbindings,
             body: rewrite_functions(&func_aliases, body),
@@ -457,7 +449,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let bindpkg: SmtExpr = SmtLet {
             bindings: vec![(
                 "pkg".to_string(),
-                gamestate_context
+                self.context
                     .smt_access_gamestate_pkgstate("game", package.name())
                     .unwrap(),
             )],
@@ -468,7 +460,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let kind = SmtStatementKind::PackageInvariant {
             name: invname.to_string(),
             package: self.package.unwrap().name().to_string(),
-            game: self.game.unwrap().name().to_string(),
+            game: self.context.game_inst_name().to_string(),
         };
 
         let expr = (
@@ -485,6 +477,69 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             .into();
 
         Ok(SmtStmt { kind, expr })
+    }
+
+    fn handle_define_state_relation(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        Err(Error::RewriteNeedsPackageContext {
+            defn: format!(
+                "(define-state-relation {funname} ({}) {body})",
+                args.into_iter().join(", ")
+            ),
+        })
+    }
+    fn handle_define_lemma(
+        &mut self,
+        lemma_name: &str,
+        oracle_name: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        Err(Error::RewriteNeedsPackageContext {
+            defn: format!(
+                "(define-state-relation {lemma_name} {oracle_name} ({}) {body})",
+                args.into_iter().join(", ")
+            ),
+        })
+    }
+}
+
+impl SmtParser<Error> for SmtRewriteEquivalence<'_> {
+    type Expr = SmtExpr;
+    type Stmt = SmtStmt;
+
+    fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
+        Ok(SmtExpr::Atom(content.to_string()))
+    }
+
+    fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
+        Ok(SmtExpr::List(content))
+    }
+
+    fn handle_sexp(&mut self, parsed: SmtStmt) -> Result<()> {
+        self.content.push(parsed);
+        Ok(())
+    }
+
+    fn handle_definefun(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtExpr>,
+        ty: &str,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        let expr = ("define-fun", funname, args, ty, body).into();
+
+        Ok(SmtStmt {
+            kind: SmtStatementKind::Function {
+                name: funname.to_string(),
+            },
+            expr,
+        })
     }
 
     fn handle_define_state_relation(
@@ -793,29 +848,37 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt { kind, expr })
     }
+
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-package-invariant {invname} {body})"),
+        })
+    }
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-game-invariant {invname} {body})"),
+        })
+    }
 }
 
 pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtStmt>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new(context);
+    let mut rewriter = SmtRewriteEquivalence::new(context);
     rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }
-pub fn rewrite_game(
-    context: &EquivalenceContext,
-    game: &GameInstance,
-    content: &str,
-) -> Result<Vec<SmtStmt>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game);
+
+pub fn rewrite_game(context: &GameInstanceContext, content: &str) -> Result<Vec<SmtStmt>> {
+    let mut rewriter = SmtRewriteGame::new_with_game(context);
     rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }
+
 pub fn rewrite_package(
-    context: &EquivalenceContext,
-    game: &GameInstance,
+    context: &GameInstanceContext,
     package: &PackageInstance,
     content: &str,
 ) -> Result<Vec<SmtStmt>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package);
+    let mut rewriter = SmtRewriteGame::new_with_package(context, package);
     rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }

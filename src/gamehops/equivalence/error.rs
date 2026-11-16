@@ -99,8 +99,12 @@ pub enum Error {
         expected: String,
         equivalence: String,
     },
-    #[error("define-game-invariant only valid in game contexts: {defn}")]
-    RewriteNeedsGameContext { defn: String },
+    #[error("define-game-invariant and define-package-invariant not valid in equivalence context: {defn}")]
+    RewriteNotGameInstanceContext { defn: String },
+    #[error(
+        "define-state-relation and define-lemma not valid in game and package contexts: {defn}"
+    )]
+    RewriteNotEquivalenceContext { defn: String },
     #[error("define-package-invariant only valid in package contexts: {defn}")]
     RewriteNeedsPackageContext { defn: String },
     #[error(transparent)]
