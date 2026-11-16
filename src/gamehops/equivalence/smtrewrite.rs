@@ -389,7 +389,8 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         let func_aliases: Vec<_> = generate_func_aliases_game(game, "game".to_string()).collect();
 
-        let gamestate_context = GameInstanceContext::new(game);
+        let dummy_sample_info = SampleInfo::default();
+        let gamestate_context = GameInstanceContext::new(game, &dummy_sample_info);
         let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
         let gamestate_sort = gamestate_pattern.sort_name();
 
@@ -443,7 +444,8 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         let func_aliases: Vec<_> =
             generate_func_aliases_package(package, "pkg".to_string()).collect();
 
-        let gamestate_context = GameInstanceContext::new(game);
+        let dummy_sample_info = SampleInfo::default();
+        let gamestate_context = GameInstanceContext::new(game, &dummy_sample_info);
         let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
         let gamestate_sort = gamestate_pattern.sort_name();
 
