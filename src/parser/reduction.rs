@@ -264,12 +264,24 @@ fn check_context_oracles(
     for &(left, right) in &traversal.imports {
         let left_sig = left.sig();
         let right_sig = right.sig();
-        let enters_assumption = mapping_left.entry_for(&game_left.pkgs[left.to()]).is_some();
         let left_name = context_destination_name(ctx, mapping_left, game_left, left)?;
         let right_name = context_destination_name(ctx, mapping_right, game_right, right)?;
-        if left_name != right_name
-            || (!enters_assumption && !left_sig.types_match_resolved(right_sig))
-        {
+        let targets_match = if let (Some(left_entry), Some(right_entry)) = (
+            mapping_left.entry_for(&game_left.pkgs[left.to()]),
+            mapping_right.entry_for(&game_right.pkgs[right.to()]),
+        ) {
+            assumption_oracles_match(
+                mapping_left.assumption_game_instance(ctx),
+                left_entry,
+                &left_sig.name,
+                mapping_right.assumption_game_instance(ctx),
+                right_entry,
+                &right_sig.name,
+            )
+        } else {
+            left_name == right_name && left_sig.types_match_resolved(right_sig)
+        };
+        if !targets_match {
             return Err(ReductionContextOracleMismatchError {
                 source_code: ctx.named_source(),
                 at: (reduction_span.start()..reduction_span.end()).into(),
@@ -289,8 +301,8 @@ fn check_context_oracles(
     Ok(())
 }
 
-// Context destinations use their internal oracle name. At the assumption
-// boundary, identify the public export through the mapped assumption instance.
+// Diagnostic names: use the internal oracle name for context destinations,
+// and the first public export of the mapped oracle at the assumption boundary.
 fn context_destination_name<'a>(
     ctx: &'a ParseTheoremContext,
     mapping: &ReductionMapping,
@@ -461,6 +473,8 @@ pub(super) fn handle_reduction_body<'a>(
         reduction_span,
         left_game_inst,
         right_game_inst,
+        &mapping_left,
+        &mapping_right,
         &traversal,
     )?;
 
@@ -558,6 +572,8 @@ fn check_construction_exports(
     reduction_span: pest::Span,
     left_game_inst: &GameInstance,
     right_game_inst: &GameInstance,
+    mapping_left: &ReductionMapping,
+    mapping_right: &ReductionMapping,
     traversal: &ReductionTraversal,
 ) -> Result<(), ParseTheoremError> {
     let mismatch = |left: Option<&Export>, right: &Export| {
@@ -584,7 +600,25 @@ fn check_construction_exports(
         }
     }
     for &(left_export, right_export) in &traversal.exports {
-        if !left_export.sig().types_match_resolved(right_export.sig()) {
+        // The traversal has checked context instance correspondence and boundary membership.
+        let targets_match = if let Some(left_entry) =
+            mapping_left.entry_for(&left_game_inst.game().pkgs[left_export.to()])
+        {
+            let right_entry = mapping_right
+                .entry_for(&right_game_inst.game().pkgs[right_export.to()])
+                .expect("context traversal validates matching assumption membership");
+            assumption_oracles_match(
+                mapping_left.assumption_game_instance(ctx),
+                left_entry,
+                &left_export.sig().name,
+                mapping_right.assumption_game_instance(ctx),
+                right_entry,
+                &right_export.sig().name,
+            )
+        } else {
+            left_export.sig().name == right_export.sig().name
+        };
+        if !targets_match || !left_export.sig().types_match_resolved(right_export.sig()) {
             return Err(mismatch(Some(left_export), right_export));
         }
     }
@@ -1003,6 +1037,26 @@ fn rewrite_game_signature(
         &game.consts,
     )
     .rewrite_oracle_sig(sig.clone())
+}
+
+// Both mapped targets must be published under a common name, in any order.
+fn assumption_oracles_match(
+    left_assumption: &GameInstance,
+    left_entry: &ReductionMappingEntry,
+    left_oracle_name: &str,
+    right_assumption: &GameInstance,
+    right_entry: &ReductionMappingEntry,
+    right_oracle_name: &str,
+) -> bool {
+    left_assumption.game().exports.iter().any(|left| {
+        left.to() == left_entry.assumption_offset
+            && left.sig().name == left_oracle_name
+            && right_assumption.game().exports.iter().any(|right| {
+                right.to() == right_entry.assumption_offset
+                    && right.sig().name == right_oracle_name
+                    && left.name() == right.name()
+            })
+    })
 }
 
 // Match the internal oracle name, not its public export alias.

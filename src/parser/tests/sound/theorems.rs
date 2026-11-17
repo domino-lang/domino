@@ -13,6 +13,227 @@ use crate::parser::{
 use std::collections::HashMap;
 
 #[test]
+fn reduction_renamed_export_rejects_different_oracles() {
+    let pkgs = packages::parse_files(&["reduction-context-oracle/Choices.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "reduction-context-oracle/Assumption.comp.ssp",
+            "reduction-exports/Left-renamed.comp.ssp",
+            "reduction-exports/Right-renamed.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-context-oracle.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionExportMismatch(error) = error else {
+        panic!("expected an export mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.left_game_inst_name, "left");
+    assert_eq!(error.right_game_inst_name, "right");
+}
+
+fn probe_games(
+    pkgs: &[(&str, &str)],
+    games: &[(&str, &str)],
+) -> (
+    std::collections::HashMap<String, crate::package::Package>,
+    std::collections::HashMap<String, crate::package::Composition>,
+) {
+    let pkgs = pkgs
+        .iter()
+        .map(|(name, code)| packages::parse(code, name))
+        .collect();
+    let games = games
+        .iter()
+        .map(|(name, code)| {
+            let game = games::parse(code, name, &pkgs);
+            (game.name.clone(), game)
+        })
+        .collect();
+    (pkgs, games)
+}
+
+#[test]
+fn reduction_rejects_same_oracle_name_on_different_instances() {
+    let (pkgs, games) = probe_games(
+        &[(
+            "P.pkg.ssp",
+            "package P { params { n: Integer } oracle O1() -> Integer { return n; } }",
+        )],
+        &[
+            (
+                "Assumption",
+                "composition Assumption {
+                    instance a = P { params { n: 0 } }
+                    instance b = P { params { n: 1 } }
+                    compose { adversary: { A: O1 of a, B: O1 of b } }
+                }",
+            ),
+            (
+                "Left",
+                "composition Left {
+                    instance a = P { params { n: 0 } }
+                    instance b = P { params { n: 1 } }
+                    compose { adversary: { Eval: O1 of a } }
+                }",
+            ),
+            (
+                "Right",
+                "composition Right {
+                    instance a = P { params { n: 0 } }
+                    instance b = P { params { n: 1 } }
+                    compose { adversary: { Eval: O1 of b } }
+                }",
+            ),
+        ],
+    );
+    let theorem = "
+        theorem Probe {
+            instance a0 = Assumption {}
+            instance a1 = Assumption {}
+            instance left = Left {}
+            instance right = Right {}
+            assumptions { Id: a0 ~ a1 }
+            gamehops {
+                reduction left right {
+                    assumption Id
+                    map a0 left { a: a b: b }
+                    map a1 right { a: a b: b }
+                }
+            }
+        }";
+    let error = theorems::parse_fails(theorem.trim(), "probe.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionExportMismatch(error) = error else {
+        panic!("expected an export mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.left_game_inst_name, "left");
+    assert_eq!(error.right_game_inst_name, "right");
+}
+
+#[test]
+fn reduction_rejects_same_oracle_name_from_different_packages() {
+    let (pkgs, games) = probe_games(
+        &[
+            (
+                "A.pkg.ssp",
+                "package A { oracle O1() -> Integer { return 0; } }",
+            ),
+            (
+                "B.pkg.ssp",
+                "package B { oracle O1() -> Integer { return 1; } }",
+            ),
+        ],
+        &[
+            (
+                "Assumption",
+                "composition Assumption {
+                    instance a = A {}
+                    instance b = B {}
+                    compose { adversary: { Aexp: O1 of a, Bexp: O1 of b } }
+                }",
+            ),
+            (
+                "Left",
+                "composition Left {
+                    instance a = A {}
+                    instance b = B {}
+                    compose { adversary: { Eval: O1 of a } }
+                }",
+            ),
+            (
+                "Right",
+                "composition Right {
+                    instance a = A {}
+                    instance b = B {}
+                    compose { adversary: { Eval: O1 of b } }
+                }",
+            ),
+        ],
+    );
+    let theorem = "
+        theorem Probe {
+            instance a0 = Assumption {}
+            instance a1 = Assumption {}
+            instance left = Left {}
+            instance right = Right {}
+            assumptions { Id: a0 ~ a1 }
+            gamehops {
+                reduction left right {
+                    assumption Id
+                    map a0 left { a: a b: b }
+                    map a1 right { a: a b: b }
+                }
+            }
+        }";
+    let error = theorems::parse_fails(theorem.trim(), "probe.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionExportMismatch(error) = error else {
+        panic!("expected an export mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "Eval");
+}
+
+#[test]
+fn reduction_renamed_export_rejects_one_sided_rename() {
+    let pkgs = packages::parse_files(&["reduction-context-oracle/Choices.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "reduction-context-oracle/Assumption.comp.ssp",
+            "reduction-exports/Left-renamed.comp.ssp",
+            "reduction-exports/Right-control.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let error = theorems::parse_file_fails("reduction-context-oracle.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionMissingExport(error) = error else {
+        panic!("expected a missing export, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "Eval");
+    assert_eq!(error.game_inst_name, "right");
+}
+
+#[test]
+fn reduction_renamed_export_rejects_different_import_targets() {
+    let pkgs = packages::parse_files(&["reduction-context-oracle/Choices.pkg.ssp"]);
+    let (wrapper_name, wrapper) = packages::parse(
+        "package Wrapper {
+            import oracles { f() -> Integer, }
+            oracle P() -> Integer {
+                result <- invoke f();
+                return result;
+            }
+        }",
+        "Wrapper.pkg.ssp",
+    );
+    let mut pkgs = pkgs;
+    pkgs.insert(wrapper_name, wrapper);
+    let mut games = games::parse_files(&["reduction-context-oracle/Assumption.comp.ssp"], &pkgs);
+    for (name, oracle) in [("Left", "O1"), ("Right", "O2")] {
+        let source = format!(
+            "composition {name} {{
+                instance w = Wrapper {{}}
+                instance x = Choices {{}}
+                compose {{
+                    adversary: {{ Eval: P of w }}
+                    w: {{ f: {oracle} of x }}
+                }}
+            }}"
+        );
+        let game = games::parse(&source, name, &pkgs);
+        games.insert(game.name.clone(), game);
+    }
+    let error = theorems::parse_file_fails("reduction-context-oracle.ssp", &pkgs, &games);
+    let ParseTheoremError::ReductionContextOracleMismatch(error) = error else {
+        panic!("expected a context oracle mismatch, got {error:?}");
+    };
+    assert_eq!(error.import_name, "f");
+    assert_eq!(error.left_pkg_inst_name, "w");
+    assert_eq!(error.right_pkg_inst_name, "w");
+    assert_eq!(error.left_oracle_name, "O1");
+    assert_eq!(error.right_oracle_name, "O2");
+}
+
+#[test]
 fn context_oracle_mismatch_precedes_later_reduction_error() {
     let pkgs = packages::parse_files(&[
         "reduction-context-oracle/Context.pkg.ssp",
