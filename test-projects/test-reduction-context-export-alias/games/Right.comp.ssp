@@ -1,0 +1,8 @@
+composition Right {
+    instance c = Context {}
+    instance ideal = Ideal {}
+    compose {
+        adversary: { Eval: c }
+        c: { f: IdealEval of ideal }
+    }
+}

@@ -1,0 +1,5 @@
+composition BitsGame {
+    const width: Integer;
+    instance leaf = BitLeaf { params { n: width } }
+    compose { adversary: { Eval: leaf } }
+}

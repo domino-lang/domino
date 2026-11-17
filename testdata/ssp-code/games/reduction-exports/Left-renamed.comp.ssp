@@ -1,0 +1,4 @@
+composition Left {
+    instance x = Choices {}
+    compose { adversary: { Eval: O1 of x } }
+}

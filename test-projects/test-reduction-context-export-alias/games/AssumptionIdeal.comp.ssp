@@ -1,0 +1,6 @@
+composition AssumptionIdeal {
+    instance i = Ideal {}
+    compose {
+        adversary: { Eval: IdealEval of i }
+    }
+}

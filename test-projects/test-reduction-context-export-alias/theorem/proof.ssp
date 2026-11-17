@@ -1,0 +1,14 @@
+theorem ContextExportAlias {
+    instance a0 = AssumptionReal {}
+    instance a1 = AssumptionIdeal {}
+    instance left = Left {}
+    instance right = Right {}
+    assumptions { RealIdeal: a0 ~ a1 }
+    gamehops {
+        reduction left right {
+            assumption RealIdeal
+            map a0 left { r: real }
+            map a1 right { i: ideal }
+        }
+    }
+}

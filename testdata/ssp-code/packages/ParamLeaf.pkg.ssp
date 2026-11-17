@@ -1,0 +1,4 @@
+package ParamLeaf {
+    params { flag: Bool }
+    oracle Eval() -> Bool { return false; }
+}

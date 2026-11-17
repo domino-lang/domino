@@ -1,0 +1,3 @@
+package Target {
+    oracle f(callback: fn Integer, Integer -> Integer) -> Integer { return 0; }
+}
