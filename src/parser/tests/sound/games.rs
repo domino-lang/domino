@@ -16,6 +16,21 @@ use crate::{
 use std::{collections::HashMap, iter::FromIterator as _};
 
 #[test]
+fn function_arity_rejects_mismatch() {
+    let pkgs = packages::parse_files(&[
+        "function-arity/Context.pkg.ssp",
+        "function-arity/Target.pkg.ssp",
+    ]);
+    let error = games::parse_file_fails("function-arity.comp.ssp", &pkgs);
+    let ParseGameError::ConnectedOraclesDontMatch(error) = error else {
+        panic!("expected an oracle signature mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "f");
+    assert_eq!(error.src_pkg_inst_name, "c");
+    assert_eq!(error.dst_pkg_inst_name, "x");
+}
+
+#[test]
 fn repeated_import_across_compose_blocks() {
     let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "Router.pkg.ssp"]);
     for destination in ["leaf", "other"] {

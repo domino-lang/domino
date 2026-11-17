@@ -209,9 +209,7 @@ impl Type {
             }
 
             (TypeKind::Fn(largs, lty), TypeKind::Fn(rargs, rty)) => {
-                // Existing callers compare zipped arguments; reduction interfaces
-                // also require matching function arities.
-                (!resolve_assignments || largs.len() == rargs.len())
+                largs.len() == rargs.len()
                     && largs
                         .iter()
                         .zip(rargs.iter())

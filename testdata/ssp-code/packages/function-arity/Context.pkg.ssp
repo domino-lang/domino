@@ -1,0 +1,4 @@
+package Context {
+    import oracles { f(callback: fn Integer -> Integer) -> Integer, }
+    oracle Eval() -> Integer { return 0; }
+}

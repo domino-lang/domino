@@ -154,6 +154,15 @@ fn reduction_requires_matching_exports() {
 }
 
 #[test]
+fn function_arity_accepts_match() {
+    let pkgs = packages::parse_files(&[
+        "function-arity/Context.pkg.ssp",
+        "function-arity/Target-control.pkg.ssp",
+    ]);
+    games::parse_file("function-arity.comp.ssp", &pkgs);
+}
+
+#[test]
 fn reduction_requires_matching_export_signatures() {
     let pkgs = packages::parse_files(&["BitLeaf.pkg.ssp"]);
     let games = games::parse_files(

@@ -1,0 +1,8 @@
+composition Game {
+    instance c = Context {}
+    instance x = Target {}
+    compose {
+        adversary: { Eval: c }
+        c: { f: x }
+    }
+}
