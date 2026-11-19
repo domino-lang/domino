@@ -61,7 +61,9 @@ impl<'a> GameInstanceContext<'a> {
         let mut dependencies_code: Vec<SmtExpr> = vec![self.build_no_abort(oracle_name)];
 
         dependencies_code.extend(invariants.iter().filter_map(|stmt| match stmt.kind {
-            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
                 Some(build_invariant_old_call(&stmt.kind.name()))
             }
             _ => None,

@@ -288,13 +288,17 @@ impl<'a> EquivalenceContext<'a> {
         ];
 
         dependencies_code.extend(left_invariants.iter().filter_map(|stmt| match stmt.kind {
-            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
                 Some(build_left_invariant_old_call(&stmt.kind.name()))
             }
             _ => None,
         }));
         dependencies_code.extend(right_invariants.iter().filter_map(|stmt| match stmt.kind {
-            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
                 Some(build_right_invariant_old_call(&stmt.kind.name()))
             }
             _ => None,
