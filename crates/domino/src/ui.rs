@@ -7,10 +7,7 @@ use itertools::Itertools;
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
-use sspverif::ui::{
-    GamehopUI, LatexUI, ProveClaimUI, ProveGameUI, ProveGamehopUI, ProveGamesUI,
-    ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI, ProveUI, UI,
-};
+use sspverif::ui::*;
 
 use sspverif::{
     gamehops::{
@@ -320,8 +317,7 @@ impl IndicatifProveGamehopUI {
 }
 
 impl ProveGameUI for IndicatifProveGamehopUI {
-    type ProveOracleUI = IndicatifProveOracleUI;
-    type ProveInvariantStartUI = IndicatifProveOracleUI;
+    type ProveGameClaimUI = IndicatifProveGamehopOracleUI;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.theorem_ui.println(line)
@@ -334,35 +330,23 @@ impl ProveGameUI for IndicatifProveGamehopUI {
         result
     }
 
-    fn start_oracle(&self, export: &Export) -> Self::ProveOracleUI {
+    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveGameClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveOracleUI {
+        IndicatifProveGamehopOracleUI {
             gamehop_ui: self.clone(),
-            name: export.name().to_string(),
-            progress: None,
-        }
-    }
-    fn start_invariant_start(&self, name: String) -> Self::ProveInvariantStartUI {
-        if let Some(progress) = &self.progress {
-            progress.inc_length(1);
-        }
-        self.tick();
-
-        IndicatifProveOracleUI {
-            gamehop_ui: self.clone(),
-            name,
+            name: claim.name().to_string(),
             progress: None,
         }
     }
 }
 
 impl ProveGamehopUI for IndicatifProveGamehopUI {
-    type ProveOracleUI = IndicatifProveOracleUI;
-    type ProveInvariantStartUI = IndicatifProveOracleUI;
+    type ProveGamehopOracleUI = IndicatifProveGamehopOracleUI;
+    type ProveGamehopInvariantStartUI = IndicatifProveGamehopOracleUI;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.theorem_ui.println(line)
@@ -388,25 +372,25 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
         self.finish();
     }
 
-    fn start_oracle(&self, export: &Export) -> Self::ProveOracleUI {
+    fn start_oracle(&self, export: &Export) -> Self::ProveGamehopOracleUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveOracleUI {
+        IndicatifProveGamehopOracleUI {
             gamehop_ui: self.clone(),
             name: export.name().to_string(),
             progress: None,
         }
     }
-    fn start_invariant_start(&self, name: String) -> Self::ProveInvariantStartUI {
+    fn start_invariant_start(&self, name: String) -> Self::ProveGamehopInvariantStartUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveOracleUI {
+        IndicatifProveGamehopOracleUI {
             gamehop_ui: self.clone(),
             name,
             progress: None,
@@ -415,13 +399,13 @@ impl ProveGamehopUI for IndicatifProveGamehopUI {
 }
 
 #[derive(Clone)]
-pub struct IndicatifProveOracleUI {
+pub struct IndicatifProveGamehopOracleUI {
     gamehop_ui: IndicatifProveGamehopUI,
     name: String,
     progress: Option<ProgressBar>,
 }
 
-impl IndicatifProveOracleUI {
+impl IndicatifProveGamehopOracleUI {
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.gamehop_ui.insert_before(before, progress)
     }
@@ -452,8 +436,8 @@ impl IndicatifProveOracleUI {
     }
 }
 
-impl ProveOracleUI for IndicatifProveOracleUI {
-    type ProveClaimUI = IndicatifProveClaimUI;
+impl ProveGamehopOracleUI for IndicatifProveGamehopOracleUI {
+    type ProveGamehopClaimUI = IndicatifProveGamehopClaimUI;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.println(line)
@@ -466,32 +450,72 @@ impl ProveOracleUI for IndicatifProveOracleUI {
         result
     }
 
-    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveClaimUI {
+    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveGamehopClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveClaimUI {
+        IndicatifProveGamehopClaimUI {
             oracle_ui: self.clone(),
             name: claim.name().to_string(),
         }
     }
-    fn start_injectivity(&self, claim: &str) -> Self::ProveClaimUI {
+    fn start_injectivity(&self, claim: &str) -> Self::ProveGamehopClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveClaimUI {
+        IndicatifProveGamehopClaimUI {
             oracle_ui: self.clone(),
             name: claim.to_string(),
         }
     }
 }
 
-impl ProveInvariantStartUI for IndicatifProveOracleUI {
-    type ProveClaimUI = IndicatifProveClaimUI;
+impl ProveGameClaimUI for IndicatifProveGamehopOracleUI {
+    type ProveGameOracleUI = IndicatifProveGamehopClaimUI;
+    type ProveGameInvariantStartUI = IndicatifProveGamehopClaimUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>> {
+        self.start();
+        let result = fun(&self);
+        self.finish();
+        result
+    }
+
+    fn start_oracle(&self, export: &Export) -> Self::ProveGameOracleUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        IndicatifProveGamehopClaimUI {
+            oracle_ui: self.clone(),
+            name: export.name().to_string(),
+        }
+    }
+
+    fn start_invariant_start(&self) -> Self::ProveGameInvariantStartUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        IndicatifProveGamehopClaimUI {
+            oracle_ui: self.clone(),
+            name: "!invariant-start!".to_string(),
+        }
+    }
+}
+
+impl ProveGamehopInvariantStartUI for IndicatifProveGamehopOracleUI {
+    type ProveGamehopClaimUI = IndicatifProveGamehopClaimUI;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.gamehop_ui.println(line)
@@ -504,25 +528,25 @@ impl ProveInvariantStartUI for IndicatifProveOracleUI {
         result
     }
 
-    fn start_claim(&self, claim: &str) -> Self::ProveClaimUI {
+    fn start_claim(&self, claim: &str) -> Self::ProveGamehopClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveClaimUI {
+        IndicatifProveGamehopClaimUI {
             oracle_ui: self.clone(),
             name: claim.to_string(),
         }
     }
 }
 
-pub struct IndicatifProveClaimUI {
-    oracle_ui: IndicatifProveOracleUI,
+pub struct IndicatifProveGamehopClaimUI {
+    oracle_ui: IndicatifProveGamehopOracleUI,
     name: String,
 }
 
-impl IndicatifProveClaimUI {
+impl IndicatifProveGamehopClaimUI {
     fn start(&mut self) {
         if let Some(progress) = &self.oracle_ui.progress {
             progress.set_message(format!("{} (cur: {})", self.oracle_ui.name, self.name));
@@ -555,7 +579,41 @@ impl IndicatifProveClaimUI {
     }
 }
 
-impl ProveClaimUI for IndicatifProveClaimUI {
+impl ProveGamehopClaimUI for IndicatifProveGamehopClaimUI {
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.oracle_ui.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce() -> Result<()>) -> Result<()> {
+        self.start();
+        let result = fun();
+        if result.is_err() {
+            self.failure();
+        } else {
+            self.success();
+        }
+        result
+    }
+}
+
+impl ProveGameOracleUI for IndicatifProveGamehopClaimUI {
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.oracle_ui.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce() -> Result<()>) -> Result<()> {
+        self.start();
+        let result = fun();
+        if result.is_err() {
+            self.failure();
+        } else {
+            self.success();
+        }
+        result
+    }
+}
+
+impl ProveGameInvariantStartUI for IndicatifProveGamehopClaimUI {
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.oracle_ui.println(line)
     }

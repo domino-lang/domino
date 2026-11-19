@@ -14,7 +14,7 @@ use crate::{
     package::Export,
     project::{configuration::ProveConfiguration, Project},
     theorem::RandomnessMappingInjectivityCheck,
-    ui::{ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI},
+    ui::{ProveGamehopClaimUI, ProveGamehopInvariantStartUI, ProveGamehopOracleUI, ProveGamehopUI},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
 
@@ -213,7 +213,7 @@ where
 
     fn verify_invariant_start(
         &self,
-        ui: impl ProveInvariantStartUI,
+        ui: impl ProveGamehopInvariantStartUI,
         equivalence_smt: &SmtBuf,
     ) -> Vec<Result<()>> {
         let claim_group = ClaimGroup::InvariantStart;
@@ -255,7 +255,7 @@ where
 
     fn verify_oracle(
         &self,
-        ui: impl ProveOracleUI,
+        ui: impl ProveGamehopOracleUI,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
     ) -> Vec<Result<()>> {
@@ -270,7 +270,7 @@ where
 
     fn do_verify_oracle(
         &self,
-        ui: &impl ProveOracleUI,
+        ui: &impl ProveGamehopOracleUI,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
         claims: &[ResolvedClaim],
