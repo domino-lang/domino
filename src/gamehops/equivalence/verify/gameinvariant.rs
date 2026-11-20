@@ -7,9 +7,10 @@ use crate::{
         verify::{ClaimGroup, SmtBuf, SmtDriver},
         ClaimType, ResolvedClaim, ResolvedDependency, SmtStatementKind, SmtStmt,
     },
+    package::Export,
     project::{configuration::ProveConfiguration, Project},
     ui::{ProveGameClaimUI, ProveGameInvariantStartUI, ProveGameOracleUI, ProveGameUI},
-    writers::smt::{contexts::GameInstanceContext, declare::declare_const},
+    writers::smt::{contexts::GameInstanceContext, declare::declare_const, exprs::SmtExpr},
 };
 
 pub(crate) struct GameInvariantSmtDriver<
@@ -67,6 +68,25 @@ where
         })
     }
 
+    fn export_smt(&self, export: Option<&Export>) -> Vec<SmtExpr> {
+        let mut smt = Vec::new();
+
+        if let Some(export) = export {
+            let orcl_ctx = self.gctx.exported_oracle_ctx_by_export(export).unwrap();
+
+            for (arg_name, arg_type) in &export.sig().args {
+                smt.push(declare_const(
+                    orcl_ctx.smt_arg_name(arg_name),
+                    arg_type.clone().into(),
+                ));
+            }
+        }
+
+        smt.extend(self.gctx.emit_constant_declarations(None));
+        smt.extend(self.invariants.iter().map(|stmt| stmt.expr.clone()));
+        smt
+    }
+
     pub fn verify_game_invariants(&self, ui: &impl ProveGameUI) -> Result<()> {
         let mut smt = Vec::new();
 
@@ -81,24 +101,6 @@ where
         smt.extend(self.gctx.smt_game_pkg_const_mapping_definitions());
         smt.extend(self.gctx.smt_package_return_definitions());
         smt.extend(self.gctx.smt_oracle_function_definitions());
-
-        for export in &self.gctx.game().exports {
-            let orcl_ctx = self
-                .gctx
-                .exported_oracle_ctx_by_name(export.name())
-                .unwrap();
-
-            for (arg_name, arg_type) in &export.sig().args {
-                smt.push(declare_const(
-                    orcl_ctx.smt_arg_name(arg_name),
-                    arg_type.clone().into(),
-                ));
-            }
-        }
-
-        smt.extend(self.gctx.emit_constant_declarations(None));
-
-        smt.extend(self.invariants.iter().map(|stmt| stmt.expr.clone()));
 
         let game_inst_smt = SmtBuf::from(smt.as_slice());
 
@@ -142,6 +144,8 @@ where
 
         let initial_state_values = self.gctx.emit_game_initial_state_values();
         game_inst_smt.push(initial_state_values.as_slice());
+        let export_smt = self.export_smt(None);
+        game_inst_smt.push(&export_smt);
 
         let assert = self.gctx.emit_game_or_package_invariant_start_assert(claim);
 
@@ -159,10 +163,13 @@ where
         claim: &ResolvedClaim,
     ) -> Vec<Result<()>> {
         ui.run(|ui| {
-            let oracle_sequence: Vec<_> = self
-                .gctx
-                .game()
-                .exports
+            let oracle_sequence = if let ClaimType::GameInvariant(exports) = &claim.ty {
+                exports
+            } else {
+                &self.gctx.game().exports
+            };
+
+            let oracle_sequence: Vec<_> = oracle_sequence
                 .iter()
                 .filter_map(|export| {
                     if self.config.oracle_requested(export.name()) {
@@ -184,11 +191,16 @@ where
                 };
                 let mut smt = game_inst_smt.clone();
 
-                let assert = vec![self.gctx.emit_oracle_claim_assert(
-                    claim,
-                    export.name(),
-                    &self.invariants,
-                )];
+                let export_smt = self.export_smt(Some(export));
+                let return_smt = self.gctx.emit_return(export);
+
+                smt.push(&export_smt);
+                smt.push(&return_smt);
+
+                let assert =
+                    vec![self
+                        .gctx
+                        .emit_oracle_claim_assert(claim, export, &self.invariants)];
                 smt.push(&assert);
 
                 ui.run(|| self.verify_with_solver(smt, &claim_group, &claim.name))
@@ -212,14 +224,53 @@ where
             })
         }
 
-        self.invariants.iter().filter_map(|stmt| match stmt.kind {
+        self.invariants.iter().filter_map(|stmt| match &stmt.kind {
             SmtStatementKind::PackageInvariant { .. } => {
                 new_claim(ClaimType::PackageInvariant, stmt.kind.name())
             }
-            SmtStatementKind::GameInvariant { .. } => {
-                new_claim(ClaimType::GameInvariant, stmt.kind.name())
-            }
+            SmtStatementKind::GameInvariant { .. } => new_claim(
+                ClaimType::GameInvariant(self.gctx.game().exports.clone()),
+                stmt.kind.name(),
+            ),
+            SmtStatementKind::SubGameInvariant { packages, .. } => new_claim(
+                ClaimType::GameInvariant(self.subgame_exports(packages)),
+                stmt.kind.name(),
+            ),
             _ => unreachable!(),
         })
+    }
+
+    fn subgame_exports(&self, packages: &[String]) -> Vec<Export> {
+        let mut exports = self.gctx.game().exports.clone();
+        let mut edges = self.gctx.game().edges.clone();
+
+        let mut pkgs = self.gctx.game().ordered_pkgs_idx();
+        pkgs.reverse();
+
+        while let Some((idx, pkg)) = pkgs.iter().enumerate().find(|(_, pkg)| {
+            edges.iter().all(|edge| edge.to() != **pkg)
+                && !packages
+                    .iter()
+                    .any(|pkgname| self.gctx.game().pkgs[**pkg].name() == *pkgname)
+        }) {
+            let pkg = *pkg;
+            pkgs.remove(idx);
+
+            exports.retain(|export| export.to() != pkg);
+            exports.extend(edges.iter().filter_map(|edge| {
+                if edge.from() == pkg {
+                    Some(Export::new(
+                        edge.to(),
+                        edge.sig().clone(),
+                        edge.alias().cloned(),
+                    ))
+                } else {
+                    None
+                }
+            }));
+            edges.retain(|edge| edge.from() != pkg);
+        }
+
+        exports
     }
 }
