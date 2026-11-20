@@ -93,6 +93,7 @@ impl<'a> OracleContext<'a> {
     pub(crate) fn oracle_arg_game_consts_pattern(&self) -> oracle_args::GameConstsPattern<'a> {
         oracle_args::GameConstsPattern {
             game_name: self.game_inst_ctx().game().name(),
+            game_params: &self.game_inst_ctx().game_inst().consts,
         }
     }
 

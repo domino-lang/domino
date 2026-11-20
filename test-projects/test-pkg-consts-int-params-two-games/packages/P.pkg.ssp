@@ -1,0 +1,10 @@
+package P {
+    params {
+        y: Integer,
+        z: Bits(y)
+    }
+
+    oracle Get() -> Bool {
+        return true;
+    }
+}
