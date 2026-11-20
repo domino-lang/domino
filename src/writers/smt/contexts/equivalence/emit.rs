@@ -268,7 +268,7 @@ impl<'a> EquivalenceContext<'a> {
             .map(|dep| match dep.ty {
                 ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
                 ClaimType::Relation => build_relation_call(&dep.name),
-                ClaimType::PackageInvariant | ClaimType::GameInvariant => {
+                ClaimType::PackageInvariant | ClaimType::GameInvariant(_) => {
                     unreachable!("Not a valid dependency: {} - {:?}", dep.name, dep.ty)
                 }
             })
@@ -277,7 +277,7 @@ impl<'a> EquivalenceContext<'a> {
         let postcond_call = match claim.ty {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::PackageInvariant | ClaimType::GameInvariant => {
+            ClaimType::PackageInvariant | ClaimType::GameInvariant(_) => {
                 unreachable!("Game and Package Invariants are proven using GameInstanceContext")
             }
         };
@@ -802,6 +802,13 @@ impl<'a> EquivalenceContext<'a> {
 
         out.extend(gctx_left.emit_constant_declarations(Some(&self.theorem().name)));
         out.extend(gctx_right.emit_constant_declarations(Some(&self.theorem().name)));
+
+        for export in &left.game().exports {
+            out.extend(gctx_left.emit_return(export));
+        }
+        for export in &right.game().exports {
+            out.extend(gctx_right.emit_return(export));
+        }
 
         out
     }

@@ -5,7 +5,7 @@ mod emit;
 use crate::{
     expressions::Expression,
     identifier::game_ident::GameConstIdentifier,
-    package::Composition,
+    package::{Composition, Export},
     theorem::GameInstance,
     transforms::{samplify::SampleInfo, theorem_transforms::EquivalenceTransform, GameTransform},
     writers::smt::patterns::{
@@ -132,6 +132,14 @@ impl<'a> GameInstanceContext<'a> {
             .iter()
             .find(|export| export.name() == oracle_name)?;
 
+        let inst_ctx = PackageInstanceContext::new(*self, export.to());
+
+        inst_ctx.oracle_ctx_by_name(&export.sig().name)
+    }
+    pub(crate) fn exported_oracle_ctx_by_export(
+        &self,
+        export: &Export,
+    ) -> Option<OracleContext<'a>> {
         let inst_ctx = PackageInstanceContext::new(*self, export.to());
 
         inst_ctx.oracle_ctx_by_name(&export.sig().name)
