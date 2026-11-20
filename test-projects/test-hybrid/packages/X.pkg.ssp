@@ -1,0 +1,8 @@
+package X {
+   params {
+     h: Integer,
+   }
+   oracle Run () {
+
+   }
+}

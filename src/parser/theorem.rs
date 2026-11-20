@@ -4,7 +4,7 @@ use itertools::Itertools;
 use std::collections::{BTreeSet, HashMap};
 
 use crate::{
-    expressions::Expression,
+    expressions::{Expression, ExpressionKind},
     gamehops::conjecture::Conjecture,
     gamehops::equivalence::Equivalence,
     gamehops::hybrid::Hybrid,
@@ -391,9 +391,6 @@ fn handle_instance_decl<'a>(
         .map(|(ident, expr)| (ident.clone(), expr.clone()))
         .collect();
 
-    // println!("printing constant assignment in the parser:");
-    // println!("  {consts_as_ident:#?}");
-
     let game_inst = GameInstance::new(
         game_inst_name,
         ctx.theorem_name.to_string(),
@@ -412,32 +409,41 @@ fn patch_game_instance(
     game_inst_name: &str,
     types: Vec<(String, Type)>,
     consts: &[(GameConstIdentifier, Expression)],
-    loop_var_name: &str,
-    bit_var_name: Option<&str>,
     ideal: bool,
     next: bool,
 ) -> GameInstance {
     let (hybrid_const, mut consts_as_ident): (Vec<_>, Vec<_>) = consts
         .iter()
         .map(|(ident, expr)| (ident.clone(), expr.clone()))
-        .partition(|(ident, _expr)| {
-            if ident.name == loop_var_name {
-                return true;
-            };
-            if let Some(bit_var_name) = bit_var_name {
-                if ident.name == bit_var_name {
+        .partition(|(_ident, expr)| {
+            if let ExpressionKind::Identifier(ident) = expr.kind() {
+                let ident = ident.as_theorem_identifier().unwrap();
+                if ident.ident() == "hybrid$loop" {
+                    return true;
+                };
+                if ident.ident() == "hybrid$bit" {
                     return true;
                 };
             }
             false
         });
-    let loopvar = hybrid_const
-        .iter()
-        .find(|(ident, _expr)| ident.name == loop_var_name);
-    let bitvar = bit_var_name.and_then(|bit_var_name| {
-        hybrid_const
-            .iter()
-            .find(|(ident, _expr)| ident.name == bit_var_name)
+    let loopvar = hybrid_const.iter().find(|(_ident, expr)| {
+        if let ExpressionKind::Identifier(ident) = expr.kind() {
+            let ident = ident.as_theorem_identifier().unwrap();
+            if ident.ident() == "hybrid$loop" {
+                return true;
+            };
+        }
+        false
+    });
+    let bitvar = hybrid_const.iter().find(|(_ident, expr)| {
+        if let ExpressionKind::Identifier(ident) = expr.kind() {
+            let ident = ident.as_theorem_identifier().unwrap();
+            if ident.ident() == "hybrid$bit" {
+                return true;
+            };
+        }
+        false
     });
 
     let bitval = if ideal { "true" } else { "false" };
@@ -453,7 +459,9 @@ fn patch_game_instance(
         }
     }
     if let Some(bitvar) = bitvar {
-        consts_as_ident.push((bitvar.0.clone(), Expression::boolean(ideal)))
+        let mut bitvar = bitvar.0.clone();
+        bitvar.assigned_value = Some(Box::new(Expression::boolean(ideal)));
+        consts_as_ident.push((bitvar, Expression::boolean(ideal)))
     }
     GameInstance::new(
         format!("{game_inst_name}${bitval}${nextval}"),
@@ -541,8 +549,6 @@ fn handle_hybrid_instance_decl_one<'a>(
             &game_inst_name,
             types.clone(),
             &consts,
-            loop_var_name,
-            Some(bit_var_name),
             false,
             false,
         ),
@@ -556,8 +562,6 @@ fn handle_hybrid_instance_decl_one<'a>(
             &game_inst_name,
             types.clone(),
             &consts,
-            loop_var_name,
-            Some(bit_var_name),
             false,
             true,
         ),
@@ -572,8 +576,6 @@ fn handle_hybrid_instance_decl_one<'a>(
             &game_inst_name,
             types.clone(),
             &consts,
-            loop_var_name,
-            Some(bit_var_name),
             true,
             false,
         ),
@@ -644,8 +646,6 @@ fn handle_hybrid_instance_decl_two<'a>(
             &game_inst_name,
             types.clone(),
             &consts,
-            loop_var_name,
-            None,
             false,
             false,
         ),
@@ -659,8 +659,6 @@ fn handle_hybrid_instance_decl_two<'a>(
             &game_inst_name,
             types.clone(),
             &consts,
-            loop_var_name,
-            None,
             false,
             true,
         ),
@@ -689,8 +687,6 @@ fn handle_hybrid_instance_decl_two<'a>(
             &game_inst_name,
             types.clone(),
             &consts,
-            loop_var_name,
-            None,
             true,
             false,
         ),
