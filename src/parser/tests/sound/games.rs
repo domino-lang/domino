@@ -4,7 +4,8 @@ use crate::{
     parser::{
         composition::ParseGameError,
         error::{
-            DuplicateEdgeDefinitionError, IdentifierAlreadyDeclaredError,
+            DuplicateEdgeDefinitionError, DuplicatePackageParameterDefinitionError,
+            DuplicatePackageTypeParameterDefinitionError, IdentifierAlreadyDeclaredError,
             MissingEdgeForImportedOracleError, MissingPackageParameterDefinitionError,
             TypeMismatchError, UndefinedOracleError, UnusedEdgeError,
         },
@@ -14,6 +15,21 @@ use crate::{
     types::{CountSpec, Type, TypeKind},
 };
 use std::{collections::HashMap, iter::FromIterator as _};
+
+#[test]
+fn function_arity_rejects_mismatch() {
+    let pkgs = packages::parse_files(&[
+        "function-arity/Context.pkg.ssp",
+        "function-arity/Target.pkg.ssp",
+    ]);
+    let error = games::parse_file_fails("function-arity.comp.ssp", &pkgs);
+    let ParseGameError::ConnectedOraclesDontMatch(error) = error else {
+        panic!("expected an oracle signature mismatch, got {error:?}");
+    };
+    assert_eq!(error.oracle_name, "f");
+    assert_eq!(error.src_pkg_inst_name, "c");
+    assert_eq!(error.dst_pkg_inst_name, "x");
+}
 
 #[test]
 fn repeated_import_across_compose_blocks() {
@@ -54,6 +70,89 @@ fn repeated_import_in_separate_source_entries() {
         error.at.offset(),
         error.source_code.inner().rfind("A:").unwrap()
     );
+}
+
+#[test]
+fn package_parameter_assigned_in_two_blocks() {
+    let pkgs = packages::parse_files(&["ParamLeaf.pkg.ssp"]);
+    let game = "composition Game {
+        instance leaf = ParamLeaf { params { flag: false } params { flag: true } }
+        compose { adversary: { Eval: leaf } }
+    }";
+    let error = games::parse_fails(game, "two-blocks.ssp", &pkgs);
+    let ParseGameError::DuplicateParameterDefinition(DuplicatePackageParameterDefinitionError {
+        source_code,
+        at,
+        param_name,
+        pkg_inst_name,
+        ..
+    }) = error
+    else {
+        panic!("a parameter set in two blocks must be refused, got {error:?}");
+    };
+    assert_eq!(param_name, "flag");
+    assert_eq!(pkg_inst_name, "leaf");
+    assert_eq!(slice_source_span(&source_code, &at), "flag");
+    assert_eq!(at.offset(), game.rfind("flag:").unwrap());
+}
+
+#[test]
+fn package_parameter_assigned_the_same_value_in_two_blocks() {
+    let pkgs = packages::parse_files(&["ParamLeaf.pkg.ssp"]);
+    let game = "composition Game {
+        instance leaf = ParamLeaf { params { flag: false } params { flag: false } }
+        compose { adversary: { Eval: leaf } }
+    }";
+    let error = games::parse_fails(game, "two-blocks-same.ssp", &pkgs);
+    let ParseGameError::DuplicateParameterDefinition(error) = error else {
+        panic!("the same value in two blocks must be refused, got {error:?}");
+    };
+    assert_eq!(error.param_name, "flag");
+    assert_eq!(error.pkg_inst_name, "leaf");
+    assert_eq!(slice_source_span(&error.source_code, &error.at), "flag");
+}
+
+#[test]
+fn type_parameter_assigned_twice_in_one_block() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let game = "composition Game {
+        instance leaf = Leaf { types { T: Integer, T: Bool } }
+        compose { adversary: { Eval: leaf } }
+    }";
+    let error = games::parse_fails(game, "type-twice.ssp", &pkgs);
+    let ParseGameError::DuplicateTypeParameterDefinition(error) = error else {
+        panic!("a type parameter named twice in one block must be refused, got {error:?}");
+    };
+    assert_eq!(error.param_name, "T");
+    assert_eq!(error.pkg_inst_name, "leaf");
+    assert_eq!(slice_source_span(&error.source_code, &error.at), "T");
+    assert_eq!(error.at.offset(), game.rfind("T:").unwrap());
+}
+
+#[test]
+fn type_parameter_assigned_in_two_blocks() {
+    let pkgs = packages::parse_files(&["Leaf.pkg.ssp"]);
+    let game = "composition Game {
+        instance leaf = Leaf { types { T: Integer } types { T: Bool } }
+        compose { adversary: { Eval: leaf } }
+    }";
+    let error = games::parse_fails(game, "type-two-blocks.ssp", &pkgs);
+    let ParseGameError::DuplicateTypeParameterDefinition(
+        DuplicatePackageTypeParameterDefinitionError {
+            source_code,
+            at,
+            param_name,
+            pkg_inst_name,
+            ..
+        },
+    ) = error
+    else {
+        panic!("a type parameter set in two blocks must be refused, got {error:?}");
+    };
+    assert_eq!(param_name, "T");
+    assert_eq!(pkg_inst_name, "leaf");
+    assert_eq!(slice_source_span(&source_code, &at), "T");
+    assert_eq!(at.offset(), game.rfind("T:").unwrap());
 }
 
 #[test]

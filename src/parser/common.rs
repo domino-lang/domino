@@ -155,9 +155,9 @@ pub(crate) fn handle_game_params_def_list(
     pkg: &Package,
     pkg_inst_name: &str,
     ast: Pair<Rule>,
+    defined_params: &mut HashMap<String, SourceSpan>,
 ) -> std::result::Result<Vec<(String, Expression)>, super::composition::ParseGameError> {
     debug_assert_matches!(ast.as_rule(), Rule::params_def_list);
-    let mut defined_params = HashMap::<String, SourceSpan>::new();
     let block_span = ast.as_span();
 
     // We need to process ints first, so we can rewrite the Bits(<some int>) that contain the name
@@ -334,9 +334,9 @@ pub(crate) fn handle_theorem_params_def_list(
     game: &Composition,
     game_inst_name: &str,
     ast: Pair<Rule>,
+    defined_params: &mut HashMap<String, SourceSpan>,
 ) -> Result<Vec<(String, Expression)>, ParseTheoremError> {
     let params = &game.consts;
-    let mut defined_params = HashMap::<String, SourceSpan>::new();
     let block_span = ast.as_span();
 
     // We need to process ints first, so we can rewrite the Bits(<some int>) that contain the name

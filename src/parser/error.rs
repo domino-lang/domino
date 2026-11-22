@@ -430,6 +430,25 @@ pub struct DuplicatePackageParameterDefinitionError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error(
+    "package type parameter '{param_name}' has been defined twice in package instance {pkg_inst_name}"
+)]
+#[diagnostic(code(domino::code::pkg_inst::duplicate_type_parameter_definition))]
+pub struct DuplicatePackageTypeParameterDefinitionError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this identifier here")]
+    pub at: SourceSpan,
+
+    #[label("has previously been defined here")]
+    pub other: SourceSpan,
+
+    pub param_name: String,
+    pub pkg_inst_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("game parameter '{param_name}' has been defined twice in game instance {game_inst_name}")]
 #[diagnostic(code(domino::code::game_inst::duplicate_parameter_definition))]
 pub struct DuplicateGameParameterDefinitionError {
@@ -682,7 +701,7 @@ pub struct ReductionExportMismatchError {
     pub right_game_inst_name: String,
     pub oracle_name: String,
     pub left_signature: String,
-    pub right_signature: String,
+    pub right_signature: OracleSigType,
 }
 
 #[derive(Debug, Diagnostic, Error)]
@@ -703,8 +722,8 @@ pub struct ReductionContextOracleMismatchError {
     pub import_name: String,
     pub left_oracle_name: String,
     pub right_oracle_name: String,
-    pub left_signature: String,
-    pub right_signature: String,
+    pub left_signature: OracleSigType,
+    pub right_signature: OracleSigType,
 }
 
 #[derive(Debug, Diagnostic, Error)]
@@ -794,20 +813,36 @@ pub struct AssumptionMappingWiringMismatchError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
-#[error("Package instances {left_pkg_inst_name} and {right_pkg_inst_name} have different numbers of parameter assignments ({left_count} and {right_count})")]
-#[diagnostic(code(domino::code::theorem::reduction::parameter_count_mismatch))]
-#[help("Assign the package parameters equally on both sides; check for repeated params blocks.")]
-pub struct ReductionPackageParameterCountMismatchError {
+#[error("The package instances {left_pkg_inst_name} and {right_pkg_inst_name} in a reduction have different type parameters")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::reduction_type_parameter_mismatch))]
+#[help("Assign the same type parameters on both instances.")]
+pub struct ReductionPackageTypeParameterMismatchError {
     #[source_code]
     pub source_code: miette::NamedSource<String>,
 
-    #[label("in this reduction mapping or context")]
-    pub at: SourceSpan,
+    #[label("in this reduction")]
+    pub at_reduction: SourceSpan,
 
     pub left_pkg_inst_name: String,
     pub right_pkg_inst_name: String,
-    pub left_count: usize,
-    pub right_count: usize,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different type parameters")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::type_parameter_mismatch))]
+#[help("Assign the same type parameters on the mapped instances.")]
+pub struct AssumptionMappingTypeParameterMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this package instance")]
+    pub at_assumption: SourceSpan,
+
+    #[label("and that package instance")]
+    pub at_construction: SourceSpan,
+
+    pub assumption_pkg_inst_name: String,
+    pub construction_pkg_inst_name: String,
 }
 
 #[derive(Debug, Diagnostic, Error)]

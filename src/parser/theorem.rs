@@ -45,15 +45,15 @@ use super::{
         AssumptionAdversaryExportsNotSufficientError, AssumptionExportsNotSufficientError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
         AssumptionMappingRightGameInstanceIsFromAssumption,
-        AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
-        DuplicateGameInstanceDefinitionError, DuplicateGameParameterDefinitionError,
-        InvalidGameInstanceInReductionError, MissingGameParameterDefinitionError,
-        NoSuchGameParameterError, ParserScopeError, ReductionContextInstanceMismatchError,
-        ReductionContextOracleMismatchError, ReductionCyclicContextError,
-        ReductionExportMismatchError, ReductionInconsistentAssumptionBoundaryError,
-        ReductionInvalidHybridMappingError, ReductionMissingExportError,
-        ReductionPackageInstanceParameterMismatchError,
-        ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
+        AssumptionMappingTypeParameterMismatchError, AssumptionMappingUnmappedDestinationError,
+        AssumptionMappingWiringMismatchError, DuplicateGameInstanceDefinitionError,
+        DuplicateGameParameterDefinitionError, InvalidGameInstanceInReductionError,
+        MissingGameParameterDefinitionError, NoSuchGameParameterError, ParserScopeError,
+        ReductionContextInstanceMismatchError, ReductionContextOracleMismatchError,
+        ReductionCyclicContextError, ReductionExportMismatchError,
+        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
+        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionPackageTypeParameterMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameError, UndefinedGameInstanceError,
         UndefinedPackageInstanceError, UndefinedRandomnessSortError,
     },
@@ -314,7 +314,11 @@ pub enum ParseTheoremError {
 
     #[diagnostic(transparent)]
     #[error(transparent)]
-    ReductionPackageParameterCountMismatch(#[from] ReductionPackageParameterCountMismatchError),
+    ReductionPackageTypeParameterMismatch(#[from] ReductionPackageTypeParameterMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingTypeParameterMismatch(#[from] AssumptionMappingTypeParameterMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -758,6 +762,8 @@ fn handle_instance_assign_list(
 
     let types = vec![];
     let mut consts = vec![];
+    // One map for every params block, so a name set in a later block is a duplicate.
+    let mut defined_params = HashMap::<String, miette::SourceSpan>::new();
 
     for ast in ast {
         match ast.as_rule() {
@@ -767,8 +773,13 @@ fn handle_instance_assign_list(
             }
             Rule::params_def => {
                 if let Some(ast) = ast.into_inner().next() {
-                    let defs =
-                        common::handle_theorem_params_def_list(ctx, game, game_inst_name, ast)?;
+                    let defs = common::handle_theorem_params_def_list(
+                        ctx,
+                        game,
+                        game_inst_name,
+                        ast,
+                        &mut defined_params,
+                    )?;
 
                     consts.extend(defs.into_iter().map(|(name, value)| {
                         (

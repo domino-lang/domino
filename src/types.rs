@@ -190,9 +190,15 @@ impl Type {
             |left: &Type, right: &Type| left.types_match_impl(right, resolve_assignments);
         match (self.kind(), other.kind()) {
             (TypeKind::Bits(l), TypeKind::Bits(r)) if resolve_assignments => {
-                l == r
-                    || matches!((l.resolved_expression(), r.resolved_expression()),
-                        (Some(l), Some(r)) if l == r)
+                // A game constant compares equal without its assignment, so structural
+                // equality cannot decide two identifiers. An identifier always resolves.
+                // `Any` and a literal that does not fit in an expression do not, and
+                // those still compare as specs.
+                match (l.resolved_expression(), r.resolved_expression()) {
+                    (Some(left), Some(right)) => left == right,
+                    (None, None) => l == r,
+                    _ => false,
+                }
             }
             (TypeKind::Bits(l), TypeKind::Bits(r)) => l.countspecs_match(r),
 
@@ -209,9 +215,7 @@ impl Type {
             }
 
             (TypeKind::Fn(largs, lty), TypeKind::Fn(rargs, rty)) => {
-                // Existing callers compare zipped arguments; reduction interfaces
-                // also require matching function arities.
-                (!resolve_assignments || largs.len() == rargs.len())
+                largs.len() == rargs.len()
                     && largs
                         .iter()
                         .zip(rargs.iter())
@@ -392,12 +396,28 @@ impl std::fmt::Display for CountSpec {
 
 #[cfg(test)]
 mod tests {
+    use crate::expressions::Expression;
     use crate::identifier::{
+        game_ident::{GameConstIdentifier, GameIdentifier},
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
         Identifier,
     };
 
     use super::{CountSpec, Type};
+
+    fn bits_named(assigned: Option<i64>) -> Type {
+        Type::bits(CountSpec::Identifier(Box::new(Identifier::GameIdentifier(
+            GameIdentifier::Const(GameConstIdentifier {
+                game_name: "Game".to_string(),
+                name: "n".to_string(),
+                ty: Type::integer(),
+                game_inst_name: None,
+                theorem_name: None,
+                inst_info: None,
+                assigned_value: assigned.map(|value| Box::new(Expression::integer(value))),
+            }),
+        ))))
+    }
 
     #[test]
     fn display_countspec() {
@@ -420,6 +440,79 @@ mod tests {
                     })
                 )))
             )
+        );
+    }
+
+    #[test]
+    fn resolved_bits_length_follows_the_assignment() {
+        let assigned_eight = bits_named(Some(8));
+        let assigned_sixteen = bits_named(Some(16));
+        let assigned_eight_again = bits_named(Some(8));
+        let literal_eight = Type::bits(CountSpec::Literal(8));
+        let unassigned = bits_named(None);
+        let unassigned_again = bits_named(None);
+
+        let cases = [
+            (
+                "assigned 8 against assigned 16",
+                assigned_eight.types_match_resolved(&assigned_sixteen),
+                false,
+            ),
+            (
+                "assigned 8 against assigned 8",
+                assigned_eight.types_match_resolved(&assigned_eight_again),
+                true,
+            ),
+            (
+                "assigned 8 against literal 8",
+                assigned_eight.types_match_resolved(&literal_eight),
+                true,
+            ),
+            (
+                "two unassigned identifiers of the same name",
+                unassigned.types_match_resolved(&unassigned_again),
+                true,
+            ),
+        ];
+        let mut failures: Vec<_> = cases
+            .into_iter()
+            .filter(|(_, got, want)| got != want)
+            .map(|(name, got, want)| format!("{name}: got {got}, want {want}"))
+            .collect();
+
+        // The unresolved comparison is unchanged.
+        let unresolved = [
+            (
+                "unresolved assigned 8 against assigned 16",
+                assigned_eight.types_match(&assigned_sixteen),
+                false,
+            ),
+            (
+                "unresolved assigned 8 against assigned 8",
+                assigned_eight.types_match(&assigned_eight_again),
+                true,
+            ),
+            (
+                "unresolved assigned 8 against literal 8",
+                assigned_eight.types_match(&literal_eight),
+                false,
+            ),
+            (
+                "unresolved unassigned identifiers of the same name",
+                unassigned.types_match(&unassigned_again),
+                true,
+            ),
+        ];
+        failures.extend(
+            unresolved
+                .into_iter()
+                .filter(|(_, got, want)| got != want)
+                .map(|(name, got, want)| format!("{name}: got {got}, want {want}")),
+        );
+        assert!(
+            failures.is_empty(),
+            "bit length comparison:\n{}",
+            failures.join("\n")
         );
     }
 }

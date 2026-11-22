@@ -24,6 +24,7 @@ use crate::{
         AssumptionMappingRightGameInstanceIsFromAssumption, InvalidGameInstanceInReductionError,
     },
     theorem::GameInstance,
+    types::Type,
 };
 
 use super::{
@@ -33,13 +34,13 @@ use super::{
         AssumptionMappingContainsDifferentPackagesError,
         AssumptionMappingDuplicatePackageInstanceError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
-        AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
-        ReductionContainsDifferentPackagesError, ReductionContextInstanceMismatchError,
-        ReductionContextOracleMismatchError, ReductionCyclicContextError,
-        ReductionExportMismatchError, ReductionInconsistentAssumptionBoundaryError,
-        ReductionInvalidHybridMappingError, ReductionMissingExportError,
-        ReductionPackageInstanceParameterMismatchError,
-        ReductionPackageParameterCountMismatchError, ReductionSameGameInstanceError,
+        AssumptionMappingTypeParameterMismatchError, AssumptionMappingUnmappedDestinationError,
+        AssumptionMappingWiringMismatchError, ReductionContainsDifferentPackagesError,
+        ReductionContextInstanceMismatchError, ReductionContextOracleMismatchError,
+        ReductionCyclicContextError, ReductionExportMismatchError,
+        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
+        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionPackageTypeParameterMismatchError, ReductionSameGameInstanceError,
         UndefinedAssumptionError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
     },
     theorem::{ParseTheoremContext, ParseTheoremError},
@@ -264,12 +265,24 @@ fn check_context_oracles(
     for &(left, right) in &traversal.imports {
         let left_sig = left.sig();
         let right_sig = right.sig();
-        let enters_assumption = mapping_left.entry_for(&game_left.pkgs[left.to()]).is_some();
         let left_name = context_destination_name(ctx, mapping_left, game_left, left)?;
         let right_name = context_destination_name(ctx, mapping_right, game_right, right)?;
-        if left_name != right_name
-            || (!enters_assumption && !left_sig.types_match_resolved(right_sig))
-        {
+        let targets_match = if let (Some(left_entry), Some(right_entry)) = (
+            mapping_left.entry_for(&game_left.pkgs[left.to()]),
+            mapping_right.entry_for(&game_right.pkgs[right.to()]),
+        ) {
+            assumption_oracles_match(
+                mapping_left.assumption_game_instance(ctx),
+                left_entry,
+                &left_sig.name,
+                mapping_right.assumption_game_instance(ctx),
+                right_entry,
+                &right_sig.name,
+            )
+        } else {
+            left_name == right_name && left_sig.types_match_resolved(right_sig)
+        };
+        if !targets_match {
             return Err(ReductionContextOracleMismatchError {
                 source_code: ctx.named_source(),
                 at: (reduction_span.start()..reduction_span.end()).into(),
@@ -280,8 +293,8 @@ fn check_context_oracles(
                 import_name: left.name().to_string(),
                 left_oracle_name: left_name.to_string(),
                 right_oracle_name: right_name.to_string(),
-                left_signature: left_sig.to_oracle_type().to_string(),
-                right_signature: right_sig.to_oracle_type().to_string(),
+                left_signature: left_sig.to_oracle_type(),
+                right_signature: right_sig.to_oracle_type(),
             }
             .into());
         }
@@ -289,8 +302,8 @@ fn check_context_oracles(
     Ok(())
 }
 
-// Context destinations use their internal oracle name. At the assumption
-// boundary, identify the public export through the mapped assumption instance.
+// Diagnostic names: use the internal oracle name for context destinations,
+// and the first public export of the mapped oracle at the assumption boundary.
 fn context_destination_name<'a>(
     ctx: &'a ParseTheoremContext,
     mapping: &ReductionMapping,
@@ -347,12 +360,11 @@ fn check_context_package_equality(
 ) -> Result<(), ParseTheoremError> {
     let diff = package_instances_diff(
         ctx,
-        reduction_span,
         left_pkg_inst,
         left_game_inst,
         right_pkg_inst,
         right_game_inst,
-    )?;
+    );
 
     match diff {
         PackageInstanceDiff::DifferentPackage(left_pkg_name, right_pkg_name) => {
@@ -375,6 +387,15 @@ fn check_context_package_equality(
                 right_pkg_inst_name: right_pkg_inst.name().to_string(),
 
                 param_names: param_diff.join(", "),
+            }
+            .into());
+        }
+        PackageInstanceDiff::DifferentTypes => {
+            return Err(ReductionPackageTypeParameterMismatchError {
+                source_code: ctx.named_source(),
+                at_reduction: (reduction_span.start()..reduction_span.end()).into(),
+                left_pkg_inst_name: left_pkg_inst.name().to_string(),
+                right_pkg_inst_name: right_pkg_inst.name().to_string(),
             }
             .into());
         }
@@ -461,6 +482,8 @@ pub(super) fn handle_reduction_body<'a>(
         reduction_span,
         left_game_inst,
         right_game_inst,
+        &mapping_left,
+        &mapping_right,
         &traversal,
     )?;
 
@@ -558,6 +581,8 @@ fn check_construction_exports(
     reduction_span: pest::Span,
     left_game_inst: &GameInstance,
     right_game_inst: &GameInstance,
+    mapping_left: &ReductionMapping,
+    mapping_right: &ReductionMapping,
     traversal: &ReductionTraversal,
 ) -> Result<(), ParseTheoremError> {
     let mismatch = |left: Option<&Export>, right: &Export| {
@@ -570,7 +595,7 @@ fn check_construction_exports(
             left_signature: left
                 .map(|export| export.sig().to_oracle_type().to_string())
                 .unwrap_or_else(|| "not exported".to_string()),
-            right_signature: right.sig().to_oracle_type().to_string(),
+            right_signature: right.sig().to_oracle_type(),
         }
         .into()
     };
@@ -584,7 +609,25 @@ fn check_construction_exports(
         }
     }
     for &(left_export, right_export) in &traversal.exports {
-        if !left_export.sig().types_match_resolved(right_export.sig()) {
+        // The traversal has checked context instance correspondence and boundary membership.
+        let targets_match = if let Some(left_entry) =
+            mapping_left.entry_for(&left_game_inst.game().pkgs[left_export.to()])
+        {
+            let right_entry = mapping_right
+                .entry_for(&right_game_inst.game().pkgs[right_export.to()])
+                .expect("context traversal validates matching assumption membership");
+            assumption_oracles_match(
+                mapping_left.assumption_game_instance(ctx),
+                left_entry,
+                &left_export.sig().name,
+                mapping_right.assumption_game_instance(ctx),
+                right_entry,
+                &right_export.sig().name,
+            )
+        } else {
+            left_export.sig().name == right_export.sig().name
+        };
+        if !targets_match || !left_export.sig().types_match_resolved(right_export.sig()) {
             return Err(mismatch(Some(left_export), right_export));
         }
     }
@@ -651,17 +694,11 @@ fn handle_mapspec_assumption<'a>(
         .tuples()
         .collect();
 
-    let pkg_offset_mapping = check_mapping_assignments(
-        ctx,
-        mapping_span,
-        &mappings,
-        assumption_game_inst,
-        construction_game_inst,
-    )?;
+    let pkg_offset_mapping =
+        check_mapping_assignments(ctx, &mappings, assumption_game_inst, construction_game_inst)?;
     check_assumption_coverage(ctx, mapping_span, &mappings, assumption_game_inst)?;
     check_incoming_wires(
         ctx,
-        mapping_span,
         &pkg_offset_mapping,
         assumption_game_inst,
         construction_game_inst,
@@ -715,20 +752,27 @@ fn check_mapping_wires(
     construction: &GameInstance,
     check_oracle_names: bool,
 ) -> Result<(), ParseTheoremError> {
-    // Preserve the per-package order: forward wires, then reverse wires.
     for entry in entries {
-        for check in [check_construction_wires, check_assumption_wires] {
-            check(
-                ctx,
-                span,
-                entries,
-                assumption,
-                construction,
-                &entry.construction_offset,
-                &entry.assumption_offset,
-                check_oracle_names,
-            )?;
-        }
+        check_construction_wires(
+            ctx,
+            span,
+            entries,
+            assumption,
+            construction,
+            &entry.construction_offset,
+            &entry.assumption_offset,
+            check_oracle_names,
+        )?;
+        check_assumption_wires(
+            ctx,
+            span,
+            entries,
+            assumption,
+            construction,
+            &entry.construction_offset,
+            &entry.assumption_offset,
+            check_oracle_names,
+        )?;
     }
     Ok(())
 }
@@ -889,6 +933,14 @@ fn check_mapping_diff(
             }
             .into())
         }
+        PackageInstanceDiff::DifferentTypes => Err(AssumptionMappingTypeParameterMismatchError {
+            source_code: ctx.named_source(),
+            at_assumption,
+            at_construction,
+            assumption_pkg_inst_name,
+            construction_pkg_inst_name,
+        }
+        .into()),
         PackageInstanceDiff::Same => Ok(()),
     }
 }
@@ -917,7 +969,6 @@ fn resolve_mapping_package<'game>(
 
 fn check_mapping_assignments<'a>(
     ctx: &ParseTheoremContext,
-    mapping_span: pest::Span,
     mappings: &[(PackageInstanceName<'a>, PackageInstanceName<'a>)],
     assumption_game: &GameInstance,
     construction_game: &GameInstance,
@@ -939,12 +990,11 @@ fn check_mapping_assignments<'a>(
             resolve_mapping_package(ctx, construction_ast, construction_game)?;
         let diff = package_instances_diff(
             ctx,
-            mapping_span,
             assumption,
             assumption_game,
             construction,
             construction_game,
-        )?;
+        );
         check_mapping_diff(ctx, assumption_ast, construction_ast, diff)?;
         entries.push(ReductionMappingEntry {
             assumption_offset,
@@ -998,6 +1048,26 @@ fn rewrite_game_signature(
     .rewrite_oracle_sig(sig.clone())
 }
 
+// Both mapped targets must be published under a common name, in any order.
+fn assumption_oracles_match(
+    left_assumption: &GameInstance,
+    left_entry: &ReductionMappingEntry,
+    left_oracle_name: &str,
+    right_assumption: &GameInstance,
+    right_entry: &ReductionMappingEntry,
+    right_oracle_name: &str,
+) -> bool {
+    left_assumption.game().exports.iter().any(|left| {
+        left.to() == left_entry.assumption_offset
+            && left.sig().name == left_oracle_name
+            && right_assumption.game().exports.iter().any(|right| {
+                right.to() == right_entry.assumption_offset
+                    && right.sig().name == right_oracle_name
+                    && left.name() == right.name()
+            })
+    })
+}
+
 // Match the internal oracle name, not its public export alias.
 fn mapped_oracle_export<'a>(
     ctx: &ParseTheoremContext,
@@ -1027,7 +1097,6 @@ fn mapped_oracle_export<'a>(
 
 fn check_incoming_wires(
     ctx: &ParseTheoremContext,
-    mapping_span: pest::Span,
     pkg_offset_mapping: &[ReductionMappingEntry],
     assumption_game_inst: &GameInstance,
     construction_game_inst: &GameInstance,
@@ -1051,32 +1120,8 @@ fn check_incoming_wires(
         }
 
         if let Some(entry) = dst_pkginst_mapping {
-            let assump_dst = entry.assumption_offset;
-            let constr_dst_pkg_inst = &construction_game_inst.game().pkgs[edge.to()];
-            let assump_dst_pkg_inst = &assumption_game_inst.game().pkgs[assump_dst];
-
             // if it's cross-cut, it needs to be exported, else error out
             mapped_oracle_export(ctx, assumption_game_inst, entry, &edge.sig().name)?;
-
-            // check that the destination packages in construction and assumption are equivalent
-
-            let diff = package_instances_diff(
-                ctx,
-                mapping_span,
-                constr_dst_pkg_inst,
-                construction_game_inst,
-                assump_dst_pkg_inst,
-                assumption_game_inst,
-            )?;
-            // Comparison remains construction-first: repeated assignments make
-            // it asymmetric. Reorient only the diagnostic's package names.
-            let diff = match diff {
-                PackageInstanceDiff::DifferentPackage(construction, assumption) => {
-                    PackageInstanceDiff::DifferentPackage(assumption, construction)
-                }
-                other => other,
-            };
-            check_mapping_diff(ctx, entry.assumption(), entry.construction(), diff)?;
         }
     }
 
@@ -1310,44 +1355,26 @@ fn check_assumption_wires(
 
 fn package_instances_diff<'a>(
     ctx: &ParseTheoremContext,
-    span: pest::Span,
     left_pkg_inst: &'a PackageInstance,
     left_game_inst: &GameInstance,
     right_pkg_inst: &PackageInstance,
     right_game_inst: &GameInstance,
-) -> Result<PackageInstanceDiff<'a>, ParseTheoremError> {
+) -> PackageInstanceDiff<'a> {
     if left_pkg_inst.pkg.name != right_pkg_inst.pkg.name {
-        return Ok(PackageInstanceDiff::DifferentPackage(
+        return PackageInstanceDiff::DifferentPackage(
             left_pkg_inst.pkg.name.clone(),
             right_pkg_inst.pkg.name.clone(),
-        ));
-    }
-
-    // Repeated params blocks can supply more than one assignment per name.
-    if left_pkg_inst.params.len() != right_pkg_inst.params.len() {
-        return Err(ReductionPackageParameterCountMismatchError {
-            source_code: ctx.named_source(),
-            at: (span.start()..span.end()).into(),
-            left_pkg_inst_name: left_pkg_inst.name().to_string(),
-            right_pkg_inst_name: right_pkg_inst.name().to_string(),
-            left_count: left_pkg_inst.params.len(),
-            right_count: right_pkg_inst.params.len(),
-        }
-        .into());
+        );
     }
 
     let mut different_params = vec![];
-    let mut right_params = HashMap::new();
-    for (ident, expression) in &right_pkg_inst.params {
-        // The first assignment in declaration order wins across repeated params blocks.
-        right_params
-            .entry(ident.name.as_str())
-            .or_insert(expression);
-    }
 
     for (param_ident, left_param_expr) in &left_pkg_inst.params {
-        let right_param_expr = *right_params
-            .get(param_ident.name.as_str())
+        let right_param_expr = right_pkg_inst
+            .params
+            .iter()
+            .find(|(ident, _)| ident.name == param_ident.name)
+            .map(|(_, expr)| expr)
             .expect("package instantiation validates every parameter of the same package type");
 
         // here we compare whether param_expr and other_param_expr match.
@@ -1409,15 +1436,63 @@ fn package_instances_diff<'a>(
     }
 
     if !different_params.is_empty() {
-        Ok(PackageInstanceDiff::DifferentParams(different_params))
-    } else {
-        Ok(PackageInstanceDiff::Same)
+        return PackageInstanceDiff::DifferentParams(different_params);
     }
+
+    if type_parameter_difference(
+        ctx.theorem_name,
+        left_game_inst,
+        &left_pkg_inst.types,
+        right_game_inst,
+        &right_pkg_inst.types,
+    ) {
+        return PackageInstanceDiff::DifferentTypes;
+    }
+
+    PackageInstanceDiff::Same
+}
+
+fn type_parameter_difference(
+    theorem_name: &str,
+    left_game_inst: &GameInstance,
+    left: &[(String, Type)],
+    right_game_inst: &GameInstance,
+    right: &[(String, Type)],
+) -> bool {
+    let left = resolved_type_parameters(left_game_inst, theorem_name, left);
+    let right = resolved_type_parameters(right_game_inst, theorem_name, right);
+    let same = left.len() == right.len()
+        && left
+            .iter()
+            .zip(&right)
+            .all(|((left_name, left_ty), (right_name, right_ty))| {
+                left_name == right_name && left_ty.types_match_resolved(right_ty)
+            });
+    !same
+}
+
+fn resolved_type_parameters(
+    game_inst: &GameInstance,
+    theorem_name: &str,
+    types: &[(String, Type)],
+) -> Vec<(String, Type)> {
+    let inst_ctx = InstantiationContext::new_game_instantiation_context(
+        game_inst.name(),
+        theorem_name,
+        &game_inst.consts,
+    );
+    let mut resolved: Vec<_> = types
+        .iter()
+        .map(|(name, ty)| (name.clone(), inst_ctx.rewrite_type(ty.clone())))
+        .collect();
+    resolved.sort_by(|left, right| left.0.cmp(&right.0));
+    resolved
 }
 
 enum PackageInstanceDiff<'a> {
     DifferentPackage(String, String),
     DifferentParams(Vec<&'a str>),
+    DifferentTypes,
     Same,
 }
 
