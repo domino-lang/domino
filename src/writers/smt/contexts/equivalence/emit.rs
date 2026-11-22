@@ -273,7 +273,7 @@ impl<'a> EquivalenceContext<'a> {
             .map(|dep| match dep.ty {
                 ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
                 ClaimType::Relation => build_relation_call(&dep.name),
-                ClaimType::PackageInvariant | ClaimType::GameInvariant(_) => {
+                ClaimType::PackageInvariant(_) | ClaimType::GameInvariant(_) => {
                     unreachable!("Not a valid dependency: {} - {:?}", dep.name, dep.ty)
                 }
             })
@@ -282,7 +282,7 @@ impl<'a> EquivalenceContext<'a> {
         let postcond_call = match claim.ty {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::PackageInvariant | ClaimType::GameInvariant(_) => {
+            ClaimType::PackageInvariant(_) | ClaimType::GameInvariant(_) => {
                 unreachable!("Game and Package Invariants are proven using GameInstanceContext")
             }
         };

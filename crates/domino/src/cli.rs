@@ -60,6 +60,8 @@ pub(crate) struct Prove<'a> {
     #[clap(long)]
     pub(crate) theorem: Option<String>,
     #[clap(long)]
+    pub(crate) game: Vec<String>,
+    #[clap(long)]
     pub(crate) oracle: Option<String>,
     #[clap(long)]
     pub(crate) claim: Option<String>,
@@ -99,6 +101,13 @@ impl<'a> ProveConfiguration for Prove<'a> {
             .as_ref()
             .map(|name| theorem == name)
             .unwrap_or(true)
+    }
+
+    fn game_requested(&self, game: &str) -> bool {
+        if self.game.is_empty() {
+            return true;
+        };
+        self.game.iter().any(|name| game == name)
     }
 
     fn gamehop_requested(&self, gamehop: usize) -> bool {

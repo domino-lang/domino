@@ -128,6 +128,10 @@ pub trait Project {
         let game_insts = game_keys
             .iter()
             .filter_map(|key| {
+                if !config.game_requested(key) {
+                    return None;
+                }
+
                 let game = self.get_game(key).unwrap();
 
                 if game.invariants.is_empty()

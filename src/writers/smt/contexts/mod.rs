@@ -44,8 +44,9 @@ fn emit_base_declarations(types: impl IntoIterator<Item = Type>) -> Vec<SmtExpr>
     let mut base_declarations: Vec<SmtExpr> = vec![("set-logic", "ALL").into()];
 
     let mut bits_sort_suffixes = HashSet::new();
+    let mut user_defined: HashSet<String> = HashSet::new();
 
-    fn add_type(suffixes: &mut HashSet<String>, ty: &Type) {
+    fn add_type(suffixes: &mut HashSet<String>, user_defined: &mut HashSet<String>, ty: &Type) {
         match ty.kind() {
             TypeKind::Bits(count_spec) => {
                 let bits_sort_suffix = count_spec.resolved_suffix();
@@ -57,34 +58,42 @@ fn emit_base_declarations(types: impl IntoIterator<Item = Type>) -> Vec<SmtExpr>
                 suffixes.insert(bits_sort_suffix.clone());
             }
             TypeKind::List(inner_ty) | TypeKind::Set(inner_ty) | TypeKind::Maybe(inner_ty) => {
-                add_type(suffixes, inner_ty);
+                add_type(suffixes, user_defined, inner_ty);
             }
             TypeKind::Fn(arg_tys, return_ty) => {
                 for ty in arg_tys {
-                    add_type(suffixes, ty);
+                    add_type(suffixes, user_defined, ty);
                 }
-                add_type(suffixes, return_ty);
+                add_type(suffixes, user_defined, return_ty);
             }
             TypeKind::Table(index_ty, value_ty) => {
-                add_type(suffixes, index_ty);
-                add_type(suffixes, value_ty);
+                add_type(suffixes, user_defined, index_ty);
+                add_type(suffixes, user_defined, value_ty);
             }
             TypeKind::Tuple(inner_tys) => {
                 for ty in inner_tys {
-                    add_type(suffixes, ty);
+                    add_type(suffixes, user_defined, ty);
                 }
+            }
+            TypeKind::UserDefined(name) => {
+                user_defined.insert(name.to_string());
             }
             _ => {}
         }
     }
 
     for ty in types {
-        add_type(&mut bits_sort_suffixes, &ty);
+        add_type(&mut bits_sort_suffixes, &mut user_defined, &ty);
     }
     base_declarations.extend(
         bits_sort_suffixes
             .into_iter()
             .flat_map(hacks::BitsDeclaration),
+    );
+    base_declarations.extend(
+        user_defined
+            .into_iter()
+            .map(|name| -> SmtExpr { ("declare-sort", name, 0).into() }),
     );
 
     base_declarations.extend(hacks::MaybeDeclaration);

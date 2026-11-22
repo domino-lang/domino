@@ -106,7 +106,13 @@ where
 
         let claim_sequence: Vec<_> = self
             .generate_game_or_package_invariant_claims()
-            .map(|claim| (ui.start_claim(&claim), claim))
+            .filter_map(|claim| {
+                if self.config.claim_requested(&claim.name) {
+                    Some((ui.start_claim(&claim), claim))
+                } else {
+                    None
+                }
+            })
             .collect();
 
         let claims = rayon::ThreadPoolBuilder::new()
@@ -116,7 +122,9 @@ where
             .install(|| -> Vec<Result<()>> {
                 claim_sequence
                     .into_par_iter()
-                    .map(|(ui, claim)| self.verify_claim(ui, game_inst_smt.clone(), &claim))
+                    .map(|(ui, claim)| {
+                            self.verify_claim(ui, game_inst_smt.clone(), &claim)
+                    })
                     .flatten()
                     .collect()
             });
@@ -163,10 +171,9 @@ where
         claim: &ResolvedClaim,
     ) -> Vec<Result<()>> {
         ui.run(|ui| {
-            let oracle_sequence = if let ClaimType::GameInvariant(exports) = &claim.ty {
-                exports
-            } else {
-                &self.gctx.game().exports
+            let oracle_sequence = match &claim.ty {
+                ClaimType::PackageInvariant(exports) | ClaimType::GameInvariant(exports) => exports,
+                _ => &self.gctx.game().exports,
             };
 
             let oracle_sequence: Vec<_> = oracle_sequence
@@ -187,7 +194,7 @@ where
             ))
             .chain(oracle_sequence.into_par_iter().map(|(ui, export)| {
                 let claim_group = ClaimGroup::Oracle {
-                    oracle_name: export.name().to_string(),
+                    oracle_name: format!("{}:{}", export.name(), export.to()),
                 };
                 let mut smt = game_inst_smt.clone();
 
@@ -225,9 +232,10 @@ where
         }
 
         self.invariants.iter().filter_map(|stmt| match &stmt.kind {
-            SmtStatementKind::PackageInvariant { .. } => {
-                new_claim(ClaimType::PackageInvariant, stmt.kind.name())
-            }
+            SmtStatementKind::PackageInvariant { package, .. } => new_claim(
+                ClaimType::PackageInvariant(self.subgame_exports(std::slice::from_ref(package))),
+                stmt.kind.name(),
+            ),
             SmtStatementKind::GameInvariant { .. } => new_claim(
                 ClaimType::GameInvariant(self.gctx.game().exports.clone()),
                 stmt.kind.name(),

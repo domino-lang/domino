@@ -138,10 +138,12 @@ impl<'a> GameInstanceContext<'a> {
     }
     pub(crate) fn exported_oracle_ctx_by_export(
         &self,
-        export: &Export,
+        export: &'a Export,
     ) -> Option<OracleContext<'a>> {
         let inst_ctx = PackageInstanceContext::new(*self, export.to());
 
-        inst_ctx.oracle_ctx_by_name(&export.sig().name)
+        let mut octx = inst_ctx.oracle_ctx_by_name(&export.sig().name)?;
+        octx.set_renamed(export.alias());
+        Some(octx)
     }
 }

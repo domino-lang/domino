@@ -24,7 +24,7 @@ pub(crate) use verify::gameinvariant::GameInvariantSmtDriver;
 pub enum ClaimType {
     Lemma,
     Relation,
-    PackageInvariant,
+    PackageInvariant(Vec<Export>),
     GameInvariant(Vec<Export>),
 }
 

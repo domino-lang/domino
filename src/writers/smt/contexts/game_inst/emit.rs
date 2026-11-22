@@ -54,8 +54,9 @@ impl<'a> GameInstanceContext<'a> {
         };
 
         let postcond_call = match claim.ty {
-            ClaimType::PackageInvariant => build_invariant_new_call(&claim.name),
-            ClaimType::GameInvariant(_) => build_invariant_new_call(&claim.name),
+            ClaimType::PackageInvariant(_) | ClaimType::GameInvariant(_) => {
+                build_invariant_new_call(&claim.name)
+            }
             _ => unreachable!(),
         };
 

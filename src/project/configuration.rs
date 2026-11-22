@@ -11,6 +11,8 @@ pub trait ProveConfiguration {
 
     fn theorem_requested(&self, theorem: &str) -> bool;
 
+    fn game_requested(&self, game: &str) -> bool;
+
     fn gamehop_requested(&self, gamehop: usize) -> bool;
 
     fn claim_requested(&self, claim: &str) -> bool;
@@ -47,6 +49,10 @@ pub(crate) mod test {
         }
 
         fn theorem_requested(&self, _theorem: &str) -> bool {
+            true
+        }
+
+        fn game_requested(&self, _game: &str) -> bool {
             true
         }
 
