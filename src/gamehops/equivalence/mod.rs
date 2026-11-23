@@ -20,12 +20,12 @@ mod verify;
 pub(crate) use verify::equivalence::EquivalenceSmtDriver;
 pub(crate) use verify::gameinvariant::GameInvariantSmtDriver;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ClaimType {
     Lemma,
     Relation,
     PackageInvariant,
-    GameInvariant,
+    GameInvariant(Vec<Export>),
 }
 
 impl ClaimType {

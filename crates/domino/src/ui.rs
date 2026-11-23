@@ -7,13 +7,7 @@ use itertools::Itertools;
 use indicatif::{MultiProgress, ProgressBar, ProgressIterator};
 use indicatif_log_bridge::LogWrapper;
 
-use sspverif::{
-    project::configuration::ProveConfiguration,
-    ui::{
-        GamehopUI, LatexUI, ProveClaimUI, ProveGameUI, ProveGamehopUI, ProveGamesUI,
-        ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI, ProveUI,
-    },
-};
+use sspverif::{project::configuration::ProveConfiguration, ui::*};
 
 use sspverif::{
     gamehops::{
@@ -104,7 +98,10 @@ pub struct IndicatifProveUI<'a, ProveConfig: ProveConfiguration> {
     reports: Arc<Mutex<Vec<String>>>,
 }
 
-impl<'a, ProveConfig: ProveConfiguration> IndicatifProveUI<'a, ProveConfig> {
+impl<'a, ProveConfig> IndicatifProveUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.main_ui.insert_before(before, progress)
     }
@@ -118,8 +115,9 @@ impl<'a, ProveConfig: ProveConfiguration> IndicatifProveUI<'a, ProveConfig> {
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveUI
-    for IndicatifProveUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveUI for IndicatifProveUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
     type ProveTheoremUI = IndicatifProveTheoremUI<'a, ProveConfig>;
     type ProveGamesUI = IndicatifProveTheoremUI<'a, ProveConfig>;
@@ -178,7 +176,10 @@ pub struct IndicatifProveTheoremUI<'a, ProveConfig: ProveConfiguration> {
     progress: Option<ProgressBar>,
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveTheoremUI<'a, ProveConfig> {
+impl<'a, ProveConfig> IndicatifProveTheoremUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.prove_ui.println(line)
     }
@@ -219,8 +220,9 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveTheoremUI
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveTheoremUI
-    for IndicatifProveTheoremUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveTheoremUI for IndicatifProveTheoremUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
     type ProveGamehopUI = IndicatifProveGamehopUI<'a, ProveConfig>;
 
@@ -257,8 +259,9 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveTheoremUI
         }
     }
 }
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamesUI
-    for IndicatifProveTheoremUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveGamesUI for IndicatifProveTheoremUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
     type ProveGameUI = IndicatifProveGamehopUI<'a, ProveConfig>;
 
@@ -302,7 +305,10 @@ pub struct IndicatifProveGamehopUI<'a, ProveConfig: ProveConfiguration + Sync + 
     children: Arc<Mutex<Vec<ProgressBar>>>,
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveGamehopUI<'a, ProveConfig> {
+impl<'a, ProveConfig> IndicatifProveGamehopUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.theorem_ui.println(line)
     }
@@ -341,11 +347,11 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveGamehopUI
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGameUI
-    for IndicatifProveGamehopUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveGameUI for IndicatifProveGamehopUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
-    type ProveOracleUI = IndicatifProveOracleUI<'a, ProveConfig>;
-    type ProveInvariantStartUI = IndicatifProveOracleUI<'a, ProveConfig>;
+    type ProveGameClaimUI = IndicatifProveGamehopOracleUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.theorem_ui.println(line)
@@ -358,37 +364,26 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGameUI
         result
     }
 
-    fn start_oracle(&self, export: &Export) -> Self::ProveOracleUI {
+    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveGameClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveOracleUI {
+        IndicatifProveGamehopOracleUI {
             gamehop_ui: self.clone(),
-            name: export.name().to_string(),
-            progress: None,
-        }
-    }
-    fn start_invariant_start(&self, name: String) -> Self::ProveInvariantStartUI {
-        if let Some(progress) = &self.progress {
-            progress.inc_length(1);
-        }
-        self.tick();
-
-        IndicatifProveOracleUI {
-            gamehop_ui: self.clone(),
-            name,
+            name: claim.name().to_string(),
             progress: None,
         }
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamehopUI
-    for IndicatifProveGamehopUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveGamehopUI for IndicatifProveGamehopUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
-    type ProveOracleUI = IndicatifProveOracleUI<'a, ProveConfig>;
-    type ProveInvariantStartUI = IndicatifProveOracleUI<'a, ProveConfig>;
+    type ProveGamehopOracleUI = IndicatifProveGamehopOracleUI<'a, ProveConfig>;
+    type ProveGamehopInvariantStartUI = IndicatifProveGamehopOracleUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.theorem_ui.println(line)
@@ -414,25 +409,25 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamehopUI
         self.finish();
     }
 
-    fn start_oracle(&self, export: &Export) -> Self::ProveOracleUI {
+    fn start_oracle(&self, export: &Export) -> Self::ProveGamehopOracleUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveOracleUI {
+        IndicatifProveGamehopOracleUI {
             gamehop_ui: self.clone(),
             name: export.name().to_string(),
             progress: None,
         }
     }
-    fn start_invariant_start(&self, name: String) -> Self::ProveInvariantStartUI {
+    fn start_invariant_start(&self, name: String) -> Self::ProveGamehopInvariantStartUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveOracleUI {
+        IndicatifProveGamehopOracleUI {
             gamehop_ui: self.clone(),
             name,
             progress: None,
@@ -441,13 +436,16 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamehopUI
 }
 
 #[derive(Clone)]
-pub struct IndicatifProveOracleUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
+pub struct IndicatifProveGamehopOracleUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
     gamehop_ui: IndicatifProveGamehopUI<'a, ProveConfig>,
     name: String,
     progress: Option<ProgressBar>,
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveOracleUI<'a, ProveConfig> {
+impl<'a, ProveConfig> IndicatifProveGamehopOracleUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.gamehop_ui.insert_before(before, progress)
     }
@@ -478,10 +476,11 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveOracleUI<
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveOracleUI
-    for IndicatifProveOracleUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveGamehopOracleUI for IndicatifProveGamehopOracleUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
-    type ProveClaimUI = IndicatifProveClaimUI<'a, ProveConfig>;
+    type ProveGamehopClaimUI = IndicatifProveGamehopClaimUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.println(line)
@@ -494,34 +493,79 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveOracleUI
         result
     }
 
-    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveClaimUI {
+    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveGamehopClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveClaimUI {
+        IndicatifProveGamehopClaimUI {
             oracle_ui: self.clone(),
             name: claim.name().to_string(),
         }
     }
-    fn start_injectivity(&self, claim: &str) -> Self::ProveClaimUI {
+    fn start_injectivity(&self, claim: &str) -> Self::ProveGamehopClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveClaimUI {
+        IndicatifProveGamehopClaimUI {
             oracle_ui: self.clone(),
             name: claim.to_string(),
         }
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveInvariantStartUI
-    for IndicatifProveOracleUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveGameClaimUI for IndicatifProveGamehopOracleUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
-    type ProveClaimUI = IndicatifProveClaimUI<'a, ProveConfig>;
+    type ProveGameOracleUI = IndicatifProveGamehopClaimUI<'a, ProveConfig>;
+    type ProveGameInvariantStartUI = IndicatifProveGamehopClaimUI<'a, ProveConfig>;
+
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>> {
+        self.start();
+        let result = fun(&self);
+        self.finish();
+        result
+    }
+
+    fn start_oracle(&self, export: &Export) -> Self::ProveGameOracleUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        IndicatifProveGamehopClaimUI {
+            oracle_ui: self.clone(),
+            name: export.name().to_string(),
+        }
+    }
+
+    fn start_invariant_start(&self) -> Self::ProveGameInvariantStartUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        IndicatifProveGamehopClaimUI {
+            oracle_ui: self.clone(),
+            name: "!invariant-start!".to_string(),
+        }
+    }
+}
+
+impl<'a, ProveConfig> ProveGamehopInvariantStartUI
+    for IndicatifProveGamehopOracleUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
+    type ProveGamehopClaimUI = IndicatifProveGamehopClaimUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.gamehop_ui.println(line)
@@ -534,25 +578,28 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveInvariantStartUI
         result
     }
 
-    fn start_claim(&self, claim: &str) -> Self::ProveClaimUI {
+    fn start_claim(&self, claim: &str) -> Self::ProveGamehopClaimUI {
         if let Some(progress) = &self.progress {
             progress.inc_length(1);
         }
         self.tick();
 
-        IndicatifProveClaimUI {
+        IndicatifProveGamehopClaimUI {
             oracle_ui: self.clone(),
             name: claim.to_string(),
         }
     }
 }
 
-pub struct IndicatifProveClaimUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
-    oracle_ui: IndicatifProveOracleUI<'a, ProveConfig>,
+pub struct IndicatifProveGamehopClaimUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
+    oracle_ui: IndicatifProveGamehopOracleUI<'a, ProveConfig>,
     name: String,
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveClaimUI<'a, ProveConfig> {
+impl<'a, ProveConfig> IndicatifProveGamehopClaimUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
     fn start(&mut self) {
         if let Some(progress) = &self.oracle_ui.progress {
             progress.set_message(format!("{} (cur: {})", self.oracle_ui.name, self.name));
@@ -585,8 +632,49 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveClaimUI<'
     }
 }
 
-impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveClaimUI
-    for IndicatifProveClaimUI<'a, ProveConfig>
+impl<'a, ProveConfig> ProveGamehopClaimUI for IndicatifProveGamehopClaimUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.oracle_ui.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce() -> Result<()>) -> Result<()> {
+        self.start();
+        let result = fun();
+        if result.is_err() {
+            self.failure();
+        } else {
+            self.success();
+        }
+        result
+    }
+}
+
+impl<'a, ProveConfig> ProveGameOracleUI for IndicatifProveGamehopClaimUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
+{
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.oracle_ui.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce() -> Result<()>) -> Result<()> {
+        self.start();
+        let result = fun();
+        if result.is_err() {
+            self.failure();
+        } else {
+            self.success();
+        }
+        result
+    }
+}
+
+impl<'a, ProveConfig> ProveGameInvariantStartUI for IndicatifProveGamehopClaimUI<'a, ProveConfig>
+where
+    ProveConfig: ProveConfiguration + Sync + Clone,
 {
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.oracle_ui.println(line)

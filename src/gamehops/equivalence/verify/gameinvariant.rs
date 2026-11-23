@@ -9,7 +9,7 @@ use crate::{
     },
     package::Export,
     project::{configuration::ProveConfiguration, Project},
-    ui::{ProveClaimUI, ProveGameUI, ProveInvariantStartUI, ProveOracleUI},
+    ui::{ProveGameClaimUI, ProveGameInvariantStartUI, ProveGameOracleUI, ProveGameUI},
     writers::smt::{contexts::GameInstanceContext, declare::declare_const, exprs::SmtExpr},
 };
 
@@ -68,6 +68,25 @@ where
         })
     }
 
+    fn export_smt(&self, export: Option<&Export>) -> Vec<SmtExpr> {
+        let mut smt = Vec::new();
+
+        if let Some(export) = export {
+            let orcl_ctx = self.gctx.exported_oracle_ctx_by_export(export).unwrap();
+
+            for (arg_name, arg_type) in &export.sig().args {
+                smt.push(declare_const(
+                    orcl_ctx.smt_arg_name(arg_name),
+                    arg_type.clone().into(),
+                ));
+            }
+        }
+
+        smt.extend(self.gctx.emit_constant_declarations(None));
+        smt.extend(self.invariants.iter().map(|stmt| stmt.expr.clone()));
+        smt
+    }
+
     pub fn verify_game_invariants(&self, ui: &impl ProveGameUI) -> Result<()> {
         let mut smt = Vec::new();
 
@@ -83,38 +102,11 @@ where
         smt.extend(self.gctx.smt_package_return_definitions());
         smt.extend(self.gctx.smt_oracle_function_definitions());
 
-        for export in &self.gctx.game().exports {
-            let orcl_ctx = self
-                .gctx
-                .exported_oracle_ctx_by_name(export.name())
-                .unwrap();
-
-            for (arg_name, arg_type) in &export.sig().args {
-                smt.push(declare_const(
-                    orcl_ctx.smt_arg_name(arg_name),
-                    arg_type.clone().into(),
-                ));
-            }
-        }
-
-        smt.extend(self.gctx.emit_constant_declarations(None));
-
-        smt.extend(self.invariants.iter().map(|stmt| stmt.expr.clone()));
-
         let game_inst_smt = SmtBuf::from(smt.as_slice());
 
-        let oracle_sequence: Vec<_> = self
-            .gctx
-            .game()
-            .exports
-            .iter()
-            .filter_map(|export| {
-                if self.config.oracle_requested(export.name()) {
-                    Some((ui.start_oracle(export), export))
-                } else {
-                    None
-                }
-            })
+        let claim_sequence: Vec<_> = self
+            .generate_game_or_package_invariant_claims()
+            .map(|claim| (ui.start_claim(&claim), claim))
             .collect();
 
         let claims = rayon::ThreadPoolBuilder::new()
@@ -122,17 +114,11 @@ where
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
-                rayon::iter::once(self.verify_invariant_start(
-                    ui.start_invariant_start(ClaimGroup::InvariantStart.ui_name()),
-                    &game_inst_smt,
-                ))
-                .chain(
-                    oracle_sequence
-                        .into_par_iter()
-                        .map(|(ui, export)| self.verify_oracle(ui, game_inst_smt.clone(), export)),
-                )
-                .flatten()
-                .collect()
+                claim_sequence
+                    .into_par_iter()
+                    .map(|(ui, claim)| self.verify_claim(ui, game_inst_smt.clone(), &claim))
+                    .flatten()
+                    .collect()
             });
 
         let failed_claims: Vec<_> = claims.into_iter().filter_map(Result::err).collect();
@@ -148,67 +134,78 @@ where
 
     fn verify_invariant_start(
         &self,
-        ui: impl ProveInvariantStartUI,
+        ui: impl ProveGameInvariantStartUI,
         game_inst_smt: &SmtBuf,
-    ) -> Vec<Result<()>> {
+        claim: &ResolvedClaim,
+    ) -> Result<()> {
         let claim_group = ClaimGroup::InvariantStart;
 
         let mut game_inst_smt = game_inst_smt.clone();
 
         let initial_state_values = self.gctx.emit_game_initial_state_values();
         game_inst_smt.push(initial_state_values.as_slice());
+        let export_smt = self.export_smt(None);
+        game_inst_smt.push(&export_smt);
 
-        ui.run(|ui| {
-            let checks: Vec<_> = self
-                .generate_game_or_package_invariant_start_asserts()
-                .map(|(check_name, check_smt)| {
-                    (ui.start_claim(&check_name), (check_name, check_smt))
-                })
-                .collect();
+        let assert = self.gctx.emit_game_or_package_invariant_start_assert(claim);
 
-            checks
-                .into_par_iter()
-                .map(|(ui, (name, assert))| {
-                    let claim_smt = [assert.clone()];
-                    let mut smt = game_inst_smt.clone();
-                    smt.push(&claim_smt);
+        let claim_smt = [assert.clone()];
+        let mut smt = game_inst_smt.clone();
+        smt.push(&claim_smt);
 
-                    ui.run(|| self.verify_with_solver(smt, &claim_group, &name))
-                })
-                .collect()
-        })
+        ui.run(|| self.verify_with_solver(smt, &claim_group, &claim.name))
     }
 
-    fn verify_oracle(
+    fn verify_claim(
         &self,
-        ui: impl ProveOracleUI,
+        ui: impl ProveGameClaimUI,
         game_inst_smt: SmtBuf,
-        oracle: &Export,
+        claim: &ResolvedClaim,
     ) -> Vec<Result<()>> {
-        let claim_group = ClaimGroup::Oracle {
-            oracle_name: oracle.name().to_string(),
-        };
-
         ui.run(|ui| {
-            let claims: Vec<_> = self
-                .generate_game_or_package_invariant_claims()
-                .map(|claim| (ui.start_claim(&claim), claim))
+            let oracle_sequence = if let ClaimType::GameInvariant(exports) = &claim.ty {
+                exports
+            } else {
+                &self.gctx.game().exports
+            };
+
+            let oracle_sequence: Vec<_> = oracle_sequence
+                .iter()
+                .filter_map(|export| {
+                    if self.config.oracle_requested(export.name()) {
+                        Some((ui.start_oracle(export), export))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
-            claims
-                .into_par_iter()
-                .map(|(ui, claim)| {
-                    let mut smt = game_inst_smt.clone();
-                    let assert = vec![self.gctx.emit_oracle_claim_assert(
-                        &claim,
-                        oracle.name(),
-                        &self.invariants,
-                    )];
-                    smt.push(&assert);
+            rayon::iter::once(self.verify_invariant_start(
+                ui.start_invariant_start(),
+                &game_inst_smt,
+                claim,
+            ))
+            .chain(oracle_sequence.into_par_iter().map(|(ui, export)| {
+                let claim_group = ClaimGroup::Oracle {
+                    oracle_name: export.name().to_string(),
+                };
+                let mut smt = game_inst_smt.clone();
 
-                    ui.run(|| self.verify_with_solver(smt, &claim_group, &claim.name))
-                })
-                .collect()
+                let export_smt = self.export_smt(Some(export));
+                let return_smt = self.gctx.emit_return(export);
+
+                smt.push(&export_smt);
+                smt.push(&return_smt);
+
+                let assert =
+                    vec![self
+                        .gctx
+                        .emit_oracle_claim_assert(claim, export, &self.invariants)];
+                smt.push(&assert);
+
+                ui.run(|| self.verify_with_solver(smt, &claim_group, &claim.name))
+            }))
+            .collect()
         })
     }
 
@@ -227,26 +224,53 @@ where
             })
         }
 
-        self.invariants.iter().filter_map(|stmt| match stmt.kind {
+        self.invariants.iter().filter_map(|stmt| match &stmt.kind {
             SmtStatementKind::PackageInvariant { .. } => {
                 new_claim(ClaimType::PackageInvariant, stmt.kind.name())
             }
-            SmtStatementKind::GameInvariant { .. } => {
-                new_claim(ClaimType::GameInvariant, stmt.kind.name())
-            }
-            _ => None,
+            SmtStatementKind::GameInvariant { .. } => new_claim(
+                ClaimType::GameInvariant(self.gctx.game().exports.clone()),
+                stmt.kind.name(),
+            ),
+            SmtStatementKind::SubGameInvariant { packages, .. } => new_claim(
+                ClaimType::GameInvariant(self.subgame_exports(packages)),
+                stmt.kind.name(),
+            ),
+            _ => unreachable!(),
         })
     }
 
-    fn generate_game_or_package_invariant_start_asserts(
-        &'a self,
-    ) -> impl Iterator<Item = (String, SmtExpr)> + use<'a, Proj, ProveConf> {
-        self.generate_game_or_package_invariant_claims()
-            .map(|claim| {
-                let smt = self
-                    .gctx
-                    .emit_game_or_package_invariant_start_assert(&claim);
-                (claim.name().to_string(), smt)
-            })
+    fn subgame_exports(&self, packages: &[String]) -> Vec<Export> {
+        let mut exports = self.gctx.game().exports.clone();
+        let mut edges = self.gctx.game().edges.clone();
+
+        let mut pkgs = self.gctx.game().ordered_pkgs_idx();
+        pkgs.reverse();
+
+        while let Some((idx, pkg)) = pkgs.iter().enumerate().find(|(_, pkg)| {
+            edges.iter().all(|edge| edge.to() != **pkg)
+                && !packages
+                    .iter()
+                    .any(|pkgname| self.gctx.game().pkgs[**pkg].name() == *pkgname)
+        }) {
+            let pkg = *pkg;
+            pkgs.remove(idx);
+
+            exports.retain(|export| export.to() != pkg);
+            exports.extend(edges.iter().filter_map(|edge| {
+                if edge.from() == pkg {
+                    Some(Export::new(
+                        edge.to(),
+                        edge.sig().clone(),
+                        edge.alias().cloned(),
+                    ))
+                } else {
+                    None
+                }
+            }));
+            edges.retain(|edge| edge.from() != pkg);
+        }
+
+        exports
     }
 }

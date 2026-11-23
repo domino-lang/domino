@@ -268,7 +268,7 @@ impl<'a> EquivalenceContext<'a> {
             .map(|dep| match dep.ty {
                 ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
                 ClaimType::Relation => build_relation_call(&dep.name),
-                ClaimType::PackageInvariant | ClaimType::GameInvariant => {
+                ClaimType::PackageInvariant | ClaimType::GameInvariant(_) => {
                     unreachable!("Not a valid dependency: {} - {:?}", dep.name, dep.ty)
                 }
             })
@@ -277,7 +277,7 @@ impl<'a> EquivalenceContext<'a> {
         let postcond_call = match claim.ty {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::PackageInvariant | ClaimType::GameInvariant => {
+            ClaimType::PackageInvariant | ClaimType::GameInvariant(_) => {
                 unreachable!("Game and Package Invariants are proven using GameInstanceContext")
             }
         };
@@ -288,13 +288,17 @@ impl<'a> EquivalenceContext<'a> {
         ];
 
         dependencies_code.extend(left_invariants.iter().filter_map(|stmt| match stmt.kind {
-            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
                 Some(build_left_invariant_old_call(&stmt.kind.name()))
             }
             _ => None,
         }));
         dependencies_code.extend(right_invariants.iter().filter_map(|stmt| match stmt.kind {
-            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
                 Some(build_right_invariant_old_call(&stmt.kind.name()))
             }
             _ => None,
@@ -798,6 +802,13 @@ impl<'a> EquivalenceContext<'a> {
 
         out.extend(gctx_left.emit_constant_declarations(Some(&self.theorem().name)));
         out.extend(gctx_right.emit_constant_declarations(Some(&self.theorem().name)));
+
+        for export in &left.game().exports {
+            out.extend(gctx_left.emit_return(export));
+        }
+        for export in &right.game().exports {
+            out.extend(gctx_right.emit_return(export));
+        }
 
         out
     }

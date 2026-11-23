@@ -8,6 +8,7 @@ use crate::{
     expressions::Expression,
     gamehops::equivalence::{smtrewrite::SmtStatementKind, ClaimType, ResolvedClaim, SmtStmt},
     identifier::Identifier,
+    package::Export,
     transforms::samplify::SampleInfo,
     types::{Type, TypeKind},
     writers::smt::{
@@ -34,10 +35,10 @@ impl<'a> GameInstanceContext<'a> {
     pub(crate) fn emit_oracle_claim_assert(
         &self,
         claim: &ResolvedClaim,
-        oracle_name: &str,
+        export: &Export,
         invariants: &[SmtStmt],
     ) -> SmtExpr {
-        let octx = self.exported_oracle_ctx_by_name(oracle_name).unwrap();
+        let octx = self.exported_oracle_ctx_by_export(export).unwrap();
         let state = octx.oracle_arg_game_state_pattern();
         let game_inst_name = self.game_inst_name();
 
@@ -47,21 +48,23 @@ impl<'a> GameInstanceContext<'a> {
         let build_invariant_new_call = |name: &str| -> SmtExpr {
             (
                 name,
-                &state.new_global_const_name(game_inst_name, oracle_name.to_string()),
+                &state.new_global_const_name(game_inst_name, export.name().to_string()),
             )
                 .into()
         };
 
         let postcond_call = match claim.ty {
             ClaimType::PackageInvariant => build_invariant_new_call(&claim.name),
-            ClaimType::GameInvariant => build_invariant_new_call(&claim.name),
+            ClaimType::GameInvariant(_) => build_invariant_new_call(&claim.name),
             _ => unreachable!(),
         };
 
-        let mut dependencies_code: Vec<SmtExpr> = vec![self.build_no_abort(oracle_name)];
+        let mut dependencies_code: Vec<SmtExpr> = vec![self.build_no_abort(export)];
 
         dependencies_code.extend(invariants.iter().filter_map(|stmt| match stmt.kind {
-            SmtStatementKind::GameInvariant { .. } | SmtStatementKind::PackageInvariant { .. } => {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
                 Some(build_invariant_old_call(&stmt.kind.name()))
             }
             _ => None,
@@ -119,11 +122,6 @@ impl<'a> GameInstanceContext<'a> {
             );
         } else {
             out.push(game_consts.unit_declare(self.game_inst_name()));
-        }
-
-        for (decl_ret, constrain) in self.build_returns() {
-            out.push(decl_ret);
-            out.push(constrain);
         }
 
         for (decl_ctr, assert_ctr, assert_zero_ctr) in self.build_rands() {
@@ -459,14 +457,14 @@ impl<'a> GameInstanceContext<'a> {
         })
     }
 
-    fn build_no_abort(&self, oracle_name: &str) -> SmtExpr {
-        let octx = self.exported_oracle_ctx_by_name(oracle_name).unwrap();
+    fn build_no_abort(&self, export: &Export) -> SmtExpr {
+        let octx = self.exported_oracle_ctx_by_export(export).unwrap();
 
         SmtNot(
             ReturnIsAbortConst {
                 game_inst_name: self.game_inst_name(),
                 pkg_inst_name: octx.pkg_inst_ctx().pkg_inst_name(),
-                oracle_name,
+                oracle_name: export.name(),
                 ty: octx.return_type(),
             }
             .name(),
@@ -474,125 +472,134 @@ impl<'a> GameInstanceContext<'a> {
         .into()
     }
 
-    fn build_returns(&self) -> Vec<(SmtExpr, SmtExpr)> {
+    pub(crate) fn emit_return(&self, export: &Export) -> Vec<SmtExpr> {
         let game_name = self.game_name();
         let game_inst_name = self.game_inst_name();
         let game_params = &self.game_inst.consts;
 
         // write declarations of right return constants and constrain them
-        let mut out = vec![];
-        for export in &self.game_inst.game().exports {
-            let pkg_inst = &self.game_inst.game().pkgs[export.to()];
-            let sig = export.sig();
+        //let mut out = vec![];
+        //for export in &self.game_inst.game().exports {
+        let pkg_inst = &self.game_inst.game().pkgs[export.to()];
+        let sig = export.sig();
 
-            let pkg_inst_name = &pkg_inst.name;
-            let pkg_params = &pkg_inst.params;
-            let pkg_name = &pkg_inst.pkg.name;
-            let oracle_name = &sig.name;
-            let oracle_import_name = export.name();
-            let return_type = &sig.ty;
+        let pkg_inst_name = &pkg_inst.name;
+        let pkg_params = &pkg_inst.params;
+        let pkg_name = &pkg_inst.pkg.name;
+        let oracle_name = &sig.name;
+        let oracle_import_name = export.name();
+        let return_type = &sig.ty;
 
-            let mut octx = self
-                .exported_oracle_ctx_by_name(export.name())
-                .unwrap_or_else(|| {
-                    panic!(
+        let mut octx = self
+            .exported_oracle_ctx_by_export(export)
+            .unwrap_or_else(|| {
+                panic!(
                     "error looking up exported oracle with name {oracle_name} in game {game_name}"
                 )
-                });
-            octx.set_renamed(export.alias());
-
-            let return_const = patterns::ReturnConst {
-                game_inst_name,
-                game_name,
-                game_params,
-                pkg_name,
-                pkg_params,
-                oracle_name,
-                oracle_import_name,
-            };
-
-            let return_value_const = patterns::ReturnValueConst {
-                game_inst_name,
-                pkg_inst_name,
-                oracle_name: oracle_import_name,
-                ty: &sig.ty,
-            };
-
-            let is_abort_const_pattern = ReturnIsAbortConst {
-                game_inst_name,
-                pkg_inst_name,
-                oracle_name: oracle_import_name,
-                ty: &sig.ty,
-            };
-
-            let state = octx.oracle_arg_game_state_pattern();
-            let consts = octx.oracle_arg_game_consts_pattern();
-
-            let old_state_const = state.old_global_const_name(game_inst_name);
-            let new_state_const =
-                state.new_global_const_name(game_inst_name, oracle_import_name.to_string());
-            let consts_const = consts.unit_global_const_name(game_inst_name);
-
-            let args = sig
-                .args
-                .iter()
-                .map(|(arg_name, _)| octx.smt_arg_name(arg_name));
-
-            let oracle_func_evaluation = octx
-                .smt_call_oracle_fn(old_state_const, consts_const, args)
-                .unwrap();
-
-            let return_pattern = octx.return_pattern();
-            let return_spec = return_pattern.datastructure_spec(return_type);
-
-            let access_returnvalue = return_pattern
-                .access(
-                    &return_spec,
-                    &patterns::ReturnSelector::ReturnValueOrAbort {
-                        return_type: &sig.ty,
-                    },
-                    return_const.name(),
-                )
-                .unwrap();
-
-            let access_new_state = return_pattern
-                .access(
-                    &return_spec,
-                    &patterns::ReturnSelector::GameState,
-                    return_const.name(),
-                )
-                .unwrap();
-
-            let constrain_return = SmtAssert(SmtEq2 {
-                lhs: return_const.name(),
-                rhs: oracle_func_evaluation,
             });
+        octx.set_renamed(export.alias());
 
-            let constrain_return_value = SmtAssert(SmtEq2 {
-                lhs: return_value_const.name(),
-                rhs: access_returnvalue,
-            });
+        let return_const = patterns::ReturnConst {
+            game_inst_name,
+            game_name,
+            game_params,
+            pkg_name,
+            pkg_params,
+            oracle_name,
+            oracle_import_name,
+        };
 
-            let constrain_new_state = SmtAssert(SmtEq2 {
-                lhs: new_state_const,
-                rhs: access_new_state,
-            });
+        let return_value_const = patterns::ReturnValueConst {
+            game_inst_name,
+            pkg_inst_name,
+            oracle_name: oracle_import_name,
+            ty: &sig.ty,
+        };
 
-            let constrain_is_abort = SmtAssert(SmtEq2 {
-                lhs: is_abort_const_pattern.name(),
-                rhs: is_abort_const_pattern.value(return_value_const.name()),
-            });
+        let is_abort_const_pattern = ReturnIsAbortConst {
+            game_inst_name,
+            pkg_inst_name,
+            oracle_name: oracle_import_name,
+            ty: &sig.ty,
+        };
 
-            out.push((return_const.declare(), constrain_return.into()));
-            out.push((return_value_const.declare(), constrain_return_value.into()));
-            out.push((is_abort_const_pattern.declare(), constrain_is_abort.into()));
-            out.push((
-                state.declare_new(game_inst_name, oracle_import_name.to_string()),
-                constrain_new_state.into(),
-            ));
-        }
+        let state = octx.oracle_arg_game_state_pattern();
+        let consts = octx.oracle_arg_game_consts_pattern();
 
-        out
+        let old_state_const = state.old_global_const_name(game_inst_name);
+        let new_state_const =
+            state.new_global_const_name(game_inst_name, oracle_import_name.to_string());
+        let consts_const = consts.unit_global_const_name(game_inst_name);
+
+        let args = sig
+            .args
+            .iter()
+            .map(|(arg_name, _)| octx.smt_arg_name(arg_name));
+
+        let oracle_func_evaluation = octx
+            .smt_call_oracle_fn(old_state_const, consts_const, args)
+            .unwrap();
+
+        let return_pattern = octx.return_pattern();
+        let return_spec = return_pattern.datastructure_spec(return_type);
+
+        let access_returnvalue = return_pattern
+            .access(
+                &return_spec,
+                &patterns::ReturnSelector::ReturnValueOrAbort {
+                    return_type: &sig.ty,
+                },
+                return_const.name(),
+            )
+            .unwrap();
+
+        let access_new_state = return_pattern
+            .access(
+                &return_spec,
+                &patterns::ReturnSelector::GameState,
+                return_const.name(),
+            )
+            .unwrap();
+
+        let constrain_return = SmtAssert(SmtEq2 {
+            lhs: return_const.name(),
+            rhs: oracle_func_evaluation,
+        });
+
+        let constrain_return_value = SmtAssert(SmtEq2 {
+            lhs: return_value_const.name(),
+            rhs: access_returnvalue,
+        });
+
+        let constrain_new_state = SmtAssert(SmtEq2 {
+            lhs: new_state_const,
+            rhs: access_new_state,
+        });
+
+        let constrain_is_abort = SmtAssert(SmtEq2 {
+            lhs: is_abort_const_pattern.name(),
+            rhs: is_abort_const_pattern.value(return_value_const.name()),
+        });
+
+        // out.push((return_const.declare(), constrain_return.into()));
+        // out.push((return_value_const.declare(), constrain_return_value.into()));
+        // out.push((is_abort_const_pattern.declare(), constrain_is_abort.into()));
+        // out.push((
+        //     state.declare_new(game_inst_name, oracle_import_name.to_string()),
+        //     constrain_new_state.into(),
+        // ));
+        //}
+
+        vec![
+            return_const.declare(),
+            constrain_return.into(),
+            return_value_const.declare(),
+            constrain_return_value.into(),
+            is_abort_const_pattern.declare(),
+            constrain_is_abort.into(),
+            state.declare_new(game_inst_name, oracle_import_name.to_string()),
+            constrain_new_state.into(),
+        ]
     }
 
     fn build_rands(&self) -> Vec<(SmtExpr, SmtExpr, SmtExpr)> {
