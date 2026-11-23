@@ -24,7 +24,8 @@ oracle NewKey(ltk: Maybe(Bits(n))) -> Integer {
       }
       else {
         LTK[kid_] <- ltk;
-        H[kid_]   <- Some(false);}
+        H[kid_]   <- Some(false);
+      }
       return kid_;
     }
 

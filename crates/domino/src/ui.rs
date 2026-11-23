@@ -10,8 +10,8 @@ use indicatif_log_bridge::LogWrapper;
 use sspverif::{
     project::configuration::ProveConfiguration,
     ui::{
-        GamehopUI, LatexUI, ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI,
-        ProveTheoremUI, ProveUI,
+        GamehopUI, LatexUI, ProveClaimUI, ProveGameUI, ProveGamehopUI, ProveGamesUI,
+        ProveInvariantStartUI, ProveOracleUI, ProveTheoremUI, ProveUI,
     },
 };
 
@@ -23,7 +23,7 @@ use sspverif::{
     package::Export,
     parser::ast::Identifier,
     proof::Proof,
-    theorem::Theorem,
+    theorem::{GameInstance, Theorem},
 };
 
 #[derive(Clone)]
@@ -122,6 +122,7 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveUI
     for IndicatifProveUI<'a, ProveConfig>
 {
     type ProveTheoremUI = IndicatifProveTheoremUI<'a, ProveConfig>;
+    type ProveGamesUI = IndicatifProveTheoremUI<'a, ProveConfig>;
 
     fn println(&self, line: &str) -> std::io::Result<()> {
         self.main_ui.println(line)
@@ -158,6 +159,16 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveUI
             progress: None,
         }
     }
+
+    fn start_games(&self) -> Self::ProveGamesUI {
+        self.progress.inc_length(1);
+
+        IndicatifProveTheoremUI {
+            prove_ui: self.clone(),
+            name: "Game Invariants".to_string(),
+            progress: None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -167,14 +178,43 @@ pub struct IndicatifProveTheoremUI<'a, ProveConfig: ProveConfiguration> {
     progress: Option<ProgressBar>,
 }
 
-impl<'a, ProveConfig: ProveConfiguration> IndicatifProveTheoremUI<'a, ProveConfig> {
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveTheoremUI<'a, ProveConfig> {
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.prove_ui.println(line)
+    }
+
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.prove_ui.insert_before(before, progress)
     }
+
     fn tick(&self) {
         self.prove_ui.tick();
         if let Some(progress) = &self.progress {
             progress.tick();
+        }
+    }
+
+    fn start(&mut self) {
+        let new_progress = self.insert_before(&self.prove_ui.progress, ProgressBar::new(0));
+        new_progress.set_style(indicatif_style::theorem_bar());
+        new_progress.set_message(self.name.clone());
+        self.progress = Some(new_progress);
+        self.tick();
+    }
+
+    fn finish(&self) {
+        self.prove_ui.progress.inc(1);
+        self.tick();
+        if let Some(progress) = &self.progress {
+            progress.finish()
+        }
+    }
+
+    fn skip(&self) {
+        self.prove_ui.progress.inc(1);
+        self.tick();
+        if let Some(progress) = &self.progress {
+            progress.finish()
         }
     }
 }
@@ -189,30 +229,18 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveTheoremUI
     }
 
     fn start(&mut self) {
-        let new_progress = self.insert_before(&self.prove_ui.progress, ProgressBar::new(0));
-        new_progress.set_style(indicatif_style::theorem_bar());
-        new_progress.set_message(self.name.clone());
-        self.progress = Some(new_progress);
-        self.tick();
+        self.start();
     }
 
     fn finish(&self, theorem: &Theorem) {
-        self.prove_ui.progress.inc(1);
-        self.tick();
-        if let Some(progress) = &self.progress {
-            progress.finish()
-        }
+        self.finish();
         for proof in &theorem.proofs {
             self.prove_ui
                 .add_report(PropositionBox::new(&theorem.name, proof).into());
         }
     }
     fn skip(&self) {
-        self.prove_ui.progress.inc(1);
-        self.tick();
-        if let Some(progress) = &self.progress {
-            progress.finish()
-        }
+        self.skip()
     }
 
     fn start_gamehop(&self, gamehop: &GameHop) -> Self::ProveGamehopUI {
@@ -229,6 +257,42 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveTheoremUI
         }
     }
 }
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamesUI
+    for IndicatifProveTheoremUI<'a, ProveConfig>
+{
+    type ProveGameUI = IndicatifProveGamehopUI<'a, ProveConfig>;
+
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.prove_ui.println(line)
+    }
+
+    fn start(&mut self) {
+        self.start();
+    }
+
+    fn finish(&self) {
+        self.finish();
+    }
+    fn skip(&self) {
+        self.skip();
+    }
+
+    fn start_game(&self, game: &GameInstance) -> Self::ProveGameUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        let name = game.name().to_string();
+
+        IndicatifProveGamehopUI {
+            theorem_ui: self.clone(),
+            name,
+            progress: None,
+            children: Arc::default(),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct IndicatifProveGamehopUI<'a, ProveConfig: ProveConfiguration + Sync + Clone> {
@@ -239,6 +303,10 @@ pub struct IndicatifProveGamehopUI<'a, ProveConfig: ProveConfiguration + Sync + 
 }
 
 impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveGamehopUI<'a, ProveConfig> {
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.theorem_ui.println(line)
+    }
+
     fn insert_before(&self, before: &ProgressBar, progress: ProgressBar) -> ProgressBar {
         self.children.lock().unwrap().push(progress.clone());
         self.theorem_ui.insert_before(before, progress)
@@ -247,6 +315,71 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> IndicatifProveGamehopUI
         self.theorem_ui.tick();
         if let Some(progress) = &self.progress {
             progress.tick();
+        }
+    }
+    fn start(&mut self) {
+        if let Some(progress) = &self.theorem_ui.progress {
+            let new_progress = self.theorem_ui.insert_before(progress, ProgressBar::new(0));
+            new_progress.set_style(indicatif_style::gamehop_bar());
+            new_progress.set_message(self.name.clone());
+            self.progress = Some(new_progress);
+            self.tick()
+        }
+    }
+
+    fn finish(&self) {
+        if let Some(progress) = &self.theorem_ui.progress {
+            progress.inc(1);
+        }
+        self.tick();
+        if let Some(progress) = &self.progress {
+            for child in self.children.lock().unwrap().iter() {
+                child.finish_and_clear();
+            }
+            progress.finish();
+        }
+    }
+}
+
+impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGameUI
+    for IndicatifProveGamehopUI<'a, ProveConfig>
+{
+    type ProveOracleUI = IndicatifProveOracleUI<'a, ProveConfig>;
+    type ProveInvariantStartUI = IndicatifProveOracleUI<'a, ProveConfig>;
+
+    fn println(&self, line: &str) -> std::io::Result<()> {
+        self.theorem_ui.println(line)
+    }
+
+    fn run(mut self, fun: impl FnOnce(&Self) -> Result<()>) -> Result<()> {
+        self.start();
+        let result = fun(&self);
+        self.finish();
+        result
+    }
+
+    fn start_oracle(&self, export: &Export) -> Self::ProveOracleUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        IndicatifProveOracleUI {
+            gamehop_ui: self.clone(),
+            name: export.name().to_string(),
+            progress: None,
+        }
+    }
+    fn start_invariant_start(&self, name: String) -> Self::ProveInvariantStartUI {
+        if let Some(progress) = &self.progress {
+            progress.inc_length(1);
+        }
+        self.tick();
+
+        IndicatifProveOracleUI {
+            gamehop_ui: self.clone(),
+            name,
+            progress: None,
         }
     }
 }
@@ -274,26 +407,11 @@ impl<'a, ProveConfig: ProveConfiguration + Sync + Clone> ProveGamehopUI
     }
 
     fn start(&mut self) {
-        if let Some(progress) = &self.theorem_ui.progress {
-            let new_progress = self.theorem_ui.insert_before(progress, ProgressBar::new(0));
-            new_progress.set_style(indicatif_style::gamehop_bar());
-            new_progress.set_message(self.name.clone());
-            self.progress = Some(new_progress);
-            self.tick()
-        }
+        self.start();
     }
 
     fn finish(&self) {
-        if let Some(progress) = &self.theorem_ui.progress {
-            progress.inc(1);
-        }
-        self.tick();
-        if let Some(progress) = &self.progress {
-            for child in self.children.lock().unwrap().iter() {
-                child.finish_and_clear();
-            }
-            progress.finish();
-        }
+        self.finish();
     }
 
     fn start_oracle(&self, export: &Export) -> Self::ProveOracleUI {
