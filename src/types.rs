@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use crate::expressions::{Expression, ExpressionKind};
-use crate::identifier::{pkg_ident::PackageIdentifier, Identifier};
+use crate::identifier::{
+    game_ident::GameIdentifier, pkg_ident::PackageIdentifier, theorem_ident::TheoremIdentifier,
+    Identifier,
+};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct Type {
@@ -175,27 +178,49 @@ impl Type {
     }
 
     pub(crate) fn types_match(&self, other: &Self) -> bool {
+        self.types_match_impl(other, false)
+    }
+
+    pub(crate) fn types_match_resolved(&self, other: &Self) -> bool {
+        self.types_match_impl(other, true)
+    }
+
+    fn types_match_impl(&self, other: &Self, resolve_assignments: bool) -> bool {
+        let types_match =
+            |left: &Type, right: &Type| left.types_match_impl(right, resolve_assignments);
         match (self.kind(), other.kind()) {
+            (TypeKind::Bits(l), TypeKind::Bits(r)) if resolve_assignments => {
+                // A game constant compares equal without its assignment, so structural
+                // equality cannot decide two identifiers. An identifier always resolves.
+                // `Any` and a literal that does not fit in an expression do not, and
+                // those still compare as specs.
+                match (l.resolved_expression(), r.resolved_expression()) {
+                    (Some(left), Some(right)) => left == right,
+                    (None, None) => l == r,
+                    _ => false,
+                }
+            }
             (TypeKind::Bits(l), TypeKind::Bits(r)) => l.countspecs_match(r),
 
             (TypeKind::List(l), TypeKind::List(r))
             | (TypeKind::Set(l), TypeKind::Set(r))
-            | (TypeKind::Maybe(l), TypeKind::Maybe(r)) => l.types_match(r.as_ref()),
+            | (TypeKind::Maybe(l), TypeKind::Maybe(r)) => types_match(l, r),
 
             (TypeKind::Table(lk, lv), TypeKind::Table(rk, rv)) => {
-                lk.types_match(rk.as_ref()) && lv.types_match(rv)
+                types_match(lk, rk) && types_match(lv, rv)
             }
 
             (TypeKind::Tuple(l), TypeKind::Tuple(r)) => {
-                l.len() == r.len() && l.iter().zip(r.iter()).all(|(l, r)| Type::types_match(l, r))
+                l.len() == r.len() && l.iter().zip(r.iter()).all(|(l, r)| types_match(l, r))
             }
 
             (TypeKind::Fn(largs, lty), TypeKind::Fn(rargs, rty)) => {
-                largs
-                    .iter()
-                    .zip(rargs.iter())
-                    .all(|(l, r)| Type::types_match(l, r))
-                    && lty.types_match(rty.as_ref())
+                largs.len() == rargs.len()
+                    && largs
+                        .iter()
+                        .zip(rargs.iter())
+                        .all(|(l, r)| types_match(l, r))
+                    && types_match(lty, rty)
             }
 
             (lother, rother) => lother == rother,
@@ -298,6 +323,40 @@ pub enum CountSpec {
 }
 
 impl CountSpec {
+    // Instantiation retains package/game assignments, including expressions.
+    // Compare their values without theorem identifiers' instance metadata.
+    fn resolved_expression(&self) -> Option<Expression> {
+        fn resolve(expr: &Expression) -> Expression {
+            expr.map(|expr| {
+                let assignment = match expr.kind() {
+                    ExpressionKind::Identifier(Identifier::PackageIdentifier(
+                        PackageIdentifier::Const(id),
+                    )) => id.game_assignment.as_deref(),
+                    ExpressionKind::Identifier(Identifier::GameIdentifier(
+                        GameIdentifier::Const(id),
+                    )) => id.assigned_value.as_deref(),
+                    _ => None,
+                };
+                if let Some(assignment) = assignment {
+                    return resolve(assignment);
+                }
+                let mut kind = expr.into_kind();
+                if let ExpressionKind::Identifier(Identifier::TheoremIdentifier(id)) = &mut kind {
+                    match id {
+                        TheoremIdentifier::Const(id) => id.inst_info = None,
+                        TheoremIdentifier::LoopVar(id) => id.inst_info = None,
+                    }
+                }
+                Expression::from_kind(kind)
+            })
+        }
+        match self {
+            Self::Any => None,
+            Self::Literal(n) => i64::try_from(*n).ok().map(Expression::integer),
+            Self::Identifier(id) => Some(resolve(&Expression::from((**id).clone()))),
+        }
+    }
+
     pub(crate) fn countspecs_match(&self, other: &Self) -> bool {
         if let (Self::Identifier(l), Self::Identifier(r)) = (self, other) {
             l.identifiers_match(r)
@@ -337,12 +396,28 @@ impl std::fmt::Display for CountSpec {
 
 #[cfg(test)]
 mod tests {
+    use crate::expressions::Expression;
     use crate::identifier::{
+        game_ident::{GameConstIdentifier, GameIdentifier},
         pkg_ident::{PackageConstIdentifier, PackageIdentifier},
         Identifier,
     };
 
     use super::{CountSpec, Type};
+
+    fn bits_named(assigned: Option<i64>) -> Type {
+        Type::bits(CountSpec::Identifier(Box::new(Identifier::GameIdentifier(
+            GameIdentifier::Const(GameConstIdentifier {
+                game_name: "Game".to_string(),
+                name: "n".to_string(),
+                ty: Type::integer(),
+                game_inst_name: None,
+                theorem_name: None,
+                inst_info: None,
+                assigned_value: assigned.map(|value| Box::new(Expression::integer(value))),
+            }),
+        ))))
+    }
 
     #[test]
     fn display_countspec() {
@@ -365,6 +440,79 @@ mod tests {
                     })
                 )))
             )
+        );
+    }
+
+    #[test]
+    fn resolved_bits_length_follows_the_assignment() {
+        let assigned_eight = bits_named(Some(8));
+        let assigned_sixteen = bits_named(Some(16));
+        let assigned_eight_again = bits_named(Some(8));
+        let literal_eight = Type::bits(CountSpec::Literal(8));
+        let unassigned = bits_named(None);
+        let unassigned_again = bits_named(None);
+
+        let cases = [
+            (
+                "assigned 8 against assigned 16",
+                assigned_eight.types_match_resolved(&assigned_sixteen),
+                false,
+            ),
+            (
+                "assigned 8 against assigned 8",
+                assigned_eight.types_match_resolved(&assigned_eight_again),
+                true,
+            ),
+            (
+                "assigned 8 against literal 8",
+                assigned_eight.types_match_resolved(&literal_eight),
+                true,
+            ),
+            (
+                "two unassigned identifiers of the same name",
+                unassigned.types_match_resolved(&unassigned_again),
+                true,
+            ),
+        ];
+        let mut failures: Vec<_> = cases
+            .into_iter()
+            .filter(|(_, got, want)| got != want)
+            .map(|(name, got, want)| format!("{name}: got {got}, want {want}"))
+            .collect();
+
+        // The unresolved comparison is unchanged.
+        let unresolved = [
+            (
+                "unresolved assigned 8 against assigned 16",
+                assigned_eight.types_match(&assigned_sixteen),
+                false,
+            ),
+            (
+                "unresolved assigned 8 against assigned 8",
+                assigned_eight.types_match(&assigned_eight_again),
+                true,
+            ),
+            (
+                "unresolved assigned 8 against literal 8",
+                assigned_eight.types_match(&literal_eight),
+                false,
+            ),
+            (
+                "unresolved unassigned identifiers of the same name",
+                unassigned.types_match(&unassigned_again),
+                true,
+            ),
+        ];
+        failures.extend(
+            unresolved
+                .into_iter()
+                .filter(|(_, got, want)| got != want)
+                .map(|(name, got, want)| format!("{name}: got {got}, want {want}")),
+        );
+        assert!(
+            failures.is_empty(),
+            "bit length comparison:\n{}",
+            failures.join("\n")
         );
     }
 }

@@ -430,6 +430,25 @@ pub struct DuplicatePackageParameterDefinitionError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
+#[error(
+    "package type parameter '{param_name}' has been defined twice in package instance {pkg_inst_name}"
+)]
+#[diagnostic(code(domino::code::pkg_inst::duplicate_type_parameter_definition))]
+pub struct DuplicatePackageTypeParameterDefinitionError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this identifier here")]
+    pub at: SourceSpan,
+
+    #[label("has previously been defined here")]
+    pub other: SourceSpan,
+
+    pub param_name: String,
+    pub pkg_inst_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
 #[error("game parameter '{param_name}' has been defined twice in game instance {game_inst_name}")]
 #[diagnostic(code(domino::code::game_inst::duplicate_parameter_definition))]
 pub struct DuplicateGameParameterDefinitionError {
@@ -633,6 +652,197 @@ pub struct ReductionPackageInstanceParameterMismatchError {
     pub right_pkg_inst_name: String,
 
     pub param_names: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Reduction context contains a cycle through {left_pkg_inst_name} in {left_game_inst_name} and {right_pkg_inst_name} in {right_game_inst_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::cyclic_context))]
+#[help("Remove the cyclic import path in the context reachable from the construction exports.")]
+pub struct ReductionCyclicContextError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("in this reduction")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub left_pkg_inst_name: String,
+    pub right_pkg_inst_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Game instance {game_inst_name} does not export oracle {oracle_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::missing_export))]
+#[help("Export {oracle_name} in {game_inst_name} so that the reduction can compare the corresponding context.")]
+pub struct ReductionMissingExportError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("in this reduction")]
+    pub at: SourceSpan,
+
+    pub game_inst_name: String,
+    pub oracle_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Construction game instances {left_game_inst_name} and {right_game_inst_name} have different exports for oracle {oracle_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::export_mismatch))]
+#[help("Export the same names with matching signatures. Left: {left_signature}; right: {right_signature}.")]
+pub struct ReductionExportMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes the adversary's interface")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub oracle_name: String,
+    pub left_signature: String,
+    pub right_signature: OracleSigType,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Context import {import_name} of {left_pkg_inst_name} in {left_game_inst_name} targets {left_oracle_name}, but {right_pkg_inst_name} in {right_game_inst_name} targets {right_oracle_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::context_oracle_mismatch))]
+#[help("Use matching destination oracle names and signatures within the context, or matching assumption export names at its boundary. Left: {left_signature}; right: {right_signature}.")]
+pub struct ReductionContextOracleMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes a context import's destination oracle")]
+    pub at: SourceSpan,
+
+    pub left_game_inst_name: String,
+    pub right_game_inst_name: String,
+    pub left_pkg_inst_name: String,
+    pub right_pkg_inst_name: String,
+    pub import_name: String,
+    pub left_oracle_name: String,
+    pub right_oracle_name: String,
+    pub left_signature: OracleSigType,
+    pub right_signature: OracleSigType,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Context instance {pkg_inst_name} in {game_inst_name} is paired with both {previous_partner_name} and {partner_name} in {other_game_inst_name}")]
+#[diagnostic(code(domino::code::theorem::reduction::context_instance_mismatch))]
+#[help("Preserve shared context state by pairing each package instance with exactly one instance on the other side.")]
+pub struct ReductionContextInstanceMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this reduction changes context instance sharing")]
+    pub at: SourceSpan,
+
+    pub game_inst_name: String,
+    pub other_game_inst_name: String,
+    pub pkg_inst_name: String,
+    pub previous_partner_name: String,
+    pub partner_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Both reduction mappings use the same {role} game instance {name}")]
+#[diagnostic(code(domino::code::theorem::reduction::same_game_instance))]
+#[help("Use a different {role} game instance for each side of the reduction.")]
+pub struct ReductionSameGameInstanceError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("the game instances must differ")]
+    pub at: SourceSpan,
+
+    pub role: String,
+    pub name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("A hybrid reduction mapping must select a boolean variant")]
+#[diagnostic(code(domino::code::theorem::reduction::invalid_hybrid_mapping))]
+#[help("Write the construction game instance as name[false] or name[true].")]
+pub struct ReductionInvalidHybridMappingError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("select a hybrid variant here")]
+    pub at: SourceSpan,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Mapped package instance {from_pkg_inst_name} imports {import_name} from unmapped package instance {to_pkg_inst_name} (oracle {oracle_name})")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::unmapped_destination))]
+#[help("The mapped assumption subgraph must contain the destinations of its outgoing wires.")]
+pub struct AssumptionMappingUnmappedDestinationError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("in this mapping")]
+    pub at: SourceSpan,
+
+    pub from_pkg_inst_name: String,
+    pub to_pkg_inst_name: String,
+    pub import_name: String,
+    pub oracle_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("Wiring differs between assumption game {assumption_game_name} and construction game {construction_game_name}: {from_pkg_inst_name} imports {import_name} from {to_pkg_inst_name} (oracle {oracle_name}): {reason}")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::wiring_mismatch))]
+#[help("Checking {direction}: expected a corresponding wire from {mapped_from_pkg_inst_name} to {mapped_to_pkg_inst_name}. Oracle signature: {oracle_signature}.")]
+pub struct AssumptionMappingWiringMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this mapping does not preserve internal wiring")]
+    pub at: SourceSpan,
+
+    pub direction: String,
+    pub reason: String,
+    pub assumption_game_name: String,
+    pub construction_game_name: String,
+    pub from_pkg_inst_name: String,
+    pub to_pkg_inst_name: String,
+    pub mapped_from_pkg_inst_name: String,
+    pub mapped_to_pkg_inst_name: String,
+    pub import_name: String,
+    pub oracle_name: String,
+    pub oracle_signature: OracleSigType,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("The package instances {left_pkg_inst_name} and {right_pkg_inst_name} in a reduction have different type parameters")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::reduction_type_parameter_mismatch))]
+#[help("Assign the same type parameters on both instances.")]
+pub struct ReductionPackageTypeParameterMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("in this reduction")]
+    pub at_reduction: SourceSpan,
+
+    pub left_pkg_inst_name: String,
+    pub right_pkg_inst_name: String,
+}
+
+#[derive(Debug, Diagnostic, Error)]
+#[error("The package instances {assumption_pkg_inst_name} and {construction_pkg_inst_name} in a reduction mapping have different type parameters")]
+#[diagnostic(code(domino::code::theorem::reduction::mapping::type_parameter_mismatch))]
+#[help("Assign the same type parameters on the mapped instances.")]
+pub struct AssumptionMappingTypeParameterMismatchError {
+    #[source_code]
+    pub source_code: miette::NamedSource<String>,
+
+    #[label("this package instance")]
+    pub at_assumption: SourceSpan,
+
+    #[label("and that package instance")]
+    pub at_construction: SourceSpan,
+
+    pub assumption_pkg_inst_name: String,
+    pub construction_pkg_inst_name: String,
 }
 
 #[derive(Debug, Diagnostic, Error)]

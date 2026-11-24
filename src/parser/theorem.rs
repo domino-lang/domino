@@ -44,13 +44,18 @@ use super::{
     error::{
         AssumptionAdversaryExportsNotSufficientError, AssumptionExportsNotSufficientError,
         AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
-        AssumptionMappingRightGameInstanceIsFromAssumption, DuplicateGameInstanceDefinitionError,
+        AssumptionMappingRightGameInstanceIsFromAssumption,
+        AssumptionMappingTypeParameterMismatchError, AssumptionMappingUnmappedDestinationError,
+        AssumptionMappingWiringMismatchError, DuplicateGameInstanceDefinitionError,
         DuplicateGameParameterDefinitionError, InvalidGameInstanceInReductionError,
         MissingGameParameterDefinitionError, NoSuchGameParameterError, ParserScopeError,
-        ReductionInconsistentAssumptionBoundaryError,
-        ReductionPackageInstanceParameterMismatchError, UndefinedAssumptionError,
-        UndefinedGameError, UndefinedGameInstanceError, UndefinedPackageInstanceError,
-        UndefinedRandomnessSortError,
+        ReductionContextInstanceMismatchError, ReductionContextOracleMismatchError,
+        ReductionCyclicContextError, ReductionExportMismatchError,
+        ReductionInconsistentAssumptionBoundaryError, ReductionInvalidHybridMappingError,
+        ReductionMissingExportError, ReductionPackageInstanceParameterMismatchError,
+        ReductionPackageTypeParameterMismatchError, ReductionSameGameInstanceError,
+        UndefinedAssumptionError, UndefinedGameError, UndefinedGameInstanceError,
+        UndefinedPackageInstanceError, UndefinedRandomnessSortError,
     },
     package::ParseExpressionError,
     ParseContext,
@@ -270,6 +275,50 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     InvalidGameInstanceInReduction(#[from] InvalidGameInstanceInReductionError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionCyclicContext(#[from] ReductionCyclicContextError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionContextOracleMismatch(#[from] ReductionContextOracleMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionContextInstanceMismatch(#[from] ReductionContextInstanceMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionExportMismatch(#[from] ReductionExportMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionMissingExport(#[from] ReductionMissingExportError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionSameGameInstance(#[from] ReductionSameGameInstanceError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionInvalidHybridMapping(#[from] ReductionInvalidHybridMappingError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingUnmappedDestination(#[from] AssumptionMappingUnmappedDestinationError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingWiringMismatch(#[from] AssumptionMappingWiringMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    ReductionPackageTypeParameterMismatch(#[from] ReductionPackageTypeParameterMismatchError),
+
+    #[diagnostic(transparent)]
+    #[error(transparent)]
+    AssumptionMappingTypeParameterMismatch(#[from] AssumptionMappingTypeParameterMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]
@@ -713,6 +762,8 @@ fn handle_instance_assign_list(
 
     let types = vec![];
     let mut consts = vec![];
+    // One map for every params block, so a name set in a later block is a duplicate.
+    let mut defined_params = HashMap::<String, miette::SourceSpan>::new();
 
     for ast in ast {
         match ast.as_rule() {
@@ -722,8 +773,13 @@ fn handle_instance_assign_list(
             }
             Rule::params_def => {
                 if let Some(ast) = ast.into_inner().next() {
-                    let defs =
-                        common::handle_theorem_params_def_list(ctx, game, game_inst_name, ast)?;
+                    let defs = common::handle_theorem_params_def_list(
+                        ctx,
+                        game,
+                        game_inst_name,
+                        ast,
+                        &mut defined_params,
+                    )?;
 
                     consts.extend(defs.into_iter().map(|(name, value)| {
                         (

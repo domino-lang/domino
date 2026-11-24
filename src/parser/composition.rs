@@ -4,10 +4,11 @@ use super::{
     common::*,
     error::{
         DuplicateEdgeDefinitionError, DuplicateExportError,
-        DuplicatePackageParameterDefinitionError, IdentifierAlreadyDeclaredError,
-        MissingEdgeForImportedOracleError, MissingPackageParameterDefinitionError,
-        NoSuchPackageParameterError, OracleSigMismatchError, UndefinedOracleError,
-        UndefinedPackageError, UndefinedPackageInstanceError, UnusedEdgeError,
+        DuplicatePackageParameterDefinitionError, DuplicatePackageTypeParameterDefinitionError,
+        IdentifierAlreadyDeclaredError, MissingEdgeForImportedOracleError,
+        MissingPackageParameterDefinitionError, NoSuchPackageParameterError,
+        OracleSigMismatchError, UndefinedOracleError, UndefinedPackageError,
+        UndefinedPackageInstanceError, UnusedEdgeError,
     },
     package::ParsePackageError,
     ParseContext, Rule,
@@ -177,6 +178,10 @@ pub enum ParseGameError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     DuplicateParameterDefinition(#[from] DuplicatePackageParameterDefinitionError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    DuplicateTypeParameterDefinition(#[from] DuplicatePackageTypeParameterDefinitionError),
 
     #[error(transparent)]
     #[diagnostic(transparent)]
@@ -534,6 +539,7 @@ fn handle_edges_compose_assign_list(
 
         let found_duplicate_edge = edges
             .iter()
+            .chain(ctx.edges.iter())
             .any(|edge: &Edge| edge.from() == source_pkgidx && edge.name() == import_name);
 
         if found_duplicate_edge {
@@ -558,23 +564,43 @@ use crate::util::scope::{Declaration, Scope};
 fn handle_types_def_list(
     ctx: &mut ParseGameContext,
     ast: Pair<Rule>,
+    pkg_inst_name: &str,
+    defined_types: &mut HashMap<String, miette::SourceSpan>,
 ) -> Result<Vec<(String, Type)>, ParseGameError> {
     ast.into_inner()
-        .map(|pair_ast| match pair_ast.as_rule() {
-            Rule::types_def_spec_full => {
-                let mut inner = pair_ast.into_inner();
-                let name = inner.next().unwrap().as_str();
-                let ty = handle_type(&ctx.parse_ctx(), inner.next().unwrap())?;
-                Ok((name.to_string(), ty))
+        .map(|pair_ast| {
+            let pair_span = pair_ast.as_span();
+            let (name, name_span, ty) = match pair_ast.as_rule() {
+                Rule::types_def_spec_full => {
+                    let mut inner = pair_ast.into_inner();
+                    let name_ast = inner.next().unwrap();
+                    let name_span = name_ast.as_span();
+                    let name = name_ast.as_str().to_string();
+                    let ty = handle_type(&ctx.parse_ctx(), inner.next().unwrap())?;
+                    (name, name_span, ty)
+                }
+                Rule::types_def_spec_simple => {
+                    let mut inner = pair_ast.into_inner();
+                    let ty_ast = inner.next().unwrap();
+                    let name_span = ty_ast.as_span();
+                    let ty = handle_type(&ctx.parse_ctx(), ty_ast)?;
+                    (format!("{ty}"), name_span, ty)
+                }
+                _ => unreachable!(),
+            };
+            if let Some(prev_span) =
+                defined_types.insert(name.clone(), (pair_span.start()..pair_span.end()).into())
+            {
+                return Err(DuplicatePackageTypeParameterDefinitionError {
+                    source_code: ctx.named_source(),
+                    at: (name_span.start()..name_span.end()).into(),
+                    other: prev_span,
+                    param_name: name,
+                    pkg_inst_name: pkg_inst_name.to_string(),
+                }
+                .into());
             }
-            Rule::types_def_spec_simple => {
-                let mut inner = pair_ast.into_inner();
-                let ty = handle_type(&ctx.parse_ctx(), inner.next().unwrap())?;
-                Ok((format!("{ty}"), ty))
-            }
-            _ => {
-                unreachable!()
-            }
+            Ok((name, ty))
         })
         .collect()
 }
@@ -595,13 +621,21 @@ pub(crate) fn handle_instance_assign_list(
     let span = ast.as_span();
     let mut params = vec![];
     let mut types = vec![];
+    // One map for every params block, so a name set in a later block is a duplicate.
+    let mut defined_params = HashMap::<String, miette::SourceSpan>::new();
+    let mut defined_types = HashMap::<String, miette::SourceSpan>::new();
 
     for elem in ast.into_inner() {
         match elem.as_rule() {
             Rule::params_def => {
                 if let Some(params_def_list) = elem.into_inner().next() {
-                    let defs =
-                        handle_game_params_def_list(ctx, pkg, pkg_inst_name, params_def_list)?;
+                    let defs = handle_game_params_def_list(
+                        ctx,
+                        pkg,
+                        pkg_inst_name,
+                        params_def_list,
+                        &mut defined_params,
+                    )?;
                     params.extend(defs.into_iter().map(|(name, value)| {
                         (
                             PackageConstIdentifier {
@@ -622,7 +656,12 @@ pub(crate) fn handle_instance_assign_list(
                 }
             }
             Rule::types_def => {
-                let mut defs = handle_types_def_list(ctx, elem.into_inner().next().unwrap())?;
+                let mut defs = handle_types_def_list(
+                    ctx,
+                    elem.into_inner().next().unwrap(),
+                    pkg_inst_name,
+                    &mut defined_types,
+                )?;
                 types.append(&mut defs);
             }
             _ => unreachable!("{:#?}", elem),

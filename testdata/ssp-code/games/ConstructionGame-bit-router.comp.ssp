@@ -1,0 +1,8 @@
+composition ConstructionGame {
+    instance leaf = BitLeaf { params { n: 1 } }
+    instance router = BitRouter { params { n: 1 } }
+    compose {
+        adversary: { Run: router },
+        router: { Eval: leaf }
+    }
+}

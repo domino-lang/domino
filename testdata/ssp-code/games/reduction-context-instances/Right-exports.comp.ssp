@@ -1,0 +1,10 @@
+composition Right {
+    instance x = Cell { params { offset: 0 } }
+    instance y = Cell { params { offset: 0 } }
+    instance anchor = Anchor {}
+    compose {
+        adversary: { F: Access of x, G: Access of y }
+        x: { Token: anchor }
+        y: { Token: anchor }
+    }
+}

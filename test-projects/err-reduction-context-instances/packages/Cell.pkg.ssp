@@ -1,0 +1,12 @@
+package Cell {
+    params { offset: Integer }
+    state { value: Integer }
+    import oracles { Token() -> Integer, }
+    oracle Access(write: Bool, v: Integer) -> Integer {
+        token <- invoke Token();
+        if write {
+            value <- (v + offset);
+        }
+        return value;
+    }
+}
