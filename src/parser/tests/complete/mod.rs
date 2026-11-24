@@ -89,6 +89,20 @@ fn reduction_accepts_reversed_mapping_order() {
 }
 
 #[test]
+fn reduction_accepts_wire_from_unmapped_parameterized_package() {
+    let pkgs = packages::parse_files(&["BitLeaf.pkg.ssp", "BitRouter.pkg.ssp"]);
+    let games = games::parse_files(
+        &[
+            "AssumptionGame-bit-leaf.comp.ssp",
+            "ConstructionGame-bit-router.comp.ssp",
+        ],
+        &pkgs,
+    );
+    let source = theorems::read_file("reduction-incoming-signature.ssp");
+    theorems::parse(&source, "reduction-incoming-signature.ssp", &pkgs, &games);
+}
+
+#[test]
 fn tiny_game_without_packages() {
     let game = games::parse_file("tiny.ssp", &HashMap::default());
 

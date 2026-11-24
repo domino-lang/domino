@@ -123,6 +123,8 @@ fn compare_reduction(
 ) -> Result<(), ParseTheoremError> {
     let game_left = left_game_inst.game();
     let game_right = right_game_inst.game();
+    // The stack is LIFO. Children are pushed in reverse declaration order so the
+    // first declared import and all its descendants are checked first.
     let mut stack = vec![ComparisonFrame::Enter((inst_offs_left, inst_offs_right))];
     while let Some(frame) = stack.pop() {
         let (inst_offs_left, inst_offs_right) = match frame {
@@ -183,8 +185,6 @@ fn compare_reduction(
             right_game_inst,
         )?;
 
-        // The stack is LIFO: push children in reverse declaration order so the
-        // first declared import and all its descendants are checked first.
         stack.push(ComparisonFrame::Leave(pair));
         for (sig, _) in left_pkg_inst
             .pkg
@@ -866,11 +866,8 @@ fn check_incoming_wires(
                     export.to() == assump_dst && export.sig().name == edge.sig().name
                 });
 
-            let constr_sig_owned = rewrite_game_signature(ctx, construction_game_inst, edge.sig());
-            let constr_sig = &constr_sig_owned;
-
             // if it's cross-cut, it needs to be exported, else error out
-            let Some(assump_dst_export) = assump_dst_export else {
+            if assump_dst_export.is_none() {
                 let assumption_span = entry.assumption_ast.as_span();
                 let assumption_at = (assumption_span.start()..assumption_span.end()).into();
 
@@ -881,7 +878,7 @@ fn check_incoming_wires(
                     assumption_game_inst.game().pkgs[assump_dst].name.clone();
                 let construction_pkg_inst_name =
                     construction_game_inst.game().pkgs[edge.to()].name.clone();
-                let oracle_name = constr_sig.name.clone();
+                let oracle_name = edge.sig().name.clone();
 
                 return Err(AssumptionExportsNotSufficientError {
                     source_code: ctx.named_source(),
@@ -892,34 +889,7 @@ fn check_incoming_wires(
                     oracle_name,
                 }
                 .into());
-            };
-
-            let assump_sig = assump_dst_export.sig();
-
-            // rewrite the destination oracle signature as well and compare to check that they
-            // match
-            let assump_sig_fixed = rewrite_game_signature(ctx, assumption_game_inst, assump_sig);
-            let constr_sig_fixed = rewrite_game_signature(ctx, construction_game_inst, constr_sig);
-
-            // This check was a debug assertion. Keep its build-mode behavior;
-            // making it unconditional would reject previously accepted inputs.
-            #[cfg(debug_assertions)]
-            if !constr_sig_fixed.types_match(&assump_sig_fixed) {
-                return Err(
-                    super::error::AssumptionMappingOracleSignatureMismatchError {
-                        source_code: ctx.named_source(),
-                        at: (mapping_span.start()..mapping_span.end()).into(),
-                        oracle_name: constr_sig_fixed.name.clone(),
-                        assumption_game_name: assumption_game_inst.game_name().to_string(),
-                        construction_game_name: construction_game_inst.game_name().to_string(),
-                        assumption_signature: assump_sig_fixed.to_oracle_type(),
-                        construction_signature: constr_sig_fixed.to_oracle_type(),
-                    }
-                    .into(),
-                );
             }
-            #[cfg(not(debug_assertions))]
-            let _ = (constr_sig_fixed, assump_sig_fixed);
 
             // check that the destination packages in construction and assumption are equivalent
 

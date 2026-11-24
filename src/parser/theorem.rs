@@ -43,8 +43,7 @@ use super::{
     common::{self, HandleTypeError},
     error::{
         AssumptionAdversaryExportsNotSufficientError, AssumptionExportsNotSufficientError,
-        AssumptionMappingMissesPackageInstanceError, AssumptionMappingOracleSignatureMismatchError,
-        AssumptionMappingParameterMismatchError,
+        AssumptionMappingMissesPackageInstanceError, AssumptionMappingParameterMismatchError,
         AssumptionMappingRightGameInstanceIsFromAssumption,
         AssumptionMappingUnmappedDestinationError, AssumptionMappingWiringMismatchError,
         DuplicateGameInstanceDefinitionError, DuplicateGameParameterDefinitionError,
@@ -302,10 +301,6 @@ pub enum ParseTheoremError {
     #[diagnostic(transparent)]
     #[error(transparent)]
     ReductionPackageParameterCountMismatch(#[from] ReductionPackageParameterCountMismatchError),
-
-    #[diagnostic(transparent)]
-    #[error(transparent)]
-    AssumptionMappingOracleSignatureMismatch(#[from] AssumptionMappingOracleSignatureMismatchError),
 
     #[diagnostic(transparent)]
     #[error(transparent)]

@@ -726,49 +726,6 @@ fn fail_reduction_incoming_parameter_mismatch() {
 }
 
 #[test]
-fn reduction_incoming_signature_respects_build_mode() {
-    let pkgs = packages::parse_files(&["BitLeaf.pkg.ssp", "BitRouter.pkg.ssp"]);
-    let games = games::parse_files(
-        &[
-            "AssumptionGame-bit-leaf.comp.ssp",
-            "ConstructionGame-bit-router.comp.ssp",
-        ],
-        &pkgs,
-    );
-    #[cfg(debug_assertions)]
-    {
-        let error = theorems::parse_file_fails("reduction-incoming-signature.ssp", &pkgs, &games);
-        let ParseTheoremError::AssumptionMappingOracleSignatureMismatch(error) = error else {
-            panic!("expected an incoming signature mismatch diagnostic, got {error:?}");
-        };
-        assert_eq!(error.oracle_name, "Eval");
-        assert!(error
-            .assumption_signature
-            .to_string()
-            .starts_with("oracle (Bits("));
-        // As on main, the construction side is rewritten with game constants only,
-        // so the router's package parameter is still symbolic here.
-        assert_eq!(
-            error.construction_signature.to_string(),
-            "oracle (Bits(n)) -> Bits(n)"
-        );
-        assert_eq!(error.assumption_game_name, "AssumptionGame");
-        assert_eq!(error.construction_game_name, "ConstructionGame");
-        assert_eq!(
-            slice_source_span(&error.source_code, &error.at),
-            "map a0 c0 { leaf: leaf }"
-        );
-    }
-    #[cfg(not(debug_assertions))]
-    theorems::parse(
-        &theorems::read_file("reduction-incoming-signature.ssp"),
-        "reduction-incoming-signature.ssp",
-        &pkgs,
-        &games,
-    );
-}
-
-#[test]
 fn reduction_context_reports_first_declared_import() {
     let pkgs = packages::parse_files(&["Leaf.pkg.ssp", "ParamLeaf.pkg.ssp", "Router.pkg.ssp"]);
     let mut games = games::parse_files(

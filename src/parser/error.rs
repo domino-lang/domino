@@ -752,24 +752,6 @@ pub struct ReductionPackageParameterCountMismatchError {
 }
 
 #[derive(Debug, Diagnostic, Error)]
-#[error("Incoming oracle {oracle_name} has different signatures in assumption game {assumption_game_name} and construction game {construction_game_name}")]
-#[diagnostic(code(domino::code::theorem::reduction::mapping::oracle_signature_mismatch))]
-#[help("Use matching oracle argument and return types. Assumption: {assumption_signature}; construction: {construction_signature}.")]
-pub struct AssumptionMappingOracleSignatureMismatchError {
-    #[source_code]
-    pub source_code: miette::NamedSource<String>,
-
-    #[label("in this mapping")]
-    pub at: SourceSpan,
-
-    pub oracle_name: String,
-    pub assumption_game_name: String,
-    pub construction_game_name: String,
-    pub assumption_signature: OracleSigType,
-    pub construction_signature: OracleSigType,
-}
-
-#[derive(Debug, Diagnostic, Error)]
 #[error("The package instances {pkg_inst_name_1} and {pkg_inst_name_2} should be the same, but {pkg_inst_name_1} is in the assumption part of {game_name_1}, whereas {pkg_inst_name_2} is in the reduction part of {game_name_2}")]
 #[diagnostic(code(
     domino::code::theorem::reduction::mapping::reduction_inconsistent_assumption_boundary
