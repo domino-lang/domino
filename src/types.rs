@@ -85,6 +85,12 @@ impl Type {
         }
     }
 
+    pub(crate) fn user_defined(ty: UserDefinedType) -> Self {
+        Self {
+            kind: TypeKind::UserDefined(ty),
+        }
+    }
+
     pub fn into_kind(self) -> TypeKind {
         self.kind
     }
@@ -95,6 +101,23 @@ impl Type {
 
     pub fn kind_mut(&mut self) -> &mut TypeKind {
         &mut self.kind
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
+pub enum UserDefinedType {
+    Package(String),
+    Game(String),
+    Theorem(String),
+}
+
+impl core::fmt::Display for UserDefinedType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserDefinedType::Package(name)
+            | UserDefinedType::Game(name)
+            | UserDefinedType::Theorem(name) => write!(f, "{name}"),
+        }
     }
 }
 
@@ -115,7 +138,7 @@ pub enum TypeKind {
     Table(Box<Type>, Box<Type>),
     Maybe(Box<Type>),
     Fn(Vec<Type>, Box<Type>), // arg types, return type
-    UserDefined(String),
+    UserDefined(UserDefinedType),
 }
 
 impl TypeKind {
@@ -137,6 +160,46 @@ impl TypeKind {
 }
 
 impl Type {
+    pub fn map<F>(&self, f: F) -> Type
+    where
+        F: Fn(Type) -> Type,
+    {
+        self.borrow_map(&f)
+    }
+
+    pub fn borrow_map<F>(&self, f: &F) -> Type
+    where
+        F: Fn(Type) -> Type,
+    {
+        let kind = match &self.kind {
+            TypeKind::Unknown
+            | TypeKind::Empty
+            | TypeKind::Integer
+            | TypeKind::String
+            | TypeKind::AddiGroupEl(_)
+            | TypeKind::MultGroupEl(_)
+            | TypeKind::Boolean
+            | TypeKind::UserDefined(_)
+            | TypeKind::Bits(_) => self.kind.clone(),
+            TypeKind::List(ty) => TypeKind::List(Box::new(ty.borrow_map(f))),
+            TypeKind::Set(ty) => TypeKind::Set(Box::new(ty.borrow_map(f))),
+            TypeKind::Maybe(ty) => TypeKind::Maybe(Box::new(ty.borrow_map(f))),
+            TypeKind::Table(idx_ty, val_ty) => TypeKind::Table(
+                Box::new(idx_ty.borrow_map(f)),
+                Box::new(val_ty.borrow_map(f)),
+            ),
+            TypeKind::Fn(arg_tys, ret_ty) => TypeKind::Fn(
+                arg_tys.iter().map(|ty| ty.borrow_map(f)).collect(),
+                Box::new(ret_ty.borrow_map(f)),
+            ),
+            TypeKind::Tuple(tys) => {
+                TypeKind::Tuple(tys.iter().map(|ty| ty.borrow_map(f)).collect())
+            }
+        };
+
+        f(Type { kind })
+    }
+
     pub(crate) fn rewrite_type(&self, rules: &[(Type, Type)]) -> Self {
         if let Some((_, replace)) = rules.iter().find(|(search, _)| self == search) {
             replace.clone()
@@ -169,7 +232,7 @@ impl Type {
                     t.rewrite_type(rules),
                 ),
                 TypeKind::Unknown => unreachable!(),
-                TypeKind::UserDefined(_) => unreachable!(),
+                TypeKind::UserDefined(_) => self.clone(),
             }
         }
     }
@@ -196,6 +259,14 @@ impl Type {
                     .zip(rargs.iter())
                     .all(|(l, r)| Type::types_match(l, r))
                     && lty.types_match(rty.as_ref())
+            }
+
+            (TypeKind::UserDefined(UserDefinedType::Package(_)), _) => {
+                panic!("must be resolved at this point: {self}")
+            }
+
+            (_, TypeKind::UserDefined(UserDefinedType::Package(_))) => {
+                panic!("must be resolved at this point {self}")
             }
 
             (lother, rother) => lother == rother,
@@ -273,6 +344,7 @@ impl std::fmt::Display for Type {
                 f.write_str(")")
             }
             TypeKind::Unknown => f.write_str("Unknown"),
+            TypeKind::UserDefined(n) => f.write_str(&n.to_string()),
             TypeKind::Fn(args, ret) => {
                 f.write_str("fn ")?;
                 let mut maybe_comma = "";
@@ -315,12 +387,16 @@ impl CountSpec {
         match self {
             CountSpec::Literal(n) => n.to_string(),
             CountSpec::Any => "*".to_string(),
-            CountSpec::Identifier(id) => id
-                .as_theorem_identifier()
-                .map(|id| id.ident())
-                .unwrap_or_else(|| {
-                    panic!("bits-length identifier not resolved to a theorem const: {id:?}")
-                }),
+            CountSpec::Identifier(id) => {
+                if let Some(id) = id.as_theorem_identifier() {
+                    return id.ident();
+                }
+                if let Some(ExpressionKind::IntegerLiteral(n)) = id.as_literal().map(|ty| ty.kind())
+                {
+                    return n.to_string();
+                }
+                panic!("bits-length identifier not resolved to a theorem const: {id:?}")
+            }
         }
     }
 }

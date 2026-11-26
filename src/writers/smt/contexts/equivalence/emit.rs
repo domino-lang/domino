@@ -1,36 +1,24 @@
-use std::{
-    collections::{BTreeSet, HashSet},
-    fmt::Display,
-};
+use std::{collections::HashSet, fmt::Display};
 
 use crate::{
     gamehops::equivalence::{
         smtrewrite::SmtStatementKind,
-        {ClaimType, ResolvedClaim},
+        SmtStmt, {ClaimType, ResolvedClaim},
     },
-    hacks,
-    theorem::{GameInstance, RandomnessMappingInjectivityCheck, RandomnessType},
-    transforms::samplify::SampleInfo,
+    theorem::{RandomnessMappingInjectivityCheck, RandomnessType},
     types::{Type, TypeKind},
     writers::smt::{
-        contexts::{EquivalenceContext, GameInstanceContext, GenericOracleContext},
+        contexts::{emit_base_declarations, unique_by_name, EquivalenceContext},
         declare::declare_const,
         exprs::{SmtAnd, SmtAssert, SmtEq2, SmtExpr, SmtImplies, SmtNot},
         names, patterns,
         patterns::{
-            const_mapping::GameConstMappingFunction,
-            const_mapping::{define_game_const_mapping_fun, define_pkg_const_mapping_fun},
-            datastructures::DatastructurePattern,
-            declare_datatype,
-            functions::FunctionPattern,
-            oracle_args::GameStateOracleArgPattern,
-            oracle_args::OracleArgPattern,
-            oracle_args::UnitOracleArgPattern,
-            theorem_constants::ConstantPattern,
-            GameStateDeclareInfo, ReturnIsAbortConst, SmtDefineFun,
+            const_mapping::define_game_const_mapping_fun, datastructures::DatastructurePattern,
+            declare_datatype, functions::FunctionPattern, oracle_args::GameStateOracleArgPattern,
+            oracle_args::OracleArgPattern, oracle_args::UnitOracleArgPattern,
+            theorem_constants::ConstantPattern, SmtDefineFun,
         },
         sorts::Sort,
-        writer::CompositionSmtWriter,
     },
 };
 
@@ -131,56 +119,11 @@ impl Display for RandomnessMappingEntry {
 }
 
 impl<'a> EquivalenceContext<'a> {
-    pub(crate) fn emit_invariant(&self) -> Vec<SmtExpr> {
-        self.invariants
-            .iter()
-            .chain(self.left_invariants.iter())
-            .chain(self.right_invariants.iter())
-            .map(|stmt| stmt.expr.clone())
-            .collect()
-    }
-
     pub(crate) fn emit_initial_state_values(&self) -> Vec<SmtExpr> {
         let mut out = Vec::new();
 
-        out.extend(self.emit_game_initial_state_values(self.left_game_inst_ctx()));
-        out.extend(self.emit_game_initial_state_values(self.right_game_inst_ctx()));
-
-        out
-    }
-
-    fn emit_game_initial_state_values(&self, gctx: GameInstanceContext<'a>) -> Vec<SmtExpr> {
-        let game_inst_name = gctx.game_inst_name();
-        let initial_state = gctx.oracle_arg_game_state_pattern().global_const_name(
-            game_inst_name,
-            &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-        );
-
-        let mut out = Vec::new();
-        out.push(
-            gctx.oracle_arg_game_state_pattern()
-                .declare_initial(game_inst_name),
-        );
-
-        for pctx in gctx.pkg_inst_contexts() {
-            let pkg_state = gctx
-                .smt_access_gamestate_pkgstate(&initial_state, pctx.pkg_inst_name())
-                .unwrap();
-
-            for (field_name, field_ty, _) in &pctx.pkg().state {
-                let field = pctx
-                    .smt_access_pkgstate(pkg_state.clone(), field_name)
-                    .unwrap();
-
-                out.push(
-                    SmtAssert(SmtEq2 {
-                        lhs: field,
-                        rhs: SmtExpr::from(&field_ty.default_expression()),
-                    })
-                    .into(),
-                );
-            }
-        }
+        out.extend(self.left_game_inst_ctx().emit_game_initial_state_values());
+        out.extend(self.right_game_inst_ctx().emit_game_initial_state_values());
 
         out
     }
@@ -203,32 +146,12 @@ impl<'a> EquivalenceContext<'a> {
         .into()
     }
 
-    pub(crate) fn emit_game_or_package_invariant_start_assert(
-        &self,
-        claim: &ResolvedClaim,
-    ) -> SmtExpr {
-        let gctx = match claim.ty {
-            ClaimType::LeftGameInvariant | ClaimType::LeftPackageInvariant => {
-                self.left_game_inst_ctx()
-            }
-            ClaimType::RightGameInvariant | ClaimType::RightPackageInvariant => {
-                self.right_game_inst_ctx()
-            }
-            _ => unreachable!(),
-        };
-        let game_inst_name = gctx.game_inst_name();
-        let state = gctx.oracle_arg_game_state_pattern();
-        let initial_state = state.global_const_name(
-            game_inst_name,
-            &patterns::oracle_args::GameStateOracleArgVariant::Initial,
-        );
-        SmtAssert(SmtNot((claim.name(), initial_state.clone()))).into()
-    }
-
     pub(crate) fn emit_oracle_claim_assert(
         &self,
         claim: &ResolvedClaim,
         oracle_name: &str,
+        left_invariants: &[SmtStmt],
+        right_invariants: &[SmtStmt],
     ) -> SmtExpr {
         let gctx_left = self.left_game_inst_ctx();
         let gctx_right = self.right_game_inst_ctx();
@@ -254,6 +177,9 @@ impl<'a> EquivalenceContext<'a> {
         let pkg_params_left = &octx_left.pkg_inst_ctx().pkg_inst().params;
         let pkg_params_right = &octx_right.pkg_inst_ctx().pkg_inst().params;
 
+        let pkg_types_left = &octx_left.pkg_inst_ctx().pkg_inst().types;
+        let pkg_types_right = &octx_right.pkg_inst_ctx().pkg_inst().types;
+
         let args: Vec<_> = self
             .oracle_sig_by_exported_name(oracle_name)
             .unwrap()
@@ -275,6 +201,7 @@ impl<'a> EquivalenceContext<'a> {
             game_params: game_params_left,
             pkg_name: pkg_name_left,
             pkg_params: pkg_params_left,
+            pkg_types: pkg_types_left,
             oracle_name,
             oracle_import_name: oracle_name,
         };
@@ -285,6 +212,7 @@ impl<'a> EquivalenceContext<'a> {
             game_params: game_params_right,
             pkg_name: pkg_name_right,
             pkg_params: pkg_params_right,
+            pkg_types: pkg_types_right,
             oracle_name,
             oracle_import_name: oracle_name,
         };
@@ -339,40 +267,13 @@ impl<'a> EquivalenceContext<'a> {
                 .into()
         };
 
-        let build_invariant_new_call = |name: &str| -> SmtExpr {
-            (
-                name,
-                &state_left.new_global_const_name(game_inst_name_left, oracle_name.to_string()),
-                &state_right.new_global_const_name(game_inst_name_right, oracle_name.to_string()),
-            )
-                .into()
-        };
-        let build_left_invariant_new_call = |name: &str| -> SmtExpr {
-            (
-                name,
-                &state_left.new_global_const_name(game_inst_name_left, oracle_name.to_string()),
-            )
-                .into()
-        };
-        let build_right_invariant_new_call = |name: &str| -> SmtExpr {
-            (
-                name,
-                &state_right.new_global_const_name(game_inst_name_right, oracle_name.to_string()),
-            )
-                .into()
-        };
-
         let dep_calls: Vec<_> = claim
             .dependencies()
             .iter()
             .map(|dep| match dep.ty {
                 ClaimType::Lemma => build_lemma_call.clone()(&dep.name),
                 ClaimType::Relation => build_relation_call(&dep.name),
-                ClaimType::Invariant
-                | ClaimType::LeftPackageInvariant
-                | ClaimType::RightPackageInvariant
-                | ClaimType::LeftGameInvariant
-                | ClaimType::RightGameInvariant => {
+                ClaimType::PackageInvariant(_) | ClaimType::GameInvariant(_) => {
                     unreachable!("Not a valid dependency: {} - {:?}", dep.name, dep.ty)
                 }
             })
@@ -381,11 +282,9 @@ impl<'a> EquivalenceContext<'a> {
         let postcond_call = match claim.ty {
             ClaimType::Lemma => build_lemma_call.clone()(&claim.name),
             ClaimType::Relation => build_relation_call(&claim.name),
-            ClaimType::Invariant => build_invariant_new_call(&claim.name),
-            ClaimType::LeftPackageInvariant => build_left_invariant_new_call(&claim.name),
-            ClaimType::RightPackageInvariant => build_right_invariant_new_call(&claim.name),
-            ClaimType::LeftGameInvariant => build_left_invariant_new_call(&claim.name),
-            ClaimType::RightGameInvariant => build_right_invariant_new_call(&claim.name),
+            ClaimType::PackageInvariant(_) | ClaimType::GameInvariant(_) => {
+                unreachable!("Game and Package Invariants are proven using GameInstanceContext")
+            }
         };
 
         let mut dependencies_code: Vec<SmtExpr> = vec![
@@ -393,28 +292,22 @@ impl<'a> EquivalenceContext<'a> {
             build_invariant_old_call("invariant"),
         ];
 
-        dependencies_code.extend(
-            self.left_invariants
-                .iter()
-                .filter_map(|stmt| match stmt.kind {
-                    SmtStatementKind::GameInvariant { .. }
-                    | SmtStatementKind::PackageInvariant { .. } => {
-                        Some(build_left_invariant_old_call(&stmt.kind.name()))
-                    }
-                    _ => None,
-                }),
-        );
-        dependencies_code.extend(
-            self.right_invariants
-                .iter()
-                .filter_map(|stmt| match stmt.kind {
-                    SmtStatementKind::GameInvariant { .. }
-                    | SmtStatementKind::PackageInvariant { .. } => {
-                        Some(build_right_invariant_old_call(&stmt.kind.name()))
-                    }
-                    _ => None,
-                }),
-        );
+        dependencies_code.extend(left_invariants.iter().filter_map(|stmt| match stmt.kind {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
+                Some(build_left_invariant_old_call(&stmt.kind.name()))
+            }
+            _ => None,
+        }));
+        dependencies_code.extend(right_invariants.iter().filter_map(|stmt| match stmt.kind {
+            SmtStatementKind::GameInvariant { .. }
+            | SmtStatementKind::SubGameInvariant { .. }
+            | SmtStatementKind::PackageInvariant { .. } => {
+                Some(build_right_invariant_old_call(&stmt.kind.name()))
+            }
+            _ => None,
+        }));
 
         for dep in dep_calls {
             dependencies_code.push(dep)
@@ -545,17 +438,8 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_game_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let left = self
-            .theorem
-            .find_game_instance(self.equivalence.left_name())
-            .unwrap();
-        let right = self
-            .theorem
-            .find_game_instance(self.equivalence.right_name())
-            .unwrap();
-
-        let mut left_writer = CompositionSmtWriter::new(left, self.sample_info_left());
-        let mut right_writer = CompositionSmtWriter::new(right, self.sample_info_right());
+        let left_writer = self.left_game_inst_ctx();
+        let right_writer = self.right_game_inst_ctx();
 
         left_writer
             .smt_composition_randomness()
@@ -572,31 +456,7 @@ impl<'a> EquivalenceContext<'a> {
     }
 
     pub(crate) fn emit_base_declarations(&self) -> Vec<SmtExpr> {
-        let mut base_declarations: Vec<SmtExpr> = vec![("set-logic", "ALL").into()];
-
-        let mut bits_sort_suffixes = HashSet::new();
-
-        for ty in self.types() {
-            if let TypeKind::Bits(count_spec) = &ty.kind() {
-                let bits_sort_suffix = count_spec.resolved_suffix();
-
-                log::debug!("found {bits_sort_suffix}");
-
-                // ensure we don't write more than once. Earlier we also dedupe, but we dedupe
-                // identifiers, which contain more info than just the name.
-                if bits_sort_suffixes.insert(bits_sort_suffix.clone()) {
-                    base_declarations.extend(hacks::BitsDeclaration(bits_sort_suffix));
-                }
-            }
-        }
-
-        base_declarations.extend(hacks::MaybeDeclaration);
-        base_declarations.push(hacks::ReturnValueDeclaration.into());
-        base_declarations.extend(hacks::TuplesDeclaration(0..32));
-        base_declarations.extend(hacks::EmptyDeclaration);
-        base_declarations.push(hacks::SampleIdDeclaration.into());
-
-        base_declarations
+        emit_base_declarations(self.types())
     }
 
     pub(crate) fn emit_auto_randomness(&self, oracle_name: &str) -> Vec<SmtExpr> {
@@ -674,100 +534,52 @@ impl<'a> EquivalenceContext<'a> {
             }
         }
 
-        self.theorem
+        let imported_fns = self
+            .left_game_inst_ctx()
+            .game_inst()
             .consts
             .iter()
-            .filter_map(get_fn)
-            .map(|(func_name, arg_types, ret_type)| {
-                let arg_types: SmtExpr = arg_types
-                    .into_iter()
-                    .map(|ty| ty.into())
-                    .collect::<Vec<SmtExpr>>()
-                    .into();
-
-                (
-                    "declare-fun",
-                    format!("<<func-{func_name}>>"),
-                    arg_types,
-                    ret_type,
-                )
-                    .into()
+            .chain(self.right_game_inst_ctx().game_inst().consts.iter())
+            .filter_map(|(ident, _expr)| {
+                if matches!(ident.ty.kind(), TypeKind::Fn(_, _)) {
+                    if let Some(val) = &ident.assigned_value {
+                        val.as_identifier().map(|ident| ident.ident())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
             })
+            .collect::<HashSet<_>>();
+
+        self.theorem.consts.iter().filter_map(get_fn).filter_map(
+            move |(func_name, arg_types, ret_type)| {
+                if imported_fns.contains(&func_name) {
+                    let arg_types: SmtExpr = arg_types
+                        .into_iter()
+                        .map(|ty| ty.into())
+                        .collect::<Vec<SmtExpr>>()
+                        .into();
+
+                    Some(
+                        (
+                            "declare-fun",
+                            format!("<<func-{func_name}>>"),
+                            arg_types,
+                            ret_type,
+                        )
+                            .into(),
+                    )
+                } else {
+                    None
+                }
+            },
+        )
     }
 
     pub(crate) fn emit_return_value_helpers(&self, oracle_name: &str) -> Vec<SmtExpr> {
-        let left_gctx = self.left_game_inst_ctx();
-        let left_octx = left_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
-        let left_pctx = left_octx.pkg_inst_ctx();
-
-        let right_gctx = self.right_game_inst_ctx();
-        let right_octx = right_gctx.exported_oracle_ctx_by_name(oracle_name).unwrap();
-        let right_pctx = right_octx.pkg_inst_ctx();
-
-        let left_return_value = left_octx.return_value_const_pattern(oracle_name);
-        let right_return_value = right_octx.return_value_const_pattern(oracle_name);
-
-        let left_is_abort = ReturnIsAbortConst {
-            game_inst_name: left_gctx.game_inst().name(),
-            pkg_inst_name: left_pctx.pkg_inst_name(),
-            oracle_name,
-            ty: left_octx.oracle_return_type(),
-        };
-
-        let right_is_abort = ReturnIsAbortConst {
-            game_inst_name: right_gctx.game_inst().name(),
-            pkg_inst_name: right_pctx.pkg_inst_name(),
-            oracle_name,
-            ty: right_octx.oracle_return_type(),
-        };
-
-        let consts: [(_, SmtExpr); 3] = [
-            (
-                "<equal-aborts>",
-                SmtEq2 {
-                    lhs: left_is_abort.value(left_return_value.name()),
-                    rhs: right_is_abort.value(right_return_value.name()),
-                }
-                .into(),
-            ),
-            (
-                "<no-aborts>",
-                SmtAnd(vec![
-                    SmtNot(left_is_abort.value(left_return_value.name())).into(),
-                    SmtNot(right_is_abort.value(right_return_value.name())).into(),
-                ])
-                .into(),
-            ),
-            (
-                "<same-outputs>",
-                SmtEq2 {
-                    lhs: left_return_value.name(),
-                    rhs: right_return_value.name(),
-                }
-                .into(),
-            ),
-        ];
-
-        consts
-            .into_iter()
-            .flat_map(|(name, value)| {
-                let declare = declare_const(name, Sort::Bool);
-                let constrain = SmtAssert(SmtEq2 {
-                    lhs: name,
-                    rhs: value,
-                });
-
-                [declare, constrain.into()]
-            })
-            .chain(std::iter::once(
-                self.relation_definition_equal_aborts(oracle_name).into(),
-            ))
-            .chain(std::iter::once(
-                self.relation_definition_left_no_abort(oracle_name).into(),
-            ))
-            .chain(std::iter::once(
-                self.relation_definition_right_no_abort(oracle_name).into(),
-            ))
+        std::iter::once(self.relation_definition_equal_aborts(oracle_name).into())
             .chain(std::iter::once(
                 self.relation_definition_no_abort(oracle_name).into(),
             ))
@@ -775,8 +587,6 @@ impl<'a> EquivalenceContext<'a> {
                 self.relation_definition_same_output(oracle_name).into(),
             ))
             .collect()
-
-        // out
     }
 
     pub(crate) fn emit_constant_declarations(&self) -> Vec<SmtExpr> {
@@ -921,9 +731,6 @@ impl<'a> EquivalenceContext<'a> {
          *
          */
 
-        let left_game_inst_name = self.equivalence.left_name();
-        let right_game_inst_name = self.equivalence.right_name();
-
         let left = self
             .theorem
             .find_game_instance(self.equivalence.left_name())
@@ -933,34 +740,12 @@ impl<'a> EquivalenceContext<'a> {
             .find_game_instance(self.equivalence.right_name())
             .unwrap();
 
-        let gctx_left = GameInstanceContext::new(left);
-        let gctx_right = GameInstanceContext::new(right);
-
-        let left_game_name = &gctx_left.game().name;
-        let right_game_name = &gctx_right.game().name;
+        let gctx_left = self.left_game_inst_ctx();
+        let gctx_right = self.right_game_inst_ctx();
 
         let mut out = Vec::new();
 
-        /////// state constants
-
-        let game_state_left = gctx_left.oracle_arg_game_state_pattern();
-        let game_state_right = gctx_right.oracle_arg_game_state_pattern();
-
-        // the new ones are declared in the declare-then-assert loop below
-
-        out.push(game_state_left.declare_old(left_game_inst_name));
-        //out.push(game_state_left.declare_new(left_game_inst_name));
-        out.push(game_state_right.declare_old(right_game_inst_name));
-        //out.push(game_state_right.declare_new(right_game_inst_name));
-
         ////// consts constants
-
-        let game_consts_left = patterns::oracle_args::GameConstsPattern {
-            game_name: left_game_name,
-        };
-        let game_consts_right = patterns::oracle_args::GameConstsPattern {
-            game_name: right_game_name,
-        };
 
         let theorem_consts = patterns::oracle_args::TheoremConstsPattern {
             theorem_name: &self.theorem().name,
@@ -972,44 +757,6 @@ impl<'a> EquivalenceContext<'a> {
         let hack_this_should_be_ignored = "this is being ignored anyway, but let's make sure it fails if it gets included )))))))))))))";
 
         out.push(theorem_consts.unit_declare(hack_this_should_be_ignored));
-
-        let theorem_game_const_mapping_left = GameConstMappingFunction {
-            theorem_name: &self.theorem().name,
-            game_name: left_game_name,
-            game_inst_name: left_game_inst_name,
-        };
-
-        let theorem_game_const_mapping_right = GameConstMappingFunction {
-            theorem_name: &self.theorem().name,
-            game_name: right_game_name,
-            game_inst_name: right_game_inst_name,
-        };
-
-        let theorem_game_const_mapping_call_left =
-            theorem_game_const_mapping_left.call(&[theorem_consts
-                .unit_global_const_name(hack_this_should_be_ignored)
-                .into()]);
-        let theorem_game_const_mapping_call_right =
-            theorem_game_const_mapping_right.call(&[theorem_consts
-                .unit_global_const_name(hack_this_should_be_ignored)
-                .into()]);
-
-        out.push(
-            game_consts_left
-                .unit_define(
-                    left_game_inst_name,
-                    theorem_game_const_mapping_call_left.unwrap(),
-                )
-                .into(),
-        );
-        out.push(
-            game_consts_right
-                .unit_define(
-                    right_game_inst_name,
-                    theorem_game_const_mapping_call_right.unwrap(),
-                )
-                .into(),
-        );
 
         /////// arguments for non-split and split oracles
 
@@ -1058,39 +805,14 @@ impl<'a> EquivalenceContext<'a> {
             }
         }
 
-        ////// return values
+        out.extend(gctx_left.emit_constant_declarations(Some(&self.theorem().name)));
+        out.extend(gctx_right.emit_constant_declarations(Some(&self.theorem().name)));
 
-        for (decl_ret, constrain) in build_returns(left) {
-            out.push(decl_ret);
-            out.push(constrain);
+        for export in &left.game().exports {
+            out.extend(gctx_left.emit_return(export));
         }
-
-        for (decl_ret, constrain) in build_returns(right) {
-            out.push(decl_ret);
-            out.push(constrain);
-        }
-
-        /////// randomess counters
-
-        for (decl_ctr, assert_ctr, assert_zero_ctr) in build_rands(self.sample_info_left(), left) {
-            out.push(decl_ctr);
-            out.push(assert_ctr);
-            // For offset-based randomness mapping, we treat the user-provided
-            // counters as actual randomness counters instead of adding them to
-            // the old counters (base counters). This requires asserting that
-            // old counters are zero and makes the SMT code simpler.
-            out.push(assert_zero_ctr);
-        }
-
-        for (decl_ctr, assert_ctr, assert_zero_ctr) in build_rands(self.sample_info_right(), right)
-        {
-            out.push(decl_ctr);
-            out.push(assert_ctr);
-            // For offset-based randomness mapping, we treat the user-provided
-            // counters as actual randomness counters instead of adding them to
-            // the old counters (base counters). This requires asserting that
-            // old counters are zero and makes the SMT code simpler.
-            out.push(assert_zero_ctr);
+        for export in &right.game().exports {
+            out.extend(gctx_right.emit_return(export));
         }
 
         out
@@ -1100,109 +822,52 @@ impl<'a> EquivalenceContext<'a> {
     /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_package_const_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut already_defined = BTreeSet::new();
-
-        Some(self)
-            .into_iter()
-            .flat_map(|ectx| {
-                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
-            })
-            .flat_map(|gctx| gctx.pkg_inst_contexts())
-            .map(|pctx| {
-                let pattern = pctx.datastructure_pkg_consts_pattern();
-                let spec = pattern.datastructure_spec(pctx.pkg());
-
-                (pattern, spec)
-            })
-            .filter_map(move |(pattern, spec)| {
-                if already_defined.insert(pattern.sort_name()) {
-                    Some(declare_datatype(&pattern, &spec))
-                } else {
-                    None
-                }
-            })
+        unique_by_name(
+            self.left_game_inst_ctx()
+                .named_smt_package_const_definitions()
+                .chain(
+                    self.right_game_inst_ctx()
+                        .named_smt_package_const_definitions(),
+                ),
+        )
     }
 
     /// Returns an iterator of all the package state datatypes that need to be defined for this
     /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_package_state_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut already_defined = BTreeSet::new();
-
-        Some(self)
-            .into_iter()
-            .flat_map(|ectx| {
-                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
-            })
-            .flat_map(|gctx| gctx.pkg_inst_contexts())
-            .filter_map(move |pctx| {
-                let pattern = pctx.pkg_state_pattern();
-                let spec = pattern.datastructure_spec(pctx.pkg());
-
-                if already_defined.insert(pattern.sort_name()) {
-                    Some(declare_datatype(&pattern, &spec))
-                } else {
-                    None
-                }
-            })
+        unique_by_name(
+            self.left_game_inst_ctx()
+                .named_smt_package_state_definitions()
+                .chain(
+                    self.right_game_inst_ctx()
+                        .named_smt_package_state_definitions(),
+                ),
+        )
     }
 
     /// Returns an iterator of all the package state datatypes that need to be defined for this
     /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_package_return_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut already_defined = BTreeSet::new();
-
-        Some(self)
-            .into_iter()
-            .flat_map(|ectx| {
-                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
-            })
-            .flat_map(|gctx| gctx.pkg_inst_contexts())
-            .flat_map(|pctx| pctx.oracle_contexts())
-            .filter_map(move |octx| {
-                let pattern = octx.return_pattern();
-                let spec = pattern.datastructure_spec(&octx.oracle_sig().ty);
-
-                if already_defined.insert(pattern.sort_name()) {
-                    Some(declare_datatype(&pattern, &spec))
-                } else {
-                    None
-                }
-            })
+        unique_by_name(
+            self.left_game_inst_ctx()
+                .named_smt_package_return_definitions()
+                .chain(
+                    self.right_game_inst_ctx()
+                        .named_smt_package_return_definitions(),
+                ),
+        )
     }
 
     /// Returns an iterator of all the game state datatypes that need to be defined for this
     /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_game_state_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut already_defined = BTreeSet::new();
-
-        Some(self)
-            .into_iter()
-            .flat_map(move |ectx| {
-                vec![
-                    (ectx.left_game_inst_ctx(), self.sample_info_left()),
-                    (ectx.right_game_inst_ctx(), self.sample_info_right()),
-                ]
-                .into_iter()
-            })
-            .filter_map(move |(gctx, sample_info)| {
-                let declare_info = GameStateDeclareInfo {
-                    game_inst: gctx.game_inst(),
-                    sample_info,
-                };
-
-                let pattern = gctx.datastructure_game_state_pattern();
-                let spec = pattern.datastructure_spec(&declare_info);
-
-                if already_defined.insert(pattern.sort_name()) {
-                    let datatype = declare_datatype(&pattern, &spec);
-                    Some(datatype)
-                } else {
-                    None
-                }
-            })
+        unique_by_name([
+            self.left_game_inst_ctx().named_smt_game_state_definition(),
+            self.right_game_inst_ctx().named_smt_game_state_definition(),
+        ])
     }
 
     /// Returns an iterator cntaining the theorem const datatype.
@@ -1217,23 +882,10 @@ impl<'a> EquivalenceContext<'a> {
     /// equivalence theorem. It makes sure to skip duplicate definitions, which may occur if a
     /// package is used more than once.
     pub(crate) fn smt_game_const_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut already_defined = BTreeSet::new();
-
-        Some(self)
-            .into_iter()
-            .flat_map(move |ectx| {
-                vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
-            })
-            .filter_map(move |gctx| {
-                let pattern = gctx.datastructure_game_consts_pattern();
-                let spec = pattern.datastructure_spec(gctx.game());
-
-                if already_defined.insert(pattern.sort_name()) {
-                    Some(declare_datatype(&pattern, &spec))
-                } else {
-                    None
-                }
-            })
+        unique_by_name([
+            self.left_game_inst_ctx().named_smt_game_const_definition(),
+            self.right_game_inst_ctx().named_smt_game_const_definition(),
+        ])
     }
 
     /// Returns an iterator over the functions that map the constant values of the theorem to that of a
@@ -1261,225 +913,27 @@ impl<'a> EquivalenceContext<'a> {
     pub(crate) fn smt_game_pkg_const_mapping_definitions(
         &'a self,
     ) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut seen_game_names: HashSet<&str> = Default::default();
+        let mut seen_game_const_sorts: HashSet<String> = Default::default();
 
         Some(self)
             .into_iter()
             .flat_map(move |ectx| {
                 vec![ectx.left_game_inst_ctx(), ectx.right_game_inst_ctx()].into_iter()
             })
-            .filter(move |gctx| seen_game_names.insert(gctx.game_name()))
-            .flat_map(|gctx| {
-                gctx.game().pkgs.iter().flat_map(move |pkg_inst| {
-                    define_pkg_const_mapping_fun(gctx.game(), &pkg_inst.pkg, &pkg_inst.name)
-                        .map(SmtExpr::from)
-                })
+            .filter(move |gctx| {
+                seen_game_const_sorts.insert(gctx.datastructure_game_consts_pattern().sort_name())
             })
+            .flat_map(|gctx| gctx.smt_game_pkg_const_mapping_definitions())
     }
 
     pub(crate) fn smt_oracle_function_definitions(&'a self) -> impl Iterator<Item = SmtExpr> + 'a {
-        let mut already_defined = BTreeSet::new();
-
-        Some(self)
-            .into_iter()
-            .flat_map(move |ectx| {
-                let left_gctx = ectx.left_game_inst_ctx();
-                let right_gctx = ectx.right_game_inst_ctx();
-
-                vec![
-                    (left_gctx, ectx.sample_info_left()),
-                    (right_gctx, ectx.sample_info_right()),
-                ]
-                .into_iter()
-            })
-            .flat_map(|(gctx, sample_info)| {
-                gctx.pkg_inst_contexts()
-                    .map(move |pctx| (pctx, sample_info))
-            })
-            .flat_map(|(pctx, sample_info)| {
-                pctx.oracle_contexts().map(move |octx| (octx, sample_info))
-            })
-            .filter_map(move |(octx, sample_info)| {
-                let gctx = octx.game_inst_ctx();
-                let pctx = octx.pkg_inst_ctx();
-                let pattern = octx.oracle_pattern();
-
-                let game_inst = gctx.game_inst();
-
-                let writer = CompositionSmtWriter::new(game_inst, sample_info);
-
-                if already_defined.insert(pattern.function_name()) {
-                    let fundef =
-                        writer.smt_define_nonsplit_oracle_fn(pctx.pkg_inst(), octx.oracle_def());
-                    Some(fundef)
-                } else {
-                    None
-                }
-            })
+        unique_by_name(
+            self.left_game_inst_ctx()
+                .named_smt_oracle_function_definitions()
+                .chain(
+                    self.right_game_inst_ctx()
+                        .named_smt_oracle_function_definitions(),
+                ),
+        )
     }
-}
-
-fn build_returns(game_inst: &GameInstance) -> Vec<(SmtExpr, SmtExpr)> {
-    let gctx = GameInstanceContext::new(game_inst);
-    let game_name = &game_inst.game().name;
-    let game_inst_name = &game_inst.name();
-    let game_params = &game_inst.consts;
-
-    // write declarations of right return constants and constrain them
-    let mut out = vec![];
-    for export in &game_inst.game().exports {
-        let pkg_inst = &game_inst.game().pkgs[export.to()];
-        let sig = export.sig();
-
-        let pkg_inst_name = &pkg_inst.name;
-        let pkg_params = &pkg_inst.params;
-        let pkg_name = &pkg_inst.pkg.name;
-        let oracle_name = &sig.name;
-        let oracle_import_name = export.name();
-        let return_type = &sig.ty;
-
-        let mut octx = gctx
-            .exported_oracle_ctx_by_name(export.name())
-            .unwrap_or_else(|| {
-                panic!(
-                    "error looking up exported oracle with name {oracle_name} in game {game_name}"
-                )
-            });
-        octx.set_renamed(export.alias());
-
-        let return_const = patterns::ReturnConst {
-            game_inst_name,
-            game_name,
-            game_params,
-            pkg_name,
-            pkg_params,
-            oracle_name,
-            oracle_import_name,
-        };
-
-        let return_value_const = patterns::ReturnValueConst {
-            game_inst_name,
-            pkg_inst_name,
-            oracle_name: oracle_import_name,
-            ty: &sig.ty,
-        };
-
-        let is_abort_const_pattern = ReturnIsAbortConst {
-            game_inst_name,
-            pkg_inst_name,
-            oracle_name: oracle_import_name,
-            ty: &sig.ty,
-        };
-
-        let state = octx.oracle_arg_game_state_pattern();
-        let consts = octx.oracle_arg_game_consts_pattern();
-
-        let old_state_const = state.old_global_const_name(game_inst_name);
-        let new_state_const =
-            state.new_global_const_name(game_inst_name, oracle_import_name.to_string());
-        let consts_const = consts.unit_global_const_name(game_inst_name);
-
-        let args = sig
-            .args
-            .iter()
-            .map(|(arg_name, _)| octx.smt_arg_name(arg_name));
-
-        let oracle_func_evaluation = octx
-            .smt_call_oracle_fn(old_state_const, consts_const, args)
-            .unwrap();
-
-        let return_pattern = octx.return_pattern();
-        let return_spec = return_pattern.datastructure_spec(return_type);
-
-        let access_returnvalue = return_pattern
-            .access(
-                &return_spec,
-                &patterns::ReturnSelector::ReturnValueOrAbort {
-                    return_type: &sig.ty,
-                },
-                return_const.name(),
-            )
-            .unwrap();
-
-        let access_new_state = return_pattern
-            .access(
-                &return_spec,
-                &patterns::ReturnSelector::GameState,
-                return_const.name(),
-            )
-            .unwrap();
-
-        let constrain_return = SmtAssert(SmtEq2 {
-            lhs: return_const.name(),
-            rhs: oracle_func_evaluation,
-        });
-
-        let constrain_return_value = SmtAssert(SmtEq2 {
-            lhs: return_value_const.name(),
-            rhs: access_returnvalue,
-        });
-
-        let constrain_new_state = SmtAssert(SmtEq2 {
-            lhs: new_state_const,
-            rhs: access_new_state,
-        });
-
-        let constrain_is_abort = SmtAssert(SmtEq2 {
-            lhs: is_abort_const_pattern.name(),
-            rhs: is_abort_const_pattern.value(return_value_const.name()),
-        });
-
-        out.push((return_const.declare(), constrain_return.into()));
-        out.push((return_value_const.declare(), constrain_return_value.into()));
-        out.push((is_abort_const_pattern.declare(), constrain_is_abort.into()));
-        out.push((
-            state.declare_new(game_inst_name, oracle_import_name.to_string()),
-            constrain_new_state.into(),
-        ));
-    }
-
-    out
-}
-
-fn build_rands(
-    sample_info: &SampleInfo,
-    game_inst: &GameInstance,
-) -> Vec<(SmtExpr, SmtExpr, SmtExpr)> {
-    let gctx = GameInstanceContext::new(game_inst);
-
-    sample_info
-        .positions
-        .iter()
-        .map(|sample_item| {
-            let sample_id = sample_item.sample_id;
-            let game_inst_name = game_inst.name();
-
-            let state = gctx
-                .oracle_arg_game_state_pattern()
-                .old_global_const_name(game_inst_name);
-
-            let randctr_name = format!("randctr-{game_inst_name}-{sample_id}");
-
-            let decl_randctr = declare_const(randctr_name.clone(), Sort::Int);
-
-            // pull randomness counter for given sample_id out of the gamestate
-            let randctr = gctx
-                .smt_access_gamestate_rand(sample_info, state, sample_id)
-                .unwrap();
-
-            let constrain_randctr: SmtExpr = SmtAssert(SmtEq2 {
-                lhs: randctr_name.as_str(),
-                rhs: randctr.clone(),
-            })
-            .into();
-
-            let zero_constrain_randctr: SmtExpr = SmtAssert(SmtEq2 {
-                lhs: randctr_name.as_str(),
-                rhs: 0,
-            })
-            .into();
-
-            (decl_randctr, constrain_randctr, zero_constrain_randctr)
-        })
-        .collect()
 }

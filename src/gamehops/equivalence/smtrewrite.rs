@@ -5,6 +5,9 @@ use super::EquivalenceContext;
 use crate::expressions::ExpressionKind;
 use crate::package::Export;
 use crate::packageinstance::PackageInstance;
+use crate::packageinstance::{
+    full_inst_type_mapping, game_inst_type_mapping_vec, pkg_inst_type_mapping_vec,
+};
 use crate::theorem::GameInstance;
 use crate::transforms::samplify::SampleInfo;
 use crate::types::TypeKind;
@@ -44,6 +47,11 @@ pub enum SmtStatementKind {
         name: String,
         game: String,
     },
+    SubGameInvariant {
+        name: String,
+        game: String,
+        packages: Vec<String>,
+    },
     Function {
         name: String,
     },
@@ -61,6 +69,14 @@ impl SmtStatementKind {
             }
             SmtStatementKind::GameInvariant { name, game } => {
                 format!("game-invariant!{name}!{game}!")
+            }
+            SmtStatementKind::SubGameInvariant {
+                name,
+                game,
+                packages,
+            } => {
+                let packages = packages.iter().join("-");
+                format!("subgame-invariant!{name}!{game}!{packages}!")
             }
             SmtStatementKind::PackageInvariant {
                 name,
@@ -105,42 +121,77 @@ impl From<SmtExpr> for SmtStmt {
     }
 }
 
-struct SmtRewrite<'a> {
+struct SmtRewriteEquivalence<'a> {
     context: &'a EquivalenceContext<'a>,
-    package: Option<&'a PackageInstance>,
-    game: Option<&'a GameInstance>,
     content: Vec<SmtStmt>,
 }
 
-impl<'a> SmtRewrite<'a> {
+struct SmtRewriteGame<'a> {
+    context: &'a GameInstanceContext<'a>,
+    package: Option<&'a PackageInstance>,
+    content: Vec<SmtStmt>,
+    type_mapping: Vec<(SmtExpr, SmtExpr)>,
+}
+
+impl<'a> SmtRewriteEquivalence<'a> {
     fn new(context: &'a EquivalenceContext) -> Self {
         Self {
             context,
-            package: None,
-            game: None,
             content: Vec::new(),
         }
     }
+}
 
-    fn new_with_game(context: &'a EquivalenceContext, game: &'a GameInstance) -> Self {
+impl<'a> SmtRewriteGame<'a> {
+    fn new_with_game(context: &'a GameInstanceContext) -> Self {
+        let game_mapping = game_inst_type_mapping_vec(&context.game_inst().types);
         Self {
             context,
             package: None,
-            game: Some(game),
             content: Vec::new(),
+            type_mapping: game_mapping
+                .into_iter()
+                .map(|(ty1, ty2)| (ty1.into(), ty2.into()))
+                .collect(),
         }
     }
 
-    fn new_with_package(
-        context: &'a EquivalenceContext,
-        game: &'a GameInstance,
-        package: &'a PackageInstance,
-    ) -> Self {
+    fn new_with_package(context: &'a GameInstanceContext, package: &'a PackageInstance) -> Self {
+        let game_mapping = game_inst_type_mapping_vec(&context.game_inst().types);
+        let package_mapping = pkg_inst_type_mapping_vec(&package.types);
+        let full_mapping = full_inst_type_mapping(&package_mapping, &game_mapping)
+            .map(|(ty1, ty2)| (ty1.into(), ty2.into()))
+            .collect();
+
+        log::warn!("{full_mapping:?}");
+
         Self {
             context,
             package: Some(package),
-            game: Some(game),
             content: Vec::new(),
+            type_mapping: full_mapping,
+        }
+    }
+
+    fn rewrite_type(&self, expr: SmtExpr) -> SmtExpr {
+        match expr {
+            SmtExpr::Atom(_) => self
+                .type_mapping
+                .iter()
+                .find_map(|(orig, repl)| {
+                    if orig == &expr {
+                        Some(repl.clone())
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(expr.clone()),
+            SmtExpr::List(list) => SmtExpr::List(
+                list.into_iter()
+                    .map(|expr| self.rewrite_type(expr))
+                    .collect(),
+            ),
+            SmtExpr::Comment(_) => expr,
         }
     }
 }
@@ -229,6 +280,7 @@ fn gen_returnbinding(
         game_params: &game.consts,
         pkg_name: &pkginst.pkg.name,
         pkg_params: &pkginst.params,
+        pkg_types: &pkginst.types,
         oracle_name: &export.sig().name,
     };
     let spec = pattern.datastructure_spec(&export.sig().ty);
@@ -249,7 +301,11 @@ fn gen_returnbinding(
         .collect()
 }
 
-fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr)> {
+fn gen_pkgbinding(
+    game: &GameInstance,
+    game_state: &str,
+    limit: Option<&[String]>,
+) -> Vec<(String, SmtExpr)> {
     let state_pattern = patterns::GameStatePattern {
         game_name: game.game_name(),
         params: &game.consts,
@@ -264,6 +320,7 @@ fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr
 
     let const_pattern = patterns::GameConstsPattern {
         game_name: game.game_name(),
+        params: &game.consts,
     };
     let const_spec = const_pattern.datastructure_spec(&game.game);
 
@@ -274,10 +331,17 @@ fn gen_pkgbinding(game: &GameInstance, game_state: &str) -> Vec<(String, SmtExpr
         .iter()
         .filter_map(|sel| match sel {
             patterns::GameStateSelector::Randomness { .. } => None,
-            patterns::GameStateSelector::PackageInstance { pkg_inst_name, .. } => Some((
-                format!("{game_state}.{pkg_inst_name}"),
-                (state_pattern.selector_name(sel), game_state).into(),
-            )),
+            patterns::GameStateSelector::PackageInstance { pkg_inst_name, .. } => {
+                if let Some(limit) = limit {
+                    if limit.iter().all(|pkg| pkg != pkg_inst_name) {
+                        return None;
+                    }
+                }
+                Some((
+                    format!("{game_state}.{pkg_inst_name}"),
+                    (state_pattern.selector_name(sel), game_state).into(),
+                ))
+            }
         })
         .chain(const_selectors.iter().map(|sel| {
             let varname = sel.name;
@@ -297,6 +361,7 @@ fn gen_varbinding(
     let state_pattern = patterns::PackageStatePattern {
         pkg_name: package.pkg_name(),
         params: &package.params,
+        types: &package.types,
     };
 
     let state_spec = state_pattern.datastructure_spec(&package.pkg);
@@ -304,6 +369,7 @@ fn gen_varbinding(
 
     let const_pattern = patterns::PackageConstsPattern {
         pkg_name: package.pkg_name(),
+        params: &package.params,
     };
     let const_spec = const_pattern.datastructure_spec(&package.pkg);
 
@@ -311,8 +377,10 @@ fn gen_varbinding(
 
     let pkg_consts = patterns::const_mapping::PackageConstMappingFunction {
         game_name: game.game_name(),
+        game_params: &game.consts,
         pkg_name: package.pkg_name(),
         pkg_inst_name: package.name(),
+        params: &package.params,
     }
     .call(&[format!("<<game-consts-{}>>", game.name()).into()])
     .unwrap();
@@ -336,7 +404,7 @@ fn gen_varbinding(
         .collect()
 }
 
-impl SmtRewrite<'_> {
+impl SmtRewriteEquivalence<'_> {
     fn equivalence_name(&self) -> String {
         format!(
             "{} = {}",
@@ -346,7 +414,227 @@ impl SmtRewrite<'_> {
     }
 }
 
-impl SmtParser<Error> for SmtRewrite<'_> {
+impl SmtRewriteGame<'_> {
+    fn handle_define_game_invariant_helper(
+        &mut self,
+        invname: &str,
+        body: SmtExpr,
+        packages: Option<&[String]>,
+    ) -> Result<SmtExpr> {
+        let func_aliases: Vec<_> =
+            generate_func_aliases_game(self.context.game_inst(), "game".to_string()).collect();
+
+        let gamestate_pattern = self.context.datastructure_game_state_pattern();
+        let gamestate_sort = gamestate_pattern.sort_name();
+
+        let pkgbindings = gen_pkgbinding(self.context.game_inst(), "game", packages);
+        let varbindings: Vec<_> = self
+            .context
+            .game()
+            .pkgs
+            .iter()
+            .filter(|pkg_inst| {
+                if let Some(packages) = packages {
+                    if packages.iter().all(|pkg| pkg != pkg_inst.name()) {
+                        return false;
+                    }
+                }
+                true
+            })
+            .flat_map(|pkg| {
+                gen_varbinding(pkg, self.context.game_inst(), &format!("game.{}", pkg.name))
+            })
+            .collect();
+
+        let bindvars = SmtLet {
+            bindings: varbindings,
+            body: rewrite_functions(&func_aliases, body),
+        };
+
+        let bindpackages: SmtExpr = SmtLet {
+            bindings: pkgbindings,
+            body: bindvars,
+        }
+        .into();
+
+        Ok((
+            "define-fun",
+            invname,
+            vec![(
+                SmtExpr::Atom("game".to_string()),
+                SmtExpr::Atom(gamestate_sort),
+            )
+                .into()],
+            "Bool",
+            bindpackages,
+        )
+            .into())
+    }
+}
+
+impl SmtParser<Error> for SmtRewriteGame<'_> {
+    type Expr = SmtExpr;
+    type Stmt = SmtStmt;
+
+    fn handle_atom(&mut self, content: &str) -> Result<SmtExpr> {
+        Ok(SmtExpr::Atom(content.to_string()))
+    }
+
+    fn handle_list(&mut self, content: Vec<SmtExpr>) -> Result<SmtExpr> {
+        if content.len() > 2 && (content[0] == "forall".into() || content[0] == "exist".into()) {
+            if let SmtExpr::List(quantified) = &content[1] {
+                let quantified = quantified
+                    .iter()
+                    .map(|smtexpr| {
+                        if let SmtExpr::List(binding) = &smtexpr {
+                            if let [name, ty] = &binding[..] {
+                                return SmtExpr::List(vec![
+                                    name.clone(),
+                                    self.rewrite_type(ty.clone()),
+                                ]);
+                            }
+                        }
+                        smtexpr.clone()
+                    })
+                    .collect();
+                let mut new_content = vec![content[0].clone(), SmtExpr::List(quantified)];
+                new_content.extend(content[2..].iter().cloned());
+                return Ok(SmtExpr::List(new_content));
+            }
+        }
+        Ok(SmtExpr::List(content))
+    }
+
+    fn handle_sexp(&mut self, parsed: SmtStmt) -> Result<()> {
+        self.content.push(parsed);
+        Ok(())
+    }
+
+    fn handle_definefun(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtExpr>,
+        ty: &str,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        let expr = ("define-fun", funname, args, ty, body).into();
+
+        Ok(SmtStmt {
+            kind: SmtStatementKind::Function {
+                name: funname.to_string(),
+            },
+            expr,
+        })
+    }
+
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        let kind = SmtStatementKind::GameInvariant {
+            name: invname.to_string(),
+            game: self.context.game_inst_name().to_string(),
+        };
+
+        let expr = self.handle_define_game_invariant_helper(&kind.name(), body, None)?;
+        Ok(SmtStmt { kind, expr })
+    }
+
+    fn handle_define_subgame_invariant(
+        &mut self,
+        invname: &str,
+        packages: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        let packages: Vec<_> = packages.iter().map(ToString::to_string).collect();
+        let kind = SmtStatementKind::SubGameInvariant {
+            name: invname.to_string(),
+            game: self.context.game_inst_name().to_string(),
+            packages: packages.clone(),
+        };
+
+        let expr = self.handle_define_game_invariant_helper(&kind.name(), body, Some(&packages))?;
+        Ok(SmtStmt { kind, expr })
+    }
+
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        let Some(package) = self.package else {
+            return Err(Error::RewriteNeedsPackageContext {
+                defn: format!("(define-package-invariant {invname} {body})"),
+            });
+        };
+
+        let func_aliases: Vec<_> =
+            generate_func_aliases_package(package, "pkg".to_string()).collect();
+
+        let gamestate_pattern = self.context.datastructure_game_state_pattern();
+        let gamestate_sort = gamestate_pattern.sort_name();
+
+        let varbindings = gen_varbinding(package, self.context.game_inst(), "pkg");
+        let bindvars = SmtLet {
+            bindings: varbindings,
+            body: rewrite_functions(&func_aliases, body),
+        };
+        let bindpkg: SmtExpr = SmtLet {
+            bindings: vec![(
+                "pkg".to_string(),
+                self.context
+                    .smt_access_gamestate_pkgstate("game", package.name())
+                    .unwrap(),
+            )],
+            body: bindvars,
+        }
+        .into();
+
+        let kind = SmtStatementKind::PackageInvariant {
+            name: invname.to_string(),
+            package: self.package.unwrap().name().to_string(),
+            game: self.context.game_inst_name().to_string(),
+        };
+
+        let expr = (
+            "define-fun",
+            &kind.name(),
+            vec![(
+                SmtExpr::Atom("game".to_string()),
+                SmtExpr::Atom(gamestate_sort),
+            )
+                .into()],
+            "Bool",
+            bindpkg,
+        )
+            .into();
+
+        Ok(SmtStmt { kind, expr })
+    }
+
+    fn handle_define_state_relation(
+        &mut self,
+        funname: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        Err(Error::RewriteNeedsPackageContext {
+            defn: format!(
+                "(define-state-relation {funname} ({}) {body})",
+                args.into_iter().join(", ")
+            ),
+        })
+    }
+    fn handle_define_lemma(
+        &mut self,
+        lemma_name: &str,
+        oracle_name: &str,
+        args: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        Err(Error::RewriteNeedsPackageContext {
+            defn: format!(
+                "(define-state-relation {lemma_name} {oracle_name} ({}) {body})",
+                args.into_iter().join(", ")
+            ),
+        })
+    }
+}
+
+impl SmtParser<Error> for SmtRewriteEquivalence<'_> {
     type Expr = SmtExpr;
     type Stmt = SmtStmt;
 
@@ -378,111 +666,6 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             },
             expr,
         })
-    }
-
-    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
-        let Some(game) = self.game else {
-            return Err(Error::RewriteNeedsGameContext {
-                defn: format!("(define-game-invariant {body})"),
-            });
-        };
-
-        let func_aliases: Vec<_> = generate_func_aliases_game(game, "game".to_string()).collect();
-
-        let gamestate_context = GameInstanceContext::new(game);
-        let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
-        let gamestate_sort = gamestate_pattern.sort_name();
-
-        let pkgbindings = gen_pkgbinding(self.game.unwrap(), "game");
-        let varbindings: Vec<_> = game
-            .game
-            .pkgs
-            .iter()
-            .flat_map(|pkg| gen_varbinding(pkg, self.game.unwrap(), &format!("game.{}", pkg.name)))
-            .collect();
-
-        let bindvars = SmtLet {
-            bindings: varbindings,
-            body: rewrite_functions(&func_aliases, body),
-        };
-
-        let bindpackages: SmtExpr = SmtLet {
-            bindings: pkgbindings,
-            body: bindvars,
-        }
-        .into();
-
-        let kind = SmtStatementKind::GameInvariant {
-            name: invname.to_string(),
-            game: self.game.unwrap().name().to_string(),
-        };
-
-        let expr = (
-            "define-fun",
-            &kind.name(),
-            vec![(
-                SmtExpr::Atom("game".to_string()),
-                SmtExpr::Atom(gamestate_sort),
-            )
-                .into()],
-            "Bool",
-            bindpackages,
-        )
-            .into();
-
-        Ok(SmtStmt { kind, expr })
-    }
-
-    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
-        let (Some(game), Some(package)) = (self.game, self.package) else {
-            return Err(Error::RewriteNeedsPackageContext {
-                defn: format!("(define-package-invariant {body})"),
-            });
-        };
-
-        let func_aliases: Vec<_> =
-            generate_func_aliases_package(package, "pkg".to_string()).collect();
-
-        let gamestate_context = GameInstanceContext::new(game);
-        let gamestate_pattern = gamestate_context.datastructure_game_state_pattern();
-        let gamestate_sort = gamestate_pattern.sort_name();
-
-        let varbindings = gen_varbinding(package, game, "pkg");
-        let bindvars = SmtLet {
-            bindings: varbindings,
-            body: rewrite_functions(&func_aliases, body),
-        };
-        let bindpkg: SmtExpr = SmtLet {
-            bindings: vec![(
-                "pkg".to_string(),
-                gamestate_context
-                    .smt_access_gamestate_pkgstate("game", package.name())
-                    .unwrap(),
-            )],
-            body: bindvars,
-        }
-        .into();
-
-        let kind = SmtStatementKind::PackageInvariant {
-            name: invname.to_string(),
-            package: self.package.unwrap().name().to_string(),
-            game: self.game.unwrap().name().to_string(),
-        };
-
-        let expr = (
-            "define-fun",
-            &kind.name(),
-            vec![(
-                SmtExpr::Atom("game".to_string()),
-                SmtExpr::Atom(gamestate_sort),
-            )
-                .into()],
-            "Bool",
-            bindpkg,
-        )
-            .into();
-
-        Ok(SmtStmt { kind, expr })
     }
 
     fn handle_define_state_relation(
@@ -542,8 +725,8 @@ impl SmtParser<Error> for SmtRewrite<'_> {
                 .collect();
 
         let mut pkgbindings = Vec::new();
-        pkgbindings.extend(gen_pkgbinding(left_game_inst, left_arg_name));
-        pkgbindings.extend(gen_pkgbinding(right_game_inst, right_arg_name));
+        pkgbindings.extend(gen_pkgbinding(left_game_inst, left_arg_name, None));
+        pkgbindings.extend(gen_pkgbinding(right_game_inst, right_arg_name, None));
 
         let mut varbindings = Vec::new();
         varbindings.extend(left_game_inst.game.pkgs.iter().flat_map(|pkg| {
@@ -633,6 +816,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             game_params: &left_game_inst.consts,
             pkg_name: &left_game_inst.game.pkgs[left_oracle_export.to()].pkg.name,
             pkg_params: &left_game_inst.game.pkgs[left_oracle_export.to()].params,
+            pkg_types: &left_game_inst.game.pkgs[left_oracle_export.to()].types,
             oracle_name: &left_oracle_export.sig().name,
         };
 
@@ -652,6 +836,7 @@ impl SmtParser<Error> for SmtRewrite<'_> {
             game_params: &right_game_inst.consts,
             pkg_name: &right_game_inst.game.pkgs[right_oracle_export.to()].pkg.name,
             pkg_params: &right_game_inst.game.pkgs[right_oracle_export.to()].params,
+            pkg_types: &right_game_inst.game.pkgs[right_oracle_export.to()].types,
             oracle_name: &right_oracle_export.sig().name,
         };
 
@@ -711,15 +896,17 @@ impl SmtParser<Error> for SmtRewrite<'_> {
         ));
 
         let mut pkgbindings = Vec::new();
-        pkgbindings.extend(gen_pkgbinding(left_game_inst, left_old_name));
+        pkgbindings.extend(gen_pkgbinding(left_game_inst, left_old_name, None));
         pkgbindings.extend(gen_pkgbinding(
             left_game_inst,
             &format!("{left_return_name}.state"),
+            None,
         ));
-        pkgbindings.extend(gen_pkgbinding(right_game_inst, right_old_name));
+        pkgbindings.extend(gen_pkgbinding(right_game_inst, right_old_name, None));
         pkgbindings.extend(gen_pkgbinding(
             right_game_inst,
             &format!("{right_return_name}.state"),
+            None,
         ));
 
         let mut varbindings = Vec::new();
@@ -791,29 +978,48 @@ impl SmtParser<Error> for SmtRewrite<'_> {
 
         Ok(SmtStmt { kind, expr })
     }
+
+    fn handle_define_package_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-package-invariant {invname} {body})"),
+        })
+    }
+    fn handle_define_game_invariant(&mut self, invname: &str, body: SmtExpr) -> Result<SmtStmt> {
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-game-invariant {invname} {body})"),
+        })
+    }
+    fn handle_define_subgame_invariant(
+        &mut self,
+        invname: &str,
+        packages: Vec<SmtExpr>,
+        body: SmtExpr,
+    ) -> Result<SmtStmt> {
+        let packages = packages.into_iter().join(", ");
+        Err(Error::RewriteNotGameInstanceContext {
+            defn: format!("(define-subgame-invariant {invname} packages ({packages}) {body})"),
+        })
+    }
 }
 
 pub fn rewrite(context: &EquivalenceContext, content: &str) -> Result<Vec<SmtStmt>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new(context);
+    let mut rewriter = SmtRewriteEquivalence::new(context);
     rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }
-pub fn rewrite_game(
-    context: &EquivalenceContext,
-    game: &GameInstance,
-    content: &str,
-) -> Result<Vec<SmtStmt>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_game(context, game);
+
+pub fn rewrite_game(context: &GameInstanceContext, content: &str) -> Result<Vec<SmtStmt>> {
+    let mut rewriter = SmtRewriteGame::new_with_game(context);
     rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }
+
 pub fn rewrite_package(
-    context: &EquivalenceContext,
-    game: &GameInstance,
+    context: &GameInstanceContext,
     package: &PackageInstance,
     content: &str,
 ) -> Result<Vec<SmtStmt>> {
-    let mut rewriter: SmtRewrite = SmtRewrite::new_with_package(context, game, package);
+    let mut rewriter = SmtRewriteGame::new_with_package(context, package);
     rewriter.parse_stmts(content)?;
     Ok(rewriter.content)
 }

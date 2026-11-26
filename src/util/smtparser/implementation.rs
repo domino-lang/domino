@@ -43,6 +43,20 @@ where
         self.handle_list(vec![defun, invname, body]).map(Into::into)
     }
 
+    fn handle_define_subgame_invariant(
+        &mut self,
+        invname: &str,
+        packages: Vec<Self::Expr>,
+        body: Self::Expr,
+    ) -> Result<Self::Stmt, E> {
+        let defun = self.handle_atom("define-game-invariant")?;
+        let invname = self.handle_atom(invname)?;
+        let pkg_label = self.handle_atom("packages")?;
+        let packages = self.handle_list(packages)?;
+        self.handle_list(vec![defun, invname, pkg_label, packages, body])
+            .map(Into::into)
+    }
+
     fn handle_define_package_invariant(
         &mut self,
         invname: &str,
@@ -170,6 +184,19 @@ where
                 let body = self.rule_expr(p.next().unwrap())?;
 
                 self.handle_define_game_invariant(invname, body)
+            }
+            Rule::define_subgame_invariant => {
+                let mut p = p.into_inner();
+                let invname = p.next().unwrap().as_str();
+                let packages = p.next().unwrap();
+                debug_assert_matches!(packages.as_rule(), Rule::list);
+                let packages = packages
+                    .into_inner()
+                    .map(|sexp| self.rule_expr(sexp))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let body = self.rule_expr(p.next().unwrap())?;
+
+                self.handle_define_subgame_invariant(invname, packages, body)
             }
             Rule::define_state_relation => {
                 let mut p = p.into_inner();

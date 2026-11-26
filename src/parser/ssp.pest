@@ -249,7 +249,7 @@ theorem = { kw_theorem ~ identifier ~ "{" ~ theorem_spec_list ~ "}" }
 
 /// The list of specifications inside a theorem, which can include constants,
 /// instances, assumptions, game hops, and propositions.
-theorem_spec_list = { ( const_decl | instance_decl | hybrid_instance_decl | assumptions | game_hops | propositions)* }
+theorem_spec_list = { ( types | const_decl | instance_decl | hybrid_instance_decl | assumptions | game_hops | propositions)* }
 
   /// Block containing the assumptions needed for this theorem.
   assumptions = { kw_assumptions ~ "{" ~ ( assumption_entry )* ~ "}" }
@@ -331,7 +331,7 @@ path = @{ ( ASCII_ALPHA | "/" | "_" | "-" | "." ) ~ ( ASCII_ALPHA | ASCII_DIGIT 
 composition = { kw_composition ~ identifier ~ "{" ~ composition_spec_list ~ "}" }
 
 /// List of specifications in a composition: constants, instances, loops, and compose blocks.
-composition_spec_list = { const_decl* ~ invariant_spec? ~ instance_decl* ~ compose_decl*}
+composition_spec_list = { types* ~ const_decl* ~ invariant_spec? ~ instance_decl* ~ compose_decl*}
 
 /// A constant declaration with a type.
 const_decl = { kw_const ~ identifier ~ ":" ~ tipe ~ ";" }
@@ -493,7 +493,7 @@ stmt = _{ assign | invoke_stmt | return_stmt | assert | abort | ite | for_ }
 invoke_stmt = { kw_invoke ~ oracle_call ~ ";" }
 
 /// An if-then-else statement.
-ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ "{" ~ code ~ "}" )? }
+ite = {"if" ~ expression ~ "{" ~ code ~ "}" ~ ( "else" ~ ( "{" ~ code ~ "}" | ite ) )? }
 
 /// Assign an expression to a variable.
 assign = { pattern ~ "<-" ~ kw_parse? ~ assign_rhs ~ ";" }

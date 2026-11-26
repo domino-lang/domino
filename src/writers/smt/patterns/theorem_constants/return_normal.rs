@@ -3,6 +3,7 @@
 use crate::{
     expressions::Expression,
     identifier::{game_ident::GameConstIdentifier, pkg_ident::PackageConstIdentifier},
+    types::Type,
     writers::smt::{
         patterns::{theorem_constants::ConstantPattern, DatastructurePattern, ReturnPattern},
         sorts::Sort,
@@ -16,6 +17,7 @@ pub struct ReturnConst<'a> {
 
     pub pkg_name: &'a str,
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
+    pub pkg_types: &'a [(String, Type)],
 
     pub oracle_name: &'a str,        // Name as exported by the package
     pub oracle_import_name: &'a str, // Name as seen by the adversary
@@ -38,6 +40,7 @@ impl ConstantPattern for ReturnConst<'_> {
             game_params: self.game_params,
             pkg_name: self.pkg_name,
             pkg_params: self.pkg_params,
+            pkg_types: self.pkg_types,
             oracle_name: self.oracle_name,
         }
         .sort(vec![])

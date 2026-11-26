@@ -8,7 +8,7 @@ use crate::{
         names::FunctionNameBuilder,
         patterns::{
             self,
-            instance_names::{encode_params, only_ints_and_funs},
+            instance_names::{encode_params, encode_types, only_ints_and_funs},
             oracle_args::OracleArgPattern as _,
             DatastructurePattern as _, FunctionPattern, ReturnPattern,
         },
@@ -28,11 +28,13 @@ pub struct OraclePattern<'a> {
     pub oracle_args: &'a [(String, Type)],
     pub game_params: &'a [(GameConstIdentifier, Expression)],
     pub pkg_params: &'a [(PackageConstIdentifier, Expression)],
+    pub pkg_types: &'a [(String, Type)],
 }
 
 impl FunctionPattern for OraclePattern<'_> {
     fn function_name(&self) -> String {
         let pkg_encoded_params = encode_params(only_ints_and_funs(self.pkg_params));
+        let pkg_encoded_types = encode_types(self.pkg_types.iter().map(|(_, ty)| ty));
 
         FunctionNameBuilder::new()
             .push("oracle")
@@ -41,6 +43,7 @@ impl FunctionPattern for OraclePattern<'_> {
             .push(self.pkg_name)
             .push(self.pkg_inst_name)
             .maybe_extend(&pkg_encoded_params)
+            .maybe_extend(&pkg_encoded_types)
             .push(self.oracle_name)
             .build()
     }
@@ -58,7 +61,10 @@ impl FunctionPattern for OraclePattern<'_> {
             game_params,
         };
 
-        let game_consts = patterns::oracle_args::GameConstsPattern { game_name };
+        let game_consts = patterns::oracle_args::GameConstsPattern {
+            game_name,
+            game_params,
+        };
 
         let game_state_pair = (game_state.local_arg_name(), game_state.sort());
         let game_const_pair = (game_consts.local_arg_name(), game_consts.sort());
@@ -86,6 +92,7 @@ impl FunctionPattern for OraclePattern<'_> {
             oracle_name,
             game_params,
             pkg_params,
+            pkg_types,
             ..
         } = self;
 
@@ -95,6 +102,7 @@ impl FunctionPattern for OraclePattern<'_> {
             oracle_name,
             game_params,
             pkg_params,
+            pkg_types,
         }
         .sort(vec![])
     }

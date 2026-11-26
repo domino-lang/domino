@@ -123,7 +123,7 @@ impl Edge {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Export {
     to: usize,
     sig: OracleSig,
@@ -166,6 +166,7 @@ pub struct Composition {
     pub consts: Vec<(String, Type)>,
 
     pub invariants: Vec<String>,
+    pub type_params: Vec<String>,
 }
 
 impl Composition {

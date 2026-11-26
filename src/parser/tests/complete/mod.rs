@@ -12,19 +12,14 @@ use crate::{
         game_ident::{GameConstIdentifier, GameIdentifier},
         Identifier,
     },
+    project::configuration::test::TestProveConfiguration,
     statement::Statement,
     theorem::Claim,
     transforms::{theorem_transforms::EquivalenceTransform, TheoremTransform},
     types::{CountSpec, Type, TypeKind},
-    util::smtsolver::process::{ProcessSmtSolverBackend, SolverVariant},
     writers::smt::contexts::EquivalenceContext,
 };
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    iter::FromIterator as _,
-    sync::{Arc, RwLock},
-};
+use std::{collections::HashMap, iter::FromIterator as _};
 
 use crate::ui::mock::TestUI;
 
@@ -201,23 +196,17 @@ fn equivalence_gamehome_generates_code() {
         })
         .unwrap();
 
-    let backend = ProcessSmtSolverBackend::new(SolverVariant::Cvc5);
-    let transcript = SharedVecWriter::default();
     let project = crate::project::DirectoryProject::empty();
 
     let (theorem, auxs) = EquivalenceTransform.transform_theorem(&theorem).unwrap();
 
-    let mut eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
-    eqctx
-        .load_invariants(&project)
-        .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
+    let eqctx = EquivalenceContext::new(eq, &theorem, &auxs);
 
-    let mut driver = equivalence::EquivalenceSmtDriver::new(
-        &eqctx, &project, &backend, false, None, None, 1, false, false,
-    );
+    let driver = equivalence::EquivalenceSmtDriver::new(&eqctx, &project, &TestProveConfiguration)
+        .unwrap_or_else(|err| panic!("got error {err}."));
     driver
-        .verify(TestUI::new())
-        .unwrap_or_else(|err| panic!("got error {err}.\n\ntranscript:\n{transcript}"));
+        .verify_equivalence(TestUI::new())
+        .unwrap_or_else(|err| panic!("got error {err}."));
 }
 
 #[test]
@@ -320,7 +309,6 @@ fn theorem_const_rename() {
         &games,
     );
 }
-
 /// This is a helper for transcripts. It can be cloned, and what is written in one clone can be
 /// read in all others. It is concurrency-safe. This can be passed into the Communicator, a simple
 /// `&mut Vec<u8>` can't. a `Vec<u8>` can, but then we lose access to it. This solves that problem.

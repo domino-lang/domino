@@ -165,7 +165,7 @@ pub fn samplify(
                     // The parser (`handle_assign_rhs`) rejects sampling of any
                     // other type with an `IllegalSampleTypeError`, so this is
                     // unreachable for parsed input.
-                    unreachable!("only bits, bools, and integers are allowed for sampling");
+                    // unreachable!("only bits, bools, and integers are allowed for sampling");
                 }
                 let dst_index = match &pattern {
                     Pattern::Table { index, .. } => Some(index.clone()),

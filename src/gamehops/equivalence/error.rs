@@ -81,6 +81,13 @@ pub enum Error {
         #[related]
         failed_claims: Vec<Error>,
     },
+    #[error("Failed to prove game invariants for  {game_inst_name}")]
+    ParallelGameInvariantError {
+        game_inst_name: String,
+
+        #[related]
+        failed_claims: Vec<Error>,
+    },
     #[error("found lemma named \"{lemma_name}\". Expected name ending in the name of the oracle. followed by a closing angle bracket")]
     IllegalLemmaName { lemma_name: String },
     #[error("found lemma named \"{lemma_name}\" for oracle \"{oracle_name}\" but couldn't find matching oracle")]
@@ -99,8 +106,12 @@ pub enum Error {
         expected: String,
         equivalence: String,
     },
-    #[error("define-game-invariant only valid in game contexts: {defn}")]
-    RewriteNeedsGameContext { defn: String },
+    #[error("define-game-invariant and define-package-invariant not valid in equivalence context: {defn}")]
+    RewriteNotGameInstanceContext { defn: String },
+    #[error(
+        "define-state-relation and define-lemma not valid in game and package contexts: {defn}"
+    )]
+    RewriteNotEquivalenceContext { defn: String },
     #[error("define-package-invariant only valid in package contexts: {defn}")]
     RewriteNeedsPackageContext { defn: String },
     #[error(transparent)]

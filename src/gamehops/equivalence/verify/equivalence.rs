@@ -1,147 +1,119 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use wildcard::Wildcard;
-
-use std::io::Write;
 
 use crate::{
     gamehops::equivalence::{
-        error::{ClaimTheoremFailedError, Error, Result},
-        ResolvedClaim,
+        error::{Error, Result},
+        verify::{
+            gameinvariant::GameInvariantSmtDriver, load_equivalence_invariants, resolve_claims,
+            ClaimGroup, SmtBuf, SmtDriver,
+        },
+        ResolvedClaim, SmtStmt,
     },
     package::Export,
-    project::Project,
+    project::{configuration::ProveConfiguration, Project},
     theorem::RandomnessMappingInjectivityCheck,
-    ui::{ProveClaimUI, ProveGamehopUI, ProveInvariantStartUI, ProveOracleUI},
-    util::smtsolver::{SmtSolver, SmtSolverBackend, SmtSolverResponse},
+    ui::{ProveGamehopClaimUI, ProveGamehopInvariantStartUI, ProveGamehopOracleUI, ProveGamehopUI},
     writers::smt::{contexts::EquivalenceContext, exprs::SmtExpr},
 };
 
-pub(crate) struct EquivalenceSmtDriver<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync> {
+pub(crate) struct EquivalenceSmtDriver<
+    'a,
+    Proj: Project + Sync,
+    ProveConf: ProveConfiguration + Sync,
+> {
     eqctx: &'a EquivalenceContext<'a>,
     project: &'a Proj,
-    backend: &'a Backend,
-    transcript: bool,
-    req_oracle: Option<&'a str>,
-    req_claim: Option<Wildcard<'a>>,
-    parallel: usize,
-    invariant_start: bool,
-    injective_randmap: bool,
+    config: &'a ProveConf,
+    invariants: Vec<SmtStmt>,
+    claims: Vec<(String, Vec<ResolvedClaim>)>,
+    left_driver: GameInvariantSmtDriver<'a, Proj, ProveConf>,
+    right_driver: GameInvariantSmtDriver<'a, Proj, ProveConf>,
 }
 
-enum ClaimGroup {
-    Oracle { oracle_name: String },
-    InvariantStart,
-}
-
-impl ClaimGroup {
-    fn ui_name(&self) -> String {
-        match self {
-            Self::Oracle { oracle_name } => oracle_name.clone(),
-            Self::InvariantStart => "invariant-start".to_string(),
-        }
+impl<'a, Proj, ProveConf> SmtDriver<'a, Proj, ProveConf>
+    for EquivalenceSmtDriver<'a, Proj, ProveConf>
+where
+    Proj: Project + Sync,
+    ProveConf: ProveConfiguration + Sync,
+{
+    fn config(&self) -> &ProveConf {
+        self.config
     }
-
-    fn error_name(&self) -> String {
-        match self {
-            Self::Oracle { oracle_name } => format!("oracle {oracle_name}").to_string(),
-            Self::InvariantStart => "invariant start".to_string(),
-        }
+    fn project(&self) -> &Proj {
+        self.project
     }
+    fn transcript_file(&self, claim_group: &ClaimGroup, claim_name: &str) -> std::fs::File {
+        let eq = self.eqctx.equivalence();
+        let left_game_name = eq.left_name();
+        let right_game_name = eq.right_name();
 
-    fn file_system_name(&self) -> String {
-        match self {
-            Self::Oracle { oracle_name } => oracle_name.clone(),
-            Self::InvariantStart => "!invariant-start!".to_string(),
-        }
+        self.project()
+            .get_smt_file(
+                eq.theorem_name(),
+                &format!("{left_game_name}-{right_game_name}"),
+                &claim_group.file_system_name(),
+                claim_name,
+            )
+            .unwrap()
     }
 }
 
-#[derive(Debug, Clone)]
-struct SmtBuf<'a> {
-    slices: Vec<&'a [SmtExpr]>,
-}
-
-impl<'a> SmtBuf<'a> {
-    fn push(&mut self, slice: &'a [SmtExpr]) {
-        self.slices.push(slice);
-    }
-}
-
-impl<'a> From<&'a [SmtExpr]> for SmtBuf<'a> {
-    fn from(slice: &'a [SmtExpr]) -> Self {
-        Self {
-            slices: vec![slice],
-        }
-    }
-}
-
-impl<'a> IntoIterator for SmtBuf<'a> {
-    type Item = &'a SmtExpr;
-    type IntoIter = std::iter::Flatten<std::vec::IntoIter<&'a [SmtExpr]>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.slices.into_iter().flatten()
-    }
-}
-
-impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
-    EquivalenceSmtDriver<'a, Backend, Proj>
+impl<'a, Proj, ProveConf> EquivalenceSmtDriver<'a, Proj, ProveConf>
+where
+    Proj: Project + Sync,
+    ProveConf: ProveConfiguration + Sync,
 {
     pub(crate) fn new(
         eqctx: &'a EquivalenceContext<'a>,
         project: &'a Proj,
-        backend: &'a Backend,
-        transcript: bool,
-        req_oracle: Option<&'a str>,
-        req_claim: Option<&'a str>,
-        parallel: usize,
-        invariant_start: bool,
-        injective_randmap: bool,
-    ) -> Self {
-        let req_claim = req_claim.map(|req| Wildcard::new(req.as_bytes()).unwrap());
-        Self {
+        config: &'a ProveConf,
+    ) -> Result<Self> {
+        eqctx.verify_exports_match()?;
+
+        let invariants = load_equivalence_invariants(eqctx, project)?;
+        let claims = resolve_claims(eqctx, &invariants);
+
+        let left_driver = GameInvariantSmtDriver::new(eqctx.left_game_inst_ctx(), project, config)?;
+        let right_driver =
+            GameInvariantSmtDriver::new(eqctx.right_game_inst_ctx(), project, config)?;
+
+        Ok(Self {
             eqctx,
             project,
-            backend,
-            transcript,
-            req_oracle,
-            req_claim,
-            parallel,
-            invariant_start,
-            injective_randmap,
-        }
+            config,
+            invariants,
+            claims,
+            left_driver,
+            right_driver,
+        })
     }
 
     fn oracle_sequence(&self) -> Vec<&'a Export> {
-        self.eqctx
-            .oracle_sequence()
-            .into_iter()
-            .filter(|export| {
-                if let Some(name) = self.req_oracle {
-                    export.name() == name
-                } else {
-                    true
-                }
-            })
+        let game_inst = self
+            .eqctx
+            .theorem()
+            .find_game_instance(self.eqctx.equivalence().left_name())
+            .unwrap();
+
+        game_inst
+            .game()
+            .exports
+            .iter()
+            .filter(|export| self.config.oracle_requested(export.name()))
             .collect()
     }
 
-    fn is_claim_requested(&self, claim_name: &str) -> bool {
-        match &self.req_claim {
-            Some(req_claim) => req_claim.is_match(claim_name.as_bytes()),
-            None => true,
-        }
+    fn claims_by_oracle_name(&self, oracle_name: &str) -> Vec<ResolvedClaim> {
+        self.claims
+            .iter()
+            .find(|(name, _tree)| name == oracle_name)
+            .map(|(_oname, tree)| tree.clone())
+            .unwrap_or_else(|| panic!("can't find proof tree for {oracle_name}"))
     }
 
-    pub(crate) fn verify(&mut self, ui: impl ProveGamehopUI) -> Result<()> {
-        self.eqctx.verify_exports_match()?;
-
-        self.verify_equivalence(ui)
-    }
-
-    fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
+    pub(crate) fn verify_equivalence(&self, ui: impl ProveGamehopUI) -> Result<()> {
         let eq = self.eqctx.equivalence();
         let mut smt = Vec::new();
 
@@ -177,14 +149,20 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         );
         smt.append(&mut self.eqctx.emit_constant_declarations());
 
-        smt.append(&mut self.eqctx.emit_invariant());
+        smt.extend(
+            self.invariants
+                .iter()
+                .chain(self.left_driver.invariants.iter())
+                .chain(self.right_driver.invariants.iter())
+                .map(|stmt| stmt.expr.clone()),
+        );
 
         let equivalence_smt = SmtBuf::from(smt.as_slice());
 
         let oracle_sequence = self.oracle_sequence();
 
         let claims = rayon::ThreadPoolBuilder::new()
-            .num_threads(self.parallel)
+            .num_threads(self.config.parallel())
             .build()
             .unwrap()
             .install(|| -> Vec<Result<()>> {
@@ -197,7 +175,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     })
                     .flatten();
 
-                if self.invariant_start {
+                if self.config.invariant_start_requested() {
                     return verify_invariant_start.collect();
                 }
 
@@ -214,7 +192,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                     .map(|(oracle, ui)| self.verify_oracle(ui, &equivalence_smt, oracle))
                     .flatten();
 
-                if self.req_oracle.is_some() || self.injective_randmap {
+                if self.config.restricted_requests() {
                     return verify_oracle_claims.collect();
                 }
 
@@ -235,7 +213,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
     fn verify_invariant_start(
         &self,
-        ui: impl ProveInvariantStartUI,
+        ui: impl ProveGamehopInvariantStartUI,
         equivalence_smt: &SmtBuf,
     ) -> Vec<Result<()>> {
         let claim_group = ClaimGroup::InvariantStart;
@@ -246,20 +224,15 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut base_smt = equivalence_smt.to_owned();
         base_smt.push(initial_state_values.as_slice());
 
-        let mut checks: Vec<(String, SmtExpr)> = vec![(
+        let checks: Vec<(String, SmtExpr)> = vec![(
             "invariant".to_string(),
             self.eqctx.emit_invariant_start_assert(),
         )];
-        checks.append(
-            &mut self
-                .eqctx
-                .generate_game_or_package_invariant_start_asserts(),
-        );
 
         ui.run(|ui| {
             let checks: Vec<_> = checks
                 .iter()
-                .filter(|(claim_name, _)| self.is_claim_requested(claim_name))
+                .filter(|(claim_name, _)| self.config.claim_requested(claim_name))
                 .map(|(claim_name, assert)| {
                     let ui = ui.start_claim(claim_name);
 
@@ -282,13 +255,11 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
     fn verify_oracle(
         &self,
-        ui: impl ProveOracleUI,
+        ui: impl ProveGamehopOracleUI,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
     ) -> Vec<Result<()>> {
-        let mut claims = self.eqctx.claims_by_oracle_name(oracle.name());
-
-        claims.append(&mut self.eqctx.generate_game_or_package_invariant_claims());
+        let claims = self.claims_by_oracle_name(oracle.name());
 
         let claim_group = ClaimGroup::Oracle {
             oracle_name: oracle.name().to_string(),
@@ -299,7 +270,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
 
     fn do_verify_oracle(
         &self,
-        ui: &impl ProveOracleUI,
+        ui: &impl ProveGamehopOracleUI,
         equivalence_smt: &SmtBuf,
         oracle: &Export,
         claims: &[ResolvedClaim],
@@ -320,7 +291,7 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
         let mut tasks: Vec<_> = RandomnessMappingInjectivityCheck::ALL
             .as_slice()
             .iter()
-            .filter(|check| self.is_claim_requested(check.name()))
+            .filter(|check| self.config.claim_requested(check.name()))
             .map(|check| {
                 let claim_name = check.name();
                 let claim_smt = check.emit_randomness_mapping_injectivity_check(oracle.name());
@@ -330,14 +301,20 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
             })
             .collect();
 
-        if !self.injective_randmap {
+        if !self.config.injectivity_requested() {
             tasks.extend(
                 claims
                     .iter()
-                    .filter(|claim| !claim.is_admitted() && self.is_claim_requested(&claim.name))
+                    .filter(|claim| {
+                        !claim.is_admitted() && self.config.claim_requested(&claim.name)
+                    })
                     .map(|claim| {
-                        let claim_smt =
-                            vec![self.eqctx.emit_oracle_claim_assert(claim, oracle.name())];
+                        let claim_smt = vec![self.eqctx.emit_oracle_claim_assert(
+                            claim,
+                            oracle.name(),
+                            &self.left_driver.invariants,
+                            &self.right_driver.invariants,
+                        )];
                         let ui = ui.start_claim(claim);
 
                         (claim.name(), claim_smt, ui)
@@ -354,63 +331,5 @@ impl<'a, Backend: SmtSolverBackend + Sync, Proj: Project + Sync>
                 ui.run(|| self.verify_with_solver(smt, claim_group, name))
             })
             .collect()
-    }
-
-    fn verify_with_solver(
-        &self,
-        smt: SmtBuf,
-        claim_group: &ClaimGroup,
-        claim_name: &str,
-    ) -> Result<()> {
-        let eq = self.eqctx.equivalence();
-        let mut solver = {
-            if self.transcript {
-                let transcript_file: std::fs::File = self
-                    .project
-                    .get_smt_file(
-                        eq.theorem_name(),
-                        eq.left_name(),
-                        eq.right_name(),
-                        &claim_group.file_system_name(),
-                        claim_name,
-                    )
-                    .unwrap();
-
-                self.backend.new_smtsolver_with_transcript(transcript_file)
-            } else {
-                self.backend.new_smtsolver()
-            }
-        }
-        .map_err(|err| Error::prover_process_error(claim_name, &claim_group.error_name(), err))?;
-        std::thread::sleep(std::time::Duration::from_millis(20));
-
-        for entry in smt {
-            solver.write_smt(entry.clone()).map_err(|err| {
-                Error::prover_process_error(claim_name, &claim_group.error_name(), err)
-            })?;
-        }
-
-        match solver.check_sat().map_err(|err| {
-            Error::prover_process_error(claim_name, &claim_group.error_name(), err)
-        })? {
-            SmtSolverResponse::Unsat => Ok(()),
-            response => {
-                let modelfile = solver.get_model().map(|(modelstring, _model)| {
-                    let mut modelfile =
-                        tempfile::Builder::new().suffix(".smt2").tempfile().unwrap();
-                    modelfile.write_all(modelstring.as_bytes()).unwrap();
-                    let (_, fname) = modelfile.keep().unwrap();
-                    fname
-                });
-                solver.close();
-                Err(ClaimTheoremFailedError {
-                    claim_name: claim_name.to_string(),
-                    claim_group_name: claim_group.error_name(),
-                    response,
-                    modelfile,
-                }
-                .into())
-            }
-        }
     }
 }

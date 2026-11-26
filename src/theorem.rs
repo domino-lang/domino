@@ -6,11 +6,13 @@ use crate::{
         reduction::{Assumption, Reduction},
         GameHop,
     },
-    identifier::game_ident::GameConstIdentifier,
+    identifier::{
+        game_ident::GameConstIdentifier, theorem_ident::TheoremConstIdentifier, Identifier,
+    },
     package::{Composition, Edge, Export, Package},
-    packageinstance::instantiate::InstantiationContext,
+    packageinstance::{game_inst_type_mapping_vec, instantiate::InstantiationContext},
     proof::Proof,
-    types::Type,
+    types::{CountSpec, Type, TypeKind},
 };
 
 ////////////////////////////////////////////////////
@@ -108,11 +110,66 @@ mod instantiate {
             })
             .collect();
 
+        let new_types = pkg_inst
+            .types
+            .into_iter()
+            .map(|(n, t)| (n, inst_ctx.rewrite_type(t)))
+            .collect();
         PackageInstance {
             pkg,
             params: new_params,
+            types: new_types,
             ..pkg_inst
         }
+    }
+}
+
+impl From<Composition> for GameInstance {
+    fn from(comp: Composition) -> Self {
+        let game_inst_name = comp.name.to_string();
+        let theorem_name = comp.name.to_string();
+
+        fn thm_ident(thm_name: &str, name: &str, ty: &Type) -> TheoremConstIdentifier {
+            TheoremConstIdentifier {
+                theorem_name: thm_name.to_string(),
+                name: name.to_string(),
+                ty: ty.clone(),
+                inst_info: None,
+            }
+        }
+
+        let params = comp
+            .consts
+            .iter()
+            .map(|(name, ty)| {
+                let ty = ty.map(|ty| match ty.kind() {
+                    TypeKind::Bits(CountSpec::Identifier(id)) => {
+                        Type::from_kind(TypeKind::Bits(CountSpec::Identifier(Box::new(
+                            thm_ident(&theorem_name, &id.ident(), &id.get_type()).into(),
+                        ))))
+                    }
+                    _ => ty,
+                });
+
+                let thmident = thm_ident(&theorem_name, name, &ty);
+
+                let value: Expression = Identifier::TheoremIdentifier(thmident.into()).into();
+                (
+                    GameConstIdentifier {
+                        game_name: comp.name().to_string(),
+                        name: name.clone(),
+                        ty,
+                        assigned_value: Some(Box::new(value.clone())),
+                        inst_info: None,
+                        game_inst_name: Some(game_inst_name.clone()),
+                        theorem_name: Some(theorem_name.clone()),
+                    },
+                    value,
+                )
+            })
+            .collect();
+
+        GameInstance::new(game_inst_name, theorem_name, comp, Vec::new(), params)
     }
 }
 
@@ -124,10 +181,12 @@ impl GameInstance {
         types: Vec<(String, Type)>,
         params: Vec<(GameConstIdentifier, Expression)>,
     ) -> GameInstance {
+        let rewrite_types = game_inst_type_mapping_vec(&types);
         let inst_ctx: InstantiationContext = InstantiationContext::new_game_instantiation_context(
             &game_inst_name,
             &theorem_name,
             &params,
+            &rewrite_types,
         );
 
         let new_pkg_instances = game
@@ -176,6 +235,9 @@ impl GameInstance {
             edges: new_edges,
             exports: new_exports,
             invariants: game.invariants.clone(),
+
+            // XXX: This probably needs rewriting
+            type_params: game.type_params,
         };
 
         GameInstance {
@@ -193,7 +255,7 @@ impl GameInstance {
         }
     }
 
-    pub(crate) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         &self.name
     }
 
@@ -264,6 +326,7 @@ impl RandomnessMappingInjectivityCheck {
 #[derive(Clone, Debug)]
 pub struct Theorem<'a> {
     pub name: String,
+    pub types: Vec<String>,
     pub consts: Vec<(String, Type)>,
     pub instances: Vec<GameInstance>,
     pub assumptions: Vec<Assumption>,

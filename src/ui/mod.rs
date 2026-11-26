@@ -6,25 +6,15 @@ use crate::{
         GameHop,
     },
     package::Export,
+    theorem::{GameInstance, Theorem},
 };
 
 #[cfg(test)]
 pub(crate) mod mock;
 
-pub trait UI {
-    type ProofstepUI: ProofstepUI;
-    type ProveUI: ProveUI;
-    type LatexUI: LatexUI;
-
-    fn println(&self, line: &str) -> std::io::Result<()>;
-
-    fn proofstep_ui(&self) -> Self::ProofstepUI;
-    fn prove_ui(&self) -> Self::ProveUI;
-    fn latex_ui(&self) -> Self::LatexUI;
-}
-
 pub trait ProveUI {
     type ProveTheoremUI: ProveTheoremUI;
+    type ProveGamesUI: ProveGamesUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
@@ -32,6 +22,19 @@ pub trait ProveUI {
     fn finish(&self);
 
     fn start_theorem(&self, theorem_name: &str) -> Self::ProveTheoremUI;
+    fn start_games(&self) -> Self::ProveGamesUI;
+}
+
+pub trait ProveGamesUI {
+    type ProveGameUI: ProveGameUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn start(&mut self);
+    fn skip(&self);
+    fn finish(&self);
+
+    fn start_game(&self, game: &GameInstance) -> Self::ProveGameUI;
 }
 
 pub trait ProveTheoremUI {
@@ -40,14 +43,25 @@ pub trait ProveTheoremUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn start(&mut self);
-    fn finish(&self);
+    fn skip(&self);
+    fn finish(&self, theorem: &Theorem);
 
     fn start_gamehop(&self, gamehop: &GameHop) -> Self::ProveGamehopUI;
 }
 
+pub trait ProveGameUI: Sync {
+    type ProveGameClaimUI: ProveGameClaimUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn run(self, fun: impl FnOnce(&Self) -> Result<()>) -> Result<()>;
+
+    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveGameClaimUI;
+}
+
 pub trait ProveGamehopUI: Sync {
-    type ProveOracleUI: ProveOracleUI;
-    type ProveInvariantStartUI: ProveInvariantStartUI;
+    type ProveGamehopOracleUI: ProveGamehopOracleUI;
+    type ProveGamehopInvariantStartUI: ProveGamehopInvariantStartUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
@@ -56,38 +70,62 @@ pub trait ProveGamehopUI: Sync {
     fn start(&mut self);
     fn finish(&self);
 
-    fn start_oracle(&self, oracle: &Export) -> Self::ProveOracleUI;
-    fn start_invariant_start(&self, start: String) -> Self::ProveInvariantStartUI;
+    fn start_oracle(&self, oracle: &Export) -> Self::ProveGamehopOracleUI;
+    fn start_invariant_start(&self, start: String) -> Self::ProveGamehopInvariantStartUI;
 }
 
-pub trait ProveOracleUI: Send + Sync {
-    type ProveClaimUI: ProveClaimUI;
+pub trait ProveGameClaimUI: Send + Sync {
+    type ProveGameOracleUI: ProveGameOracleUI;
+    type ProveGameInvariantStartUI: ProveGameInvariantStartUI;
 
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn run(self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>>;
 
-    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveClaimUI;
-    fn start_injectivity(&self, claim: &str) -> Self::ProveClaimUI;
+    fn start_oracle(&self, oracle: &Export) -> Self::ProveGameOracleUI;
+    fn start_invariant_start(&self) -> Self::ProveGameInvariantStartUI;
 }
 
-pub trait ProveInvariantStartUI: Send + Sync {
-    type ProveClaimUI: ProveClaimUI;
-
-    fn println(&self, line: &str) -> std::io::Result<()>;
-
-    fn run(self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>>;
-
-    fn start_claim(&self, claim_name: &str) -> Self::ProveClaimUI;
-}
-
-pub trait ProveClaimUI: Send + Sync {
+pub trait ProveGameInvariantStartUI: Send + Sync {
     fn println(&self, line: &str) -> std::io::Result<()>;
 
     fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()>;
 }
 
-pub trait ProofstepUI {
+pub trait ProveGameOracleUI: Send + Sync {
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()>;
+}
+
+pub trait ProveGamehopOracleUI: Send + Sync {
+    type ProveGamehopClaimUI: ProveGamehopClaimUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn run(self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>>;
+
+    fn start_claim(&self, claim: &ResolvedClaim) -> Self::ProveGamehopClaimUI;
+    fn start_injectivity(&self, claim: &str) -> Self::ProveGamehopClaimUI;
+}
+
+pub trait ProveGamehopInvariantStartUI: Send + Sync {
+    type ProveGamehopClaimUI: ProveGamehopClaimUI;
+
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn run(self, fun: impl FnOnce(&Self) -> Vec<Result<()>>) -> Vec<Result<()>>;
+
+    fn start_claim(&self, claim_name: &str) -> Self::ProveGamehopClaimUI;
+}
+
+pub trait ProveGamehopClaimUI: Send + Sync {
+    fn println(&self, line: &str) -> std::io::Result<()>;
+
+    fn run(self, fun: impl FnOnce() -> Result<()>) -> Result<()>;
+}
+
+pub trait GamehopUI {
     fn println(&self, line: &str) -> std::io::Result<()>;
 }
 
